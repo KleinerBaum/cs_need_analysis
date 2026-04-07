@@ -10,6 +10,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type
@@ -317,10 +318,62 @@ def _error_from_openai_exception(exc: Exception, *, endpoint: str) -> OpenAICall
     """Convert SDK exceptions into concise, user-safe app errors."""
     status_code = getattr(exc, "status_code", None)
 
+    def _extract_api_error_message() -> str:
+        """Extract nested API error messages from OpenAI SDK exceptions."""
+
+        body = getattr(exc, "body", None)
+        if isinstance(body, dict):
+            error_obj = body.get("error")
+            if isinstance(error_obj, dict):
+                message = error_obj.get("message")
+                if isinstance(message, str):
+                    return message
+            elif isinstance(error_obj, str):
+                return error_obj
+            message = body.get("message")
+            if isinstance(message, str):
+                return message
+
+        error_attr = getattr(exc, "error", None)
+        if isinstance(error_attr, dict):
+            message = error_attr.get("message")
+            if isinstance(message, str):
+                return message
+
+        return ""
+
+    def _sanitize_api_message(message: str, *, max_len: int = 200) -> str:
+        """Mask likely sensitive fragments and keep message compact."""
+
+        collapsed = " ".join(message.split())
+        redacted = re.sub(
+            r"(?i)\b(sk-[A-Za-z0-9_-]{8,})\b", "[redacted-key]", collapsed
+        )
+        redacted = re.sub(
+            r"(?i)\bbearer\s+[A-Za-z0-9._-]+", "Bearer [redacted]", redacted
+        )
+        redacted = re.sub(
+            r"(?i)\b(api[_-]?key|token|secret|password)\s*[:=]\s*[^,;\s]+",
+            r"\1=[redacted]",
+            redacted,
+        )
+
+        if len(redacted) <= max_len:
+            return redacted
+        return f"{redacted[: max_len - 1].rstrip()}…"
+
+    api_message_raw = _extract_api_error_message()
+    api_message_sanitized = (
+        _sanitize_api_message(api_message_raw) if api_message_raw else ""
+    )
+    api_message_norm = api_message_sanitized.lower()
+
     def _debug_detail() -> str:
         details = [f"endpoint={endpoint}", f"exception={type(exc).__name__}"]
         if status_code is not None:
             details.append(f"status_code={status_code}")
+        if api_message_sanitized:
+            details.append(f"api_message={api_message_sanitized}")
         return ", ".join(details)
 
     if isinstance(exc, (APITimeoutError, TimeoutError)):
@@ -331,21 +384,23 @@ def _error_from_openai_exception(exc: Exception, *, endpoint: str) -> OpenAICall
         )
 
     if isinstance(exc, APIStatusError) and exc.status_code == 400:
-        body = getattr(exc, "body", {}) or {}
-        message = ""
-        if isinstance(body, dict):
-            error_obj = body.get("error", {})
-            if isinstance(error_obj, dict):
-                message = str(error_obj.get("message", "")).lower()
         unsupported_hint = (
-            "unsupported" in message
-            or "unknown parameter" in message
-            or "not allowed" in message
+            "unsupported parameter" in api_message_norm
+            or "unknown parameter" in api_message_norm
+            or "not allowed" in api_message_norm
+            or "invalid type" in api_message_norm
+        )
+        model_not_found_hint = (
+            "model not found" in api_message_norm or "unknown model" in api_message_norm
         )
         ui_message = (
-            "Nicht unterstützter OpenAI-Parameter (DE) / Unsupported OpenAI parameter (EN)."
-            if unsupported_hint
-            else "Ungültige OpenAI-Parameter (DE) / Invalid OpenAI parameters (EN)."
+            "OpenAI-Modell nicht gefunden (DE) / OpenAI model not found (EN)."
+            if model_not_found_hint
+            else (
+                "Nicht unterstützter OpenAI-Parameter (DE) / Unsupported OpenAI parameter (EN)."
+                if unsupported_hint
+                else "Ungültige OpenAI-Parameter (DE) / Invalid OpenAI parameters (EN)."
+            )
         )
         return OpenAICallError(
             ui_message,

@@ -39,6 +39,8 @@ def test_openai_400_maps_to_incompatible_parameter_message() -> None:
     mapped = _error_from_openai_exception(err, endpoint="responses.parse")
     assert "invalid openai parameters" in mapped.ui_message.lower()
     assert mapped.error_code == "OPENAI_BAD_REQUEST"
+    assert mapped.debug_detail is not None
+    assert "api_message=invalid_request_error" in mapped.debug_detail
 
 
 def test_openai_400_unsupported_parameter_maps_precisely() -> None:
@@ -52,6 +54,20 @@ def test_openai_400_unsupported_parameter_maps_precisely() -> None:
 
     mapped = _error_from_openai_exception(err, endpoint="responses.parse")
     assert "unsupported openai parameter" in mapped.ui_message.lower()
+    assert mapped.error_code == "OPENAI_BAD_REQUEST"
+
+
+def test_openai_400_model_not_found_maps_precisely() -> None:
+    request = httpx.Request("POST", "https://api.openai.com/v1/responses")
+    response = httpx.Response(status_code=400, request=request)
+    err = APIStatusError(
+        "bad request",
+        response=response,
+        body={"error": {"message": "model not found: gpt-4x"}},
+    )
+
+    mapped = _error_from_openai_exception(err, endpoint="responses.parse")
+    assert "model not found" in mapped.ui_message.lower()
     assert mapped.error_code == "OPENAI_BAD_REQUEST"
 
 
