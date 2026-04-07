@@ -63,8 +63,12 @@ Das Repo enthält einen kleinen Smoke-Test unter `scripts/openai_smoke_test.py`.
 ### Ziel
 
 - Führt `extract_job_ad` mit einem kurzen Sample-Text aus.
-- Zeigt das aufgelöste Modell, die sanitisierten Request-Parameter, das Response-Modell, Usage und den Parse-Status.
+- Trennt klar zwischen:
+  - `configured_mode` (statische Testkonfiguration)
+  - `effective_request_kwargs` (tatsächlich capability-gefilterte Request-Parameter)
+  - `actual_response_metadata` (echte SDK-Metadaten wie `response_model_id`, `usage`, `parse_status`)
 - Gibt keine Secrets (`OPENAI_API_KEY`) aus.
+- Endet bei Fehlern mit **non-zero Exit Code** (CI-tauglich).
 
 ### Abgedeckte Modi
 
@@ -78,6 +82,24 @@ Das Repo enthält einen kleinen Smoke-Test unter `scripts/openai_smoke_test.py`.
 ```bash
 export OPENAI_API_KEY="sk-..."  # nur lokal setzen, nie committen
 python scripts/openai_smoke_test.py --mode all
+```
+
+Für CI/Maschinen-Ausgabe:
+
+```bash
+python scripts/openai_smoke_test.py --mode all --json-only
+```
+
+Fail-Fast (bei erstem Fehler abbrechen):
+
+```bash
+python scripts/openai_smoke_test.py --mode all --fail-fast
+```
+
+Dry-Run für CI ohne Key (validiert nur Request-Kwargs):
+
+```bash
+python scripts/openai_smoke_test.py --mode all --ci-dry-run-if-no-key --json-only
 ```
 
 Optional einzelne Modi:
@@ -94,3 +116,8 @@ python scripts/openai_smoke_test.py --mode gpt-5-nano
 - `invalid_type`/`invalid_request_error`: z. B. falscher Typ in `reasoning`, `text.verbosity` oder fehlerhafte Struktur im Request-Body.
 
 Der Smoke-Test zeigt die tatsächlich gebauten `request_kwargs`, damit sich diese Fälle schnell eingrenzen lassen.
+
+### Hinweis zu Konfigurationsquellen (Secrets vs. Env)
+
+Die App-Konfiguration nutzt dieselbe Priorität wie `settings_openai.py`: `st.secrets` (inkl. `openai`-Namespace) kann Umgebungsvariablen überschreiben.  
+Für verlässliche lokale Verifikation daher nicht nur auf Env-Mutation verlassen, sondern die effektiven Request-Kwargs/Metadaten im Smoke-Test prüfen.

@@ -1,9 +1,9 @@
-"""Kleiner Smoke-Test für die OpenAI-Integration (extract_job_ad).
+"""Smoke-Test für die OpenAI-Integration (extract_job_ad).
 
-Führt zwei vordefinierte Modi aus und zeigt:
-- aufgelöstes Modell
-- gesendete Request-Parameter (sanitisiert)
-- Response-Metadaten (Usage, Parse-Status)
+Der Test trennt klar zwischen:
+- configured_mode: statische Testkonfiguration
+- effective_request_kwargs: tatsächlich gesendete/simulierte Request-Parameter
+- actual_response_metadata: echte SDK-Antwortmetadaten
 
 Keine Secrets werden ausgegeben.
 """
@@ -13,14 +13,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from dataclasses import dataclass
+from pathlib import Path
+import sys
+from dataclasses import asdict, dataclass
 from typing import Any
 
-from llm_client import (
-    build_extract_job_ad_messages,
-    build_responses_request_kwargs,
-    extract_job_ad,
-)
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 SAMPLE_JOB_TEXT = (
     "Wir suchen eine:n Python Data Analyst (m/w/d) in Berlin. "
@@ -59,6 +59,17 @@ SMOKE_MODES: dict[str, SmokeMode] = {
 }
 
 
+@dataclass(frozen=True)
+class ModeResult:
+    """Serializable outcome for one smoke mode."""
+
+    mode: str
+    configured_mode: dict[str, Any]
+    effective_request_kwargs: dict[str, Any]
+    actual_response_metadata: dict[str, Any]
+    fields_preview: dict[str, Any] | None
+
+
 def _usage_to_dict(usage: Any) -> dict[str, Any] | None:
     if usage is None:
         return None
@@ -69,68 +80,73 @@ def _usage_to_dict(usage: Any) -> dict[str, Any] | None:
     return {"repr": repr(usage)}
 
 
-def _set_runtime_env(mode: SmokeMode) -> dict[str, str | None]:
-    previous: dict[str, str | None] = {
-        "REASONING_EFFORT": os.getenv("REASONING_EFFORT"),
-        "VERBOSITY": os.getenv("VERBOSITY"),
-    }
-    os.environ["REASONING_EFFORT"] = mode.reasoning_effort
-    os.environ["VERBOSITY"] = mode.verbosity
-    return previous
+def _looks_like_api_key(text: str | None) -> bool:
+    return bool(text and text.strip().startswith("sk-"))
 
 
-def _restore_runtime_env(previous: dict[str, str | None]) -> None:
-    for key, value in previous.items():
-        if value is None:
-            os.environ.pop(key, None)
-        else:
-            os.environ[key] = value
+def _has_api_key() -> bool:
+    return _looks_like_api_key(os.getenv("OPENAI_API_KEY"))
 
 
-def run_mode(mode: SmokeMode) -> dict[str, Any]:
+def run_mode(mode: SmokeMode, *, dry_run: bool) -> ModeResult:
     """Execute one API smoke run and return a safe report payload."""
+    from openai import OpenAI
+    from llm_client import build_extract_job_ad_messages, build_responses_request_kwargs
+    from schemas import JobAdExtract
 
-    previous = _set_runtime_env(mode)
-    try:
-        request_kwargs = build_responses_request_kwargs(
-            model=mode.model,
-            store=False,
-            maybe_temperature=mode.temperature,
-            reasoning_effort=mode.reasoning_effort,
-            verbosity=mode.verbosity,
-        )
+    request_kwargs = build_responses_request_kwargs(
+        model=mode.model,
+        store=False,
+        maybe_temperature=mode.temperature,
+        reasoning_effort=mode.reasoning_effort,
+        verbosity=mode.verbosity,
+    )
 
-        parsed, usage = extract_job_ad(
-            SAMPLE_JOB_TEXT,
-            model=mode.model,
-            store=False,
-            temperature=mode.temperature,
-        )
-
-        return {
-            "mode": mode.name,
-            "resolved_model": mode.model,
-            "request_kwargs": request_kwargs,
-            "response_model": type(parsed).__name__,
-            "parse_status": "ok" if parsed is not None else "empty",
-            "usage": _usage_to_dict(usage),
-            "fields_preview": {
-                "job_title": parsed.job_title,
-                "location_city": parsed.location_city,
-                "must_have_skills_count": len(parsed.must_have_skills),
+    if dry_run:
+        return ModeResult(
+            mode=mode.name,
+            configured_mode=asdict(mode),
+            effective_request_kwargs=request_kwargs,
+            actual_response_metadata={
+                "parse_status": "dry_run",
+                "response_model_id": None,
+                "usage": None,
             },
+            fields_preview=None,
+        )
+
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    if not hasattr(client, "responses") or not hasattr(client.responses, "parse"):
+        raise RuntimeError("OpenAI SDK does not provide responses.parse(...).")
+
+    messages = build_extract_job_ad_messages(SAMPLE_JOB_TEXT, language="de")
+    response = client.responses.parse(
+        input=messages,
+        text_format=JobAdExtract,
+        **request_kwargs,
+    )
+
+    parsed = response.output_parsed
+    parse_status = "ok" if parsed is not None else "empty"
+
+    return ModeResult(
+        mode=mode.name,
+        configured_mode=asdict(mode),
+        effective_request_kwargs=request_kwargs,
+        actual_response_metadata={
+            "response_id": getattr(response, "id", None),
+            "response_model_id": getattr(response, "model", None),
+            "usage": _usage_to_dict(getattr(response, "usage", None)),
+            "parse_status": parse_status,
+        },
+        fields_preview={
+            "job_title": parsed.job_title,
+            "location_city": parsed.location_city,
+            "must_have_skills_count": len(parsed.must_have_skills),
         }
-    except Exception as exc:  # noqa: BLE001 - smoke-report should surface raw error
-        return {
-            "mode": mode.name,
-            "resolved_model": mode.model,
-            "request_kwargs": request_kwargs,
-            "parse_status": "error",
-            "error_type": type(exc).__name__,
-            "error": str(exc),
-        }
-    finally:
-        _restore_runtime_env(previous)
+        if parsed is not None
+        else None,
+    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -141,25 +157,109 @@ def parse_args() -> argparse.Namespace:
         default="all",
         help="Smoke mode to run (default: all)",
     )
+    parser.add_argument(
+        "--fail-fast",
+        action="store_true",
+        help="Stop after the first failing mode and return non-zero.",
+    )
+    parser.add_argument(
+        "--json-only",
+        action="store_true",
+        help="Print only JSON output (CI-friendly).",
+    )
+    parser.add_argument(
+        "--ci-dry-run-if-no-key",
+        action="store_true",
+        help=(
+            "If no OPENAI_API_KEY is available, only validate request kwargs "
+            "without performing API calls."
+        ),
+    )
     return parser.parse_args()
 
 
-def main() -> None:
-    args = parse_args()
+def _result_failed(result: ModeResult) -> bool:
+    return result.actual_response_metadata.get("parse_status") == "error"
 
+
+def main() -> None:
+    from llm_client import build_extract_job_ad_messages, build_responses_request_kwargs
+
+    args = parse_args()
     selected_modes = (
         list(SMOKE_MODES.values()) if args.mode == "all" else [SMOKE_MODES[args.mode]]
     )
 
+    api_key_available = _has_api_key()
+    dry_run = args.ci_dry_run_if_no_key and not api_key_available
+
+    summary: list[dict[str, Any]] = []
+    had_failure = False
+
+    for mode in selected_modes:
+        try:
+            result = run_mode(mode, dry_run=dry_run)
+        except Exception as exc:  # noqa: BLE001
+            had_failure = True
+            error_result = ModeResult(
+                mode=mode.name,
+                configured_mode=asdict(mode),
+                effective_request_kwargs=build_responses_request_kwargs(
+                    model=mode.model,
+                    store=False,
+                    maybe_temperature=mode.temperature,
+                    reasoning_effort=mode.reasoning_effort,
+                    verbosity=mode.verbosity,
+                ),
+                actual_response_metadata={
+                    "parse_status": "error",
+                    "error_type": type(exc).__name__,
+                    "error": str(exc),
+                    "response_model_id": None,
+                    "usage": None,
+                },
+                fields_preview=None,
+            )
+            summary.append(asdict(error_result))
+            if args.fail_fast:
+                break
+            continue
+
+        if _result_failed(result):
+            had_failure = True
+            if args.fail_fast:
+                summary.append(asdict(result))
+                break
+
+        summary.append(asdict(result))
+
     report = {
         "sample_text_chars": len(SAMPLE_JOB_TEXT),
-        "modes": [run_mode(mode) for mode in selected_modes],
+        "api_key_available": api_key_available,
+        "dry_run": dry_run,
+        "notes": [
+            "Configured mode values are explicit test inputs.",
+            "Effective request kwargs show capability-filtered request payload.",
+            "Actual response metadata comes from OpenAI SDK response objects.",
+            "st.secrets/openai secrets can override environment variables in app runtime; env mutation alone may not reflect effective app config.",
+        ],
+        "modes": summary,
         "message_template_preview": build_extract_job_ad_messages(
             "<sample>",
             language="de",
         ),
     }
-    print(json.dumps(report, indent=2, ensure_ascii=False))
+
+    if args.json_only:
+        print(json.dumps(report, ensure_ascii=False))
+    else:
+        print(
+            f"Smoke test completed: modes={len(summary)}, failures={'yes' if had_failure else 'no'}, dry_run={dry_run}"
+        )
+        print(json.dumps(report, indent=2, ensure_ascii=False))
+
+    if had_failure:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
