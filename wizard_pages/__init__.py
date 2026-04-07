@@ -38,7 +38,9 @@ def load_pages() -> List[WizardPage]:
         elif hasattr(mod, "get_page"):
             page = mod.get_page()
         else:
-            raise RuntimeError(f"Wizard page {p.name} must define `PAGE` or `get_page()`.")
+            raise RuntimeError(
+                f"Wizard page {p.name} must define `PAGE` or `get_page()`."
+            )
         if not isinstance(page, WizardPage):
             raise TypeError(f"{p.name}: PAGE must be a WizardPage, got {type(page)}")
         pages.append(page)

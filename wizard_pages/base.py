@@ -74,7 +74,9 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
     return current_page
 
 
-def nav_buttons(ctx: WizardContext, *, disable_next: bool = False, disable_prev: bool = False) -> None:
+def nav_buttons(
+    ctx: WizardContext, *, disable_next: bool = False, disable_prev: bool = False
+) -> None:
     c1, c2, c3 = st.columns([1, 1, 3])
     with c1:
         back_clicked = st.button("← Zurück", disabled=disable_prev)
