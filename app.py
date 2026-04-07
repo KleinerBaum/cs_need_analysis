@@ -208,12 +208,36 @@ def _render_legal_page(legal_page_key: str) -> None:
             before operational use. This tool is provided “as is”, without warranties of
             merchantability, fitness for a particular purpose, or uninterrupted availability.
 
+            **Content Sharing Agreement (OpenAI):**
+            If your organization enables designated content sharing with OpenAI, designated
+            content may be used by OpenAI for service improvement and model development
+            (including training, evaluation, and testing). You confirm that your organization
+            has all required rights and that End Users were informed and, where required,
+            consent was obtained before data is shared for these purposes.
+
+            You and your End Users must not submit:
+            - sensitive/confidential/proprietary information that must not be used for development,
+            - HIPAA Protected Health Information (PHI),
+            - personal data of children under 13 (or below the local digital consent age).
+
             ### DE
             Mit der Nutzung dieser Anwendung stimmen Sie zu, sie ausschließlich für rechtmäßige
             geschäftliche Zwecke zu verwenden. Sie sind für alle eingegebenen Daten verantwortlich
             und müssen generierte Ergebnisse vor dem produktiven Einsatz prüfen. Das Tool wird
             „wie besehen“ bereitgestellt, ohne Gewähr für Marktgängigkeit, Eignung für einen
             bestimmten Zweck oder unterbrechungsfreie Verfügbarkeit.
+
+            **Content Sharing Agreement (OpenAI):**
+            Falls Ihre Organisation die Freigabe von Designated Content an OpenAI aktiviert,
+            kann dieser zur Verbesserung der Services und zur Modellentwicklung (u. a. Training,
+            Evaluierung und Tests) verwendet werden. Sie bestätigen, dass Ihre Organisation über
+            alle erforderlichen Rechte verfügt und Endnutzende informiert wurden und – sofern
+            erforderlich – eine Einwilligung eingeholt wurde.
+
+            Sie und Ihre Endnutzenden dürfen insbesondere **nicht** übermitteln:
+            - sensible/vertrauliche/proprietäre Informationen, die nicht für Entwicklungszwecke genutzt werden sollen,
+            - HIPAA-geschützte Gesundheitsdaten (PHI),
+            - personenbezogene Daten von Kindern unter 13 Jahren (bzw. unter dem lokal geltenden Mindestalter).
             """
         )
     elif legal_page_key == "privacy":
@@ -226,11 +250,21 @@ def _render_legal_page(legal_page_key: str) -> None:
             Access credentials are loaded from secure environment variables or secrets and
             should never be exposed in logs.
 
+            If content sharing for development purposes is enabled by your organization owner,
+            designated content may be processed by OpenAI as an independent Data Controller for
+            model and service improvement. The organization is responsible for end-user notice
+            and consent collection where required.
+
             ### DE
             Diese App verarbeitet von Nutzenden bereitgestellte Inhalte, um Recruiting-bezogene
             Ausgaben zu erzeugen. Geben Sie keine sensiblen personenbezogenen Daten ein, sofern
             dafür keine Berechtigung vorliegt. Zugangsdaten werden aus sicheren Umgebungsvariablen
             oder Secrets geladen und dürfen niemals in Logs erscheinen.
+
+            Falls Content Sharing für Entwicklungszwecke durch den Organisations-Owner aktiviert
+            ist, kann Designated Content durch OpenAI als eigenständiger Data Controller zur
+            Modell- und Serviceverbesserung verarbeitet werden. Die Organisation ist für
+            Endnutzerhinweise und ggf. erforderliche Einwilligungen verantwortlich.
             """
         )
 

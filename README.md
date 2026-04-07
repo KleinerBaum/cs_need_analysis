@@ -23,6 +23,8 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 - Optionaler Debug-Expander in der Sidebar (nur bei aktiviertem Debug-Flag) zeigt ausschließlich aufgelöste OpenAI-Laufzeitwerte an (`model`, `default_model`, `reasoning_effort`, `verbosity`, `timeout`) und blendet Secrets aus.
 - Der Debug-Expander zeigt zusätzlich sichere Provenance-Metadaten (`*_source`), den Status eines UI-Session-Overrides sowie task-spezifisch aufgelöste Modelle (`extract_job_ad`, `generate_question_plan`, `generate_vacancy_brief`) ohne Secret-Werte.
 - Neue rechtliche Unterseiten sind über Links am unteren Ende der Sidebar erreichbar: **Terms of Service / Nutzungsbedingungen** und **Privacy Policy / Datenschutzerklärung**.
+- Startseite enthält jetzt eine verpflichtende **Einwilligungsbestätigung / consent confirmation** zum OpenAI Content Sharing Agreement; der Start-Button bleibt bis zur Bestätigung gesperrt.
+- Terms und Privacy erklären jetzt zusätzlich zweisprachig (DE/EN) die Pflichten rund um Designated Content, Notice/Consent sowie ausgeschlossene Datenkategorien (u. a. PHI, Daten von Kindern <13).
 
 ## Installation
 

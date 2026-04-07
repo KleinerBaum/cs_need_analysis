@@ -47,6 +47,7 @@ def init_session_state() -> None:
         SSKey.BRIEF.value: None,
         SSKey.LAST_ERROR.value: None,
         SSKey.DEBUG.value: False,
+        SSKey.CONTENT_SHARING_CONSENT.value: False,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
