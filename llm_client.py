@@ -12,10 +12,11 @@ from typing import Any, Dict, List, Optional, Tuple, Type
 
 import streamlit as st
 from openai import OpenAI
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
 from constants import DEFAULT_LANGUAGE
 from schemas import JobAdExtract, QuestionPlan, VacancyBrief
+from settings_openai import load_openai_settings
 
 
 @st.cache_resource
@@ -26,15 +27,14 @@ def get_openai_client() -> OpenAI:
     1) st.secrets["OPENAI_API_KEY"] (common in Streamlit deployments)
     2) Environment variable OPENAI_API_KEY (local dev / CI)
     """
-    api_key = None
-    try:
-        api_key = st.secrets.get("OPENAI_API_KEY")  # type: ignore[attr-defined]
-    except Exception:
-        api_key = None
+    settings = load_openai_settings()
 
-    if api_key:
-        return OpenAI(api_key=api_key)
-    return OpenAI()
+    if settings.openai_api_key:
+        return OpenAI(
+            api_key=settings.openai_api_key,
+            timeout=settings.openai_request_timeout,
+        )
+    return OpenAI(timeout=settings.openai_request_timeout)
 
 
 def _safe_hash(text: str, n: int = 10) -> str:
@@ -188,6 +188,7 @@ def normalize_question_plan(plan: QuestionPlan) -> QuestionPlan:
 
 def re_slugify(s: str) -> str:
     import re
+
     s = s.strip().lower()
     s = re.sub(r"[^a-z0-9_\-]+", "_", s)
     s = re.sub(r"_+", "_", s).strip("_")
