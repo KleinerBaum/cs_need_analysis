@@ -20,6 +20,64 @@ from schemas import JobAdExtract, QuestionPlan, VacancyBrief
 from settings_openai import OpenAISettings, load_openai_settings
 
 
+def is_gpt5_legacy_model(model: str) -> bool:
+    """Return ``True`` for the legacy GPT-5 model names without the 5.4 API shape."""
+
+    normalized = model.strip().lower()
+    return normalized in {"gpt-5", "gpt-5-mini", "gpt-5-nano"}
+
+
+def is_gpt54_family(model: str) -> bool:
+    """Return ``True`` for the GPT-5.4 family (including dated variants)."""
+
+    normalized = model.strip().lower()
+    return normalized.startswith("gpt-5.4")
+
+
+def normalize_reasoning_effort(model: str, effort: str | None) -> str | None:
+    """Normalize reasoning effort by model compatibility.
+
+    Rules:
+    - blank values are omitted.
+    - ``none`` is only kept for GPT-5.4 models.
+    - unsupported values are omitted instead of being forwarded.
+    """
+
+    if effort is None:
+        return None
+
+    normalized_effort = effort.strip().lower()
+    if not normalized_effort:
+        return None
+
+    if normalized_effort == "none":
+        return "none" if is_gpt54_family(model) else None
+
+    if normalized_effort in {"low", "medium", "high"}:
+        return normalized_effort
+
+    return None
+
+
+def supports_temperature(model: str, reasoning_effort: str | None) -> bool:
+    """Return whether ``temperature`` should be sent for the given model setup.
+
+    Rules:
+    - legacy GPT-5 variants never receive ``temperature``.
+    - GPT-5.4 receives ``temperature`` only when reasoning is disabled (``none``).
+    - other models keep the existing behavior and allow ``temperature``.
+    """
+
+    if is_gpt5_legacy_model(model):
+        return False
+
+    normalized_effort = normalize_reasoning_effort(model, reasoning_effort)
+    if is_gpt54_family(model):
+        return normalized_effort == "none"
+
+    return True
+
+
 def _build_openai_client(settings: OpenAISettings) -> OpenAI:
     """Create an OpenAI SDK client from normalized app settings."""
 
@@ -69,6 +127,7 @@ def _parse_with_structured_outputs(
     out_model: Type[BaseModel],
     store: bool,
     temperature: float,
+    reasoning_effort: str | None,
 ) -> Tuple[BaseModel, Optional[Dict[str, Any]]]:
     """Try `.responses.parse`, then fall back to `.chat.completions.parse` if needed."""
     settings = load_openai_settings()
@@ -76,6 +135,13 @@ def _parse_with_structured_outputs(
         _raise_missing_api_key_hint()
 
     client = get_openai_client()
+    normalized_reasoning_effort = normalize_reasoning_effort(model, reasoning_effort)
+
+    request_kwargs: dict[str, Any] = {}
+    if supports_temperature(model, normalized_reasoning_effort):
+        request_kwargs["temperature"] = temperature
+    if normalized_reasoning_effort is not None:
+        request_kwargs["reasoning_effort"] = normalized_reasoning_effort
 
     # Newer SDK path (Responses API + parse helper)
     if hasattr(client, "responses") and hasattr(client.responses, "parse"):
@@ -85,7 +151,7 @@ def _parse_with_structured_outputs(
                 input=messages,
                 text_format=out_model,
                 store=store,
-                temperature=temperature,
+                **request_kwargs,
             )
         except AuthenticationError as exc:
             if not _has_any_openai_api_key(settings):
@@ -106,7 +172,7 @@ def _parse_with_structured_outputs(
                 messages=messages,
                 response_format=out_model,
                 store=store,
-                temperature=temperature,
+                **request_kwargs,
             )
         except AuthenticationError as exc:
             if not _has_any_openai_api_key(settings):
@@ -159,6 +225,7 @@ def extract_job_ad(
         out_model=JobAdExtract,
         store=store,
         temperature=temperature,
+        reasoning_effort=load_openai_settings().reasoning_effort,
     )
 
     return parsed, usage
@@ -200,6 +267,7 @@ def generate_question_plan(
         out_model=QuestionPlan,
         store=store,
         temperature=temperature,
+        reasoning_effort=load_openai_settings().reasoning_effort,
     )
 
     normalized = normalize_question_plan(parsed)
@@ -274,6 +342,7 @@ def generate_vacancy_brief(
         out_model=VacancyBrief,
         store=store,
         temperature=temperature,
+        reasoning_effort=load_openai_settings().reasoning_effort,
     )
 
     # Always embed the merged structured payload for downstream systems

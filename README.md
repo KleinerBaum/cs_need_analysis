@@ -26,3 +26,11 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+```
+
+## OpenAI Modell-Kompatibilität
+
+- Modell-spezifische Request-Optionen werden zentral in `llm_client.py` normalisiert.
+- Für `gpt-5`, `gpt-5-mini` und `gpt-5-nano` wird `temperature` nicht automatisch mitgesendet.
+- Für `gpt-5.4*` wird `temperature` nur mitgesendet, wenn `reasoning_effort="none"` aktiv ist.
+- `reasoning_effort="none"` wird bei inkompatiblen Modellen verworfen (nicht an die API gesendet).
