@@ -2,6 +2,7 @@
 
 ## 2026-04-07
 
+- Jobspec-Quelle in `wizard_pages/01_jobad.py` pro Tab entkoppelt: Upload, manueller Text und Samples verwalten jetzt getrennte Zustände; aktive Quelle wird explizit in `SSKey.SOURCE_TEXT` übernommen (inkl. sichtbarer DE/EN-Debug-Caption zur aktiven Quelle).
 - Modell-Routing vereinheitlicht auf `resolve_model_for_task(task_kind, session_override, settings)` mit klaren Task-Kinds: `extract_job_ad`, `generate_question_plan`, `generate_vacancy_brief`.
 - Prioritätskette explizit gehärtet: Session/UI-Override > `OPENAI_MODEL` > task-spezifisches Modell > `DEFAULT_MODEL` > finaler Fallback (`gpt-4o-mini`).
 - Wizard-Seiten `01_jobad` und `08_summary` zeigen im Debug-Expander jetzt die effektiv aufgelösten Task-Modelle (`resolved_models`) an, ohne bestehende UX-Flows umzubauen.

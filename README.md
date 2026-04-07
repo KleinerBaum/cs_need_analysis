@@ -5,6 +5,7 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 ## Features
 
 - Upload von Jobspec/Job Ad als **PDF** oder **DOCX** (alternativ: Text einfügen)
+- Quellenhandling in Schritt „Jobspec / Job Ad“ ist entkoppelt: Upload, manuelle Eingabe und Samples überschreiben sich nicht mehr; aktive Quelle wird transparent angezeigt (DE/EN).
 - LLM-gestützte **Extraktion** der Jobspec in ein strukturiertes Schema (Structured Outputs)
 - Dynamischer Fragebogen je Abschnitt: Unternehmen, Team, Rolle & Aufgaben, Skills, Benefits, Interviewprozess
 - Finaler **Recruiting Brief** inkl. Job-Ad Draft + Export (JSON / Markdown / DOCX)
