@@ -25,12 +25,15 @@ class OpenAISettings:
     openai_request_timeout: float
 
 
+_FINAL_MODEL_FALLBACK = "gpt-4o-mini"
+
+
 _HARD_DEFAULTS: dict[str, str] = {
     "OPENAI_API_KEY": "",
-    "OPENAI_MODEL": "gpt-4o-mini",
-    "DEFAULT_MODEL": "gpt-4o-mini",
-    "LIGHTWEIGHT_MODEL": "gpt-4o-mini",
-    "MEDIUM_REASONING_MODEL": "gpt-4o-mini",
+    "OPENAI_MODEL": "",
+    "DEFAULT_MODEL": "",
+    "LIGHTWEIGHT_MODEL": _FINAL_MODEL_FALLBACK,
+    "MEDIUM_REASONING_MODEL": _FINAL_MODEL_FALLBACK,
     "HIGH_REASONING_MODEL": "o3-mini",
     "REASONING_EFFORT": "medium",
     "VERBOSITY": "medium",
@@ -82,6 +85,15 @@ def _resolve_config_value(key: str) -> str:
     return _HARD_DEFAULTS[key]
 
 
+def _resolve_optional_config_value(key: str) -> str | None:
+    """Resolve a setting and return ``None`` when unset/blank."""
+
+    value = _resolve_config_value(key).strip()
+    if not value:
+        return None
+    return value
+
+
 def _parse_timeout_seconds(raw: str, default_value: float) -> float:
     """Parse timeout values robustly and return a positive seconds value."""
 
@@ -102,11 +114,18 @@ def _parse_timeout_seconds(raw: str, default_value: float) -> float:
 def load_openai_settings() -> OpenAISettings:
     """Load OpenAI-related settings from secrets/env/defaults."""
 
-    openai_api_key = _resolve_config_value("OPENAI_API_KEY") or None
-    openai_model = _resolve_config_value("OPENAI_MODEL")
-    default_model = _resolve_config_value("DEFAULT_MODEL")
-    lightweight_model = _resolve_config_value("LIGHTWEIGHT_MODEL")
-    medium_reasoning_model = _resolve_config_value("MEDIUM_REASONING_MODEL")
+    openai_api_key = _resolve_optional_config_value("OPENAI_API_KEY")
+    default_model = (
+        _resolve_optional_config_value("DEFAULT_MODEL") or _FINAL_MODEL_FALLBACK
+    )
+    openai_model = _resolve_optional_config_value("OPENAI_MODEL") or default_model
+    lightweight_model = (
+        _resolve_optional_config_value("LIGHTWEIGHT_MODEL") or _FINAL_MODEL_FALLBACK
+    )
+    medium_reasoning_model = (
+        _resolve_optional_config_value("MEDIUM_REASONING_MODEL")
+        or _FINAL_MODEL_FALLBACK
+    )
     high_reasoning_model = _resolve_config_value("HIGH_REASONING_MODEL")
     reasoning_effort = _resolve_config_value("REASONING_EFFORT")
     verbosity = _resolve_config_value("VERBOSITY")
