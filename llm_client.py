@@ -23,6 +23,12 @@ from settings_openai import OpenAISettings, load_openai_settings
 logger = logging.getLogger(__name__)
 
 
+ModelTaskType = str
+TASK_LIGHTWEIGHT = "extract"
+TASK_MEDIUM_REASONING = "plan"
+TASK_HIGH_REASONING = "quality_critical"
+
+
 class OpenAICallError(RuntimeError):
     """Application-level error with user-facing and debug-safe details."""
 
@@ -265,6 +271,35 @@ def _error_from_structured_output_exception(exc: Exception) -> OpenAICallError:
     )
 
 
+def resolve_model_for_task(
+    *,
+    task_type: ModelTaskType,
+    ui_model_override: str | None,
+    settings: OpenAISettings | None = None,
+) -> str:
+    """Resolve a model via UI/global/task/default priority."""
+
+    resolved_settings = settings or load_openai_settings()
+    trimmed_ui_override = (ui_model_override or "").strip()
+    base_model = resolved_settings.openai_model.strip()
+    if trimmed_ui_override and trimmed_ui_override != base_model:
+        return trimmed_ui_override
+
+    if resolved_settings.openai_model_override:
+        return resolved_settings.openai_model_override.strip()
+
+    model_by_task: dict[ModelTaskType, str] = {
+        TASK_LIGHTWEIGHT: resolved_settings.lightweight_model,
+        TASK_MEDIUM_REASONING: resolved_settings.medium_reasoning_model,
+        TASK_HIGH_REASONING: resolved_settings.high_reasoning_model,
+    }
+    routed_model = model_by_task.get(task_type, "").strip()
+    if routed_model:
+        return routed_model
+
+    return resolved_settings.default_model
+
+
 def _parse_with_structured_outputs(
     *,
     model: str,
@@ -356,10 +391,14 @@ def extract_job_ad(
     store: bool = False,
     temperature: float | None = None,
 ) -> Tuple[JobAdExtract, Optional[Dict[str, Any]]]:
+    resolved_model = resolve_model_for_task(
+        task_type=TASK_LIGHTWEIGHT,
+        ui_model_override=model,
+    )
     messages = build_extract_job_ad_messages(job_text, language)
-    nano_suffix = _nano_closed_output_suffix(model)
+    nano_suffix = _nano_closed_output_suffix(resolved_model)
     parsed, usage = _parse_with_structured_outputs(
-        model=model,
+        model=resolved_model,
         messages=[
             {
                 "role": "system",
@@ -384,7 +423,11 @@ def generate_question_plan(
     store: bool = False,
     temperature: float | None = None,
 ) -> Tuple[QuestionPlan, Optional[Dict[str, Any]]]:
-    nano_suffix = _nano_closed_output_suffix(model)
+    resolved_model = resolve_model_for_task(
+        task_type=TASK_MEDIUM_REASONING,
+        ui_model_override=model,
+    )
+    nano_suffix = _nano_closed_output_suffix(resolved_model)
     system = (
         "Du bist ein Experte für Vacancy Intake & Recruiting Briefings. "
         "Du erstellst einen dynamischen, aber stabilen Fragebogen für Line Manager. "
@@ -406,7 +449,7 @@ def generate_question_plan(
     )
 
     parsed, usage = _parse_with_structured_outputs(
-        model=model,
+        model=resolved_model,
         messages=[
             {"role": "system", "content": system},
             {"role": "user", "content": user},
@@ -464,7 +507,11 @@ def generate_vacancy_brief(
     store: bool = False,
     temperature: float | None = None,
 ) -> Tuple[VacancyBrief, Optional[Dict[str, Any]]]:
-    nano_suffix = _nano_closed_output_suffix(model)
+    resolved_model = resolve_model_for_task(
+        task_type=TASK_HIGH_REASONING,
+        ui_model_override=model,
+    )
+    nano_suffix = _nano_closed_output_suffix(resolved_model)
     system = (
         "Du bist ein Recruiting Partner, der aus einer Jobspec und Manager-Antworten "
         "einen vollständigen Recruiting Brief erstellt. "
@@ -483,7 +530,7 @@ def generate_vacancy_brief(
     )
 
     parsed, usage = _parse_with_structured_outputs(
-        model=model,
+        model=resolved_model,
         messages=[
             {"role": "system", "content": system},
             {"role": "user", "content": user},

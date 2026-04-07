@@ -32,6 +32,8 @@ pip install -r requirements.txt
 ## OpenAI Modell-Kompatibilität
 
 - Modell-spezifische Request-Optionen werden zentral in `llm_client.py` normalisiert.
+- Optionales task-basiertes Modell-Routing ist schlank integriert (ohne UX-Umbau): `LIGHTWEIGHT_MODEL` für Extraktion/Normalisierung, `MEDIUM_REASONING_MODEL` für Plan-Generierung, `HIGH_REASONING_MODEL` für qualitätskritische Ausgaben (Recruiting Brief).
+- Priorität beim Modellrouting: **UI-Override** > **`OPENAI_MODEL` (globaler Override)** > **task-spezifische Modell-Keys** > **`DEFAULT_MODEL`**.
 - Für `gpt-5`, `gpt-5-mini` und `gpt-5-nano` wird `temperature` nicht automatisch mitgesendet.
 - Für `gpt-5.4*` wird `temperature` nur mitgesendet, wenn `reasoning_effort="none"` aktiv ist.
 - `reasoning_effort="none"` wird bei inkompatiblen Modellen verworfen (nicht an die API gesendet).

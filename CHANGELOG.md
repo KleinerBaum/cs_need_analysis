@@ -2,6 +2,10 @@
 
 ## 2026-04-07
 
+- Schlanke, optionale Modell-Routing-Schicht ergänzt: task-basierte Auswahl mit `LIGHTWEIGHT_MODEL` (Extraktion/Normalisierung), `MEDIUM_REASONING_MODEL` (QuestionPlan) und `HIGH_REASONING_MODEL` (VacancyBrief), ohne UX-Umbau.
+- Prioritätslogik fest verdrahtet: UI-Modelloverride > `OPENAI_MODEL` > task-spezifische Modell-Keys > `DEFAULT_MODEL`.
+- `settings_openai.OpenAISettings` um `openai_model_override` erweitert, damit `OPENAI_MODEL` als expliziter globaler Override zuverlässig von Fallbacks unterscheidbar ist.
+- Tests erweitert (`tests/test_openai_smoke_modes.py`): Routing-Priorität (UI vs. OPENAI_MODEL vs. Task-Keys) ist jetzt automatisiert abgesichert.
 - Streamlit-Debugansicht angepasst: Session-State-Vollanzeige entfernt und durch einen kleinen Sidebar-Expander mit sicheren, aufgelösten OpenAI-Werten ersetzt (`model`, `default_model`, `reasoning_effort`, `verbosity`, `timeout`), ohne Secret-Ausgabe.
 - UI-Theming ergänzt: Hintergrundbild (`AdobeStock_506577005.jpeg`) mit dunklem Overlay für stabile Lesbarkeit.
 - Transparenter Marken-Header mit `color1_logo_transparent_background.png` in der Sidebar ergänzt.

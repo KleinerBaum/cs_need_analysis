@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 from llm_client import (
+    TASK_HIGH_REASONING,
+    TASK_LIGHTWEIGHT,
+    TASK_MEDIUM_REASONING,
     _nano_closed_output_suffix,
     build_openai_request_kwargs,
     is_nano_model,
+    resolve_model_for_task,
 )
+from settings_openai import OpenAISettings
 
 
 def test_gpt54_nano_sends_none_reasoning_low_verbosity_and_temperature() -> None:
@@ -48,3 +53,71 @@ def test_nano_closed_output_suffix_is_only_added_for_nano() -> None:
         "gpt-5.4-nano"
     )
     assert _nano_closed_output_suffix("gpt-4o-mini") == ""
+
+
+def _build_settings(*, openai_model_override: str | None) -> OpenAISettings:
+    return OpenAISettings(
+        openai_api_key=None,
+        openai_model=(openai_model_override or "gpt-4o-mini"),
+        openai_model_override=openai_model_override,
+        default_model="gpt-4o-mini",
+        lightweight_model="gpt-4o-mini",
+        medium_reasoning_model="gpt-4.1-mini",
+        high_reasoning_model="o3-mini",
+        reasoning_effort="medium",
+        verbosity="medium",
+        openai_request_timeout=60.0,
+    )
+
+
+def test_model_routing_prefers_ui_override() -> None:
+    settings = _build_settings(openai_model_override="gpt-4.1-mini")
+
+    model = resolve_model_for_task(
+        task_type=TASK_MEDIUM_REASONING,
+        ui_model_override="o3-mini",
+        settings=settings,
+    )
+
+    assert model == "o3-mini"
+
+
+def test_model_routing_uses_openai_model_override_before_task_models() -> None:
+    settings = _build_settings(openai_model_override="gpt-4.1-mini")
+
+    model = resolve_model_for_task(
+        task_type=TASK_HIGH_REASONING,
+        ui_model_override="",
+        settings=settings,
+    )
+
+    assert model == "gpt-4.1-mini"
+
+
+def test_model_routing_uses_task_specific_models_without_openai_override() -> None:
+    settings = _build_settings(openai_model_override=None)
+
+    assert (
+        resolve_model_for_task(
+            task_type=TASK_LIGHTWEIGHT,
+            ui_model_override="",
+            settings=settings,
+        )
+        == "gpt-4o-mini"
+    )
+    assert (
+        resolve_model_for_task(
+            task_type=TASK_MEDIUM_REASONING,
+            ui_model_override="",
+            settings=settings,
+        )
+        == "gpt-4.1-mini"
+    )
+    assert (
+        resolve_model_for_task(
+            task_type=TASK_HIGH_REASONING,
+            ui_model_override="",
+            settings=settings,
+        )
+        == "o3-mini"
+    )
