@@ -143,12 +143,12 @@ def render(ctx: WizardContext) -> None:
     col1, col2, col3 = st.columns([1, 1, 2])
     with col1:
         do_brief = st.button(
-            "Recruiting Brief generieren", type="primary", use_container_width=True
+            "Recruiting Brief generieren", type="primary", width="stretch"
         )
     with col2:
         do_quality_upgrade = st.button(
             "Qualitäts-Upgrade",
-            use_container_width=True,
+            width="stretch",
             help="Schärft nur kritische Abschnitte nach.",
         )
     with col3:
