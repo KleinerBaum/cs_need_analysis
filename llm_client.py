@@ -670,7 +670,7 @@ def generate_question_plan(
         "Füge bei jedem Step 6–12 Fragen hinzu, je nachdem, was im Jobspec fehlt. "
         "Bevorzuge konkrete, messbare Antworten (z. B. 'Erfolgskriterien', 'Top-Deliverables', 'Must-have vs Nice-to-have').\n\n"
         "Jobspec-Extraktion (JSON):\n"
-        f"{job.model_dump_json(indent=2)}"
+        f"{json.dumps(job.model_dump(mode='json'), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}"
     )
 
     parsed, usage = _parse_with_structured_outputs(
@@ -747,9 +747,9 @@ def generate_vacancy_brief(
     user = (
         "Erstelle jetzt den finalen VacancyBrief.\n\n"
         "Jobspec-Extraktion (JSON):\n"
-        f"{job.model_dump_json(indent=2)}\n\n"
+        f"{json.dumps(job.model_dump(mode='json'), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
         "Manager-Antworten (JSON):\n"
-        f"{json.dumps(answers, indent=2, ensure_ascii=False)}\n\n"
+        f"{json.dumps(answers, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
         "Wichtig: Falls wichtige Informationen fehlen, schreibe sie unter risks_open_questions."
     )
 
