@@ -16,6 +16,7 @@ class OpenAISettings:
 
     openai_api_key: str | None
     openai_model: str
+    openai_model_override: str | None
     default_model: str
     lightweight_model: str
     medium_reasoning_model: str
@@ -119,6 +120,7 @@ def load_openai_settings() -> OpenAISettings:
         _resolve_optional_config_value("DEFAULT_MODEL") or _FINAL_MODEL_FALLBACK
     )
     openai_model = _resolve_optional_config_value("OPENAI_MODEL") or default_model
+    openai_model_override = _resolve_optional_config_value("OPENAI_MODEL")
     lightweight_model = (
         _resolve_optional_config_value("LIGHTWEIGHT_MODEL") or _FINAL_MODEL_FALLBACK
     )
@@ -137,6 +139,7 @@ def load_openai_settings() -> OpenAISettings:
     return OpenAISettings(
         openai_api_key=openai_api_key,
         openai_model=openai_model,
+        openai_model_override=openai_model_override,
         default_model=default_model,
         lightweight_model=lightweight_model,
         medium_reasoning_model=medium_reasoning_model,
