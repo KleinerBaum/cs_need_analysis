@@ -16,7 +16,12 @@ from llm_client import (
 from settings_openai import load_openai_settings
 from parsing import extract_text_from_uploaded_file, redact_pii
 from schemas import JobAdExtract, QuestionPlan
-from state import clear_error, get_model_override, set_error
+from state import (
+    clear_error,
+    get_model_override,
+    handle_unexpected_exception,
+    set_error,
+)
 from ui_components import (
     render_error_banner,
     render_job_extract_overview,
@@ -91,8 +96,13 @@ def _on_upload_change() -> None:
     try:
         uploaded_text, source_meta = extract_text_from_uploaded_file(upload)
     except Exception as exc:  # pragma: no cover - streamlit callback runtime
-        set_error(
-            f"Datei konnte nicht gelesen werden (DE) / Could not read file (EN): {type(exc).__name__}"
+        error_type = type(exc).__name__
+        handle_unexpected_exception(
+            step="_on_upload_change.extract_text_from_uploaded_file",
+            exc=exc,
+            error_type=error_type,
+            error_code="JOBAD_FILE_READ_UNEXPECTED",
+            user_message="Datei konnte nicht gelesen werden (DE) / Could not read file (EN).",
         )
         return
 
@@ -283,8 +293,14 @@ def render(ctx: WizardContext) -> None:
 
         except OpenAICallError as e:
             render_openai_error(e)
-        except Exception:
-            set_error("Unerwarteter Fehler (DE) / Unexpected error (EN).")
+        except Exception as exc:
+            error_type = type(exc).__name__
+            handle_unexpected_exception(
+                step="jobad.extract_and_plan",
+                exc=exc,
+                error_type=error_type,
+                error_code="JOBAD_ANALYZE_UNEXPECTED",
+            )
 
         st.rerun()
 

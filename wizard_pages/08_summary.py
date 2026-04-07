@@ -17,7 +17,12 @@ from llm_client import (
 )
 from schemas import JobAdExtract, VacancyBrief
 from settings_openai import load_openai_settings
-from state import clear_error, get_answers, get_model_override, set_error
+from state import (
+    clear_error,
+    get_answers,
+    get_model_override,
+    handle_unexpected_exception,
+)
 from ui_components import render_brief, render_error_banner, render_openai_error
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
 
@@ -185,8 +190,14 @@ def render(ctx: WizardContext) -> None:
                 )
         except OpenAICallError as e:
             render_openai_error(e)
-        except Exception:
-            set_error("Unerwarteter Fehler (DE) / Unexpected error (EN).")
+        except Exception as exc:
+            error_type = type(exc).__name__
+            handle_unexpected_exception(
+                step="summary.generate_brief",
+                exc=exc,
+                error_type=error_type,
+                error_code="SUMMARY_BRIEF_GENERATION_UNEXPECTED",
+            )
         st.rerun()
 
     brief_dict = st.session_state.get(SSKey.BRIEF.value)
@@ -229,8 +240,14 @@ def render(ctx: WizardContext) -> None:
                 )
         except OpenAICallError as e:
             render_openai_error(e)
-        except Exception:
-            set_error("Unerwarteter Fehler (DE) / Unexpected error (EN).")
+        except Exception as exc:
+            error_type = type(exc).__name__
+            handle_unexpected_exception(
+                step="summary.quality_upgrade",
+                exc=exc,
+                error_type=error_type,
+                error_code="SUMMARY_QUALITY_UPGRADE_UNEXPECTED",
+            )
         st.rerun()
 
     if not brief_dict:
