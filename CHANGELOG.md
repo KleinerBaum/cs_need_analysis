@@ -2,6 +2,9 @@
 
 ## 2026-04-07
 
+- Modell-Routing vereinheitlicht auf `resolve_model_for_task(task_kind, session_override, settings)` mit klaren Task-Kinds: `extract_job_ad`, `generate_question_plan`, `generate_vacancy_brief`.
+- Prioritätskette explizit gehärtet: Session/UI-Override > `OPENAI_MODEL` > task-spezifisches Modell > `DEFAULT_MODEL` > finaler Fallback (`gpt-4o-mini`).
+- Wizard-Seiten `01_jobad` und `08_summary` zeigen im Debug-Expander jetzt die effektiv aufgelösten Task-Modelle (`resolved_models`) an, ohne bestehende UX-Flows umzubauen.
 - Prompt-Kontrakte für Nano-Modelle gezielt geschärft: neue Helper-Funktion `build_small_model_guardrails(model)` greift nur für `gpt-5-nano`/`gpt-5.4-nano` und erzwingt strukturierte Schema-Ausgabe ohne Zusatztext/Nebenaufgaben sowie `leer/null` bei fehlenden Informationen.
 - Guardrails in allen drei Kernpfaden vereinheitlicht (`build_extract_job_ad_messages`, `generate_question_plan`, `generate_vacancy_brief`) ohne Prompt-Rewrite für größere Modelle.
 - Tests erweitert (`tests/test_openai_smoke_modes.py`): neue Assertions für Nano-spezifische Guardrails in Helper und Extract-Message-Building.

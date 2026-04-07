@@ -48,10 +48,10 @@ _MODEL_CAPABILITY_EXPORTS = (
 )
 
 
-ModelTaskType = str
-TASK_LIGHTWEIGHT = "extract"
-TASK_MEDIUM_REASONING = "plan"
-TASK_HIGH_REASONING = "quality_critical"
+ModelTaskKind = str
+TASK_EXTRACT_JOB_AD = "extract_job_ad"
+TASK_GENERATE_QUESTION_PLAN = "generate_question_plan"
+TASK_GENERATE_VACANCY_BRIEF = "generate_vacancy_brief"
 
 
 class OpenAICallError(RuntimeError):
@@ -348,31 +348,34 @@ def _run_openai_call_with_retry(
 
 def resolve_model_for_task(
     *,
-    task_type: ModelTaskType,
-    ui_model_override: str | None,
+    task_kind: ModelTaskKind,
+    session_override: str | None,
     settings: OpenAISettings | None = None,
 ) -> str:
-    """Resolve a model via UI/global/task/default priority."""
+    """Resolve a model via session/global/task/default/final fallback priority."""
 
     resolved_settings = settings or load_openai_settings()
-    trimmed_ui_override = (ui_model_override or "").strip()
-    base_model = resolved_settings.openai_model.strip()
-    if trimmed_ui_override and trimmed_ui_override != base_model:
-        return trimmed_ui_override
+    trimmed_session_override = (session_override or "").strip()
+    if trimmed_session_override:
+        return trimmed_session_override
 
     if resolved_settings.openai_model_override:
         return resolved_settings.openai_model_override.strip()
 
-    model_by_task: dict[ModelTaskType, str] = {
-        TASK_LIGHTWEIGHT: resolved_settings.lightweight_model,
-        TASK_MEDIUM_REASONING: resolved_settings.medium_reasoning_model,
-        TASK_HIGH_REASONING: resolved_settings.high_reasoning_model,
+    model_by_task: dict[ModelTaskKind, str] = {
+        TASK_EXTRACT_JOB_AD: resolved_settings.lightweight_model,
+        TASK_GENERATE_QUESTION_PLAN: resolved_settings.medium_reasoning_model,
+        TASK_GENERATE_VACANCY_BRIEF: resolved_settings.high_reasoning_model,
     }
-    routed_model = model_by_task.get(task_type, "").strip()
+    routed_model = model_by_task.get(task_kind, "").strip()
     if routed_model:
         return routed_model
 
-    return resolved_settings.default_model
+    fallback_model = resolved_settings.default_model.strip()
+    if fallback_model:
+        return fallback_model
+
+    return "gpt-4o-mini"
 
 
 def _parse_with_structured_outputs(
@@ -479,8 +482,8 @@ def extract_job_ad(
     temperature: float | None = None,
 ) -> Tuple[JobAdExtract, Optional[Dict[str, Any]]]:
     resolved_model = resolve_model_for_task(
-        task_type=TASK_LIGHTWEIGHT,
-        ui_model_override=model,
+        task_kind=TASK_EXTRACT_JOB_AD,
+        session_override=model,
     )
     messages = build_extract_job_ad_messages(
         job_text,
@@ -508,8 +511,8 @@ def generate_question_plan(
     temperature: float | None = None,
 ) -> Tuple[QuestionPlan, Optional[Dict[str, Any]]]:
     resolved_model = resolve_model_for_task(
-        task_type=TASK_MEDIUM_REASONING,
-        ui_model_override=model,
+        task_kind=TASK_GENERATE_QUESTION_PLAN,
+        session_override=model,
     )
     nano_suffix = build_small_model_guardrails(resolved_model)
     system = (
@@ -592,8 +595,8 @@ def generate_vacancy_brief(
     temperature: float | None = None,
 ) -> Tuple[VacancyBrief, Optional[Dict[str, Any]]]:
     resolved_model = resolve_model_for_task(
-        task_type=TASK_HIGH_REASONING,
-        ui_model_override=model,
+        task_kind=TASK_GENERATE_VACANCY_BRIEF,
+        session_override=model,
     )
     nano_suffix = build_small_model_guardrails(resolved_model)
     system = (

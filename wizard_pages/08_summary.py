@@ -8,8 +8,14 @@ import streamlit as st
 import docx
 
 from constants import SSKey
-from llm_client import OpenAICallError, generate_vacancy_brief
+from llm_client import (
+    OpenAICallError,
+    TASK_GENERATE_VACANCY_BRIEF,
+    generate_vacancy_brief,
+    resolve_model_for_task,
+)
 from schemas import JobAdExtract, VacancyBrief
+from settings_openai import load_openai_settings
 from state import clear_error, get_answers, set_error
 from ui_components import render_brief, render_error_banner, render_openai_error
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
@@ -130,12 +136,13 @@ def render(ctx: WizardContext) -> None:
     if do_brief:
         clear_error()
         model = str(st.session_state.get(SSKey.MODEL.value, "")).strip()
-        if not model:
-            set_error(
-                "Kein Modell konfiguriert. Bitte LLM-Model im Sidebar-Feld setzen."
-            )
-            st.rerun()
         store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
+        settings = load_openai_settings()
+        resolved_brief_model = resolve_model_for_task(
+            task_kind=TASK_GENERATE_VACANCY_BRIEF,
+            session_override=model,
+            settings=settings,
+        )
         try:
             with st.spinner("Generiere Recruiting Brief…"):
                 brief, usage = generate_vacancy_brief(
@@ -143,7 +150,14 @@ def render(ctx: WizardContext) -> None:
                 )
             st.session_state[SSKey.BRIEF.value] = brief.model_dump()
             with st.expander("API Usage (Debug)", expanded=False):
-                st.write(usage)
+                st.write(
+                    {
+                        "resolved_models": {
+                            "generate_vacancy_brief": resolved_brief_model
+                        },
+                        "usage": usage,
+                    }
+                )
         except OpenAICallError as e:
             render_openai_error(e)
         except Exception:

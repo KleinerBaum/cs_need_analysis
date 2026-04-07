@@ -4,7 +4,15 @@ from __future__ import annotations
 import streamlit as st
 
 from constants import SSKey
-from llm_client import OpenAICallError, extract_job_ad, generate_question_plan
+from llm_client import (
+    OpenAICallError,
+    TASK_EXTRACT_JOB_AD,
+    TASK_GENERATE_QUESTION_PLAN,
+    extract_job_ad,
+    generate_question_plan,
+    resolve_model_for_task,
+)
+from settings_openai import load_openai_settings
 from parsing import extract_text_from_uploaded_file, redact_pii
 from schemas import JobAdExtract, QuestionPlan
 from state import clear_error, set_error
@@ -143,12 +151,18 @@ def render(ctx: WizardContext) -> None:
         submitted = redact_pii(raw) if redact else raw
 
         model = str(st.session_state.get(SSKey.MODEL.value, "")).strip()
-        if not model:
-            set_error(
-                "Kein Modell konfiguriert. Bitte LLM-Model im Sidebar-Feld setzen."
-            )
-            st.rerun()
         store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
+        settings = load_openai_settings()
+        resolved_extract_model = resolve_model_for_task(
+            task_kind=TASK_EXTRACT_JOB_AD,
+            session_override=model,
+            settings=settings,
+        )
+        resolved_plan_model = resolve_model_for_task(
+            task_kind=TASK_GENERATE_QUESTION_PLAN,
+            session_override=model,
+            settings=settings,
+        )
 
         try:
             with st.spinner("Extrahiere Jobspec…"):
@@ -163,7 +177,16 @@ def render(ctx: WizardContext) -> None:
 
             # Optional: show usage
             with st.expander("API Usage (Debug)", expanded=False):
-                st.write({"extract_usage": usage1, "plan_usage": usage2})
+                st.write(
+                    {
+                        "resolved_models": {
+                            "extract_job_ad": resolved_extract_model,
+                            "generate_question_plan": resolved_plan_model,
+                        },
+                        "extract_usage": usage1,
+                        "plan_usage": usage2,
+                    }
+                )
 
         except OpenAICallError as e:
             render_openai_error(e)
