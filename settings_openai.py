@@ -24,11 +24,19 @@ class OpenAISettings:
     reasoning_effort: str | None
     verbosity: str | None
     openai_request_timeout: float
+    task_max_output_tokens: dict[str, int | None]
+    task_max_bullets_per_field: dict[str, int | None]
+    task_max_sentences_per_field: dict[str, int | None]
     resolved_from: dict[str, str]
 
 
 _FINAL_MODEL_FALLBACK = "gpt-4o-mini"
 DEFAULT_TIMEOUT_SECONDS = 120.0
+_TASK_KINDS = (
+    "extract_job_ad",
+    "generate_question_plan",
+    "generate_vacancy_brief",
+)
 
 
 _HARD_DEFAULTS: dict[str, str] = {
@@ -83,7 +91,7 @@ def _resolve_config_value_with_source(key: str) -> tuple[str, str]:
     if env_val is not None:
         return env_val, "env"
 
-    return _HARD_DEFAULTS[key], "default"
+    return _HARD_DEFAULTS.get(key, ""), "default"
 
 
 def _resolve_config_value(key: str) -> str:
@@ -127,6 +135,23 @@ def _parse_timeout_seconds(raw: str, default_value: float) -> float:
     return parsed
 
 
+def _parse_optional_positive_int(raw: str | None) -> int | None:
+    """Parse optional positive integer values and return ``None`` when invalid."""
+
+    if raw is None:
+        return None
+    text = raw.strip()
+    if not text:
+        return None
+    try:
+        parsed = int(text)
+    except ValueError:
+        return None
+    if parsed <= 0:
+        return None
+    return parsed
+
+
 def load_openai_settings() -> OpenAISettings:
     """Load OpenAI-related settings from secrets/env/defaults."""
 
@@ -165,6 +190,30 @@ def load_openai_settings() -> OpenAISettings:
 
     timeout_default = DEFAULT_TIMEOUT_SECONDS
     openai_request_timeout = _parse_timeout_seconds(timeout_raw, timeout_default)
+    task_max_output_tokens: dict[str, int | None] = {}
+    task_max_bullets_per_field: dict[str, int | None] = {}
+    task_max_sentences_per_field: dict[str, int | None] = {}
+    for task_kind in _TASK_KINDS:
+        task_upper = task_kind.upper()
+        max_tokens_raw, max_tokens_source = _resolve_config_value_with_source(
+            f"{task_upper}_MAX_OUTPUT_TOKENS"
+        )
+        max_bullets_raw, max_bullets_source = _resolve_config_value_with_source(
+            f"{task_upper}_MAX_BULLETS_PER_FIELD"
+        )
+        max_sentences_raw, max_sentences_source = _resolve_config_value_with_source(
+            f"{task_upper}_MAX_SENTENCES_PER_FIELD"
+        )
+        task_max_output_tokens[task_kind] = _parse_optional_positive_int(max_tokens_raw)
+        task_max_bullets_per_field[task_kind] = _parse_optional_positive_int(
+            max_bullets_raw
+        )
+        task_max_sentences_per_field[task_kind] = _parse_optional_positive_int(
+            max_sentences_raw
+        )
+        resolved_from[f"{task_upper}_MAX_OUTPUT_TOKENS"] = max_tokens_source
+        resolved_from[f"{task_upper}_MAX_BULLETS_PER_FIELD"] = max_bullets_source
+        resolved_from[f"{task_upper}_MAX_SENTENCES_PER_FIELD"] = max_sentences_source
 
     return OpenAISettings(
         openai_api_key=openai_api_key,
@@ -177,5 +226,8 @@ def load_openai_settings() -> OpenAISettings:
         reasoning_effort=reasoning_effort,
         verbosity=verbosity,
         openai_request_timeout=openai_request_timeout,
+        task_max_output_tokens=task_max_output_tokens,
+        task_max_bullets_per_field=task_max_bullets_per_field,
+        task_max_sentences_per_field=task_max_sentences_per_field,
         resolved_from=resolved_from,
     )

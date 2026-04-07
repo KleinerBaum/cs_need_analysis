@@ -9,6 +9,7 @@ from llm_client import (
     build_small_model_guardrails,
     build_chat_parse_request_kwargs,
     build_responses_request_kwargs,
+    build_task_prompt_limits_suffix,
     normalize_reasoning_effort,
     is_nano_model,
     resolve_model_for_task,
@@ -26,6 +27,7 @@ def test_gpt54_nano_sends_none_reasoning_low_verbosity_and_temperature() -> None
         maybe_temperature=0.0,
         reasoning_effort="none",
         verbosity="low",
+        max_output_tokens=333,
     )
     chat_kwargs = build_chat_parse_request_kwargs(
         model="gpt-5.4-nano",
@@ -39,6 +41,7 @@ def test_gpt54_nano_sends_none_reasoning_low_verbosity_and_temperature() -> None
     assert responses_kwargs["reasoning"] == {"effort": "none"}
     assert responses_kwargs["text"] == {"verbosity": "low"}
     assert responses_kwargs["temperature"] == 0.0
+    assert responses_kwargs["max_output_tokens"] == 333
     assert chat_kwargs == {
         "model": "gpt-5.4-nano",
         "reasoning": {"effort": "none"},
@@ -214,8 +217,23 @@ def _build_settings(*, openai_model_override: str | None) -> OpenAISettings:
         reasoning_effort="medium",
         verbosity="medium",
         openai_request_timeout=120.0,
+        task_max_output_tokens={},
+        task_max_bullets_per_field={},
+        task_max_sentences_per_field={},
         resolved_from={},
     )
+
+
+def test_prompt_limits_suffix_includes_all_constraints() -> None:
+    suffix = build_task_prompt_limits_suffix(
+        max_bullets_per_field=5,
+        max_sentences_per_field=2,
+        max_output_tokens=700,
+    )
+
+    assert "Maximal 5 Bulletpoints pro Listenfeld." in suffix
+    assert "Maximal 2 Sätze pro Textfeld." in suffix
+    assert "priorisiere Pflichtfelder" in suffix
 
 
 def test_model_routing_prefers_ui_override() -> None:
