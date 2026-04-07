@@ -2,16 +2,119 @@
 
 from __future__ import annotations
 
+import base64
+from pathlib import Path
+
 import streamlit as st
 
-from constants import APP_TITLE, SSKey, STEPS
+from constants import APP_TITLE, SSKey
 from state import init_session_state, reset_vacancy
 from wizard_pages import load_pages
 from wizard_pages.base import WizardContext, sidebar_navigation
 
 
+def _image_as_data_uri(image_path: Path, mime_type: str) -> str:
+    image_bytes = image_path.read_bytes()
+    encoded = base64.b64encode(image_bytes).decode("utf-8")
+    return f"data:{mime_type};base64,{encoded}"
+
+
+def _inject_theme_styles() -> None:
+    root_dir = Path(__file__).resolve().parent
+    logo_path = root_dir / "images" / "color1_logo_transparent_background.png"
+    bg_path = root_dir / "images" / "AdobeStock_506577005.jpeg"
+
+    logo_uri = _image_as_data_uri(logo_path, "image/png")
+    bg_uri = _image_as_data_uri(bg_path, "image/jpeg")
+
+    st.markdown(
+        f"""
+        <style>
+            .stApp {{
+                background:
+                    linear-gradient(
+                        rgba(8, 18, 39, 0.82),
+                        rgba(12, 27, 54, 0.72)
+                    ),
+                    url("{bg_uri}") center center / cover no-repeat fixed;
+                color: #f5f7fb;
+            }}
+
+            [data-testid="stHeader"] {{
+                background: transparent;
+            }}
+
+            [data-testid="stSidebar"] {{
+                background: rgba(10, 24, 48, 0.85);
+                border-right: 1px solid rgba(255, 255, 255, 0.1);
+            }}
+
+            [data-testid="stSidebarContent"]::before {{
+                content: "";
+                display: block;
+                width: 220px;
+                height: 64px;
+                margin: 0 auto 1rem auto;
+                background: url("{logo_uri}") center / contain no-repeat;
+            }}
+
+            [data-testid="stMarkdownContainer"] p,
+            [data-testid="stMarkdownContainer"] li,
+            [data-testid="stMarkdownContainer"] span,
+            h1, h2, h3, h4, h5, h6,
+            label {{
+                color: #f5f7fb !important;
+            }}
+
+            [data-testid="stAlert"] {{
+                background: rgba(0, 0, 0, 0.35);
+                border: 1px solid rgba(255, 255, 255, 0.15);
+                color: #f5f7fb;
+            }}
+
+            [data-testid="stForm"],
+            [data-testid="stExpander"] details,
+            [data-testid="stVerticalBlockBorderWrapper"] {{
+                background: rgba(8, 18, 39, 0.52);
+                border: 1px solid rgba(255, 255, 255, 0.12);
+                border-radius: 12px;
+                backdrop-filter: blur(4px);
+            }}
+
+            .stButton > button {{
+                background-color: #1565c0;
+                color: #ffffff;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+            }}
+
+            .stButton > button:hover {{
+                background-color: #0d47a1;
+                color: #ffffff;
+                border: 1px solid rgba(255, 255, 255, 0.35);
+            }}
+
+            .stDownloadButton > button {{
+                background-color: #1e7f5e;
+                color: #ffffff;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+            }}
+
+            .stTextInput input,
+            .stTextArea textarea,
+            .stSelectbox [data-baseweb="select"] > div,
+            .stMultiSelect [data-baseweb="select"] > div {{
+                background-color: rgba(255, 255, 255, 0.96);
+                color: #10213f;
+            }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def main() -> None:
     st.set_page_config(page_title=APP_TITLE, layout="wide")
+    _inject_theme_styles()
 
     init_session_state()
 
