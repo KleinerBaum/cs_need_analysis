@@ -210,7 +210,35 @@ def _build_openai_client(settings: OpenAISettings) -> OpenAI:
     return OpenAI(timeout=timeout)
 
 
+def _build_openai_client_from_runtime_settings(
+    *,
+    timeout_seconds: float,
+    explicit_api_key: str | None,
+) -> OpenAI:
+    """Create an OpenAI SDK client from runtime cache key inputs."""
+
+    if explicit_api_key:
+        return OpenAI(api_key=explicit_api_key, timeout=timeout_seconds)
+    return OpenAI(timeout=timeout_seconds)
+
+
 @st.cache_resource
+def _get_cached_openai_client(
+    timeout_seconds: float,
+    api_key_hash: str,
+    has_any_api_key: bool,
+    _explicit_api_key: str | None = None,
+) -> OpenAI:
+    """Return cached OpenAI client keyed by non-sensitive runtime fingerprint."""
+
+    # Keep these parameters explicit for deterministic cache invalidation.
+    _ = (api_key_hash, has_any_api_key)
+    return _build_openai_client_from_runtime_settings(
+        timeout_seconds=timeout_seconds,
+        explicit_api_key=_explicit_api_key,
+    )
+
+
 def get_openai_client() -> OpenAI:
     """Create a cached OpenAI client.
 
@@ -219,7 +247,16 @@ def get_openai_client() -> OpenAI:
     2) Environment variable OPENAI_API_KEY (local dev / CI)
     """
     settings = load_openai_settings()
-    return _build_openai_client(settings)
+    resolved_api_key = settings.openai_api_key or os.getenv("OPENAI_API_KEY")
+    has_any_api_key = bool(resolved_api_key)
+    api_key_hash = _safe_hash(resolved_api_key) if resolved_api_key else "missing"
+
+    return _get_cached_openai_client(
+        timeout_seconds=settings.openai_request_timeout,
+        api_key_hash=api_key_hash,
+        has_any_api_key=has_any_api_key,
+        _explicit_api_key=settings.openai_api_key,
+    )
 
 
 def _has_any_openai_api_key(settings: OpenAISettings) -> bool:
