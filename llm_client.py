@@ -74,6 +74,27 @@ def is_gpt54_family(model: str) -> bool:
     return normalized.startswith("gpt-5.4")
 
 
+def is_nano_model(model: str) -> bool:
+    """Return ``True`` when the selected model is a nano variant."""
+
+    return model.strip().lower() in {"gpt-5-nano", "gpt-5.4-nano"}
+
+
+def _nano_closed_output_suffix(model: str) -> str:
+    """Return a concise strict-output suffix for nano models."""
+
+    if not is_nano_model(model):
+        return ""
+
+    return (
+        " Für kleine Modelle strikt befolgen: "
+        "1) Ausgabe nur als gültiges Schema-Objekt. "
+        "2) Kein Zusatztext außerhalb des Schemas. "
+        "3) Reihenfolge exakt wie angefordert. "
+        "4) Keine impliziten Nebenaufgaben."
+    )
+
+
 def normalize_reasoning_effort(model: str, effort: str | None) -> str | None:
     """Normalize reasoning effort by model compatibility.
 
@@ -335,9 +356,17 @@ def extract_job_ad(
     store: bool = False,
     temperature: float | None = None,
 ) -> Tuple[JobAdExtract, Optional[Dict[str, Any]]]:
+    messages = build_extract_job_ad_messages(job_text, language)
+    nano_suffix = _nano_closed_output_suffix(model)
     parsed, usage = _parse_with_structured_outputs(
         model=model,
-        messages=build_extract_job_ad_messages(job_text, language),
+        messages=[
+            {
+                "role": "system",
+                "content": messages[0]["content"] + nano_suffix,
+            },
+            messages[1],
+        ],
         out_model=JobAdExtract,
         store=store,
         maybe_temperature=temperature,
@@ -355,6 +384,7 @@ def generate_question_plan(
     store: bool = False,
     temperature: float | None = None,
 ) -> Tuple[QuestionPlan, Optional[Dict[str, Any]]]:
+    nano_suffix = _nano_closed_output_suffix(model)
     system = (
         "Du bist ein Experte für Vacancy Intake & Recruiting Briefings. "
         "Du erstellst einen dynamischen, aber stabilen Fragebogen für Line Manager. "
@@ -363,10 +393,11 @@ def generate_question_plan(
         "Erzeuge nur Fragen, die einen echten Mehrwert liefern (keine Dopplungen). "
         "Nutze kurze, klare Fragen. "
         f"Sprache: {language}."
+        f"{nano_suffix}"
     )
 
     user = (
-        "Erstelle einen QuestionPlan mit Steps: company, team, role_tasks, skills, benefits, interview. "
+        "Erstelle einen QuestionPlan in dieser Reihenfolge: company, team, role_tasks, skills, benefits, interview. "
         "Der Step 'jobad' ist bereits durch die Jobspec-Extraktion abgedeckt. "
         "Füge bei jedem Step 6–12 Fragen hinzu, je nachdem, was im Jobspec fehlt. "
         "Bevorzuge konkrete, messbare Antworten (z. B. 'Erfolgskriterien', 'Top-Deliverables', 'Must-have vs Nice-to-have').\n\n"
@@ -433,11 +464,13 @@ def generate_vacancy_brief(
     store: bool = False,
     temperature: float | None = None,
 ) -> Tuple[VacancyBrief, Optional[Dict[str, Any]]]:
+    nano_suffix = _nano_closed_output_suffix(model)
     system = (
         "Du bist ein Recruiting Partner, der aus einer Jobspec und Manager-Antworten "
         "einen vollständigen Recruiting Brief erstellt. "
         "Du bist präzise, vermeidest Marketing-Floskeln und machst offene Punkte transparent. "
         f"Sprache: {language}."
+        f"{nano_suffix}"
     )
 
     user = (
