@@ -1,6 +1,6 @@
 # schemas.py
 
-""Pydantic models used for Structured Outputs and internal state.
+"""Pydantic models used for Structured Outputs and internal state.
 
 These models are used in two ways:
 1) As the JSON schema contract with the OpenAI API (Structured Outputs).
