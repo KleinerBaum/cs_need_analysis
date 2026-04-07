@@ -1,15 +1,13 @@
 # wizard_pages/01_jobad.py
 from __future__ import annotations
 
-import json
-
 import streamlit as st
 
 from constants import SSKey
 from llm_client import extract_job_ad, generate_question_plan
 from parsing import extract_text_from_uploaded_file, redact_pii
 from schemas import JobAdExtract, QuestionPlan
-from state import clear_error, set_error
+from state import clear_error, get_active_model, set_error
 from ui_components import render_error_banner, render_job_extract_overview
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
 
@@ -46,14 +44,27 @@ def render(ctx: WizardContext) -> None:
 
     render_error_banner()
 
-    st.write("Lade ein Jobspec als PDF/DOCX hoch oder füge den Text direkt ein. Danach klickst du auf **Analysieren**.")
+    st.write(
+        "Lade ein Jobspec als PDF/DOCX hoch oder füge den Text direkt ein. Danach klickst du auf **Analysieren**."
+    )
 
     # Preferences / settings
     with st.sidebar:
         st.subheader("LLM Settings")
-        st.text_input("Model", key=SSKey.MODEL.value, help="z.B. gpt-4o-mini oder ein anderes Modell aus deinem Account.")
-        st.checkbox("API Output speichern (store=true)", key=SSKey.STORE_API_OUTPUT.value, help="Für Datenschutz i.d.R. deaktiviert lassen.")
-        st.checkbox("PII redaktionieren (E-Mail/Telefon maskieren)", key=SSKey.SOURCE_REDACT_PII.value)
+        st.text_input(
+            "Model",
+            key=SSKey.MODEL.value,
+            help="z.B. gpt-4o-mini oder ein anderes Modell aus deinem Account.",
+        )
+        st.checkbox(
+            "API Output speichern (store=true)",
+            key=SSKey.STORE_API_OUTPUT.value,
+            help="Für Datenschutz i.d.R. deaktiviert lassen.",
+        )
+        st.checkbox(
+            "PII redaktionieren (E-Mail/Telefon maskieren)",
+            key=SSKey.SOURCE_REDACT_PII.value,
+        )
 
     tab1, tab2, tab3 = st.tabs(["Upload", "Text einfügen", "Samples"])
 
@@ -71,15 +82,28 @@ def render(ctx: WizardContext) -> None:
                 text, meta = extract_text_from_uploaded_file(upload)
                 source_text, source_meta = text, meta
                 st.success(f"Datei geladen: {meta.get('name')}")
-                st.text_area("Preview (Textauszug)", value=source_text[:4000], height=220)
+                st.text_area(
+                    "Preview (Textauszug)", value=source_text[:4000], height=220
+                )
             except Exception as e:
                 set_error(f"Datei konnte nicht gelesen werden: {e}")
 
     with tab2:
-        source_text = st.text_area("Jobspec Text", value=st.session_state.get(SSKey.SOURCE_TEXT.value, ""), height=320)
+        source_text = st.text_area(
+            "Jobspec Text",
+            value=st.session_state.get(SSKey.SOURCE_TEXT.value, ""),
+            height=320,
+        )
 
     with tab3:
-        sample = st.selectbox("Sample auswählen", options=["—", "Senior Data Scientist (EN, strukturiert)", "Produktentwickler*in (DE, Bullet)"])
+        sample = st.selectbox(
+            "Sample auswählen",
+            options=[
+                "—",
+                "Senior Data Scientist (EN, strukturiert)",
+                "Produktentwickler*in (DE, Bullet)",
+            ],
+        )
         if sample == "Senior Data Scientist (EN, strukturiert)":
             source_text = SAMPLE_SENIOR_DS
         elif sample == "Produktentwickler*in (DE, Bullet)":
@@ -94,9 +118,15 @@ def render(ctx: WizardContext) -> None:
 
     col1, col2 = st.columns([1, 2])
     with col1:
-        do_extract = st.button("Analysieren & Fragebogen erzeugen", type="primary", use_container_width=True)
+        do_extract = st.button(
+            "Analysieren & Fragebogen erzeugen",
+            type="primary",
+            use_container_width=True,
+        )
     with col2:
-        st.caption("Hinweis: Die Analyse ruft die OpenAI API auf. Das kann je nach Länge des Jobspec etwas dauern.")
+        st.caption(
+            "Hinweis: Die Analyse ruft die OpenAI API auf. Das kann je nach Länge des Jobspec etwas dauern."
+        )
 
     if do_extract:
         clear_error()
@@ -108,7 +138,7 @@ def render(ctx: WizardContext) -> None:
         redact = bool(st.session_state.get(SSKey.SOURCE_REDACT_PII.value, True))
         submitted = redact_pii(raw) if redact else raw
 
-        model = st.session_state.get(SSKey.MODEL.value) or "gpt-4o-mini"
+        model = get_active_model()
         store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
 
         try:
@@ -141,9 +171,15 @@ def render(ctx: WizardContext) -> None:
 
     if plan_dict:
         plan = QuestionPlan.model_validate(plan_dict)
-        st.info(f"QuestionPlan geladen: {sum(len(s.questions) for s in plan.steps)} Fragen in {len(plan.steps)} Steps.")
+        st.info(
+            f"QuestionPlan geladen: {sum(len(s.questions) for s in plan.steps)} Fragen in {len(plan.steps)} Steps."
+        )
 
-    nav_buttons(ctx, disable_prev=False, disable_next=not bool(st.session_state.get(SSKey.JOB_EXTRACT.value)))
+    nav_buttons(
+        ctx,
+        disable_prev=False,
+        disable_next=not bool(st.session_state.get(SSKey.JOB_EXTRACT.value)),
+    )
 
 
 PAGE = WizardPage(

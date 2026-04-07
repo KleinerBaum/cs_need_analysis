@@ -15,13 +15,20 @@ from constants import DEFAULT_LANGUAGE, SSKey, STEPS
 from settings_openai import load_openai_settings
 
 
+def get_active_model() -> str:
+    """Return UI override model or OpenAI settings fallback model."""
+
+    model_override = st.session_state.get(SSKey.MODEL.value)
+    if isinstance(model_override, str) and model_override.strip():
+        return model_override.strip()
+    return load_openai_settings().openai_model
+
+
 def init_session_state() -> None:
-    settings = load_openai_settings()
-    default_model = settings.openai_model
     defaults = {
         SSKey.CURRENT_STEP.value: STEPS[0].key,
         SSKey.LANGUAGE.value: DEFAULT_LANGUAGE,
-        SSKey.MODEL.value: default_model,
+        SSKey.MODEL.value: load_openai_settings().openai_model,
         SSKey.STORE_API_OUTPUT.value: False,
         SSKey.SOURCE_TEXT.value: "",
         SSKey.SOURCE_FILE_META.value: {},

@@ -9,15 +9,17 @@ import docx
 
 from constants import SSKey
 from llm_client import generate_vacancy_brief
-from schemas import JobAdExtract, QuestionPlan, VacancyBrief
-from state import clear_error, get_answers, set_error
+from schemas import JobAdExtract, VacancyBrief
+from state import clear_error, get_active_model, get_answers, set_error
 from ui_components import render_brief, render_error_banner
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
 
 
 def _brief_to_markdown(brief: VacancyBrief) -> str:
     lines = []
-    lines.append(f"# Recruiting Brief – {brief.structured_data.get('job_extract', {}).get('job_title', '')}".strip())
+    lines.append(
+        f"# Recruiting Brief – {brief.structured_data.get('job_extract', {}).get('job_title', '')}".strip()
+    )
     lines.append("")
     lines.append(f"**One-liner:** {brief.one_liner}")
     lines.append("")
@@ -101,7 +103,9 @@ def render(ctx: WizardContext) -> None:
     plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
 
     if not job_dict or not plan_dict:
-        st.warning("Bitte zuerst im Schritt 'Jobspec / Jobad' eine Analyse durchführen.")
+        st.warning(
+            "Bitte zuerst im Schritt 'Jobspec / Jobad' eine Analyse durchführen."
+        )
         st.button("Zur Jobspec-Seite", on_click=lambda: ctx.goto("jobad"))
         nav_buttons(ctx, disable_next=True)
         return
@@ -109,21 +113,29 @@ def render(ctx: WizardContext) -> None:
     job = JobAdExtract.model_validate(job_dict)
     answers = get_answers()
 
-    st.write("Hier erzeugst du den finalen Recruiting Brief und kannst ihn exportieren (JSON / Markdown / DOCX).")
+    st.write(
+        "Hier erzeugst du den finalen Recruiting Brief und kannst ihn exportieren (JSON / Markdown / DOCX)."
+    )
 
     col1, col2 = st.columns([1, 2])
     with col1:
-        do_brief = st.button("Recruiting Brief generieren", type="primary", use_container_width=True)
+        do_brief = st.button(
+            "Recruiting Brief generieren", type="primary", use_container_width=True
+        )
     with col2:
-        st.caption("Der Brief kombiniert Jobspec-Extraktion + deine Antworten. Offene Punkte werden transparent gemacht.")
+        st.caption(
+            "Der Brief kombiniert Jobspec-Extraktion + deine Antworten. Offene Punkte werden transparent gemacht."
+        )
 
     if do_brief:
         clear_error()
-        model = st.session_state.get(SSKey.MODEL.value) or "gpt-4o-mini"
+        model = get_active_model()
         store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
         try:
             with st.spinner("Generiere Recruiting Brief…"):
-                brief, usage = generate_vacancy_brief(job, answers, model=model, store=store)
+                brief, usage = generate_vacancy_brief(
+                    job, answers, model=model, store=store
+                )
             st.session_state[SSKey.BRIEF.value] = brief.model_dump()
             with st.expander("API Usage (Debug)", expanded=False):
                 st.write(usage)
@@ -133,7 +145,9 @@ def render(ctx: WizardContext) -> None:
 
     brief_dict = st.session_state.get(SSKey.BRIEF.value)
     if not brief_dict:
-        st.info("Noch kein Brief generiert. Beantworte die Fragen und klicke dann auf 'Recruiting Brief generieren'.")
+        st.info(
+            "Noch kein Brief generiert. Beantworte die Fragen und klicke dann auf 'Recruiting Brief generieren'."
+        )
         nav_buttons(ctx, disable_next=True)
         return
 
@@ -142,16 +156,33 @@ def render(ctx: WizardContext) -> None:
 
     st.subheader("Export")
     md = _brief_to_markdown(brief)
-    json_bytes = json.dumps(brief.structured_data, indent=2, ensure_ascii=False).encode("utf-8")
+    json_bytes = json.dumps(brief.structured_data, indent=2, ensure_ascii=False).encode(
+        "utf-8"
+    )
     docx_bytes = _brief_to_docx_bytes(brief)
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.download_button("Download JSON", data=json_bytes, file_name="vacancy_brief.json", mime="application/json")
+        st.download_button(
+            "Download JSON",
+            data=json_bytes,
+            file_name="vacancy_brief.json",
+            mime="application/json",
+        )
     with c2:
-        st.download_button("Download Markdown", data=md.encode("utf-8"), file_name="vacancy_brief.md", mime="text/markdown")
+        st.download_button(
+            "Download Markdown",
+            data=md.encode("utf-8"),
+            file_name="vacancy_brief.md",
+            mime="text/markdown",
+        )
     with c3:
-        st.download_button("Download DOCX", data=docx_bytes, file_name="vacancy_brief.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        st.download_button(
+            "Download DOCX",
+            data=docx_bytes,
+            file_name="vacancy_brief.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
 
     nav_buttons(ctx, disable_next=True)
 
