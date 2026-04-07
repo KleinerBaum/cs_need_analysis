@@ -89,6 +89,43 @@ def set_error(msg: str) -> None:
     st.session_state[SSKey.LAST_ERROR.value] = msg
 
 
+def set_safe_error_debug(
+    *,
+    step: str,
+    error_type: str,
+    error_code: str | None = None,
+) -> None:
+    """Store non-sensitive debug details for optional UI display."""
+
+    st.session_state["cs.last_error_debug"] = None
+    if not bool(st.session_state.get("OPENAI_DEBUG_ERRORS", False)):
+        return
+
+    details: list[str] = [f"step={step}", f"type={error_type}"]
+    if error_code:
+        details.insert(1, f"code={error_code}")
+    st.session_state["cs.last_error_debug"] = " | ".join(details)
+
+
+def handle_unexpected_exception(
+    *,
+    step: str,
+    exc: Exception,
+    error_type: str | None = None,
+    error_code: str | None = None,
+    user_message: str = "Unerwarteter Fehler (DE) / Unexpected error (EN).",
+) -> None:
+    """Set a generic UI error plus safe non-sensitive debug metadata."""
+
+    resolved_error_type = error_type or type(exc).__name__
+    set_error(user_message)
+    set_safe_error_debug(
+        step=step,
+        error_type=resolved_error_type,
+        error_code=error_code,
+    )
+
+
 def clear_error() -> None:
     st.session_state[SSKey.LAST_ERROR.value] = None
     st.session_state["cs.last_error_debug"] = None
