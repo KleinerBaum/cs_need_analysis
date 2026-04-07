@@ -2,6 +2,9 @@
 
 ## 2026-04-07
 
+- Landing-Page erweitert: verpflichtende DE/EN-Consent-Bestätigung zum OpenAI Content Sharing Agreement (`cs.content_sharing_consent`) vor Wizard-Start; Start-Button bleibt bis zur Zustimmung deaktiviert.
+- Terms of Service und Privacy Policy präzisiert: zweisprachige Hinweise zu Designated Content, Development Purposes, Notice/Consent-Verantwortung sowie ausgeschlossenen Daten (PHI, Kinder <13 bzw. lokales Mindestalter).
+- Session-State/Constants ergänzt um neuen Schlüssel `SSKey.CONTENT_SHARING_CONSENT` inklusive Initialisierung in `init_session_state()`.
 - OpenAI-Fehlerbehandlung in `llm_client.py` weiter gehärtet: SDK-Feature-Mismatch wird jetzt als `OpenAICallError` mit Code `OPENAI_SDK_UNSUPPORTED` behandelt (statt generischem `RuntimeError`); `debug_detail` enthält non-sensitive Kontext (`endpoint`, Exception-Klasse, optional `status_code`) ohne Payload/Secrets.
 - Wizard-Seiten (`wizard_pages/01_jobad.py`, `wizard_pages/08_summary.py`) behalten `OpenAICallError`-Sonderbehandlung bei; generische Fangkörbe bleiben als letzter Schutz mit neutral-kurzer DE/EN-UI-Meldung.
 - Smoke-Test erweitert (`scripts/openai_smoke_test.py`): zusätzliche Pfade für `invalid-reasoning-effort`, `unsupported-temperature` sowie simulierbare Timeout-/Connection-Error-Mappings (`--simulate-error timeout|connection`) zur reproduzierbaren Verifikation ohne Netzwerkzwang.

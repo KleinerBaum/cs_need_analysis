@@ -19,6 +19,7 @@ from typing import Final, List
 APP_TITLE: Final[str] = "Cognitive Staffing – Vacancy Intake Wizard"
 DEFAULT_LANGUAGE: Final[str] = "de"
 
+
 # ---- Session State Keys ----
 class SSKey(str, Enum):
     CURRENT_STEP = "cs.current_step"
@@ -37,6 +38,7 @@ class SSKey(str, Enum):
     BRIEF = "cs.brief"
     LAST_ERROR = "cs.last_error"
     DEBUG = "cs.debug"
+    CONTENT_SHARING_CONSENT = "cs.content_sharing_consent"
 
 
 # ---- Wizard Steps (match your screenshot structure) ----
