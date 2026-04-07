@@ -29,7 +29,16 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements.txt -c constraints.txt
+```
+
+Falls du ohne Constraints arbeiten willst, bleibt auch `pip install -r requirements.txt` möglich.
+
+### Verifikation
+
+```bash
+pip check
+python -c "import openai; print(openai.__version__)"
 ```
 
 ## OpenAI Modell-Kompatibilität
