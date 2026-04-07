@@ -16,7 +16,7 @@ from llm_client import (
 from settings_openai import load_openai_settings
 from parsing import extract_text_from_uploaded_file, redact_pii
 from schemas import JobAdExtract, QuestionPlan
-from state import clear_error, set_error
+from state import clear_error, get_model_override, set_error
 from ui_components import (
     render_error_banner,
     render_job_extract_overview,
@@ -223,26 +223,34 @@ def render(ctx: WizardContext) -> None:
         redact = bool(st.session_state.get(SSKey.SOURCE_REDACT_PII.value, True))
         submitted = redact_pii(raw) if redact else raw
 
-        model = str(st.session_state.get(SSKey.MODEL.value, "")).strip()
+        session_override = get_model_override()
         store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
         settings = load_openai_settings()
         resolved_extract_model = resolve_model_for_task(
             task_kind=TASK_EXTRACT_JOB_AD,
-            session_override=model,
+            session_override=session_override,
             settings=settings,
         )
         resolved_plan_model = resolve_model_for_task(
             task_kind=TASK_GENERATE_QUESTION_PLAN,
-            session_override=model,
+            session_override=session_override,
             settings=settings,
         )
 
         try:
             with st.spinner("Extrahiere Jobspec…"):
-                job, usage1 = extract_job_ad(submitted, model=model, store=store)
+                job, usage1 = extract_job_ad(
+                    submitted,
+                    model=resolved_extract_model,
+                    store=store,
+                )
 
             with st.spinner("Erzeuge dynamischen Fragebogen…"):
-                plan, usage2 = generate_question_plan(job, model=model, store=store)
+                plan, usage2 = generate_question_plan(
+                    job,
+                    model=resolved_plan_model,
+                    store=store,
+                )
 
             st.session_state[SSKey.JOB_EXTRACT.value] = job.model_dump()
             st.session_state[SSKey.QUESTION_PLAN.value] = plan.model_dump()
