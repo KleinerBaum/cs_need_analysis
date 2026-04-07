@@ -8,6 +8,12 @@ from pathlib import Path
 import streamlit as st
 
 from constants import APP_TITLE, SSKey
+from llm_client import (
+    TASK_EXTRACT_JOB_AD,
+    TASK_GENERATE_QUESTION_PLAN,
+    TASK_GENERATE_VACANCY_BRIEF,
+    resolve_model_for_task,
+)
 from settings_openai import load_openai_settings
 from state import init_session_state, reset_vacancy
 from wizard_pages import load_pages
@@ -118,25 +124,67 @@ def _render_openai_debug_panel() -> None:
 
     settings = load_openai_settings()
     session_model = st.session_state.get(SSKey.MODEL.value)
-    resolved_model = settings.openai_model
-    if isinstance(session_model, str) and session_model.strip():
-        resolved_model = session_model.strip()
+    session_model_override: str | None = None
+    if isinstance(session_model, str):
+        cleaned_session_model = session_model.strip()
+        if cleaned_session_model and cleaned_session_model != settings.openai_model:
+            session_model_override = cleaned_session_model
+
+    session_model_override_active = session_model_override is not None
+    resolved_model = session_model_override or settings.openai_model
+    resolved_model_source = (
+        "session_state_ui"
+        if session_model_override_active
+        else settings.resolved_from.get("OPENAI_MODEL", "unknown")
+    )
+    resolved_task_models = {
+        "extract_job_ad": resolve_model_for_task(
+            task_kind=TASK_EXTRACT_JOB_AD,
+            session_override=session_model_override,
+            settings=settings,
+        ),
+        "generate_question_plan": resolve_model_for_task(
+            task_kind=TASK_GENERATE_QUESTION_PLAN,
+            session_override=session_model_override,
+            settings=settings,
+        ),
+        "generate_vacancy_brief": resolve_model_for_task(
+            task_kind=TASK_GENERATE_VACANCY_BRIEF,
+            session_override=session_model_override,
+            settings=settings,
+        ),
+    }
 
     with st.expander(
         "Debug (DE/EN): OpenAI-Auflösung / OpenAI resolution", expanded=False
     ):
         st.caption("Nur aufgelöste Laufzeitwerte, keine Secrets.")
         st.caption("Resolved runtime values only, no secrets.")
-        st.json(
-            {
-                "resolved_model": resolved_model,
-                "resolved_default_model": settings.default_model,
-                "resolved_reasoning_effort": settings.reasoning_effort,
-                "resolved_verbosity": settings.verbosity,
-                "resolved_timeout": settings.openai_request_timeout,
-            },
-            expanded=False,
-        )
+        debug_payload: dict[str, object] = {
+            "resolved_model": resolved_model,
+            "resolved_model_source": resolved_model_source,
+            "resolved_default_model": settings.default_model,
+            "resolved_default_model_source": settings.resolved_from.get(
+                "DEFAULT_MODEL", "unknown"
+            ),
+            "resolved_reasoning_effort": settings.reasoning_effort,
+            "resolved_reasoning_effort_source": settings.resolved_from.get(
+                "REASONING_EFFORT", "unknown"
+            ),
+            "resolved_verbosity": settings.verbosity,
+            "resolved_verbosity_source": settings.resolved_from.get(
+                "VERBOSITY", "unknown"
+            ),
+            "resolved_timeout": settings.openai_request_timeout,
+            "resolved_timeout_source": settings.resolved_from.get(
+                "OPENAI_REQUEST_TIMEOUT", "unknown"
+            ),
+            "session_model_override_active": session_model_override_active,
+            "resolved_task_models": resolved_task_models,
+        }
+        if session_model_override_active and session_model_override is not None:
+            debug_payload["session_model_override_value"] = session_model_override
+        st.json(debug_payload, expanded=False)
 
 
 def _get_legal_page_key() -> str | None:

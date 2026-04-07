@@ -132,14 +132,16 @@ def load_openai_settings() -> OpenAISettings:
 
     openai_api_key = _resolve_optional_config_value("OPENAI_API_KEY")
     resolved_from: dict[str, str] = {}
-    default_model = (
-        _resolve_optional_config_value("DEFAULT_MODEL") or _FINAL_MODEL_FALLBACK
+    default_model_candidate, default_model_source = (
+        _resolve_optional_config_value_with_source("DEFAULT_MODEL")
     )
+    default_model = default_model_candidate or _FINAL_MODEL_FALLBACK
     openai_model_override, openai_model_source = (
         _resolve_optional_config_value_with_source("OPENAI_MODEL")
     )
     openai_model = openai_model_override or default_model
     resolved_from["OPENAI_MODEL"] = openai_model_source
+    resolved_from["DEFAULT_MODEL"] = default_model_source
     lightweight_model = (
         _resolve_optional_config_value("LIGHTWEIGHT_MODEL") or _FINAL_MODEL_FALLBACK
     )
