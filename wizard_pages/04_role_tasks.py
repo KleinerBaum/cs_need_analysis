@@ -5,7 +5,11 @@ import streamlit as st
 
 from constants import SSKey
 from schemas import JobAdExtract, QuestionPlan
-from ui_components import render_error_banner, render_question_step
+from ui_components import (
+    has_meaningful_value,
+    render_error_banner,
+    render_question_step,
+)
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
 
 
@@ -17,7 +21,9 @@ def render(ctx: WizardContext) -> None:
     plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
 
     if not job_dict or not plan_dict:
-        st.warning("Bitte zuerst im Schritt 'Jobspec / Jobad' eine Analyse durchführen.")
+        st.warning(
+            "Bitte zuerst im Schritt 'Jobspec / Jobad' eine Analyse durchführen."
+        )
         st.button("Zur Jobspec-Seite", on_click=lambda: ctx.goto("jobad"))
         nav_buttons(ctx, disable_next=True)
         return
@@ -30,24 +36,30 @@ def render(ctx: WizardContext) -> None:
         "Das ist der Kern für Briefing, Interviewleitfaden und Erwartungsmanagement."
     )
 
-    with st.expander("Aus Jobspec extrahiert (Responsibilities & Metrics)", expanded=False):
-        if job.responsibilities:
+    with st.expander(
+        "Aus Jobspec extrahiert (Responsibilities & Metrics)", expanded=True
+    ):
+        responsibilities = [r for r in job.responsibilities if has_meaningful_value(r)]
+        success_metrics = [r for r in job.success_metrics if has_meaningful_value(r)]
+        if responsibilities:
             st.write("**Responsibilities (Auszug):**")
-            for r in job.responsibilities[:10]:
+            for r in responsibilities[:10]:
                 st.write(f"- {r}")
-        else:
-            st.write("**Responsibilities:** —")
 
-        if job.success_metrics:
+        if success_metrics:
             st.write("**Success Metrics (Auszug):**")
-            for r in job.success_metrics[:10]:
+            for r in success_metrics[:10]:
                 st.write(f"- {r}")
-        else:
-            st.write("**Success Metrics:** —")
+        if not responsibilities and not success_metrics:
+            st.info(
+                "Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions."
+            )
 
     step = next((s for s in plan.steps if s.step_key == "role_tasks"), None)
     if step is None or not step.questions:
-        st.info("Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen.")
+        st.info(
+            "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
+        )
         nav_buttons(ctx)
         return
 

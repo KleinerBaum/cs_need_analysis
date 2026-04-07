@@ -5,7 +5,11 @@ import streamlit as st
 
 from constants import SSKey
 from schemas import JobAdExtract, QuestionPlan
-from ui_components import render_error_banner, render_question_step
+from ui_components import (
+    has_meaningful_value,
+    render_error_banner,
+    render_question_step,
+)
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
 
 
@@ -17,7 +21,9 @@ def render(ctx: WizardContext) -> None:
     plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
 
     if not job_dict or not plan_dict:
-        st.warning("Bitte zuerst im Schritt 'Jobspec / Jobad' eine Analyse durchführen.")
+        st.warning(
+            "Bitte zuerst im Schritt 'Jobspec / Jobad' eine Analyse durchführen."
+        )
         st.button("Zur Jobspec-Seite", on_click=lambda: ctx.goto("jobad"))
         nav_buttons(ctx, disable_next=True)
         return
@@ -30,16 +36,25 @@ def render(ctx: WizardContext) -> None:
         "und gleichzeitig das Candidate Experience sicherstellen."
     )
 
-    with st.expander("Aus Jobspec extrahiert (Recruitment Steps)", expanded=False):
+    with st.expander("Aus Jobspec extrahiert (Recruitment Steps)", expanded=True):
+        shown = False
         if job.recruitment_steps:
             for s in job.recruitment_steps:
-                st.write(f"- **{s.name}** {('– ' + s.details) if s.details else ''}")
-        else:
-            st.write("—")
+                if not has_meaningful_value(s.name):
+                    continue
+                details = f"– {s.details}" if has_meaningful_value(s.details) else ""
+                st.write(f"- **{s.name}** {details}")
+                shown = True
+        if not shown:
+            st.info(
+                "Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions."
+            )
 
     step = next((s for s in plan.steps if s.step_key == "interview"), None)
     if step is None or not step.questions:
-        st.info("Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen.")
+        st.info(
+            "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
+        )
         nav_buttons(ctx)
         return
 

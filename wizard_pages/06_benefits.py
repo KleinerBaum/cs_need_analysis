@@ -5,7 +5,11 @@ import streamlit as st
 
 from constants import SSKey
 from schemas import JobAdExtract, QuestionPlan
-from ui_components import render_error_banner, render_question_step
+from ui_components import (
+    has_meaningful_value,
+    render_error_banner,
+    render_question_step,
+)
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
 
 
@@ -17,7 +21,9 @@ def render(ctx: WizardContext) -> None:
     plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
 
     if not job_dict or not plan_dict:
-        st.warning("Bitte zuerst im Schritt 'Jobspec / Jobad' eine Analyse durchführen.")
+        st.warning(
+            "Bitte zuerst im Schritt 'Jobspec / Jobad' eine Analyse durchführen."
+        )
         st.button("Zur Jobspec-Seite", on_click=lambda: ctx.goto("jobad"))
         nav_buttons(ctx, disable_next=True)
         return
@@ -30,26 +36,40 @@ def render(ctx: WizardContext) -> None:
         "Benefits, Relocation, Learning Budget – inklusive der Dinge, die man im Recruiting unbedingt konsistent kommunizieren muss."
     )
 
-    with st.expander("Aus Jobspec extrahiert (Benefits/Comp)", expanded=False):
+    with st.expander("Aus Jobspec extrahiert (Benefits/Comp)", expanded=True):
+        shown = False
         if job.salary_range:
-            st.write(f"**Salary:** {job.salary_range.min} – {job.salary_range.max} {job.salary_range.currency or ''} ({job.salary_range.period or ''})")
-            if job.salary_range.notes:
+            min_salary = job.salary_range.min
+            max_salary = job.salary_range.max
+            if has_meaningful_value(min_salary) or has_meaningful_value(max_salary):
+                st.write(
+                    f"**Salary:** {min_salary} – {max_salary} {job.salary_range.currency or ''} ({job.salary_range.period or ''})"
+                )
+                shown = True
+            if has_meaningful_value(job.salary_range.notes):
                 st.write(f"**Notes:** {job.salary_range.notes}")
-        else:
-            st.write("**Salary:** —")
+                shown = True
 
-        if job.benefits:
+        benefits = [b for b in job.benefits if has_meaningful_value(b)]
+        if benefits:
             st.write("**Benefits (Auszug):**")
-            for b in job.benefits[:12]:
+            for b in benefits[:12]:
                 st.write(f"- {b}")
-        else:
-            st.write("**Benefits:** —")
+            shown = True
 
-        st.write(f"**Remote Policy:** {job.remote_policy or '—'}")
+        if has_meaningful_value(job.remote_policy):
+            st.write(f"**Remote Policy:** {job.remote_policy}")
+            shown = True
+        if not shown:
+            st.info(
+                "Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions."
+            )
 
     step = next((s for s in plan.steps if s.step_key == "benefits"), None)
     if step is None or not step.questions:
-        st.info("Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen.")
+        st.info(
+            "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
+        )
         nav_buttons(ctx)
         return
 

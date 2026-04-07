@@ -5,7 +5,11 @@ import streamlit as st
 
 from constants import SSKey
 from schemas import JobAdExtract, QuestionPlan
-from ui_components import render_error_banner, render_question_step
+from ui_components import (
+    has_meaningful_value,
+    render_error_banner,
+    render_question_step,
+)
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
 
 
@@ -17,7 +21,9 @@ def render(ctx: WizardContext) -> None:
     plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
 
     if not job_dict or not plan_dict:
-        st.warning("Bitte zuerst im Schritt 'Jobspec / Jobad' eine Analyse durchführen.")
+        st.warning(
+            "Bitte zuerst im Schritt 'Jobspec / Jobad' eine Analyse durchführen."
+        )
         st.button("Zur Jobspec-Seite", on_click=lambda: ctx.goto("jobad"))
         nav_buttons(ctx, disable_next=True)
         return
@@ -30,29 +36,36 @@ def render(ctx: WizardContext) -> None:
         "und daraus eine Interview- & Assessment-Logik ableiten."
     )
 
-    with st.expander("Aus Jobspec extrahiert (Skills)", expanded=False):
-        st.write("**Must-have (Auszug):**")
-        if job.must_have_skills:
-            for x in job.must_have_skills[:12]:
+    with st.expander("Aus Jobspec extrahiert (Skills)", expanded=True):
+        must_have_skills = [x for x in job.must_have_skills if has_meaningful_value(x)]
+        nice_to_have_skills = [
+            x for x in job.nice_to_have_skills if has_meaningful_value(x)
+        ]
+        tech_stack = [x for x in job.tech_stack if has_meaningful_value(x)]
+        if must_have_skills:
+            st.write("**Must-have (Auszug):**")
+            for x in must_have_skills[:12]:
                 st.write(f"- {x}")
-        else:
-            st.write("—")
 
-        st.write("**Nice-to-have (Auszug):**")
-        if job.nice_to_have_skills:
-            for x in job.nice_to_have_skills[:12]:
+        if nice_to_have_skills:
+            st.write("**Nice-to-have (Auszug):**")
+            for x in nice_to_have_skills[:12]:
                 st.write(f"- {x}")
-        else:
-            st.write("—")
 
-        if job.tech_stack:
+        if tech_stack:
             st.write("**Tech Stack (Auszug):**")
-            for x in job.tech_stack[:15]:
+            for x in tech_stack[:15]:
                 st.write(f"- {x}")
+        if not must_have_skills and not nice_to_have_skills and not tech_stack:
+            st.info(
+                "Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions."
+            )
 
     step = next((s for s in plan.steps if s.step_key == "skills"), None)
     if step is None or not step.questions:
-        st.info("Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen.")
+        st.info(
+            "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
+        )
         nav_buttons(ctx)
         return
 
