@@ -147,7 +147,9 @@ def test_structured_output_validation_error_maps_cleanly() -> None:
     assert mapped.error_code == "OPENAI_PARSE"
 
 
-def _runtime_config_for_parse(*, resolved_model: str = "gpt-5-mini") -> OpenAIRuntimeConfig:
+def _runtime_config_for_parse(
+    *, resolved_model: str = "gpt-5-mini"
+) -> OpenAIRuntimeConfig:
     settings = OpenAISettings(
         openai_api_key="test-key",
         openai_model=resolved_model,
@@ -180,7 +182,9 @@ class _MiniOut(BaseModel):
     value: int
 
 
-def test_parse_structured_outputs_retries_on_compatible_400(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_parse_structured_outputs_retries_on_compatible_400(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     class FakeResponse:
         output_parsed = _MiniOut(value=7)
         usage = {"total_tokens": 5}

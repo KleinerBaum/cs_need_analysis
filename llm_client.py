@@ -23,7 +23,7 @@ from openai import (
     AuthenticationError,
     OpenAI,
 )
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from constants import (
     DEFAULT_LANGUAGE,
@@ -40,7 +40,7 @@ from model_capabilities import (
     supports_temperature,
     supports_verbosity,
 )
-from schemas import JobAdExtract, QuestionPlan, VacancyBrief
+from schemas import JobAdExtract, QuestionPlan, VacancyBrief, VacancyBriefLLM
 from settings_openai import OpenAISettings, load_openai_settings
 
 logger = logging.getLogger(__name__)
@@ -63,6 +63,8 @@ TASK_GENERATE_VACANCY_BRIEF = "generate_vacancy_brief"
 
 class VacancyBriefCriticalSections(BaseModel):
     """Subset schema for optional quality upgrades on critical sections only."""
+
+    model_config = ConfigDict(extra="forbid")
 
     evaluation_rubric: list[str]
     risks_open_questions: list[str]
@@ -102,7 +104,9 @@ def _resolve_runtime_config(
         timeout_seconds=settings.openai_request_timeout,
         task_max_output_tokens=settings.task_max_output_tokens.get(task_kind),
         task_max_bullets_per_field=settings.task_max_bullets_per_field.get(task_kind),
-        task_max_sentences_per_field=settings.task_max_sentences_per_field.get(task_kind),
+        task_max_sentences_per_field=settings.task_max_sentences_per_field.get(
+            task_kind
+        ),
         settings=settings,
     )
 
@@ -117,13 +121,9 @@ def build_task_prompt_limits_suffix(
 
     parts: list[str] = []
     if max_bullets_per_field is not None:
-        parts.append(
-            f"Maximal {max_bullets_per_field} Bulletpoints pro Listenfeld."
-        )
+        parts.append(f"Maximal {max_bullets_per_field} Bulletpoints pro Listenfeld.")
     if max_sentences_per_field is not None:
-        parts.append(
-            f"Maximal {max_sentences_per_field} Sätze pro Textfeld."
-        )
+        parts.append(f"Maximal {max_sentences_per_field} Sätze pro Textfeld.")
     if max_output_tokens is not None:
         parts.append(
             "Bei knappem Budget priorisiere Pflichtfelder mit hoher Hiring-Relevanz; "
@@ -811,8 +811,7 @@ def _parse_with_structured_outputs(
                         )
                         logger.warning(
                             "OpenAI fallback-model parse failed: %s",
-                            mapped_fallback.debug_detail
-                            or type(fallback_exc).__name__,
+                            mapped_fallback.debug_detail or type(fallback_exc).__name__,
                         )
                         raise mapped_fallback from fallback_exc
             else:
@@ -1118,19 +1117,23 @@ def generate_vacancy_brief(
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
-        out_model=VacancyBrief,
+        out_model=VacancyBriefLLM,
         store=store,
         maybe_temperature=temperature,
     )
 
     # Always embed the merged structured payload for downstream systems
+    parsed_brief = cast(VacancyBriefLLM, parsed)
     merged = {
         "job_extract": job.model_dump(),
         "answers": answers,
     }
-    parsed.structured_data = merged
-    cache[cache_key] = {"result": parsed.model_dump(mode="json")}
-    return parsed, usage
+    brief = VacancyBrief(
+        **parsed_brief.model_dump(),
+        structured_data=merged,
+    )
+    cache[cache_key] = {"result": brief.model_dump(mode="json")}
+    return brief, usage
 
 
 def upgrade_vacancy_brief_critical_sections(

@@ -11,37 +11,60 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from constants import AnswerType, QUESTION_SCHEMA_VERSION, VACANCY_SCHEMA_VERSION
 
 
-class MoneyRange(BaseModel):
-    min: Optional[float] = Field(default=None, description="Minimum salary/compensation (numeric).")
-    max: Optional[float] = Field(default=None, description="Maximum salary/compensation (numeric).")
-    currency: Optional[str] = Field(default=None, description="ISO currency code or free-form like 'EUR'.")
-    period: Optional[str] = Field(default=None, description="e.g., yearly, monthly, hourly.")
-    notes: Optional[str] = Field(default=None, description="Any caveats (e.g., depends on experience).")
+class StrictSchemaModel(BaseModel):
+    """Strict model base for Structured Outputs compatibility."""
+
+    model_config = ConfigDict(extra="forbid")
 
 
-class Contact(BaseModel):
+class MoneyRange(StrictSchemaModel):
+    min: Optional[float] = Field(
+        default=None, description="Minimum salary/compensation (numeric)."
+    )
+    max: Optional[float] = Field(
+        default=None, description="Maximum salary/compensation (numeric)."
+    )
+    currency: Optional[str] = Field(
+        default=None, description="ISO currency code or free-form like 'EUR'."
+    )
+    period: Optional[str] = Field(
+        default=None, description="e.g., yearly, monthly, hourly."
+    )
+    notes: Optional[str] = Field(
+        default=None, description="Any caveats (e.g., depends on experience)."
+    )
+
+
+class Contact(StrictSchemaModel):
     name: Optional[str] = None
     role: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
 
 
-class RecruitmentStep(BaseModel):
-    name: str = Field(description="Short step name, e.g., 'Phone screen', 'Technical interview'.")
-    details: Optional[str] = Field(default=None, description="Optional details like duration, format, who participates.")
+class RecruitmentStep(StrictSchemaModel):
+    name: str = Field(
+        description="Short step name, e.g., 'Phone screen', 'Technical interview'."
+    )
+    details: Optional[str] = Field(
+        default=None,
+        description="Optional details like duration, format, who participates.",
+    )
 
 
-class JobAdExtract(BaseModel):
+class JobAdExtract(StrictSchemaModel):
     """Normalized extraction from a jobspec/job ad."""
 
     schema_version: str = Field(default=VACANCY_SCHEMA_VERSION)
 
-    language_guess: Optional[str] = Field(default=None, description="Detected language of input, e.g., 'de' or 'en'.")
+    language_guess: Optional[str] = Field(
+        default=None, description="Detected language of input, e.g., 'de' or 'en'."
+    )
     job_title: Optional[str] = None
     company_name: Optional[str] = None
     brand_name: Optional[str] = None
@@ -55,8 +78,12 @@ class JobAdExtract(BaseModel):
     contract_type: Optional[str] = None  # permanent, temporary, etc.
     seniority_level: Optional[str] = None
 
-    start_date: Optional[str] = Field(default=None, description="Start date if present (keep as string).")
-    application_deadline: Optional[str] = Field(default=None, description="Application deadline if present (keep as string).")
+    start_date: Optional[str] = Field(
+        default=None, description="Start date if present (keep as string)."
+    )
+    application_deadline: Optional[str] = Field(
+        default=None, description="Application deadline if present (keep as string)."
+    )
     job_ref_number: Optional[str] = None
 
     department_name: Optional[str] = None
@@ -99,13 +126,15 @@ class JobAdExtract(BaseModel):
     )
 
 
-class Question(BaseModel):
+class Question(StrictSchemaModel):
     id: str = Field(description="Stable unique question id (machine-readable).")
     label: str = Field(description="Exact question text shown to the user.")
     help: Optional[str] = Field(default=None, description="Helper text / tooltip.")
     answer_type: AnswerType = Field(description="Widget/answer type.")
     required: bool = Field(default=False)
-    options: Optional[List[str]] = Field(default=None, description="Options for select widgets.")
+    options: Optional[List[str]] = Field(
+        default=None, description="Options for select widgets."
+    )
     default: Optional[
         Union[str, int, float, bool, List[str], List[int], List[float], List[bool]]
     ] = Field(default=None, description="Default value if applicable.")
@@ -119,27 +148,59 @@ class Question(BaseModel):
     )
 
 
-class QuestionStep(BaseModel):
-    step_key: str = Field(description="One of the wizard step keys, e.g. 'team' or 'skills'.")
+class QuestionStep(StrictSchemaModel):
+    step_key: str = Field(
+        description="One of the wizard step keys, e.g. 'team' or 'skills'."
+    )
     title_de: str
     description_de: Optional[str] = None
     questions: List[Question] = Field(default_factory=list)
 
 
-class QuestionPlan(BaseModel):
+class QuestionPlan(StrictSchemaModel):
     schema_version: str = Field(default=QUESTION_SCHEMA_VERSION)
     language: str = Field(default="de")
     steps: List[QuestionStep] = Field(default_factory=list)
 
 
-class VacancyBrief(BaseModel):
+class VacancyBriefLLM(StrictSchemaModel):
+    """Strict parse-time model for generated briefing sections only."""
+
+    schema_version: str = Field(default=VACANCY_SCHEMA_VERSION)
+    language: str = Field(default="de")
+
+    one_liner: str = Field(description="One-sentence role pitch.")
+    hiring_context: str = Field(
+        description="Why do we hire now, impact, urgency, business context."
+    )
+    role_summary: str = Field(description="Manager-ready role summary.")
+    top_responsibilities: List[str] = Field(default_factory=list)
+    must_have: List[str] = Field(default_factory=list)
+    nice_to_have: List[str] = Field(default_factory=list)
+    dealbreakers: List[str] = Field(default_factory=list)
+    interview_plan: List[str] = Field(default_factory=list)
+    evaluation_rubric: List[str] = Field(
+        default_factory=list, description="Bullet rubric: what to test and how."
+    )
+    sourcing_channels: List[str] = Field(
+        default_factory=list, description="Suggested channels based on role."
+    )
+    risks_open_questions: List[str] = Field(
+        default_factory=list, description="Remaining unknowns / risks."
+    )
+    job_ad_draft: str = Field(description="A publishable job ad draft (German).")
+
+
+class VacancyBrief(StrictSchemaModel):
     """Final structured output for recruiters / ATS / stakeholder alignment."""
 
     schema_version: str = Field(default=VACANCY_SCHEMA_VERSION)
     language: str = Field(default="de")
 
     one_liner: str = Field(description="One-sentence role pitch.")
-    hiring_context: str = Field(description="Why do we hire now, impact, urgency, business context.")
+    hiring_context: str = Field(
+        description="Why do we hire now, impact, urgency, business context."
+    )
     role_summary: str = Field(description="Manager-ready role summary.")
     top_responsibilities: List[str] = Field(default_factory=list)
     must_have: List[str] = Field(default_factory=list)
@@ -147,9 +208,15 @@ class VacancyBrief(BaseModel):
     dealbreakers: List[str] = Field(default_factory=list)
 
     interview_plan: List[str] = Field(default_factory=list)
-    evaluation_rubric: List[str] = Field(default_factory=list, description="Bullet rubric: what to test and how.")
-    sourcing_channels: List[str] = Field(default_factory=list, description="Suggested channels based on role.")
-    risks_open_questions: List[str] = Field(default_factory=list, description="Remaining unknowns / risks.")
+    evaluation_rubric: List[str] = Field(
+        default_factory=list, description="Bullet rubric: what to test and how."
+    )
+    sourcing_channels: List[str] = Field(
+        default_factory=list, description="Suggested channels based on role."
+    )
+    risks_open_questions: List[str] = Field(
+        default_factory=list, description="Remaining unknowns / risks."
+    )
 
     job_ad_draft: str = Field(description="A publishable job ad draft (German).")
     structured_data: Dict[str, Any] = Field(
