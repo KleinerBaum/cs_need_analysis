@@ -11,8 +11,14 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 
 ## Voraussetzungen
 
-- Python 3.10+
+- Python 3.11+
 - OpenAI API Key (als Umgebungsvariable oder Streamlit Secret)
+
+## UI-Branding
+
+- Die App nutzt `images/AdobeStock_506577005.jpeg` als vollflächiges Hintergrundbild.
+- Das Logo `images/color1_logo_transparent_background.png` wird mit transparentem Hintergrund im Sidebar-Header dargestellt.
+- Für Lesbarkeit auf hellen und dunklen Bildbereichen nutzt die Oberfläche einen dunklen Overlay-Layer, kontrastreiche Textfarben sowie angepasste Button-/Formularfarben.
 
 ## Installation
 
