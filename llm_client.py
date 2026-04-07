@@ -76,6 +76,9 @@ class OpenAIRuntimeConfig:
     reasoning_effort: str | None
     verbosity: str | None
     timeout_seconds: float
+    task_max_output_tokens: int | None
+    task_max_bullets_per_field: int | None
+    task_max_sentences_per_field: int | None
     settings: OpenAISettings
 
 
@@ -97,8 +100,38 @@ def _resolve_runtime_config(
         reasoning_effort=settings.reasoning_effort,
         verbosity=settings.verbosity,
         timeout_seconds=settings.openai_request_timeout,
+        task_max_output_tokens=settings.task_max_output_tokens.get(task_kind),
+        task_max_bullets_per_field=settings.task_max_bullets_per_field.get(task_kind),
+        task_max_sentences_per_field=settings.task_max_sentences_per_field.get(task_kind),
         settings=settings,
     )
+
+
+def build_task_prompt_limits_suffix(
+    *,
+    max_bullets_per_field: int | None,
+    max_sentences_per_field: int | None,
+    max_output_tokens: int | None,
+) -> str:
+    """Build strict task-level prompt limits from runtime configuration."""
+
+    parts: list[str] = []
+    if max_bullets_per_field is not None:
+        parts.append(
+            f"Maximal {max_bullets_per_field} Bulletpoints pro Listenfeld."
+        )
+    if max_sentences_per_field is not None:
+        parts.append(
+            f"Maximal {max_sentences_per_field} Sätze pro Textfeld."
+        )
+    if max_output_tokens is not None:
+        parts.append(
+            "Bei knappem Budget priorisiere Pflichtfelder mit hoher Hiring-Relevanz; "
+            "fülle Nice-to-have nur bei verbleibendem Budget."
+        )
+    if not parts:
+        return ""
+    return " Zusätzliche Output-Limits: " + " ".join(parts)
 
 
 class OpenAICallError(RuntimeError):
@@ -210,10 +243,13 @@ def build_responses_request_kwargs(
     maybe_temperature: float | None = None,
     reasoning_effort: str | None,
     verbosity: str | None,
+    max_output_tokens: int | None = None,
 ) -> dict[str, Any]:
     """Build kwargs for `responses.parse` with endpoint-specific fields."""
 
     request_kwargs: dict[str, Any] = {"model": model, "store": store}
+    if max_output_tokens is not None:
+        request_kwargs["max_output_tokens"] = max_output_tokens
     request_kwargs.update(
         _build_capability_gated_request_kwargs(
             model=model,
@@ -600,6 +636,7 @@ def _parse_with_structured_outputs(
         maybe_temperature=maybe_temperature,
         reasoning_effort=runtime_config.reasoning_effort,
         verbosity=runtime_config.verbosity,
+        max_output_tokens=runtime_config.task_max_output_tokens,
     )
 
     # Newer SDK path (Responses API + parse helper)
@@ -698,6 +735,13 @@ def extract_job_ad(
         language,
         model=runtime_config.resolved_model,
     )
+    prompt_limits = build_task_prompt_limits_suffix(
+        max_bullets_per_field=runtime_config.task_max_bullets_per_field,
+        max_sentences_per_field=runtime_config.task_max_sentences_per_field,
+        max_output_tokens=runtime_config.task_max_output_tokens,
+    )
+    if prompt_limits:
+        messages[0]["content"] = f"{messages[0]['content']}{prompt_limits}"
     normalized_content = _canonicalize_for_cache({"job_text": job_text})
     cache_key = _build_llm_cache_key(
         task_kind=TASK_EXTRACT_JOB_AD,
@@ -742,6 +786,11 @@ def generate_question_plan(
         session_override=model,
     )
     nano_suffix = build_small_model_guardrails(runtime_config.resolved_model)
+    task_limits_suffix = build_task_prompt_limits_suffix(
+        max_bullets_per_field=runtime_config.task_max_bullets_per_field,
+        max_sentences_per_field=runtime_config.task_max_sentences_per_field,
+        max_output_tokens=runtime_config.task_max_output_tokens,
+    )
     system = (
         "Du bist ein Experte für Vacancy Intake & Recruiting Briefings. "
         "Du erstellst einen dynamischen, aber stabilen Fragebogen für Line Manager. "
@@ -751,6 +800,7 @@ def generate_question_plan(
         "Nutze kurze, klare Fragen. "
         f"Sprache: {language}."
         f"{nano_suffix}"
+        f"{task_limits_suffix}"
     )
 
     user = (
@@ -846,12 +896,18 @@ def generate_vacancy_brief(
         session_override=model,
     )
     nano_suffix = build_small_model_guardrails(runtime_config.resolved_model)
+    task_limits_suffix = build_task_prompt_limits_suffix(
+        max_bullets_per_field=runtime_config.task_max_bullets_per_field,
+        max_sentences_per_field=runtime_config.task_max_sentences_per_field,
+        max_output_tokens=runtime_config.task_max_output_tokens,
+    )
     system = (
         "Du bist ein Recruiting Partner, der aus einer Jobspec und Manager-Antworten "
         "einen vollständigen Recruiting Brief erstellt. "
         "Du bist präzise, vermeidest Marketing-Floskeln und machst offene Punkte transparent. "
         f"Sprache: {language}."
         f"{nano_suffix}"
+        f"{task_limits_suffix}"
     )
 
     user = (
@@ -925,12 +981,18 @@ def upgrade_vacancy_brief_critical_sections(
         task_kind=TASK_GENERATE_VACANCY_BRIEF,
         session_override=model,
     )
+    task_limits_suffix = build_task_prompt_limits_suffix(
+        max_bullets_per_field=runtime_config.task_max_bullets_per_field,
+        max_sentences_per_field=runtime_config.task_max_sentences_per_field,
+        max_output_tokens=runtime_config.task_max_output_tokens,
+    )
     system = (
         "Du bist ein Senior Recruiting Quality Reviewer. "
         "Du überarbeitest ausschließlich die kritischen Abschnitte eines vorhandenen Vacancy Briefs. "
         "Ziele: präzisere, testbare evaluation_rubric und konkrete risks_open_questions. "
         "Keine zusätzlichen Felder, keine Änderung anderer Brief-Abschnitte. "
         f"Sprache: {language}."
+        f"{task_limits_suffix}"
     )
     user = (
         "Überarbeite nur evaluation_rubric und risks_open_questions.\n\n"
