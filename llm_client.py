@@ -95,7 +95,7 @@ def build_openai_request_kwargs(
     *,
     model: str,
     store: bool,
-    temperature: float,
+    maybe_temperature: float | None = None,
     reasoning_effort: str | None,
     verbosity: str | None,
 ) -> dict[str, Any]:
@@ -108,8 +108,10 @@ def build_openai_request_kwargs(
         "model": model,
         "store": store,
     }
-    if supports_temperature(model, normalized_reasoning_effort):
-        request_kwargs["temperature"] = temperature
+    if maybe_temperature is not None and supports_temperature(
+        model, normalized_reasoning_effort
+    ):
+        request_kwargs["temperature"] = maybe_temperature
     if normalized_reasoning_effort is not None:
         request_kwargs["reasoning"] = {"effort": normalized_reasoning_effort}
     if normalized_verbosity is not None:
@@ -166,7 +168,7 @@ def _parse_with_structured_outputs(
     messages: List[Dict[str, Any]],
     out_model: Type[BaseModel],
     store: bool,
-    temperature: float,
+    maybe_temperature: float | None = None,
     reasoning_effort: str | None,
 ) -> Tuple[BaseModel, Optional[Dict[str, Any]]]:
     """Try `.responses.parse`, then fall back to `.chat.completions.parse` if needed."""
@@ -178,7 +180,7 @@ def _parse_with_structured_outputs(
     request_kwargs = build_openai_request_kwargs(
         model=model,
         store=store,
-        temperature=temperature,
+        maybe_temperature=maybe_temperature,
         reasoning_effort=reasoning_effort,
         verbosity=settings.verbosity,
     )
@@ -233,7 +235,7 @@ def extract_job_ad(
     model: str,
     language: str = DEFAULT_LANGUAGE,
     store: bool = False,
-    temperature: float = 0.2,
+    temperature: float | None = None,
 ) -> Tuple[JobAdExtract, Optional[Dict[str, Any]]]:
     system = (
         "Du bist ein Senior HR / Recruiting Analyst. "
@@ -260,7 +262,7 @@ def extract_job_ad(
         ],
         out_model=JobAdExtract,
         store=store,
-        temperature=temperature,
+        maybe_temperature=temperature,
         reasoning_effort=load_openai_settings().reasoning_effort,
     )
 
@@ -273,7 +275,7 @@ def generate_question_plan(
     model: str,
     language: str = DEFAULT_LANGUAGE,
     store: bool = False,
-    temperature: float = 0.2,
+    temperature: float | None = None,
 ) -> Tuple[QuestionPlan, Optional[Dict[str, Any]]]:
     system = (
         "Du bist ein Experte für Vacancy Intake & Recruiting Briefings. "
@@ -302,7 +304,7 @@ def generate_question_plan(
         ],
         out_model=QuestionPlan,
         store=store,
-        temperature=temperature,
+        maybe_temperature=temperature,
         reasoning_effort=load_openai_settings().reasoning_effort,
     )
 
@@ -351,7 +353,7 @@ def generate_vacancy_brief(
     model: str,
     language: str = DEFAULT_LANGUAGE,
     store: bool = False,
-    temperature: float = 0.25,
+    temperature: float | None = None,
 ) -> Tuple[VacancyBrief, Optional[Dict[str, Any]]]:
     system = (
         "Du bist ein Recruiting Partner, der aus einer Jobspec und Manager-Antworten "
@@ -377,7 +379,7 @@ def generate_vacancy_brief(
         ],
         out_model=VacancyBrief,
         store=store,
-        temperature=temperature,
+        maybe_temperature=temperature,
         reasoning_effort=load_openai_settings().reasoning_effort,
     )
 
