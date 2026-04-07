@@ -20,6 +20,34 @@ from schemas import JobAdExtract, QuestionPlan, VacancyBrief
 from settings_openai import OpenAISettings, load_openai_settings
 
 
+def build_extract_job_ad_messages(
+    job_text: str, language: str = DEFAULT_LANGUAGE
+) -> list[dict[str, str]]:
+    """Build the standardized message list for job-ad extraction."""
+
+    system = (
+        "Du bist ein Senior HR / Recruiting Analyst. "
+        "Extrahiere aus einem Jobspec/Job Ad alle recruitment-relevanten Informationen "
+        "und normalisiere sie in ein strukturiertes JSON, ohne Halluzinationen. "
+        "Wenn etwas nicht explizit vorkommt oder nicht sicher ableitbar ist: setze null/leer und schreibe es in 'gaps'. "
+        "Wenn du Annahmen triffst: dokumentiere sie in 'assumptions'. "
+        f"Antworte in der Sprache: {language}."
+    )
+
+    user = (
+        "Analysiere folgenden Text (Jobspec/Job Ad). "
+        "Behalte Formulierungen aus dem Original, wo sinnvoll.\n\n"
+        "=== JOBSPEC START ===\n"
+        f"{job_text}\n"
+        "=== JOBSPEC END ==="
+    )
+
+    return [
+        {"role": "system", "content": system},
+        {"role": "user", "content": user},
+    ]
+
+
 def is_gpt5_legacy_model(model: str) -> bool:
     """Return ``True`` for the legacy GPT-5 model names without the 5.4 API shape."""
 
@@ -237,29 +265,9 @@ def extract_job_ad(
     store: bool = False,
     temperature: float | None = None,
 ) -> Tuple[JobAdExtract, Optional[Dict[str, Any]]]:
-    system = (
-        "Du bist ein Senior HR / Recruiting Analyst. "
-        "Extrahiere aus einem Jobspec/Job Ad alle recruitment-relevanten Informationen "
-        "und normalisiere sie in ein strukturiertes JSON, ohne Halluzinationen. "
-        "Wenn etwas nicht explizit vorkommt oder nicht sicher ableitbar ist: setze null/leer und schreibe es in 'gaps'. "
-        "Wenn du Annahmen triffst: dokumentiere sie in 'assumptions'. "
-        f"Antworte in der Sprache: {language}."
-    )
-
-    user = (
-        "Analysiere folgenden Text (Jobspec/Job Ad). "
-        "Behalte Formulierungen aus dem Original, wo sinnvoll.\n\n"
-        "=== JOBSPEC START ===\n"
-        f"{job_text}\n"
-        "=== JOBSPEC END ==="
-    )
-
     parsed, usage = _parse_with_structured_outputs(
         model=model,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": user},
-        ],
+        messages=build_extract_job_ad_messages(job_text, language),
         out_model=JobAdExtract,
         store=store,
         maybe_temperature=temperature,
