@@ -9,18 +9,40 @@ from typing import Any, Dict, Optional
 import streamlit as st
 
 from constants import AnswerType, SSKey, WIDGET_KEY_PREFIX
+from llm_client import OpenAICallError
 from schemas import JobAdExtract, Question, QuestionStep, VacancyBrief
-from state import get_answers, set_answer
+from state import get_answers, set_answer, set_error
 
 
 def render_error_banner() -> None:
     err = st.session_state.get(SSKey.LAST_ERROR.value)
     if err:
         st.error(err)
+    debug_err = st.session_state.get("cs.last_error_debug")
+    if debug_err and bool(st.session_state.get("OPENAI_DEBUG_ERRORS", False)):
+        with st.expander("Debug (non-sensitive)", expanded=False):
+            st.code(str(debug_err))
+
+
+def render_openai_error(error: OpenAICallError) -> None:
+    """Persist concise user message and optional non-sensitive debug details."""
+
+    set_error(error.ui_message)
+    st.session_state["cs.last_error_debug"] = None
+    if bool(st.session_state.get("OPENAI_DEBUG_ERRORS", False)):
+        details: list[str] = []
+        if error.error_code:
+            details.append(f"code={error.error_code}")
+        if error.debug_detail:
+            details.append(error.debug_detail)
+        if details:
+            st.session_state["cs.last_error_debug"] = " | ".join(details)
 
 
 def render_job_extract_overview(job: JobAdExtract) -> None:
-    with st.expander("Aus dem Jobspec extrahiert (strukturierte Übersicht)", expanded=False):
+    with st.expander(
+        "Aus dem Jobspec extrahiert (strukturierte Übersicht)", expanded=False
+    ):
         st.json(job.model_dump(), expanded=False)
 
     with st.expander("Gaps (fehlende/unklare Punkte)", expanded=False):
@@ -57,13 +79,23 @@ def _render_question(q: Question, answers: Dict[str, Any]) -> None:
     if q.answer_type == AnswerType.SHORT_TEXT:
         value = st.text_input(label, value=current_value or "", help=q.help, key=key)
     elif q.answer_type == AnswerType.LONG_TEXT:
-        value = st.text_area(label, value=current_value or "", help=q.help, key=key, height=120)
+        value = st.text_area(
+            label, value=current_value or "", help=q.help, key=key, height=120
+        )
     elif q.answer_type == AnswerType.SINGLE_SELECT:
         options = q.options or []
         # Streamlit selectbox needs an index; allow None by adding sentinel
         if current_value and current_value not in options:
             options = [current_value] + options
-        value = st.selectbox(label, options=options, index=(options.index(current_value) if current_value in options else 0) if options else 0, help=q.help, key=key)
+        value = st.selectbox(
+            label,
+            options=options,
+            index=(options.index(current_value) if current_value in options else 0)
+            if options
+            else 0,
+            help=q.help,
+            key=key,
+        )
     elif q.answer_type == AnswerType.MULTI_SELECT:
         options = q.options or []
         if current_value is None:
@@ -73,15 +105,28 @@ def _render_question(q: Question, answers: Dict[str, Any]) -> None:
         for v in cur_list:
             if v not in options:
                 options = [v] + options
-        value = st.multiselect(label, options=options, default=cur_list, help=q.help, key=key)
+        value = st.multiselect(
+            label, options=options, default=cur_list, help=q.help, key=key
+        )
     elif q.answer_type == AnswerType.NUMBER:
         try:
-            num = float(current_value) if current_value is not None and current_value != "" else None
+            num = (
+                float(current_value)
+                if current_value is not None and current_value != ""
+                else None
+            )
         except Exception:
             num = None
-        value = st.number_input(label, value=num if num is not None else 0.0, help=q.help, key=key)
+        value = st.number_input(
+            label, value=num if num is not None else 0.0, help=q.help, key=key
+        )
     elif q.answer_type == AnswerType.BOOLEAN:
-        value = st.checkbox(label, value=bool(current_value) if current_value is not None else False, help=q.help, key=key)
+        value = st.checkbox(
+            label,
+            value=bool(current_value) if current_value is not None else False,
+            help=q.help,
+            key=key,
+        )
     elif q.answer_type == AnswerType.DATE:
         # Accept ISO string, date, or None
         d: Optional[date] = None
@@ -96,7 +141,9 @@ def _render_question(q: Question, answers: Dict[str, Any]) -> None:
         # Convert to iso string for JSON friendliness
         value = value.isoformat() if value else None
     else:
-        value = st.text_input(label, value=str(current_value or ""), help=q.help, key=key)
+        value = st.text_input(
+            label, value=str(current_value or ""), help=q.help, key=key
+        )
 
     # Persist answer
     set_answer(q.id, value)

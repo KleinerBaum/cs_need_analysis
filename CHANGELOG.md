@@ -30,3 +30,8 @@
 - Request-Building abgesichert: `reasoning`/`text.verbosity` werden nur noch bei kompatiblen GPT-5-Familien gesendet; Nicht-GPT-5-Fallbacks wie `gpt-4o-mini` erhalten keine GPT-5-spezifischen Felder.
 - Tests erweitert (`tests/test_openai_smoke_modes.py`) für Snapshot-Erkennung, neue Effort-Werte und striktes Feld-Gating für Fallback-Modelle.
 - `settings_openai.py` fachlich gehärtet: `reasoning_effort`/`verbosity` sind jetzt optional (`None` statt aggressiver Defaults), Timeout-Default zentral auf `120s` gesetzt und sichere Provenance-Infos (`resolved_from`) pro Key ergänzt, ohne Secret-Werte zu exponieren.
+- OpenAI-Fehlerbehandlung weiter gehärtet: differenzierte Mappings für `AuthenticationError`, `APITimeoutError`/`TimeoutError`, `APIConnectionError`, `BadRequest` inkl. `unsupported parameter` sowie Structured-Output-Parse-/Validation-Fehler.
+- `OpenAICallError` transportiert jetzt optionale interne Fehlercodes (`OPENAI_AUTH`, `OPENAI_TIMEOUT`, `OPENAI_BAD_REQUEST`, `OPENAI_PARSE`, etc.) für präzisere UI-/Debug-Ausgabe ohne sensitive Daten.
+- OpenAI-Callsites nutzen jetzt automatische Retries mit exponentiellem Backoff für transiente Timeout-/Connection-Fehler.
+- UI-Fehleranzeige zentralisiert (`render_openai_error` + Error-Banner): kurze DE/EN Meldungen für Endnutzer, optionaler non-sensitive Debugkontext via `OPENAI_DEBUG_ERRORS`.
+- Tests erweitert: Error-Mapping deckt jetzt zusätzlich `APIConnectionError`, Fehlercodes und `unsupported parameter` ab; Smoke-Test enthält eine gezielte Invalid-Reasoning/Temperature-Simulation über Request-Builder-Gating.

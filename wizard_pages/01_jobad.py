@@ -8,7 +8,11 @@ from llm_client import OpenAICallError, extract_job_ad, generate_question_plan
 from parsing import extract_text_from_uploaded_file, redact_pii
 from schemas import JobAdExtract, QuestionPlan
 from state import clear_error, set_error
-from ui_components import render_error_banner, render_job_extract_overview
+from ui_components import (
+    render_error_banner,
+    render_job_extract_overview,
+    render_openai_error,
+)
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
 
 
@@ -162,13 +166,7 @@ def render(ctx: WizardContext) -> None:
                 st.write({"extract_usage": usage1, "plan_usage": usage2})
 
         except OpenAICallError as e:
-            set_error(e.ui_message)
-            if (
-                bool(st.session_state.get("OPENAI_DEBUG_ERRORS", False))
-                and e.debug_detail
-            ):
-                with st.expander("Debug (non-sensitive)", expanded=False):
-                    st.code(e.debug_detail)
+            render_openai_error(e)
         except Exception:
             set_error(
                 "OpenAI-Analyse fehlgeschlagen (DE) / OpenAI analysis failed (EN)."

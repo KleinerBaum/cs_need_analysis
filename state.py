@@ -73,3 +73,4 @@ def set_error(msg: str) -> None:
 
 def clear_error() -> None:
     st.session_state[SSKey.LAST_ERROR.value] = None
+    st.session_state["cs.last_error_debug"] = None
