@@ -164,9 +164,7 @@ def render(ctx: WizardContext) -> None:
         except OpenAICallError as e:
             render_openai_error(e)
         except Exception:
-            set_error(
-                "Brief-Generierung fehlgeschlagen (DE) / Brief generation failed (EN)."
-            )
+            set_error("Unerwarteter Fehler (DE) / Unexpected error (EN).")
         st.rerun()
 
     brief_dict = st.session_state.get(SSKey.BRIEF.value)

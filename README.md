@@ -79,9 +79,9 @@ Die UI kann das aufgelöste Modell zur Laufzeit überschreiben (Session-State). 
 - OpenAI-Fehler werden in klaren Kategorien behandelt: fehlender API-Key, Timeout, HTTP-400/inkompatible Parameter und Structured-Output-Validierungsfehler.
 - Zusätzlich werden `unsupported parameter` (HTTP 400) und `APIConnectionError` separat und präzise klassifiziert.
 - UI-Texte sind knapp und zweisprachig (DE/EN), damit die bestehende UX stabil bleibt und trotzdem genaueres Feedback gibt.
-- Logs enthalten nur nicht-sensitive Debug-Informationen (Fehlerklasse/kurzer Kontext), aber keine API-Keys und keine kompletten Request-Payloads.
+- Logs enthalten nur nicht-sensitive Debug-Informationen (Endpoint, Fehlerklasse, optional `status_code`), aber keine API-Keys und keine kompletten Request-Payloads.
 - Optionale Fehler-Debugausgabe kann per Session-State-Flag `OPENAI_DEBUG_ERRORS` aktiviert werden und zeigt nur nicht-sensitive Hinweise.
-- Interne Fehlercodes sind verfügbar (z. B. `OPENAI_AUTH`, `OPENAI_TIMEOUT`, `OPENAI_BAD_REQUEST`, `OPENAI_PARSE`) und werden im Debug-Modus mit ausgegeben.
+- Interne Fehlercodes sind verfügbar (z. B. `OPENAI_AUTH`, `OPENAI_TIMEOUT`, `OPENAI_BAD_REQUEST`, `OPENAI_PARSE`, `OPENAI_SDK_UNSUPPORTED`) und werden im Debug-Modus mit ausgegeben.
 - Für transiente OpenAI-Fehler (Timeout/Connection) sind automatische Wiederholversuche mit exponentiellem Backoff aktiv.
 
 ## OpenAI Smoke-Test (extract_job_ad)
@@ -104,6 +104,10 @@ Das Repo enthält einen kleinen Smoke-Test unter `scripts/openai_smoke_test.py`.
    Erwartung: `temperature` darf gesendet werden (hier `0.0`), Parse sollte erfolgreich sein.
 2. `gpt-5-nano` mit kompatiblen Parametern  
    Erwartung: `temperature` wird **nicht** gesendet, auch wenn lokal ein Wert gesetzt ist; Parse sollte erfolgreich sein.
+3. `invalid-reasoning-effort` (simuliert, kein API-Call)  
+   Erwartung: ungültiger `reasoning_effort` wird capability-gated verworfen.
+4. `unsupported-temperature` (simuliert, kein API-Call)  
+   Erwartung: für inkompatible Modelle wird `temperature` aus den effektiven Request-Kwargs entfernt.
 
 ### Lokal ausführen
 
@@ -135,6 +139,13 @@ Optional einzelne Modi:
 ```bash
 python scripts/openai_smoke_test.py --mode gpt-5.4-nano
 python scripts/openai_smoke_test.py --mode gpt-5-nano
+```
+
+Zusätzliche Fehlerpfad-Simulation (ohne Netzverkehr):
+
+```bash
+python scripts/openai_smoke_test.py --mode all --simulate-error timeout --json-only
+python scripts/openai_smoke_test.py --mode all --simulate-error connection --json-only
 ```
 
 ### Typische 400er-Fehlerbilder bei falscher Parametrisierung

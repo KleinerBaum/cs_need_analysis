@@ -91,7 +91,9 @@ def _on_upload_change() -> None:
     try:
         uploaded_text, source_meta = extract_text_from_uploaded_file(upload)
     except Exception as exc:  # pragma: no cover - streamlit callback runtime
-        set_error(f"Datei konnte nicht gelesen werden: {exc}")
+        set_error(
+            f"Datei konnte nicht gelesen werden (DE) / Could not read file (EN): {type(exc).__name__}"
+        )
         return
 
     st.session_state[SOURCE_UPLOAD_TEXT_KEY] = uploaded_text
@@ -272,9 +274,7 @@ def render(ctx: WizardContext) -> None:
         except OpenAICallError as e:
             render_openai_error(e)
         except Exception:
-            set_error(
-                "OpenAI-Analyse fehlgeschlagen (DE) / OpenAI analysis failed (EN)."
-            )
+            set_error("Unerwarteter Fehler (DE) / Unexpected error (EN).")
 
         st.rerun()
 

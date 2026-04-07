@@ -2,6 +2,9 @@
 
 ## 2026-04-07
 
+- OpenAI-Fehlerbehandlung in `llm_client.py` weiter gehärtet: SDK-Feature-Mismatch wird jetzt als `OpenAICallError` mit Code `OPENAI_SDK_UNSUPPORTED` behandelt (statt generischem `RuntimeError`); `debug_detail` enthält non-sensitive Kontext (`endpoint`, Exception-Klasse, optional `status_code`) ohne Payload/Secrets.
+- Wizard-Seiten (`wizard_pages/01_jobad.py`, `wizard_pages/08_summary.py`) behalten `OpenAICallError`-Sonderbehandlung bei; generische Fangkörbe bleiben als letzter Schutz mit neutral-kurzer DE/EN-UI-Meldung.
+- Smoke-Test erweitert (`scripts/openai_smoke_test.py`): zusätzliche Pfade für `invalid-reasoning-effort`, `unsupported-temperature` sowie simulierbare Timeout-/Connection-Error-Mappings (`--simulate-error timeout|connection`) zur reproduzierbaren Verifikation ohne Netzwerkzwang.
 - Jobspec-Quelle in `wizard_pages/01_jobad.py` pro Tab entkoppelt: Upload, manueller Text und Samples verwalten jetzt getrennte Zustände; aktive Quelle wird explizit in `SSKey.SOURCE_TEXT` übernommen (inkl. sichtbarer DE/EN-Debug-Caption zur aktiven Quelle).
 - Modell-Routing vereinheitlicht auf `resolve_model_for_task(task_kind, session_override, settings)` mit klaren Task-Kinds: `extract_job_ad`, `generate_question_plan`, `generate_vacancy_brief`.
 - Prioritätskette explizit gehärtet: Session/UI-Override > `OPENAI_MODEL` > task-spezifisches Modell > `DEFAULT_MODEL` > finaler Fallback (`gpt-4o-mini`).
