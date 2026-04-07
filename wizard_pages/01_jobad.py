@@ -4,7 +4,7 @@ from __future__ import annotations
 import streamlit as st
 
 from constants import SSKey
-from llm_client import extract_job_ad, generate_question_plan
+from llm_client import OpenAICallError, extract_job_ad, generate_question_plan
 from parsing import extract_text_from_uploaded_file, redact_pii
 from schemas import JobAdExtract, QuestionPlan
 from state import clear_error, set_error
@@ -161,8 +161,18 @@ def render(ctx: WizardContext) -> None:
             with st.expander("API Usage (Debug)", expanded=False):
                 st.write({"extract_usage": usage1, "plan_usage": usage2})
 
-        except Exception as e:
-            set_error(f"OpenAI-Analyse fehlgeschlagen: {e}")
+        except OpenAICallError as e:
+            set_error(e.ui_message)
+            if (
+                bool(st.session_state.get("OPENAI_DEBUG_ERRORS", False))
+                and e.debug_detail
+            ):
+                with st.expander("Debug (non-sensitive)", expanded=False):
+                    st.code(e.debug_detail)
+        except Exception:
+            set_error(
+                "OpenAI-Analyse fehlgeschlagen (DE) / OpenAI analysis failed (EN)."
+            )
 
         st.rerun()
 

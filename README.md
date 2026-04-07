@@ -37,6 +37,13 @@ pip install -r requirements.txt
 - `reasoning_effort="none"` wird bei inkompatiblen Modellen verworfen (nicht an die API gesendet).
 - Mindestabhängigkeit: `openai>=2.30.0,<3.0.0`, damit `responses.parse(...)`, strukturierte `text_format`-Ausgaben, Client-`timeout` und aktuelle Request-Felder (z. B. `reasoning`, `text.verbosity`) konsistent verfügbar sind.
 
+## OpenAI Fehlerbehandlung (UI + Logging)
+
+- OpenAI-Fehler werden in klaren Kategorien behandelt: fehlender API-Key, Timeout, HTTP-400/inkompatible Parameter und Structured-Output-Validierungsfehler.
+- UI-Texte sind knapp und zweisprachig (DE/EN), damit die bestehende UX stabil bleibt und trotzdem genaueres Feedback gibt.
+- Logs enthalten nur nicht-sensitive Debug-Informationen (Fehlerklasse/kurzer Kontext), aber keine API-Keys und keine kompletten Request-Payloads.
+- Optionale Fehler-Debugausgabe kann per Session-State-Flag `OPENAI_DEBUG_ERRORS` aktiviert werden und zeigt nur nicht-sensitive Hinweise.
+
 ## OpenAI Smoke-Test (extract_job_ad)
 
 Das Repo enthält einen kleinen Smoke-Test unter `scripts/openai_smoke_test.py`.
