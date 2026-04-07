@@ -10,7 +10,15 @@ import streamlit as st
 
 from constants import AnswerType, SSKey, WIDGET_KEY_PREFIX
 from llm_client import OpenAICallError
-from schemas import Contact, JobAdExtract, MoneyRange, Question, QuestionStep, RecruitmentStep, VacancyBrief
+from schemas import (
+    Contact,
+    JobAdExtract,
+    MoneyRange,
+    Question,
+    QuestionStep,
+    RecruitmentStep,
+    VacancyBrief,
+)
 from state import get_answers, set_answer, set_error
 
 
@@ -41,17 +49,17 @@ def render_openai_error(error: OpenAICallError) -> None:
 
 def render_job_extract_overview(job: JobAdExtract) -> None:
     with st.expander(
-        "Aus dem Jobspec extrahiert (strukturierte Übersicht)", expanded=False
+        "Aus dem Jobspec extrahiert (strukturierte Übersicht)", expanded=True
     ):
         _render_editable_job_extract(job)
 
-    with st.expander("Gaps (fehlende/unklare Punkte)", expanded=False):
+    with st.expander("Gaps (fehlende/unklare Punkte)", expanded=True):
         if job.gaps:
             st.write("\n".join([f"- {g}" for g in job.gaps]))
         else:
             st.info("Keine expliziten Gaps erkannt.")
 
-    with st.expander("Assumptions (Annahmen)", expanded=False):
+    with st.expander("Assumptions (Annahmen)", expanded=True):
         if job.assumptions:
             st.write("\n".join([f"- {a}" for a in job.assumptions]))
         else:
@@ -62,7 +70,7 @@ def _render_editable_job_extract(job: JobAdExtract) -> None:
     st.caption(
         "Extrahierte Werte können hier direkt angepasst werden. Änderungen werden sofort gespeichert."
     )
-    values = job.model_dump()
+    values = _sanitize_display_value(job.model_dump())
 
     core_fields = [
         "job_title",
@@ -157,12 +165,15 @@ def _render_editable_job_extract(job: JobAdExtract) -> None:
 
     with tab_role:
         for field in text_fields:
-            values[field] = st.text_area(
-                field.replace("_", " ").title(),
-                value=(values.get(field) or ""),
-                key=f"cs.job_extract.text.{field}",
-                height=130,
-            ) or None
+            values[field] = (
+                st.text_area(
+                    field.replace("_", " ").title(),
+                    value=(values.get(field) or ""),
+                    key=f"cs.job_extract.text.{field}",
+                    height=130,
+                )
+                or None
+            )
         for list_field, label in list_fields[:3]:
             values[list_field] = _render_list_editor(
                 label=label,
@@ -196,10 +207,36 @@ def _render_editable_job_extract(job: JobAdExtract) -> None:
 
 
 def _normalize_optional_string(value: Any) -> str | None:
-    if value is None:
+    if not has_meaningful_value(value):
         return None
     text = str(value).strip()
     return text or None
+
+
+def has_meaningful_value(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, float):
+        return not value != value
+
+    text = str(value).strip()
+    if not text:
+        return False
+    lowered = text.lower()
+    return lowered not in {"nan", "none", "null", "n/a", "na", "-", "—"}
+
+
+def _sanitize_display_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {k: _sanitize_display_value(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [
+            v
+            for item in value
+            for v in [_sanitize_display_value(item)]
+            if v is not None
+        ]
+    return value if has_meaningful_value(value) else None
 
 
 def _parse_optional_int(value: Any) -> int | None:

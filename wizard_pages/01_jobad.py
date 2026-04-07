@@ -120,7 +120,7 @@ def render(ctx: WizardContext) -> None:
 
     render_error_banner()
 
-    st.write(
+    st.caption(
         "Lade ein Jobspec als PDF/DOCX hoch oder füge den Text direkt ein. Danach klickst du auf **Analysieren**."
     )
 
@@ -147,58 +147,67 @@ def render(ctx: WizardContext) -> None:
             SSKey.SOURCE_TEXT.value, ""
         )
 
-    tab1, tab2, tab3 = st.tabs(["Upload", "Text einfügen", "Samples"])
+    st.markdown("### 1) Quelle auswählen")
+    tab1, tab2, tab3 = st.tabs(["📤 Upload", "📝 Text einfügen", "🧪 Samples"])
 
     with tab1:
-        st.file_uploader(
-            "Jobspec hochladen (PDF oder DOCX)",
-            type=["pdf", "docx", "txt"],
-            accept_multiple_files=False,
-            key="cs.source_upload_file",
-            on_change=_on_upload_change,
-        )
-        uploaded_text = str(st.session_state.get(SOURCE_UPLOAD_TEXT_KEY, ""))
-        upload_meta = st.session_state.get(SSKey.SOURCE_FILE_META.value, {})
-        if uploaded_text:
-            st.success(
-                f"Datei geladen: {upload_meta.get('name', 'Unbekannt')} / File loaded"
+        with st.container(border=True):
+            st.file_uploader(
+                "Jobspec hochladen (PDF oder DOCX)",
+                type=["pdf", "docx", "txt"],
+                accept_multiple_files=False,
+                key="cs.source_upload_file",
+                on_change=_on_upload_change,
             )
-            st.text_area(
-                "Preview (Textauszug)",
-                value=uploaded_text[:4000],
-                height=220,
-                key="cs.source_upload_preview",
-                disabled=True,
-            )
+            uploaded_text = str(st.session_state.get(SOURCE_UPLOAD_TEXT_KEY, ""))
+            upload_meta = st.session_state.get(SSKey.SOURCE_FILE_META.value, {})
+            if uploaded_text:
+                col_meta_left, col_meta_right = st.columns([2, 1])
+                with col_meta_left:
+                    st.success(
+                        f"Datei geladen: {upload_meta.get('name', 'Unbekannt')} / File loaded"
+                    )
+                with col_meta_right:
+                    st.metric("Zeichen", f"{len(uploaded_text):,}".replace(",", "."))
+                st.text_area(
+                    "Preview (Textauszug)",
+                    value=uploaded_text[:4000],
+                    height=220,
+                    key="cs.source_upload_preview",
+                    disabled=True,
+                )
 
     with tab2:
-        st.text_area(
-            "Jobspec Text",
-            key=SOURCE_TEXT_INPUT_KEY,
-            height=320,
-            on_change=_on_manual_text_change,
-        )
+        with st.container(border=True):
+            st.text_area(
+                "Jobspec Text",
+                key=SOURCE_TEXT_INPUT_KEY,
+                height=320,
+                on_change=_on_manual_text_change,
+                placeholder="Füge hier die Stellenanzeige oder Jobspec ein …",
+            )
 
     with tab3:
-        st.selectbox(
-            "Sample auswählen",
-            options=[
-                "—",
-                "Senior Data Scientist (EN, strukturiert)",
-                "Produktentwickler*in (DE, Bullet)",
-            ],
-            key=SOURCE_SAMPLE_SELECT_KEY,
-            on_change=_on_sample_change,
-        )
-        selected_sample = str(st.session_state.get(SOURCE_SAMPLE_SELECT_KEY, "—"))
-        sample_text = _sample_text_for_selection(selected_sample)
-        st.text_area(
-            "Sample Text",
-            value=sample_text,
-            height=280,
-            key="cs.source_sample_preview",
-            disabled=True,
-        )
+        with st.container(border=True):
+            st.selectbox(
+                "Sample auswählen",
+                options=[
+                    "—",
+                    "Senior Data Scientist (EN, strukturiert)",
+                    "Produktentwickler*in (DE, Bullet)",
+                ],
+                key=SOURCE_SAMPLE_SELECT_KEY,
+                on_change=_on_sample_change,
+            )
+            selected_sample = str(st.session_state.get(SOURCE_SAMPLE_SELECT_KEY, "—"))
+            sample_text = _sample_text_for_selection(selected_sample)
+            st.text_area(
+                "Sample Text",
+                value=sample_text,
+                height=280,
+                key="cs.source_sample_preview",
+                disabled=True,
+            )
 
     source_labels = {
         "upload": "Upload",
@@ -206,21 +215,22 @@ def render(ctx: WizardContext) -> None:
         "sample": "Sample",
     }
     active_source = str(st.session_state.get(SOURCE_ACTIVE_KEY, "text"))
-    st.caption(
-        f"Aktive Textquelle: {source_labels.get(active_source, 'Unbekannt')} / Active source: {source_labels.get(active_source, 'Unknown')}"
-    )
-
-    col1, col2 = st.columns([1, 2])
-    with col1:
+    st.markdown("### 2) Analyse starten")
+    cta_col, info_col = st.columns([1, 2])
+    with cta_col:
+        st.caption(
+            f"Aktive Quelle: **{source_labels.get(active_source, 'Unbekannt')}**"
+        )
         do_extract = st.button(
             "Analysieren & Fragebogen erzeugen",
             type="primary",
             use_container_width=True,
         )
-    with col2:
-        st.caption(
-            "Hinweis: Die Analyse ruft die OpenAI API auf. Das kann je nach Länge des Jobspec etwas dauern."
-        )
+    with info_col:
+        with st.container(border=True):
+            st.caption(
+                "Die Analyse nutzt die OpenAI API. Je nach Länge des Jobspec kann das einige Sekunden dauern."
+            )
 
     if do_extract:
         clear_error()
