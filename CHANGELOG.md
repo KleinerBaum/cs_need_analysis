@@ -7,3 +7,4 @@
 - Kontrastoptimierte Farbpalette für Texte, Hinweise, Buttons und Formularfelder eingeführt.
 - Neues Konfigurationsmodul `settings_openai.py` eingeführt (Secrets/Env/Defaults mit Priorität, robustes Timeout-Parsing) und in `state.py`/`llm_client.py` integriert.
 - `llm_client.get_openai_client()` auf zentrale `OpenAISettings`-Nutzung refaktoriert; Timeout konsolidiert und klare Fehlerhinweise bei fehlendem/ungültigem API-Key ergänzt.
+- Zentrale Modell-Kompatibilitätslogik in `llm_client.py` ergänzt (`is_gpt5_legacy_model`, `is_gpt54_family`, `supports_temperature`, `normalize_reasoning_effort`) und an allen Structured-Output-Callsites verdrahtet.
