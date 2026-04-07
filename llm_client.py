@@ -150,6 +150,15 @@ class OpenAICallError(RuntimeError):
         self.error_code = error_code
 
 
+_STRUCTURED_OUTPUT_RETRYABLE_ERROR_CODES = frozenset(
+    {
+        "OPENAI_BAD_REQUEST_STRUCTURED_OUTPUT_UNSUPPORTED",
+        "OPENAI_BAD_REQUEST_MODEL_CAPABILITY",
+        "OPENAI_BAD_REQUEST_ENDPOINT_INCOMPATIBLE",
+    }
+)
+
+
 def build_extract_job_ad_messages(
     job_text: str,
     language: str = DEFAULT_LANGUAGE,
@@ -481,6 +490,86 @@ def _error_from_openai_exception(exc: Exception, *, endpoint: str) -> OpenAICall
             details.append(f"api_message={api_message_sanitized}")
         return ", ".join(details)
 
+    def _classify_bad_request() -> tuple[str, str]:
+        """Return ``(error_code, ui_message)`` for common 400 API causes."""
+
+        message = api_message_norm
+        model_not_found_hint = (
+            "model not found" in message or "unknown model" in message
+        )
+        endpoint_incompatibility_hint = (
+            "endpoint" in message
+            and ("not supported" in message or "incompatible" in message)
+        ) or (
+            "use /v1/chat/completions" in message
+            or "use /v1/responses" in message
+            or "responses api" in message
+            or "chat.completions" in message
+        )
+        structured_output_hint = (
+            "response_format" in message
+            or "text_format" in message
+            or "structured output" in message
+            or "json_schema" in message
+            or "json schema" in message
+        ) and (
+            "unsupported" in message
+            or "not supported" in message
+            or "unknown parameter" in message
+            or "not allowed" in message
+            or "invalid" in message
+        )
+        model_capability_hint = (
+            "does not support" in message
+            or "unsupported for model" in message
+            or "model capability" in message
+            or "not available for this model" in message
+        ) and (
+            "temperature" in message
+            or "reasoning" in message
+            or "verbosity" in message
+            or "response_format" in message
+            or "text_format" in message
+            or "json_schema" in message
+            or "max_output_tokens" in message
+        )
+        unsupported_hint = (
+            "unsupported parameter" in message
+            or "unknown parameter" in message
+            or "not allowed" in message
+            or "invalid type" in message
+        )
+
+        if model_not_found_hint:
+            return (
+                "OPENAI_BAD_REQUEST_MODEL_NOT_FOUND",
+                "OpenAI-Modell nicht gefunden (DE) / OpenAI model not found (EN).",
+            )
+        if endpoint_incompatibility_hint:
+            return (
+                "OPENAI_BAD_REQUEST_ENDPOINT_INCOMPATIBLE",
+                "OpenAI-Endpoint inkompatibel (DE) / Incompatible OpenAI endpoint (EN).",
+            )
+        if structured_output_hint:
+            return (
+                "OPENAI_BAD_REQUEST_STRUCTURED_OUTPUT_UNSUPPORTED",
+                "Structured Output nicht unterstützt (DE) / Structured output unsupported (EN).",
+            )
+        if model_capability_hint:
+            return (
+                "OPENAI_BAD_REQUEST_MODEL_CAPABILITY",
+                "OpenAI-Modellfähigkeit passt nicht (DE) / OpenAI model capability mismatch (EN).",
+            )
+        if unsupported_hint:
+            return (
+                "OPENAI_BAD_REQUEST_UNSUPPORTED_PARAMETER",
+                "Nicht unterstützter OpenAI-Parameter (DE) / Unsupported OpenAI parameter (EN).",
+            )
+        return (
+            "OPENAI_BAD_REQUEST_INVALID",
+            "Ungültige OpenAI-Parameter (DE) / Invalid OpenAI parameters (EN).",
+        )
+
     if isinstance(exc, (APITimeoutError, TimeoutError)):
         return OpenAICallError(
             "OpenAI-Timeout (DE) / OpenAI timeout (EN). Bitte erneut versuchen.",
@@ -489,28 +578,11 @@ def _error_from_openai_exception(exc: Exception, *, endpoint: str) -> OpenAICall
         )
 
     if isinstance(exc, APIStatusError) and exc.status_code == 400:
-        unsupported_hint = (
-            "unsupported parameter" in api_message_norm
-            or "unknown parameter" in api_message_norm
-            or "not allowed" in api_message_norm
-            or "invalid type" in api_message_norm
-        )
-        model_not_found_hint = (
-            "model not found" in api_message_norm or "unknown model" in api_message_norm
-        )
-        ui_message = (
-            "OpenAI-Modell nicht gefunden (DE) / OpenAI model not found (EN)."
-            if model_not_found_hint
-            else (
-                "Nicht unterstützter OpenAI-Parameter (DE) / Unsupported OpenAI parameter (EN)."
-                if unsupported_hint
-                else "Ungültige OpenAI-Parameter (DE) / Invalid OpenAI parameters (EN)."
-            )
-        )
+        error_code, ui_message = _classify_bad_request()
         return OpenAICallError(
             ui_message,
             debug_detail=_debug_detail(),
-            error_code="OPENAI_BAD_REQUEST",
+            error_code=error_code,
         )
 
     if isinstance(exc, AuthenticationError):
@@ -625,6 +697,31 @@ def _parse_with_structured_outputs(
     maybe_temperature: float | None = None,
 ) -> Tuple[BaseModel, Optional[Dict[str, Any]]]:
     """Try `.responses.parse`, then fall back to `.chat.completions.parse` if needed."""
+
+    def _record_final_structured_output_path(
+        *,
+        endpoint: str,
+        requested_model: str,
+        final_model: str,
+        used_reduced_request: bool,
+    ) -> None:
+        payload = {
+            "endpoint": endpoint,
+            "requested_model": requested_model,
+            "final_model": final_model,
+            "used_reduced_request": used_reduced_request,
+        }
+        st.session_state[SSKey.OPENAI_LAST_STRUCTURED_OUTPUT_PATH.value] = payload
+
+    def _build_reduced_responses_request_kwargs(*, model: str) -> dict[str, Any]:
+        return {"model": model, "store": store}
+
+    def _fallback_model_candidate() -> str | None:
+        candidate = runtime_config.settings.default_model.strip()
+        if candidate and candidate != runtime_config.resolved_model:
+            return candidate
+        return None
+
     settings = runtime_config.settings
     if not _has_any_openai_api_key(settings):
         _raise_missing_api_key_hint()
@@ -650,15 +747,80 @@ def _parse_with_structured_outputs(
                 ),
                 label="OpenAI responses.parse",
             )
+            _record_final_structured_output_path(
+                endpoint="responses.parse",
+                requested_model=runtime_config.resolved_model,
+                final_model=runtime_config.resolved_model,
+                used_reduced_request=False,
+            )
         except Exception as exc:
             if not _has_any_openai_api_key(settings):
                 _raise_missing_api_key_hint()
             mapped = _error_from_openai_exception(exc, endpoint="responses.parse")
-            logger.warning(
-                "OpenAI parse failed: %s",
-                mapped.debug_detail or type(exc).__name__,
-            )
-            raise mapped from exc
+            if mapped.error_code in _STRUCTURED_OUTPUT_RETRYABLE_ERROR_CODES:
+                reduced_kwargs = _build_reduced_responses_request_kwargs(
+                    model=runtime_config.resolved_model
+                )
+                try:
+                    resp = _run_openai_call_with_retry(
+                        fn=lambda: client.responses.parse(
+                            input=messages,
+                            text_format=out_model,
+                            **reduced_kwargs,
+                        ),
+                        label="OpenAI responses.parse reduced",
+                    )
+                    _record_final_structured_output_path(
+                        endpoint="responses.parse",
+                        requested_model=runtime_config.resolved_model,
+                        final_model=runtime_config.resolved_model,
+                        used_reduced_request=True,
+                    )
+                except Exception as retry_exc:
+                    fallback_model = _fallback_model_candidate()
+                    if fallback_model is None:
+                        mapped_retry = _error_from_openai_exception(
+                            retry_exc, endpoint="responses.parse"
+                        )
+                        logger.warning(
+                            "OpenAI reduced parse failed: %s",
+                            mapped_retry.debug_detail or type(retry_exc).__name__,
+                        )
+                        raise mapped_retry from retry_exc
+                    fallback_kwargs = _build_reduced_responses_request_kwargs(
+                        model=fallback_model
+                    )
+                    try:
+                        resp = _run_openai_call_with_retry(
+                            fn=lambda: client.responses.parse(
+                                input=messages,
+                                text_format=out_model,
+                                **fallback_kwargs,
+                            ),
+                            label="OpenAI responses.parse fallback-model",
+                        )
+                        _record_final_structured_output_path(
+                            endpoint="responses.parse",
+                            requested_model=runtime_config.resolved_model,
+                            final_model=fallback_model,
+                            used_reduced_request=True,
+                        )
+                    except Exception as fallback_exc:
+                        mapped_fallback = _error_from_openai_exception(
+                            fallback_exc, endpoint="responses.parse"
+                        )
+                        logger.warning(
+                            "OpenAI fallback-model parse failed: %s",
+                            mapped_fallback.debug_detail
+                            or type(fallback_exc).__name__,
+                        )
+                        raise mapped_fallback from fallback_exc
+            else:
+                logger.warning(
+                    "OpenAI parse failed: %s",
+                    mapped.debug_detail or type(exc).__name__,
+                )
+                raise mapped from exc
 
         try:
             parsed = resp.output_parsed
@@ -685,6 +847,12 @@ def _parse_with_structured_outputs(
                     **chat_request_kwargs,
                 ),
                 label="OpenAI chat.completions.parse",
+            )
+            _record_final_structured_output_path(
+                endpoint="chat.completions.parse",
+                requested_model=runtime_config.resolved_model,
+                final_model=runtime_config.resolved_model,
+                used_reduced_request=False,
             )
         except Exception as exc:
             if not _has_any_openai_api_key(settings):

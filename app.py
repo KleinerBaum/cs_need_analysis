@@ -184,6 +184,11 @@ def _render_openai_debug_panel() -> None:
         }
         if session_model_override_active and session_model_override is not None:
             debug_payload["session_model_override_value"] = session_model_override
+        structured_output_path = st.session_state.get(
+            SSKey.OPENAI_LAST_STRUCTURED_OUTPUT_PATH.value
+        )
+        if isinstance(structured_output_path, dict):
+            debug_payload["structured_output_final_path"] = structured_output_path
         st.json(debug_payload, expanded=False)
 
 

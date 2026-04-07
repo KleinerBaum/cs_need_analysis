@@ -44,6 +44,7 @@ class SSKey(str, Enum):
     SUMMARY_CACHE_HIT = "cs.summary_cache_hit"
     SUMMARY_LAST_MODE = "cs.summary_last_mode"
     SUMMARY_LAST_MODELS = "cs.summary_last_models"
+    OPENAI_LAST_STRUCTURED_OUTPUT_PATH = "cs.openai_last_structured_output_path"
 
 
 # ---- Wizard Steps (match your screenshot structure) ----
