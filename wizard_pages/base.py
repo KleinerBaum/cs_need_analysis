@@ -33,7 +33,6 @@ class WizardContext:
 
     def goto(self, key: str) -> None:
         st.session_state[SSKey.CURRENT_STEP.value] = key
-        st.rerun()
 
     def next(self) -> None:
         cur = self.get_current_page_key()
@@ -78,8 +77,15 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
 def nav_buttons(ctx: WizardContext, *, disable_next: bool = False, disable_prev: bool = False) -> None:
     c1, c2, c3 = st.columns([1, 1, 3])
     with c1:
-        st.button("← Zurück", on_click=ctx.prev, disabled=disable_prev)
+        back_clicked = st.button("← Zurück", disabled=disable_prev)
     with c2:
-        st.button("Weiter →", on_click=ctx.next, disabled=disable_next)
+        next_clicked = st.button("Weiter →", disabled=disable_next)
     with c3:
         st.caption("Fortschritt wird automatisch in dieser Session gespeichert.")
+    # rerun only in normal render flow; callbacks may be within disallowed rerun contexts
+    if back_clicked:
+        ctx.prev()
+        st.rerun()
+    if next_clicked:
+        ctx.next()
+        st.rerun()
