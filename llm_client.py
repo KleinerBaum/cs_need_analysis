@@ -13,7 +13,7 @@ import os
 import re
 import time
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, cast
 
 import streamlit as st
 from openai import (
@@ -59,6 +59,13 @@ ModelTaskKind = str
 TASK_EXTRACT_JOB_AD = "extract_job_ad"
 TASK_GENERATE_QUESTION_PLAN = "generate_question_plan"
 TASK_GENERATE_VACANCY_BRIEF = "generate_vacancy_brief"
+
+
+class VacancyBriefCriticalSections(BaseModel):
+    """Subset schema for optional quality upgrades on critical sections only."""
+
+    evaluation_rubric: list[str]
+    risks_open_questions: list[str]
 
 
 @dataclass(frozen=True)
@@ -560,7 +567,7 @@ def resolve_model_for_task(
     model_by_task: dict[ModelTaskKind, str] = {
         TASK_EXTRACT_JOB_AD: resolved_settings.lightweight_model,
         TASK_GENERATE_QUESTION_PLAN: resolved_settings.medium_reasoning_model,
-        TASK_GENERATE_VACANCY_BRIEF: resolved_settings.high_reasoning_model,
+        TASK_GENERATE_VACANCY_BRIEF: resolved_settings.medium_reasoning_model,
     }
     routed_model = model_by_task.get(task_kind, "").strip()
     if routed_model:
@@ -900,3 +907,88 @@ def generate_vacancy_brief(
     parsed.structured_data = merged
     cache[cache_key] = {"result": parsed.model_dump(mode="json")}
     return parsed, usage
+
+
+def upgrade_vacancy_brief_critical_sections(
+    base_brief: VacancyBrief,
+    job: JobAdExtract,
+    answers: Dict[str, Any],
+    *,
+    model: str,
+    language: str = DEFAULT_LANGUAGE,
+    store: bool = False,
+    temperature: float | None = None,
+) -> Tuple[VacancyBrief, Optional[Dict[str, Any]]]:
+    """Sharpen only critical quality sections while keeping export schema unchanged."""
+
+    runtime_config = _resolve_runtime_config(
+        task_kind=TASK_GENERATE_VACANCY_BRIEF,
+        session_override=model,
+    )
+    system = (
+        "Du bist ein Senior Recruiting Quality Reviewer. "
+        "Du überarbeitest ausschließlich die kritischen Abschnitte eines vorhandenen Vacancy Briefs. "
+        "Ziele: präzisere, testbare evaluation_rubric und konkrete risks_open_questions. "
+        "Keine zusätzlichen Felder, keine Änderung anderer Brief-Abschnitte. "
+        f"Sprache: {language}."
+    )
+    user = (
+        "Überarbeite nur evaluation_rubric und risks_open_questions.\n\n"
+        "Bestehender Vacancy Brief (JSON):\n"
+        f"{json.dumps(base_brief.model_dump(mode='json'), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
+        "Jobspec-Extraktion (JSON):\n"
+        f"{json.dumps(job.model_dump(mode='json'), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
+        "Manager-Antworten (JSON):\n"
+        f"{json.dumps(answers, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
+        "Anforderungen:\n"
+        "- evaluation_rubric als klare, beobachtbare Kriterien (bullet-ready).\n"
+        "- risks_open_questions nur offene Risiken/Unklarheiten, priorisiert nach Hiring-Impact."
+    )
+    normalized_content = _canonicalize_for_cache(
+        {
+            "base_brief": base_brief.model_dump(mode="json"),
+            "job": job.model_dump(mode="json"),
+            "answers": answers,
+            "mode": "critical_upgrade",
+        }
+    )
+    cache_key = _build_llm_cache_key(
+        task_kind=f"{TASK_GENERATE_VACANCY_BRIEF}_critical_upgrade",
+        resolved_model=runtime_config.resolved_model,
+        language=language,
+        reasoning_effort=runtime_config.reasoning_effort,
+        verbosity=runtime_config.verbosity,
+        store=store,
+        normalized_content=normalized_content,
+        schema_version=VACANCY_SCHEMA_VERSION,
+    )
+    cache = _get_session_response_cache()
+    cached_entry = cache.get(cache_key)
+    if isinstance(cached_entry, dict):
+        cached_result = cached_entry.get("result")
+        if isinstance(cached_result, dict):
+            updated_cached = base_brief.model_copy(deep=True)
+            updated_cached.evaluation_rubric = cached_result.get(
+                "evaluation_rubric", []
+            )
+            updated_cached.risks_open_questions = cached_result.get(
+                "risks_open_questions", []
+            )
+            return updated_cached, _cached_usage(cache_key=cache_key)
+
+    parsed, usage = _parse_with_structured_outputs(
+        runtime_config=runtime_config,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        out_model=VacancyBriefCriticalSections,
+        store=store,
+        maybe_temperature=temperature,
+    )
+    parsed_sections = cast(VacancyBriefCriticalSections, parsed)
+    updated = base_brief.model_copy(deep=True)
+    updated.evaluation_rubric = parsed_sections.evaluation_rubric
+    updated.risks_open_questions = parsed_sections.risks_open_questions
+    cache[cache_key] = {"result": parsed_sections.model_dump(mode="json")}
+    return updated, usage

@@ -12,6 +12,7 @@ from llm_client import (
     OpenAICallError,
     TASK_GENERATE_VACANCY_BRIEF,
     generate_vacancy_brief,
+    upgrade_vacancy_brief_critical_sections,
     resolve_model_for_task,
 )
 from schemas import JobAdExtract, VacancyBrief
@@ -123,26 +124,36 @@ def render(ctx: WizardContext) -> None:
         "Hier erzeugst du den finalen Recruiting Brief und kannst ihn exportieren (JSON / Markdown / DOCX)."
     )
 
-    col1, col2 = st.columns([1, 2])
+    settings = load_openai_settings()
+    session_override = get_model_override()
+    resolved_brief_model = resolve_model_for_task(
+        task_kind=TASK_GENERATE_VACANCY_BRIEF,
+        session_override=session_override,
+        settings=settings,
+    )
+    resolved_quality_model = (
+        session_override.strip() if session_override else settings.high_reasoning_model
+    )
+
+    col1, col2, col3 = st.columns([1, 1, 2])
     with col1:
         do_brief = st.button(
             "Recruiting Brief generieren", type="primary", use_container_width=True
         )
     with col2:
+        do_quality_upgrade = st.button(
+            "Qualitäts-Upgrade",
+            use_container_width=True,
+            help="Schärft nur kritische Abschnitte nach.",
+        )
+    with col3:
         st.caption(
-            "Der Brief kombiniert Jobspec-Extraktion + deine Antworten. Offene Punkte werden transparent gemacht."
+            "Standard: vollständiger Draft mit MEDIUM_REASONING_MODEL. Optional: Qualitäts-Upgrade nur für kritische Abschnitte mit HIGH_REASONING_MODEL."
         )
 
     if do_brief:
         clear_error()
-        session_override = get_model_override()
         store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
-        settings = load_openai_settings()
-        resolved_brief_model = resolve_model_for_task(
-            task_kind=TASK_GENERATE_VACANCY_BRIEF,
-            session_override=session_override,
-            settings=settings,
-        )
         try:
             with st.spinner("Generiere Recruiting Brief…"):
                 brief, usage = generate_vacancy_brief(
@@ -154,6 +165,10 @@ def render(ctx: WizardContext) -> None:
             st.session_state[SSKey.BRIEF.value] = brief.model_dump()
             brief_cached = bool((usage or {}).get("cached"))
             st.session_state[SSKey.SUMMARY_CACHE_HIT.value] = brief_cached
+            st.session_state[SSKey.SUMMARY_LAST_MODE.value] = "standard_draft"
+            st.session_state[SSKey.SUMMARY_LAST_MODELS.value] = {
+                "draft_model": resolved_brief_model
+            }
             if brief_cached:
                 st.info(
                     "Recruiting Brief aus Cache geladen (DE) / Recruiting brief loaded from cache (EN)."
@@ -164,6 +179,7 @@ def render(ctx: WizardContext) -> None:
                         "resolved_models": {
                             "generate_vacancy_brief": resolved_brief_model
                         },
+                        "mode": "standard_draft",
                         "usage": usage,
                     }
                 )
@@ -174,6 +190,49 @@ def render(ctx: WizardContext) -> None:
         st.rerun()
 
     brief_dict = st.session_state.get(SSKey.BRIEF.value)
+    if do_quality_upgrade:
+        if not brief_dict:
+            st.warning("Bitte zuerst einen Recruiting Brief generieren.")
+            nav_buttons(ctx, disable_next=True)
+            return
+        clear_error()
+        store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
+        try:
+            with st.spinner("Schärfe kritische Abschnitte nach…"):
+                base_brief = VacancyBrief.model_validate(brief_dict)
+                brief, usage = upgrade_vacancy_brief_critical_sections(
+                    base_brief=base_brief,
+                    job=job,
+                    answers=answers,
+                    model=resolved_quality_model,
+                    store=store,
+                )
+            st.session_state[SSKey.BRIEF.value] = brief.model_dump()
+            st.session_state[SSKey.SUMMARY_CACHE_HIT.value] = bool(
+                (usage or {}).get("cached")
+            )
+            st.session_state[SSKey.SUMMARY_LAST_MODE.value] = "quality_upgrade_critical"
+            st.session_state[SSKey.SUMMARY_LAST_MODELS.value] = {
+                "draft_model": resolved_brief_model,
+                "quality_model": resolved_quality_model,
+            }
+            with st.expander("API Usage (Debug)", expanded=False):
+                st.write(
+                    {
+                        "resolved_models": {
+                            "generate_vacancy_brief": resolved_brief_model,
+                            "critical_upgrade": resolved_quality_model,
+                        },
+                        "mode": "quality_upgrade_critical",
+                        "usage": usage,
+                    }
+                )
+        except OpenAICallError as e:
+            render_openai_error(e)
+        except Exception:
+            set_error("Unerwarteter Fehler (DE) / Unexpected error (EN).")
+        st.rerun()
+
     if not brief_dict:
         st.info(
             "Noch kein Brief generiert. Beantworte die Fragen und klicke dann auf 'Recruiting Brief generieren'."
@@ -184,6 +243,16 @@ def render(ctx: WizardContext) -> None:
     brief = VacancyBrief.model_validate(brief_dict)
     if bool(st.session_state.get(SSKey.SUMMARY_CACHE_HIT.value, False)):
         st.caption("📦 Summary: aus Cache geladen (DE) / loaded from cache (EN).")
+    last_mode = st.session_state.get(SSKey.SUMMARY_LAST_MODE.value) or "unknown"
+    last_models = st.session_state.get(SSKey.SUMMARY_LAST_MODELS.value, {}) or {}
+    st.caption(
+        f"🧠 Modus: `{last_mode}` · Modelle: Draft=`{last_models.get('draft_model', resolved_brief_model)}`"
+        + (
+            f", Upgrade=`{last_models.get('quality_model')}`"
+            if last_models.get("quality_model")
+            else ""
+        )
+    )
     render_brief(brief)
 
     st.subheader("Export")
