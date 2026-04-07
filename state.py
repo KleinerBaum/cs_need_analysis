@@ -48,6 +48,9 @@ def init_session_state() -> None:
         SSKey.LAST_ERROR.value: None,
         SSKey.DEBUG.value: False,
         SSKey.CONTENT_SHARING_CONSENT.value: False,
+        SSKey.LLM_RESPONSE_CACHE.value: {},
+        SSKey.JOBAD_CACHE_HIT.value: {},
+        SSKey.SUMMARY_CACHE_HIT.value: False,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -62,6 +65,8 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.QUESTION_PLAN.value] = None
     st.session_state[SSKey.ANSWERS.value] = {}
     st.session_state[SSKey.BRIEF.value] = None
+    st.session_state[SSKey.JOBAD_CACHE_HIT.value] = {}
+    st.session_state[SSKey.SUMMARY_CACHE_HIT.value] = False
     st.session_state[SSKey.LAST_ERROR.value] = None
     st.session_state[SSKey.CURRENT_STEP.value] = STEPS[0].key
 

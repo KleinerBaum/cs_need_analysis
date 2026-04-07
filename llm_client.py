@@ -25,7 +25,12 @@ from openai import (
 )
 from pydantic import BaseModel, ValidationError
 
-from constants import DEFAULT_LANGUAGE
+from constants import (
+    DEFAULT_LANGUAGE,
+    QUESTION_SCHEMA_VERSION,
+    SSKey,
+    VACANCY_SCHEMA_VERSION,
+)
 from model_capabilities import (
     is_gpt54_family,
     is_gpt5_legacy_model,
@@ -312,6 +317,63 @@ def _raise_missing_api_key_hint() -> None:
 
 def _safe_hash(text: str, n: int = 10) -> str:
     return hashlib.sha1(text.encode("utf-8")).hexdigest()[:n]
+
+
+def _canonicalize_for_cache(value: Any) -> str:
+    """Return deterministic JSON text for cache-key inputs."""
+
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _get_session_response_cache() -> dict[str, dict[str, Any]]:
+    """Return mutable in-session LLM response cache bucket."""
+
+    cache_key = SSKey.LLM_RESPONSE_CACHE.value
+    cache = st.session_state.get(cache_key)
+    if not isinstance(cache, dict):
+        cache = {}
+        st.session_state[cache_key] = cache
+    return cache
+
+
+def _build_llm_cache_key(
+    *,
+    task_kind: str,
+    resolved_model: str,
+    language: str,
+    reasoning_effort: str | None,
+    verbosity: str | None,
+    store: bool,
+    normalized_content: str,
+    schema_version: str | None = None,
+) -> str:
+    """Build a stable cache key from model-relevant inputs."""
+
+    key_payload = {
+        "task_kind": task_kind,
+        "resolved_model": resolved_model,
+        "language": language.strip().lower(),
+        "reasoning_effort": normalize_reasoning_effort(
+            resolved_model, reasoning_effort
+        ),
+        "verbosity": normalize_verbosity(verbosity),
+        "store": bool(store),
+        "normalized_content": normalized_content,
+        "schema_version": schema_version,
+    }
+    return hashlib.sha256(
+        _canonicalize_for_cache(key_payload).encode("utf-8")
+    ).hexdigest()
+
+
+def _cached_usage(*, cache_key: str) -> dict[str, Any]:
+    """Return standardized usage metadata for cache hits."""
+
+    return {
+        "cached": True,
+        "cache_key": cache_key,
+        "provider": "session_state",
+    }
 
 
 def _error_from_openai_exception(exc: Exception, *, endpoint: str) -> OpenAICallError:
@@ -629,6 +691,25 @@ def extract_job_ad(
         language,
         model=runtime_config.resolved_model,
     )
+    normalized_content = _canonicalize_for_cache({"job_text": job_text})
+    cache_key = _build_llm_cache_key(
+        task_kind=TASK_EXTRACT_JOB_AD,
+        resolved_model=runtime_config.resolved_model,
+        language=language,
+        reasoning_effort=runtime_config.reasoning_effort,
+        verbosity=runtime_config.verbosity,
+        store=store,
+        normalized_content=normalized_content,
+    )
+    cache = _get_session_response_cache()
+    cached_entry = cache.get(cache_key)
+    if isinstance(cached_entry, dict):
+        cached_result = cached_entry.get("result")
+        if isinstance(cached_result, dict):
+            return JobAdExtract.model_validate(cached_result), _cached_usage(
+                cache_key=cache_key
+            )
+
     parsed, usage = _parse_with_structured_outputs(
         runtime_config=runtime_config,
         messages=messages,
@@ -636,6 +717,7 @@ def extract_job_ad(
         store=store,
         maybe_temperature=temperature,
     )
+    cache[cache_key] = {"result": parsed.model_dump(mode="json")}
 
     return parsed, usage
 
@@ -673,6 +755,26 @@ def generate_question_plan(
         f"{json.dumps(job.model_dump(mode='json'), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}"
     )
 
+    normalized_job = _canonicalize_for_cache(job.model_dump(mode="json"))
+    cache_key = _build_llm_cache_key(
+        task_kind=TASK_GENERATE_QUESTION_PLAN,
+        resolved_model=runtime_config.resolved_model,
+        language=language,
+        reasoning_effort=runtime_config.reasoning_effort,
+        verbosity=runtime_config.verbosity,
+        store=store,
+        normalized_content=normalized_job,
+        schema_version=QUESTION_SCHEMA_VERSION,
+    )
+    cache = _get_session_response_cache()
+    cached_entry = cache.get(cache_key)
+    if isinstance(cached_entry, dict):
+        cached_result = cached_entry.get("result")
+        if isinstance(cached_result, dict):
+            parsed_cached = QuestionPlan.model_validate(cached_result)
+            normalized_cached = normalize_question_plan(parsed_cached)
+            return normalized_cached, _cached_usage(cache_key=cache_key)
+
     parsed, usage = _parse_with_structured_outputs(
         runtime_config=runtime_config,
         messages=[
@@ -685,6 +787,7 @@ def generate_question_plan(
     )
 
     normalized = normalize_question_plan(parsed)
+    cache[cache_key] = {"result": normalized.model_dump(mode="json")}
     return normalized, usage
 
 
@@ -753,6 +856,31 @@ def generate_vacancy_brief(
         "Wichtig: Falls wichtige Informationen fehlen, schreibe sie unter risks_open_questions."
     )
 
+    normalized_content = _canonicalize_for_cache(
+        {
+            "job": job.model_dump(mode="json"),
+            "answers": answers,
+        }
+    )
+    cache_key = _build_llm_cache_key(
+        task_kind=TASK_GENERATE_VACANCY_BRIEF,
+        resolved_model=runtime_config.resolved_model,
+        language=language,
+        reasoning_effort=runtime_config.reasoning_effort,
+        verbosity=runtime_config.verbosity,
+        store=store,
+        normalized_content=normalized_content,
+        schema_version=VACANCY_SCHEMA_VERSION,
+    )
+    cache = _get_session_response_cache()
+    cached_entry = cache.get(cache_key)
+    if isinstance(cached_entry, dict):
+        cached_result = cached_entry.get("result")
+        if isinstance(cached_result, dict):
+            return VacancyBrief.model_validate(cached_result), _cached_usage(
+                cache_key=cache_key
+            )
+
     parsed, usage = _parse_with_structured_outputs(
         runtime_config=runtime_config,
         messages=[
@@ -770,4 +898,5 @@ def generate_vacancy_brief(
         "answers": answers,
     }
     parsed.structured_data = merged
+    cache[cache_key] = {"result": parsed.model_dump(mode="json")}
     return parsed, usage

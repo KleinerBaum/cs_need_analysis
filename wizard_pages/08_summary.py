@@ -152,6 +152,12 @@ def render(ctx: WizardContext) -> None:
                     store=store,
                 )
             st.session_state[SSKey.BRIEF.value] = brief.model_dump()
+            brief_cached = bool((usage or {}).get("cached"))
+            st.session_state[SSKey.SUMMARY_CACHE_HIT.value] = brief_cached
+            if brief_cached:
+                st.info(
+                    "Recruiting Brief aus Cache geladen (DE) / Recruiting brief loaded from cache (EN)."
+                )
             with st.expander("API Usage (Debug)", expanded=False):
                 st.write(
                     {
@@ -176,6 +182,8 @@ def render(ctx: WizardContext) -> None:
         return
 
     brief = VacancyBrief.model_validate(brief_dict)
+    if bool(st.session_state.get(SSKey.SUMMARY_CACHE_HIT.value, False)):
+        st.caption("📦 Summary: aus Cache geladen (DE) / loaded from cache (EN).")
     render_brief(brief)
 
     st.subheader("Export")

@@ -39,6 +39,9 @@ class SSKey(str, Enum):
     LAST_ERROR = "cs.last_error"
     DEBUG = "cs.debug"
     CONTENT_SHARING_CONSENT = "cs.content_sharing_consent"
+    LLM_RESPONSE_CACHE = "cs.llm_response_cache"
+    JOBAD_CACHE_HIT = "cs.jobad_cache_hit"
+    SUMMARY_CACHE_HIT = "cs.summary_cache_hit"
 
 
 # ---- Wizard Steps (match your screenshot structure) ----

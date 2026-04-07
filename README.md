@@ -9,6 +9,8 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 - LLM-gestützte **Extraktion** der Jobspec in ein strukturiertes Schema (Structured Outputs)
 - Dynamischer Fragebogen je Abschnitt: Unternehmen, Team, Rolle & Aufgaben, Skills, Benefits, Interviewprozess
 - Finaler **Recruiting Brief** inkl. Job-Ad Draft + Export (JSON / Markdown / DOCX)
+- LLM-Response-Caching für `extract_job_ad`, `generate_question_plan` und `generate_vacancy_brief` auf Session-Ebene mit modellrelevantem Cache-Key (Task, Modell, Sprache, Reasoning/Verbosity, Store-Flag, normalisierter Input, optionale Schema-Version).
+- UI-Hinweise in Jobad/Summary markieren Cache-Treffer zweisprachig (DE/EN): „aus Cache geladen / loaded from cache“.
 
 ## Voraussetzungen
 
