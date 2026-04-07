@@ -5,7 +5,8 @@ from llm_client import (
     TASK_LIGHTWEIGHT,
     TASK_MEDIUM_REASONING,
     _nano_closed_output_suffix,
-    build_openai_request_kwargs,
+    build_chat_parse_request_kwargs,
+    build_responses_request_kwargs,
     normalize_reasoning_effort,
     is_nano_model,
     resolve_model_for_task,
@@ -17,22 +18,35 @@ from settings_openai import OpenAISettings
 
 
 def test_gpt54_nano_sends_none_reasoning_low_verbosity_and_temperature() -> None:
-    kwargs = build_openai_request_kwargs(
+    responses_kwargs = build_responses_request_kwargs(
         model="gpt-5.4-nano",
         store=False,
         maybe_temperature=0.0,
         reasoning_effort="none",
         verbosity="low",
     )
+    chat_kwargs = build_chat_parse_request_kwargs(
+        model="gpt-5.4-nano",
+        maybe_temperature=0.0,
+        reasoning_effort="none",
+        verbosity="low",
+    )
 
-    assert kwargs["model"] == "gpt-5.4-nano"
-    assert kwargs["reasoning"] == {"effort": "none"}
-    assert kwargs["text"] == {"verbosity": "low"}
-    assert kwargs["temperature"] == 0.0
+    assert responses_kwargs["model"] == "gpt-5.4-nano"
+    assert responses_kwargs["store"] is False
+    assert responses_kwargs["reasoning"] == {"effort": "none"}
+    assert responses_kwargs["text"] == {"verbosity": "low"}
+    assert responses_kwargs["temperature"] == 0.0
+    assert chat_kwargs == {
+        "model": "gpt-5.4-nano",
+        "reasoning": {"effort": "none"},
+        "text": {"verbosity": "low"},
+        "temperature": 0.0,
+    }
 
 
 def test_gpt5_nano_drops_temperature_but_keeps_compatible_reasoning() -> None:
-    kwargs = build_openai_request_kwargs(
+    kwargs = build_responses_request_kwargs(
         model="gpt-5-nano",
         store=False,
         maybe_temperature=0.7,
@@ -47,7 +61,7 @@ def test_gpt5_nano_drops_temperature_but_keeps_compatible_reasoning() -> None:
 
 
 def test_gpt5_snapshot_detection_and_capabilities() -> None:
-    kwargs = build_openai_request_kwargs(
+    kwargs = build_responses_request_kwargs(
         model="gpt-5-mini-2026-01-15",
         store=False,
         maybe_temperature=0.5,
@@ -63,7 +77,7 @@ def test_gpt5_snapshot_detection_and_capabilities() -> None:
 
 
 def test_non_gpt5_fallback_does_not_get_gpt5_only_fields() -> None:
-    kwargs = build_openai_request_kwargs(
+    kwargs = build_responses_request_kwargs(
         model="gpt-4o-mini",
         store=False,
         maybe_temperature=0.3,
@@ -76,6 +90,54 @@ def test_non_gpt5_fallback_does_not_get_gpt5_only_fields() -> None:
     assert kwargs["temperature"] == 0.3
     assert "reasoning" not in kwargs
     assert "text" not in kwargs
+
+
+def test_request_builder_matrix_for_primary_models() -> None:
+    matrix = [
+        (
+            "gpt-5-nano",
+            "low",
+            "low",
+            0.7,
+            {"reasoning": {"effort": "low"}, "text": {"verbosity": "low"}},
+        ),
+        (
+            "gpt-5.4-nano",
+            "none",
+            "low",
+            0.0,
+            {
+                "reasoning": {"effort": "none"},
+                "text": {"verbosity": "low"},
+                "temperature": 0.0,
+            },
+        ),
+        ("gpt-4o-mini", "high", "medium", 0.3, {"temperature": 0.3}),
+    ]
+
+    for model, reasoning, verbosity, temperature, expected_fields in matrix:
+        responses_kwargs = build_responses_request_kwargs(
+            model=model,
+            store=False,
+            maybe_temperature=temperature,
+            reasoning_effort=reasoning,
+            verbosity=verbosity,
+        )
+        chat_kwargs = build_chat_parse_request_kwargs(
+            model=model,
+            maybe_temperature=temperature,
+            reasoning_effort=reasoning,
+            verbosity=verbosity,
+        )
+
+        assert responses_kwargs["model"] == model
+        assert responses_kwargs["store"] is False
+        assert chat_kwargs["model"] == model
+        assert "store" not in chat_kwargs
+
+        for key, expected_value in expected_fields.items():
+            assert responses_kwargs[key] == expected_value
+            assert chat_kwargs[key] == expected_value
 
 
 def test_reasoning_effort_normalization_accepts_new_values() -> None:
