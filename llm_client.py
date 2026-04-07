@@ -8,16 +8,28 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 from typing import Any, Dict, List, Optional, Tuple, Type
 
 import streamlit as st
-from openai import AuthenticationError, OpenAI
-from pydantic import BaseModel
+from openai import APIStatusError, APITimeoutError, AuthenticationError, OpenAI
+from pydantic import BaseModel, ValidationError
 
 from constants import DEFAULT_LANGUAGE
 from schemas import JobAdExtract, QuestionPlan, VacancyBrief
 from settings_openai import OpenAISettings, load_openai_settings
+
+logger = logging.getLogger(__name__)
+
+
+class OpenAICallError(RuntimeError):
+    """Application-level error with user-facing and debug-safe details."""
+
+    def __init__(self, ui_message: str, *, debug_detail: str | None = None) -> None:
+        super().__init__(ui_message)
+        self.ui_message = ui_message
+        self.debug_detail = debug_detail
 
 
 def build_extract_job_ad_messages(
@@ -180,14 +192,56 @@ def _has_any_openai_api_key(settings: OpenAISettings) -> bool:
 def _raise_missing_api_key_hint() -> None:
     """Raise a clear message for UI and logs without exposing secrets."""
 
-    raise RuntimeError(
-        "OpenAI API key not configured. Set OPENAI_API_KEY in Streamlit secrets "
-        "or environment variables and retry."
+    raise OpenAICallError(
+        "OpenAI API-Key fehlt (DE) / Missing OpenAI API key (EN).",
+        debug_detail="No OPENAI_API_KEY found in st.secrets or environment.",
     )
 
 
 def _safe_hash(text: str, n: int = 10) -> str:
     return hashlib.sha1(text.encode("utf-8")).hexdigest()[:n]
+
+
+def _error_from_openai_exception(exc: Exception) -> OpenAICallError:
+    """Convert SDK exceptions into concise, user-safe app errors."""
+
+    if isinstance(exc, APITimeoutError):
+        return OpenAICallError(
+            "OpenAI-Timeout (DE) / OpenAI timeout (EN). Bitte erneut versuchen.",
+            debug_detail="Request exceeded configured timeout.",
+        )
+
+    if isinstance(exc, APIStatusError) and exc.status_code == 400:
+        return OpenAICallError(
+            "Ungültige OpenAI-Parameter (DE) / Invalid OpenAI parameters (EN).",
+            debug_detail="HTTP 400 from OpenAI (likely incompatible request fields).",
+        )
+
+    if isinstance(exc, AuthenticationError):
+        return OpenAICallError(
+            "OpenAI-Authentifizierung fehlgeschlagen (DE) / OpenAI authentication failed (EN).",
+            debug_detail="AuthenticationError returned by OpenAI SDK.",
+        )
+
+    return OpenAICallError(
+        "OpenAI-Aufruf fehlgeschlagen (DE) / OpenAI request failed (EN).",
+        debug_detail=f"Unhandled OpenAI exception type: {type(exc).__name__}.",
+    )
+
+
+def _error_from_structured_output_exception(exc: Exception) -> OpenAICallError:
+    """Map schema/validation failures to user-safe structured-output messages."""
+
+    if isinstance(exc, ValidationError):
+        return OpenAICallError(
+            "Antwortformat ungültig (DE) / Invalid structured output (EN).",
+            debug_detail="Pydantic validation failed for structured output.",
+        )
+
+    return OpenAICallError(
+        "Structured Output fehlgeschlagen (DE) / Structured output failed (EN).",
+        debug_detail=f"Structured output parsing error: {type(exc).__name__}.",
+    )
 
 
 def _parse_with_structured_outputs(
@@ -221,14 +275,22 @@ def _parse_with_structured_outputs(
                 text_format=out_model,
                 **request_kwargs,
             )
-        except AuthenticationError as exc:
+        except Exception as exc:
             if not _has_any_openai_api_key(settings):
                 _raise_missing_api_key_hint()
-            raise RuntimeError(
-                "OpenAI authentication failed. Verify OPENAI_API_KEY and retry."
-            ) from exc
+            mapped = _error_from_openai_exception(exc)
+            logger.warning(
+                "OpenAI parse failed: %s",
+                mapped.debug_detail or type(exc).__name__,
+            )
+            raise mapped from exc
 
-        parsed = resp.output_parsed
+        try:
+            parsed = resp.output_parsed
+        except Exception as exc:
+            mapped = _error_from_structured_output_exception(exc)
+            logger.warning("Structured parse failed: %s", mapped.debug_detail)
+            raise mapped from exc
         usage = getattr(resp, "usage", None)
         return parsed, usage
 
@@ -240,14 +302,22 @@ def _parse_with_structured_outputs(
                 response_format=out_model,
                 **request_kwargs,
             )
-        except AuthenticationError as exc:
+        except Exception as exc:
             if not _has_any_openai_api_key(settings):
                 _raise_missing_api_key_hint()
-            raise RuntimeError(
-                "OpenAI authentication failed. Verify OPENAI_API_KEY and retry."
-            ) from exc
+            mapped = _error_from_openai_exception(exc)
+            logger.warning(
+                "OpenAI chat.parse failed: %s",
+                mapped.debug_detail or type(exc).__name__,
+            )
+            raise mapped from exc
 
-        parsed = completion.choices[0].message.parsed
+        try:
+            parsed = completion.choices[0].message.parsed
+        except Exception as exc:
+            mapped = _error_from_structured_output_exception(exc)
+            logger.warning("Structured chat parse failed: %s", mapped.debug_detail)
+            raise mapped from exc
         usage = getattr(completion, "usage", None)
         return parsed, usage
 

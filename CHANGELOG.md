@@ -14,3 +14,6 @@
 - Neuer Smoke-Test `scripts/openai_smoke_test.py`: führt `extract_job_ad` mit kurzem Sample-Text gegen zwei Modi (`gpt-5.4-nano` und `gpt-5-nano`) aus und reportet sicher `resolved_model`, `response_model`, `usage`, `parse_status` sowie die effektiv gebauten Request-Parameter ohne Secret-Ausgabe.
 - `llm_client.py` um `build_extract_job_ad_messages(...)` ergänzt, damit Prompt-Bausteine zwischen Produktivpfad und Smoke-Test konsistent wiederverwendet werden.
 - Neue Unit-Tests (`tests/test_openai_smoke_modes.py`) sichern die zentrale Parametrisierung ab: `gpt-5.4-nano` mit `reasoning_effort=none` erlaubt `temperature`, `gpt-5-nano` verwirft `temperature` weiterhin korrekt.
+- OpenAI-Exception-Mapping erweitert: getrennte, knappe UI-Fehler für fehlenden API-Key, Timeout, HTTP-400/inkompatible Parameter und Structured-Output-/Validierungsfehler; Logs bleiben bewusst nicht-sensitiv.
+- Wizard-Seiten `jobad` und `summary` verwenden jetzt die neuen typisierten OpenAI-Fehler samt optionalem non-sensitive Debug-Expander (`OPENAI_DEBUG_ERRORS`), ohne bestehende UX-Flows zu ändern.
+- Neue Tests `tests/test_openai_error_mapping.py` decken die Error-Mappings für Timeout, 400, Auth und Structured-Output-Validation ab.

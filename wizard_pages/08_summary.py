@@ -8,7 +8,7 @@ import streamlit as st
 import docx
 
 from constants import SSKey
-from llm_client import generate_vacancy_brief
+from llm_client import OpenAICallError, generate_vacancy_brief
 from schemas import JobAdExtract, VacancyBrief
 from state import clear_error, get_answers, set_error
 from ui_components import render_brief, render_error_banner
@@ -144,8 +144,18 @@ def render(ctx: WizardContext) -> None:
             st.session_state[SSKey.BRIEF.value] = brief.model_dump()
             with st.expander("API Usage (Debug)", expanded=False):
                 st.write(usage)
-        except Exception as e:
-            set_error(f"Brief-Generierung fehlgeschlagen: {e}")
+        except OpenAICallError as e:
+            set_error(e.ui_message)
+            if (
+                bool(st.session_state.get("OPENAI_DEBUG_ERRORS", False))
+                and e.debug_detail
+            ):
+                with st.expander("Debug (non-sensitive)", expanded=False):
+                    st.code(e.debug_detail)
+        except Exception:
+            set_error(
+                "Brief-Generierung fehlgeschlagen (DE) / Brief generation failed (EN)."
+            )
         st.rerun()
 
     brief_dict = st.session_state.get(SSKey.BRIEF.value)
