@@ -18,7 +18,7 @@ from typing import Any
 
 from llm_client import (
     build_extract_job_ad_messages,
-    build_openai_request_kwargs,
+    build_responses_request_kwargs,
     extract_job_ad,
 )
 
@@ -92,7 +92,7 @@ def run_mode(mode: SmokeMode) -> dict[str, Any]:
 
     previous = _set_runtime_env(mode)
     try:
-        request_kwargs = build_openai_request_kwargs(
+        request_kwargs = build_responses_request_kwargs(
             model=mode.model,
             store=False,
             maybe_temperature=mode.temperature,

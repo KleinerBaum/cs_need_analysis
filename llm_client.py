@@ -111,23 +111,19 @@ def normalize_verbosity(verbosity: str | None) -> str | None:
     return None
 
 
-def build_openai_request_kwargs(
+def _build_capability_gated_request_kwargs(
     *,
     model: str,
-    store: bool,
     maybe_temperature: float | None = None,
     reasoning_effort: str | None,
     verbosity: str | None,
 ) -> dict[str, Any]:
-    """Build common request kwargs for structured parse calls."""
+    """Build capability-gated kwargs shared across parse endpoints."""
 
     normalized_reasoning_effort = normalize_reasoning_effort(model, reasoning_effort)
     normalized_verbosity = normalize_verbosity(verbosity)
 
-    request_kwargs: dict[str, Any] = {
-        "model": model,
-        "store": store,
-    }
+    request_kwargs: dict[str, Any] = {}
     if maybe_temperature is not None and supports_temperature(
         model, normalized_reasoning_effort
     ):
@@ -137,6 +133,49 @@ def build_openai_request_kwargs(
     if supports_verbosity(model) and normalized_verbosity is not None:
         request_kwargs["text"] = {"verbosity": normalized_verbosity}
 
+    return request_kwargs
+
+
+def build_responses_request_kwargs(
+    *,
+    model: str,
+    store: bool,
+    maybe_temperature: float | None = None,
+    reasoning_effort: str | None,
+    verbosity: str | None,
+) -> dict[str, Any]:
+    """Build kwargs for `responses.parse` with endpoint-specific fields."""
+
+    request_kwargs: dict[str, Any] = {"model": model, "store": store}
+    request_kwargs.update(
+        _build_capability_gated_request_kwargs(
+            model=model,
+            maybe_temperature=maybe_temperature,
+            reasoning_effort=reasoning_effort,
+            verbosity=verbosity,
+        )
+    )
+    return request_kwargs
+
+
+def build_chat_parse_request_kwargs(
+    *,
+    model: str,
+    maybe_temperature: float | None = None,
+    reasoning_effort: str | None,
+    verbosity: str | None,
+) -> dict[str, Any]:
+    """Build kwargs for `chat.completions.parse` without responses-only fields."""
+
+    request_kwargs: dict[str, Any] = {"model": model}
+    request_kwargs.update(
+        _build_capability_gated_request_kwargs(
+            model=model,
+            maybe_temperature=maybe_temperature,
+            reasoning_effort=reasoning_effort,
+            verbosity=verbosity,
+        )
+    )
     return request_kwargs
 
 
@@ -268,7 +307,7 @@ def _parse_with_structured_outputs(
         _raise_missing_api_key_hint()
 
     client = get_openai_client()
-    request_kwargs = build_openai_request_kwargs(
+    responses_request_kwargs = build_responses_request_kwargs(
         model=model,
         store=store,
         maybe_temperature=maybe_temperature,
@@ -282,7 +321,7 @@ def _parse_with_structured_outputs(
             resp = client.responses.parse(
                 input=messages,
                 text_format=out_model,
-                **request_kwargs,
+                **responses_request_kwargs,
             )
         except Exception as exc:
             if not _has_any_openai_api_key(settings):
@@ -305,11 +344,17 @@ def _parse_with_structured_outputs(
 
     # Fallback: Chat Completions parse helper (older projects may still use it)
     if hasattr(client, "chat") and hasattr(client.chat.completions, "parse"):
+        chat_request_kwargs = build_chat_parse_request_kwargs(
+            model=model,
+            maybe_temperature=maybe_temperature,
+            reasoning_effort=reasoning_effort,
+            verbosity=settings.verbosity,
+        )
         try:
             completion = client.chat.completions.parse(
                 messages=messages,
                 response_format=out_model,
-                **request_kwargs,
+                **chat_request_kwargs,
             )
         except Exception as exc:
             if not _has_any_openai_api_key(settings):
