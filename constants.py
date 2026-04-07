@@ -42,6 +42,8 @@ class SSKey(str, Enum):
     LLM_RESPONSE_CACHE = "cs.llm_response_cache"
     JOBAD_CACHE_HIT = "cs.jobad_cache_hit"
     SUMMARY_CACHE_HIT = "cs.summary_cache_hit"
+    SUMMARY_LAST_MODE = "cs.summary_last_mode"
+    SUMMARY_LAST_MODELS = "cs.summary_last_models"
 
 
 # ---- Wizard Steps (match your screenshot structure) ----

@@ -51,6 +51,8 @@ def init_session_state() -> None:
         SSKey.LLM_RESPONSE_CACHE.value: {},
         SSKey.JOBAD_CACHE_HIT.value: {},
         SSKey.SUMMARY_CACHE_HIT.value: False,
+        SSKey.SUMMARY_LAST_MODE.value: None,
+        SSKey.SUMMARY_LAST_MODELS.value: {},
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -67,6 +69,8 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.BRIEF.value] = None
     st.session_state[SSKey.JOBAD_CACHE_HIT.value] = {}
     st.session_state[SSKey.SUMMARY_CACHE_HIT.value] = False
+    st.session_state[SSKey.SUMMARY_LAST_MODE.value] = None
+    st.session_state[SSKey.SUMMARY_LAST_MODELS.value] = {}
     st.session_state[SSKey.LAST_ERROR.value] = None
     st.session_state[SSKey.CURRENT_STEP.value] = STEPS[0].key
 

@@ -267,7 +267,7 @@ def test_model_routing_uses_task_specific_models_without_openai_override() -> No
             session_override="",
             settings=settings,
         )
-        == "o3-mini"
+        == "gpt-4.1-mini"
     )
 
 
