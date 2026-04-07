@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import time
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 
 import streamlit as st
@@ -52,6 +53,39 @@ ModelTaskKind = str
 TASK_EXTRACT_JOB_AD = "extract_job_ad"
 TASK_GENERATE_QUESTION_PLAN = "generate_question_plan"
 TASK_GENERATE_VACANCY_BRIEF = "generate_vacancy_brief"
+
+
+@dataclass(frozen=True)
+class OpenAIRuntimeConfig:
+    """Resolved runtime configuration for a single LLM task call chain."""
+
+    resolved_model: str
+    reasoning_effort: str | None
+    verbosity: str | None
+    timeout_seconds: float
+    settings: OpenAISettings
+
+
+def _resolve_runtime_config(
+    *,
+    task_kind: ModelTaskKind,
+    session_override: str | None,
+) -> OpenAIRuntimeConfig:
+    """Resolve model and OpenAI settings exactly once per task invocation."""
+
+    settings = load_openai_settings()
+    resolved_model = resolve_model_for_task(
+        task_kind=task_kind,
+        session_override=session_override,
+        settings=settings,
+    )
+    return OpenAIRuntimeConfig(
+        resolved_model=resolved_model,
+        reasoning_effort=settings.reasoning_effort,
+        verbosity=settings.verbosity,
+        timeout_seconds=settings.openai_request_timeout,
+        settings=settings,
+    )
 
 
 class OpenAICallError(RuntimeError):
@@ -239,14 +273,14 @@ def _get_cached_openai_client(
     )
 
 
-def get_openai_client() -> OpenAI:
+def get_openai_client(*, settings: OpenAISettings | None = None) -> OpenAI:
     """Create a cached OpenAI client.
 
     Priority for API key:
     1) st.secrets["OPENAI_API_KEY"] (common in Streamlit deployments)
     2) Environment variable OPENAI_API_KEY (local dev / CI)
     """
-    settings = load_openai_settings()
+    settings = settings or load_openai_settings()
     resolved_api_key = settings.openai_api_key or os.getenv("OPENAI_API_KEY")
     has_any_api_key = bool(resolved_api_key)
     api_key_hash = _safe_hash(resolved_api_key) if resolved_api_key else "missing"
@@ -417,25 +451,24 @@ def resolve_model_for_task(
 
 def _parse_with_structured_outputs(
     *,
-    model: str,
+    runtime_config: OpenAIRuntimeConfig,
     messages: List[Dict[str, Any]],
     out_model: Type[BaseModel],
     store: bool,
     maybe_temperature: float | None = None,
-    reasoning_effort: str | None,
 ) -> Tuple[BaseModel, Optional[Dict[str, Any]]]:
     """Try `.responses.parse`, then fall back to `.chat.completions.parse` if needed."""
-    settings = load_openai_settings()
+    settings = runtime_config.settings
     if not _has_any_openai_api_key(settings):
         _raise_missing_api_key_hint()
 
-    client = get_openai_client()
+    client = get_openai_client(settings=settings)
     responses_request_kwargs = build_responses_request_kwargs(
-        model=model,
+        model=runtime_config.resolved_model,
         store=store,
         maybe_temperature=maybe_temperature,
-        reasoning_effort=reasoning_effort,
-        verbosity=settings.verbosity,
+        reasoning_effort=runtime_config.reasoning_effort,
+        verbosity=runtime_config.verbosity,
     )
 
     # Newer SDK path (Responses API + parse helper)
@@ -471,10 +504,10 @@ def _parse_with_structured_outputs(
     # Fallback: Chat Completions parse helper (older projects may still use it)
     if hasattr(client, "chat") and hasattr(client.chat.completions, "parse"):
         chat_request_kwargs = build_chat_parse_request_kwargs(
-            model=model,
+            model=runtime_config.resolved_model,
             maybe_temperature=maybe_temperature,
-            reasoning_effort=reasoning_effort,
-            verbosity=settings.verbosity,
+            reasoning_effort=runtime_config.reasoning_effort,
+            verbosity=runtime_config.verbosity,
         )
         try:
             completion = _run_openai_call_with_retry(
@@ -518,22 +551,21 @@ def extract_job_ad(
     store: bool = False,
     temperature: float | None = None,
 ) -> Tuple[JobAdExtract, Optional[Dict[str, Any]]]:
-    resolved_model = resolve_model_for_task(
+    runtime_config = _resolve_runtime_config(
         task_kind=TASK_EXTRACT_JOB_AD,
         session_override=model,
     )
     messages = build_extract_job_ad_messages(
         job_text,
         language,
-        model=resolved_model,
+        model=runtime_config.resolved_model,
     )
     parsed, usage = _parse_with_structured_outputs(
-        model=resolved_model,
+        runtime_config=runtime_config,
         messages=messages,
         out_model=JobAdExtract,
         store=store,
         maybe_temperature=temperature,
-        reasoning_effort=load_openai_settings().reasoning_effort,
     )
 
     return parsed, usage
@@ -547,11 +579,11 @@ def generate_question_plan(
     store: bool = False,
     temperature: float | None = None,
 ) -> Tuple[QuestionPlan, Optional[Dict[str, Any]]]:
-    resolved_model = resolve_model_for_task(
+    runtime_config = _resolve_runtime_config(
         task_kind=TASK_GENERATE_QUESTION_PLAN,
         session_override=model,
     )
-    nano_suffix = build_small_model_guardrails(resolved_model)
+    nano_suffix = build_small_model_guardrails(runtime_config.resolved_model)
     system = (
         "Du bist ein Experte für Vacancy Intake & Recruiting Briefings. "
         "Du erstellst einen dynamischen, aber stabilen Fragebogen für Line Manager. "
@@ -573,7 +605,7 @@ def generate_question_plan(
     )
 
     parsed, usage = _parse_with_structured_outputs(
-        model=resolved_model,
+        runtime_config=runtime_config,
         messages=[
             {"role": "system", "content": system},
             {"role": "user", "content": user},
@@ -581,7 +613,6 @@ def generate_question_plan(
         out_model=QuestionPlan,
         store=store,
         maybe_temperature=temperature,
-        reasoning_effort=load_openai_settings().reasoning_effort,
     )
 
     normalized = normalize_question_plan(parsed)
@@ -631,11 +662,11 @@ def generate_vacancy_brief(
     store: bool = False,
     temperature: float | None = None,
 ) -> Tuple[VacancyBrief, Optional[Dict[str, Any]]]:
-    resolved_model = resolve_model_for_task(
+    runtime_config = _resolve_runtime_config(
         task_kind=TASK_GENERATE_VACANCY_BRIEF,
         session_override=model,
     )
-    nano_suffix = build_small_model_guardrails(resolved_model)
+    nano_suffix = build_small_model_guardrails(runtime_config.resolved_model)
     system = (
         "Du bist ein Recruiting Partner, der aus einer Jobspec und Manager-Antworten "
         "einen vollständigen Recruiting Brief erstellt. "
@@ -654,7 +685,7 @@ def generate_vacancy_brief(
     )
 
     parsed, usage = _parse_with_structured_outputs(
-        model=resolved_model,
+        runtime_config=runtime_config,
         messages=[
             {"role": "system", "content": system},
             {"role": "user", "content": user},
@@ -662,7 +693,6 @@ def generate_vacancy_brief(
         out_model=VacancyBrief,
         store=store,
         maybe_temperature=temperature,
-        reasoning_effort=load_openai_settings().reasoning_effort,
     )
 
     # Always embed the merged structured payload for downstream systems
