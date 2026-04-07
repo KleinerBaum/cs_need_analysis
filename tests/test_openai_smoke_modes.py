@@ -92,6 +92,21 @@ def test_non_gpt5_fallback_does_not_get_gpt5_only_fields() -> None:
     assert "text" not in kwargs
 
 
+def test_smoke_invalid_reasoning_and_temperature_are_safely_filtered() -> None:
+    kwargs = build_responses_request_kwargs(
+        model="gpt-5-mini",
+        store=False,
+        maybe_temperature=0.9,
+        reasoning_effort="invalid-effort",
+        verbosity="medium",
+    )
+
+    assert kwargs["model"] == "gpt-5-mini"
+    assert "reasoning" not in kwargs
+    assert "temperature" not in kwargs
+    assert kwargs["text"] == {"verbosity": "medium"}
+
+
 def test_request_builder_matrix_for_primary_models() -> None:
     matrix = [
         (

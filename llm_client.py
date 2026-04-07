@@ -10,10 +10,17 @@ import hashlib
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional, Tuple, Type
+import time
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 
 import streamlit as st
-from openai import APIStatusError, APITimeoutError, AuthenticationError, OpenAI
+from openai import (
+    APIConnectionError,
+    APIStatusError,
+    APITimeoutError,
+    AuthenticationError,
+    OpenAI,
+)
 from pydantic import BaseModel, ValidationError
 
 from constants import DEFAULT_LANGUAGE
@@ -49,10 +56,17 @@ TASK_HIGH_REASONING = "quality_critical"
 class OpenAICallError(RuntimeError):
     """Application-level error with user-facing and debug-safe details."""
 
-    def __init__(self, ui_message: str, *, debug_detail: str | None = None) -> None:
+    def __init__(
+        self,
+        ui_message: str,
+        *,
+        debug_detail: str | None = None,
+        error_code: str | None = None,
+    ) -> None:
         super().__init__(ui_message)
         self.ui_message = ui_message
         self.debug_detail = debug_detail
+        self.error_code = error_code
 
 
 def build_extract_job_ad_messages(
@@ -214,6 +228,7 @@ def _raise_missing_api_key_hint() -> None:
     raise OpenAICallError(
         "OpenAI API-Key fehlt (DE) / Missing OpenAI API key (EN).",
         debug_detail="No OPENAI_API_KEY found in st.secrets or environment.",
+        error_code="OPENAI_AUTH",
     )
 
 
@@ -224,27 +239,54 @@ def _safe_hash(text: str, n: int = 10) -> str:
 def _error_from_openai_exception(exc: Exception) -> OpenAICallError:
     """Convert SDK exceptions into concise, user-safe app errors."""
 
-    if isinstance(exc, APITimeoutError):
+    if isinstance(exc, (APITimeoutError, TimeoutError)):
         return OpenAICallError(
             "OpenAI-Timeout (DE) / OpenAI timeout (EN). Bitte erneut versuchen.",
             debug_detail="Request exceeded configured timeout.",
+            error_code="OPENAI_TIMEOUT",
         )
 
     if isinstance(exc, APIStatusError) and exc.status_code == 400:
+        body = getattr(exc, "body", {}) or {}
+        message = ""
+        if isinstance(body, dict):
+            error_obj = body.get("error", {})
+            if isinstance(error_obj, dict):
+                message = str(error_obj.get("message", "")).lower()
+        unsupported_hint = (
+            "unsupported" in message
+            or "unknown parameter" in message
+            or "not allowed" in message
+        )
+        ui_message = (
+            "Nicht unterstützter OpenAI-Parameter (DE) / Unsupported OpenAI parameter (EN)."
+            if unsupported_hint
+            else "Ungültige OpenAI-Parameter (DE) / Invalid OpenAI parameters (EN)."
+        )
         return OpenAICallError(
-            "Ungültige OpenAI-Parameter (DE) / Invalid OpenAI parameters (EN).",
-            debug_detail="HTTP 400 from OpenAI (likely incompatible request fields).",
+            ui_message,
+            debug_detail="HTTP 400 from OpenAI (parameter validation failed).",
+            error_code="OPENAI_BAD_REQUEST",
         )
 
     if isinstance(exc, AuthenticationError):
         return OpenAICallError(
             "OpenAI-Authentifizierung fehlgeschlagen (DE) / OpenAI authentication failed (EN).",
             debug_detail="AuthenticationError returned by OpenAI SDK.",
+            error_code="OPENAI_AUTH",
+        )
+
+    if isinstance(exc, APIConnectionError):
+        return OpenAICallError(
+            "OpenAI-Verbindung fehlgeschlagen (DE) / OpenAI connection failed (EN).",
+            debug_detail="APIConnectionError returned by OpenAI SDK.",
+            error_code="OPENAI_CONNECTION",
         )
 
     return OpenAICallError(
         "OpenAI-Aufruf fehlgeschlagen (DE) / OpenAI request failed (EN).",
         debug_detail=f"Unhandled OpenAI exception type: {type(exc).__name__}.",
+        error_code="OPENAI_UNKNOWN",
     )
 
 
@@ -255,12 +297,47 @@ def _error_from_structured_output_exception(exc: Exception) -> OpenAICallError:
         return OpenAICallError(
             "Antwortformat ungültig (DE) / Invalid structured output (EN).",
             debug_detail="Pydantic validation failed for structured output.",
+            error_code="OPENAI_PARSE",
         )
 
     return OpenAICallError(
         "Structured Output fehlgeschlagen (DE) / Structured output failed (EN).",
         debug_detail=f"Structured output parsing error: {type(exc).__name__}.",
+        error_code="OPENAI_PARSE",
     )
+
+
+def _is_retryable_openai_exception(exc: Exception) -> bool:
+    """Return True for transient errors worth retrying."""
+
+    return isinstance(exc, (APITimeoutError, TimeoutError, APIConnectionError))
+
+
+def _run_openai_call_with_retry(
+    *,
+    fn: Callable[[], Any],
+    label: str,
+    max_attempts: int = 3,
+    base_delay_seconds: float = 0.4,
+) -> Any:
+    """Run OpenAI call with exponential backoff for transient errors."""
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return fn()
+        except Exception as exc:
+            if not _is_retryable_openai_exception(exc) or attempt >= max_attempts:
+                raise
+            delay = base_delay_seconds * (2 ** (attempt - 1))
+            logger.warning(
+                "%s transient error (%s), retrying in %.2fs (%d/%d).",
+                label,
+                type(exc).__name__,
+                delay,
+                attempt,
+                max_attempts,
+            )
+            time.sleep(delay)
 
 
 def resolve_model_for_task(
@@ -318,10 +395,13 @@ def _parse_with_structured_outputs(
     # Newer SDK path (Responses API + parse helper)
     if hasattr(client, "responses") and hasattr(client.responses, "parse"):
         try:
-            resp = client.responses.parse(
-                input=messages,
-                text_format=out_model,
-                **responses_request_kwargs,
+            resp = _run_openai_call_with_retry(
+                fn=lambda: client.responses.parse(
+                    input=messages,
+                    text_format=out_model,
+                    **responses_request_kwargs,
+                ),
+                label="OpenAI responses.parse",
             )
         except Exception as exc:
             if not _has_any_openai_api_key(settings):
@@ -351,10 +431,13 @@ def _parse_with_structured_outputs(
             verbosity=settings.verbosity,
         )
         try:
-            completion = client.chat.completions.parse(
-                messages=messages,
-                response_format=out_model,
-                **chat_request_kwargs,
+            completion = _run_openai_call_with_retry(
+                fn=lambda: client.chat.completions.parse(
+                    messages=messages,
+                    response_format=out_model,
+                    **chat_request_kwargs,
+                ),
+                label="OpenAI chat.completions.parse",
             )
         except Exception as exc:
             if not _has_any_openai_api_key(settings):

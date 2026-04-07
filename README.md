@@ -49,9 +49,12 @@ pip install -r requirements.txt
 ## OpenAI Fehlerbehandlung (UI + Logging)
 
 - OpenAI-Fehler werden in klaren Kategorien behandelt: fehlender API-Key, Timeout, HTTP-400/inkompatible Parameter und Structured-Output-Validierungsfehler.
+- Zusätzlich werden `unsupported parameter` (HTTP 400) und `APIConnectionError` separat und präzise klassifiziert.
 - UI-Texte sind knapp und zweisprachig (DE/EN), damit die bestehende UX stabil bleibt und trotzdem genaueres Feedback gibt.
 - Logs enthalten nur nicht-sensitive Debug-Informationen (Fehlerklasse/kurzer Kontext), aber keine API-Keys und keine kompletten Request-Payloads.
 - Optionale Fehler-Debugausgabe kann per Session-State-Flag `OPENAI_DEBUG_ERRORS` aktiviert werden und zeigt nur nicht-sensitive Hinweise.
+- Interne Fehlercodes sind verfügbar (z. B. `OPENAI_AUTH`, `OPENAI_TIMEOUT`, `OPENAI_BAD_REQUEST`, `OPENAI_PARSE`) und werden im Debug-Modus mit ausgegeben.
+- Für transiente OpenAI-Fehler (Timeout/Connection) sind automatische Wiederholversuche mit exponentiellem Backoff aktiv.
 
 ## OpenAI Smoke-Test (extract_job_ad)
 

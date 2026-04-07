@@ -11,7 +11,7 @@ from constants import SSKey
 from llm_client import OpenAICallError, generate_vacancy_brief
 from schemas import JobAdExtract, VacancyBrief
 from state import clear_error, get_answers, set_error
-from ui_components import render_brief, render_error_banner
+from ui_components import render_brief, render_error_banner, render_openai_error
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
 
 
@@ -145,13 +145,7 @@ def render(ctx: WizardContext) -> None:
             with st.expander("API Usage (Debug)", expanded=False):
                 st.write(usage)
         except OpenAICallError as e:
-            set_error(e.ui_message)
-            if (
-                bool(st.session_state.get("OPENAI_DEBUG_ERRORS", False))
-                and e.debug_detail
-            ):
-                with st.expander("Debug (non-sensitive)", expanded=False):
-                    st.code(e.debug_detail)
+            render_openai_error(e)
         except Exception:
             set_error(
                 "Brief-Generierung fehlgeschlagen (DE) / Brief generation failed (EN)."

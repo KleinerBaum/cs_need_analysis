@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 import httpx
-from openai import APIStatusError, APITimeoutError, AuthenticationError
+from openai import (
+    APIConnectionError,
+    APIStatusError,
+    APITimeoutError,
+    AuthenticationError,
+)
 from pydantic import BaseModel, ValidationError
 
 from llm_client import (
@@ -16,6 +21,7 @@ def test_openai_timeout_maps_to_concise_ui_message() -> None:
 
     mapped = _error_from_openai_exception(err)
     assert "timeout" in mapped.ui_message.lower()
+    assert mapped.error_code == "OPENAI_TIMEOUT"
 
 
 def test_openai_400_maps_to_incompatible_parameter_message() -> None:
@@ -24,11 +30,26 @@ def test_openai_400_maps_to_incompatible_parameter_message() -> None:
     err = APIStatusError(
         "bad request",
         response=response,
-        body={"error": {"message": "unsupported_parameter"}},
+        body={"error": {"message": "invalid_request_error"}},
     )
 
     mapped = _error_from_openai_exception(err)
     assert "invalid openai parameters" in mapped.ui_message.lower()
+    assert mapped.error_code == "OPENAI_BAD_REQUEST"
+
+
+def test_openai_400_unsupported_parameter_maps_precisely() -> None:
+    request = httpx.Request("POST", "https://api.openai.com/v1/responses")
+    response = httpx.Response(status_code=400, request=request)
+    err = APIStatusError(
+        "bad request",
+        response=response,
+        body={"error": {"message": "unsupported parameter: reasoning"}},
+    )
+
+    mapped = _error_from_openai_exception(err)
+    assert "unsupported openai parameter" in mapped.ui_message.lower()
+    assert mapped.error_code == "OPENAI_BAD_REQUEST"
 
 
 def test_openai_auth_maps_to_authentication_message() -> None:
@@ -38,6 +59,16 @@ def test_openai_auth_maps_to_authentication_message() -> None:
 
     mapped = _error_from_openai_exception(err)
     assert "authentication failed" in mapped.ui_message.lower()
+    assert mapped.error_code == "OPENAI_AUTH"
+
+
+def test_openai_connection_maps_to_connection_message() -> None:
+    request = httpx.Request("POST", "https://api.openai.com/v1/responses")
+    err = APIConnectionError(message="connection", request=request)
+
+    mapped = _error_from_openai_exception(err)
+    assert "connection failed" in mapped.ui_message.lower()
+    assert mapped.error_code == "OPENAI_CONNECTION"
 
 
 def test_structured_output_validation_error_maps_cleanly() -> None:
@@ -52,3 +83,4 @@ def test_structured_output_validation_error_maps_cleanly() -> None:
         raise AssertionError("Expected ValidationError for invalid MiniModel payload.")
 
     assert "structured output" in mapped.ui_message.lower()
+    assert mapped.error_code == "OPENAI_PARSE"
