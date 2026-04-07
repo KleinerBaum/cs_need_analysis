@@ -44,7 +44,7 @@ python -c "import openai; print(openai.__version__)"
 ## OpenAI Modell-Kompatibilität
 ## OpenAI Konfiguration (Secrets, Env, UI)
 
-Du kannst die OpenAI-Parameter entweder als Root-Level-Secrets oder in einer `[openai]`-Sektion in `.streamlit/secrets.toml` setzen (siehe `.streamlit/secrets.toml.example`).
+Du kannst die OpenAI-Parameter entweder als Root-Level-Secrets oder in einer `[openai]`-Sektion in `.streamlit/secrets.toml` setzen.
 
 ### Priorität (exakt)
 
