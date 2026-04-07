@@ -113,6 +113,20 @@ def _inject_theme_styles() -> None:
                 background-color: rgba(255, 255, 255, 0.96);
                 color: #10213f;
             }}
+
+            /* Improve readability for preview-only textareas (e.g. upload excerpt). */
+            .stTextArea textarea:disabled {{
+                background:
+                    linear-gradient(
+                        140deg,
+                        rgba(17, 44, 82, 0.88),
+                        rgba(12, 32, 64, 0.92)
+                    ) !important;
+                color: #eaf2ff !important;
+                border: 1px solid rgba(126, 173, 255, 0.45) !important;
+                box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+                -webkit-text-fill-color: #eaf2ff !important;
+            }}
         </style>
         """,
         unsafe_allow_html=True,
