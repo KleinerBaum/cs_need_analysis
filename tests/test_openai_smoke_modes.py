@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from llm_client import (
-    TASK_HIGH_REASONING,
-    TASK_LIGHTWEIGHT,
-    TASK_MEDIUM_REASONING,
+    TASK_EXTRACT_JOB_AD,
+    TASK_GENERATE_QUESTION_PLAN,
+    TASK_GENERATE_VACANCY_BRIEF,
     build_extract_job_ad_messages,
     build_small_model_guardrails,
     build_chat_parse_request_kwargs,
@@ -221,8 +221,8 @@ def test_model_routing_prefers_ui_override() -> None:
     settings = _build_settings(openai_model_override="gpt-4.1-mini")
 
     model = resolve_model_for_task(
-        task_type=TASK_MEDIUM_REASONING,
-        ui_model_override="o3-mini",
+        task_kind=TASK_GENERATE_QUESTION_PLAN,
+        session_override="o3-mini",
         settings=settings,
     )
 
@@ -233,8 +233,8 @@ def test_model_routing_uses_openai_model_override_before_task_models() -> None:
     settings = _build_settings(openai_model_override="gpt-4.1-mini")
 
     model = resolve_model_for_task(
-        task_type=TASK_HIGH_REASONING,
-        ui_model_override="",
+        task_kind=TASK_GENERATE_VACANCY_BRIEF,
+        session_override="",
         settings=settings,
     )
 
@@ -246,24 +246,24 @@ def test_model_routing_uses_task_specific_models_without_openai_override() -> No
 
     assert (
         resolve_model_for_task(
-            task_type=TASK_LIGHTWEIGHT,
-            ui_model_override="",
+            task_kind=TASK_EXTRACT_JOB_AD,
+            session_override="",
             settings=settings,
         )
         == "gpt-4o-mini"
     )
     assert (
         resolve_model_for_task(
-            task_type=TASK_MEDIUM_REASONING,
-            ui_model_override="",
+            task_kind=TASK_GENERATE_QUESTION_PLAN,
+            session_override="",
             settings=settings,
         )
         == "gpt-4.1-mini"
     )
     assert (
         resolve_model_for_task(
-            task_type=TASK_HIGH_REASONING,
-            ui_model_override="",
+            task_kind=TASK_GENERATE_VACANCY_BRIEF,
+            session_override="",
             settings=settings,
         )
         == "o3-mini"
