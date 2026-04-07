@@ -313,13 +313,20 @@ def _safe_hash(text: str, n: int = 10) -> str:
     return hashlib.sha1(text.encode("utf-8")).hexdigest()[:n]
 
 
-def _error_from_openai_exception(exc: Exception) -> OpenAICallError:
+def _error_from_openai_exception(exc: Exception, *, endpoint: str) -> OpenAICallError:
     """Convert SDK exceptions into concise, user-safe app errors."""
+    status_code = getattr(exc, "status_code", None)
+
+    def _debug_detail() -> str:
+        details = [f"endpoint={endpoint}", f"exception={type(exc).__name__}"]
+        if status_code is not None:
+            details.append(f"status_code={status_code}")
+        return ", ".join(details)
 
     if isinstance(exc, (APITimeoutError, TimeoutError)):
         return OpenAICallError(
             "OpenAI-Timeout (DE) / OpenAI timeout (EN). Bitte erneut versuchen.",
-            debug_detail="Request exceeded configured timeout.",
+            debug_detail=_debug_detail(),
             error_code="OPENAI_TIMEOUT",
         )
 
@@ -342,27 +349,27 @@ def _error_from_openai_exception(exc: Exception) -> OpenAICallError:
         )
         return OpenAICallError(
             ui_message,
-            debug_detail="HTTP 400 from OpenAI (parameter validation failed).",
+            debug_detail=_debug_detail(),
             error_code="OPENAI_BAD_REQUEST",
         )
 
     if isinstance(exc, AuthenticationError):
         return OpenAICallError(
             "OpenAI-Authentifizierung fehlgeschlagen (DE) / OpenAI authentication failed (EN).",
-            debug_detail="AuthenticationError returned by OpenAI SDK.",
+            debug_detail=_debug_detail(),
             error_code="OPENAI_AUTH",
         )
 
     if isinstance(exc, APIConnectionError):
         return OpenAICallError(
             "OpenAI-Verbindung fehlgeschlagen (DE) / OpenAI connection failed (EN).",
-            debug_detail="APIConnectionError returned by OpenAI SDK.",
+            debug_detail=_debug_detail(),
             error_code="OPENAI_CONNECTION",
         )
 
     return OpenAICallError(
         "OpenAI-Aufruf fehlgeschlagen (DE) / OpenAI request failed (EN).",
-        debug_detail=f"Unhandled OpenAI exception type: {type(exc).__name__}.",
+        debug_detail=_debug_detail(),
         error_code="OPENAI_UNKNOWN",
     )
 
@@ -485,7 +492,7 @@ def _parse_with_structured_outputs(
         except Exception as exc:
             if not _has_any_openai_api_key(settings):
                 _raise_missing_api_key_hint()
-            mapped = _error_from_openai_exception(exc)
+            mapped = _error_from_openai_exception(exc, endpoint="responses.parse")
             logger.warning(
                 "OpenAI parse failed: %s",
                 mapped.debug_detail or type(exc).__name__,
@@ -521,7 +528,10 @@ def _parse_with_structured_outputs(
         except Exception as exc:
             if not _has_any_openai_api_key(settings):
                 _raise_missing_api_key_hint()
-            mapped = _error_from_openai_exception(exc)
+            mapped = _error_from_openai_exception(
+                exc,
+                endpoint="chat.completions.parse",
+            )
             logger.warning(
                 "OpenAI chat.parse failed: %s",
                 mapped.debug_detail or type(exc).__name__,
@@ -537,9 +547,13 @@ def _parse_with_structured_outputs(
         usage = getattr(completion, "usage", None)
         return parsed, usage
 
-    raise RuntimeError(
-        "Your OpenAI Python SDK is missing `.responses.parse` / `.chat.completions.parse`. "
-        "Please upgrade the `openai` package."
+    raise OpenAICallError(
+        "OpenAI-SDK inkompatibel (DE) / OpenAI SDK unsupported (EN).",
+        debug_detail=(
+            "endpoint=responses.parse|chat.completions.parse, "
+            "exception=SDKFeatureMismatch"
+        ),
+        error_code="OPENAI_SDK_UNSUPPORTED",
     )
 
 

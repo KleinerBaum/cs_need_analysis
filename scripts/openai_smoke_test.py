@@ -39,6 +39,7 @@ class SmokeMode:
     reasoning_effort: str
     verbosity: str
     temperature: float | None
+    call_api: bool = True
 
 
 SMOKE_MODES: dict[str, SmokeMode] = {
@@ -55,6 +56,22 @@ SMOKE_MODES: dict[str, SmokeMode] = {
         reasoning_effort="low",
         verbosity="low",
         temperature=0.7,
+    ),
+    "invalid-reasoning-effort": SmokeMode(
+        name="invalid-reasoning-effort",
+        model="gpt-5.4-nano",
+        reasoning_effort="totally-invalid",
+        verbosity="low",
+        temperature=0.0,
+        call_api=False,
+    ),
+    "unsupported-temperature": SmokeMode(
+        name="unsupported-temperature",
+        model="gpt-5-nano",
+        reasoning_effort="low",
+        verbosity="low",
+        temperature=0.7,
+        call_api=False,
     ),
 }
 
@@ -102,13 +119,13 @@ def run_mode(mode: SmokeMode, *, dry_run: bool) -> ModeResult:
         verbosity=mode.verbosity,
     )
 
-    if dry_run:
+    if dry_run or not mode.call_api:
         return ModeResult(
             mode=mode.name,
             configured_mode=asdict(mode),
             effective_request_kwargs=request_kwargs,
             actual_response_metadata={
-                "parse_status": "dry_run",
+                "parse_status": "dry_run" if dry_run else "simulated",
                 "response_model_id": None,
                 "usage": None,
             },
@@ -149,6 +166,34 @@ def run_mode(mode: SmokeMode, *, dry_run: bool) -> ModeResult:
     )
 
 
+def run_error_simulation(mode: str) -> dict[str, Any]:
+    """Simulate timeout/connection mapping without network traffic."""
+    import httpx
+
+    from llm_client import _error_from_openai_exception
+    from openai import APIConnectionError
+
+    if mode == "timeout":
+        exc: Exception = TimeoutError("simulated timeout")
+    elif mode == "connection":
+        request = httpx.Request("POST", "https://api.openai.com/v1/responses")
+        exc = APIConnectionError(
+            request=request,
+            message="simulated connection issue",
+        )
+    else:
+        raise ValueError(f"Unsupported simulation mode: {mode}")
+
+    mapped = _error_from_openai_exception(exc, endpoint="responses.parse")
+    return {
+        "parse_status": "simulated_error",
+        "simulation_mode": mode,
+        "mapped_error_code": mapped.error_code,
+        "mapped_ui_message": mapped.ui_message,
+        "mapped_debug_detail": mapped.debug_detail,
+    }
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run OpenAI extract_job_ad smoke test")
     parser.add_argument(
@@ -174,6 +219,12 @@ def parse_args() -> argparse.Namespace:
             "If no OPENAI_API_KEY is available, only validate request kwargs "
             "without performing API calls."
         ),
+    )
+    parser.add_argument(
+        "--simulate-error",
+        choices=["none", "timeout", "connection"],
+        default="none",
+        help="Simulate mapped OpenAI timeout/connection handling without API call.",
     )
     return parser.parse_args()
 
@@ -233,6 +284,19 @@ def main() -> None:
 
         summary.append(asdict(result))
 
+    simulated_error: dict[str, Any] | None = None
+    if args.simulate_error != "none":
+        try:
+            simulated_error = run_error_simulation(args.simulate_error)
+        except Exception as exc:  # noqa: BLE001
+            had_failure = True
+            simulated_error = {
+                "parse_status": "error",
+                "simulation_mode": args.simulate_error,
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+            }
+
     report = {
         "sample_text_chars": len(SAMPLE_JOB_TEXT),
         "api_key_available": api_key_available,
@@ -244,6 +308,7 @@ def main() -> None:
             "st.secrets/openai secrets can override environment variables in app runtime; env mutation alone may not reflect effective app config.",
         ],
         "modes": summary,
+        "simulated_error": simulated_error,
         "message_template_preview": build_extract_job_ad_messages(
             "<sample>",
             language="de",

@@ -19,9 +19,12 @@ def test_openai_timeout_maps_to_concise_ui_message() -> None:
     request = httpx.Request("POST", "https://api.openai.com/v1/responses")
     err = APITimeoutError(request=request)
 
-    mapped = _error_from_openai_exception(err)
+    mapped = _error_from_openai_exception(err, endpoint="responses.parse")
     assert "timeout" in mapped.ui_message.lower()
     assert mapped.error_code == "OPENAI_TIMEOUT"
+    assert mapped.debug_detail is not None
+    assert "endpoint=responses.parse" in mapped.debug_detail
+    assert "exception=APITimeoutError" in mapped.debug_detail
 
 
 def test_openai_400_maps_to_incompatible_parameter_message() -> None:
@@ -33,7 +36,7 @@ def test_openai_400_maps_to_incompatible_parameter_message() -> None:
         body={"error": {"message": "invalid_request_error"}},
     )
 
-    mapped = _error_from_openai_exception(err)
+    mapped = _error_from_openai_exception(err, endpoint="responses.parse")
     assert "invalid openai parameters" in mapped.ui_message.lower()
     assert mapped.error_code == "OPENAI_BAD_REQUEST"
 
@@ -47,7 +50,7 @@ def test_openai_400_unsupported_parameter_maps_precisely() -> None:
         body={"error": {"message": "unsupported parameter: reasoning"}},
     )
 
-    mapped = _error_from_openai_exception(err)
+    mapped = _error_from_openai_exception(err, endpoint="responses.parse")
     assert "unsupported openai parameter" in mapped.ui_message.lower()
     assert mapped.error_code == "OPENAI_BAD_REQUEST"
 
@@ -57,7 +60,7 @@ def test_openai_auth_maps_to_authentication_message() -> None:
     response = httpx.Response(status_code=401, request=request)
     err = AuthenticationError("auth failed", response=response, body={})
 
-    mapped = _error_from_openai_exception(err)
+    mapped = _error_from_openai_exception(err, endpoint="responses.parse")
     assert "authentication failed" in mapped.ui_message.lower()
     assert mapped.error_code == "OPENAI_AUTH"
 
@@ -66,7 +69,7 @@ def test_openai_connection_maps_to_connection_message() -> None:
     request = httpx.Request("POST", "https://api.openai.com/v1/responses")
     err = APIConnectionError(message="connection", request=request)
 
-    mapped = _error_from_openai_exception(err)
+    mapped = _error_from_openai_exception(err, endpoint="responses.parse")
     assert "connection failed" in mapped.ui_message.lower()
     assert mapped.error_code == "OPENAI_CONNECTION"
 
