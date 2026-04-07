@@ -36,3 +36,42 @@ pip install -r requirements.txt
 - Für `gpt-5.4*` wird `temperature` nur mitgesendet, wenn `reasoning_effort="none"` aktiv ist.
 - `reasoning_effort="none"` wird bei inkompatiblen Modellen verworfen (nicht an die API gesendet).
 - Mindestabhängigkeit: `openai>=2.30.0,<3.0.0`, damit `responses.parse(...)`, strukturierte `text_format`-Ausgaben, Client-`timeout` und aktuelle Request-Felder (z. B. `reasoning`, `text.verbosity`) konsistent verfügbar sind.
+
+## OpenAI Smoke-Test (extract_job_ad)
+
+Das Repo enthält einen kleinen Smoke-Test unter `scripts/openai_smoke_test.py`.
+
+### Ziel
+
+- Führt `extract_job_ad` mit einem kurzen Sample-Text aus.
+- Zeigt das aufgelöste Modell, die sanitisierten Request-Parameter, das Response-Modell, Usage und den Parse-Status.
+- Gibt keine Secrets (`OPENAI_API_KEY`) aus.
+
+### Abgedeckte Modi
+
+1. `gpt-5.4-nano` mit `reasoning_effort=none` und `verbosity=low`  
+   Erwartung: `temperature` darf gesendet werden (hier `0.0`), Parse sollte erfolgreich sein.
+2. `gpt-5-nano` mit kompatiblen Parametern  
+   Erwartung: `temperature` wird **nicht** gesendet, auch wenn lokal ein Wert gesetzt ist; Parse sollte erfolgreich sein.
+
+### Lokal ausführen
+
+```bash
+export OPENAI_API_KEY="sk-..."  # nur lokal setzen, nie committen
+python scripts/openai_smoke_test.py --mode all
+```
+
+Optional einzelne Modi:
+
+```bash
+python scripts/openai_smoke_test.py --mode gpt-5.4-nano
+python scripts/openai_smoke_test.py --mode gpt-5-nano
+```
+
+### Typische 400er-Fehlerbilder bei falscher Parametrisierung
+
+- `unsupported_parameter`: z. B. `temperature` wird an ein inkompatibles GPT-5 Legacy-Modell gesendet.
+- `invalid_reasoning_effort`: z. B. `reasoning.effort="none"` bei einem Modell, das diesen Wert nicht unterstützt.
+- `invalid_type`/`invalid_request_error`: z. B. falscher Typ in `reasoning`, `text.verbosity` oder fehlerhafte Struktur im Request-Body.
+
+Der Smoke-Test zeigt die tatsächlich gebauten `request_kwargs`, damit sich diese Fälle schnell eingrenzen lassen.
