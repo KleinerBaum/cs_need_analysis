@@ -2,6 +2,9 @@
 
 ## 2026-04-07
 
+- Rechtliche Unterseiten ergänzt: **Terms of Service / Nutzungsbedingungen** und **Privacy Policy / Datenschutzerklärung**.
+- Sidebar erweitert: Rechtslinks sind am unteren Ende der Navigation platziert und öffnen die jeweiligen Seiten per Query-Parameter.
+- Bilinguale Inhalte (DE/EN) für beide Rechtsseiten ergänzt, inklusive Rücksprung-Button in den Wizard.
 - Schlanke, optionale Modell-Routing-Schicht ergänzt: task-basierte Auswahl mit `LIGHTWEIGHT_MODEL` (Extraktion/Normalisierung), `MEDIUM_REASONING_MODEL` (QuestionPlan) und `HIGH_REASONING_MODEL` (VacancyBrief), ohne UX-Umbau.
 - Prioritätslogik fest verdrahtet: UI-Modelloverride > `OPENAI_MODEL` > task-spezifische Modell-Keys > `DEFAULT_MODEL`.
 - `settings_openai.OpenAISettings` um `openai_model_override` erweitert, damit `OPENAI_MODEL` als expliziter globaler Override zuverlässig von Fallbacks unterscheidbar ist.
