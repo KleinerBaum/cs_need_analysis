@@ -7,22 +7,17 @@ of a wizard workflow.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
-import os
 import streamlit as st
 
 from constants import DEFAULT_LANGUAGE, SSKey, STEPS
+from settings_openai import load_openai_settings
 
 
 def init_session_state() -> None:
-    # Default model can be provided via Streamlit secrets or environment
-    default_model = 'gpt-4o-mini'
-    try:
-        default_model = st.secrets.get('OPENAI_MODEL', default_model)  # type: ignore[attr-defined]
-    except Exception:
-        pass
-    default_model = os.getenv('OPENAI_MODEL', default_model)
+    settings = load_openai_settings()
+    default_model = settings.openai_model
     defaults = {
         SSKey.CURRENT_STEP.value: STEPS[0].key,
         SSKey.LANGUAGE.value: DEFAULT_LANGUAGE,
