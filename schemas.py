@@ -9,7 +9,7 @@ These models are used in two ways:
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -106,7 +106,9 @@ class Question(BaseModel):
     answer_type: AnswerType = Field(description="Widget/answer type.")
     required: bool = Field(default=False)
     options: Optional[List[str]] = Field(default=None, description="Options for select widgets.")
-    default: Optional[Any] = Field(default=None, description="Default value if applicable.")
+    default: Optional[
+        Union[str, int, float, bool, List[str], List[int], List[float], List[bool]]
+    ] = Field(default=None, description="Default value if applicable.")
     target_path: Optional[str] = Field(
         default=None,
         description="Optional dot-path into the final vacancy brief structure; can be used for mapping.",
