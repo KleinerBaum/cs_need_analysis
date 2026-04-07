@@ -2,6 +2,10 @@
 
 ## 2026-04-07
 
+- `llm_client.py` um Session-basiertes LLM-Response-Caching erweitert: Cache-Key basiert auf task_kind, resolved_model, language, reasoning/verbosity, store-Flag, normalisiertem Inhalt (`job_text` bzw. serialisierte `job`/`answers`) plus optionaler Schema-Version.
+- `extract_job_ad`, `generate_question_plan` und `generate_vacancy_brief` prüfen vor API-Calls den Cache und geben bei Treffer direkt ein validiertes strukturiertes Objekt sowie Usage-Metadaten mit `cached=true` zurück.
+- Neue Session-State-Keys (`SSKey.LLM_RESPONSE_CACHE`, `SSKey.JOBAD_CACHE_HIT`, `SSKey.SUMMARY_CACHE_HIT`) inkl. Initialisierung/Reset ergänzt.
+- UI in `wizard_pages/01_jobad.py` und `wizard_pages/08_summary.py` zeigt Cache-Treffer jetzt explizit zweisprachig an („aus Cache geladen / loaded from cache“).
 - Landing-Page erweitert: verpflichtende DE/EN-Consent-Bestätigung zum OpenAI Content Sharing Agreement (`cs.content_sharing_consent`) vor Wizard-Start; Start-Button bleibt bis zur Zustimmung deaktiviert.
 - Terms of Service und Privacy Policy präzisiert: zweisprachige Hinweise zu Designated Content, Development Purposes, Notice/Consent-Verantwortung sowie ausgeschlossenen Daten (PHI, Kinder <13 bzw. lokales Mindestalter).
 - Session-State/Constants ergänzt um neuen Schlüssel `SSKey.CONTENT_SHARING_CONSENT` inklusive Initialisierung in `init_session_state()`.

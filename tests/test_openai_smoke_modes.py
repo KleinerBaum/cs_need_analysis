@@ -4,6 +4,7 @@ from llm_client import (
     TASK_EXTRACT_JOB_AD,
     TASK_GENERATE_QUESTION_PLAN,
     TASK_GENERATE_VACANCY_BRIEF,
+    _build_llm_cache_key,
     build_extract_job_ad_messages,
     build_small_model_guardrails,
     build_chat_parse_request_kwargs,
@@ -268,3 +269,39 @@ def test_model_routing_uses_task_specific_models_without_openai_override() -> No
         )
         == "o3-mini"
     )
+
+
+def test_llm_cache_key_changes_for_model_relevant_inputs() -> None:
+    base = _build_llm_cache_key(
+        task_kind=TASK_EXTRACT_JOB_AD,
+        resolved_model="gpt-4o-mini",
+        language="de",
+        reasoning_effort="medium",
+        verbosity="low",
+        store=False,
+        normalized_content='{"job_text":"abc"}',
+        schema_version=None,
+    )
+    changed_language = _build_llm_cache_key(
+        task_kind=TASK_EXTRACT_JOB_AD,
+        resolved_model="gpt-4o-mini",
+        language="en",
+        reasoning_effort="medium",
+        verbosity="low",
+        store=False,
+        normalized_content='{"job_text":"abc"}',
+        schema_version=None,
+    )
+    changed_store = _build_llm_cache_key(
+        task_kind=TASK_EXTRACT_JOB_AD,
+        resolved_model="gpt-4o-mini",
+        language="de",
+        reasoning_effort="medium",
+        verbosity="low",
+        store=True,
+        normalized_content='{"job_text":"abc"}',
+        schema_version=None,
+    )
+
+    assert base != changed_language
+    assert base != changed_store

@@ -256,7 +256,17 @@ def render(ctx: WizardContext) -> None:
 
             st.session_state[SSKey.JOB_EXTRACT.value] = job.model_dump()
             st.session_state[SSKey.QUESTION_PLAN.value] = plan.model_dump()
+            extract_cached = bool((usage1 or {}).get("cached"))
+            plan_cached = bool((usage2 or {}).get("cached"))
+            st.session_state[SSKey.JOBAD_CACHE_HIT.value] = {
+                "extract_job_ad": extract_cached,
+                "generate_question_plan": plan_cached,
+            }
             st.success("Fertig: Jobspec extrahiert und Fragebogen erzeugt.")
+            if extract_cached or plan_cached:
+                st.info(
+                    "Mindestens ein Ergebnis wurde aus Cache geladen (DE) / At least one result was loaded from cache (EN)."
+                )
 
             # Optional: show usage
             with st.expander("API Usage (Debug)", expanded=False):
@@ -285,6 +295,13 @@ def render(ctx: WizardContext) -> None:
     if job_dict:
         job = JobAdExtract.model_validate(job_dict)
         render_job_extract_overview(job)
+        cache_hit = st.session_state.get(SSKey.JOBAD_CACHE_HIT.value, {})
+        if isinstance(cache_hit, dict) and (
+            cache_hit.get("extract_job_ad") or cache_hit.get("generate_question_plan")
+        ):
+            st.caption(
+                "📦 Jobad/Fragebogen: aus Cache geladen (DE) / loaded from cache (EN)."
+            )
 
     if plan_dict:
         plan = QuestionPlan.model_validate(plan_dict)
