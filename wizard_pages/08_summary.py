@@ -10,7 +10,7 @@ import docx
 from constants import SSKey
 from llm_client import generate_vacancy_brief
 from schemas import JobAdExtract, VacancyBrief
-from state import clear_error, get_active_model, get_answers, set_error
+from state import clear_error, get_answers, set_error
 from ui_components import render_brief, render_error_banner
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
 
@@ -129,7 +129,12 @@ def render(ctx: WizardContext) -> None:
 
     if do_brief:
         clear_error()
-        model = get_active_model()
+        model = str(st.session_state.get(SSKey.MODEL.value, "")).strip()
+        if not model:
+            set_error(
+                "Kein Modell konfiguriert. Bitte LLM-Model im Sidebar-Feld setzen."
+            )
+            st.rerun()
         store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
         try:
             with st.spinner("Generiere Recruiting Brief…"):

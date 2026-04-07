@@ -7,7 +7,7 @@ from constants import SSKey
 from llm_client import extract_job_ad, generate_question_plan
 from parsing import extract_text_from_uploaded_file, redact_pii
 from schemas import JobAdExtract, QuestionPlan
-from state import clear_error, get_active_model, set_error
+from state import clear_error, set_error
 from ui_components import render_error_banner, render_job_extract_overview
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
 
@@ -138,7 +138,12 @@ def render(ctx: WizardContext) -> None:
         redact = bool(st.session_state.get(SSKey.SOURCE_REDACT_PII.value, True))
         submitted = redact_pii(raw) if redact else raw
 
-        model = get_active_model()
+        model = str(st.session_state.get(SSKey.MODEL.value, "")).strip()
+        if not model:
+            set_error(
+                "Kein Modell konfiguriert. Bitte LLM-Model im Sidebar-Feld setzen."
+            )
+            st.rerun()
         store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
 
         try:
