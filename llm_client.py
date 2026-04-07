@@ -42,6 +42,7 @@ logger = logging.getLogger(__name__)
 _MODEL_CAPABILITY_EXPORTS = (
     is_gpt5_legacy_model,
     is_gpt54_family,
+    is_nano_model,
     supports_reasoning,
     supports_verbosity,
 )
@@ -70,10 +71,13 @@ class OpenAICallError(RuntimeError):
 
 
 def build_extract_job_ad_messages(
-    job_text: str, language: str = DEFAULT_LANGUAGE
+    job_text: str,
+    language: str = DEFAULT_LANGUAGE,
+    model: str | None = None,
 ) -> list[dict[str, str]]:
     """Build the standardized message list for job-ad extraction."""
 
+    guardrails = build_small_model_guardrails(model or "")
     system = (
         "Du bist ein Senior HR / Recruiting Analyst. "
         "Extrahiere aus einem Jobspec/Job Ad alle recruitment-relevanten Informationen "
@@ -81,6 +85,7 @@ def build_extract_job_ad_messages(
         "Wenn etwas nicht explizit vorkommt oder nicht sicher ableitbar ist: setze null/leer und schreibe es in 'gaps'. "
         "Wenn du Annahmen triffst: dokumentiere sie in 'assumptions'. "
         f"Antworte in der Sprache: {language}."
+        f"{guardrails}"
     )
 
     user = (
@@ -97,18 +102,19 @@ def build_extract_job_ad_messages(
     ]
 
 
-def _nano_closed_output_suffix(model: str) -> str:
-    """Return a concise strict-output suffix for nano models."""
+def build_small_model_guardrails(model: str) -> str:
+    """Return minimal strict-output guardrails for selected nano models."""
 
-    if not is_nano_model(model):
+    normalized_model = model.strip().lower()
+    if normalized_model not in {"gpt-5-nano", "gpt-5.4-nano"}:
         return ""
 
     return (
         " Für kleine Modelle strikt befolgen: "
-        "1) Ausgabe nur als gültiges Schema-Objekt. "
+        "1) Nur strukturierte Ausgabe gemäß Schema. "
         "2) Kein Zusatztext außerhalb des Schemas. "
-        "3) Reihenfolge exakt wie angefordert. "
-        "4) Keine impliziten Nebenaufgaben."
+        "3) Keine impliziten Nebenaufgaben. "
+        "4) Fehlende Infos leer/null statt geraten."
     )
 
 
@@ -476,17 +482,14 @@ def extract_job_ad(
         task_type=TASK_LIGHTWEIGHT,
         ui_model_override=model,
     )
-    messages = build_extract_job_ad_messages(job_text, language)
-    nano_suffix = _nano_closed_output_suffix(resolved_model)
+    messages = build_extract_job_ad_messages(
+        job_text,
+        language,
+        model=resolved_model,
+    )
     parsed, usage = _parse_with_structured_outputs(
         model=resolved_model,
-        messages=[
-            {
-                "role": "system",
-                "content": messages[0]["content"] + nano_suffix,
-            },
-            messages[1],
-        ],
+        messages=messages,
         out_model=JobAdExtract,
         store=store,
         maybe_temperature=temperature,
@@ -508,7 +511,7 @@ def generate_question_plan(
         task_type=TASK_MEDIUM_REASONING,
         ui_model_override=model,
     )
-    nano_suffix = _nano_closed_output_suffix(resolved_model)
+    nano_suffix = build_small_model_guardrails(resolved_model)
     system = (
         "Du bist ein Experte für Vacancy Intake & Recruiting Briefings. "
         "Du erstellst einen dynamischen, aber stabilen Fragebogen für Line Manager. "
@@ -592,7 +595,7 @@ def generate_vacancy_brief(
         task_type=TASK_HIGH_REASONING,
         ui_model_override=model,
     )
-    nano_suffix = _nano_closed_output_suffix(resolved_model)
+    nano_suffix = build_small_model_guardrails(resolved_model)
     system = (
         "Du bist ein Recruiting Partner, der aus einer Jobspec und Manager-Antworten "
         "einen vollständigen Recruiting Brief erstellt. "
