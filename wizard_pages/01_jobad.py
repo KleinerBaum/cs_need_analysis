@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import streamlit as st
+from typing import Final
 
 from constants import SSKey
 from llm_client import (
@@ -50,6 +51,57 @@ Anforderungen:
 Benefits: unbefristeter Vertrag, mobiles Arbeiten, 30 Tage Urlaub, Deutschlandticket Job
 """
 
+SOURCE_TEXT_INPUT_KEY: Final[str] = "cs.source_text_input"
+SOURCE_UPLOAD_SIG_KEY: Final[str] = "cs.source_upload_signature"
+SOURCE_UPLOAD_TEXT_KEY: Final[str] = "cs.source_uploaded_text"
+SOURCE_SAMPLE_SELECT_KEY: Final[str] = "cs.source_sample_select"
+SOURCE_ACTIVE_KEY: Final[str] = "cs.source_active"
+
+
+def _sample_text_for_selection(selection: str) -> str:
+    if selection == "Senior Data Scientist (EN, strukturiert)":
+        return SAMPLE_SENIOR_DS
+    if selection == "Produktentwickler*in (DE, Bullet)":
+        return SAMPLE_PRODUKTENTWICKLER
+    return ""
+
+
+def _set_active_source(source: str, text: str) -> None:
+    st.session_state[SSKey.SOURCE_TEXT.value] = text
+    st.session_state[SOURCE_ACTIVE_KEY] = source
+
+
+def _on_manual_text_change() -> None:
+    manual_text = str(st.session_state.get(SOURCE_TEXT_INPUT_KEY, ""))
+    _set_active_source("text", manual_text)
+
+
+def _on_sample_change() -> None:
+    selection = str(st.session_state.get(SOURCE_SAMPLE_SELECT_KEY, "—"))
+    sample_text = _sample_text_for_selection(selection)
+    if sample_text:
+        _set_active_source("sample", sample_text)
+
+
+def _on_upload_change() -> None:
+    upload = st.session_state.get("cs.source_upload_file")
+    if upload is None:
+        return
+
+    try:
+        uploaded_text, source_meta = extract_text_from_uploaded_file(upload)
+    except Exception as exc:  # pragma: no cover - streamlit callback runtime
+        set_error(f"Datei konnte nicht gelesen werden: {exc}")
+        return
+
+    st.session_state[SOURCE_UPLOAD_TEXT_KEY] = uploaded_text
+    st.session_state[SSKey.SOURCE_FILE_META.value] = source_meta
+    st.session_state[SOURCE_UPLOAD_SIG_KEY] = (
+        source_meta.get("name", ""),
+        source_meta.get("size", 0),
+    )
+    _set_active_source("upload", uploaded_text)
+
 
 def render(ctx: WizardContext) -> None:
     st.header("Jobspec / Job Ad einlesen")
@@ -78,55 +130,73 @@ def render(ctx: WizardContext) -> None:
             key=SSKey.SOURCE_REDACT_PII.value,
         )
 
+    if SOURCE_TEXT_INPUT_KEY not in st.session_state:
+        st.session_state[SOURCE_TEXT_INPUT_KEY] = st.session_state.get(
+            SSKey.SOURCE_TEXT.value, ""
+        )
+
     tab1, tab2, tab3 = st.tabs(["Upload", "Text einfügen", "Samples"])
 
-    source_text = ""
-    source_meta = {}
-
     with tab1:
-        upload = st.file_uploader(
+        st.file_uploader(
             "Jobspec hochladen (PDF oder DOCX)",
             type=["pdf", "docx", "txt"],
             accept_multiple_files=False,
+            key="cs.source_upload_file",
+            on_change=_on_upload_change,
         )
-        if upload is not None:
-            try:
-                text, meta = extract_text_from_uploaded_file(upload)
-                source_text, source_meta = text, meta
-                st.success(f"Datei geladen: {meta.get('name')}")
-                st.text_area(
-                    "Preview (Textauszug)", value=source_text[:4000], height=220
-                )
-            except Exception as e:
-                set_error(f"Datei konnte nicht gelesen werden: {e}")
+        uploaded_text = str(st.session_state.get(SOURCE_UPLOAD_TEXT_KEY, ""))
+        upload_meta = st.session_state.get(SSKey.SOURCE_FILE_META.value, {})
+        if uploaded_text:
+            st.success(
+                f"Datei geladen: {upload_meta.get('name', 'Unbekannt')} / File loaded"
+            )
+            st.text_area(
+                "Preview (Textauszug)",
+                value=uploaded_text[:4000],
+                height=220,
+                key="cs.source_upload_preview",
+                disabled=True,
+            )
 
     with tab2:
-        source_text = st.text_area(
+        st.text_area(
             "Jobspec Text",
-            value=st.session_state.get(SSKey.SOURCE_TEXT.value, ""),
+            key=SOURCE_TEXT_INPUT_KEY,
             height=320,
+            on_change=_on_manual_text_change,
         )
 
     with tab3:
-        sample = st.selectbox(
+        st.selectbox(
             "Sample auswählen",
             options=[
                 "—",
                 "Senior Data Scientist (EN, strukturiert)",
                 "Produktentwickler*in (DE, Bullet)",
             ],
+            key=SOURCE_SAMPLE_SELECT_KEY,
+            on_change=_on_sample_change,
         )
-        if sample == "Senior Data Scientist (EN, strukturiert)":
-            source_text = SAMPLE_SENIOR_DS
-        elif sample == "Produktentwickler*in (DE, Bullet)":
-            source_text = SAMPLE_PRODUKTENTWICKLER
-        st.text_area("Sample Text", value=source_text, height=280)
+        selected_sample = str(st.session_state.get(SOURCE_SAMPLE_SELECT_KEY, "—"))
+        sample_text = _sample_text_for_selection(selected_sample)
+        st.text_area(
+            "Sample Text",
+            value=sample_text,
+            height=280,
+            key="cs.source_sample_preview",
+            disabled=True,
+        )
 
-    # Persist source text
-    if source_text:
-        st.session_state[SSKey.SOURCE_TEXT.value] = source_text
-    if source_meta:
-        st.session_state[SSKey.SOURCE_FILE_META.value] = source_meta
+    source_labels = {
+        "upload": "Upload",
+        "text": "Text",
+        "sample": "Sample",
+    }
+    active_source = str(st.session_state.get(SOURCE_ACTIVE_KEY, "text"))
+    st.caption(
+        f"Aktive Textquelle: {source_labels.get(active_source, 'Unbekannt')} / Active source: {source_labels.get(active_source, 'Unknown')}"
+    )
 
     col1, col2 = st.columns([1, 2])
     with col1:
@@ -142,7 +212,10 @@ def render(ctx: WizardContext) -> None:
 
     if do_extract:
         clear_error()
-        raw = st.session_state.get(SSKey.SOURCE_TEXT.value, "") or ""
+        effective_source_text = str(
+            st.session_state.get(SSKey.SOURCE_TEXT.value, "") or ""
+        )
+        raw = effective_source_text
         if not raw.strip():
             set_error("Bitte zuerst ein Jobspec hochladen oder Text einfügen.")
             st.rerun()
