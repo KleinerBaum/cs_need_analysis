@@ -4,7 +4,8 @@ from llm_client import (
     TASK_HIGH_REASONING,
     TASK_LIGHTWEIGHT,
     TASK_MEDIUM_REASONING,
-    _nano_closed_output_suffix,
+    build_extract_job_ad_messages,
+    build_small_model_guardrails,
     build_chat_parse_request_kwargs,
     build_responses_request_kwargs,
     normalize_reasoning_effort,
@@ -169,11 +170,30 @@ def test_nano_helpers_detect_supported_models() -> None:
     assert not is_nano_model("gpt-5-mini")
 
 
-def test_nano_closed_output_suffix_is_only_added_for_nano() -> None:
-    assert "Kein Zusatztext außerhalb des Schemas." in _nano_closed_output_suffix(
+def test_small_model_guardrails_only_added_for_selected_nano_models() -> None:
+    assert "Kein Zusatztext außerhalb des Schemas." in build_small_model_guardrails(
         "gpt-5.4-nano"
     )
-    assert _nano_closed_output_suffix("gpt-4o-mini") == ""
+    assert build_small_model_guardrails("gpt-5-mini") == ""
+
+
+def test_extract_messages_include_guardrails_for_selected_nano_models() -> None:
+    nano_messages = build_extract_job_ad_messages(
+        "sample",
+        language="de",
+        model="gpt-5-nano",
+    )
+    regular_messages = build_extract_job_ad_messages(
+        "sample",
+        language="de",
+        model="gpt-4o-mini",
+    )
+
+    assert "Nur strukturierte Ausgabe gemäß Schema." in nano_messages[0]["content"]
+    assert "Fehlende Infos leer/null statt geraten." in nano_messages[0]["content"]
+    assert (
+        "Nur strukturierte Ausgabe gemäß Schema." not in regular_messages[0]["content"]
+    )
 
 
 def test_supports_temperature_for_gpt54_depends_on_none_reasoning() -> None:

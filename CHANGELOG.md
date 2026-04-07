@@ -2,6 +2,9 @@
 
 ## 2026-04-07
 
+- Prompt-Kontrakte für Nano-Modelle gezielt geschärft: neue Helper-Funktion `build_small_model_guardrails(model)` greift nur für `gpt-5-nano`/`gpt-5.4-nano` und erzwingt strukturierte Schema-Ausgabe ohne Zusatztext/Nebenaufgaben sowie `leer/null` bei fehlenden Informationen.
+- Guardrails in allen drei Kernpfaden vereinheitlicht (`build_extract_job_ad_messages`, `generate_question_plan`, `generate_vacancy_brief`) ohne Prompt-Rewrite für größere Modelle.
+- Tests erweitert (`tests/test_openai_smoke_modes.py`): neue Assertions für Nano-spezifische Guardrails in Helper und Extract-Message-Building.
 - Rechtliche Unterseiten ergänzt: **Terms of Service / Nutzungsbedingungen** und **Privacy Policy / Datenschutzerklärung**.
 - Sidebar erweitert: Rechtslinks sind am unteren Ende der Navigation platziert und öffnen die jeweiligen Seiten per Query-Parameter.
 - Bilinguale Inhalte (DE/EN) für beide Rechtsseiten ergänzt, inklusive Rücksprung-Button in den Wizard.
