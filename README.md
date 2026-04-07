@@ -35,6 +35,9 @@ pip install -r requirements.txt
 - Modell-spezifische Request-Optionen werden zentral über `model_capabilities.py` definiert und in `llm_client.py` verwendet.
 - Optionales task-basiertes Modell-Routing ist schlank integriert (ohne UX-Umbau): `LIGHTWEIGHT_MODEL` für Extraktion/Normalisierung, `MEDIUM_REASONING_MODEL` für Plan-Generierung, `HIGH_REASONING_MODEL` für qualitätskritische Ausgaben (Recruiting Brief).
 - Priorität beim Modellrouting: **UI-Override** > **`OPENAI_MODEL` (globaler Override)** > **task-spezifische Modell-Keys** > **`DEFAULT_MODEL`**.
+- OpenAI-Settings bleiben bei `REASONING_EFFORT`/`VERBOSITY` bewusst optional: wenn nicht gesetzt, werden diese Werte als `None` behandelt und nicht künstlich vorbelegt.
+- Das zentrale OpenAI-Request-Timeout liegt konsistent bei **120 Sekunden** (falls `OPENAI_REQUEST_TIMEOUT` fehlt/ungültig ist).
+- Für Debug/Diagnose steht eine sichere Provenance-Map (`resolved_from`) zur Verfügung, die nur die Quelle je Key (`nested_secret`/`root_secret`/`env`/`default`) ausweist – nie Secret-Inhalte.
 - Für `gpt-5`, `gpt-5-mini` und `gpt-5-nano` wird `temperature` nicht automatisch mitgesendet.
 - Snapshot-Varianten mit Datums-Suffixen (z. B. `gpt-5-mini-2026-01-15`) werden für `gpt-5`, `gpt-5-mini` und `gpt-5-nano` robust erkannt.
 - Für `gpt-5.4*` wird `temperature` nur mitgesendet, wenn `reasoning_effort="none"` aktiv ist.

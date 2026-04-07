@@ -177,7 +177,8 @@ def _build_settings(*, openai_model_override: str | None) -> OpenAISettings:
         high_reasoning_model="o3-mini",
         reasoning_effort="medium",
         verbosity="medium",
-        openai_request_timeout=60.0,
+        openai_request_timeout=120.0,
+        resolved_from={},
     )
 
 

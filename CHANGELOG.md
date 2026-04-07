@@ -29,3 +29,4 @@
 - Modell-Capability-Logik fachlich gehärtet und zentralisiert (`model_capabilities.py`): Snapshot-taugliche GPT-5-Erkennung (`gpt-5*` inkl. Datums-Suffix), neue Capability-Checks (`supports_reasoning`, `supports_verbosity`, `supports_temperature`) und erweiterte `reasoning_effort`-Normalisierung (`none|minimal|low|medium|high|xhigh`).
 - Request-Building abgesichert: `reasoning`/`text.verbosity` werden nur noch bei kompatiblen GPT-5-Familien gesendet; Nicht-GPT-5-Fallbacks wie `gpt-4o-mini` erhalten keine GPT-5-spezifischen Felder.
 - Tests erweitert (`tests/test_openai_smoke_modes.py`) für Snapshot-Erkennung, neue Effort-Werte und striktes Feld-Gating für Fallback-Modelle.
+- `settings_openai.py` fachlich gehärtet: `reasoning_effort`/`verbosity` sind jetzt optional (`None` statt aggressiver Defaults), Timeout-Default zentral auf `120s` gesetzt und sichere Provenance-Infos (`resolved_from`) pro Key ergänzt, ohne Secret-Werte zu exponieren.
