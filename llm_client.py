@@ -78,6 +78,46 @@ def supports_temperature(model: str, reasoning_effort: str | None) -> bool:
     return True
 
 
+def normalize_verbosity(verbosity: str | None) -> str | None:
+    """Normalize verbosity values and drop unsupported inputs."""
+
+    if verbosity is None:
+        return None
+
+    normalized_verbosity = verbosity.strip().lower()
+    if normalized_verbosity in {"low", "medium", "high"}:
+        return normalized_verbosity
+
+    return None
+
+
+def build_openai_request_kwargs(
+    *,
+    model: str,
+    store: bool,
+    temperature: float,
+    reasoning_effort: str | None,
+    verbosity: str | None,
+) -> dict[str, Any]:
+    """Build common request kwargs for structured parse calls."""
+
+    normalized_reasoning_effort = normalize_reasoning_effort(model, reasoning_effort)
+    normalized_verbosity = normalize_verbosity(verbosity)
+
+    request_kwargs: dict[str, Any] = {
+        "model": model,
+        "store": store,
+    }
+    if supports_temperature(model, normalized_reasoning_effort):
+        request_kwargs["temperature"] = temperature
+    if normalized_reasoning_effort is not None:
+        request_kwargs["reasoning"] = {"effort": normalized_reasoning_effort}
+    if normalized_verbosity is not None:
+        request_kwargs["text"] = {"verbosity": normalized_verbosity}
+
+    return request_kwargs
+
+
 def _build_openai_client(settings: OpenAISettings) -> OpenAI:
     """Create an OpenAI SDK client from normalized app settings."""
 
@@ -135,22 +175,20 @@ def _parse_with_structured_outputs(
         _raise_missing_api_key_hint()
 
     client = get_openai_client()
-    normalized_reasoning_effort = normalize_reasoning_effort(model, reasoning_effort)
-
-    request_kwargs: dict[str, Any] = {}
-    if supports_temperature(model, normalized_reasoning_effort):
-        request_kwargs["temperature"] = temperature
-    if normalized_reasoning_effort is not None:
-        request_kwargs["reasoning_effort"] = normalized_reasoning_effort
+    request_kwargs = build_openai_request_kwargs(
+        model=model,
+        store=store,
+        temperature=temperature,
+        reasoning_effort=reasoning_effort,
+        verbosity=settings.verbosity,
+    )
 
     # Newer SDK path (Responses API + parse helper)
     if hasattr(client, "responses") and hasattr(client.responses, "parse"):
         try:
             resp = client.responses.parse(
-                model=model,
                 input=messages,
                 text_format=out_model,
-                store=store,
                 **request_kwargs,
             )
         except AuthenticationError as exc:
@@ -168,10 +206,8 @@ def _parse_with_structured_outputs(
     if hasattr(client, "chat") and hasattr(client.chat.completions, "parse"):
         try:
             completion = client.chat.completions.parse(
-                model=model,
                 messages=messages,
                 response_format=out_model,
-                store=store,
                 **request_kwargs,
             )
         except AuthenticationError as exc:
