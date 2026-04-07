@@ -32,6 +32,33 @@ pip install -r requirements.txt
 
 ## OpenAI Modell-Kompatibilität
 
+## OpenAI Konfiguration (Secrets, Env, UI)
+
+Du kannst die OpenAI-Parameter entweder als Root-Level-Secrets oder in einer `[openai]`-Sektion in `.streamlit/secrets.toml` setzen (siehe `.streamlit/secrets.toml.example`).
+
+### Priorität (exakt)
+
+Die Auflösung erfolgt in dieser Reihenfolge:
+
+1. `[openai]`-Sektion in `st.secrets`
+2. Root-Level-Keys in `st.secrets`
+3. Umgebungsvariablen (`os.getenv`)
+4. harte Defaults im Code
+
+Kurzform: **`[openai] > root-level secrets > env vars > defaults`**.
+
+### Wichtiger Hinweis zu Streamlit-Secrets
+
+- Root-Level-Secrets werden von Streamlit zusätzlich als Umgebungsvariablen gespiegelt.
+- Werte aus der `[openai]`-Sektion werden **nicht** als Umgebungsvariablen gespiegelt.
+
+### UI-Override via Session State
+
+Die UI kann das aufgelöste Modell zur Laufzeit überschreiben (Session-State). Dadurch gilt für die Modellwahl:
+
+**UI-Override > `OPENAI_MODEL` (global) > task-spezifische Modelle > `DEFAULT_MODEL`**.
+
+
 - Modell-spezifische Request-Optionen werden zentral über `model_capabilities.py` definiert und in `llm_client.py` verwendet.
 - Optionales task-basiertes Modell-Routing ist schlank integriert (ohne UX-Umbau): `LIGHTWEIGHT_MODEL` für Extraktion/Normalisierung, `MEDIUM_REASONING_MODEL` für Plan-Generierung, `HIGH_REASONING_MODEL` für qualitätskritische Ausgaben (Recruiting Brief).
 - Priorität beim Modellrouting: **UI-Override** > **`OPENAI_MODEL` (globaler Override)** > **task-spezifische Modell-Keys** > **`DEFAULT_MODEL`**.
