@@ -16,7 +16,7 @@ from llm_client import (
 )
 from schemas import JobAdExtract, VacancyBrief
 from settings_openai import load_openai_settings
-from state import clear_error, get_answers, set_error
+from state import clear_error, get_answers, get_model_override, set_error
 from ui_components import render_brief, render_error_banner, render_openai_error
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
 
@@ -135,18 +135,21 @@ def render(ctx: WizardContext) -> None:
 
     if do_brief:
         clear_error()
-        model = str(st.session_state.get(SSKey.MODEL.value, "")).strip()
+        session_override = get_model_override()
         store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
         settings = load_openai_settings()
         resolved_brief_model = resolve_model_for_task(
             task_kind=TASK_GENERATE_VACANCY_BRIEF,
-            session_override=model,
+            session_override=session_override,
             settings=settings,
         )
         try:
             with st.spinner("Generiere Recruiting Brief…"):
                 brief, usage = generate_vacancy_brief(
-                    job, answers, model=model, store=store
+                    job,
+                    answers,
+                    model=resolved_brief_model,
+                    store=store,
                 )
             st.session_state[SSKey.BRIEF.value] = brief.model_dump()
             with st.expander("API Usage (Debug)", expanded=False):

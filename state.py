@@ -15,13 +15,21 @@ from constants import DEFAULT_LANGUAGE, SSKey, STEPS
 from settings_openai import load_openai_settings
 
 
+def get_model_override() -> str | None:
+    """Return a cleaned model override from the UI, if provided."""
+
+    model_override = st.session_state.get(SSKey.MODEL.value)
+    if isinstance(model_override, str):
+        cleaned_override = model_override.strip()
+        if cleaned_override:
+            return cleaned_override
+    return None
+
+
 def get_active_model() -> str:
     """Return UI override model or OpenAI settings fallback model."""
 
-    model_override = st.session_state.get(SSKey.MODEL.value)
-    if isinstance(model_override, str) and model_override.strip():
-        return model_override.strip()
-    return load_openai_settings().openai_model
+    return get_model_override() or load_openai_settings().openai_model
 
 
 def init_session_state() -> None:
