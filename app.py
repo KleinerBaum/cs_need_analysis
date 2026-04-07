@@ -139,6 +139,70 @@ def _render_openai_debug_panel() -> None:
         )
 
 
+def _get_legal_page_key() -> str | None:
+    query_params = st.query_params
+    legal_param = query_params.get("legal")
+    if isinstance(legal_param, list):
+        legal_param = legal_param[0] if legal_param else None
+    if isinstance(legal_param, str) and legal_param in {"terms", "privacy"}:
+        return legal_param
+    return None
+
+
+def _render_legal_page(legal_page_key: str) -> None:
+    if legal_page_key == "terms":
+        st.title("Terms of Service / Nutzungsbedingungen")
+        st.markdown(
+            """
+            ### EN
+            By using this application, you agree to use it only for lawful business purposes.
+            You are responsible for all data you provide and for checking generated results
+            before operational use. This tool is provided “as is”, without warranties of
+            merchantability, fitness for a particular purpose, or uninterrupted availability.
+
+            ### DE
+            Mit der Nutzung dieser Anwendung stimmen Sie zu, sie ausschließlich für rechtmäßige
+            geschäftliche Zwecke zu verwenden. Sie sind für alle eingegebenen Daten verantwortlich
+            und müssen generierte Ergebnisse vor dem produktiven Einsatz prüfen. Das Tool wird
+            „wie besehen“ bereitgestellt, ohne Gewähr für Marktgängigkeit, Eignung für einen
+            bestimmten Zweck oder unterbrechungsfreie Verfügbarkeit.
+            """
+        )
+    elif legal_page_key == "privacy":
+        st.title("Privacy Policy / Datenschutzerklärung")
+        st.markdown(
+            """
+            ### EN
+            This app processes user-provided content to generate hiring-related outputs.
+            Do not enter sensitive personal data unless you are authorized to process it.
+            Access credentials are loaded from secure environment variables or secrets and
+            should never be exposed in logs.
+
+            ### DE
+            Diese App verarbeitet von Nutzenden bereitgestellte Inhalte, um Recruiting-bezogene
+            Ausgaben zu erzeugen. Geben Sie keine sensiblen personenbezogenen Daten ein, sofern
+            dafür keine Berechtigung vorliegt. Zugangsdaten werden aus sicheren Umgebungsvariablen
+            oder Secrets geladen und dürfen niemals in Logs erscheinen.
+            """
+        )
+
+    if st.button("← Back to Wizard / Zurück zum Wizard"):
+        st.query_params.clear()
+        st.rerun()
+
+
+def _render_sidebar_legal_links() -> None:
+    st.markdown('<div class="sidebar-bottom-links">', unsafe_allow_html=True)
+    st.caption("Legal / Rechtliches")
+    st.markdown(
+        """
+        - [Terms of Service / Nutzungsbedingungen](?legal=terms)
+        - [Privacy Policy / Datenschutzerklärung](?legal=privacy)
+        """
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
 def main() -> None:
     st.set_page_config(page_title=APP_TITLE, layout="wide")
     _inject_theme_styles()
@@ -155,6 +219,34 @@ def main() -> None:
         st.caption("Tipp: Du kannst jederzeit im Wizard springen.")
         if st.session_state.get(SSKey.DEBUG.value):
             _render_openai_debug_panel()
+        st.markdown('<div class="sidebar-spacer"></div>', unsafe_allow_html=True)
+        _render_sidebar_legal_links()
+
+    st.markdown(
+        """
+        <style>
+            [data-testid="stSidebarContent"] {
+                display: flex;
+                flex-direction: column;
+                min-height: 100%;
+            }
+            .sidebar-spacer {
+                flex-grow: 1;
+                min-height: 1rem;
+            }
+            .sidebar-bottom-links {
+                padding-top: 0.5rem;
+                border-top: 1px solid rgba(255, 255, 255, 0.2);
+            }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    legal_page_key = _get_legal_page_key()
+    if legal_page_key is not None:
+        _render_legal_page(legal_page_key)
+        return
 
     current = sidebar_navigation(ctx)
 
