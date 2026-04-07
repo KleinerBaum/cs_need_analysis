@@ -26,3 +26,6 @@
 - OpenAI-Exception-Mapping erweitert: getrennte, knappe UI-Fehler für fehlenden API-Key, Timeout, HTTP-400/inkompatible Parameter und Structured-Output-/Validierungsfehler; Logs bleiben bewusst nicht-sensitiv.
 - Wizard-Seiten `jobad` und `summary` verwenden jetzt die neuen typisierten OpenAI-Fehler samt optionalem non-sensitive Debug-Expander (`OPENAI_DEBUG_ERRORS`), ohne bestehende UX-Flows zu ändern.
 - Neue Tests `tests/test_openai_error_mapping.py` decken die Error-Mappings für Timeout, 400, Auth und Structured-Output-Validation ab.
+- Modell-Capability-Logik fachlich gehärtet und zentralisiert (`model_capabilities.py`): Snapshot-taugliche GPT-5-Erkennung (`gpt-5*` inkl. Datums-Suffix), neue Capability-Checks (`supports_reasoning`, `supports_verbosity`, `supports_temperature`) und erweiterte `reasoning_effort`-Normalisierung (`none|minimal|low|medium|high|xhigh`).
+- Request-Building abgesichert: `reasoning`/`text.verbosity` werden nur noch bei kompatiblen GPT-5-Familien gesendet; Nicht-GPT-5-Fallbacks wie `gpt-4o-mini` erhalten keine GPT-5-spezifischen Felder.
+- Tests erweitert (`tests/test_openai_smoke_modes.py`) für Snapshot-Erkennung, neue Effort-Werte und striktes Feld-Gating für Fallback-Modelle.

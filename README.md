@@ -32,12 +32,14 @@ pip install -r requirements.txt
 
 ## OpenAI Modell-Kompatibilität
 
-- Modell-spezifische Request-Optionen werden zentral in `llm_client.py` normalisiert.
+- Modell-spezifische Request-Optionen werden zentral über `model_capabilities.py` definiert und in `llm_client.py` verwendet.
 - Optionales task-basiertes Modell-Routing ist schlank integriert (ohne UX-Umbau): `LIGHTWEIGHT_MODEL` für Extraktion/Normalisierung, `MEDIUM_REASONING_MODEL` für Plan-Generierung, `HIGH_REASONING_MODEL` für qualitätskritische Ausgaben (Recruiting Brief).
 - Priorität beim Modellrouting: **UI-Override** > **`OPENAI_MODEL` (globaler Override)** > **task-spezifische Modell-Keys** > **`DEFAULT_MODEL`**.
 - Für `gpt-5`, `gpt-5-mini` und `gpt-5-nano` wird `temperature` nicht automatisch mitgesendet.
+- Snapshot-Varianten mit Datums-Suffixen (z. B. `gpt-5-mini-2026-01-15`) werden für `gpt-5`, `gpt-5-mini` und `gpt-5-nano` robust erkannt.
 - Für `gpt-5.4*` wird `temperature` nur mitgesendet, wenn `reasoning_effort="none"` aktiv ist.
-- `reasoning_effort="none"` wird bei inkompatiblen Modellen verworfen (nicht an die API gesendet).
+- Unterstützte `reasoning_effort`-Werte: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`.
+- `reasoning` und `text.verbosity` werden nur noch für tatsächlich kompatible GPT-5-Familien gesendet; Fallback-Modelle wie `gpt-4o-mini` erhalten keine GPT-5-spezifischen Felder.
 - Für `gpt-5-nano` und `gpt-5.4-nano` werden die drei Kern-Prompts (`extract_job_ad`, `generate_question_plan`, `generate_vacancy_brief`) minimal mit strikteren Closed-Output-Hinweisen ergänzt (nur Schema-Ausgabe, keine Zusatztexte, klare Reihenfolge, keine Nebenaufgaben).
 - Mindestabhängigkeit: `openai>=2.30.0,<3.0.0`, damit `responses.parse(...)`, strukturierte `text_format`-Ausgaben, Client-`timeout` und aktuelle Request-Felder (z. B. `reasoning`, `text.verbosity`) konsistent verfügbar sind.
 
