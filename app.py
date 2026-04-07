@@ -8,6 +8,7 @@ from pathlib import Path
 import streamlit as st
 
 from constants import APP_TITLE, SSKey
+from settings_openai import load_openai_settings
 from state import init_session_state, reset_vacancy
 from wizard_pages import load_pages
 from wizard_pages.base import WizardContext, sidebar_navigation
@@ -112,6 +113,32 @@ def _inject_theme_styles() -> None:
     )
 
 
+def _render_openai_debug_panel() -> None:
+    """Render a compact, safe OpenAI resolution debug panel."""
+
+    settings = load_openai_settings()
+    session_model = st.session_state.get(SSKey.MODEL.value)
+    resolved_model = settings.openai_model
+    if isinstance(session_model, str) and session_model.strip():
+        resolved_model = session_model.strip()
+
+    with st.expander(
+        "Debug (DE/EN): OpenAI-Auflösung / OpenAI resolution", expanded=False
+    ):
+        st.caption("Nur aufgelöste Laufzeitwerte, keine Secrets.")
+        st.caption("Resolved runtime values only, no secrets.")
+        st.json(
+            {
+                "resolved_model": resolved_model,
+                "resolved_default_model": settings.default_model,
+                "resolved_reasoning_effort": settings.reasoning_effort,
+                "resolved_verbosity": settings.verbosity,
+                "resolved_timeout": settings.openai_request_timeout,
+            },
+            expanded=False,
+        )
+
+
 def main() -> None:
     st.set_page_config(page_title=APP_TITLE, layout="wide")
     _inject_theme_styles()
@@ -126,6 +153,8 @@ def main() -> None:
         st.button("Reset Vacancy", on_click=reset_vacancy)
         st.divider()
         st.caption("Tipp: Du kannst jederzeit im Wizard springen.")
+        if st.session_state.get(SSKey.DEBUG.value):
+            _render_openai_debug_panel()
 
     current = sidebar_navigation(ctx)
 
@@ -136,13 +165,6 @@ def main() -> None:
         st.rerun()
 
     current.render(ctx)
-
-    # Optional debug panel
-    if st.session_state.get(SSKey.DEBUG.value):
-        with st.expander("Debug: session_state", expanded=False):
-            # Avoid showing secrets; show only known keys
-            safe = {k: st.session_state.get(k) for k in [x.value for x in SSKey]}
-            st.json(safe, expanded=False)
 
 
 if __name__ == "__main__":
