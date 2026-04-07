@@ -17,10 +17,27 @@ from openai import APIStatusError, APITimeoutError, AuthenticationError, OpenAI
 from pydantic import BaseModel, ValidationError
 
 from constants import DEFAULT_LANGUAGE
+from model_capabilities import (
+    is_gpt54_family,
+    is_gpt5_legacy_model,
+    is_nano_model,
+    normalize_reasoning_effort,
+    supports_reasoning,
+    supports_temperature,
+    supports_verbosity,
+)
 from schemas import JobAdExtract, QuestionPlan, VacancyBrief
 from settings_openai import OpenAISettings, load_openai_settings
 
 logger = logging.getLogger(__name__)
+
+# Re-exported for backwards-compatible imports and lightweight diagnostics.
+_MODEL_CAPABILITY_EXPORTS = (
+    is_gpt5_legacy_model,
+    is_gpt54_family,
+    supports_reasoning,
+    supports_verbosity,
+)
 
 
 ModelTaskType = str
@@ -66,26 +83,6 @@ def build_extract_job_ad_messages(
     ]
 
 
-def is_gpt5_legacy_model(model: str) -> bool:
-    """Return ``True`` for the legacy GPT-5 model names without the 5.4 API shape."""
-
-    normalized = model.strip().lower()
-    return normalized in {"gpt-5", "gpt-5-mini", "gpt-5-nano"}
-
-
-def is_gpt54_family(model: str) -> bool:
-    """Return ``True`` for the GPT-5.4 family (including dated variants)."""
-
-    normalized = model.strip().lower()
-    return normalized.startswith("gpt-5.4")
-
-
-def is_nano_model(model: str) -> bool:
-    """Return ``True`` when the selected model is a nano variant."""
-
-    return model.strip().lower() in {"gpt-5-nano", "gpt-5.4-nano"}
-
-
 def _nano_closed_output_suffix(model: str) -> str:
     """Return a concise strict-output suffix for nano models."""
 
@@ -99,50 +96,6 @@ def _nano_closed_output_suffix(model: str) -> str:
         "3) Reihenfolge exakt wie angefordert. "
         "4) Keine impliziten Nebenaufgaben."
     )
-
-
-def normalize_reasoning_effort(model: str, effort: str | None) -> str | None:
-    """Normalize reasoning effort by model compatibility.
-
-    Rules:
-    - blank values are omitted.
-    - ``none`` is only kept for GPT-5.4 models.
-    - unsupported values are omitted instead of being forwarded.
-    """
-
-    if effort is None:
-        return None
-
-    normalized_effort = effort.strip().lower()
-    if not normalized_effort:
-        return None
-
-    if normalized_effort == "none":
-        return "none" if is_gpt54_family(model) else None
-
-    if normalized_effort in {"low", "medium", "high"}:
-        return normalized_effort
-
-    return None
-
-
-def supports_temperature(model: str, reasoning_effort: str | None) -> bool:
-    """Return whether ``temperature`` should be sent for the given model setup.
-
-    Rules:
-    - legacy GPT-5 variants never receive ``temperature``.
-    - GPT-5.4 receives ``temperature`` only when reasoning is disabled (``none``).
-    - other models keep the existing behavior and allow ``temperature``.
-    """
-
-    if is_gpt5_legacy_model(model):
-        return False
-
-    normalized_effort = normalize_reasoning_effort(model, reasoning_effort)
-    if is_gpt54_family(model):
-        return normalized_effort == "none"
-
-    return True
 
 
 def normalize_verbosity(verbosity: str | None) -> str | None:
@@ -179,9 +132,9 @@ def build_openai_request_kwargs(
         model, normalized_reasoning_effort
     ):
         request_kwargs["temperature"] = maybe_temperature
-    if normalized_reasoning_effort is not None:
+    if supports_reasoning(model) and normalized_reasoning_effort is not None:
         request_kwargs["reasoning"] = {"effort": normalized_reasoning_effort}
-    if normalized_verbosity is not None:
+    if supports_verbosity(model) and normalized_verbosity is not None:
         request_kwargs["text"] = {"verbosity": normalized_verbosity}
 
     return request_kwargs
