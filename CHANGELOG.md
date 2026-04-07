@@ -37,6 +37,7 @@
 - Request-Building abgesichert: `reasoning`/`text.verbosity` werden nur noch bei kompatiblen GPT-5-Familien gesendet; Nicht-GPT-5-Fallbacks wie `gpt-4o-mini` erhalten keine GPT-5-spezifischen Felder.
 - Tests erweitert (`tests/test_openai_smoke_modes.py`) für Snapshot-Erkennung, neue Effort-Werte und striktes Feld-Gating für Fallback-Modelle.
 - `settings_openai.py` fachlich gehärtet: `reasoning_effort`/`verbosity` sind jetzt optional (`None` statt aggressiver Defaults), Timeout-Default zentral auf `120s` gesetzt und sichere Provenance-Infos (`resolved_from`) pro Key ergänzt, ohne Secret-Werte zu exponieren.
+- Debug-UX weiter gehärtet: Sidebar-Panel zeigt nun neben aufgelösten Werten auch sichere Quellenmetadaten (`resolved_model_source`, `resolved_default_model_source`, `resolved_reasoning_effort_source`, `resolved_verbosity_source`, `resolved_timeout_source`) sowie den nicht-sensitiven Session-Override-Status und task-spezifisch aufgelöste Modelle.
 - OpenAI-Fehlerbehandlung weiter gehärtet: differenzierte Mappings für `AuthenticationError`, `APITimeoutError`/`TimeoutError`, `APIConnectionError`, `BadRequest` inkl. `unsupported parameter` sowie Structured-Output-Parse-/Validation-Fehler.
 - `OpenAICallError` transportiert jetzt optionale interne Fehlercodes (`OPENAI_AUTH`, `OPENAI_TIMEOUT`, `OPENAI_BAD_REQUEST`, `OPENAI_PARSE`, etc.) für präzisere UI-/Debug-Ausgabe ohne sensitive Daten.
 - OpenAI-Callsites nutzen jetzt automatische Retries mit exponentiellem Backoff für transiente Timeout-/Connection-Fehler.
