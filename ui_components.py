@@ -124,7 +124,7 @@ def _render_editable_job_extract(job: JobAdExtract) -> None:
         core_edit = st.data_editor(
             core_rows,
             key="cs.job_extract.core",
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             num_rows="fixed",
             column_config={
@@ -146,7 +146,7 @@ def _render_editable_job_extract(job: JobAdExtract) -> None:
         location_edit = st.data_editor(
             location_rows,
             key="cs.job_extract.location",
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             num_rows="fixed",
             column_config={
@@ -255,7 +255,7 @@ def _render_list_editor(*, label: str, key: str, entries: Any) -> list[str]:
     edited_rows = st.data_editor(
         rows,
         key=key,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         num_rows="dynamic",
         column_config={"value": st.column_config.TextColumn(label)},
@@ -280,7 +280,7 @@ def _render_salary_editor(salary_data: Any) -> dict[str, Any] | None:
     edited = st.data_editor(
         salary_rows,
         key="cs.job_extract.salary",
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         num_rows="fixed",
         column_config={
@@ -319,7 +319,7 @@ def _render_recruitment_steps_editor(steps_data: Any) -> list[dict[str, Any]]:
     edited = st.data_editor(
         rows,
         key="cs.job_extract.recruitment_steps",
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         num_rows="dynamic",
         column_config={
@@ -357,7 +357,7 @@ def _render_contacts_editor(contacts_data: Any) -> list[dict[str, Any]]:
     edited = st.data_editor(
         rows,
         key="cs.job_extract.contacts",
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         num_rows="dynamic",
         column_config={

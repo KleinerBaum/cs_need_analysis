@@ -224,7 +224,7 @@ def render(ctx: WizardContext) -> None:
         do_extract = st.button(
             "Analysieren & Fragebogen erzeugen",
             type="primary",
-            use_container_width=True,
+            width="stretch",
         )
     with info_col:
         with st.container(border=True):
