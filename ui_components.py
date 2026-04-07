@@ -10,7 +10,7 @@ import streamlit as st
 
 from constants import AnswerType, SSKey, WIDGET_KEY_PREFIX
 from llm_client import OpenAICallError
-from schemas import JobAdExtract, Question, QuestionStep, VacancyBrief
+from schemas import Contact, JobAdExtract, MoneyRange, Question, QuestionStep, RecruitmentStep, VacancyBrief
 from state import get_answers, set_answer, set_error
 
 
@@ -43,7 +43,7 @@ def render_job_extract_overview(job: JobAdExtract) -> None:
     with st.expander(
         "Aus dem Jobspec extrahiert (strukturierte Übersicht)", expanded=False
     ):
-        st.json(job.model_dump(), expanded=False)
+        _render_editable_job_extract(job)
 
     with st.expander("Gaps (fehlende/unklare Punkte)", expanded=False):
         if job.gaps:
@@ -56,6 +56,291 @@ def render_job_extract_overview(job: JobAdExtract) -> None:
             st.write("\n".join([f"- {a}" for a in job.assumptions]))
         else:
             st.info("Keine Annahmen dokumentiert.")
+
+
+def _render_editable_job_extract(job: JobAdExtract) -> None:
+    st.caption(
+        "Extrahierte Werte können hier direkt angepasst werden. Änderungen werden sofort gespeichert."
+    )
+    values = job.model_dump()
+
+    core_fields = [
+        "job_title",
+        "company_name",
+        "brand_name",
+        "language_guess",
+        "employment_type",
+        "contract_type",
+        "seniority_level",
+        "start_date",
+        "application_deadline",
+        "job_ref_number",
+        "department_name",
+        "reports_to",
+    ]
+    location_fields = [
+        "location_city",
+        "location_country",
+        "place_of_work",
+        "remote_policy",
+        "travel_required",
+        "on_call",
+        "direct_reports_count",
+    ]
+    text_fields = ["role_overview", "onboarding_notes"]
+    list_fields = [
+        ("responsibilities", "Responsibilities"),
+        ("deliverables", "Deliverables"),
+        ("success_metrics", "Success Metrics"),
+        ("must_have_skills", "Must-have Skills"),
+        ("nice_to_have_skills", "Nice-to-have Skills"),
+        ("soft_skills", "Soft Skills"),
+        ("education", "Education"),
+        ("certifications", "Certifications"),
+        ("languages", "Languages"),
+        ("tech_stack", "Tech Stack"),
+        ("domain_expertise", "Domain Expertise"),
+        ("benefits", "Benefits"),
+    ]
+
+    tab_core, tab_location, tab_role, tab_skills, tab_process = st.tabs(
+        ["Basis", "Standort", "Rolle", "Skills & Benefits", "Prozess"]
+    )
+
+    with tab_core:
+        core_rows = [
+            {"field": field, "value": values.get(field)}
+            for field in core_fields
+            if field in values
+        ]
+        core_edit = st.data_editor(
+            core_rows,
+            key="cs.job_extract.core",
+            use_container_width=True,
+            hide_index=True,
+            num_rows="fixed",
+            column_config={
+                "field": st.column_config.TextColumn("Feld", disabled=True),
+                "value": st.column_config.TextColumn("Wert"),
+            },
+        )
+        for row in core_edit:
+            field = str(row.get("field", "")).strip()
+            if field:
+                values[field] = _normalize_optional_string(row.get("value"))
+
+    with tab_location:
+        location_rows = [
+            {"field": field, "value": values.get(field)}
+            for field in location_fields
+            if field in values
+        ]
+        location_edit = st.data_editor(
+            location_rows,
+            key="cs.job_extract.location",
+            use_container_width=True,
+            hide_index=True,
+            num_rows="fixed",
+            column_config={
+                "field": st.column_config.TextColumn("Feld", disabled=True),
+                "value": st.column_config.TextColumn("Wert"),
+            },
+        )
+        for row in location_edit:
+            field = str(row.get("field", "")).strip()
+            if not field:
+                continue
+            if field == "direct_reports_count":
+                values[field] = _parse_optional_int(row.get("value"))
+            else:
+                values[field] = _normalize_optional_string(row.get("value"))
+
+    with tab_role:
+        for field in text_fields:
+            values[field] = st.text_area(
+                field.replace("_", " ").title(),
+                value=(values.get(field) or ""),
+                key=f"cs.job_extract.text.{field}",
+                height=130,
+            ) or None
+        for list_field, label in list_fields[:3]:
+            values[list_field] = _render_list_editor(
+                label=label,
+                key=f"cs.job_extract.list.{list_field}",
+                entries=values.get(list_field, []),
+            )
+
+    with tab_skills:
+        for list_field, label in list_fields[3:]:
+            values[list_field] = _render_list_editor(
+                label=label,
+                key=f"cs.job_extract.list.{list_field}",
+                entries=values.get(list_field, []),
+            )
+        values["salary_range"] = _render_salary_editor(values.get("salary_range"))
+
+    with tab_process:
+        values["recruitment_steps"] = _render_recruitment_steps_editor(
+            values.get("recruitment_steps", [])
+        )
+        values["contacts"] = _render_contacts_editor(values.get("contacts", []))
+
+    try:
+        validated = JobAdExtract.model_validate(values)
+    except Exception:
+        st.warning(
+            "Einige Eingaben sind ungültig und wurden nicht übernommen. Bitte Felder prüfen."
+        )
+        return
+    st.session_state[SSKey.JOB_EXTRACT.value] = validated.model_dump()
+
+
+def _normalize_optional_string(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _parse_optional_int(value: Any) -> int | None:
+    normalized = _normalize_optional_string(value)
+    if normalized is None:
+        return None
+    try:
+        return int(float(normalized))
+    except ValueError:
+        return None
+
+
+def _render_list_editor(*, label: str, key: str, entries: Any) -> list[str]:
+    source = entries if isinstance(entries, list) else []
+    rows = [{"value": str(item)} for item in source if str(item).strip()]
+    edited_rows = st.data_editor(
+        rows,
+        key=key,
+        use_container_width=True,
+        hide_index=True,
+        num_rows="dynamic",
+        column_config={"value": st.column_config.TextColumn(label)},
+    )
+    return [
+        value
+        for row in edited_rows
+        for value in [_normalize_optional_string(row.get("value"))]
+        if value
+    ]
+
+
+def _render_salary_editor(salary_data: Any) -> dict[str, Any] | None:
+    salary = MoneyRange.model_validate(salary_data or {}).model_dump()
+    salary_rows = [
+        {"field": "min", "value": salary.get("min")},
+        {"field": "max", "value": salary.get("max")},
+        {"field": "currency", "value": salary.get("currency")},
+        {"field": "period", "value": salary.get("period")},
+        {"field": "notes", "value": salary.get("notes")},
+    ]
+    edited = st.data_editor(
+        salary_rows,
+        key="cs.job_extract.salary",
+        use_container_width=True,
+        hide_index=True,
+        num_rows="fixed",
+        column_config={
+            "field": st.column_config.TextColumn("Salary Feld", disabled=True),
+            "value": st.column_config.TextColumn("Wert"),
+        },
+    )
+    result: dict[str, Any] = {}
+    for row in edited:
+        field = str(row.get("field", "")).strip()
+        if not field:
+            continue
+        raw = row.get("value")
+        if field in {"min", "max"}:
+            normalized = _normalize_optional_string(raw)
+            if normalized is None:
+                result[field] = None
+            else:
+                try:
+                    result[field] = float(normalized)
+                except ValueError:
+                    result[field] = None
+        else:
+            result[field] = _normalize_optional_string(raw)
+    if not any(v is not None for v in result.values()):
+        return None
+    return MoneyRange.model_validate(result).model_dump()
+
+
+def _render_recruitment_steps_editor(steps_data: Any) -> list[dict[str, Any]]:
+    source = steps_data if isinstance(steps_data, list) else []
+    rows = []
+    for item in source:
+        step = RecruitmentStep.model_validate(item)
+        rows.append({"name": step.name, "details": step.details})
+    edited = st.data_editor(
+        rows,
+        key="cs.job_extract.recruitment_steps",
+        use_container_width=True,
+        hide_index=True,
+        num_rows="dynamic",
+        column_config={
+            "name": st.column_config.TextColumn("Schritt"),
+            "details": st.column_config.TextColumn("Details"),
+        },
+    )
+    result: list[dict[str, Any]] = []
+    for row in edited:
+        name = _normalize_optional_string(row.get("name"))
+        if not name:
+            continue
+        result.append(
+            RecruitmentStep(
+                name=name,
+                details=_normalize_optional_string(row.get("details")),
+            ).model_dump()
+        )
+    return result
+
+
+def _render_contacts_editor(contacts_data: Any) -> list[dict[str, Any]]:
+    source = contacts_data if isinstance(contacts_data, list) else []
+    rows = []
+    for item in source:
+        contact = Contact.model_validate(item)
+        rows.append(
+            {
+                "name": contact.name,
+                "role": contact.role,
+                "email": contact.email,
+                "phone": contact.phone,
+            }
+        )
+    edited = st.data_editor(
+        rows,
+        key="cs.job_extract.contacts",
+        use_container_width=True,
+        hide_index=True,
+        num_rows="dynamic",
+        column_config={
+            "name": st.column_config.TextColumn("Name"),
+            "role": st.column_config.TextColumn("Rolle"),
+            "email": st.column_config.TextColumn("E-Mail"),
+            "phone": st.column_config.TextColumn("Telefon"),
+        },
+    )
+    result: list[dict[str, Any]] = []
+    for row in edited:
+        normalized = Contact(
+            name=_normalize_optional_string(row.get("name")),
+            role=_normalize_optional_string(row.get("role")),
+            email=_normalize_optional_string(row.get("email")),
+            phone=_normalize_optional_string(row.get("phone")),
+        ).model_dump()
+        if any(value is not None for value in normalized.values()):
+            result.append(normalized)
+    return result
 
 
 def render_question_step(step: QuestionStep) -> None:
