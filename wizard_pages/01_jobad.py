@@ -25,48 +25,13 @@ from ui_components import (
     render_error_banner,
     render_openai_error,
 )
-from wizard_pages.base import WizardContext, WizardPage, nav_buttons
+from wizard_pages.base import WizardContext, WizardPage
 
-
-SAMPLE_SENIOR_DS = """Job Title: Senior Data Scientist
-Employment Type: Full-time
-Contract Type: Permanent
-Seniority Level: Senior
-Company Name: Acme Analytics GmbH
-City: Düsseldorf
-Tech Stack: Python, TensorFlow, PyTorch, AWS, SQL, Docker
-Responsibilities:
-- Model development
-- Deploy ML models to production
-- Mentor junior data scientists
-Benefits: Hybrid work, learning budget, team events
-Recruitment Steps: phone screen, technical interview, final interview
-"""
-
-SAMPLE_PRODUKTENTWICKLER = """Produktentwickler*in (w/m/d) innovative Mobilitätskonzepte
-- Leitung, Begleitung und Management von Digital-Projekten zur Einführung neuer Geschäftsmodelle, Produkte & Services
-- Erstellung von Business Cases, Monitoring des Projektbudgets, Steuerung von Markttests
-Anforderungen:
-- Abgeschlossenes Studium (BWL / Business Development / Innovationsmanagement / Verkehrswesen / Mobilität / W-Ing.)
-- mind. 4 Jahre Berufserfahrung
-- Projektmanagement & -Leitung
-- ÖPNV-Kenntnisse von Vorteil
-Benefits: unbefristeter Vertrag, mobiles Arbeiten, 30 Tage Urlaub, Deutschlandticket Job
-"""
 
 SOURCE_TEXT_INPUT_KEY: Final[str] = "cs.source_text_input"
 SOURCE_UPLOAD_SIG_KEY: Final[str] = "cs.source_upload_signature"
 SOURCE_UPLOAD_TEXT_KEY: Final[str] = "cs.source_uploaded_text"
-SOURCE_SAMPLE_SELECT_KEY: Final[str] = "cs.source_sample_select"
 SOURCE_ACTIVE_KEY: Final[str] = "cs.source_active"
-
-
-def _sample_text_for_selection(selection: str) -> str:
-    if selection == "Senior Data Scientist (EN, strukturiert)":
-        return SAMPLE_SENIOR_DS
-    if selection == "Produktentwickler*in (DE, Bullet)":
-        return SAMPLE_PRODUKTENTWICKLER
-    return ""
 
 
 def _set_active_source(source: str, text: str) -> None:
@@ -77,13 +42,6 @@ def _set_active_source(source: str, text: str) -> None:
 def _on_manual_text_change() -> None:
     manual_text = str(st.session_state.get(SOURCE_TEXT_INPUT_KEY, ""))
     _set_active_source("text", manual_text)
-
-
-def _on_sample_change() -> None:
-    selection = str(st.session_state.get(SOURCE_SAMPLE_SELECT_KEY, "—"))
-    sample_text = _sample_text_for_selection(selection)
-    if sample_text:
-        _set_active_source("sample", sample_text)
 
 
 def _on_upload_change() -> None:
@@ -150,18 +108,28 @@ def render(ctx: WizardContext) -> None:
             SSKey.SOURCE_TEXT.value, ""
         )
 
-    st.markdown("### 1) Quelle auswählen")
-    tab1, tab2, tab3 = st.tabs(["📤 Upload", "📝 Text einfügen", "🧪 Samples"])
+    tab1, tab2 = st.tabs(["📤 Upload", "📝 Text einfügen"])
+    do_extract = False
 
     with tab1:
         with st.container(border=True):
-            st.file_uploader(
-                "Jobspec hochladen (PDF oder DOCX)",
-                type=["pdf", "docx", "txt"],
-                accept_multiple_files=False,
-                key="cs.source_upload_file",
-                on_change=_on_upload_change,
-            )
+            upload_col, analyze_col = st.columns([2, 1], vertical_alignment="bottom")
+            with upload_col:
+                st.file_uploader(
+                    "Jobspec hochladen (PDF oder DOCX)",
+                    type=["pdf", "docx", "txt"],
+                    accept_multiple_files=False,
+                    key="cs.source_upload_file",
+                    on_change=_on_upload_change,
+                )
+            with analyze_col:
+                st.caption("Aktive Quelle: **Upload**")
+                do_extract = st.button(
+                    "⬆",
+                    type="primary",
+                    width="stretch",
+                    help="Analysieren und direkt zur Jobspec-Übersicht wechseln",
+                )
             uploaded_text = str(st.session_state.get(SOURCE_UPLOAD_TEXT_KEY, ""))
             upload_meta = st.session_state.get(SSKey.SOURCE_FILE_META.value, {})
             if uploaded_text:
@@ -189,52 +157,6 @@ def render(ctx: WizardContext) -> None:
                 on_change=_on_manual_text_change,
                 placeholder="Füge hier die Stellenanzeige oder Jobspec ein …",
             )
-
-    with tab3:
-        with st.container(border=True):
-            st.selectbox(
-                "Sample auswählen",
-                options=[
-                    "—",
-                    "Senior Data Scientist (EN, strukturiert)",
-                    "Produktentwickler*in (DE, Bullet)",
-                ],
-                key=SOURCE_SAMPLE_SELECT_KEY,
-                on_change=_on_sample_change,
-            )
-            selected_sample = str(st.session_state.get(SOURCE_SAMPLE_SELECT_KEY, "—"))
-            sample_text = _sample_text_for_selection(selected_sample)
-            st.text_area(
-                "Sample Text",
-                value=sample_text,
-                height=280,
-                key="cs.source_sample_preview",
-                disabled=True,
-            )
-
-    source_labels = {
-        "upload": "Upload",
-        "text": "Text",
-        "sample": "Sample",
-    }
-    active_source = str(st.session_state.get(SOURCE_ACTIVE_KEY, "text"))
-    st.markdown("### 2) Analyse starten")
-    cta_col, info_col = st.columns([1, 2])
-    with cta_col:
-        st.caption(
-            f"Aktive Quelle: **{source_labels.get(active_source, 'Unbekannt')}**"
-        )
-        do_extract = st.button(
-            "Analysieren & Fragebogen erzeugen",
-            type="primary",
-            width="stretch",
-        )
-    with info_col:
-        with st.container(border=True):
-            st.caption(
-                "Die Analyse nutzt die OpenAI API. Je nach Länge des Jobspec kann das einige Sekunden dauern."
-            )
-
     if do_extract:
         clear_error()
         effective_source_text = str(
@@ -317,20 +239,6 @@ def render(ctx: WizardContext) -> None:
             )
 
         st.rerun()
-
-    cache_hit = st.session_state.get(SSKey.JOBAD_CACHE_HIT.value, {})
-    if isinstance(cache_hit, dict) and (
-        cache_hit.get("extract_job_ad") or cache_hit.get("generate_question_plan")
-    ):
-        st.caption(
-            "📦 Jobad/Fragebogen: aus Cache geladen (DE) / loaded from cache (EN)."
-        )
-
-    nav_buttons(
-        ctx,
-        disable_prev=False,
-        disable_next=not bool(st.session_state.get(SSKey.JOB_EXTRACT.value)),
-    )
 
 
 PAGE = WizardPage(
