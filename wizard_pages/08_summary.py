@@ -984,11 +984,7 @@ def render(ctx: WizardContext) -> None:
             caption=f"Verwendetes Firmenlogo: {normalized_logo.get('name', 'logo')}",
             width=180,
         )
-    styleguide = st.text_area(
-        "Styleguide des Arbeitgebers",
-        placeholder="z. B. Tonalität, Wording, No-Gos, Corporate Language, Du/Sie, Diversity-Hinweise …",
-        key="cs.summary.styleguide",
-    )
+    styleguide_slot = st.empty()
     _render_template_toggles(
         title="Bausteine (Styleguide-Beschleuniger)",
         text_key="cs.summary.styleguide",
@@ -996,18 +992,25 @@ def render(ctx: WizardContext) -> None:
         template_blocks=STYLEGUIDE_TEMPLATE_BLOCKS,
         widget_prefix="cs.summary.styleguide.block",
     )
-    styleguide = str(st.session_state.get("cs.summary.styleguide", styleguide))
-    change_request = st.text_area(
-        "Anpassungswünsche (für Iterationen)",
-        placeholder="z. B. stärker auf Senior-Profile fokussieren, CTA kürzen, Benefits konkretisieren …",
-        key="cs.summary.change_request",
+    styleguide = styleguide_slot.text_area(
+        "Styleguide des Arbeitgebers",
+        placeholder="z. B. Tonalität, Wording, No-Gos, Corporate Language, Du/Sie, Diversity-Hinweise …",
+        key="cs.summary.styleguide",
     )
+    styleguide = str(st.session_state.get("cs.summary.styleguide", styleguide))
+
+    change_request_slot = st.empty()
     _render_template_toggles(
         title="Bausteine (Change-Request-Beschleuniger)",
         text_key="cs.summary.change_request",
         selection_key=SSKey.SUMMARY_CHANGE_REQUEST_BLOCKS,
         template_blocks=CHANGE_REQUEST_TEMPLATE_BLOCKS,
         widget_prefix="cs.summary.change_request.block",
+    )
+    change_request = change_request_slot.text_area(
+        "Anpassungswünsche (für Iterationen)",
+        placeholder="z. B. stärker auf Senior-Profile fokussieren, CTA kürzen, Benefits konkretisieren …",
+        key="cs.summary.change_request",
     )
     change_request = str(
         st.session_state.get("cs.summary.change_request", change_request)
