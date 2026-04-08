@@ -28,8 +28,26 @@ LANDING_COPY: dict[str, object] = {
         "KI-gestützten Intake. So schaffen Sie von Anfang an Klarheit zu Rolle, Anforderungen, "
         "Rahmenbedingungen und Auswahlprozess – und reduzieren teure Folgefehler."
     ),
-    "primary_cta": "Jobspec hochladen und Intake starten",
+    "primary_cta": "Jetzt Jobspec hochladen und Guided Intake starten",
     "secondary_cta_hint": "Geeignet für strukturierte Jobspecs und klassische Stellenanzeigen",
+    "before_start_title": "Vor dem Start",
+    "before_start_bullets": (
+        "Unterstützt Jobspecs, Rollenprofile und klassische Stellenanzeigen",
+        "Der Intake dauert nur wenige Minuten und passt sich dem Inhalt dynamisch an",
+        "Sie erhalten ein strukturiertes Recruiting Briefing als Ergebnis",
+    ),
+    "cta_reassurance": (
+        "Sie müssen nicht sofort alle Informationen vorliegen haben – "
+        "fehlende Punkte werden im Verlauf gezielt ergänzt."
+    ),
+    "cta_helper": (
+        "Das Tool extrahiert zuerst vorhandene Informationen und stellt "
+        "danach nur relevante Rückfragen."
+    ),
+    "cta_microcopy": (
+        "Besonders hilfreich bei unklaren Anforderungen, neuen Rollen oder "
+        "mehreren Stakeholdern."
+    ),
     "value_cards": (
         (
             "Mehr Klarheit von Beginn an",
@@ -123,6 +141,13 @@ def render(ctx: WizardContext) -> None:
         subhead=str(LANDING_COPY["hero_subhead"]),
         primary_cta=str(LANDING_COPY["primary_cta"]),
         secondary_cta_hint=str(LANDING_COPY["secondary_cta_hint"]),
+        before_start_title=str(LANDING_COPY["before_start_title"]),
+        before_start_bullets=cast(
+            tuple[str, ...], LANDING_COPY["before_start_bullets"]
+        ),
+        reassurance_line=str(LANDING_COPY["cta_reassurance"]),
+        extraction_helper_copy=str(LANDING_COPY["cta_helper"]),
+        post_cta_microcopy=str(LANDING_COPY["cta_microcopy"]),
         value_cards=cast(tuple[tuple[str, str], ...], LANDING_COPY["value_cards"]),
         consent_given=consent_given,
         start_button_key=LANDING_CTA_KEYS["start"],
