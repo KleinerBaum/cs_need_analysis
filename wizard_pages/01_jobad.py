@@ -15,7 +15,6 @@ from llm_client import (
 )
 from settings_openai import load_openai_settings
 from parsing import extract_text_from_uploaded_file, redact_pii
-from schemas import JobAdExtract, QuestionPlan
 from state import (
     clear_error,
     get_model_override,
@@ -24,7 +23,6 @@ from state import (
 )
 from ui_components import (
     render_error_banner,
-    render_job_extract_overview,
     render_openai_error,
 )
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
@@ -292,6 +290,7 @@ def render(ctx: WizardContext) -> None:
                 st.info(
                     "Mindestens ein Ergebnis wurde aus Cache geladen (DE) / At least one result was loaded from cache (EN)."
                 )
+            st.session_state[SSKey.CURRENT_STEP.value] = "jobspec_review"
 
             # Optional: show usage
             with st.expander("API Usage (Debug)", expanded=False):
@@ -319,28 +318,12 @@ def render(ctx: WizardContext) -> None:
 
         st.rerun()
 
-    # Show current extraction if available
-    job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
-    plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
-
-    current_plan: QuestionPlan | None = None
-    if plan_dict:
-        current_plan = QuestionPlan.model_validate(plan_dict)
-
-    if job_dict:
-        job = JobAdExtract.model_validate(job_dict)
-        render_job_extract_overview(job, plan=current_plan)
-        cache_hit = st.session_state.get(SSKey.JOBAD_CACHE_HIT.value, {})
-        if isinstance(cache_hit, dict) and (
-            cache_hit.get("extract_job_ad") or cache_hit.get("generate_question_plan")
-        ):
-            st.caption(
-                "📦 Jobad/Fragebogen: aus Cache geladen (DE) / loaded from cache (EN)."
-            )
-
-    if current_plan is not None:
-        st.info(
-            f"QuestionPlan geladen: {sum(len(s.questions) for s in current_plan.steps)} Fragen in {len(current_plan.steps)} Steps."
+    cache_hit = st.session_state.get(SSKey.JOBAD_CACHE_HIT.value, {})
+    if isinstance(cache_hit, dict) and (
+        cache_hit.get("extract_job_ad") or cache_hit.get("generate_question_plan")
+    ):
+        st.caption(
+            "📦 Jobad/Fragebogen: aus Cache geladen (DE) / loaded from cache (EN)."
         )
 
     nav_buttons(
