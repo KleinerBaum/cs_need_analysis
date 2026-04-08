@@ -23,6 +23,12 @@ class AnswerMeta(TypedDict, total=False):
 AnswerMetaMap = dict[str, AnswerMeta]
 
 
+class QuestionProgress(TypedDict):
+    total: int
+    answered: int
+    required_unanswered: int
+
+
 def value_hash(value: Any) -> str:
     """Return a deterministic hash for arbitrary JSON-like values."""
 
@@ -58,3 +64,30 @@ def is_answered(question: Question, value: Any, meta: AnswerMeta | None) -> bool
         return bool(str(value).strip())
 
     return value is not None
+
+
+def compute_question_progress(
+    questions: list[Question],
+    answers: dict[str, Any],
+    answer_meta: AnswerMetaMap,
+) -> QuestionProgress:
+    """Compute answered/total and open required counts for a question list."""
+
+    total = len(questions)
+    answered = 0
+    required_unanswered = 0
+
+    for question in questions:
+        value = answers.get(question.id)
+        meta = answer_meta.get(question.id)
+        question_answered = is_answered(question, value, meta)
+        if question_answered:
+            answered += 1
+        elif question.required:
+            required_unanswered += 1
+
+    return {
+        "total": total,
+        "answered": answered,
+        "required_unanswered": required_unanswered,
+    }

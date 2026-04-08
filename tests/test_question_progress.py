@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from constants import AnswerType
-from question_progress import is_answered
+from question_progress import compute_question_progress, is_answered
 from schemas import Question
 
 
@@ -51,3 +51,46 @@ def test_is_answered_date_requires_non_empty_string() -> None:
 
     assert is_answered(question, "2026-04-08", {}) is True
     assert is_answered(question, "", {}) is False
+
+
+def test_compute_question_progress_counts_answered_and_required_open() -> None:
+    required_text = Question(
+        id="q_req_text",
+        label="Pflicht Text",
+        answer_type=AnswerType.SHORT_TEXT,
+        required=True,
+    )
+    optional_multi = Question(
+        id="q_opt_multi",
+        label="Optional Multi",
+        answer_type=AnswerType.MULTI_SELECT,
+        required=False,
+    )
+    required_boolean = Question(
+        id="q_req_bool",
+        label="Pflicht Bool",
+        answer_type=AnswerType.BOOLEAN,
+        required=True,
+    )
+    required_number = Question(
+        id="q_req_number",
+        label="Pflicht Zahl",
+        answer_type=AnswerType.NUMBER,
+        required=True,
+    )
+
+    progress = compute_question_progress(
+        [required_text, optional_multi, required_boolean, required_number],
+        answers={
+            "q_req_text": "Ja",
+            "q_opt_multi": ["A"],
+            "q_req_bool": False,
+            "q_req_number": 3,
+        },
+        answer_meta={
+            "q_req_bool": {"touched": True},
+            "q_req_number": {},
+        },
+    )
+
+    assert progress == {"total": 4, "answered": 3, "required_unanswered": 1}

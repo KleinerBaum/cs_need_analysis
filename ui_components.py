@@ -12,6 +12,7 @@ import streamlit as st
 
 from constants import AnswerType, SSKey, WIDGET_KEY_PREFIX
 from llm_client import OpenAICallError
+from question_progress import compute_question_progress
 from schemas import (
     Contact,
     JobAdExtract,
@@ -23,7 +24,13 @@ from schemas import (
     RecruitmentStep,
     VacancyBrief,
 )
-from state import get_answers, mark_answer_touched, set_answer, set_error
+from state import (
+    get_answer_meta,
+    get_answers,
+    mark_answer_touched,
+    set_answer,
+    set_error,
+)
 
 _OTHER_OPTION = "Sonstiges"
 _OTHER_PREFIX = f"{_OTHER_OPTION}: "
@@ -687,6 +694,7 @@ def _split_core_and_detail_questions(
 
 def render_question_step(step: QuestionStep) -> None:
     answers = get_answers()
+    answer_meta = get_answer_meta()
     ui_mode_raw = st.session_state.get(SSKey.UI_MODE.value, "standard")
     ui_mode = str(ui_mode_raw).strip().lower()
     if ui_mode not in {"quick", "standard", "expert"}:
@@ -724,6 +732,15 @@ def render_question_step(step: QuestionStep) -> None:
         questions = step.questions[:step_limit]
 
     core_questions, detail_questions = _split_core_and_detail_questions(questions)
+    core_progress = compute_question_progress(core_questions, answers, answer_meta)
+    detail_progress = compute_question_progress(detail_questions, answers, answer_meta)
+
+    st.caption(
+        "Minimalprofil "
+        f"{core_progress['answered']}/{core_progress['total']} beantwortet"
+        " · Details "
+        f"{detail_progress['answered']}/{detail_progress['total']} beantwortet"
+    )
 
     st.markdown("#### Minimalprofil")
     st.caption(
@@ -751,12 +768,18 @@ def render_question_step(step: QuestionStep) -> None:
 
     st.markdown("#### Details")
     for group_title, group_questions in grouped_questions:
+        progress = compute_question_progress(group_questions, answers, answer_meta)
+        header = (
+            f"{group_title} · {progress['answered']}/{progress['total']} beantwortet"
+        )
         expanded = _is_group_open(
             step_key=step.step_key,
             group_title=group_title,
             default_open=details_expanded_default,
         )
-        with st.expander(group_title, expanded=expanded):
+        with st.expander(header, expanded=expanded):
+            if progress["required_unanswered"] > 0:
+                st.caption(f"{progress['required_unanswered']} Pflichtfragen offen")
             _render_questions_two_columns(group_questions, answers)
 
 
