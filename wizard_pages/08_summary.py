@@ -182,46 +182,43 @@ def _render_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) -> None:
         "Deutschland": {"salary": 1.07, "candidates": 2.5},
         "Global": {"salary": 1.18, "candidates": 6.0},
     }
-    scope = st.selectbox(
-        "Suchraum",
-        options=list(scope_options.keys()),
-        index=1,
-        help="Erweitert den Talentpool, kann aber die Gehaltserwartung erhöhen.",
-    )
+    left_col_1, left_col_2, left_col_3, criteria_col = st.columns(4)
 
-    c1, c2, c3 = st.columns(3)
-    with c1:
+    with criteria_col:
+        st.markdown("**Szenario-Kriterien**")
+        scope = st.selectbox(
+            "Suchraum",
+            options=list(scope_options.keys()),
+            index=1,
+            help="Erweitert den Talentpool, kann aber die Gehaltserwartung erhöhen.",
+        )
         remote_share = st.slider("Remote-Anteil (%)", 0, 100, 60, 5)
-    with c2:
         requirement_strictness = st.slider("Anforderungs-Strenge (%)", 0, 100, 55, 5)
-    with c3:
         employer_attractiveness = st.slider(
             "Arbeitgeber-Attraktivität (%)", 0, 100, 50, 5
         )
 
-    influential_requirements = [
-        "Suchraum",
-        "Remote-Anteil",
-        "Anforderungs-Strenge",
-        "Arbeitgeber-Attraktivität",
-        "Must-have Skills",
-        "Interviewprozess",
-    ]
-    selected_requirements = st.multiselect(
-        "Entscheidende Stellenanforderungen (Selektion)",
-        options=influential_requirements,
-        default=influential_requirements[:4],
-        help="Nur selektierte Faktoren gehen in die Gewichtung der Prognose ein.",
-    )
-    if not selected_requirements:
-        st.info("Bitte mindestens eine Stellenanforderung auswählen.")
-        return
+        influential_requirements = [
+            "Suchraum",
+            "Remote-Anteil",
+            "Anforderungs-Strenge",
+            "Arbeitgeber-Attraktivität",
+            "Must-have Skills",
+            "Interviewprozess",
+        ]
+        selected_requirements = st.multiselect(
+            "Entscheidende Stellenanforderungen (Selektion)",
+            options=influential_requirements,
+            default=influential_requirements[:4],
+            help="Nur selektierte Faktoren gehen in die Gewichtung der Prognose ein.",
+        )
+        if not selected_requirements:
+            st.info("Bitte mindestens eine Stellenanforderung auswählen.")
+            return
 
-    st.markdown("**Gewichtung (Zuordnung & Priorisierung)**")
-    weights_raw: dict[str, int] = {}
-    cols = st.columns(min(3, len(selected_requirements)))
-    for idx, requirement in enumerate(selected_requirements):
-        with cols[idx % len(cols)]:
+        st.markdown("**Gewichtung (Zuordnung & Priorisierung)**")
+        weights_raw: dict[str, int] = {}
+        for requirement in selected_requirements:
             weights_raw[requirement] = st.slider(
                 f"Gewicht: {requirement}",
                 min_value=0,
@@ -298,18 +295,13 @@ def _render_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) -> None:
             }
         )
 
-    st.write(
-        {
-            "basiswerte": {
-                "gehalt_basis_jahr": round(base_salary, 0),
-                "kandidaten_basis": round(base_candidates, 1),
-                "must_have_skills": must_have_count,
-                "interview_schritte": interview_steps,
-                "antworten_im_wizard": len(answers),
-            },
-            "gewichtung_normalisiert": {k: round(v, 3) for k, v in weights.items()},
-        }
-    )
+    basiswerte = {
+        "gehalt_basis_jahr": round(base_salary, 0),
+        "kandidaten_basis": round(base_candidates, 1),
+        "must_have_skills": must_have_count,
+        "interview_schritte": interview_steps,
+        "antworten_im_wizard": len(answers),
+    }
 
     strictness_levels = [p["strictness_level"] for p in scenario_points]
     salaries = [p["predicted_salary"] for p in scenario_points]
@@ -330,13 +322,14 @@ def _render_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) -> None:
         dragmode="select",
     )
 
-    selection = st.plotly_chart(
-        fig_salary,
-        key="cs.summary.salary_forecast",
-        width="stretch",
-        on_select="rerun",
-        selection_mode=("points", "box", "lasso"),
-    )
+    with left_col_1:
+        selection = st.plotly_chart(
+            fig_salary,
+            key="cs.summary.salary_forecast",
+            width="stretch",
+            on_select="rerun",
+            selection_mode=("points", "box", "lasso"),
+        )
     selected_indices = ((selection or {}).get("selection") or {}).get(
         "point_indices"
     ) or []
@@ -360,9 +353,19 @@ def _render_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) -> None:
         xaxis_title="Anforderungs-Strenge (%)",
         yaxis_title="Kandidaten (geschätzt)",
     )
-    st.plotly_chart(fig_candidates, width="stretch")
-
-    st.dataframe(filtered_points, width="stretch", hide_index=True)
+    with left_col_2:
+        st.plotly_chart(fig_candidates, width="stretch")
+    with left_col_3:
+        st.dataframe(filtered_points, width="stretch", hide_index=True)
+        with st.expander("Basiswerte & normalisierte Gewichte", expanded=False):
+            st.write(
+                {
+                    "basiswerte": basiswerte,
+                    "gewichtung_normalisiert": {
+                        k: round(v, 3) for k, v in weights.items()
+                    },
+                }
+            )
 
 
 def _brief_to_markdown(brief: VacancyBrief) -> str:
