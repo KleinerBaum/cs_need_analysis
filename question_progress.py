@@ -29,6 +29,23 @@ class QuestionProgress(TypedDict):
     required_unanswered: int
 
 
+def build_answered_lookup(
+    questions: list[Question],
+    answers: dict[str, Any],
+    answer_meta: AnswerMetaMap,
+) -> dict[str, bool]:
+    """Return a per-question answered lookup for reuse across render sections."""
+
+    return {
+        question.id: is_answered(
+            question,
+            answers.get(question.id),
+            answer_meta.get(question.id),
+        )
+        for question in questions
+    }
+
+
 def value_hash(value: Any) -> str:
     """Return a deterministic hash for arbitrary JSON-like values."""
 
@@ -70,6 +87,7 @@ def compute_question_progress(
     questions: list[Question],
     answers: dict[str, Any],
     answer_meta: AnswerMetaMap,
+    answered_lookup: dict[str, bool] | None = None,
 ) -> QuestionProgress:
     """Compute answered/total and open required counts for a question list."""
 
@@ -78,9 +96,15 @@ def compute_question_progress(
     required_unanswered = 0
 
     for question in questions:
-        value = answers.get(question.id)
-        meta = answer_meta.get(question.id)
-        question_answered = is_answered(question, value, meta)
+        question_answered = (
+            answered_lookup[question.id]
+            if answered_lookup is not None and question.id in answered_lookup
+            else is_answered(
+                question,
+                answers.get(question.id),
+                answer_meta.get(question.id),
+            )
+        )
         if question_answered:
             answered += 1
         elif question.required:
