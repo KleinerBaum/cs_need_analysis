@@ -124,61 +124,68 @@ def _render_editable_job_extract(job: JobAdExtract) -> None:
         core_rows = [
             {"field": field, "value": values.get(field)}
             for field in core_fields
-            if field in values
+            if field in values and has_meaningful_value(values.get(field))
         ]
-        core_edit = st.data_editor(
-            core_rows,
-            key="cs.job_extract.core",
-            width="stretch",
-            hide_index=True,
-            num_rows="fixed",
-            column_config={
-                "field": st.column_config.TextColumn("Feld", disabled=True),
-                "value": st.column_config.TextColumn("Wert"),
-            },
-        )
-        for row in core_edit:
-            field = str(row.get("field", "")).strip()
-            if field:
-                values[field] = _normalize_optional_string(row.get("value"))
+        if core_rows:
+            core_edit = st.data_editor(
+                core_rows,
+                key="cs.job_extract.core",
+                width="stretch",
+                hide_index=True,
+                num_rows="fixed",
+                column_config={
+                    "field": st.column_config.TextColumn("Feld", disabled=True),
+                    "value": st.column_config.TextColumn("Wert"),
+                },
+            )
+            for row in core_edit:
+                field = str(row.get("field", "")).strip()
+                if field:
+                    values[field] = _normalize_optional_string(row.get("value"))
+        else:
+            st.info("Keine extrahierten Basiswerte mit Inhalt vorhanden.")
 
     with tab_location:
         location_rows = [
             {"field": field, "value": values.get(field)}
             for field in location_fields
-            if field in values
+            if field in values and has_meaningful_value(values.get(field))
         ]
-        location_edit = st.data_editor(
-            location_rows,
-            key="cs.job_extract.location",
-            width="stretch",
-            hide_index=True,
-            num_rows="fixed",
-            column_config={
-                "field": st.column_config.TextColumn("Feld", disabled=True),
-                "value": st.column_config.TextColumn("Wert"),
-            },
-        )
-        for row in location_edit:
-            field = str(row.get("field", "")).strip()
-            if not field:
-                continue
-            if field == "direct_reports_count":
-                values[field] = _parse_optional_int(row.get("value"))
-            else:
-                values[field] = _normalize_optional_string(row.get("value"))
+        if location_rows:
+            location_edit = st.data_editor(
+                location_rows,
+                key="cs.job_extract.location",
+                width="stretch",
+                hide_index=True,
+                num_rows="fixed",
+                column_config={
+                    "field": st.column_config.TextColumn("Feld", disabled=True),
+                    "value": st.column_config.TextColumn("Wert"),
+                },
+            )
+            for row in location_edit:
+                field = str(row.get("field", "")).strip()
+                if not field:
+                    continue
+                if field == "direct_reports_count":
+                    values[field] = _parse_optional_int(row.get("value"))
+                else:
+                    values[field] = _normalize_optional_string(row.get("value"))
+        else:
+            st.info("Keine extrahierten Standort-/Org-Werte mit Inhalt vorhanden.")
 
     with tab_role:
         for field in text_fields:
-            values[field] = (
-                st.text_area(
-                    field.replace("_", " ").title(),
-                    value=(values.get(field) or ""),
-                    key=f"cs.job_extract.text.{field}",
-                    height=130,
+            if has_meaningful_value(values.get(field)):
+                values[field] = (
+                    st.text_area(
+                        field.replace("_", " ").title(),
+                        value=(values.get(field) or ""),
+                        key=f"cs.job_extract.text.{field}",
+                        height=130,
+                    )
+                    or None
                 )
-                or None
-            )
         for list_field, label in list_fields[:3]:
             values[list_field] = _render_list_editor(
                 label=label,
@@ -300,7 +307,7 @@ def _parse_optional_int(value: Any) -> int | None:
 
 def _render_list_editor(*, label: str, key: str, entries: Any) -> list[str]:
     source = entries if isinstance(entries, list) else []
-    rows = [{"value": str(item)} for item in source if str(item).strip()]
+    rows = [{"value": str(item)} for item in source if has_meaningful_value(item)]
     edited_rows = st.data_editor(
         rows,
         key=key,
@@ -320,12 +327,12 @@ def _render_list_editor(*, label: str, key: str, entries: Any) -> list[str]:
 def _render_salary_editor(salary_data: Any) -> dict[str, Any] | None:
     salary = MoneyRange.model_validate(salary_data or {}).model_dump()
     salary_rows = [
-        {"field": "min", "value": salary.get("min")},
-        {"field": "max", "value": salary.get("max")},
-        {"field": "currency", "value": salary.get("currency")},
-        {"field": "period", "value": salary.get("period")},
-        {"field": "notes", "value": salary.get("notes")},
+        {"field": field, "value": salary.get(field)}
+        for field in ("min", "max", "currency", "period", "notes")
+        if has_meaningful_value(salary.get(field))
     ]
+    if not salary_rows:
+        return None
     edited = st.data_editor(
         salary_rows,
         key="cs.job_extract.salary",
@@ -364,6 +371,8 @@ def _render_recruitment_steps_editor(steps_data: Any) -> list[dict[str, Any]]:
     rows = []
     for item in source:
         step = RecruitmentStep.model_validate(item)
+        if not has_meaningful_value(step.name):
+            continue
         rows.append({"name": step.name, "details": step.details})
     edited = st.data_editor(
         rows,
@@ -395,6 +404,10 @@ def _render_contacts_editor(contacts_data: Any) -> list[dict[str, Any]]:
     rows = []
     for item in source:
         contact = Contact.model_validate(item)
+        if not any(
+            has_meaningful_value(value) for value in contact.model_dump().values()
+        ):
+            continue
         rows.append(
             {
                 "name": contact.name,
