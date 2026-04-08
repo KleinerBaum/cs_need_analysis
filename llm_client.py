@@ -42,7 +42,13 @@ from model_capabilities import (
     supports_temperature,
     supports_verbosity,
 )
-from schemas import JobAdExtract, QuestionPlan, VacancyBrief, VacancyBriefLLM
+from schemas import (
+    JobAdExtract,
+    QuestionDependency,
+    QuestionPlan,
+    VacancyBrief,
+    VacancyBriefLLM,
+)
 from settings_openai import OpenAISettings, load_openai_settings
 
 logger = logging.getLogger(__name__)
@@ -133,6 +139,7 @@ _NUMERIC_QUESTION_RULES: tuple[dict[str, Any], ...] = (
         "bounds": (20_000.0, 500_000.0, 1_000.0),
     },
 )
+_QUESTION_PRIORITY_VALUES = {"core", "standard", "detail"}
 
 
 class VacancyBriefCriticalSections(BaseModel):
@@ -1087,6 +1094,11 @@ def generate_question_plan(
         "Erstelle einen QuestionPlan in dieser Reihenfolge: company, team, role_tasks, skills, benefits, interview. "
         "Der Step 'jobad' ist bereits durch die Jobspec-Extraktion abgedeckt. "
         "Füge bei jedem Step 6–12 Fragen hinzu, je nachdem, was im Jobspec fehlt. "
+        "Markiere pro Step genau 3–5 Fragen mit priority='core'; "
+        "weitere Fragen als 'standard' oder 'detail'. "
+        "Setze group_key stabil und kurz (snake_case), sodass thematisch verwandte Fragen denselben group_key teilen. "
+        "Nutze depends_on nur bei echten Follow-up-Fragen; vermeide verschachtelte oder übermäßige Abhängigkeiten. "
+        "Für depends_on nutze nur einfache Regeln mit question_id plus equals ODER any_of ODER is_answered. "
         "Bevorzuge konkrete, messbare Antworten (z. B. 'Erfolgskriterien', 'Top-Deliverables', 'Must-have vs Nice-to-have').\n\n"
         "Wenn answer_type='number' genutzt wird, setze immer explizit min_value und max_value "
         "(optional step_value), passend zur Frage. Nutze keine Freitext-Frage für numerische Werte.\n\n"
@@ -1160,7 +1172,81 @@ def normalize_question_plan(plan: QuestionPlan) -> QuestionPlan:
 
             _normalize_category_question(q)
             _normalize_numeric_question(q)
+            _normalize_question_priority(q)
+            _normalize_question_group_key(q, step_key=step.step_key)
+            _normalize_question_dependencies(q, step=step)
     return plan
+
+
+def _normalize_question_priority(q: Any) -> None:
+    raw_priority = getattr(q, "priority", None)
+    if not isinstance(raw_priority, str):
+        q.priority = None
+        return
+    normalized = raw_priority.strip().lower()
+    q.priority = normalized if normalized in _QUESTION_PRIORITY_VALUES else None
+
+
+def _normalize_question_group_key(q: Any, *, step_key: str) -> None:
+    raw_group_key = getattr(q, "group_key", None)
+    if isinstance(raw_group_key, str) and raw_group_key.strip():
+        q.group_key = re_slugify(raw_group_key)
+        return
+    q.group_key = re_slugify(f"{step_key}_{q.id}")
+
+
+def _normalize_question_dependencies(q: Any, *, step: Any) -> None:
+    raw_depends_on = getattr(q, "depends_on", None)
+    if not isinstance(raw_depends_on, list) or not raw_depends_on:
+        q.depends_on = None
+        return
+
+    known_ids = {str(item.id) for item in getattr(step, "questions", []) if item.id}
+    sanitized: list[QuestionDependency] = []
+    for dep in raw_depends_on:
+        if not hasattr(dep, "question_id"):
+            continue
+        source_id_raw = getattr(dep, "question_id", "")
+        if not isinstance(source_id_raw, str) or not source_id_raw.strip():
+            continue
+        source_id = re_slugify(source_id_raw)
+        if source_id == q.id or source_id not in known_ids:
+            continue
+
+        equals = getattr(dep, "equals", None)
+        any_of = getattr(dep, "any_of", None)
+        is_answered = getattr(dep, "is_answered", None)
+
+        normalized_any_of: list[str | int | float | bool] | None = None
+        if isinstance(any_of, list):
+            normalized_any_of = []
+            for value in any_of:
+                if isinstance(value, (str, int, float, bool)):
+                    normalized_any_of.append(value)
+            if not normalized_any_of:
+                normalized_any_of = None
+
+        if not isinstance(equals, (str, int, float, bool)):
+            equals = None
+        if not isinstance(is_answered, bool):
+            is_answered = None
+
+        active_keys = sum(
+            value is not None for value in (equals, normalized_any_of, is_answered)
+        )
+        if active_keys != 1:
+            continue
+
+        dep_payload: dict[str, Any] = {"question_id": source_id}
+        if equals is not None:
+            dep_payload["equals"] = equals
+        if normalized_any_of is not None:
+            dep_payload["any_of"] = normalized_any_of
+        if is_answered is not None:
+            dep_payload["is_answered"] = is_answered
+        sanitized.append(QuestionDependency.model_validate(dep_payload))
+
+    q.depends_on = sanitized or None
 
 
 def _normalize_category_question(q: Any) -> None:

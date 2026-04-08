@@ -79,6 +79,40 @@ def _has_non_empty_answer(value: Any) -> bool:
     return bool(text and text not in {"— bitte wählen —", "-"})
 
 
+def _values_equal(left: Any, right: Any) -> bool:
+    if isinstance(left, str) or isinstance(right, str):
+        return _normalize_text(left) == _normalize_text(right)
+    return left == right
+
+
+def _matches_declared_dependencies(
+    question: Question, answers: dict[str, Any]
+) -> bool | None:
+    dependencies = question.depends_on
+    if not dependencies:
+        return None
+
+    for dependency in dependencies:
+        source_id = dependency.question_id
+        if source_id not in answers:
+            return False
+
+        source_value = answers.get(source_id)
+        if dependency.equals is not None and not _values_equal(
+            source_value, dependency.equals
+        ):
+            return False
+        if dependency.any_of is not None and not any(
+            _values_equal(source_value, candidate) for candidate in dependency.any_of
+        ):
+            return False
+        if dependency.is_answered is True and not _has_non_empty_answer(source_value):
+            return False
+        if dependency.is_answered is False and _has_non_empty_answer(source_value):
+            return False
+    return True
+
+
 def _answer_matches(
     answers: dict[str, Any],
     *,
@@ -288,11 +322,15 @@ def should_show_question(
 ) -> bool:
     """Return question visibility based on deterministic dependency rules.
 
-    Current version intentionally relies on local heuristics (id/label/path/help text)
-    and does not require schema changes.
+    If declarative `depends_on` metadata exists, it is evaluated first.
+    Otherwise, local heuristics (id/label/path/help text) are used as fallback.
     """
 
     del step_key
+    declared_dependency_match = _matches_declared_dependencies(question, answers)
+    if declared_dependency_match is not None:
+        return declared_dependency_match
+
     matching_rules = [
         rule for rule in DEPENDENCY_RULES if rule.dependent_matcher(question)
     ]
