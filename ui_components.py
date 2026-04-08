@@ -761,6 +761,12 @@ def render_question_step(step: QuestionStep) -> None:
         _render_question(question, answers)
 
     if not detail_questions:
+        render_step_review_card(
+            step=step,
+            visible_questions=visible_questions,
+            answers=answers,
+            answer_meta=answer_meta,
+        )
         return
 
     grouped_questions = _group_questions(step, detail_questions)
@@ -792,6 +798,108 @@ def render_question_step(step: QuestionStep) -> None:
             if progress["required_unanswered"] > 0:
                 st.caption(f"{progress['required_unanswered']} Pflichtfragen offen")
             _render_questions_two_columns(group_questions, answers)
+
+    render_step_review_card(
+        step=step,
+        visible_questions=visible_questions,
+        answers=answers,
+        answer_meta=answer_meta,
+    )
+
+
+def render_step_review_card(
+    step: QuestionStep,
+    visible_questions: list[Question],
+    answers: Dict[str, Any],
+    answer_meta: dict[str, Any],
+) -> None:
+    grouped_questions = _group_questions(step, visible_questions)
+    group_payload: list[tuple[str, list[tuple[str, str]]]] = []
+    missing_required_labels: list[str] = []
+    incomplete_group_titles: list[str] = []
+
+    for group_title, group_questions in grouped_questions:
+        answered_items: list[tuple[str, str]] = []
+        group_missing_required = False
+        for question in group_questions:
+            value = answers.get(question.id)
+            if not compute_question_progress([question], answers, answer_meta)[
+                "answered"
+            ]:
+                if question.required:
+                    group_missing_required = True
+                    missing_required_labels.append(question.label)
+                continue
+            formatted = _format_answer_for_review(question, value)
+            if formatted:
+                answered_items.append((question.label, formatted))
+
+        if answered_items:
+            group_payload.append((group_title, answered_items))
+        if group_missing_required:
+            incomplete_group_titles.append(group_title)
+
+    with st.container(border=True):
+        st.markdown("#### ✅ Check answers")
+        if not group_payload and not missing_required_labels:
+            st.caption("Noch keine sichtbaren Antworten vorhanden.")
+            return
+
+        if missing_required_labels:
+            missing_groups = ", ".join(dict.fromkeys(incomplete_group_titles))
+            st.warning(
+                f"Pflichtfelder offen ({len(missing_required_labels)}). "
+                f"Bitte in diesen Bereichen ergänzen: {missing_groups}."
+            )
+            if grouped_questions and incomplete_group_titles:
+                st.caption(
+                    "Hinweis: Bitte prüfe zuerst die Bereiche "
+                    f"{', '.join(dict.fromkeys(incomplete_group_titles))}."
+                )
+
+        for group_title, answered_items in group_payload:
+            st.caption(group_title)
+            for label, formatted_value in answered_items:
+                st.markdown(f"- **{label}:** {formatted_value}")
+
+
+def _format_answer_for_review(question: Question, value: Any) -> str:
+    if _is_language_requirement_question(question):
+        requirements = _coerce_language_requirements(value)
+        formatted = [f"{item.language} ({item.level})" for item in requirements]
+        return ", ".join(formatted)
+
+    if question.answer_type == AnswerType.BOOLEAN:
+        return "Ja" if bool(value) else "Nein"
+    if question.answer_type == AnswerType.MULTI_SELECT:
+        values = _coerce_multi_select_values(value)
+        return ", ".join(values)
+    if question.answer_type == AnswerType.SINGLE_SELECT:
+        selected = _coerce_single_select_value(value)
+        return selected or ""
+    if question.answer_type == AnswerType.LONG_TEXT:
+        text = str(value or "").strip()
+        return _truncate_for_review(text, limit=140)
+    if question.answer_type == AnswerType.SHORT_TEXT:
+        return _truncate_for_review(str(value or "").strip(), limit=90)
+    if question.answer_type == AnswerType.NUMBER:
+        return str(value) if value is not None else ""
+    if question.answer_type == AnswerType.DATE:
+        return str(value or "")
+
+    if isinstance(value, list):
+        return ", ".join(
+            str(item).strip() for item in value if has_meaningful_value(item)
+        )
+    if isinstance(value, str):
+        return _truncate_for_review(value.strip(), limit=90)
+    return str(value) if has_meaningful_value(value) else ""
+
+
+def _truncate_for_review(text: str, *, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    return f"{text[: max(limit - 1, 1)].rstrip()}…"
 
 
 def _ensure_step_group_state(
