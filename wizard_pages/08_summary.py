@@ -124,7 +124,7 @@ def _estimate_candidate_baseline(job: JobAdExtract) -> float:
 
 def _append_template_blocks(
     *,
-    text_key: str,
+    text_key: SSKey,
     selection_key: SSKey,
     selected_blocks: list[str],
     available_blocks: dict[str, str],
@@ -138,7 +138,7 @@ def _append_template_blocks(
     ]
 
     if newly_selected_blocks:
-        current_text = str(st.session_state.get(text_key, "") or "").strip()
+        current_text = str(st.session_state.get(text_key.value, "") or "").strip()
         template_fragments: list[str] = []
         for block in newly_selected_blocks:
             template = available_blocks.get(block, "").strip()
@@ -146,7 +146,7 @@ def _append_template_blocks(
                 template_fragments.append(template)
         if template_fragments:
             merged_templates = "\n\n".join(template_fragments)
-            st.session_state[text_key] = (
+            st.session_state[text_key.value] = (
                 f"{current_text}\n\n{merged_templates}"
                 if current_text
                 else merged_templates
@@ -158,7 +158,7 @@ def _append_template_blocks(
 def _render_template_toggles(
     *,
     title: str,
-    text_key: str,
+    text_key: SSKey,
     selection_key: SSKey,
     template_blocks: dict[str, str],
     widget_prefix: str,
@@ -987,7 +987,7 @@ def render(ctx: WizardContext) -> None:
     styleguide_slot = st.empty()
     _render_template_toggles(
         title="Bausteine (Styleguide-Beschleuniger)",
-        text_key="cs.summary.styleguide",
+        text_key=SSKey.SUMMARY_STYLEGUIDE_TEXT,
         selection_key=SSKey.SUMMARY_STYLEGUIDE_BLOCKS,
         template_blocks=STYLEGUIDE_TEMPLATE_BLOCKS,
         widget_prefix="cs.summary.styleguide.block",
@@ -995,14 +995,16 @@ def render(ctx: WizardContext) -> None:
     styleguide = styleguide_slot.text_area(
         "Styleguide des Arbeitgebers",
         placeholder="z. B. Tonalität, Wording, No-Gos, Corporate Language, Du/Sie, Diversity-Hinweise …",
-        key="cs.summary.styleguide",
+        key=SSKey.SUMMARY_STYLEGUIDE_TEXT.value,
     )
-    styleguide = str(st.session_state.get("cs.summary.styleguide", styleguide))
+    styleguide = str(
+        st.session_state.get(SSKey.SUMMARY_STYLEGUIDE_TEXT.value, styleguide)
+    )
 
     change_request_slot = st.empty()
     _render_template_toggles(
         title="Bausteine (Change-Request-Beschleuniger)",
-        text_key="cs.summary.change_request",
+        text_key=SSKey.SUMMARY_CHANGE_REQUEST_TEXT,
         selection_key=SSKey.SUMMARY_CHANGE_REQUEST_BLOCKS,
         template_blocks=CHANGE_REQUEST_TEMPLATE_BLOCKS,
         widget_prefix="cs.summary.change_request.block",
@@ -1010,10 +1012,10 @@ def render(ctx: WizardContext) -> None:
     change_request = change_request_slot.text_area(
         "Anpassungswünsche (für Iterationen)",
         placeholder="z. B. stärker auf Senior-Profile fokussieren, CTA kürzen, Benefits konkretisieren …",
-        key="cs.summary.change_request",
+        key=SSKey.SUMMARY_CHANGE_REQUEST_TEXT.value,
     )
     change_request = str(
-        st.session_state.get("cs.summary.change_request", change_request)
+        st.session_state.get(SSKey.SUMMARY_CHANGE_REQUEST_TEXT.value, change_request)
     )
     if critical_gaps:
         st.info(
