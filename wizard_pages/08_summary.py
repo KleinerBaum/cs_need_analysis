@@ -32,6 +32,11 @@ from state import (
 from ui_components import render_brief, render_error_banner, render_openai_error
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
 
+SUPPORTED_LOGO_MIME_TYPES: dict[str, str] = {
+    "image/png": "PNG",
+    "image/jpeg": "JPEG",
+}
+
 
 def _safe_int(value: Any) -> int:
     try:
@@ -512,6 +517,8 @@ def _render_selection_matrix(
 
 def _job_ad_to_docx_bytes(job_ad: JobAdGenerationResult, styleguide: str) -> bytes:
     d = docx.Document()
+    logo_payload = st.session_state.get(SSKey.SUMMARY_LOGO.value)
+    _add_logo_to_docx(document=d, logo_payload=logo_payload)
     d.add_heading(job_ad.headline or "Stellenanzeige", level=1)
     d.add_paragraph(job_ad.job_ad_text)
     d.add_heading("Zielgruppe", level=2)
@@ -574,6 +581,8 @@ def _job_ad_to_pdf_bytes(
 
 def _brief_to_docx_bytes(brief: VacancyBrief) -> bytes:
     d = docx.Document()
+    logo_payload = st.session_state.get(SSKey.SUMMARY_LOGO.value)
+    _add_logo_to_docx(document=d, logo_payload=logo_payload)
     d.add_heading("Recruiting Brief", level=1)
     d.add_paragraph(f"One-liner: {brief.one_liner}")
 
@@ -609,6 +618,37 @@ def _brief_to_docx_bytes(brief: VacancyBrief) -> bytes:
     bio = io.BytesIO()
     d.save(bio)
     return bio.getvalue()
+
+
+def _normalize_logo_payload(uploaded_logo: Any) -> dict[str, Any] | None:
+    if uploaded_logo is None:
+        return None
+    mime_type = str(getattr(uploaded_logo, "type", "") or "").lower().strip()
+    if mime_type not in SUPPORTED_LOGO_MIME_TYPES:
+        return None
+    raw_bytes = uploaded_logo.getvalue()
+    if not raw_bytes:
+        return None
+    return {
+        "name": str(getattr(uploaded_logo, "name", "") or "logo"),
+        "mime_type": mime_type,
+        "bytes": raw_bytes,
+    }
+
+
+def _add_logo_to_docx(document: Any, logo_payload: Any) -> bool:
+    if not isinstance(logo_payload, dict):
+        return False
+    logo_bytes = logo_payload.get("bytes")
+    if not isinstance(logo_bytes, (bytes, bytearray)):
+        return False
+    image_stream = io.BytesIO(bytes(logo_bytes))
+    image_stream.seek(0)
+    try:
+        document.add_picture(image_stream, width=docx.shared.Cm(4.0))
+    except Exception:
+        return False
+    return True
 
 
 def render(ctx: WizardContext) -> None:
@@ -788,6 +828,18 @@ def render(ctx: WizardContext) -> None:
         help="Das Logo wird als Metadatum gespeichert und kann im Exportprozess weiterverwendet werden.",
         key="cs.summary.logo_upload",
     )
+    normalized_logo = _normalize_logo_payload(logo_file)
+    st.session_state[SSKey.SUMMARY_LOGO.value] = normalized_logo
+    if logo_file is not None and normalized_logo is None:
+        st.warning(
+            "Logo-Format wird für Exporte nicht unterstützt. Bitte PNG oder JPG/JPEG verwenden."
+        )
+    if normalized_logo:
+        st.image(
+            normalized_logo["bytes"],
+            caption=f"Verwendetes Firmenlogo: {normalized_logo.get('name', 'logo')}",
+            width=180,
+        )
     styleguide = st.text_area(
         "Styleguide des Arbeitgebers",
         placeholder="z. B. Tonalität, Wording, No-Gos, Corporate Language, Du/Sie, Diversity-Hinweise …",
@@ -827,7 +879,9 @@ def render(ctx: WizardContext) -> None:
                 )
             payload = result.model_dump(mode="json")
             payload["styleguide"] = styleguide
-            payload["logo_filename"] = getattr(logo_file, "name", None)
+            payload["logo_filename"] = (
+                normalized_logo.get("name") if normalized_logo else None
+            )
             st.session_state[SSKey.JOB_AD_DRAFT_CUSTOM.value] = payload
             st.session_state[SSKey.JOB_AD_LAST_USAGE.value] = usage or {}
         except OpenAICallError as e:

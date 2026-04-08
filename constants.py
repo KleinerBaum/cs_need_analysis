@@ -49,6 +49,7 @@ class SSKey(str, Enum):
     SUMMARY_SELECTIONS = "cs.summary_selections"
     JOB_AD_DRAFT_CUSTOM = "cs.job_ad_draft_custom"
     JOB_AD_LAST_USAGE = "cs.job_ad_last_usage"
+    SUMMARY_LOGO = "cs.summary_logo"
 
 
 # ---- Wizard Steps (match your screenshot structure) ----

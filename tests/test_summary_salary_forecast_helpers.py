@@ -1,5 +1,8 @@
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
+from zipfile import ZipFile
+import base64
+import io
 
 from schemas import JobAdExtract, MoneyRange, RecruitmentStep
 
@@ -66,3 +69,39 @@ def test_build_salary_forecast_snapshot_uses_job_inputs() -> None:
     assert snapshot["must_have_count"] == 5
     assert snapshot["answers_count"] == 3
     assert 35 <= int(snapshot["confidence"]) <= 100
+
+
+def test_normalize_logo_payload_rejects_unsupported_type() -> None:
+    class FakeUpload:
+        name = "logo.svg"
+        type = "image/svg+xml"
+
+        def getvalue(self) -> bytes:
+            return b"<svg></svg>"
+
+    assert SUMMARY_MODULE._normalize_logo_payload(FakeUpload()) is None
+
+
+def test_job_ad_docx_contains_logo_media_when_logo_present() -> None:
+    png_bytes = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5vS3wAAAAASUVORK5CYII="
+    )
+    SUMMARY_MODULE.st.session_state[SUMMARY_MODULE.SSKey.SUMMARY_LOGO.value] = {
+        "name": "logo.png",
+        "mime_type": "image/png",
+        "bytes": png_bytes,
+    }
+    job_ad = SUMMARY_MODULE.JobAdGenerationResult(
+        headline="Titel",
+        target_group=["Data Scientists"],
+        agg_checklist=["neutral wording"],
+        job_ad_text="Text",
+    )
+
+    docx_bytes = SUMMARY_MODULE._job_ad_to_docx_bytes(job_ad, styleguide="")
+
+    with ZipFile(io.BytesIO(docx_bytes), "r") as archive:
+        media_entries = [
+            name for name in archive.namelist() if name.startswith("word/media/")
+        ]
+    assert media_entries
