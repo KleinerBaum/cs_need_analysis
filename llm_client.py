@@ -111,6 +111,29 @@ _CATEGORY_QUESTION_RULES: tuple[dict[str, Any], ...] = (
     },
 )
 
+_NUMERIC_QUESTION_RULES: tuple[dict[str, Any], ...] = (
+    {
+        "terms": ("jahre", "years", "berufserfahrung", "experience"),
+        "bounds": (0.0, 30.0, 1.0),
+    },
+    {
+        "terms": ("anzahl", "number", "headcount", "fte", "teamgröße", "teamgroesse"),
+        "bounds": (0.0, 500.0, 1.0),
+    },
+    {
+        "terms": ("tage", "days", "pro woche", "per week"),
+        "bounds": (0.0, 7.0, 1.0),
+    },
+    {
+        "terms": ("prozent", "%", "percentage"),
+        "bounds": (0.0, 100.0, 1.0),
+    },
+    {
+        "terms": ("gehalt", "salary", "budget", "compensation"),
+        "bounds": (20_000.0, 500_000.0, 1_000.0),
+    },
+)
+
 
 class VacancyBriefCriticalSections(BaseModel):
     """Subset schema for optional quality upgrades on critical sections only."""
@@ -1065,6 +1088,8 @@ def generate_question_plan(
         "Der Step 'jobad' ist bereits durch die Jobspec-Extraktion abgedeckt. "
         "Füge bei jedem Step 6–12 Fragen hinzu, je nachdem, was im Jobspec fehlt. "
         "Bevorzuge konkrete, messbare Antworten (z. B. 'Erfolgskriterien', 'Top-Deliverables', 'Must-have vs Nice-to-have').\n\n"
+        "Wenn answer_type='number' genutzt wird, setze immer explizit min_value und max_value "
+        "(optional step_value), passend zur Frage. Nutze keine Freitext-Frage für numerische Werte.\n\n"
         "Jobspec-Extraktion (JSON):\n"
         f"{json.dumps(job.model_dump(mode='json'), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}"
     )
@@ -1134,6 +1159,7 @@ def normalize_question_plan(plan: QuestionPlan) -> QuestionPlan:
                 q.target_path = f"answers.{step.step_key}.{q.id}"
 
             _normalize_category_question(q)
+            _normalize_numeric_question(q)
     return plan
 
 
@@ -1173,6 +1199,46 @@ def _merge_options_with_fallback(
     if _OTHER_OPTION not in merged:
         merged.append(_OTHER_OPTION)
     return merged
+
+
+def _normalize_numeric_question(q: Any) -> None:
+    haystack = " ".join(
+        str(part).lower()
+        for part in (
+            getattr(q, "label", ""),
+            getattr(q, "help", ""),
+            getattr(q, "id", ""),
+            getattr(q, "rationale", ""),
+        )
+        if isinstance(part, str)
+    )
+    if not haystack:
+        return
+
+    matched_rule: dict[str, Any] | None = None
+    for rule in _NUMERIC_QUESTION_RULES:
+        if any(term in haystack for term in rule["terms"]):
+            matched_rule = rule
+            break
+    if matched_rule is None and getattr(q, "answer_type", None) != AnswerType.NUMBER:
+        return
+
+    q.answer_type = AnswerType.NUMBER
+    if matched_rule is not None:
+        rule_min, rule_max, rule_step = matched_rule["bounds"]
+    else:
+        rule_min, rule_max, rule_step = (0.0, 100.0, 1.0)
+
+    min_value = getattr(q, "min_value", None)
+    max_value = getattr(q, "max_value", None)
+    step_value = getattr(q, "step_value", None)
+
+    if min_value is None:
+        q.min_value = rule_min
+    if max_value is None:
+        q.max_value = rule_max
+    if step_value is None:
+        q.step_value = rule_step
 
 
 def re_slugify(s: str) -> str:
