@@ -37,6 +37,51 @@ SUPPORTED_LOGO_MIME_TYPES: dict[str, str] = {
     "image/jpeg": "JPEG",
 }
 
+STYLEGUIDE_TEMPLATE_BLOCKS: dict[str, str] = {
+    "Tonalität: professionell & nahbar": (
+        "Tonalität: Professionell, klar und nahbar. Aktiv formulieren, keine Buzzword-"
+        "Überladung."
+    ),
+    "Ansprache: Du-Form": "Ansprache: Durchgängig in Du-Form formulieren.",
+    "Ansprache: Sie-Form": "Ansprache: Durchgängig in Sie-Form formulieren.",
+    "Länge: kompakt": (
+        "Länge: Kompakt halten (ca. 350–500 Wörter), Fokus auf Aufgaben, Must-haves und"
+        " konkrete Benefits."
+    ),
+    "CTA-Stärke: deutlich": (
+        "CTA: Klare Handlungsaufforderung mit einfacher Bewerbung (z. B. in 2 Minuten, "
+        "ohne Anschreiben)."
+    ),
+    "Diversity-Hinweis inklusiv": (
+        "Diversity: Inklusive und diskriminierungsfreie Sprache nutzen; Bewerbungen "
+        "unabhängig von Geschlecht, Herkunft, Alter, Behinderung, Religion oder sexueller "
+        "Identität willkommen heißen."
+    ),
+}
+
+CHANGE_REQUEST_TEMPLATE_BLOCKS: dict[str, str] = {
+    "Tonalität schärfen": (
+        "Bitte die Tonalität etwas zugespitzter und gleichzeitig authentisch gestalten "
+        "(weniger generisch, mehr konkreter Mehrwert)."
+    ),
+    "Du/Sie umstellen": (
+        "Bitte die Ansprache konsistent auf die gewünschte Form umstellen "
+        "(Du/Sie vollständig vereinheitlichen)."
+    ),
+    "Länge kürzen": (
+        "Bitte die Anzeige um ca. 20–30 % kürzen und Wiederholungen entfernen, ohne "
+        "Informationsverlust bei Aufgaben und Anforderungen."
+    ),
+    "CTA verstärken": (
+        "Bitte den CTA sichtbarer und motivierender formulieren; Bewerbungsweg und "
+        "nächsten Schritt klar benennen."
+    ),
+    "Diversity-Formulierung ergänzen": (
+        "Bitte Diversity- und Inklusionshinweis sichtbarer platzieren und gendergerechte, "
+        "inklusive Sprache konsequent verwenden."
+    ),
+}
+
 
 def _safe_int(value: Any) -> int:
     try:
@@ -75,6 +120,73 @@ def _estimate_candidate_baseline(job: JobAdExtract) -> float:
     if job.location_country:
         baseline += 5
     return max(8.0, float(baseline))
+
+
+def _append_template_blocks(
+    *,
+    text_key: str,
+    selection_key: SSKey,
+    selected_blocks: list[str],
+    available_blocks: dict[str, str],
+) -> None:
+    previous_blocks_raw = st.session_state.get(selection_key.value, [])
+    previous_blocks = (
+        previous_blocks_raw if isinstance(previous_blocks_raw, list) else []
+    )
+    newly_selected_blocks = [
+        block for block in selected_blocks if block not in previous_blocks
+    ]
+
+    if newly_selected_blocks:
+        current_text = str(st.session_state.get(text_key, "") or "").strip()
+        template_fragments: list[str] = []
+        for block in newly_selected_blocks:
+            template = available_blocks.get(block, "").strip()
+            if template and template not in current_text:
+                template_fragments.append(template)
+        if template_fragments:
+            merged_templates = "\n\n".join(template_fragments)
+            st.session_state[text_key] = (
+                f"{current_text}\n\n{merged_templates}"
+                if current_text
+                else merged_templates
+            )
+
+    st.session_state[selection_key.value] = selected_blocks
+
+
+def _render_template_toggles(
+    *,
+    title: str,
+    text_key: str,
+    selection_key: SSKey,
+    template_blocks: dict[str, str],
+    widget_prefix: str,
+) -> None:
+    st.caption(title)
+    columns = st.columns(2)
+    selected_blocks: list[str] = []
+    prior_selected = st.session_state.get(selection_key.value, [])
+    preselected = prior_selected if isinstance(prior_selected, list) else []
+
+    for index, label in enumerate(template_blocks):
+        col = columns[index % len(columns)]
+        widget_key = f"{widget_prefix}.{index}"
+        with col:
+            checked = st.checkbox(
+                label,
+                value=label in preselected,
+                key=widget_key,
+            )
+        if checked:
+            selected_blocks.append(label)
+
+    _append_template_blocks(
+        text_key=text_key,
+        selection_key=selection_key,
+        selected_blocks=selected_blocks,
+        available_blocks=template_blocks,
+    )
 
 
 def _build_salary_forecast_snapshot(
@@ -877,10 +989,28 @@ def render(ctx: WizardContext) -> None:
         placeholder="z. B. Tonalität, Wording, No-Gos, Corporate Language, Du/Sie, Diversity-Hinweise …",
         key="cs.summary.styleguide",
     )
+    _render_template_toggles(
+        title="Bausteine (Styleguide-Beschleuniger)",
+        text_key="cs.summary.styleguide",
+        selection_key=SSKey.SUMMARY_STYLEGUIDE_BLOCKS,
+        template_blocks=STYLEGUIDE_TEMPLATE_BLOCKS,
+        widget_prefix="cs.summary.styleguide.block",
+    )
+    styleguide = str(st.session_state.get("cs.summary.styleguide", styleguide))
     change_request = st.text_area(
         "Anpassungswünsche (für Iterationen)",
         placeholder="z. B. stärker auf Senior-Profile fokussieren, CTA kürzen, Benefits konkretisieren …",
         key="cs.summary.change_request",
+    )
+    _render_template_toggles(
+        title="Bausteine (Change-Request-Beschleuniger)",
+        text_key="cs.summary.change_request",
+        selection_key=SSKey.SUMMARY_CHANGE_REQUEST_BLOCKS,
+        template_blocks=CHANGE_REQUEST_TEMPLATE_BLOCKS,
+        widget_prefix="cs.summary.change_request.block",
+    )
+    change_request = str(
+        st.session_state.get("cs.summary.change_request", change_request)
     )
     if critical_gaps:
         st.info(
