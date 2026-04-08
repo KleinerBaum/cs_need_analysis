@@ -318,9 +318,13 @@ def render(ctx: WizardContext) -> None:
     job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
     plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
 
+    current_plan: QuestionPlan | None = None
+    if plan_dict:
+        current_plan = QuestionPlan.model_validate(plan_dict)
+
     if job_dict:
         job = JobAdExtract.model_validate(job_dict)
-        render_job_extract_overview(job)
+        render_job_extract_overview(job, plan=current_plan)
         cache_hit = st.session_state.get(SSKey.JOBAD_CACHE_HIT.value, {})
         if isinstance(cache_hit, dict) and (
             cache_hit.get("extract_job_ad") or cache_hit.get("generate_question_plan")
@@ -329,10 +333,9 @@ def render(ctx: WizardContext) -> None:
                 "📦 Jobad/Fragebogen: aus Cache geladen (DE) / loaded from cache (EN)."
             )
 
-    if plan_dict:
-        plan = QuestionPlan.model_validate(plan_dict)
+    if current_plan is not None:
         st.info(
-            f"QuestionPlan geladen: {sum(len(s.questions) for s in plan.steps)} Fragen in {len(plan.steps)} Steps."
+            f"QuestionPlan geladen: {sum(len(s.questions) for s in current_plan.steps)} Fragen in {len(current_plan.steps)} Steps."
         )
 
     nav_buttons(

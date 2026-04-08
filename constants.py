@@ -33,6 +33,7 @@ class SSKey(str, Enum):
 
     JOB_EXTRACT = "cs.job_extract"
     QUESTION_PLAN = "cs.question_plan"
+    QUESTION_LIMITS = "cs.question_limits"
     ANSWERS = "cs.answers"
 
     BRIEF = "cs.brief"

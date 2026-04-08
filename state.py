@@ -43,6 +43,7 @@ def init_session_state() -> None:
         SSKey.SOURCE_REDACT_PII.value: True,
         SSKey.JOB_EXTRACT.value: None,
         SSKey.QUESTION_PLAN.value: None,
+        SSKey.QUESTION_LIMITS.value: {},
         SSKey.ANSWERS.value: {},
         SSKey.BRIEF.value: None,
         SSKey.LAST_ERROR.value: None,
@@ -68,6 +69,7 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.SOURCE_FILE_META.value] = {}
     st.session_state[SSKey.JOB_EXTRACT.value] = None
     st.session_state[SSKey.QUESTION_PLAN.value] = None
+    st.session_state[SSKey.QUESTION_LIMITS.value] = {}
     st.session_state[SSKey.ANSWERS.value] = {}
     st.session_state[SSKey.BRIEF.value] = None
     st.session_state[SSKey.JOBAD_CACHE_HIT.value] = {}
