@@ -146,6 +146,18 @@ class Question(StrictSchemaModel):
         default=None,
         description="Why this question matters (used in debug/UI).",
     )
+    min_value: Optional[float] = Field(
+        default=None,
+        description="Lower numeric bound for AnswerType.NUMBER questions.",
+    )
+    max_value: Optional[float] = Field(
+        default=None,
+        description="Upper numeric bound for AnswerType.NUMBER questions.",
+    )
+    step_value: Optional[float] = Field(
+        default=None,
+        description="Optional step increment for AnswerType.NUMBER questions.",
+    )
 
 
 class QuestionStep(StrictSchemaModel):

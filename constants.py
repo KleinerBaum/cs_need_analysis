@@ -91,7 +91,7 @@ class AnswerType(str, Enum):
     DATE = "date"
 
 
-QUESTION_SCHEMA_VERSION: Final[str] = "2026-04-07"
+QUESTION_SCHEMA_VERSION: Final[str] = "2026-04-08"
 VACANCY_SCHEMA_VERSION: Final[str] = "2026-04-07"
 JOB_AD_SCHEMA_VERSION: Final[str] = "2026-04-07"
 

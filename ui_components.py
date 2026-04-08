@@ -686,6 +686,7 @@ def _render_question(q: Question, answers: Dict[str, Any]) -> None:
     inferred_default = _infer_default_value(q)
     current_value = answers.get(q.id, inferred_default)
     value: Any = None
+    validation_error: str | None = None
 
     # Helper text for required fields
     label = q.label + (" *" if q.required else "")
@@ -805,8 +806,12 @@ def _render_question(q: Question, answers: Dict[str, Any]) -> None:
                     f"{_OTHER_PREFIX}{other_text}" if other_text else _OTHER_OPTION
                 )
         elif q.answer_type == AnswerType.NUMBER:
-            value = _render_number_question(
-                key=key, label=label, help_text=q.help, current_value=current_value
+            value, validation_error = _render_number_question(
+                question=q,
+                key=key,
+                label=label,
+                help_text=q.help,
+                current_value=current_value,
             )
         elif q.answer_type == AnswerType.BOOLEAN:
             value = st.toggle(
@@ -833,6 +838,8 @@ def _render_question(q: Question, answers: Dict[str, Any]) -> None:
 
         if q.help:
             st.caption(q.help)
+        if validation_error:
+            st.error(validation_error)
 
     # Persist answer
     set_answer(q.id, value)
@@ -842,33 +849,117 @@ def _render_question(q: Question, answers: Dict[str, Any]) -> None:
 
 
 def _render_number_question(
-    *, key: str, label: str, help_text: str | None, current_value: Any
-) -> float | int:
-    min_value, max_value = _parse_scale_bounds(f"{label} {help_text or ''}")
-    if min_value is not None and max_value is not None and min_value < max_value:
-        try:
-            current = int(float(current_value))
-        except Exception:
-            current = min_value
-        current = max(min_value, min(current, max_value))
-        return st.slider(
+    *,
+    question: Question,
+    key: str,
+    label: str,
+    help_text: str | None,
+    current_value: Any,
+) -> tuple[float | int, str | None]:
+    min_value, max_value, step_value = _resolve_number_constraints(question)
+    if min_value > max_value:
+        fallback_value = min_value
+        return fallback_value, (
+            "Ungültige Zahlen-Konfiguration (min > max). Bitte Fragebogen prüfen. "
+            "Invalid numeric configuration (min > max). Please review the question plan."
+        )
+
+    numeric_value, parse_error = _coerce_number_value(current_value)
+    if numeric_value is None:
+        numeric_value = min_value
+
+    bounded_value = min(max(numeric_value, min_value), max_value)
+    validation_error: str | None = None
+    if parse_error:
+        validation_error = (
+            "Ungültiger Zahlenwert erkannt, Standardwert wurde verwendet. "
+            "Invalid numeric value detected, fallback value was applied."
+        )
+    elif numeric_value != bounded_value:
+        validation_error = (
+            f"Wert muss zwischen {min_value:g} und {max_value:g} liegen. "
+            f"Value must be between {min_value:g} and {max_value:g}."
+        )
+
+    integer_scale = all(
+        float(x).is_integer() for x in (min_value, max_value, step_value)
+    )
+    if integer_scale:
+        min_int = int(min_value)
+        max_int = int(max_value)
+        step_int = max(1, int(step_value))
+        current_int = int(round(bounded_value))
+        if max_int - min_int <= 200 and step_int == 1:
+            return (
+                st.slider(
+                    label,
+                    min_value=min_int,
+                    max_value=max_int,
+                    value=current_int,
+                    step=step_int,
+                    help=help_text,
+                    key=key,
+                ),
+                validation_error,
+            )
+        return (
+            st.number_input(
+                label,
+                min_value=min_int,
+                max_value=max_int,
+                value=current_int,
+                step=step_int,
+                help=help_text,
+                key=key,
+            ),
+            validation_error,
+        )
+
+    step_float = float(step_value)
+    current_float = float(bounded_value)
+    return (
+        st.number_input(
             label,
-            min_value=min_value,
-            max_value=max_value,
-            value=current,
-            step=1,
+            min_value=float(min_value),
+            max_value=float(max_value),
+            value=current_float,
+            step=step_float,
             help=help_text,
             key=key,
-        )
+            format="%.2f",
+        ),
+        validation_error,
+    )
+
+
+def _coerce_number_value(value: Any) -> tuple[float | None, bool]:
     try:
-        num = (
-            float(current_value)
-            if current_value is not None and current_value != ""
-            else 0
-        )
+        if value is None or value == "":
+            return None, False
+        return float(value), False
     except Exception:
-        num = 0
-    return st.number_input(label, value=num, help=help_text, key=key)
+        return None, True
+
+
+def _resolve_number_constraints(question: Question) -> tuple[float, float, float]:
+    if question.min_value is not None and question.max_value is not None:
+        min_value = float(question.min_value)
+        max_value = float(question.max_value)
+    else:
+        inferred_min, inferred_max = _parse_scale_bounds(
+            f"{question.label} {question.help or ''}"
+        )
+        if inferred_min is not None and inferred_max is not None:
+            min_value = float(inferred_min)
+            max_value = float(inferred_max)
+        else:
+            min_value = 0.0
+            max_value = 100.0
+
+    step_value = float(question.step_value) if question.step_value else 1.0
+    if step_value <= 0:
+        step_value = 1.0
+    return min_value, max_value, step_value
 
 
 def _infer_default_value(q: Question) -> Any:
@@ -882,10 +973,12 @@ def _infer_default_value(q: Question) -> Any:
     if q.answer_type == AnswerType.BOOLEAN:
         return False
     if q.answer_type == AnswerType.NUMBER:
-        min_value, max_value = _parse_scale_bounds(f"{q.label} {q.help or ''}")
-        if min_value is not None and max_value is not None and min_value < max_value:
-            return int((min_value + max_value) / 2)
-        return 0
+        min_value, max_value, _ = _resolve_number_constraints(q)
+        return (
+            int((min_value + max_value) / 2)
+            if float(min_value).is_integer() and float(max_value).is_integer()
+            else (min_value + max_value) / 2
+        )
     return None
 
 
