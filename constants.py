@@ -86,6 +86,7 @@ class AnswerType(str, Enum):
 
 QUESTION_SCHEMA_VERSION: Final[str] = "2026-04-07"
 VACANCY_SCHEMA_VERSION: Final[str] = "2026-04-07"
+JOB_AD_SCHEMA_VERSION: Final[str] = "2026-04-07"
 
 # Prefix used to generate stable Streamlit widget keys per question
 WIDGET_KEY_PREFIX: Final[str] = "cs.q::"
