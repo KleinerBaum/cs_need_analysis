@@ -15,6 +15,7 @@ from llm_client import OpenAICallError
 from schemas import (
     Contact,
     JobAdExtract,
+    LanguageRequirement,
     MoneyRange,
     Question,
     QuestionPlan,
@@ -26,6 +27,17 @@ from state import get_answers, set_answer, set_error
 
 _OTHER_OPTION = "Sonstiges"
 _OTHER_PREFIX = f"{_OTHER_OPTION}: "
+_LANGUAGE_OPTIONS = [
+    "Deutsch",
+    "Englisch",
+    "Französisch",
+    "Spanisch",
+    "Italienisch",
+    "Niederländisch",
+    "Polnisch",
+    "Portugiesisch",
+]
+_CEFR_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2"]
 
 
 def render_error_banner() -> None:
@@ -690,9 +702,17 @@ def _render_question(q: Question, answers: Dict[str, Any]) -> None:
 
     # Helper text for required fields
     label = q.label + (" *" if q.required else "")
+    is_language_question = _is_language_requirement_question(q)
 
     with st.container(border=True):
-        if q.answer_type == AnswerType.SHORT_TEXT:
+        if is_language_question:
+            value = _render_language_requirement_question(
+                question=q,
+                current_value=current_value,
+                key=key,
+                label=label,
+            )
+        elif q.answer_type == AnswerType.SHORT_TEXT:
             value = st.text_input(
                 label,
                 value=str(current_value or ""),
@@ -980,6 +1000,121 @@ def _infer_default_value(q: Question) -> Any:
             else (min_value + max_value) / 2
         )
     return None
+
+
+def _is_language_requirement_question(question: Question) -> bool:
+    haystack = " ".join(
+        [
+            question.id or "",
+            question.label or "",
+            question.help or "",
+            question.target_path or "",
+        ]
+    ).lower()
+    return any(term in haystack for term in ("sprache", "sprachen", "language", "cefr"))
+
+
+def _coerce_language_requirements(value: Any) -> list[LanguageRequirement]:
+    if isinstance(value, str):
+        text = value.strip()
+        if text:
+            return [LanguageRequirement(language=text, level="B2")]
+        return []
+
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        normalized: list[LanguageRequirement] = []
+        for entry in value:
+            if isinstance(entry, dict):
+                raw_language = str(entry.get("language", "")).strip()
+                raw_level = str(entry.get("level", "")).strip().upper()
+                if not raw_language:
+                    continue
+                if raw_level not in _CEFR_OPTIONS:
+                    raw_level = "B2"
+                normalized.append(
+                    LanguageRequirement(language=raw_language, level=raw_level)  # type: ignore[arg-type]
+                )
+                continue
+            if isinstance(entry, str) and has_meaningful_value(entry):
+                normalized.append(
+                    LanguageRequirement(language=entry.strip(), level="B2")
+                )
+        return normalized
+    return []
+
+
+def _render_language_requirement_question(
+    *,
+    question: Question,
+    current_value: Any,
+    key: str,
+    label: str,
+) -> list[dict[str, str]]:
+    rows_state_key = f"{key}::rows"
+    if rows_state_key not in st.session_state:
+        st.session_state[rows_state_key] = [
+            item.model_dump() for item in _coerce_language_requirements(current_value)
+        ] or [LanguageRequirement(language="Deutsch", level="B2").model_dump()]
+
+    st.markdown(label)
+    if question.help:
+        st.caption(question.help)
+
+    rows_raw = st.session_state.get(rows_state_key, [])
+    rows = rows_raw if isinstance(rows_raw, list) else []
+
+    new_rows: list[dict[str, str]] = []
+    for index, row in enumerate(rows):
+        row_data = row if isinstance(row, dict) else {}
+        language = str(row_data.get("language", "Deutsch")).strip() or "Deutsch"
+        level = str(row_data.get("level", "B2")).strip().upper() or "B2"
+        if language not in _LANGUAGE_OPTIONS:
+            language = _LANGUAGE_OPTIONS[0]
+        if level not in _CEFR_OPTIONS:
+            level = "B2"
+
+        col_lang, col_level, col_remove = st.columns([2.2, 1.2, 0.8], gap="small")
+        with col_lang:
+            selected_language = st.selectbox(
+                "Sprache",
+                options=_LANGUAGE_OPTIONS,
+                index=_LANGUAGE_OPTIONS.index(language),
+                key=f"{key}::language::{index}",
+                label_visibility="collapsed",
+            )
+        with col_level:
+            selected_level = st.selectbox(
+                "Level",
+                options=_CEFR_OPTIONS,
+                index=_CEFR_OPTIONS.index(level),
+                key=f"{key}::level::{index}",
+                label_visibility="collapsed",
+            )
+        with col_remove:
+            remove_clicked = st.button(
+                "Entfernen",
+                key=f"{key}::remove::{index}",
+                disabled=len(rows) <= 1,
+                width="stretch",
+            )
+        if remove_clicked:
+            continue
+        new_rows.append(
+            LanguageRequirement(
+                language=selected_language,
+                level=selected_level,  # type: ignore[arg-type]
+            ).model_dump()
+        )
+
+    if st.button("Weitere Sprache hinzufügen", key=f"{key}::add"):
+        new_rows.append(
+            LanguageRequirement(language="Deutsch", level="B2").model_dump()
+        )
+
+    st.session_state[rows_state_key] = new_rows or [
+        LanguageRequirement(language="Deutsch", level="B2").model_dump()
+    ]
+    return list(st.session_state[rows_state_key])
 
 
 def _coerce_single_select_value(value: Any) -> str | None:

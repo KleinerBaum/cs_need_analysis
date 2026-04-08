@@ -21,7 +21,7 @@ from llm_client import (
     upgrade_vacancy_brief_critical_sections,
     resolve_model_for_task,
 )
-from schemas import JobAdExtract, VacancyBrief
+from schemas import JobAdExtract, LanguageRequirement, VacancyBrief
 from settings_openai import load_openai_settings
 from state import (
     clear_error,
@@ -414,6 +414,15 @@ def _build_selection_rows(
 ) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
 
+    def _format_language_requirement(raw_value: Any) -> str:
+        if not isinstance(raw_value, dict):
+            return ""
+        try:
+            parsed = LanguageRequirement.model_validate(raw_value)
+        except Exception:
+            return ""
+        return f"{parsed.language} ({parsed.level})"
+
     def add_row(
         category: str, field: str, value: str, source: str, critical: bool
     ) -> None:
@@ -453,8 +462,28 @@ def _build_selection_rows(
     for answer_key, raw in answers.items():
         if raw is None:
             continue
+        formatted_single_language = _format_language_requirement(raw)
+        if formatted_single_language:
+            add_row(
+                "Manager-Input",
+                answer_key,
+                formatted_single_language,
+                "Antwort",
+                False,
+            )
+            continue
         if isinstance(raw, list):
             for value in raw:
+                formatted_language = _format_language_requirement(value)
+                if formatted_language:
+                    add_row(
+                        "Manager-Input",
+                        answer_key,
+                        formatted_language,
+                        "Antwort",
+                        False,
+                    )
+                    continue
                 add_row("Manager-Input", answer_key, str(value), "Antwort", False)
             continue
         add_row("Manager-Input", answer_key, str(raw), "Antwort", False)
