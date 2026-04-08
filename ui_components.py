@@ -24,6 +24,9 @@ from schemas import (
 )
 from state import get_answers, set_answer, set_error
 
+_OTHER_OPTION = "Sonstiges"
+_OTHER_PREFIX = f"{_OTHER_OPTION}: "
+
 
 def render_error_banner() -> None:
     err = st.session_state.get(SSKey.LAST_ERROR.value)
@@ -707,6 +710,12 @@ def _render_question(q: Question, answers: Dict[str, Any]) -> None:
             )
         elif q.answer_type == AnswerType.SINGLE_SELECT:
             options = q.options or []
+            current_value = _coerce_single_select_value(current_value)
+            other_text_default = _extract_other_text(current_value)
+            if other_text_default and _OTHER_OPTION not in options:
+                options = [*options, _OTHER_OPTION]
+            if other_text_default and current_value not in options:
+                current_value = _OTHER_OPTION
             if current_value and current_value not in options:
                 options = [str(current_value)] + options
             if not q.required:
@@ -746,22 +755,30 @@ def _render_question(q: Question, answers: Dict[str, Any]) -> None:
                 )
             if value == "— Bitte wählen —":
                 value = None
+            if value == _OTHER_OPTION:
+                other_text = st.text_input(
+                    "Bitte spezifizieren",
+                    value=other_text_default,
+                    key=f"{key}::other",
+                    placeholder="Bitte präzisieren …",
+                ).strip()
+                value = f"{_OTHER_PREFIX}{other_text}" if other_text else _OTHER_OPTION
         elif q.answer_type == AnswerType.MULTI_SELECT:
             options = q.options or []
-            cur_list = [
-                v
-                for v in (current_value or [])
-                if isinstance(v, str) and has_meaningful_value(v)
-            ]
+            cur_list = _coerce_multi_select_values(current_value)
+            cur_list, other_text_default = _strip_other_from_multiselect(cur_list)
+            if other_text_default and _OTHER_OPTION not in options:
+                options = [*options, _OTHER_OPTION]
             for v in cur_list:
                 if v not in options:
                     options = [v] + options
+            default_values = [v for v in cur_list if v in options]
             if hasattr(st, "pills") and options:
                 value = (
                     st.pills(
                         label,
                         options=options,
-                        default=cur_list,
+                        default=default_values,
                         selection_mode="multi",
                         key=key,
                         help=q.help,
@@ -770,7 +787,22 @@ def _render_question(q: Question, answers: Dict[str, Any]) -> None:
                 )
             else:
                 value = st.multiselect(
-                    label, options=options, default=cur_list, help=q.help, key=key
+                    label,
+                    options=options,
+                    default=default_values,
+                    help=q.help,
+                    key=key,
+                )
+            if _OTHER_OPTION in value:
+                other_text = st.text_input(
+                    "Bitte spezifizieren",
+                    value=other_text_default,
+                    key=f"{key}::other",
+                    placeholder="Bitte präzisieren …",
+                ).strip()
+                value = [v for v in value if v != _OTHER_OPTION]
+                value.append(
+                    f"{_OTHER_PREFIX}{other_text}" if other_text else _OTHER_OPTION
                 )
         elif q.answer_type == AnswerType.NUMBER:
             value = _render_number_question(
@@ -855,6 +887,51 @@ def _infer_default_value(q: Question) -> Any:
             return int((min_value + max_value) / 2)
         return 0
     return None
+
+
+def _coerce_single_select_value(value: Any) -> str | None:
+    if isinstance(value, str):
+        cleaned = value.strip()
+        return cleaned or None
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        for item in value:
+            if isinstance(item, str) and has_meaningful_value(item):
+                return item.strip()
+    return None
+
+
+def _coerce_multi_select_values(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value.strip()] if has_meaningful_value(value) else []
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        return []
+    result: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        cleaned = item.strip()
+        if cleaned and cleaned not in result:
+            result.append(cleaned)
+    return result
+
+
+def _extract_other_text(value: str | None) -> str:
+    if not isinstance(value, str):
+        return ""
+    if not value.startswith(_OTHER_PREFIX):
+        return ""
+    return value.removeprefix(_OTHER_PREFIX).strip()
+
+
+def _strip_other_from_multiselect(values: list[str]) -> tuple[list[str], str]:
+    cleaned_values: list[str] = []
+    other_text = ""
+    for entry in values:
+        if entry.startswith(_OTHER_PREFIX):
+            other_text = entry.removeprefix(_OTHER_PREFIX).strip()
+            continue
+        cleaned_values.append(entry)
+    return cleaned_values, other_text
 
 
 def _parse_scale_bounds(text: str) -> tuple[int | None, int | None]:
