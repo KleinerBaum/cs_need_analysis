@@ -121,7 +121,7 @@ def handle_unexpected_exception(
     exc: Exception,
     error_type: str | None = None,
     error_code: str | None = None,
-    user_message: str = "Unerwarteter Fehler (DE) / Unexpected error (EN).",
+    user_message: str = "Es ist ein unerwarteter Fehler aufgetreten. Bitte erneut versuchen.",
 ) -> None:
     """Set a generic UI error plus safe non-sensitive debug metadata."""
 
