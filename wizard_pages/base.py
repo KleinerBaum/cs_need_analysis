@@ -217,6 +217,11 @@ def render_hero_section(
     subhead: str,
     primary_cta: str,
     secondary_cta_hint: str,
+    before_start_title: str = "",
+    before_start_bullets: Sequence[str] = (),
+    reassurance_line: str = "",
+    extraction_helper_copy: str = "",
+    post_cta_microcopy: str = "",
     value_cards: Sequence[tuple[str, str]],
     consent_given: bool,
     start_button_key: str,
@@ -231,6 +236,16 @@ def render_hero_section(
     with hero_left:
         st.markdown(f"<h1>{headline}</h1>", unsafe_allow_html=True)
         st.markdown(f'<p class="landing-subhead">{subhead}</p>', unsafe_allow_html=True)
+        if before_start_title and before_start_bullets:
+            st.markdown(f"#### {before_start_title}")
+            st.markdown(
+                '<ul class="landing-list">'
+                + "".join(f"<li>{bullet}</li>" for bullet in before_start_bullets)
+                + "</ul>",
+                unsafe_allow_html=True,
+            )
+        if reassurance_line:
+            st.caption(reassurance_line)
         if st.button(
             primary_cta,
             key=start_button_key,
@@ -240,6 +255,10 @@ def render_hero_section(
         ):
             on_start()
             ctx.goto(start_target)
+        if extraction_helper_copy:
+            st.info(extraction_helper_copy, icon="ℹ️")
+        if post_cta_microcopy:
+            st.caption(post_cta_microcopy)
         st.markdown(
             f'<p class="landing-caption">{secondary_cta_hint}</p>',
             unsafe_allow_html=True,
