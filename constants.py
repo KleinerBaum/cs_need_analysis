@@ -54,6 +54,8 @@ class SSKey(str, Enum):
     SUMMARY_SELECTIONS = "cs.summary_selections"
     SUMMARY_STYLEGUIDE_BLOCKS = "cs.summary_styleguide_blocks"
     SUMMARY_CHANGE_REQUEST_BLOCKS = "cs.summary_change_request_blocks"
+    SUMMARY_STYLEGUIDE_TEXT = "cs.summary.styleguide"
+    SUMMARY_CHANGE_REQUEST_TEXT = "cs.summary.change_request"
     JOB_AD_DRAFT_CUSTOM = "cs.job_ad_draft_custom"
     JOB_AD_LAST_USAGE = "cs.job_ad_last_usage"
     SUMMARY_LOGO = "cs.summary_logo"
