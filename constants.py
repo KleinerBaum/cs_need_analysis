@@ -45,6 +45,9 @@ class SSKey(str, Enum):
     SUMMARY_LAST_MODE = "cs.summary_last_mode"
     SUMMARY_LAST_MODELS = "cs.summary_last_models"
     OPENAI_LAST_STRUCTURED_OUTPUT_PATH = "cs.openai_last_structured_output_path"
+    SUMMARY_SELECTIONS = "cs.summary_selections"
+    JOB_AD_DRAFT_CUSTOM = "cs.job_ad_draft_custom"
+    JOB_AD_LAST_USAGE = "cs.job_ad_last_usage"
 
 
 # ---- Wizard Steps (match your screenshot structure) ----
