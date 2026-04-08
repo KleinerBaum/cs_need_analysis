@@ -7,11 +7,12 @@ of a wizard workflow.
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, cast
 
 import streamlit as st
 
 from constants import DEFAULT_LANGUAGE, SSKey, STEPS
+from question_progress import AnswerMeta, AnswerMetaMap, value_hash
 from settings_openai import load_openai_settings
 
 
@@ -45,6 +46,9 @@ def init_session_state() -> None:
         SSKey.QUESTION_PLAN.value: None,
         SSKey.QUESTION_LIMITS.value: {},
         SSKey.ANSWERS.value: {},
+        SSKey.ANSWER_META.value: {},
+        SSKey.UI_MODE.value: "standard",
+        SSKey.OPEN_GROUPS.value: {},
         SSKey.BRIEF.value: None,
         SSKey.LAST_ERROR.value: None,
         SSKey.LAST_ERROR_DEBUG.value: None,
@@ -73,6 +77,9 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.QUESTION_PLAN.value] = None
     st.session_state[SSKey.QUESTION_LIMITS.value] = {}
     st.session_state[SSKey.ANSWERS.value] = {}
+    st.session_state[SSKey.ANSWER_META.value] = {}
+    st.session_state[SSKey.UI_MODE.value] = "standard"
+    st.session_state[SSKey.OPEN_GROUPS.value] = {}
     st.session_state[SSKey.BRIEF.value] = None
     st.session_state[SSKey.JOBAD_CACHE_HIT.value] = {}
     st.session_state[SSKey.SUMMARY_CACHE_HIT.value] = False
@@ -93,6 +100,28 @@ def set_answer(question_id: str, value: Any) -> None:
     answers = get_answers()
     answers[question_id] = value
     st.session_state[SSKey.ANSWERS.value] = answers
+
+
+def get_answer_meta() -> AnswerMetaMap:
+    raw = st.session_state.get(SSKey.ANSWER_META.value, {})
+    return raw if isinstance(raw, dict) else {}
+
+
+def mark_answer_touched(
+    question_id: str, previous_value: Any, current_value: Any
+) -> None:
+    """Persist touch-state when the value differs from the previous value."""
+
+    meta = dict(get_answer_meta())
+    current = cast(AnswerMeta, dict(meta.get(question_id, {})))
+    previous_hash = value_hash(previous_value)
+    current_hash = value_hash(current_value)
+    if previous_hash != current_hash:
+        current["touched"] = True
+    current["last_value_hash"] = current_hash
+    current.setdefault("confirmed", False)
+    meta[question_id] = current
+    st.session_state[SSKey.ANSWER_META.value] = meta
 
 
 def set_error(msg: str) -> None:
