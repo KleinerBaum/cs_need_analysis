@@ -53,6 +53,9 @@ def init_session_state() -> None:
         SSKey.SUMMARY_CACHE_HIT.value: False,
         SSKey.SUMMARY_LAST_MODE.value: None,
         SSKey.SUMMARY_LAST_MODELS.value: {},
+        SSKey.SUMMARY_SELECTIONS.value: {},
+        SSKey.JOB_AD_DRAFT_CUSTOM.value: None,
+        SSKey.JOB_AD_LAST_USAGE.value: {},
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -71,6 +74,9 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.SUMMARY_CACHE_HIT.value] = False
     st.session_state[SSKey.SUMMARY_LAST_MODE.value] = None
     st.session_state[SSKey.SUMMARY_LAST_MODELS.value] = {}
+    st.session_state[SSKey.SUMMARY_SELECTIONS.value] = {}
+    st.session_state[SSKey.JOB_AD_DRAFT_CUSTOM.value] = None
+    st.session_state[SSKey.JOB_AD_LAST_USAGE.value] = {}
     st.session_state[SSKey.LAST_ERROR.value] = None
     st.session_state[SSKey.CURRENT_STEP.value] = STEPS[0].key
 

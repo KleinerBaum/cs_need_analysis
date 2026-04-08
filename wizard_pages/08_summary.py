@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import io
 import json
+import textwrap
+from collections import defaultdict
 from typing import Any
 
 import streamlit as st
@@ -10,8 +12,11 @@ import docx
 
 from constants import SSKey
 from llm_client import (
+    JobAdGenerationResult,
     OpenAICallError,
+    TASK_GENERATE_JOB_AD,
     TASK_GENERATE_VACANCY_BRIEF,
+    generate_custom_job_ad,
     generate_vacancy_brief,
     upgrade_vacancy_brief_critical_sections,
     resolve_model_for_task,
@@ -304,6 +309,177 @@ def _brief_to_markdown(brief: VacancyBrief) -> str:
     return "\n".join(lines)
 
 
+def _build_selection_rows(
+    job: JobAdExtract, answers: dict[str, Any]
+) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+
+    def add_row(
+        category: str, field: str, value: str, source: str, critical: bool
+    ) -> None:
+        cleaned = (value or "").strip()
+        if not cleaned:
+            return
+        rows.append(
+            {
+                "Kategorie": category,
+                "Feld": field,
+                "Wert": cleaned,
+                "Quelle": source,
+                "Kritisch": "Ja" if critical else "Nein",
+            }
+        )
+
+    add_row("Basis", "Titel", job.job_title or "", "Jobspec", True)
+    add_row("Basis", "Unternehmen", job.company_name or "", "Jobspec", True)
+    add_row("Basis", "Brand", job.brand_name or "", "Jobspec", False)
+    add_row("Basis", "Anstellungsart", job.employment_type or "", "Jobspec", True)
+    add_row("Basis", "Vertragsart", job.contract_type or "", "Jobspec", True)
+    add_row("Standort", "Ort", job.location_city or "", "Jobspec", True)
+    add_row("Standort", "Land", job.location_country or "", "Jobspec", True)
+    add_row("Standort", "Remote", job.remote_policy or "", "Jobspec", False)
+    add_row("Rolle", "Kurzbeschreibung", job.role_overview or "", "Jobspec", True)
+    for value in job.must_have_skills:
+        add_row("Skills", "Must-have", value, "Jobspec", True)
+    for value in job.nice_to_have_skills:
+        add_row("Skills", "Nice-to-have", value, "Jobspec", False)
+    for value in job.benefits:
+        add_row("Benefits", "Benefit", value, "Jobspec", False)
+    for contact in job.contacts:
+        add_row("Kontakt", "Ansprechpartner", contact.name or "", "Jobspec", True)
+        add_row("Kontakt", "Kontaktrolle", contact.role or "", "Jobspec", False)
+        add_row("Kontakt", "Kontakt E-Mail", contact.email or "", "Jobspec", True)
+
+    for answer_key, raw in answers.items():
+        if raw is None:
+            continue
+        if isinstance(raw, list):
+            for value in raw:
+                add_row("Manager-Input", answer_key, str(value), "Antwort", False)
+            continue
+        add_row("Manager-Input", answer_key, str(raw), "Antwort", False)
+
+    return rows
+
+
+def _collect_critical_gaps(job: JobAdExtract, rows: list[dict[str, str]]) -> list[str]:
+    gaps = list(job.gaps)
+    present_fields = {(row["Kategorie"], row["Feld"]) for row in rows}
+    must_have_checks = [
+        ("Basis", "Titel", "Fehlender Stellentitel"),
+        ("Kontakt", "Kontakt E-Mail", "Fehlende Bewerbermail-Anschrift"),
+        ("Kontakt", "Ansprechpartner", "Fehlende Ansprechpartner-Angabe"),
+    ]
+    for category, field, msg in must_have_checks:
+        if (category, field) not in present_fields:
+            gaps.append(msg)
+    return sorted(set(gaps))
+
+
+def _render_pills_multiselect(label: str, options: list[str], key: str) -> list[str]:
+    if hasattr(st, "pills"):
+        return st.pills(label, options=options, selection_mode="multi", key=key) or []
+    return st.multiselect(label, options=options, default=options, key=key)
+
+
+def _render_selection_matrix(
+    *,
+    job: JobAdExtract,
+    answers: dict[str, Any],
+) -> tuple[dict[str, list[str]], list[str]]:
+    rows = _build_selection_rows(job, answers)
+    st.subheader("Datenmatrix für Stellenanzeigen-Generierung")
+    st.dataframe(rows, width="stretch", hide_index=True)
+
+    grouped: dict[str, list[str]] = defaultdict(list)
+    for row in rows:
+        grouped[f"{row['Kategorie']} · {row['Feld']}"].append(row["Wert"])
+
+    st.markdown("**Auswahl (Multi-Select Pills pro Feld)**")
+    selected: dict[str, list[str]] = {}
+    for group_key in sorted(grouped.keys()):
+        distinct_values = sorted(set(grouped[group_key]))
+        picks = _render_pills_multiselect(
+            f"{group_key}",
+            options=distinct_values,
+            key=f"cs.summary.pick.{group_key}",
+        )
+        if picks:
+            selected[group_key] = picks
+
+    gaps = _collect_critical_gaps(job, rows)
+    st.subheader("Kritische/fehlende Informationen")
+    if gaps:
+        for gap in gaps:
+            st.warning(gap)
+    else:
+        st.success("Keine kritischen Lücken erkannt.")
+
+    return selected, gaps
+
+
+def _job_ad_to_docx_bytes(job_ad: JobAdGenerationResult, styleguide: str) -> bytes:
+    d = docx.Document()
+    d.add_heading(job_ad.headline or "Stellenanzeige", level=1)
+    d.add_paragraph(job_ad.job_ad_text)
+    d.add_heading("Zielgruppe", level=2)
+    for item in job_ad.target_group:
+        d.add_paragraph(item, style="List Bullet")
+    d.add_heading("AGG-Checkliste", level=2)
+    for item in job_ad.agg_checklist:
+        d.add_paragraph(item, style="List Bullet")
+    if styleguide.strip():
+        d.add_heading("Styleguide", level=2)
+        d.add_paragraph(styleguide)
+    bio = io.BytesIO()
+    d.save(bio)
+    return bio.getvalue()
+
+
+def _job_ad_to_pdf_bytes(
+    job_ad: JobAdGenerationResult, styleguide: str
+) -> bytes | None:
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.units import cm
+        from reportlab.pdfgen import canvas
+    except Exception:
+        return None
+
+    bio = io.BytesIO()
+    pdf = canvas.Canvas(bio, pagesize=A4)
+    width, height = A4
+    y = height - 2 * cm
+
+    def write_line(line: str, *, is_title: bool = False) -> None:
+        nonlocal y
+        if y < 2 * cm:
+            pdf.showPage()
+            y = height - 2 * cm
+        pdf.setFont(
+            "Helvetica-Bold" if is_title else "Helvetica", 14 if is_title else 10
+        )
+        pdf.drawString(2 * cm, y, line[:110])
+        y -= 0.65 * cm if is_title else 0.5 * cm
+
+    write_line(job_ad.headline or "Stellenanzeige", is_title=True)
+    for paragraph in job_ad.job_ad_text.split("\n"):
+        for line in textwrap.wrap(paragraph, width=100) or [""]:
+            write_line(line)
+    write_line("Zielgruppe", is_title=True)
+    for item in job_ad.target_group:
+        write_line(f"- {item}")
+    write_line("AGG-Checkliste", is_title=True)
+    for item in job_ad.agg_checklist:
+        write_line(f"- {item}")
+    if styleguide.strip():
+        write_line("Styleguide", is_title=True)
+        for line in textwrap.wrap(styleguide, width=100):
+            write_line(line)
+    pdf.save()
+    return bio.getvalue()
+
+
 def _brief_to_docx_bytes(brief: VacancyBrief) -> bytes:
     d = docx.Document()
     d.add_heading("Recruiting Brief", level=1)
@@ -508,6 +684,113 @@ def render(ctx: WizardContext) -> None:
     )
     render_brief(brief)
     _render_salary_forecast(job, answers)
+
+    selected_values, critical_gaps = _render_selection_matrix(job=job, answers=answers)
+    st.session_state[SSKey.SUMMARY_SELECTIONS.value] = selected_values
+
+    st.subheader("Smarte Stellenanzeigen-Generierung")
+    logo_file = st.file_uploader(
+        "Logo-Upload (optional)",
+        type=["png", "jpg", "jpeg", "svg"],
+        help="Das Logo wird als Metadatum gespeichert und kann im Exportprozess weiterverwendet werden.",
+        key="cs.summary.logo_upload",
+    )
+    styleguide = st.text_area(
+        "Styleguide des Arbeitgebers",
+        placeholder="z. B. Tonalität, Wording, No-Gos, Corporate Language, Du/Sie, Diversity-Hinweise …",
+        key="cs.summary.styleguide",
+    )
+    change_request = st.text_area(
+        "Anpassungswünsche (für Iterationen)",
+        placeholder="z. B. stärker auf Senior-Profile fokussieren, CTA kürzen, Benefits konkretisieren …",
+        key="cs.summary.change_request",
+    )
+    if critical_gaps:
+        st.info(
+            "Hinweis: Kritische Lücken werden in der AGG-Checkliste markiert und nicht halluziniert."
+        )
+
+    resolved_job_ad_model = resolve_model_for_task(
+        task_kind=TASK_GENERATE_JOB_AD,
+        session_override=session_override,
+        settings=settings,
+    )
+    if st.button(
+        "Stellenanzeige generieren/verbessern", type="primary", width="stretch"
+    ):
+        clear_error()
+        try:
+            with st.spinner("Generiere zielgruppen-optimierte Stellenanzeige …"):
+                result, usage = generate_custom_job_ad(
+                    job=job,
+                    answers=answers,
+                    selected_values=selected_values,
+                    style_guide=styleguide,
+                    change_request=change_request,
+                    model=resolved_job_ad_model,
+                    store=bool(
+                        st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)
+                    ),
+                )
+            payload = result.model_dump(mode="json")
+            payload["styleguide"] = styleguide
+            payload["logo_filename"] = getattr(logo_file, "name", None)
+            st.session_state[SSKey.JOB_AD_DRAFT_CUSTOM.value] = payload
+            st.session_state[SSKey.JOB_AD_LAST_USAGE.value] = usage or {}
+        except OpenAICallError as e:
+            render_openai_error(e)
+        except Exception as exc:
+            handle_unexpected_exception(
+                step="summary.job_ad_generation",
+                exc=exc,
+                error_type=type(exc).__name__,
+                error_code="SUMMARY_JOB_AD_GENERATION_UNEXPECTED",
+            )
+        st.rerun()
+
+    custom_job_ad_raw = st.session_state.get(SSKey.JOB_AD_DRAFT_CUSTOM.value)
+    if isinstance(custom_job_ad_raw, dict):
+        custom_job_ad = JobAdGenerationResult.model_validate(
+            {
+                "headline": custom_job_ad_raw.get("headline", ""),
+                "target_group": custom_job_ad_raw.get("target_group", []),
+                "agg_checklist": custom_job_ad_raw.get("agg_checklist", []),
+                "job_ad_text": custom_job_ad_raw.get("job_ad_text", ""),
+            }
+        )
+        st.markdown(f"### {custom_job_ad.headline}")
+        st.write(custom_job_ad.job_ad_text)
+        st.markdown("**Zielgruppe**")
+        for group in custom_job_ad.target_group:
+            st.write(f"- {group}")
+        st.markdown("**AGG-Checkliste**")
+        for item in custom_job_ad.agg_checklist:
+            st.write(f"- {item}")
+
+        custom_docx = _job_ad_to_docx_bytes(
+            custom_job_ad, str(custom_job_ad_raw.get("styleguide", ""))
+        )
+        custom_pdf = _job_ad_to_pdf_bytes(
+            custom_job_ad, str(custom_job_ad_raw.get("styleguide", ""))
+        )
+        x1, x2 = st.columns(2)
+        with x1:
+            st.download_button(
+                "Download Stellenanzeige (DOCX)",
+                data=custom_docx,
+                file_name="stellenanzeige.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        with x2:
+            if custom_pdf is None:
+                st.caption("PDF-Export benötigt reportlab (nicht verfügbar).")
+            else:
+                st.download_button(
+                    "Download Stellenanzeige (PDF)",
+                    data=custom_pdf,
+                    file_name="stellenanzeige.pdf",
+                    mime="application/pdf",
+                )
 
     st.subheader("Export")
     md = _brief_to_markdown(brief)

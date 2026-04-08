@@ -59,6 +59,7 @@ ModelTaskKind = str
 TASK_EXTRACT_JOB_AD = "extract_job_ad"
 TASK_GENERATE_QUESTION_PLAN = "generate_question_plan"
 TASK_GENERATE_VACANCY_BRIEF = "generate_vacancy_brief"
+TASK_GENERATE_JOB_AD = "generate_job_ad"
 
 
 class VacancyBriefCriticalSections(BaseModel):
@@ -68,6 +69,17 @@ class VacancyBriefCriticalSections(BaseModel):
 
     evaluation_rubric: list[str]
     risks_open_questions: list[str]
+
+
+class JobAdGenerationResult(BaseModel):
+    """Strict schema for user-tailored job ad generation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    headline: str
+    target_group: list[str]
+    agg_checklist: list[str]
+    job_ad_text: str
 
 
 @dataclass(frozen=True)
@@ -676,6 +688,7 @@ def resolve_model_for_task(
         TASK_EXTRACT_JOB_AD: resolved_settings.lightweight_model,
         TASK_GENERATE_QUESTION_PLAN: resolved_settings.medium_reasoning_model,
         TASK_GENERATE_VACANCY_BRIEF: resolved_settings.medium_reasoning_model,
+        TASK_GENERATE_JOB_AD: resolved_settings.high_reasoning_model,
     }
     routed_model = model_by_task.get(task_kind, "").strip()
     if routed_model:
@@ -1225,3 +1238,90 @@ def upgrade_vacancy_brief_critical_sections(
     updated.risks_open_questions = parsed_sections.risks_open_questions
     cache[cache_key] = {"result": parsed_sections.model_dump(mode="json")}
     return updated, usage
+
+
+def generate_custom_job_ad(
+    *,
+    job: JobAdExtract,
+    answers: Dict[str, Any],
+    selected_values: Dict[str, list[str]],
+    style_guide: str,
+    change_request: str | None,
+    model: str,
+    language: str = DEFAULT_LANGUAGE,
+    store: bool = False,
+    temperature: float | None = None,
+) -> Tuple[JobAdGenerationResult, Optional[Dict[str, Any]]]:
+    """Generate or refine a job ad draft from explicitly selected intake values."""
+
+    runtime_config = _resolve_runtime_config(
+        task_kind=TASK_GENERATE_JOB_AD,
+        session_override=model,
+    )
+    task_limits_suffix = build_task_prompt_limits_suffix(
+        max_bullets_per_field=runtime_config.task_max_bullets_per_field,
+        max_sentences_per_field=runtime_config.task_max_sentences_per_field,
+        max_output_tokens=runtime_config.task_max_output_tokens,
+    )
+    system = (
+        "Du bist ein Senior Recruiting Copywriter und Compliance Reviewer. "
+        "Schreibe eine zielgruppen-optimierte, AGG-konforme Stellenanzeige auf Basis "
+        "explizit ausgewählter Informationen. "
+        "Wenn Informationen fehlen, markiere sie klar in agg_checklist ohne zu halluzinieren. "
+        f"Sprache: {language}."
+        f"{task_limits_suffix}"
+    )
+    user = (
+        "Erzeuge eine finale Stellenanzeige nur aus den ausgewählten Daten. "
+        "Verwende klare, inklusive Sprache und vermeide diskriminierende Formulierungen.\n\n"
+        "Jobspec (JSON):\n"
+        f"{json.dumps(job.model_dump(mode='json'), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
+        "Manager-Antworten (JSON):\n"
+        f"{json.dumps(answers, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
+        "Ausgewählte Inhalte (JSON):\n"
+        f"{json.dumps(selected_values, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
+        f"Styleguide:\n{style_guide.strip() or 'Nicht angegeben.'}\n\n"
+        f"Anpassungswunsch:\n{(change_request or '').strip() or 'Kein zusätzlicher Änderungswunsch.'}\n\n"
+        "Pflicht: headline, target_group (Liste), agg_checklist (Liste), job_ad_text liefern."
+    )
+    normalized_content = _canonicalize_for_cache(
+        {
+            "job": job.model_dump(mode="json"),
+            "answers": answers,
+            "selected_values": selected_values,
+            "style_guide": style_guide,
+            "change_request": change_request or "",
+        }
+    )
+    cache_key = _build_llm_cache_key(
+        task_kind=TASK_GENERATE_JOB_AD,
+        resolved_model=runtime_config.resolved_model,
+        language=language,
+        reasoning_effort=runtime_config.reasoning_effort,
+        verbosity=runtime_config.verbosity,
+        store=store,
+        normalized_content=normalized_content,
+        schema_version=VACANCY_SCHEMA_VERSION,
+    )
+    cache = _get_session_response_cache()
+    cached_entry = cache.get(cache_key)
+    if isinstance(cached_entry, dict):
+        cached_result = cached_entry.get("result")
+        if isinstance(cached_result, dict):
+            return JobAdGenerationResult.model_validate(cached_result), _cached_usage(
+                cache_key=cache_key
+            )
+
+    parsed, usage = _parse_with_structured_outputs(
+        runtime_config=runtime_config,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        out_model=JobAdGenerationResult,
+        store=store,
+        maybe_temperature=temperature,
+    )
+    result = cast(JobAdGenerationResult, parsed)
+    cache[cache_key] = {"result": result.model_dump(mode="json")}
+    return result, usage
