@@ -15,6 +15,7 @@ from schemas import (
     JobAdExtract,
     MoneyRange,
     Question,
+    QuestionPlan,
     QuestionStep,
     RecruitmentStep,
     VacancyBrief,
@@ -47,7 +48,9 @@ def render_openai_error(error: OpenAICallError) -> None:
             st.session_state["cs.last_error_debug"] = " | ".join(details)
 
 
-def render_job_extract_overview(job: JobAdExtract) -> None:
+def render_job_extract_overview(
+    job: JobAdExtract, plan: QuestionPlan | None = None
+) -> None:
     with st.expander(
         "Aus dem Jobspec extrahiert (strukturierte Übersicht)", expanded=True
     ):
@@ -58,6 +61,8 @@ def render_job_extract_overview(job: JobAdExtract) -> None:
             st.write("\n".join([f"- {g}" for g in job.gaps]))
         else:
             st.info("Keine expliziten Gaps erkannt.")
+
+    _render_question_limits_editor(plan)
 
     with st.expander("Assumptions (Annahmen)", expanded=True):
         if job.assumptions:
@@ -204,6 +209,50 @@ def _render_editable_job_extract(job: JobAdExtract) -> None:
         )
         return
     st.session_state[SSKey.JOB_EXTRACT.value] = validated.model_dump()
+
+
+def _suggested_question_limit(step: QuestionStep) -> int:
+    required_count = sum(1 for question in step.questions if question.required)
+    return required_count if required_count > 0 else len(step.questions)
+
+
+def _render_question_limits_editor(plan: QuestionPlan | None) -> None:
+    if plan is None or not plan.steps:
+        return
+
+    st.markdown("#### Fragen pro Step")
+    st.caption(
+        "Lege fest, wie viele Fragen pro Step angezeigt werden. "
+        "Standardwert: erforderliche Fragen pro Step (falls keine markiert sind: alle)."
+    )
+
+    limits_raw = st.session_state.get(SSKey.QUESTION_LIMITS.value, {})
+    limits: dict[str, int] = {}
+    if isinstance(limits_raw, dict):
+        for key, value in limits_raw.items():
+            try:
+                limits[str(key)] = int(value)
+            except (TypeError, ValueError):
+                continue
+
+    for step in plan.steps:
+        if not step.questions:
+            continue
+        fallback = max(1, _suggested_question_limit(step))
+        current = limits.get(step.step_key, fallback)
+        current = max(1, min(current, len(step.questions)))
+        selected = st.number_input(
+            f"{step.title_de} ({step.step_key})",
+            min_value=1,
+            max_value=len(step.questions),
+            value=current,
+            step=1,
+            key=f"cs.question_limit.{step.step_key}",
+            help=f"Maximal {len(step.questions)} verfügbare Fragen in diesem Step.",
+        )
+        limits[step.step_key] = int(selected)
+
+    st.session_state[SSKey.QUESTION_LIMITS.value] = limits
 
 
 def _normalize_optional_string(value: Any) -> str | None:
@@ -386,7 +435,21 @@ def render_question_step(step: QuestionStep) -> None:
     if step.description_de:
         st.caption(step.description_de)
 
-    for q in step.questions:
+    limits_raw = st.session_state.get(SSKey.QUESTION_LIMITS.value, {})
+    step_limit: int | None = None
+    if isinstance(limits_raw, dict):
+        raw_limit = limits_raw.get(step.step_key)
+        if isinstance(raw_limit, (int, float, str)):
+            try:
+                step_limit = int(raw_limit)
+            except ValueError:
+                step_limit = None
+
+    questions = step.questions
+    if step_limit is not None and step_limit > 0:
+        questions = step.questions[:step_limit]
+
+    for q in questions:
         _render_question(q, answers)
 
 
