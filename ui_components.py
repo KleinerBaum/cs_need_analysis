@@ -667,11 +667,47 @@ def _render_questions_two_columns(
             _render_question(question, answers)
 
 
+def _split_core_and_detail_questions(
+    questions: list[Question],
+) -> tuple[list[Question], list[Question]]:
+    required_questions = [question for question in questions if question.required]
+    core_questions = required_questions[:5]
+    if len(core_questions) < 3:
+        for question in questions:
+            if question in core_questions:
+                continue
+            core_questions.append(question)
+            if len(core_questions) >= 3:
+                break
+    detail_questions = [
+        question for question in questions if question not in core_questions
+    ]
+    return core_questions, detail_questions
+
+
 def render_question_step(step: QuestionStep) -> None:
     answers = get_answers()
+    ui_mode_raw = st.session_state.get(SSKey.UI_MODE.value, "standard")
+    ui_mode = str(ui_mode_raw).strip().lower()
+    if ui_mode not in {"quick", "standard", "expert"}:
+        ui_mode = "standard"
+        st.session_state[SSKey.UI_MODE.value] = ui_mode
 
     if step.description_de:
         st.caption(step.description_de)
+
+    mode_labels = {"quick": "Quick", "standard": "Standard", "expert": "Expert"}
+    selected_mode_label = st.radio(
+        "Ansichtsmodus",
+        options=["Quick", "Standard", "Expert"],
+        index=["Quick", "Standard", "Expert"].index(mode_labels[ui_mode]),
+        key=f"cs.ui_mode.{step.step_key}",
+        horizontal=True,
+        help="Quick: kompakt. Standard: kompakt mit Ein-Klick-Ausklappen. Expert: alle Detailgruppen geöffnet.",
+    )
+    if isinstance(selected_mode_label, str):
+        ui_mode = selected_mode_label.lower()
+        st.session_state[SSKey.UI_MODE.value] = ui_mode
 
     limits_raw = st.session_state.get(SSKey.QUESTION_LIMITS.value, {})
     step_limit: int | None = None
@@ -687,15 +723,48 @@ def render_question_step(step: QuestionStep) -> None:
     if step_limit is not None and step_limit > 0:
         questions = step.questions[:step_limit]
 
-    grouped_questions = _group_questions(step, questions)
-    _ensure_step_group_state(step.step_key, grouped_questions)
+    core_questions, detail_questions = _split_core_and_detail_questions(questions)
+
+    st.markdown("#### Minimalprofil")
+    st.caption(
+        "Starte mit den wichtigsten Fragen. Weitere Details kannst du unten ergänzen."
+    )
+    for question in core_questions:
+        _render_question(question, answers)
+
+    if not detail_questions:
+        return
+
+    grouped_questions = _group_questions(step, detail_questions)
+    details_expanded_default = ui_mode == "expert"
+    _ensure_step_group_state(
+        step.step_key,
+        grouped_questions,
+        default_open=details_expanded_default,
+    )
+    if ui_mode == "standard":
+        if st.button(
+            "Alle Detailgruppen ausklappen", key=f"cs.expand_all.{step.step_key}"
+        ):
+            _set_step_group_open_state(step.step_key, grouped_questions, is_open=True)
+            st.rerun()
+
+    st.markdown("#### Details")
     for group_title, group_questions in grouped_questions:
-        st.markdown(f"#### {group_title}")
-        _render_questions_two_columns(group_questions, answers)
+        expanded = _is_group_open(
+            step_key=step.step_key,
+            group_title=group_title,
+            default_open=details_expanded_default,
+        )
+        with st.expander(group_title, expanded=expanded):
+            _render_questions_two_columns(group_questions, answers)
 
 
 def _ensure_step_group_state(
-    step_key: str, grouped_questions: list[tuple[str, list[Question]]]
+    step_key: str,
+    grouped_questions: list[tuple[str, list[Question]]],
+    *,
+    default_open: bool,
 ) -> None:
     raw_open_groups = st.session_state.get(SSKey.OPEN_GROUPS.value, {})
     open_groups = raw_open_groups if isinstance(raw_open_groups, dict) else {}
@@ -705,13 +774,45 @@ def _ensure_step_group_state(
     changed = False
     for group_title, _ in grouped_questions:
         if group_title not in step_groups:
-            step_groups[group_title] = True
+            step_groups[group_title] = default_open
             changed = True
 
     if changed:
         open_groups = dict(open_groups)
         open_groups[step_key] = step_groups
         st.session_state[SSKey.OPEN_GROUPS.value] = open_groups
+
+
+def _is_group_open(step_key: str, group_title: str, *, default_open: bool) -> bool:
+    raw_open_groups = st.session_state.get(SSKey.OPEN_GROUPS.value, {})
+    if not isinstance(raw_open_groups, dict):
+        return default_open
+    step_groups = raw_open_groups.get(step_key, {})
+    if not isinstance(step_groups, dict):
+        return default_open
+    value = step_groups.get(group_title)
+    if isinstance(value, bool):
+        return value
+    return default_open
+
+
+def _set_step_group_open_state(
+    step_key: str,
+    grouped_questions: list[tuple[str, list[Question]]],
+    *,
+    is_open: bool,
+) -> None:
+    raw_open_groups = st.session_state.get(SSKey.OPEN_GROUPS.value, {})
+    open_groups = raw_open_groups if isinstance(raw_open_groups, dict) else {}
+    step_groups_raw = open_groups.get(step_key, {})
+    step_groups = step_groups_raw if isinstance(step_groups_raw, dict) else {}
+    updated_groups = dict(step_groups)
+    for group_title, _ in grouped_questions:
+        updated_groups[group_title] = is_open
+
+    open_groups = dict(open_groups)
+    open_groups[step_key] = updated_groups
+    st.session_state[SSKey.OPEN_GROUPS.value] = open_groups
 
 
 def _render_question(q: Question, answers: Dict[str, Any]) -> None:
