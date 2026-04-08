@@ -13,10 +13,30 @@ from ui_components import (
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
 
 
-def render(ctx: WizardContext) -> None:
-    st.header("Unternehmen")
-    render_error_banner()
+def _format_company_header(job: JobAdExtract) -> str:
+    company_name = (job.company_name or "").strip()
+    job_title = (job.job_title or "").strip()
 
+    if company_name and job_title:
+        return f"Unternehmen · {company_name} ({job_title})"
+    if company_name:
+        return f"Unternehmen · {company_name}"
+    if job_title:
+        return f"Unternehmen · Kontext für {job_title}"
+    return "Unternehmen"
+
+
+def _format_company_subheader(job: JobAdExtract) -> str | None:
+    location_city = (job.location_city or "").strip()
+    remote_policy = (job.remote_policy or "").strip()
+
+    parts = [part for part in [location_city, remote_policy] if part]
+    if not parts:
+        return None
+    return " · ".join(parts)
+
+
+def render(ctx: WizardContext) -> None:
     job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
     plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
 
@@ -30,6 +50,12 @@ def render(ctx: WizardContext) -> None:
 
     job = JobAdExtract.model_validate(job_dict)
     plan = QuestionPlan.model_validate(plan_dict)
+
+    st.header(_format_company_header(job))
+    subheader = _format_company_subheader(job)
+    if subheader:
+        st.caption(subheader)
+    render_error_banner()
 
     st.write(
         "Hier sammelst du kontextuelle Informationen zum Unternehmen/Business-Bereich, "
