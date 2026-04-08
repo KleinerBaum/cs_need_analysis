@@ -94,10 +94,10 @@ def nav_buttons(
 
 LANDING_STYLE_TOKENS: dict[str, str] = {
     "card_radius": "14px",
-    "section_spacing": "2.1rem 0 2.4rem 0",
-    "muted_text_color": "rgba(218, 231, 255, 0.92)",
-    "emphasis_border": "4px solid rgba(126, 173, 255, 0.9)",
-    "emphasis_background": "linear-gradient(135deg, rgba(21, 55, 106, 0.5), rgba(16, 37, 71, 0.35))",
+    "section_spacing": "2.2rem 0 2.3rem 0",
+    "muted_text_color": "rgba(220, 233, 255, 0.9)",
+    "emphasis_border": "4px solid rgba(138, 184, 255, 0.95)",
+    "emphasis_background": "linear-gradient(135deg, rgba(22, 58, 112, 0.56), rgba(14, 34, 67, 0.4))",
 }
 
 
@@ -128,30 +128,35 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
 
             .landing-hero {{
                 background: linear-gradient(145deg, rgba(10, 27, 52, 0.9), rgba(8, 20, 40, 0.85));
-                border: 1px solid rgba(146, 185, 255, 0.3);
+                border: 1px solid rgba(167, 201, 255, 0.34);
                 border-radius: 18px;
-                padding: 1.5rem 1.4rem;
+                padding: 1.6rem 1.45rem;
                 box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
             }}
 
             .landing-hero h1 {{
                 margin: 0;
                 font-size: clamp(1.6rem, 2.3vw, 2.45rem);
-                line-height: 1.2;
+                line-height: 1.18;
+                letter-spacing: 0.01em;
+            }}
+
+            .landing-hero-copy {{
+                max-width: 66ch;
             }}
 
             .landing-subhead {{
                 margin-top: 0.9rem;
-                color: rgba(245, 247, 251, 0.94);
-                line-height: 1.6;
+                color: rgba(247, 249, 253, 0.95);
+                line-height: 1.58;
                 font-size: 1.05rem;
             }}
 
             .landing-card {{
-                background: rgba(11, 25, 49, 0.72);
-                border: 1px solid rgba(255, 255, 255, 0.14);
+                background: rgba(12, 27, 52, 0.78);
+                border: 1px solid rgba(228, 236, 252, 0.2);
                 border-radius: {style_tokens["card_radius"]};
-                padding: 1rem;
+                padding: 1rem 0.95rem;
                 height: 100%;
             }}
 
@@ -175,11 +180,11 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
             }}
 
             .landing-flow-step {{
-                background: rgba(8, 18, 39, 0.62);
-                border: 1px solid rgba(255, 255, 255, 0.12);
+                background: rgba(9, 20, 42, 0.66);
+                border: 1px solid rgba(227, 235, 251, 0.18);
                 border-radius: 12px;
                 padding: 0.95rem;
-                min-height: 160px;
+                min-height: 148px;
             }}
 
             .landing-list {{
@@ -198,9 +203,22 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
                 margin-top: 0.35rem;
             }}
 
+            .landing-security-note {{
+                background: rgba(8, 19, 40, 0.5);
+                border: 1px solid rgba(225, 235, 252, 0.14);
+                border-radius: {style_tokens["card_radius"]};
+                padding: 0.8rem 0.95rem;
+                color: rgba(229, 239, 255, 0.82);
+                font-size: 0.9rem;
+            }}
+
             @media (max-width: 900px) {{
                 .landing-hero {{
                     padding: 1.2rem;
+                }}
+
+                .landing-hero-copy {{
+                    max-width: 100%;
                 }}
             }}
         </style>
@@ -234,6 +252,7 @@ def render_hero_section(
     )
     hero_left, hero_right = st.columns([1.6, 1], gap="large")
     with hero_left:
+        st.markdown('<div class="landing-hero-copy">', unsafe_allow_html=True)
         st.markdown(f"<h1>{headline}</h1>", unsafe_allow_html=True)
         st.markdown(f'<p class="landing-subhead">{subhead}</p>', unsafe_allow_html=True)
         if before_start_title and before_start_bullets:
@@ -255,6 +274,7 @@ def render_hero_section(
         ):
             on_start()
             ctx.goto(start_target)
+            st.rerun()
         if extraction_helper_copy:
             st.info(extraction_helper_copy, icon="ℹ️")
         if post_cta_microcopy:
@@ -263,6 +283,7 @@ def render_hero_section(
             f'<p class="landing-caption">{secondary_cta_hint}</p>',
             unsafe_allow_html=True,
         )
+        st.markdown("</div>", unsafe_allow_html=True)
     with hero_right:
         st.markdown("### Wertbeitrag auf einen Blick")
         render_value_cards(value_cards=value_cards)
@@ -271,15 +292,15 @@ def render_hero_section(
 
 
 def render_value_cards(*, value_cards: Sequence[tuple[str, str]]) -> None:
-    card_cols_top = st.columns(2, gap="small")
-    card_cols_bottom = st.columns(2, gap="small")
-    for index, (title, body) in enumerate(value_cards):
-        target_col = card_cols_top[index] if index < 2 else card_cols_bottom[index - 2]
-        with target_col:
-            st.markdown(
-                f'<div class="landing-card"><h4>{title}</h4><p>{body}</p></div>',
-                unsafe_allow_html=True,
-            )
+    # Keep predictable 2-column rhythm to avoid narrow, uneven cards.
+    for row_start in range(0, len(value_cards), 2):
+        row_cols = st.columns(2, gap="small")
+        for col, (title, body) in zip(row_cols, value_cards[row_start : row_start + 2]):
+            with col:
+                st.markdown(
+                    f'<div class="landing-card"><h4>{title}</h4><p>{body}</p></div>',
+                    unsafe_allow_html=True,
+                )
 
 
 def render_importance_section(
@@ -318,13 +339,14 @@ def render_flow_steps(
         unsafe_allow_html=True,
     )
     st.subheader(title)
-    flow_cols = st.columns(4, gap="small")
-    for col, (step_title, body) in zip(flow_cols, steps):
-        with col:
-            st.markdown(
-                f'<div class="landing-flow-step"><h4>{step_title}</h4><p>{body}</p></div>',
-                unsafe_allow_html=True,
-            )
+    for row_start in range(0, len(steps), 2):
+        flow_cols = st.columns(2, gap="small")
+        for col, (step_title, body) in zip(flow_cols, steps[row_start : row_start + 2]):
+            with col:
+                st.markdown(
+                    f'<div class="landing-flow-step"><h4>{step_title}</h4><p>{body}</p></div>',
+                    unsafe_allow_html=True,
+                )
     st.markdown("</section>", unsafe_allow_html=True)
 
 
@@ -353,5 +375,7 @@ def render_security_note(*, section_id: str, title: str, body: str) -> None:
         unsafe_allow_html=True,
     )
     st.subheader(title)
-    st.caption(body)
+    st.markdown(
+        f'<div class="landing-security-note">{body}</div>', unsafe_allow_html=True
+    )
     st.markdown("</section>", unsafe_allow_html=True)
