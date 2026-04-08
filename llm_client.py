@@ -26,6 +26,7 @@ from openai import (
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from constants import (
+    AnswerType,
     DEFAULT_LANGUAGE,
     JOB_AD_SCHEMA_VERSION,
     QUESTION_SCHEMA_VERSION,
@@ -61,6 +62,54 @@ TASK_EXTRACT_JOB_AD = "extract_job_ad"
 TASK_GENERATE_QUESTION_PLAN = "generate_question_plan"
 TASK_GENERATE_VACANCY_BRIEF = "generate_vacancy_brief"
 TASK_GENERATE_JOB_AD = "generate_job_ad"
+
+_OTHER_OPTION = "Sonstiges"
+_CATEGORY_QUESTION_RULES: tuple[dict[str, Any], ...] = (
+    {
+        "terms": ("hard skills",),
+        "answer_type": AnswerType.MULTI_SELECT,
+        "options": (
+            "Python",
+            "Java",
+            "SQL",
+            "Cloud",
+            "Datenanalyse",
+            _OTHER_OPTION,
+        ),
+    },
+    {
+        "terms": ("soft skills",),
+        "answer_type": AnswerType.MULTI_SELECT,
+        "options": (
+            "Kommunikation",
+            "Teamfähigkeit",
+            "Eigenverantwortung",
+            "Stakeholder-Management",
+            "Problemlösung",
+            _OTHER_OPTION,
+        ),
+    },
+    {
+        "terms": ("sprachen",),
+        "answer_type": AnswerType.MULTI_SELECT,
+        "options": ("Deutsch", "Englisch", "Französisch", "Spanisch", _OTHER_OPTION),
+    },
+    {
+        "terms": ("seniority",),
+        "answer_type": AnswerType.SINGLE_SELECT,
+        "options": ("Junior", "Mid-Level", "Senior", "Lead", _OTHER_OPTION),
+    },
+    {
+        "terms": ("tools",),
+        "answer_type": AnswerType.MULTI_SELECT,
+        "options": ("Jira", "Confluence", "GitHub", "Salesforce", "SAP", _OTHER_OPTION),
+    },
+    {
+        "terms": ("arbeitsmodell",),
+        "answer_type": AnswerType.SINGLE_SELECT,
+        "options": ("Vor Ort", "Hybrid", "Remote", _OTHER_OPTION),
+    },
+)
 
 
 class VacancyBriefCriticalSections(BaseModel):
@@ -1083,7 +1132,47 @@ def normalize_question_plan(plan: QuestionPlan) -> QuestionPlan:
             # Default target_path if not provided
             if not q.target_path:
                 q.target_path = f"answers.{step.step_key}.{q.id}"
+
+            _normalize_category_question(q)
     return plan
+
+
+def _normalize_category_question(q: Any) -> None:
+    haystack = " ".join(
+        str(part).lower()
+        for part in (
+            getattr(q, "label", ""),
+            getattr(q, "help", ""),
+            getattr(q, "id", ""),
+        )
+        if isinstance(part, str)
+    )
+    for rule in _CATEGORY_QUESTION_RULES:
+        if not any(term in haystack for term in rule["terms"]):
+            continue
+        q.answer_type = rule["answer_type"]
+        q.options = _merge_options_with_fallback(q.options, rule["options"])
+        if q.answer_type == AnswerType.MULTI_SELECT and not isinstance(q.default, list):
+            q.default = []
+        elif q.answer_type == AnswerType.SINGLE_SELECT and isinstance(q.default, list):
+            q.default = q.default[0] if q.default else None
+        return
+
+
+def _merge_options_with_fallback(
+    existing_options: list[str] | None,
+    rule_options: tuple[str, ...],
+) -> list[str]:
+    merged: list[str] = []
+    for option in [*(existing_options or []), *rule_options]:
+        if not isinstance(option, str):
+            continue
+        cleaned = option.strip()
+        if cleaned and cleaned not in merged:
+            merged.append(cleaned)
+    if _OTHER_OPTION not in merged:
+        merged.append(_OTHER_OPTION)
+    return merged
 
 
 def re_slugify(s: str) -> str:
