@@ -12,6 +12,7 @@ import streamlit as st
 
 from constants import AnswerType, SSKey, WIDGET_KEY_PREFIX
 from llm_client import OpenAICallError
+from question_dependencies import should_show_question
 from question_progress import compute_question_progress
 from schemas import (
     Contact,
@@ -730,8 +731,16 @@ def render_question_step(step: QuestionStep) -> None:
     questions = step.questions
     if step_limit is not None and step_limit > 0:
         questions = step.questions[:step_limit]
+    visible_questions = [
+        question
+        for question in questions
+        if should_show_question(question, answers, answer_meta, step.step_key)
+    ]
+    hidden_questions_count = len(questions) - len(visible_questions)
 
-    core_questions, detail_questions = _split_core_and_detail_questions(questions)
+    core_questions, detail_questions = _split_core_and_detail_questions(
+        visible_questions
+    )
     core_progress = compute_question_progress(core_questions, answers, answer_meta)
     detail_progress = compute_question_progress(detail_questions, answers, answer_meta)
 
@@ -746,6 +755,8 @@ def render_question_step(step: QuestionStep) -> None:
     st.caption(
         "Starte mit den wichtigsten Fragen. Weitere Details kannst du unten ergänzen."
     )
+    if ui_mode == "expert" and hidden_questions_count > 0:
+        st.caption("Weitere Detailfragen erscheinen nach relevanten Antworten.")
     for question in core_questions:
         _render_question(question, answers)
 
