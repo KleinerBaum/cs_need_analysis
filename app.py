@@ -318,7 +318,7 @@ def main() -> None:
         st.button("Reset Vacancy", on_click=reset_vacancy)
         st.checkbox("Debug anzeigen / Show debug", key=SSKey.DEBUG.value)
         st.divider()
-        st.caption("Tipp: Du kannst jederzeit im Wizard springen.")
+        st.caption("Legende: ✅ fertig · 🟡 teilweise · ⬜ offen")
         if st.session_state.get(SSKey.DEBUG.value):
             _render_openai_debug_panel()
         st.markdown('<div class="sidebar-spacer"></div>', unsafe_allow_html=True)
