@@ -35,6 +35,9 @@ class SSKey(str, Enum):
     QUESTION_PLAN = "cs.question_plan"
     QUESTION_LIMITS = "cs.question_limits"
     ANSWERS = "cs.answers"
+    ANSWER_META = "cs.answer_meta"
+    UI_MODE = "cs.ui_mode"
+    OPEN_GROUPS = "cs.open_groups"
 
     BRIEF = "cs.brief"
     LAST_ERROR = "cs.last_error"

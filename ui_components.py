@@ -23,7 +23,7 @@ from schemas import (
     RecruitmentStep,
     VacancyBrief,
 )
-from state import get_answers, set_answer, set_error
+from state import get_answers, mark_answer_touched, set_answer, set_error
 
 _OTHER_OPTION = "Sonstiges"
 _OTHER_PREFIX = f"{_OTHER_OPTION}: "
@@ -688,15 +688,37 @@ def render_question_step(step: QuestionStep) -> None:
         questions = step.questions[:step_limit]
 
     grouped_questions = _group_questions(step, questions)
+    _ensure_step_group_state(step.step_key, grouped_questions)
     for group_title, group_questions in grouped_questions:
         st.markdown(f"#### {group_title}")
         _render_questions_two_columns(group_questions, answers)
 
 
+def _ensure_step_group_state(
+    step_key: str, grouped_questions: list[tuple[str, list[Question]]]
+) -> None:
+    raw_open_groups = st.session_state.get(SSKey.OPEN_GROUPS.value, {})
+    open_groups = raw_open_groups if isinstance(raw_open_groups, dict) else {}
+    step_groups_raw = open_groups.get(step_key, {})
+    step_groups = step_groups_raw if isinstance(step_groups_raw, dict) else {}
+
+    changed = False
+    for group_title, _ in grouped_questions:
+        if group_title not in step_groups:
+            step_groups[group_title] = True
+            changed = True
+
+    if changed:
+        open_groups = dict(open_groups)
+        open_groups[step_key] = step_groups
+        st.session_state[SSKey.OPEN_GROUPS.value] = open_groups
+
+
 def _render_question(q: Question, answers: Dict[str, Any]) -> None:
     key = WIDGET_KEY_PREFIX + q.id
     inferred_default = _infer_default_value(q)
-    current_value = answers.get(q.id, inferred_default)
+    previous_value = answers.get(q.id, inferred_default)
+    current_value = previous_value
     value: Any = None
     validation_error: str | None = None
 
@@ -862,6 +884,7 @@ def _render_question(q: Question, answers: Dict[str, Any]) -> None:
             st.error(validation_error)
 
     # Persist answer
+    mark_answer_touched(q.id, previous_value, value)
     set_answer(q.id, value)
 
     if st.session_state.get(SSKey.DEBUG.value) and q.rationale:
