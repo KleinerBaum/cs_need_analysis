@@ -166,6 +166,34 @@ class Question(StrictSchemaModel):
         default=None,
         description="Optional step increment for AnswerType.NUMBER questions.",
     )
+    priority: Optional[Literal["core", "standard", "detail"]] = Field(
+        default=None,
+        description="Optional UX priority tier for progressive disclosure.",
+    )
+    group_key: Optional[str] = Field(
+        default=None,
+        description="Optional stable group identifier for UI grouping.",
+    )
+    depends_on: Optional[List["QuestionDependency"]] = Field(
+        default=None,
+        description="Optional declarative dependency rules for conditional visibility.",
+    )
+
+
+class QuestionDependency(StrictSchemaModel):
+    question_id: str = Field(description="Question id this rule depends on.")
+    equals: Optional[Union[str, int, float, bool]] = Field(
+        default=None,
+        description="Exact value that must match for visibility.",
+    )
+    any_of: Optional[List[Union[str, int, float, bool]]] = Field(
+        default=None,
+        description="Any matching value enables visibility.",
+    )
+    is_answered: Optional[bool] = Field(
+        default=None,
+        description="If true, dependent question is shown when source has an answer.",
+    )
 
 
 class QuestionStep(StrictSchemaModel):

@@ -653,8 +653,25 @@ def _matches_keywords(question: Question, keywords: Sequence[str]) -> bool:
 def _group_questions(
     step: QuestionStep, questions: list[Question]
 ) -> list[tuple[str, list[Question]]]:
+    explicit_groups: dict[str, list[Question]] = {}
+    explicit_order: list[str] = []
+    heuristic_candidates: list[Question] = []
+    for question in questions:
+        if question.group_key:
+            key = question.group_key.strip()
+            if key:
+                if key not in explicit_groups:
+                    explicit_groups[key] = []
+                    explicit_order.append(key)
+                explicit_groups[key].append(question)
+                continue
+        heuristic_candidates.append(question)
+
     grouped: list[tuple[str, list[Question]]] = []
-    remaining = questions[:]
+    for key in explicit_order:
+        grouped.append((key.replace("_", " ").title(), explicit_groups[key]))
+
+    remaining = heuristic_candidates[:]
     for group_title, keywords in _get_step_group_rules(step.step_key):
         matched = [q for q in remaining if _matches_keywords(q, keywords)]
         if matched:
@@ -678,6 +695,16 @@ def _render_questions_two_columns(
 def _split_core_and_detail_questions(
     questions: list[Question],
 ) -> tuple[list[Question], list[Question]]:
+    core_by_priority = [
+        question for question in questions if question.priority == "core"
+    ]
+    if core_by_priority:
+        core_questions = core_by_priority
+        detail_questions = [
+            question for question in questions if question.priority != "core"
+        ]
+        return core_questions, detail_questions
+
     required_questions = [question for question in questions if question.required]
     core_questions = required_questions[:5]
     if len(core_questions) < 3:
@@ -728,7 +755,7 @@ def render_question_step(step: QuestionStep) -> None:
             except ValueError:
                 step_limit = None
 
-    questions = step.questions
+    questions = _sort_questions_for_progressive_disclosure(step.questions)
     if step_limit is not None and step_limit > 0:
         questions = step.questions[:step_limit]
     visible_questions = [
@@ -804,6 +831,19 @@ def render_question_step(step: QuestionStep) -> None:
         visible_questions=visible_questions,
         answers=answers,
         answer_meta=answer_meta,
+    )
+
+
+def _sort_questions_for_progressive_disclosure(
+    questions: list[Question],
+) -> list[Question]:
+    priority_rank = {"core": 0, "standard": 1, "detail": 2}
+    return sorted(
+        questions,
+        key=lambda question: (
+            priority_rank.get(question.priority or "", 1),
+            question.id,
+        ),
     )
 
 

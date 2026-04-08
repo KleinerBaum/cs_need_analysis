@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from constants import AnswerType
 from question_dependencies import should_show_question
-from schemas import Question
+from schemas import Question, QuestionDependency
 
 
 def _question(
@@ -158,6 +158,34 @@ def test_non_dependent_question_is_always_visible() -> None:
         should_show_question(
             base_question,
             answers={},
+            answer_meta={},
+            step_key="role_tasks",
+        )
+        is True
+    )
+
+
+def test_declared_depends_on_overrides_heuristics_when_present() -> None:
+    question = Question(
+        id="travel_frequency",
+        label="Wie hoch ist die Reisefrequenz?",
+        answer_type=AnswerType.SHORT_TEXT,
+        depends_on=[QuestionDependency(question_id="travel_required", equals="Ja")],
+    )
+
+    assert (
+        should_show_question(
+            question,
+            answers={"travel_required": "Nein"},
+            answer_meta={},
+            step_key="role_tasks",
+        )
+        is False
+    )
+    assert (
+        should_show_question(
+            question,
+            answers={"travel_required": "Ja"},
             answer_meta={},
             step_key="role_tasks",
         )
