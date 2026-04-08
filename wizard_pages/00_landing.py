@@ -214,7 +214,7 @@ def render(ctx: WizardContext) -> None:
             "Start is blocked until consent is confirmed."
         )
 
-    st.checkbox("Debug anzeigen / Show debug", key=LANDING_CTA_KEYS["debug"])
+    st.caption("Debug im Sidebar aktivierbar / Debug can be enabled in the sidebar.")
 
     nav_buttons(ctx, disable_prev=True)
 

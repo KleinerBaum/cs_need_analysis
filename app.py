@@ -316,6 +316,7 @@ def main() -> None:
     with st.sidebar:
         st.markdown("### Aktionen")
         st.button("Reset Vacancy", on_click=reset_vacancy)
+        st.checkbox("Debug anzeigen / Show debug", key=SSKey.DEBUG.value)
         st.divider()
         st.caption("Tipp: Du kannst jederzeit im Wizard springen.")
         if st.session_state.get(SSKey.DEBUG.value):
