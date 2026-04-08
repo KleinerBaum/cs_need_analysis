@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import re
 from datetime import date
+from collections.abc import Sequence
 from typing import Any, Dict, Optional
 
 import streamlit as st
@@ -430,6 +431,216 @@ def _render_contacts_editor(contacts_data: Any) -> list[dict[str, Any]]:
     return result
 
 
+def _get_step_group_rules(step_key: str) -> list[tuple[str, tuple[str, ...]]]:
+    """Return ordered grouping rules per step for question rendering."""
+    rules: dict[str, list[tuple[str, tuple[str, ...]]]] = {
+        "company": [
+            (
+                "Unternehmenskontext & Business",
+                (
+                    "unterneh",
+                    "company",
+                    "markt",
+                    "business",
+                    "produkt",
+                    "mission",
+                    "strategie",
+                ),
+            ),
+            (
+                "Setup, Zusammenarbeit & Rahmen",
+                (
+                    "team",
+                    "stakeholder",
+                    "schnittstelle",
+                    "zusammenarbeit",
+                    "remote",
+                    "standort",
+                    "rahmen",
+                ),
+            ),
+        ],
+        "team": [
+            (
+                "Teamstruktur & Verantwortungen",
+                (
+                    "team",
+                    "lead",
+                    "reports",
+                    "verantwort",
+                    "rolle",
+                    "hierarchie",
+                    "organ",
+                ),
+            ),
+            (
+                "Arbeitsweise & Zusammenarbeit",
+                (
+                    "arbeits",
+                    "hybrid",
+                    "remote",
+                    "schnittstelle",
+                    "kommunikation",
+                    "prozesse",
+                    "kultur",
+                ),
+            ),
+        ],
+        "role_tasks": [
+            (
+                "Scope, Aufgaben & Deliverables",
+                (
+                    "aufgabe",
+                    "scope",
+                    "deliver",
+                    "projekt",
+                    "verantwort",
+                    "ergebnis",
+                ),
+            ),
+            (
+                "Erfolgskriterien & Stakeholder",
+                (
+                    "erfolg",
+                    "kpi",
+                    "ziel",
+                    "stakeholder",
+                    "entscheidung",
+                    "prior",
+                ),
+            ),
+        ],
+        "skills": [
+            (
+                "Must-have & Fachkompetenz",
+                (
+                    "must",
+                    "pflicht",
+                    "skill",
+                    "tech",
+                    "tool",
+                    "erfahrung",
+                    "expertise",
+                ),
+            ),
+            (
+                "Nice-to-have & Entwicklungsfelder",
+                (
+                    "nice",
+                    "optional",
+                    "plus",
+                    "lernen",
+                    "potenzial",
+                    "entwicklung",
+                    "soft",
+                ),
+            ),
+        ],
+        "benefits": [
+            (
+                "Kompensation & Vertragsrahmen",
+                (
+                    "gehalt",
+                    "salary",
+                    "bonus",
+                    "vertrag",
+                    "arbeitszeit",
+                    "stunden",
+                    "kondition",
+                ),
+            ),
+            (
+                "Benefits, Flexibilität & Entwicklung",
+                (
+                    "benefit",
+                    "remote",
+                    "hybrid",
+                    "urlaub",
+                    "learning",
+                    "relocation",
+                    "flex",
+                ),
+            ),
+        ],
+        "interview": [
+            (
+                "Interne Ansprechpartner & Prozesssteuerung",
+                (
+                    "ansprech",
+                    "hiring manager",
+                    "recruit",
+                    "intern",
+                    "entscheidung",
+                    "freigabe",
+                    "prozess",
+                ),
+            ),
+            (
+                "Kandidaten-Inputs & Deliverables",
+                (
+                    "cv",
+                    "lebenslauf",
+                    "portfolio",
+                    "gehalt",
+                    "case",
+                    "unterlage",
+                    "deliver",
+                ),
+            ),
+            (
+                "Bewerbungsschritte, Timeline & Kommunikation",
+                (
+                    "schritt",
+                    "interview",
+                    "timeline",
+                    "stufe",
+                    "feedback",
+                    "termin",
+                    "kommunikation",
+                ),
+            ),
+        ],
+    }
+    return rules.get(step_key, [])
+
+
+def _matches_keywords(question: Question, keywords: Sequence[str]) -> bool:
+    haystack = " ".join(
+        [
+            (question.id or ""),
+            (question.label or ""),
+            (question.help or ""),
+            (question.rationale or ""),
+        ]
+    ).lower()
+    return any(keyword.lower() in haystack for keyword in keywords)
+
+
+def _group_questions(
+    step: QuestionStep, questions: list[Question]
+) -> list[tuple[str, list[Question]]]:
+    grouped: list[tuple[str, list[Question]]] = []
+    remaining = questions[:]
+    for group_title, keywords in _get_step_group_rules(step.step_key):
+        matched = [q for q in remaining if _matches_keywords(q, keywords)]
+        if matched:
+            grouped.append((group_title, matched))
+            remaining = [q for q in remaining if q not in matched]
+    if remaining:
+        grouped.append(("Weitere Fragen", remaining))
+    return grouped
+
+
+def _render_questions_two_columns(
+    questions: list[Question], answers: Dict[str, Any]
+) -> None:
+    col_left, col_right = st.columns(2, gap="large")
+    for index, question in enumerate(questions):
+        target_col = col_left if index % 2 == 0 else col_right
+        with target_col:
+            _render_question(question, answers)
+
+
 def render_question_step(step: QuestionStep) -> None:
     answers = get_answers()
 
@@ -450,8 +661,10 @@ def render_question_step(step: QuestionStep) -> None:
     if step_limit is not None and step_limit > 0:
         questions = step.questions[:step_limit]
 
-    for q in questions:
-        _render_question(q, answers)
+    grouped_questions = _group_questions(step, questions)
+    for group_title, group_questions in grouped_questions:
+        st.markdown(f"#### {group_title}")
+        _render_questions_two_columns(group_questions, answers)
 
 
 def _render_question(q: Question, answers: Dict[str, Any]) -> None:
