@@ -38,6 +38,8 @@ class SSKey(str, Enum):
 
     BRIEF = "cs.brief"
     LAST_ERROR = "cs.last_error"
+    LAST_ERROR_DEBUG = "cs.last_error_debug"
+    OPENAI_DEBUG_ERRORS = "OPENAI_DEBUG_ERRORS"
     DEBUG = "cs.debug"
     CONTENT_SHARING_CONSENT = "cs.content_sharing_consent"
     LLM_RESPONSE_CACHE = "cs.llm_response_cache"

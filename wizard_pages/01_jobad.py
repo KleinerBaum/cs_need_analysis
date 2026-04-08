@@ -141,6 +141,11 @@ def render(ctx: WizardContext) -> None:
             "PII redaktionieren (E-Mail/Telefon maskieren)",
             key=SSKey.SOURCE_REDACT_PII.value,
         )
+        st.checkbox(
+            "Debug-Fehlerdetails anzeigen (nur Metadaten)",
+            key=SSKey.OPENAI_DEBUG_ERRORS.value,
+            help="Zeigt nur Error-Code, Step und Typ – keine Inhalte oder PII.",
+        )
 
     if SOURCE_TEXT_INPUT_KEY not in st.session_state:
         st.session_state[SOURCE_TEXT_INPUT_KEY] = st.session_state.get(

@@ -29,9 +29,10 @@ def render_error_banner() -> None:
     err = st.session_state.get(SSKey.LAST_ERROR.value)
     if err:
         st.error(err)
-    debug_err = st.session_state.get("cs.last_error_debug")
-    if debug_err and bool(st.session_state.get("OPENAI_DEBUG_ERRORS", False)):
+    debug_err = st.session_state.get(SSKey.LAST_ERROR_DEBUG.value)
+    if debug_err and bool(st.session_state.get(SSKey.OPENAI_DEBUG_ERRORS.value, False)):
         with st.expander("Debug (non-sensitive)", expanded=False):
+            st.caption("Nur technische Metadaten, keine Inhalte (kein Prompt/PII).")
             st.code(str(debug_err))
 
 
@@ -39,15 +40,12 @@ def render_openai_error(error: OpenAICallError) -> None:
     """Persist concise user message and optional non-sensitive debug details."""
 
     set_error(error.ui_message)
-    st.session_state["cs.last_error_debug"] = None
-    if bool(st.session_state.get("OPENAI_DEBUG_ERRORS", False)):
-        details: list[str] = []
+    st.session_state[SSKey.LAST_ERROR_DEBUG.value] = None
+    if bool(st.session_state.get(SSKey.OPENAI_DEBUG_ERRORS.value, False)):
+        details: list[str] = ["type=OpenAICallError", "step=llm_call"]
         if error.error_code:
-            details.append(f"code={error.error_code}")
-        if error.debug_detail:
-            details.append(error.debug_detail)
-        if details:
-            st.session_state["cs.last_error_debug"] = " | ".join(details)
+            details.insert(0, f"code={error.error_code}")
+        st.session_state[SSKey.LAST_ERROR_DEBUG.value] = " | ".join(details)
 
 
 def render_job_extract_overview(

@@ -47,6 +47,8 @@ def init_session_state() -> None:
         SSKey.ANSWERS.value: {},
         SSKey.BRIEF.value: None,
         SSKey.LAST_ERROR.value: None,
+        SSKey.LAST_ERROR_DEBUG.value: None,
+        SSKey.OPENAI_DEBUG_ERRORS.value: False,
         SSKey.DEBUG.value: False,
         SSKey.CONTENT_SHARING_CONSENT.value: False,
         SSKey.LLM_RESPONSE_CACHE.value: {},
@@ -105,14 +107,18 @@ def set_safe_error_debug(
 ) -> None:
     """Store non-sensitive debug details for optional UI display."""
 
-    st.session_state["cs.last_error_debug"] = None
-    if not bool(st.session_state.get("OPENAI_DEBUG_ERRORS", False)):
+    st.session_state[SSKey.LAST_ERROR_DEBUG.value] = None
+    if not bool(st.session_state.get(SSKey.OPENAI_DEBUG_ERRORS.value, False)):
         return
 
-    details: list[str] = [f"step={step}", f"type={error_type}"]
+    details: list[str] = [
+        f"step={step}",
+        f"type={error_type}",
+        f"category={error_type}",
+    ]
     if error_code:
         details.insert(1, f"code={error_code}")
-    st.session_state["cs.last_error_debug"] = " | ".join(details)
+    st.session_state[SSKey.LAST_ERROR_DEBUG.value] = " | ".join(details)
 
 
 def handle_unexpected_exception(
@@ -136,4 +142,4 @@ def handle_unexpected_exception(
 
 def clear_error() -> None:
     st.session_state[SSKey.LAST_ERROR.value] = None
-    st.session_state["cs.last_error_debug"] = None
+    st.session_state[SSKey.LAST_ERROR_DEBUG.value] = None
