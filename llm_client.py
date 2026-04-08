@@ -27,6 +27,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from constants import (
     DEFAULT_LANGUAGE,
+    JOB_AD_SCHEMA_VERSION,
     QUESTION_SCHEMA_VERSION,
     SSKey,
     VACANCY_SCHEMA_VERSION,
@@ -438,6 +439,24 @@ def _cached_usage(*, cache_key: str) -> dict[str, Any]:
         "cache_key": cache_key,
         "provider": "session_state",
     }
+
+
+def _invalidate_cache_entry_for_validation_error(
+    *,
+    cache: dict[str, dict[str, Any]],
+    cache_key: str,
+    task_kind: str,
+    model_name: str,
+) -> None:
+    """Drop invalid cached payloads after schema validation failures."""
+
+    cache.pop(cache_key, None)
+    logger.warning(
+        "Invalid cached LLM response removed; recomputing. task=%s model=%s cache_key=%s",
+        task_kind,
+        model_name,
+        _safe_hash(cache_key),
+    )
 
 
 def _error_from_openai_exception(exc: Exception, *, endpoint: str) -> OpenAICallError:
@@ -931,15 +950,24 @@ def extract_job_ad(
         verbosity=runtime_config.verbosity,
         store=store,
         normalized_content=normalized_content,
+        schema_version=JOB_AD_SCHEMA_VERSION,
     )
     cache = _get_session_response_cache()
     cached_entry = cache.get(cache_key)
     if isinstance(cached_entry, dict):
         cached_result = cached_entry.get("result")
         if isinstance(cached_result, dict):
-            return JobAdExtract.model_validate(cached_result), _cached_usage(
-                cache_key=cache_key
-            )
+            try:
+                parsed_cached = JobAdExtract.model_validate(cached_result)
+            except ValidationError:
+                _invalidate_cache_entry_for_validation_error(
+                    cache=cache,
+                    cache_key=cache_key,
+                    task_kind=TASK_EXTRACT_JOB_AD,
+                    model_name=runtime_config.resolved_model,
+                )
+            else:
+                return parsed_cached, _cached_usage(cache_key=cache_key)
 
     parsed, usage = _parse_with_structured_outputs(
         runtime_config=runtime_config,
@@ -1008,9 +1036,18 @@ def generate_question_plan(
     if isinstance(cached_entry, dict):
         cached_result = cached_entry.get("result")
         if isinstance(cached_result, dict):
-            parsed_cached = QuestionPlan.model_validate(cached_result)
-            normalized_cached = normalize_question_plan(parsed_cached)
-            return normalized_cached, _cached_usage(cache_key=cache_key)
+            try:
+                parsed_cached = QuestionPlan.model_validate(cached_result)
+            except ValidationError:
+                _invalidate_cache_entry_for_validation_error(
+                    cache=cache,
+                    cache_key=cache_key,
+                    task_kind=TASK_GENERATE_QUESTION_PLAN,
+                    model_name=runtime_config.resolved_model,
+                )
+            else:
+                normalized_cached = normalize_question_plan(parsed_cached)
+                return normalized_cached, _cached_usage(cache_key=cache_key)
 
     parsed, usage = _parse_with_structured_outputs(
         runtime_config=runtime_config,
@@ -1120,9 +1157,17 @@ def generate_vacancy_brief(
     if isinstance(cached_entry, dict):
         cached_result = cached_entry.get("result")
         if isinstance(cached_result, dict):
-            return VacancyBrief.model_validate(cached_result), _cached_usage(
-                cache_key=cache_key
-            )
+            try:
+                parsed_cached = VacancyBrief.model_validate(cached_result)
+            except ValidationError:
+                _invalidate_cache_entry_for_validation_error(
+                    cache=cache,
+                    cache_key=cache_key,
+                    task_kind=TASK_GENERATE_VACANCY_BRIEF,
+                    model_name=runtime_config.resolved_model,
+                )
+            else:
+                return parsed_cached, _cached_usage(cache_key=cache_key)
 
     parsed, usage = _parse_with_structured_outputs(
         runtime_config=runtime_config,
