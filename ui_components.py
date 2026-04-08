@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import date
 from typing import Any, Dict, Optional
 
@@ -455,86 +456,194 @@ def render_question_step(step: QuestionStep) -> None:
 
 def _render_question(q: Question, answers: Dict[str, Any]) -> None:
     key = WIDGET_KEY_PREFIX + q.id
-    current_value = answers.get(q.id, q.default)
+    inferred_default = _infer_default_value(q)
+    current_value = answers.get(q.id, inferred_default)
+    value: Any = None
 
     # Helper text for required fields
     label = q.label + (" *" if q.required else "")
 
-    # Render appropriate widget
-    if q.answer_type == AnswerType.SHORT_TEXT:
-        value = st.text_input(label, value=current_value or "", help=q.help, key=key)
-    elif q.answer_type == AnswerType.LONG_TEXT:
-        value = st.text_area(
-            label, value=current_value or "", help=q.help, key=key, height=120
-        )
-    elif q.answer_type == AnswerType.SINGLE_SELECT:
-        options = q.options or []
-        # Streamlit selectbox needs an index; allow None by adding sentinel
-        if current_value and current_value not in options:
-            options = [current_value] + options
-        value = st.selectbox(
-            label,
-            options=options,
-            index=(options.index(current_value) if current_value in options else 0)
-            if options
-            else 0,
-            help=q.help,
-            key=key,
-        )
-    elif q.answer_type == AnswerType.MULTI_SELECT:
-        options = q.options or []
-        if current_value is None:
-            current_value = []
-        # Ensure values are in options
-        cur_list = [v for v in (current_value or []) if isinstance(v, str)]
-        for v in cur_list:
-            if v not in options:
-                options = [v] + options
-        value = st.multiselect(
-            label, options=options, default=cur_list, help=q.help, key=key
-        )
-    elif q.answer_type == AnswerType.NUMBER:
-        try:
-            num = (
-                float(current_value)
-                if current_value is not None and current_value != ""
-                else None
+    with st.container(border=True):
+        if q.answer_type == AnswerType.SHORT_TEXT:
+            value = st.text_input(
+                label,
+                value=str(current_value or ""),
+                help=q.help,
+                key=key,
+                placeholder=q.help or "Kurzantwort eingeben",
             )
-        except Exception:
-            num = None
-        value = st.number_input(
-            label, value=num if num is not None else 0.0, help=q.help, key=key
-        )
-    elif q.answer_type == AnswerType.BOOLEAN:
-        value = st.checkbox(
-            label,
-            value=bool(current_value) if current_value is not None else False,
-            help=q.help,
-            key=key,
-        )
-    elif q.answer_type == AnswerType.DATE:
-        # Accept ISO string, date, or None
-        d: Optional[date] = None
-        if isinstance(current_value, date):
-            d = current_value
-        elif isinstance(current_value, str) and current_value:
-            try:
-                d = date.fromisoformat(current_value)
-            except Exception:
-                d = None
-        value = st.date_input(label, value=d, help=q.help, key=key)
-        # Convert to iso string for JSON friendliness
-        value = value.isoformat() if value else None
-    else:
-        value = st.text_input(
-            label, value=str(current_value or ""), help=q.help, key=key
-        )
+        elif q.answer_type == AnswerType.LONG_TEXT:
+            value = st.text_area(
+                label,
+                value=str(current_value or ""),
+                help=q.help,
+                key=key,
+                height=140,
+                placeholder=q.help or "Details ergänzen …",
+            )
+        elif q.answer_type == AnswerType.SINGLE_SELECT:
+            options = q.options or []
+            if current_value and current_value not in options:
+                options = [str(current_value)] + options
+            if not q.required:
+                options = ["— Bitte wählen —", *options]
+            selected_value = str(current_value) if current_value is not None else None
+            default_index = (
+                options.index(selected_value)
+                if selected_value in options
+                else (0 if options else None)
+            )
+            if hasattr(st, "segmented_control") and 2 <= len(options) <= 5:
+                value = st.segmented_control(
+                    label,
+                    options=options,
+                    default=options[default_index]
+                    if default_index is not None
+                    else None,
+                    key=key,
+                    help=q.help,
+                )
+            elif len(options) <= 4:
+                value = st.radio(
+                    label,
+                    options=options,
+                    index=default_index if default_index is not None else 0,
+                    horizontal=True,
+                    help=q.help,
+                    key=key,
+                )
+            else:
+                value = st.selectbox(
+                    label,
+                    options=options,
+                    index=default_index if default_index is not None else 0,
+                    help=q.help,
+                    key=key,
+                )
+            if value == "— Bitte wählen —":
+                value = None
+        elif q.answer_type == AnswerType.MULTI_SELECT:
+            options = q.options or []
+            cur_list = [
+                v
+                for v in (current_value or [])
+                if isinstance(v, str) and has_meaningful_value(v)
+            ]
+            for v in cur_list:
+                if v not in options:
+                    options = [v] + options
+            if hasattr(st, "pills") and options:
+                value = (
+                    st.pills(
+                        label,
+                        options=options,
+                        default=cur_list,
+                        selection_mode="multi",
+                        key=key,
+                        help=q.help,
+                    )
+                    or []
+                )
+            else:
+                value = st.multiselect(
+                    label, options=options, default=cur_list, help=q.help, key=key
+                )
+        elif q.answer_type == AnswerType.NUMBER:
+            value = _render_number_question(
+                key=key, label=label, help_text=q.help, current_value=current_value
+            )
+        elif q.answer_type == AnswerType.BOOLEAN:
+            value = st.toggle(
+                label,
+                value=bool(current_value) if current_value is not None else False,
+                help=q.help,
+                key=key,
+            )
+        elif q.answer_type == AnswerType.DATE:
+            d: Optional[date] = None
+            if isinstance(current_value, date):
+                d = current_value
+            elif isinstance(current_value, str) and current_value:
+                try:
+                    d = date.fromisoformat(current_value)
+                except Exception:
+                    d = None
+            picked_date = st.date_input(label, value=d, help=q.help, key=key)
+            value = picked_date.isoformat() if picked_date else None
+        else:
+            value = st.text_input(
+                label, value=str(current_value or ""), help=q.help, key=key
+            )
+
+        if q.help:
+            st.caption(q.help)
 
     # Persist answer
     set_answer(q.id, value)
 
     if st.session_state.get(SSKey.DEBUG.value) and q.rationale:
         st.caption(f"Rationale: {q.rationale}")
+
+
+def _render_number_question(
+    *, key: str, label: str, help_text: str | None, current_value: Any
+) -> float | int:
+    min_value, max_value = _parse_scale_bounds(f"{label} {help_text or ''}")
+    if min_value is not None and max_value is not None and min_value < max_value:
+        try:
+            current = int(float(current_value))
+        except Exception:
+            current = min_value
+        current = max(min_value, min(current, max_value))
+        return st.slider(
+            label,
+            min_value=min_value,
+            max_value=max_value,
+            value=current,
+            step=1,
+            help=help_text,
+            key=key,
+        )
+    try:
+        num = (
+            float(current_value)
+            if current_value is not None and current_value != ""
+            else 0
+        )
+    except Exception:
+        num = 0
+    return st.number_input(label, value=num, help=help_text, key=key)
+
+
+def _infer_default_value(q: Question) -> Any:
+    if q.default is not None:
+        return q.default
+    if q.answer_type == AnswerType.SINGLE_SELECT:
+        options = q.options or []
+        return options[0] if options else None
+    if q.answer_type == AnswerType.MULTI_SELECT:
+        return []
+    if q.answer_type == AnswerType.BOOLEAN:
+        return False
+    if q.answer_type == AnswerType.NUMBER:
+        min_value, max_value = _parse_scale_bounds(f"{q.label} {q.help or ''}")
+        if min_value is not None and max_value is not None and min_value < max_value:
+            return int((min_value + max_value) / 2)
+        return 0
+    return None
+
+
+def _parse_scale_bounds(text: str) -> tuple[int | None, int | None]:
+    match = re.search(r"(\d+)\s*[-–]\s*(\d+)", text)
+    if not match:
+        return None, None
+    lower = int(match.group(1))
+    upper = int(match.group(2))
+    if lower > upper:
+        lower, upper = upper, lower
+    if upper - lower > 20:
+        return None, None
+    return lower, upper
 
 
 def render_brief(brief: VacancyBrief) -> None:
