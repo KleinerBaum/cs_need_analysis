@@ -13,7 +13,7 @@ import streamlit as st
 from constants import AnswerType, SSKey, WIDGET_KEY_PREFIX
 from llm_client import OpenAICallError
 from question_dependencies import should_show_question
-from question_progress import compute_question_progress
+from question_progress import build_answered_lookup, compute_question_progress
 from schemas import (
     Contact,
     JobAdExtract,
@@ -757,7 +757,7 @@ def render_question_step(step: QuestionStep) -> None:
 
     questions = _sort_questions_for_progressive_disclosure(step.questions)
     if step_limit is not None and step_limit > 0:
-        questions = step.questions[:step_limit]
+        questions = questions[:step_limit]
     visible_questions = [
         question
         for question in questions
@@ -768,8 +768,13 @@ def render_question_step(step: QuestionStep) -> None:
     core_questions, detail_questions = _split_core_and_detail_questions(
         visible_questions
     )
-    core_progress = compute_question_progress(core_questions, answers, answer_meta)
-    detail_progress = compute_question_progress(detail_questions, answers, answer_meta)
+    answered_lookup = build_answered_lookup(visible_questions, answers, answer_meta)
+    core_progress = compute_question_progress(
+        core_questions, answers, answer_meta, answered_lookup=answered_lookup
+    )
+    detail_progress = compute_question_progress(
+        detail_questions, answers, answer_meta, answered_lookup=answered_lookup
+    )
 
     st.caption(
         "Minimalprofil "
@@ -787,12 +792,21 @@ def render_question_step(step: QuestionStep) -> None:
     for question in core_questions:
         _render_question(question, answers)
 
-    if not detail_questions:
+    if not visible_questions:
+        st.info(
+            "Aktuell sind keine Fragen sichtbar. Prüfe vorherige Antworten oder fahre mit dem nächsten Schritt fort."
+        )
+        if hidden_questions_count > 0:
+            st.caption(
+                f"{hidden_questions_count} Detailfragen sind aktuell durch Abhängigkeiten ausgeblendet."
+            )
+    elif not detail_questions:
         render_step_review_card(
             step=step,
             visible_questions=visible_questions,
             answers=answers,
             answer_meta=answer_meta,
+            answered_lookup=answered_lookup,
         )
         return
 
@@ -808,11 +822,23 @@ def render_question_step(step: QuestionStep) -> None:
             "Alle Detailgruppen ausklappen", key=f"cs.expand_all.{step.step_key}"
         ):
             _set_step_group_open_state(step.step_key, grouped_questions, is_open=True)
-            st.rerun()
+
+    incomplete_groups = _collect_incomplete_group_titles(
+        grouped_questions, answers, answer_meta, answered_lookup
+    )
+    if incomplete_groups:
+        st.caption(
+            "Pflichtfragen offen in: " + ", ".join(dict.fromkeys(incomplete_groups))
+        )
 
     st.markdown("#### Details")
     for group_title, group_questions in grouped_questions:
-        progress = compute_question_progress(group_questions, answers, answer_meta)
+        progress = compute_question_progress(
+            group_questions,
+            answers,
+            answer_meta,
+            answered_lookup=answered_lookup,
+        )
         header = (
             f"{group_title} · {progress['answered']}/{progress['total']} beantwortet"
         )
@@ -831,6 +857,7 @@ def render_question_step(step: QuestionStep) -> None:
         visible_questions=visible_questions,
         answers=answers,
         answer_meta=answer_meta,
+        answered_lookup=answered_lookup,
     )
 
 
@@ -852,20 +879,23 @@ def render_step_review_card(
     visible_questions: list[Question],
     answers: Dict[str, Any],
     answer_meta: dict[str, Any],
+    answered_lookup: dict[str, bool] | None = None,
 ) -> None:
     grouped_questions = _group_questions(step, visible_questions)
     group_payload: list[tuple[str, list[tuple[str, str]]]] = []
     missing_required_labels: list[str] = []
     incomplete_group_titles: list[str] = []
 
+    resolved_lookup = answered_lookup or build_answered_lookup(
+        visible_questions, answers, answer_meta
+    )
+
     for group_title, group_questions in grouped_questions:
         answered_items: list[tuple[str, str]] = []
         group_missing_required = False
         for question in group_questions:
             value = answers.get(question.id)
-            if not compute_question_progress([question], answers, answer_meta)[
-                "answered"
-            ]:
+            if not resolved_lookup.get(question.id, False):
                 if question.required:
                     group_missing_required = True
                     missing_required_labels.append(question.label)
@@ -901,6 +931,25 @@ def render_step_review_card(
             st.caption(group_title)
             for label, formatted_value in answered_items:
                 st.markdown(f"- **{label}:** {formatted_value}")
+
+
+def _collect_incomplete_group_titles(
+    grouped_questions: list[tuple[str, list[Question]]],
+    answers: Dict[str, Any],
+    answer_meta: dict[str, Any],
+    answered_lookup: dict[str, bool],
+) -> list[str]:
+    incomplete_groups: list[str] = []
+    for group_title, group_questions in grouped_questions:
+        progress = compute_question_progress(
+            group_questions,
+            answers,
+            answer_meta,
+            answered_lookup=answered_lookup,
+        )
+        if progress["required_unanswered"] > 0:
+            incomplete_groups.append(group_title)
+    return incomplete_groups
 
 
 def _format_answer_for_review(question: Question, value: Any) -> str:

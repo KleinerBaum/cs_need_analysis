@@ -8,7 +8,7 @@ from typing import Any, Callable
 from schemas import Question
 
 TriggerEvaluator = Callable[[dict[str, Any], dict[str, dict[str, Any]]], bool]
-QuestionMatcher = Callable[[Question], bool]
+QuestionMatcher = Callable[[str], bool]
 
 
 @dataclass(frozen=True)
@@ -130,6 +130,10 @@ def _answer_matches(
 
 def _depends_on_leadership_detail(question: Question) -> bool:
     blob = _question_blob(question)
+    return _depends_on_leadership_detail_blob(blob)
+
+
+def _depends_on_leadership_detail_blob(blob: str) -> bool:
     return _contains_any(
         blob,
         (
@@ -149,6 +153,10 @@ def _depends_on_leadership_detail(question: Question) -> bool:
 
 def _depends_on_remote_hybrid(question: Question) -> bool:
     blob = _question_blob(question)
+    return _depends_on_remote_hybrid_blob(blob)
+
+
+def _depends_on_remote_hybrid_blob(blob: str) -> bool:
     return _contains_any(
         blob,
         (
@@ -167,6 +175,10 @@ def _depends_on_remote_hybrid(question: Question) -> bool:
 
 def _depends_on_salary_budget(question: Question) -> bool:
     blob = _question_blob(question)
+    return _depends_on_salary_budget_blob(blob)
+
+
+def _depends_on_salary_budget_blob(blob: str) -> bool:
     return _contains_any(
         blob,
         (
@@ -185,6 +197,10 @@ def _depends_on_salary_budget(question: Question) -> bool:
 
 def _depends_on_travel(question: Question) -> bool:
     blob = _question_blob(question)
+    return _depends_on_travel_blob(blob)
+
+
+def _depends_on_travel_blob(blob: str) -> bool:
     return _contains_any(
         blob,
         (
@@ -201,6 +217,10 @@ def _depends_on_travel(question: Question) -> bool:
 
 def _depends_on_oncall(question: Question) -> bool:
     blob = _question_blob(question)
+    return _depends_on_oncall_blob(blob)
+
+
+def _depends_on_oncall_blob(blob: str) -> bool:
     return _contains_any(
         blob,
         (
@@ -283,31 +303,31 @@ def _oncall_trigger(
 DEPENDENCY_RULES: tuple[DependencyRule, ...] = (
     DependencyRule(
         name="leadership-detail",
-        dependent_matcher=_depends_on_leadership_detail,
+        dependent_matcher=_depends_on_leadership_detail_blob,
         trigger_evaluator=_leadership_trigger,
         notes="Heuristic matching on leadership/team-detail terms.",
     ),
     DependencyRule(
         name="remote-hybrid-detail",
-        dependent_matcher=_depends_on_remote_hybrid,
+        dependent_matcher=_depends_on_remote_hybrid_blob,
         trigger_evaluator=_remote_trigger,
         notes="Heuristic matching on remote/hybrid detail wording.",
     ),
     DependencyRule(
         name="salary-budget-detail",
-        dependent_matcher=_depends_on_salary_budget,
+        dependent_matcher=_depends_on_salary_budget_blob,
         trigger_evaluator=_salary_trigger,
         notes="Heuristic matching on compensation detail wording.",
     ),
     DependencyRule(
         name="travel-detail",
-        dependent_matcher=_depends_on_travel,
+        dependent_matcher=_depends_on_travel_blob,
         trigger_evaluator=_travel_trigger,
         notes="Heuristic matching on travel frequency/region details.",
     ),
     DependencyRule(
         name="oncall-detail",
-        dependent_matcher=_depends_on_oncall,
+        dependent_matcher=_depends_on_oncall_blob,
         trigger_evaluator=_oncall_trigger,
         notes="Heuristic matching on on-call detail wording.",
     ),
@@ -331,8 +351,9 @@ def should_show_question(
     if declared_dependency_match is not None:
         return declared_dependency_match
 
+    question_blob = _question_blob(question)
     matching_rules = [
-        rule for rule in DEPENDENCY_RULES if rule.dependent_matcher(question)
+        rule for rule in DEPENDENCY_RULES if rule.dependent_matcher(question_blob)
     ]
     if not matching_rules:
         return True
