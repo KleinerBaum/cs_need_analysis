@@ -82,6 +82,27 @@ def test_normalize_logo_payload_rejects_unsupported_type() -> None:
     assert SUMMARY_MODULE._normalize_logo_payload(FakeUpload()) is None
 
 
+def test_build_selection_rows_formats_language_requirements() -> None:
+    job = JobAdExtract(job_title="Data Engineer")
+    answers = {
+        "sprachen": [
+            {"language": "Deutsch", "level": "C1"},
+            {"language": "Englisch", "level": "B2"},
+        ]
+    }
+
+    rows = SUMMARY_MODULE._build_selection_rows(job=job, answers=answers)
+    language_rows = [
+        row
+        for row in rows
+        if row["Kategorie"] == "Manager-Input" and row["Feld"] == "sprachen"
+    ]
+
+    assert len(language_rows) == 2
+    assert language_rows[0]["Wert"] == "Deutsch (C1)"
+    assert language_rows[1]["Wert"] == "Englisch (B2)"
+
+
 def test_job_ad_docx_contains_logo_media_when_logo_present() -> None:
     png_bytes = base64.b64decode(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5vS3wAAAAASUVORK5CYII="

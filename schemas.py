@@ -9,7 +9,7 @@ These models are used in two ways:
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -55,6 +55,14 @@ class RecruitmentStep(StrictSchemaModel):
         default=None,
         description="Optional details like duration, format, who participates.",
     )
+
+
+CEFRLevel = Literal["A1", "A2", "B1", "B2", "C1", "C2"]
+
+
+class LanguageRequirement(StrictSchemaModel):
+    language: str = Field(description="Language name, e.g., 'Deutsch' or 'Englisch'.")
+    level: CEFRLevel = Field(description="Required CEFR level from A1 to C2.")
 
 
 class JobAdExtract(StrictSchemaModel):
