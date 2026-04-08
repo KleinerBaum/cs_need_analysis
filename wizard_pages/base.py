@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, List, Mapping, Sequence
+from typing import Callable, List, Literal, Mapping, Sequence, TypedDict
 
 import streamlit as st
 
 from constants import SSKey, STEPS
+from question_dependencies import should_show_question
+from question_progress import compute_question_progress
+from schemas import Question, QuestionPlan
 
 
 @dataclass(frozen=True)
@@ -50,11 +53,136 @@ class WizardContext:
                 self.goto(keys[i - 1])
 
 
+StepStatus = Literal["complete", "partial", "not_started"]
+
+
+class SidebarStepProgress(TypedDict):
+    key: str
+    status: StepStatus
+    answered: int
+    total: int
+
+
+def _status_prefix(status: StepStatus) -> str:
+    if status == "complete":
+        return "✅"
+    if status == "partial":
+        return "🟡"
+    return "⬜"
+
+
+def _get_step_questions(plan: QuestionPlan | None, step_key: str) -> list[Question]:
+    if plan is None:
+        return []
+    step = next((entry for entry in plan.steps if entry.step_key == step_key), None)
+    if step is None:
+        return []
+
+    limits_raw = st.session_state.get(SSKey.QUESTION_LIMITS.value, {})
+    step_limit: int | None = None
+    if isinstance(limits_raw, dict):
+        raw_limit = limits_raw.get(step_key)
+        if isinstance(raw_limit, (int, float, str)):
+            try:
+                step_limit = int(raw_limit)
+            except ValueError:
+                step_limit = None
+
+    questions = step.questions
+    if step_limit is not None and step_limit > 0:
+        questions = step.questions[:step_limit]
+    return questions
+
+
+def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgress]:
+    plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
+    plan: QuestionPlan | None = None
+    if isinstance(plan_dict, dict):
+        try:
+            plan = QuestionPlan.model_validate(plan_dict)
+        except Exception:
+            plan = None
+
+    answers_raw = st.session_state.get(SSKey.ANSWERS.value, {})
+    answers = answers_raw if isinstance(answers_raw, dict) else {}
+    answer_meta_raw = st.session_state.get(SSKey.ANSWER_META.value, {})
+    answer_meta = answer_meta_raw if isinstance(answer_meta_raw, dict) else {}
+    has_job_extract = bool(st.session_state.get(SSKey.JOB_EXTRACT.value))
+    has_brief = bool(st.session_state.get(SSKey.BRIEF.value))
+
+    statuses: list[SidebarStepProgress] = []
+    for page in pages:
+        questions = _get_step_questions(plan, page.key)
+        visible_questions = [
+            question
+            for question in questions
+            if should_show_question(question, answers, answer_meta, page.key)
+        ]
+        progress = compute_question_progress(visible_questions, answers, answer_meta)
+        answered = progress["answered"]
+        total = progress["total"]
+
+        status: StepStatus = "not_started"
+        if total > 0:
+            if answered == 0:
+                status = "not_started"
+            elif answered < total:
+                status = "partial"
+            else:
+                status = "complete"
+        elif page.key == "landing":
+            status = "complete" if has_job_extract else "not_started"
+        elif page.key == "jobad":
+            source_text = st.session_state.get(SSKey.SOURCE_TEXT.value, "")
+            has_source = isinstance(source_text, str) and bool(source_text.strip())
+            if has_job_extract and plan is not None:
+                status = "complete"
+            elif has_source:
+                status = "partial"
+        elif page.key == "jobspec_review":
+            if plan is not None:
+                status = "complete"
+            elif has_job_extract:
+                status = "partial"
+        elif page.key == "summary":
+            if has_brief:
+                status = "complete"
+            elif any(value for value in answers.values()):
+                status = "partial"
+
+        statuses.append(
+            {
+                "key": page.key,
+                "status": status,
+                "answered": answered,
+                "total": total,
+            }
+        )
+    return statuses
+
+
 def sidebar_navigation(ctx: WizardContext) -> WizardPage:
     pages = ctx.pages
     cur_key = ctx.get_current_page_key()
+    step_statuses = _compute_step_statuses(pages)
+    status_by_key = {entry["key"]: entry for entry in step_statuses}
+    started_steps = sum(
+        1 for entry in step_statuses if entry["status"] != "not_started"
+    )
+    total_steps = len(step_statuses)
+
+    st.sidebar.markdown("### Wizard-Fortschritt")
+    st.sidebar.caption(f"{started_steps}/{total_steps} Schritte bearbeitet")
+
     options = [p.key for p in pages]
-    format_map = {p.key: p.label for p in pages}
+    format_map: dict[str, str] = {}
+    for page in pages:
+        step_status = status_by_key.get(page.key)
+        prefix = _status_prefix(step_status["status"]) if step_status else "⬜"
+        progress_suffix = ""
+        if step_status and step_status["total"] > 0:
+            progress_suffix = f" · {step_status['answered']}/{step_status['total']}"
+        format_map[page.key] = f"{prefix} {page.title_de}{progress_suffix}"
 
     def _format(k: str) -> str:
         return format_map.get(k, k)
