@@ -5,7 +5,8 @@ import io
 import json
 import textwrap
 from collections import defaultdict
-from typing import Any
+from typing import Callable
+from typing import Any, TypedDict
 
 import streamlit as st
 import docx
@@ -82,6 +83,23 @@ CHANGE_REQUEST_TEMPLATE_BLOCKS: dict[str, str] = {
         "inklusive Sprache konsequent verwenden."
     ),
 }
+
+
+class SummaryAction(TypedDict):
+    id: str
+    title: str
+    description: str
+    cta_label: str
+    requires: tuple[SSKey, ...]
+    generator_fn: Callable[[], None] | None
+    result_key: SSKey
+    input_hints: tuple[str, ...]
+
+
+def _widget_key(base_key: SSKey, suffix: str | None = None) -> str:
+    if not suffix:
+        return base_key.value
+    return f"{base_key.value}.{suffix}"
 
 
 def _safe_int(value: Any) -> int:
@@ -337,7 +355,7 @@ def _render_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) -> None:
                 min_value=0,
                 max_value=100,
                 value=50,
-                key=f"cs.summary.weight.{requirement}",
+                key=_widget_key(SSKey.SUMMARY_WEIGHT_WIDGET_PREFIX, requirement),
             )
 
     total_weight = sum(weights_raw.values())
@@ -438,7 +456,7 @@ def _render_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) -> None:
     with left_col_1:
         selection = st.plotly_chart(
             fig_salary,
-            key="cs.summary.salary_forecast",
+            key=SSKey.SUMMARY_SALARY_FORECAST_WIDGET.value,
             width="stretch",
             on_select="rerun",
             selection_mode=("points", "box", "lasso"),
@@ -612,8 +630,8 @@ def _collect_critical_gaps(job: JobAdExtract, rows: list[dict[str, str]]) -> lis
         ("Kontakt", "Kontakt E-Mail", "Fehlende Bewerbermail-Anschrift"),
         ("Kontakt", "Ansprechpartner", "Fehlende Ansprechpartner-Angabe"),
     ]
-    for category, field, msg in must_have_checks:
-        if (category, field) not in present_fields:
+    for category, field_name, msg in must_have_checks:
+        if (category, field_name) not in present_fields:
             gaps.append(msg)
     return sorted(set(gaps))
 
@@ -644,7 +662,7 @@ def _render_selection_matrix(
         picks = _render_pills_multiselect(
             f"{group_key}",
             options=distinct_values,
-            key=f"cs.summary.pick.{group_key}",
+            key=_widget_key(SSKey.SUMMARY_SELECTION_PICK_WIDGET_PREFIX, group_key),
         )
         if picks:
             selected[group_key] = picks
@@ -851,33 +869,42 @@ def _render_summary_snapshot(
         st.caption(f"Brief-Status: {'Vorhanden' if brief else 'Noch nicht generiert'}")
 
 
-def _render_action_hub(
-    *, resolved_brief_model: str, resolved_quality_model: str
-) -> tuple[bool, bool]:
-    st.markdown("### Was möchtest du jetzt erzeugen?")
-    st.caption(
-        "Starte mit dem Standard-Draft oder schärfe einen vorhandenen Brief gezielt in kritischen Bereichen."
-    )
-    col1, col2, col3 = st.columns([1, 1, 2])
-    with col1:
-        do_brief = st.button(
-            "Recruiting Brief generieren", type="primary", width="stretch"
-        )
-    with col2:
-        do_quality_upgrade = st.button(
-            "Qualitäts-Upgrade",
+def _has_required_state(requirements: tuple[SSKey, ...]) -> bool:
+    for required_key in requirements:
+        if not st.session_state.get(required_key.value):
+            return False
+    return True
+
+
+def _render_action_card(action: SummaryAction) -> bool:
+    has_result = bool(st.session_state.get(action["result_key"].value))
+    requirements_ok = _has_required_state(action["requires"])
+    status_label = "✅ aktuell" if has_result else "🕒 noch nicht generiert"
+    with st.container(border=True):
+        st.markdown(f"**{action['title']}**")
+        st.caption(action["description"])
+        st.caption(f"Status: {status_label}")
+        if action["input_hints"]:
+            st.markdown("**Inputs**")
+            for input_hint in action["input_hints"]:
+                st.write(f"- {input_hint}")
+        if not requirements_ok:
+            st.warning("Voraussetzungen fehlen – Aktion aktuell nicht verfügbar.")
+            return False
+        if action["generator_fn"] is None:
+            st.button(
+                f"{action['cta_label']} (Platzhalter)",
+                disabled=True,
+                width="stretch",
+                key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, action["id"]),
+            )
+            return False
+        return st.button(
+            action["cta_label"],
             width="stretch",
-            help="Schärft nur kritische Abschnitte nach.",
+            type="primary",
+            key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, action["id"]),
         )
-    with col3:
-        st.caption(
-            "Standard: vollständiger Draft mit MEDIUM_REASONING_MODEL. Optional: "
-            "Qualitäts-Upgrade nur für kritische Abschnitte mit HIGH_REASONING_MODEL."
-        )
-        st.caption(
-            f"Aktive Modelle: Draft=`{resolved_brief_model}` · Upgrade=`{resolved_quality_model}`"
-        )
-    return do_brief, do_quality_upgrade
 
 
 def render(ctx: WizardContext) -> None:
@@ -915,13 +942,13 @@ def render(ctx: WizardContext) -> None:
     resolved_quality_model = (
         session_override.strip() if session_override else settings.high_reasoning_model
     )
-
-    do_brief, do_quality_upgrade = _render_action_hub(
-        resolved_brief_model=resolved_brief_model,
-        resolved_quality_model=resolved_quality_model,
+    resolved_job_ad_model = resolve_model_for_task(
+        task_kind=TASK_GENERATE_JOB_AD,
+        session_override=session_override,
+        settings=settings,
     )
 
-    if do_brief:
+    def _generate_recruiting_brief() -> None:
         clear_error()
         store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
         try:
@@ -963,7 +990,141 @@ def render(ctx: WizardContext) -> None:
                 error_type=error_type,
                 error_code="SUMMARY_BRIEF_GENERATION_UNEXPECTED",
             )
-        st.rerun()
+
+    def _generate_job_ad() -> None:
+        clear_error()
+        selected_values = st.session_state.get(SSKey.SUMMARY_SELECTIONS.value, {})
+        styleguide = str(st.session_state.get(SSKey.SUMMARY_STYLEGUIDE_TEXT.value, ""))
+        change_request = str(
+            st.session_state.get(SSKey.SUMMARY_CHANGE_REQUEST_TEXT.value, "")
+        )
+        logo_payload = st.session_state.get(SSKey.SUMMARY_LOGO.value)
+        try:
+            with st.spinner("Generiere zielgruppen-optimierte Stellenanzeige …"):
+                result, usage = generate_custom_job_ad(
+                    job=job,
+                    answers=answers,
+                    selected_values=selected_values,
+                    style_guide=styleguide,
+                    change_request=change_request,
+                    model=resolved_job_ad_model,
+                    store=bool(
+                        st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)
+                    ),
+                )
+            payload = result.model_dump(mode="json")
+            payload["styleguide"] = styleguide
+            payload["logo_filename"] = (
+                logo_payload.get("name") if isinstance(logo_payload, dict) else None
+            )
+            st.session_state[SSKey.JOB_AD_DRAFT_CUSTOM.value] = payload
+            st.session_state[SSKey.JOB_AD_LAST_USAGE.value] = usage or {}
+        except OpenAICallError as e:
+            render_openai_error(e)
+        except Exception as exc:
+            handle_unexpected_exception(
+                step="summary.job_ad_generation",
+                exc=exc,
+                error_type=type(exc).__name__,
+                error_code="SUMMARY_JOB_AD_GENERATION_UNEXPECTED",
+            )
+
+    st.markdown("### Action Hub")
+    st.caption(
+        "Einheitliche Aktionskarten für Erzeugung, Qualitätssicherung und Folgeartefakte."
+    )
+    action_registry: list[SummaryAction] = [
+        {
+            "id": "recruiting_brief",
+            "title": "Recruiting Brief",
+            "description": (
+                "Verdichtet Jobspec + Wizard-Antworten in einen strukturierten Brief "
+                "als Ausgangsbasis für Hiring und Kommunikation."
+            ),
+            "cta_label": "Recruiting Brief generieren",
+            "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
+            "generator_fn": _generate_recruiting_brief,
+            "result_key": SSKey.BRIEF,
+            "input_hints": (
+                "Extrahierte Jobspec-Daten",
+                "Strukturierte Wizard-Antworten",
+                f"Draft-Modell: {resolved_brief_model}",
+            ),
+        },
+        {
+            "id": "job_ad_generator",
+            "title": "Job-Ad-Generator",
+            "description": (
+                "Generiert oder verbessert eine zielgruppenorientierte Stellenanzeige "
+                "inkl. AGG-Checkliste auf Basis selektierter Inputs."
+            ),
+            "cta_label": "Stellenanzeige generieren/verbessern",
+            "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
+            "generator_fn": _generate_job_ad,
+            "result_key": SSKey.JOB_AD_DRAFT_CUSTOM,
+            "input_hints": (
+                "Selection Matrix (optional)",
+                "Styleguide + Change Request",
+                f"Job-Ad-Modell: {resolved_job_ad_model}",
+            ),
+        },
+        {
+            "id": "interview_hr_sheet",
+            "title": "Interview-Vorbereitungssheet (HR)",
+            "description": "Platzhalter für strukturiertes HR-Interviewbriefing.",
+            "cta_label": "HR-Sheet erstellen",
+            "requires": (SSKey.BRIEF,),
+            "generator_fn": None,
+            "result_key": SSKey.INTERVIEW_PREP_HR,
+            "input_hints": ("Recruiting Brief", "Kritische Must-haves"),
+        },
+        {
+            "id": "interview_fach_sheet",
+            "title": "Interview-Vorbereitungssheet (Fachbereich)",
+            "description": "Platzhalter für fachliche Interviewleitfäden und Bewertung.",
+            "cta_label": "Fachbereich-Sheet erstellen",
+            "requires": (SSKey.BRIEF,),
+            "generator_fn": None,
+            "result_key": SSKey.INTERVIEW_PREP_FACH,
+            "input_hints": ("Recruiting Brief", "Top Responsibilities"),
+        },
+        {
+            "id": "boolean_search",
+            "title": "Boolean Search String",
+            "description": "Platzhalter für sourcing-fähige Suchstrings je Kanal.",
+            "cta_label": "Boolean String erstellen",
+            "requires": (SSKey.BRIEF,),
+            "generator_fn": None,
+            "result_key": SSKey.BOOLEAN_SEARCH_STRING,
+            "input_hints": ("Must-have + Nice-to-have Skills", "Synonyme"),
+        },
+        {
+            "id": "employment_contract",
+            "title": "Arbeitsvertrag",
+            "description": "Platzhalter für Vertragsentwurf aus den Kernparametern.",
+            "cta_label": "Arbeitsvertrag erstellen",
+            "requires": (SSKey.BRIEF,),
+            "generator_fn": None,
+            "result_key": SSKey.EMPLOYMENT_CONTRACT_DRAFT,
+            "input_hints": ("Rolle, Seniorität, Standort", "Vertragsart + Konditionen"),
+        },
+    ]
+    card_columns = st.columns(2)
+    for index, action in enumerate(action_registry):
+        with card_columns[index % 2]:
+            triggered = _render_action_card(action)
+            if triggered and action["generator_fn"]:
+                action["generator_fn"]()
+                st.rerun()
+
+    st.markdown("### Qualitäts-Upgrade")
+    st.caption(
+        "Schärft nur kritische Abschnitte im bestehenden Brief (High-Reasoning-Modell)."
+    )
+    do_quality_upgrade = st.button("Qualitäts-Upgrade", width="stretch")
+    st.caption(
+        f"Aktive Modelle: Draft=`{resolved_brief_model}` · Upgrade=`{resolved_quality_model}`"
+    )
 
     if do_quality_upgrade:
         if not brief_dict:
@@ -1083,7 +1244,7 @@ def render(ctx: WizardContext) -> None:
                 "Logo-Upload (optional)",
                 type=["png", "jpg", "jpeg", "svg"],
                 help="Das Logo wird als Metadatum gespeichert und kann im Exportprozess weiterverwendet werden.",
-                key="cs.summary.logo_upload",
+                key=SSKey.SUMMARY_LOGO_UPLOAD_WIDGET.value,
             )
             normalized_logo = _normalize_logo_payload(logo_file)
             st.session_state[SSKey.SUMMARY_LOGO.value] = normalized_logo
@@ -1123,17 +1284,11 @@ def render(ctx: WizardContext) -> None:
                 template_blocks=CHANGE_REQUEST_TEMPLATE_BLOCKS,
                 widget_prefix="cs.summary.change_request.block",
             )
-            change_request = change_request_slot.text_area(
+            change_request_slot.text_area(
                 "Anpassungswünsche (für Iterationen)",
                 placeholder="z. B. stärker auf Senior-Profile fokussieren, CTA kürzen, Benefits konkretisieren …",
                 key=SSKey.SUMMARY_CHANGE_REQUEST_TEXT.value,
             )
-            change_request = str(
-                st.session_state.get(
-                    SSKey.SUMMARY_CHANGE_REQUEST_TEXT.value, change_request
-                )
-            )
-            selected_values = st.session_state.get(SSKey.SUMMARY_SELECTIONS.value, {})
             critical_gaps = _collect_critical_gaps(
                 job,
                 _build_selection_rows(job, answers),
@@ -1143,49 +1298,9 @@ def render(ctx: WizardContext) -> None:
                     "Hinweis: Kritische Lücken werden in der AGG-Checkliste markiert und nicht halluziniert."
                 )
 
-            resolved_job_ad_model = resolve_model_for_task(
-                task_kind=TASK_GENERATE_JOB_AD,
-                session_override=session_override,
-                settings=settings,
+            st.caption(
+                "Die Generierung wird im Action Hub ausgelöst. Hier kannst du Inputs vorbereiten und Ergebnisse prüfen."
             )
-            if st.button(
-                "Stellenanzeige generieren/verbessern", type="primary", width="stretch"
-            ):
-                clear_error()
-                try:
-                    with st.spinner(
-                        "Generiere zielgruppen-optimierte Stellenanzeige …"
-                    ):
-                        result, usage = generate_custom_job_ad(
-                            job=job,
-                            answers=answers,
-                            selected_values=selected_values,
-                            style_guide=styleguide,
-                            change_request=change_request,
-                            model=resolved_job_ad_model,
-                            store=bool(
-                                st.session_state.get(
-                                    SSKey.STORE_API_OUTPUT.value, False
-                                )
-                            ),
-                        )
-                    payload = result.model_dump(mode="json")
-                    payload["styleguide"] = styleguide
-                    payload["logo_filename"] = (
-                        normalized_logo.get("name") if normalized_logo else None
-                    )
-                    st.session_state[SSKey.JOB_AD_DRAFT_CUSTOM.value] = payload
-                    st.session_state[SSKey.JOB_AD_LAST_USAGE.value] = usage or {}
-                except OpenAICallError as e:
-                    render_openai_error(e)
-                except Exception as exc:
-                    handle_unexpected_exception(
-                        step="summary.job_ad_generation",
-                        exc=exc,
-                        error_type=type(exc).__name__,
-                        error_code="SUMMARY_JOB_AD_GENERATION_UNEXPECTED",
-                    )
-                st.rerun()
 
             custom_job_ad_raw = st.session_state.get(SSKey.JOB_AD_DRAFT_CUSTOM.value)
             if isinstance(custom_job_ad_raw, dict):
