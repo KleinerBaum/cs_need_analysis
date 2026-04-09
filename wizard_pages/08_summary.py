@@ -30,6 +30,7 @@ from state import (
     handle_unexpected_exception,
 )
 from ui_components import render_brief, render_error_banner, render_openai_error
+from usage_utils import usage_has_cache_hit
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
 
 SUPPORTED_LOGO_MIME_TYPES: dict[str, str] = {
@@ -803,9 +804,7 @@ def render(ctx: WizardContext) -> None:
     plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
 
     if not job_dict or not plan_dict:
-        st.warning(
-            "Bitte zuerst im Start-Schritt eine Analyse durchführen."
-        )
+        st.warning("Bitte zuerst im Start-Schritt eine Analyse durchführen.")
         st.button("Zur Startseite", on_click=lambda: ctx.goto("landing"))
         nav_buttons(ctx, disable_next=True)
         return
@@ -857,7 +856,7 @@ def render(ctx: WizardContext) -> None:
                     store=store,
                 )
             st.session_state[SSKey.BRIEF.value] = brief.model_dump()
-            brief_cached = bool((usage or {}).get("cached"))
+            brief_cached = usage_has_cache_hit(usage)
             st.session_state[SSKey.SUMMARY_CACHE_HIT.value] = brief_cached
             st.session_state[SSKey.SUMMARY_LAST_MODE.value] = "standard_draft"
             st.session_state[SSKey.SUMMARY_LAST_MODELS.value] = {
@@ -908,9 +907,7 @@ def render(ctx: WizardContext) -> None:
                     store=store,
                 )
             st.session_state[SSKey.BRIEF.value] = brief.model_dump()
-            st.session_state[SSKey.SUMMARY_CACHE_HIT.value] = bool(
-                (usage or {}).get("cached")
-            )
+            st.session_state[SSKey.SUMMARY_CACHE_HIT.value] = usage_has_cache_hit(usage)
             st.session_state[SSKey.SUMMARY_LAST_MODE.value] = "quality_upgrade_critical"
             st.session_state[SSKey.SUMMARY_LAST_MODELS.value] = {
                 "draft_model": resolved_brief_model,
