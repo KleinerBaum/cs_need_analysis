@@ -61,6 +61,15 @@ class SSKey(str, Enum):
     JOB_AD_DRAFT_CUSTOM = "cs.job_ad_draft_custom"
     JOB_AD_LAST_USAGE = "cs.job_ad_last_usage"
     SUMMARY_LOGO = "cs.summary_logo"
+    SUMMARY_WEIGHT_WIDGET_PREFIX = "cs.summary.weight"
+    SUMMARY_SALARY_FORECAST_WIDGET = "cs.summary.salary_forecast"
+    SUMMARY_SELECTION_PICK_WIDGET_PREFIX = "cs.summary.pick"
+    SUMMARY_LOGO_UPLOAD_WIDGET = "cs.summary.logo_upload"
+    SUMMARY_ACTION_WIDGET_PREFIX = "cs.summary.action"
+    INTERVIEW_PREP_HR = "cs.summary.interview_prep_hr"
+    INTERVIEW_PREP_FACH = "cs.summary.interview_prep_fach"
+    BOOLEAN_SEARCH_STRING = "cs.summary.boolean_search_string"
+    EMPLOYMENT_CONTRACT_DRAFT = "cs.summary.employment_contract"
 
 
 # ---- Wizard Steps (match your screenshot structure) ----
