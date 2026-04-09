@@ -16,10 +16,12 @@ from constants import AnswerType, SSKey
 from llm_client import (
     JobAdGenerationResult,
     OpenAICallError,
+    TASK_GENERATE_BOOLEAN_SEARCH,
     TASK_GENERATE_INTERVIEW_SHEET_HM,
     TASK_GENERATE_INTERVIEW_SHEET_HR,
     TASK_GENERATE_JOB_AD,
     TASK_GENERATE_VACANCY_BRIEF,
+    generate_boolean_search_pack,
     generate_custom_job_ad,
     generate_interview_sheet_hm,
     generate_interview_sheet_hr,
@@ -27,6 +29,7 @@ from llm_client import (
     resolve_model_for_task,
 )
 from schemas import (
+    BooleanSearchPack,
     InterviewPrepSheetHiringManager,
     InterviewPrepSheetHR,
     JobAdExtract,
@@ -43,6 +46,7 @@ from state import (
     handle_unexpected_exception,
 )
 from ui_components import (
+    render_boolean_search_pack,
     render_brief,
     render_error_banner,
     render_interview_prep_fach,
@@ -639,6 +643,65 @@ def _brief_to_markdown(brief: VacancyBrief) -> str:
     return "\n".join(lines)
 
 
+def _boolean_search_pack_to_markdown(pack: BooleanSearchPack) -> str:
+    def _as_bullets(values: list[str], *, code: bool = False) -> list[str]:
+        if not values:
+            return ["- —"]
+        if code:
+            return [f"- `{value}`" for value in values]
+        return [f"- {value}" for value in values]
+
+    lines = [
+        "# Boolean Search Pack",
+        "",
+        f"**Role Title:** {pack.role_title}",
+        "",
+        "## Must-have Terms",
+        *_as_bullets(pack.must_have_terms),
+        "",
+        "## Seniority Terms",
+        *_as_bullets(pack.seniority_terms),
+        "",
+        "## Exclusion Terms",
+        *_as_bullets(pack.exclusion_terms),
+        "",
+        "## Target Locations",
+        *_as_bullets(pack.target_locations),
+        "",
+    ]
+    for channel_label, channel in (
+        ("Google", pack.google),
+        ("LinkedIn", pack.linkedin),
+        ("XING", pack.xing),
+    ):
+        lines.extend(
+            [
+                f"## {channel_label}",
+                "",
+                "### Broad",
+                *_as_bullets(channel.broad, code=True),
+                "",
+                "### Focused",
+                *_as_bullets(channel.focused, code=True),
+                "",
+                "### Fallback",
+                *_as_bullets(channel.fallback, code=True),
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            "## Channel Limitations",
+            *_as_bullets(pack.channel_limitations),
+            "",
+            "## Usage Notes",
+            *_as_bullets(pack.usage_notes),
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def _build_selection_rows(
     job: JobAdExtract, answers: dict[str, Any]
 ) -> list[dict[str, str]]:
@@ -1178,10 +1241,12 @@ def _build_action_registry(
     resolved_job_ad_model: str,
     resolved_hr_sheet_model: str,
     resolved_fach_sheet_model: str,
+    resolved_boolean_search_model: str,
     generate_recruiting_brief: Callable[[], None],
     generate_job_ad: Callable[[], None],
     generate_interview_prep_hr: Callable[[], None],
     generate_interview_prep_fach: Callable[[], None],
+    generate_boolean_search: Callable[[], None],
 ) -> list[SummaryAction]:
     return [
         {
@@ -1255,12 +1320,19 @@ def _build_action_registry(
         {
             "id": "boolean_search",
             "title": "Boolean Search String",
-            "description": "Platzhalter für sourcing-fähige Suchstrings je Kanal.",
+            "description": (
+                "Erstellt kanal-spezifische Boolean-Queries (Google, LinkedIn, XING) "
+                "inkl. Broad/Focused/Fallback-Varianten."
+            ),
             "cta_label": "Boolean String erstellen",
             "requires": (SSKey.BRIEF,),
-            "generator_fn": None,
+            "generator_fn": generate_boolean_search,
             "result_key": SSKey.BOOLEAN_SEARCH_STRING,
-            "input_hints": ("Must-have + Nice-to-have Skills", "Synonyme"),
+            "input_hints": (
+                "Recruiting Brief",
+                "Must-have + Nice-to-have Skills",
+                f"Boolean-Modell: {resolved_boolean_search_model}",
+            ),
         },
         {
             "id": "employment_contract",
@@ -1319,6 +1391,11 @@ def render(ctx: WizardContext) -> None:
     )
     resolved_fach_sheet_model = resolve_model_for_task(
         task_kind=TASK_GENERATE_INTERVIEW_SHEET_HM,
+        session_override=session_override,
+        settings=settings,
+    )
+    resolved_boolean_search_model = resolve_model_for_task(
+        task_kind=TASK_GENERATE_BOOLEAN_SEARCH,
         session_override=session_override,
         settings=settings,
     )
@@ -1482,6 +1559,44 @@ def render(ctx: WizardContext) -> None:
                 error_code="SUMMARY_INTERVIEW_PREP_FACH_GENERATION_UNEXPECTED",
             )
 
+    def _generate_boolean_search_pack() -> None:
+        clear_error()
+        brief_payload = st.session_state.get(SSKey.BRIEF.value)
+        if not isinstance(brief_payload, dict):
+            st.warning(
+                "Recruiting Brief fehlt oder ist ungültig. Bitte Brief neu generieren."
+            )
+            return
+        try:
+            brief_model = VacancyBrief.model_validate(brief_payload)
+            store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
+            with st.spinner("Generiere Boolean Search Pack…"):
+                pack, usage = generate_boolean_search_pack(
+                    brief=brief_model,
+                    model=resolved_boolean_search_model,
+                    store=store,
+                )
+            st.session_state[SSKey.BOOLEAN_SEARCH_STRING.value] = pack.model_dump(
+                mode="json"
+            )
+            st.session_state[SSKey.BOOLEAN_SEARCH_LAST_USAGE.value] = usage or {}
+            st.session_state[SSKey.BOOLEAN_SEARCH_CACHE_HIT.value] = (
+                usage_has_cache_hit(usage)
+            )
+            st.session_state[SSKey.BOOLEAN_SEARCH_LAST_MODE.value] = "from_brief"
+            st.session_state[SSKey.BOOLEAN_SEARCH_LAST_MODELS.value] = {
+                "draft_model": resolved_boolean_search_model
+            }
+        except OpenAICallError as e:
+            render_openai_error(e)
+        except Exception as exc:
+            handle_unexpected_exception(
+                step="summary.boolean_search_generation",
+                exc=exc,
+                error_type=type(exc).__name__,
+                error_code="SUMMARY_BOOLEAN_SEARCH_GENERATION_UNEXPECTED",
+            )
+
     st.markdown("### Action Hub")
     st.caption(
         "Einheitliche Aktionskarten für Erzeugung, Qualitätssicherung und Folgeartefakte."
@@ -1491,10 +1606,12 @@ def render(ctx: WizardContext) -> None:
         resolved_job_ad_model=resolved_job_ad_model,
         resolved_hr_sheet_model=resolved_hr_sheet_model,
         resolved_fach_sheet_model=resolved_fach_sheet_model,
+        resolved_boolean_search_model=resolved_boolean_search_model,
         generate_recruiting_brief=_generate_recruiting_brief,
         generate_job_ad=_generate_job_ad,
         generate_interview_prep_hr=_generate_interview_prep_hr,
         generate_interview_prep_fach=_generate_interview_prep_fach,
+        generate_boolean_search=_generate_boolean_search_pack,
     )
     card_columns = st.columns(2)
     for index, action in enumerate(action_registry):
@@ -1624,6 +1741,58 @@ def render(ctx: WizardContext) -> None:
                         data=fach_docx_bytes,
                         file_name="interview_sheet_fachbereich.docx",
                         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    )
+
+        boolean_payload = st.session_state.get(SSKey.BOOLEAN_SEARCH_STRING.value)
+        if isinstance(boolean_payload, dict):
+            boolean_pack = BooleanSearchPack.model_validate(boolean_payload)
+            with st.expander("Boolean Search Pack", expanded=False):
+                boolean_cache_hit = bool(
+                    st.session_state.get(SSKey.BOOLEAN_SEARCH_CACHE_HIT.value, False)
+                )
+                boolean_usage = (
+                    st.session_state.get(SSKey.BOOLEAN_SEARCH_LAST_USAGE.value, {})
+                    or {}
+                )
+                boolean_mode = (
+                    st.session_state.get(SSKey.BOOLEAN_SEARCH_LAST_MODE.value)
+                    or "unknown"
+                )
+                boolean_models = (
+                    st.session_state.get(SSKey.BOOLEAN_SEARCH_LAST_MODELS.value, {})
+                    or {}
+                )
+                boolean_cache_label = (
+                    "Cache-Hit" if boolean_cache_hit else "Kein Cache-Hit"
+                )
+                st.caption(
+                    f"📦 {boolean_cache_label} · Modus: `{boolean_mode}` · "
+                    f"Modell: `{boolean_models.get('draft_model', resolved_boolean_search_model)}`"
+                )
+                with st.expander("API Usage (Debug)", expanded=False):
+                    st.write({"usage": boolean_usage})
+                render_boolean_search_pack(boolean_pack)
+
+                boolean_json_bytes = json.dumps(
+                    boolean_pack.model_dump(mode="json"), indent=2, ensure_ascii=False
+                ).encode("utf-8")
+                boolean_md = _boolean_search_pack_to_markdown(boolean_pack).encode(
+                    "utf-8"
+                )
+                x1, x2 = st.columns(2)
+                with x1:
+                    st.download_button(
+                        "Download Boolean Search JSON",
+                        data=boolean_json_bytes,
+                        file_name="boolean_search_pack.json",
+                        mime="application/json",
+                    )
+                with x2:
+                    st.download_button(
+                        "Download Boolean Search Markdown",
+                        data=boolean_md,
+                        file_name="boolean_search_pack.md",
+                        mime="text/markdown",
                     )
 
         st.subheader("Export")

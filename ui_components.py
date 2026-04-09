@@ -15,6 +15,7 @@ from llm_client import OpenAICallError
 from question_dependencies import should_show_question
 from question_progress import build_answered_lookup, compute_question_progress
 from schemas import (
+    BooleanSearchPack,
     Contact,
     InterviewPrepSheetHiringManager,
     InterviewPrepSheetHR,
@@ -1683,3 +1684,62 @@ def render_interview_prep_fach(sheet: InterviewPrepSheetHiringManager) -> None:
             st.write(f"- {question}")
     else:
         st.info("Keine Debrief-Fragen hinterlegt.")
+
+
+def render_boolean_search_pack(pack: BooleanSearchPack) -> None:
+    st.markdown(f"**Rolle:** {pack.role_title}")
+
+    metadata_columns = st.columns(4)
+    metadata_fields = [
+        ("Must-have Terms", pack.must_have_terms),
+        ("Seniority Terms", pack.seniority_terms),
+        ("Exclusion Terms", pack.exclusion_terms),
+        ("Target Locations", pack.target_locations),
+    ]
+    for column, (label, values) in zip(metadata_columns, metadata_fields):
+        with column:
+            st.markdown(f"**{label}**")
+            if values:
+                for value in values:
+                    st.write(f"- {value}")
+            else:
+                st.caption("—")
+
+    for channel_name, channel_queries in (
+        ("Google", pack.google),
+        ("LinkedIn", pack.linkedin),
+        ("XING", pack.xing),
+    ):
+        st.markdown(f"**{channel_name}**")
+        broad_col, focused_col, fallback_col = st.columns(3)
+        for column, label, entries in (
+            (broad_col, "Broad", channel_queries.broad),
+            (focused_col, "Focused", channel_queries.focused),
+            (fallback_col, "Fallback", channel_queries.fallback),
+        ):
+            with column:
+                st.caption(label)
+                if entries:
+                    st.text_area(
+                        f"{channel_name} {label}",
+                        value="\n".join(entries),
+                        height=120,
+                        disabled=True,
+                        key=f"cs.boolean_search.preview.{channel_name.lower()}.{label.lower()}",
+                    )
+                else:
+                    st.caption("Keine Queries vorhanden.")
+
+    st.markdown("**Channel Limitations**")
+    if pack.channel_limitations:
+        for limitation in pack.channel_limitations:
+            st.write(f"- {limitation}")
+    else:
+        st.info("Keine kanalbezogenen Einschränkungen hinterlegt.")
+
+    st.markdown("**Usage Notes**")
+    if pack.usage_notes:
+        for note in pack.usage_notes:
+            st.write(f"- {note}")
+    else:
+        st.info("Keine Usage Notes hinterlegt.")
