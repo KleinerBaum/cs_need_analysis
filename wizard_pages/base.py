@@ -561,14 +561,12 @@ def render_output_section(
         unsafe_allow_html=True,
     )
     st.subheader(title)
-    st.markdown('<div class="landing-card">', unsafe_allow_html=True)
     st.markdown(
         '<ul class="landing-list">'
         + "".join(f"<li>{bullet}</li>" for bullet in bullets)
         + "</ul>",
         unsafe_allow_html=True,
     )
-    st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("</section>", unsafe_allow_html=True)
 
 

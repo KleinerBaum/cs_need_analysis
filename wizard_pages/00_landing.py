@@ -5,7 +5,6 @@ import streamlit as st
 from typing import cast
 
 from constants import APP_TITLE
-from state import reset_vacancy
 from wizard_pages.jobad_intake import render_jobad_intake
 from wizard_pages.base import (
     LANDING_CTA_KEYS,
@@ -13,8 +12,6 @@ from wizard_pages.base import (
     LANDING_STYLE_TOKENS,
     WizardContext,
     WizardPage,
-    nav_buttons,
-    render_hero_section,
     render_importance_section,
     render_landing_css,
     render_output_section,
@@ -116,31 +113,6 @@ def render(ctx: WizardContext) -> None:
     render_landing_css(LANDING_STYLE_TOKENS)
     st.title(APP_TITLE)
 
-    consent_given = bool(st.session_state.get(LANDING_CTA_KEYS["consent"]))
-
-    render_hero_section(
-        ctx,
-        section_id=LANDING_SECTION_IDS["hero"],
-        headline=str(LANDING_COPY["hero_headline"]),
-        subhead=str(LANDING_COPY["hero_subhead"]),
-        primary_cta=str(LANDING_COPY["primary_cta"]),
-        secondary_cta_hint=str(LANDING_COPY["secondary_cta_hint"]),
-        before_start_title=str(LANDING_COPY["before_start_title"]),
-        before_start_bullets=cast(
-            tuple[str, ...], LANDING_COPY["before_start_bullets"]
-        ),
-        reassurance_line=str(LANDING_COPY["cta_reassurance"]),
-        extraction_helper_copy=str(LANDING_COPY["cta_helper"]),
-        next_step_line=str(LANDING_COPY["next_step_line"]),
-        post_cta_microcopy=str(LANDING_COPY["cta_microcopy"]),
-        value_cards=cast(tuple[tuple[str, str], ...], LANDING_COPY["value_cards"]),
-        show_value_cards=False,
-        consent_given=consent_given,
-        start_button_key=LANDING_CTA_KEYS["start"],
-        on_start=reset_vacancy,
-        start_target="landing",
-    )
-
     st.caption(str(LANDING_COPY["consent_hint"]))
     with st.expander(str(LANDING_COPY["consent_expander_title"]), expanded=False):
         st.markdown(str(LANDING_COPY["consent_details"]))
@@ -170,8 +142,6 @@ def render(ctx: WizardContext) -> None:
     render_jobad_intake()
 
     st.caption("Debug im Sidebar aktivierbar / Debug can be enabled in the sidebar.")
-
-    nav_buttons(ctx, disable_prev=True)
 
 
 PAGE = WizardPage(
