@@ -11,7 +11,7 @@ from typing import Any, TypedDict
 import streamlit as st
 import docx
 
-from constants import SSKey
+from constants import AnswerType, SSKey
 from llm_client import (
     JobAdGenerationResult,
     OpenAICallError,
@@ -21,7 +21,13 @@ from llm_client import (
     generate_vacancy_brief,
     resolve_model_for_task,
 )
-from schemas import JobAdExtract, LanguageRequirement, VacancyBrief
+from schemas import (
+    JobAdExtract,
+    LanguageRequirement,
+    Question,
+    QuestionPlan,
+    VacancyBrief,
+)
 from settings_openai import load_openai_settings
 from state import (
     clear_error,
@@ -834,38 +840,102 @@ def _render_summary_snapshot(
     job: JobAdExtract, answers: dict[str, Any], brief: VacancyBrief | None
 ) -> None:
     st.markdown("### Kompaktüberblick")
-    salary_range = "Nicht angegeben"
-    if job.salary_range and (job.salary_range.min or job.salary_range.max):
-        minimum = _safe_int(job.salary_range.min)
-        maximum = _safe_int(job.salary_range.max)
-        currency = job.salary_range.currency or "EUR"
-        if minimum and maximum:
-            salary_range = f"{minimum:,} – {maximum:,} {currency}".replace(",", ".")
-        else:
-            value = maximum or minimum
-            salary_range = f"ab {value:,} {currency}".replace(",", ".")
-
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Must-have Skills", len(job.must_have_skills))
-    with col2:
-        st.metric("Interview-Schritte", len(job.recruitment_steps))
-    with col3:
-        st.metric("Wizard-Antworten", len(answers))
-    with col4:
-        st.metric("Kritische Gaps", len(job.gaps))
-
-    fact_col1, fact_col2 = st.columns(2)
-    with fact_col1:
-        st.markdown("**Standort & Setup**")
-        st.write(
-            f"{job.location_city or 'Ort offen'}, {job.location_country or 'Land offen'}"
+    plan_raw = st.session_state.get(SSKey.QUESTION_PLAN.value)
+    try:
+        plan = (
+            QuestionPlan.model_validate(plan_raw)
+            if isinstance(plan_raw, dict)
+            else None
         )
-        st.caption(f"Remote: {job.remote_policy or 'Nicht angegeben'}")
-    with fact_col2:
-        st.markdown("**Kompensation (falls vorhanden)**")
-        st.write(salary_range)
-        st.caption(f"Brief-Status: {'Vorhanden' if brief else 'Noch nicht generiert'}")
+    except Exception:
+        plan = None
+
+    table = _build_summary_compact_table(
+        job=job, answers=answers, plan=plan, brief=brief
+    )
+    st.dataframe(table, width="stretch", hide_index=True)
+
+
+def _format_summary_answer_value(question: Question, value: Any) -> str:
+    if question.answer_type == AnswerType.BOOLEAN:
+        return "Ja" if bool(value) else "Nein"
+    if question.answer_type == AnswerType.MULTI_SELECT:
+        if isinstance(value, list):
+            return ", ".join(str(item).strip() for item in value if str(item).strip())
+        return ""
+    if question.answer_type == AnswerType.SINGLE_SELECT:
+        return str(value or "").strip()
+    if question.answer_type in {
+        AnswerType.LONG_TEXT,
+        AnswerType.SHORT_TEXT,
+        AnswerType.DATE,
+    }:
+        return str(value or "").strip()
+    if question.answer_type == AnswerType.NUMBER:
+        return str(value) if value is not None else ""
+
+    if isinstance(value, list):
+        return ", ".join(str(item).strip() for item in value if str(item).strip())
+    return str(value or "").strip()
+
+
+def _build_summary_compact_table(
+    *,
+    job: JobAdExtract,
+    answers: dict[str, Any],
+    plan: QuestionPlan | None,
+    brief: VacancyBrief | None,
+) -> list[dict[str, str]]:
+    jobspec_items: list[str] = []
+    if job.job_title:
+        jobspec_items.append(f"Titel: {job.job_title}")
+    if job.company_name:
+        jobspec_items.append(f"Unternehmen: {job.company_name}")
+    if job.location_city or job.location_country:
+        jobspec_items.append(
+            f"Standort: {job.location_city or 'Ort offen'}, {job.location_country or 'Land offen'}"
+        )
+    if job.remote_policy:
+        jobspec_items.append(f"Remote: {job.remote_policy}")
+    if job.contract_type:
+        jobspec_items.append(f"Vertragsart: {job.contract_type}")
+    if job.employment_type:
+        jobspec_items.append(f"Anstellungsart: {job.employment_type}")
+    if job.must_have_skills:
+        jobspec_items.append("Must-have: " + ", ".join(job.must_have_skills[:4]))
+    if job.recruitment_steps:
+        jobspec_items.append(
+            "Interview: "
+            + ", ".join(step.name for step in job.recruitment_steps[:3] if step.name)
+        )
+    jobspec_items.append(
+        f"Brief-Status: {'Vorhanden' if brief is not None else 'Noch nicht generiert'}"
+    )
+
+    step_payload: list[tuple[str, list[str]]] = [("Jobspec-Übersicht", jobspec_items)]
+    if plan is not None:
+        for step in plan.steps:
+            if step.step_key in {"landing", "jobspec_review", "summary"}:
+                continue
+            answered_items: list[str] = []
+            for question in step.questions:
+                raw_value = answers.get(question.id)
+                if raw_value in (None, "", []):
+                    continue
+                formatted = _format_summary_answer_value(question, raw_value)
+                if not formatted:
+                    continue
+                answered_items.append(f"{question.label}: {formatted}")
+            step_payload.append((step.title_de, answered_items or ["Keine Eingaben"]))
+
+    max_rows = max((len(items) for _, items in step_payload), default=1)
+    rows: list[dict[str, str]] = []
+    for index in range(max_rows):
+        row: dict[str, str] = {}
+        for title, items in step_payload:
+            row[title] = items[index] if index < len(items) else ""
+        rows.append(row)
+    return rows
 
 
 def _has_required_state(requirements: tuple[SSKey, ...]) -> bool:
