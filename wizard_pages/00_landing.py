@@ -18,8 +18,19 @@ from wizard_pages.base import (
 )
 
 LANDING_COPY: dict[str, object] = {
-    "hero_headline": "Recruiting beginnt nicht mit Sourcing. Es beginnt mit einem sauberen Vacancy Intake.",
-    "primary_cta": "",
+    "hero_headline": "Präzise Anforderungen. Schnellere Besetzungen. Bessere Einstellungen.",
+    "hero_subheadline": (
+        "Recruiting beginnt nicht mit Sourcing, sondern mit einem sauberen Vacancy Intake. "
+        "Diese App strukturiert den ersten Schritt jeder Suche: die vollständige Aufnahme "
+        "aller suchrelevanten Anforderungen."
+    ),
+    "hero_supporting_paragraph": (
+        "Was am Anfang fehlt, fehlt später überall. Fehlende Informationen kosten passende "
+        "Bewerbungen, erzeugen Rückfragen und erhöhen das Risiko teurer Fehlbesetzungen. "
+        "Ein sauberer Intake schafft die Grundlage für bessere Anzeigen, schnellere Prozesse "
+        "und belastbare Entscheidungen."
+    ),
+    "primary_cta": "Vacancy Intake starten",
     "secondary_cta_hint": "",
     "next_step_line": "",
     "before_start_title": "",
@@ -98,8 +109,10 @@ LANDING_COPY: dict[str, object] = {
 
 def render(ctx: WizardContext) -> None:
     render_landing_css(LANDING_STYLE_TOKENS)
-    st.title(APP_TITLE)
-    st.subheader(str(LANDING_COPY["hero_headline"]))
+    st.caption(APP_TITLE)
+    st.title(str(LANDING_COPY["hero_headline"]))
+    st.subheader(str(LANDING_COPY["hero_subheadline"]))
+    st.markdown(str(LANDING_COPY["hero_supporting_paragraph"]))
 
     output_col, importance_col = st.columns(2, gap="medium")
     with output_col:
@@ -123,7 +136,7 @@ def render(ctx: WizardContext) -> None:
     )
 
     st.divider()
-    render_jobad_intake()
+    render_jobad_intake(title=str(LANDING_COPY["primary_cta"]))
 
     st.caption("Debug im Sidebar aktivierbar / Debug can be enabled in the sidebar.")
 
