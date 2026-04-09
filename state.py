@@ -36,6 +36,8 @@ def get_active_model() -> str:
 def init_session_state() -> None:
     defaults = {
         SSKey.CURRENT_STEP.value: STEPS[0].key,
+        SSKey.NAV_SELECTED.value: STEPS[0].key,
+        SSKey.NAV_SYNC_PENDING.value: False,
         SSKey.LANGUAGE.value: DEFAULT_LANGUAGE,
         SSKey.MODEL.value: load_openai_settings().openai_model,
         SSKey.STORE_API_OUTPUT.value: False,
@@ -90,6 +92,8 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.JOB_AD_LAST_USAGE.value] = {}
     st.session_state[SSKey.LAST_ERROR.value] = None
     st.session_state[SSKey.CURRENT_STEP.value] = STEPS[0].key
+    st.session_state[SSKey.NAV_SELECTED.value] = STEPS[0].key
+    st.session_state[SSKey.NAV_SYNC_PENDING.value] = False
 
 
 def get_answers() -> Dict[str, Any]:

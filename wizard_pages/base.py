@@ -34,7 +34,7 @@ class WizardContext:
         return st.session_state.get(SSKey.CURRENT_STEP.value, STEPS[0].key)
 
     def goto(self, key: str) -> None:
-        st.session_state[SSKey.CURRENT_STEP.value] = key
+        set_current_step(key)
 
     def next(self) -> None:
         cur = self.get_current_page_key()
@@ -69,6 +69,12 @@ def _status_prefix(status: StepStatus) -> str:
     if status == "partial":
         return "🟡"
     return "⬜"
+
+
+def set_current_step(key: str, *, sync_navigation: bool = True) -> None:
+    st.session_state[SSKey.CURRENT_STEP.value] = key
+    if sync_navigation:
+        st.session_state[SSKey.NAV_SYNC_PENDING.value] = True
 
 
 def _get_step_questions(plan: QuestionPlan | None, step_key: str) -> list[Question]:
@@ -163,7 +169,19 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
 
 def sidebar_navigation(ctx: WizardContext) -> WizardPage:
     pages = ctx.pages
+    options = [p.key for p in pages]
     cur_key = ctx.get_current_page_key()
+    if cur_key not in options:
+        cur_key = options[0]
+        set_current_step(cur_key)
+
+    nav_key = SSKey.NAV_SELECTED.value
+    nav_sync_pending = bool(st.session_state.get(SSKey.NAV_SYNC_PENDING.value, False))
+    nav_selected = st.session_state.get(nav_key)
+    if nav_sync_pending or nav_selected not in options:
+        st.session_state[nav_key] = cur_key
+        st.session_state[SSKey.NAV_SYNC_PENDING.value] = False
+
     step_statuses = _compute_step_statuses(pages)
     status_by_key = {entry["key"]: entry for entry in step_statuses}
     started_steps = sum(
@@ -174,7 +192,6 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
     st.sidebar.markdown("### Wizard-Fortschritt")
     st.sidebar.caption(f"{started_steps}/{total_steps} Schritte bearbeitet")
 
-    options = [p.key for p in pages]
     format_map: dict[str, str] = {}
     for page in pages:
         step_status = status_by_key.get(page.key)
@@ -190,11 +207,11 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
     selected = st.sidebar.radio(
         "Wizard",
         options=options,
-        index=options.index(cur_key) if cur_key in options else 0,
+        key=nav_key,
         format_func=_format,
     )
     if selected != cur_key:
-        st.session_state[SSKey.CURRENT_STEP.value] = selected
+        set_current_step(selected, sync_navigation=False)
         st.rerun()
 
     current_page = next(p for p in pages if p.key == selected)
