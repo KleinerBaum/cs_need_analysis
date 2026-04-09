@@ -23,48 +23,16 @@ from wizard_pages.base import (
 
 LANDING_COPY: dict[str, object] = {
     "hero_headline": "Recruiting beginnt nicht mit Sourcing. Es beginnt mit einem sauberen Vacancy Intake.",
-    "hero_subhead": (
-        "Laden Sie eine Jobspec hoch und führen Sie den Guided Intake in wenigen Minuten durch."
-    ),
-    "primary_cta": "Jetzt Jobspec hochladen und Guided Intake starten",
-    "secondary_cta_hint": "Kein Risiko: Fehlende Informationen können später ergänzt werden.",
-    "next_step_line": "Als Nächstes öffnen wir Schritt 1 von 9: Jobspec / Jobad.",
-    "before_start_title": "Vor dem Start",
-    "before_start_bullets": (
-        "Unterstützt Jobspecs, Rollenprofile und klassische Stellenanzeigen",
-        "Der Intake dauert nur wenige Minuten und passt sich dem Inhalt dynamisch an",
-        "Sie erhalten ein strukturiertes Recruiting Briefing als Ergebnis",
-    ),
-    "cta_reassurance": (
-        "Sie müssen nicht sofort alle Informationen vorliegen haben – "
-        "fehlende Punkte werden im Verlauf gezielt ergänzt."
-    ),
-    "cta_helper": (
-        "Das Tool extrahiert zuerst vorhandene Informationen und stellt "
-        "danach nur relevante Rückfragen."
-    ),
-    "cta_microcopy": (
-        "Besonders hilfreich bei unklaren Anforderungen, neuen Rollen oder "
-        "mehreren Stakeholdern."
-    ),
-    "value_cards": (
-        (
-            "Mehr Klarheit von Beginn an",
-            "Extrahiert Inhalte und zeigt fehlende Punkte sofort an.",
-        ),
-        (
-            "Bessere Interviews",
-            "Schärft Must-haves, Aufgaben und Erfolgskriterien.",
-        ),
-        (
-            "Weniger Abstimmungsschleifen",
-            "Senkt Rückfragen zwischen Fachbereich, HR und Recruiting.",
-        ),
-        (
-            "Sauberer Output",
-            "Erzeugt ein klares Recruiting-Briefing als Entscheidungsbasis.",
-        ),
-    ),
+    "hero_subhead": (""),
+    "primary_cta": "",
+    "secondary_cta_hint": "",
+    "next_step_line": "",
+    "before_start_title": "",
+    "before_start_bullets": (),
+    "cta_reassurance": "",
+    "cta_helper": "",
+    "cta_microcopy": "",
+    "value_cards": (),
     "importance_title": "Warum dieser erste Schritt entscheidend ist",
     "importance_intro": "Unscharfer Intake = teure Folgeschleifen im Recruiting.",
     "importance_points": (
@@ -167,6 +135,7 @@ def render(ctx: WizardContext) -> None:
         next_step_line=str(LANDING_COPY["next_step_line"]),
         post_cta_microcopy=str(LANDING_COPY["cta_microcopy"]),
         value_cards=cast(tuple[tuple[str, str], ...], LANDING_COPY["value_cards"]),
+        show_value_cards=False,
         consent_given=consent_given,
         start_button_key=LANDING_CTA_KEYS["start"],
         on_start=reset_vacancy,
