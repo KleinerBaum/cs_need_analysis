@@ -4,7 +4,7 @@ from __future__ import annotations
 import streamlit as st
 from typing import cast
 
-from constants import APP_TITLE, SSKey
+from constants import APP_TITLE
 from state import reset_vacancy
 from wizard_pages.jobad_intake import render_jobad_intake
 from wizard_pages.base import (
@@ -14,12 +14,10 @@ from wizard_pages.base import (
     WizardContext,
     WizardPage,
     nav_buttons,
-    render_flow_steps,
     render_hero_section,
     render_importance_section,
     render_landing_css,
     render_output_section,
-    render_security_note,
 )
 
 LANDING_COPY: dict[str, object] = {
@@ -152,9 +150,6 @@ def render(ctx: WizardContext) -> None:
         key=LANDING_CTA_KEYS["consent"],
     )
 
-    if not bool(st.session_state.get(SSKey.CONTENT_SHARING_CONSENT.value)):
-        st.warning(str(LANDING_COPY["consent_warning"]))
-
     render_importance_section(
         section_id=LANDING_SECTION_IDS["importance"],
         title=str(LANDING_COPY["importance_title"]),
@@ -163,22 +158,10 @@ def render(ctx: WizardContext) -> None:
         closer=str(LANDING_COPY["importance_closer"]),
     )
 
-    render_flow_steps(
-        section_id=LANDING_SECTION_IDS["flow"],
-        title=str(LANDING_COPY["flow_title"]),
-        steps=cast(tuple[tuple[str, str], ...], LANDING_COPY["flow_steps"]),
-    )
-
     render_output_section(
         section_id=LANDING_SECTION_IDS["output"],
         title=str(LANDING_COPY["output_title"]),
         bullets=cast(tuple[str, ...], LANDING_COPY["output_bullets"]),
-    )
-
-    render_security_note(
-        section_id=LANDING_SECTION_IDS["security"],
-        title=str(LANDING_COPY["security_title"]),
-        body=str(LANDING_COPY["security_body"]),
     )
 
     st.divider()
