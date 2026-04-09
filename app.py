@@ -292,18 +292,6 @@ def _render_legal_page(legal_page_key: str) -> None:
         st.rerun()
 
 
-def _render_sidebar_legal_links() -> None:
-    st.markdown('<div class="sidebar-bottom-links">', unsafe_allow_html=True)
-    st.caption("Legal / Rechtliches")
-    st.markdown(
-        """
-        - [Terms of Service / Nutzungsbedingungen](?legal=terms)
-        - [Privacy Policy / Datenschutzerklärung](?legal=privacy)
-        """
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
 def main() -> None:
     st.set_page_config(page_title=APP_TITLE, layout="wide")
     _inject_theme_styles()
@@ -316,34 +304,6 @@ def main() -> None:
     with st.sidebar:
         st.markdown("### Aktionen")
         st.button("Reset Vacancy", on_click=reset_vacancy)
-        st.checkbox("Debug anzeigen / Show debug", key=SSKey.DEBUG.value)
-        st.divider()
-        st.caption("Legende: ✅ fertig · 🟡 teilweise · ⬜ offen")
-        if st.session_state.get(SSKey.DEBUG.value):
-            _render_openai_debug_panel()
-        st.markdown('<div class="sidebar-spacer"></div>', unsafe_allow_html=True)
-        _render_sidebar_legal_links()
-
-    st.markdown(
-        """
-        <style>
-            [data-testid="stSidebarContent"] {
-                display: flex;
-                flex-direction: column;
-                min-height: 100%;
-            }
-            .sidebar-spacer {
-                flex-grow: 1;
-                min-height: 1rem;
-            }
-            .sidebar-bottom-links {
-                padding-top: 0.5rem;
-                border-top: 1px solid rgba(255, 255, 255, 0.2);
-            }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
 
     legal_page_key = _get_legal_page_key()
     if legal_page_key is not None:

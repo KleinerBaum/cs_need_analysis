@@ -103,28 +103,6 @@ def render_jobad_intake(*, title: str = "Jobspec / Job Ad einlesen") -> None:
         "Lade ein Jobspec als PDF/DOCX hoch oder füge den Text direkt ein. Danach klickst du auf **Analysieren**."
     )
 
-    with st.sidebar:
-        st.subheader("LLM Settings")
-        st.text_input(
-            "Model",
-            key=SSKey.MODEL.value,
-            help="z.B. gpt-4o-mini oder ein anderes Modell aus deinem Account.",
-        )
-        st.checkbox(
-            "API Output speichern (store=true)",
-            key=SSKey.STORE_API_OUTPUT.value,
-            help="Für Datenschutz i.d.R. deaktiviert lassen.",
-        )
-        st.checkbox(
-            "PII redaktionieren (E-Mail/Telefon maskieren)",
-            key=SSKey.SOURCE_REDACT_PII.value,
-        )
-        st.checkbox(
-            "Debug-Fehlerdetails anzeigen (nur Metadaten)",
-            key=SSKey.OPENAI_DEBUG_ERRORS.value,
-            help="Zeigt nur Error-Code, Step und Typ – keine Inhalte oder PII.",
-        )
-
     if SOURCE_TEXT_INPUT_KEY not in st.session_state:
         st.session_state[SOURCE_TEXT_INPUT_KEY] = st.session_state.get(
             SSKey.SOURCE_TEXT.value, ""
