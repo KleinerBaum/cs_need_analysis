@@ -406,6 +406,7 @@ def render_hero_section(
     before_start_bullets: Sequence[str] = (),
     reassurance_line: str = "",
     extraction_helper_copy: str = "",
+    next_step_line: str = "",
     post_cta_microcopy: str = "",
     value_cards: Sequence[tuple[str, str]],
     show_value_cards: bool = True,
@@ -435,6 +436,8 @@ def render_hero_section(
         f'<p class="landing-caption">{secondary_cta_hint}</p>',
         unsafe_allow_html=True,
     )
+    if next_step_line:
+        st.caption(next_step_line)
     has_more_details = any(
         [
             bool(before_start_title and before_start_bullets),
