@@ -4,13 +4,21 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 
 ## Features
 
-- Upload von Jobspec/Job Ad als **PDF** oder **DOCX** (alternativ: Text einfügen)
-- Quellenhandling in Schritt „Jobspec / Job Ad“ ist entkoppelt: Upload, manuelle Eingabe und Samples überschreiben sich nicht mehr; aktive Quelle wird transparent angezeigt (DE/EN).
-- LLM-gestützte **Extraktion** der Jobspec in ein strukturiertes Schema (Structured Outputs)
-- Dynamischer Fragebogen je Abschnitt: Unternehmen, Team, Rolle & Aufgaben, Skills, Benefits, Interviewprozess
-- Finaler **Recruiting Brief** inkl. Job-Ad Draft + Export (JSON / Markdown / DOCX)
-- LLM-Response-Caching für `extract_job_ad`, `generate_question_plan` und `generate_vacancy_brief` auf Session-Ebene mit modellrelevantem Cache-Key (Task, Modell, Sprache, Reasoning/Verbosity, Store-Flag, normalisierter Input, optionale Schema-Version).
-- UI-Hinweise in Jobad/Summary markieren Cache-Treffer zweisprachig (DE/EN): „aus Cache geladen / loaded from cache“.
+- Intake-Start direkt auf der Landingpage mit integriertem Jobspec-Intake (Upload/Text + Analyse-Button) und separater Consent-Bestätigung (Checkbox) zum Content-Sharing-Hinweis.
+- Upload von Jobspec/Job Ad als **PDF**, **DOCX** oder **TXT** (alternativ: Text einfügen).
+- Entkoppeltes Quellenhandling im Intake: Upload-Text und manuelle Eingabe überschreiben sich nicht; die aktive Quelle wird zur Analyse genutzt.
+- LLM-gestützte **Extraktion** der Jobspec in ein strukturiertes Schema (Structured Outputs) und automatische Erzeugung eines dynamischen Frageplans.
+- Wizard mit Fortschrittsanzeige und drei Ansichtsmodi (`quick`, `standard`, `expert`) für die Schritte Unternehmen, Team, Rolle & Aufgaben, Skills, Benefits, Interviewprozess und Summary.
+- Finaler **Recruiting Brief** mit Export als JSON, Markdown und DOCX.
+- **Action Hub** in der Summary für Folgeartefakte inkl. eigener Ergebnisbereiche und Exporte:
+  - Recruiting Brief
+  - Job-Ad-Generator (mit Zielgruppe + AGG-Checkliste)
+  - Interview-Vorbereitungssheet (HR)
+  - Interview-Vorbereitungssheet (Fachbereich)
+  - Boolean Search Pack (Google/LinkedIn/XING, Broad/Focused/Fallback)
+  - Arbeitsvertrag (Template Draft)
+- „Advanced Studio“ in der Summary mit Salary Forecast, Selection Matrix und Job-Ad-Editor (inkl. optionalem Logo-Upload, Styleguide- und Change-Request-Bausteinen).
+- Session-basiertes LLM-Response-Caching mit Cache-Hinweisen in Intake/Summary (DE/EN), inkl. Cache-Status für Folgeartefakte.
 
 ## Voraussetzungen
 
@@ -22,11 +30,8 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 - Die App nutzt `images/AdobeStock_506577005.jpeg` als vollflächiges Hintergrundbild.
 - Das Logo `images/color1_logo_transparent_background.png` wird mit transparentem Hintergrund im Sidebar-Header dargestellt.
 - Für Lesbarkeit auf hellen und dunklen Bildbereichen nutzt die Oberfläche einen dunklen Overlay-Layer, kontrastreiche Textfarben sowie angepasste Button-/Formularfarben.
-- Optionaler Debug-Expander in der Sidebar (nur bei aktiviertem Debug-Flag) zeigt ausschließlich aufgelöste OpenAI-Laufzeitwerte an (`model`, `default_model`, `reasoning_effort`, `verbosity`, `timeout`) und blendet Secrets aus.
-- Der Debug-Expander zeigt zusätzlich sichere Provenance-Metadaten (`*_source`), den Status eines UI-Session-Overrides sowie task-spezifisch aufgelöste Modelle (`extract_job_ad`, `generate_question_plan`, `generate_vacancy_brief`) ohne Secret-Werte.
-- Neue rechtliche Unterseiten sind über Links am unteren Ende der Sidebar erreichbar: **Terms of Service / Nutzungsbedingungen** und **Privacy Policy / Datenschutzerklärung**.
-- Startseite enthält jetzt eine verpflichtende **Einwilligungsbestätigung / consent confirmation** zum OpenAI Content Sharing Agreement; der Start-Button bleibt bis zur Bestätigung gesperrt.
-- Terms und Privacy erklären jetzt zusätzlich zweisprachig (DE/EN) die Pflichten rund um Designated Content, Notice/Consent sowie ausgeschlossene Datenkategorien (u. a. PHI, Daten von Kindern <13).
+- Rechtstexte werden als eigene Seiten über Query-Parameter gerendert (`?legal=terms`, `?legal=privacy`) und enthalten DE/EN-Hinweise zu Content Sharing, Notice/Consent und ausgeschlossenen Datenkategorien (u. a. PHI, Daten von Kindern <13).
+- Debug-Hinweise werden in den jeweiligen Fachbereichen angezeigt (z. B. API-Usage-Expander in Intake/Summary), ohne Secrets preiszugeben.
 
 ## Installation
 
