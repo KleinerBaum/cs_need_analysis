@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 import textwrap
 from collections import defaultdict
 from typing import Callable
@@ -99,6 +100,87 @@ class SummaryAction(TypedDict):
     generator_fn: Callable[[], None] | None
     result_key: SSKey
     input_hints: tuple[str, ...]
+
+
+def _normalize_list_item(value: str) -> str:
+    cleaned = re.sub(r"^[\-•*\d\.)\s]+", "", value).strip()
+    return cleaned
+
+
+def _dedupe_preserve_order(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for item in values:
+        normalized = item.strip()
+        if not normalized:
+            continue
+        key = normalized.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(normalized)
+    return result
+
+
+def _sanitize_generated_job_ad(
+    job_ad: JobAdGenerationResult,
+) -> tuple[JobAdGenerationResult, list[str]]:
+    body_lines: list[str] = []
+    extracted_target_group: list[str] = []
+    extracted_checklist: list[str] = []
+    extracted_notes: list[str] = []
+
+    section = "body"
+    for raw_line in job_ad.job_ad_text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            if section == "body":
+                body_lines.append("")
+            continue
+
+        lowered = line.rstrip(":").strip().casefold()
+        if lowered == "zielgruppe":
+            section = "target_group"
+            continue
+        if lowered in {"agg-checkliste", "agg checkliste"}:
+            section = "agg_checklist"
+            continue
+
+        if line.casefold().startswith("hinweis:"):
+            extracted_notes.append(line.split(":", 1)[1].strip())
+            continue
+
+        normalized_item = _normalize_list_item(line)
+        if section == "target_group":
+            if normalized_item:
+                extracted_target_group.append(normalized_item)
+            continue
+        if section == "agg_checklist":
+            if normalized_item:
+                extracted_checklist.append(normalized_item)
+            continue
+
+        body_lines.append(raw_line.rstrip())
+
+    while body_lines and not body_lines[-1].strip():
+        body_lines.pop()
+
+    normalized_job_ad = JobAdGenerationResult(
+        headline=job_ad.headline.strip(),
+        target_group=_dedupe_preserve_order(
+            [*job_ad.target_group, *extracted_target_group]
+        ),
+        agg_checklist=_dedupe_preserve_order(
+            [*job_ad.agg_checklist, *extracted_checklist]
+        ),
+        job_ad_text="\n".join(body_lines).strip(),
+    )
+    return normalized_job_ad, _dedupe_preserve_order(extracted_notes)
+
+
+def _estimate_text_area_height(text: str) -> int:
+    lines = max(1, len(text.splitlines()))
+    return min(520, max(160, 40 + lines * 22))
 
 
 def _widget_key(base_key: SSKey, suffix: str | None = None) -> str:
@@ -1163,7 +1245,9 @@ def render(ctx: WizardContext) -> None:
                         st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)
                     ),
                 )
-            payload = result.model_dump(mode="json")
+            normalized_result, extracted_notes = _sanitize_generated_job_ad(result)
+            payload = normalized_result.model_dump(mode="json")
+            payload["generation_notes"] = extracted_notes
             payload["styleguide"] = styleguide
             payload["logo_filename"] = (
                 logo_payload.get("name") if isinstance(logo_payload, dict) else None
@@ -1333,13 +1417,31 @@ def render(ctx: WizardContext) -> None:
                     }
                 )
                 st.markdown(f"### {custom_job_ad.headline}")
-                st.write(custom_job_ad.job_ad_text)
+                st.text_area(
+                    "Stellenanzeige",
+                    value=custom_job_ad.job_ad_text,
+                    height=_estimate_text_area_height(custom_job_ad.job_ad_text),
+                    disabled=True,
+                )
                 st.markdown("**Zielgruppe**")
                 for group in custom_job_ad.target_group:
                     st.write(f"- {group}")
                 st.markdown("**AGG-Checkliste**")
                 for item in custom_job_ad.agg_checklist:
                     st.write(f"- {item}")
+
+                generation_notes_raw = custom_job_ad_raw.get("generation_notes", [])
+                generation_notes = (
+                    generation_notes_raw
+                    if isinstance(generation_notes_raw, list)
+                    else []
+                )
+                if generation_notes:
+                    st.info(
+                        "Zusätzliche Hinweise wurden aus dem Anzeigentext entfernt und hier separat abgelegt."
+                    )
+                    for note in generation_notes:
+                        st.write(f"- {note}")
 
                 custom_docx = _job_ad_to_docx_bytes(
                     custom_job_ad, str(custom_job_ad_raw.get("styleguide", ""))
