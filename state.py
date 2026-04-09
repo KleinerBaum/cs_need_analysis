@@ -63,8 +63,33 @@ def init_session_state() -> None:
         SSKey.SUMMARY_LAST_MODE.value: None,
         SSKey.SUMMARY_LAST_MODELS.value: {},
         SSKey.SUMMARY_SELECTIONS.value: {},
+        SSKey.SUMMARY_STYLEGUIDE_BLOCKS.value: [],
+        SSKey.SUMMARY_CHANGE_REQUEST_BLOCKS.value: [],
+        SSKey.SUMMARY_STYLEGUIDE_TEXT.value: "",
+        SSKey.SUMMARY_CHANGE_REQUEST_TEXT.value: "",
+        SSKey.SUMMARY_LOGO.value: None,
         SSKey.JOB_AD_DRAFT_CUSTOM.value: None,
         SSKey.JOB_AD_LAST_USAGE.value: {},
+        SSKey.INTERVIEW_PREP_HR.value: None,
+        SSKey.INTERVIEW_PREP_HR_LAST_USAGE.value: {},
+        SSKey.INTERVIEW_PREP_HR_CACHE_HIT.value: False,
+        SSKey.INTERVIEW_PREP_HR_LAST_MODE.value: None,
+        SSKey.INTERVIEW_PREP_HR_LAST_MODELS.value: {},
+        SSKey.INTERVIEW_PREP_FACH.value: None,
+        SSKey.INTERVIEW_PREP_FACH_LAST_USAGE.value: {},
+        SSKey.INTERVIEW_PREP_FACH_CACHE_HIT.value: False,
+        SSKey.INTERVIEW_PREP_FACH_LAST_MODE.value: None,
+        SSKey.INTERVIEW_PREP_FACH_LAST_MODELS.value: {},
+        SSKey.BOOLEAN_SEARCH_STRING.value: None,
+        SSKey.BOOLEAN_SEARCH_LAST_USAGE.value: {},
+        SSKey.BOOLEAN_SEARCH_CACHE_HIT.value: False,
+        SSKey.BOOLEAN_SEARCH_LAST_MODE.value: None,
+        SSKey.BOOLEAN_SEARCH_LAST_MODELS.value: {},
+        SSKey.EMPLOYMENT_CONTRACT_DRAFT.value: None,
+        SSKey.EMPLOYMENT_CONTRACT_LAST_USAGE.value: {},
+        SSKey.EMPLOYMENT_CONTRACT_CACHE_HIT.value: False,
+        SSKey.EMPLOYMENT_CONTRACT_LAST_MODE.value: None,
+        SSKey.EMPLOYMENT_CONTRACT_LAST_MODELS.value: {},
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -88,8 +113,33 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.SUMMARY_LAST_MODE.value] = None
     st.session_state[SSKey.SUMMARY_LAST_MODELS.value] = {}
     st.session_state[SSKey.SUMMARY_SELECTIONS.value] = {}
+    st.session_state[SSKey.SUMMARY_STYLEGUIDE_BLOCKS.value] = []
+    st.session_state[SSKey.SUMMARY_CHANGE_REQUEST_BLOCKS.value] = []
+    st.session_state[SSKey.SUMMARY_STYLEGUIDE_TEXT.value] = ""
+    st.session_state[SSKey.SUMMARY_CHANGE_REQUEST_TEXT.value] = ""
+    st.session_state[SSKey.SUMMARY_LOGO.value] = None
     st.session_state[SSKey.JOB_AD_DRAFT_CUSTOM.value] = None
     st.session_state[SSKey.JOB_AD_LAST_USAGE.value] = {}
+    st.session_state[SSKey.INTERVIEW_PREP_HR.value] = None
+    st.session_state[SSKey.INTERVIEW_PREP_HR_LAST_USAGE.value] = {}
+    st.session_state[SSKey.INTERVIEW_PREP_HR_CACHE_HIT.value] = False
+    st.session_state[SSKey.INTERVIEW_PREP_HR_LAST_MODE.value] = None
+    st.session_state[SSKey.INTERVIEW_PREP_HR_LAST_MODELS.value] = {}
+    st.session_state[SSKey.INTERVIEW_PREP_FACH.value] = None
+    st.session_state[SSKey.INTERVIEW_PREP_FACH_LAST_USAGE.value] = {}
+    st.session_state[SSKey.INTERVIEW_PREP_FACH_CACHE_HIT.value] = False
+    st.session_state[SSKey.INTERVIEW_PREP_FACH_LAST_MODE.value] = None
+    st.session_state[SSKey.INTERVIEW_PREP_FACH_LAST_MODELS.value] = {}
+    st.session_state[SSKey.BOOLEAN_SEARCH_STRING.value] = None
+    st.session_state[SSKey.BOOLEAN_SEARCH_LAST_USAGE.value] = {}
+    st.session_state[SSKey.BOOLEAN_SEARCH_CACHE_HIT.value] = False
+    st.session_state[SSKey.BOOLEAN_SEARCH_LAST_MODE.value] = None
+    st.session_state[SSKey.BOOLEAN_SEARCH_LAST_MODELS.value] = {}
+    st.session_state[SSKey.EMPLOYMENT_CONTRACT_DRAFT.value] = None
+    st.session_state[SSKey.EMPLOYMENT_CONTRACT_LAST_USAGE.value] = {}
+    st.session_state[SSKey.EMPLOYMENT_CONTRACT_CACHE_HIT.value] = False
+    st.session_state[SSKey.EMPLOYMENT_CONTRACT_LAST_MODE.value] = None
+    st.session_state[SSKey.EMPLOYMENT_CONTRACT_LAST_MODELS.value] = {}
     st.session_state[SSKey.LAST_ERROR.value] = None
     st.session_state[SSKey.CURRENT_STEP.value] = STEPS[0].key
     st.session_state[SSKey.NAV_SELECTED.value] = STEPS[0].key
