@@ -1769,6 +1769,12 @@ def generate_interview_sheet_hm(
         "Du bist ein erfahrener Hiring Manager Interview-Coach. "
         "Erstelle ein strukturiertes Vorbereitungssheet mit Fokus auf "
         "Kompetenzvalidierung, technische Tiefenprüfung und kalibrierte Bewertung. "
+        "Nutze ein strukturiertes Interview mit klaren Frageblöcken und einer "
+        "gewichteten, objektiven Bewertungsrubrik. "
+        "Keine diskriminierenden, privaten oder nicht arbeitsplatzrelevanten Fragen "
+        "(AGG-konform). "
+        "Leite technical_deep_dive_topics direkt aus brief.must_have und "
+        "brief.top_responsibilities ab. "
         f"Sprache: {language}."
     )
     user = (
