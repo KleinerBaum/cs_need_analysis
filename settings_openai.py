@@ -36,6 +36,11 @@ _TASK_KINDS = (
     "extract_job_ad",
     "generate_question_plan",
     "generate_vacancy_brief",
+    "generate_job_ad",
+    "generate_interview_sheet_hr",
+    "generate_interview_sheet_hm",
+    "generate_boolean_search",
+    "generate_employment_contract",
 )
 
 

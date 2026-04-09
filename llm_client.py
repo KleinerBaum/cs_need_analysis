@@ -43,6 +43,10 @@ from model_capabilities import (
     supports_verbosity,
 )
 from schemas import (
+    BooleanSearchPack,
+    EmploymentContractDraft,
+    InterviewPrepSheetHR,
+    InterviewPrepSheetHiringManager,
     JobAdExtract,
     QuestionDependency,
     QuestionPlan,
@@ -68,6 +72,10 @@ TASK_EXTRACT_JOB_AD = "extract_job_ad"
 TASK_GENERATE_QUESTION_PLAN = "generate_question_plan"
 TASK_GENERATE_VACANCY_BRIEF = "generate_vacancy_brief"
 TASK_GENERATE_JOB_AD = "generate_job_ad"
+TASK_GENERATE_INTERVIEW_SHEET_HR = "generate_interview_sheet_hr"
+TASK_GENERATE_INTERVIEW_SHEET_HM = "generate_interview_sheet_hm"
+TASK_GENERATE_BOOLEAN_SEARCH = "generate_boolean_search"
+TASK_GENERATE_EMPLOYMENT_CONTRACT = "generate_employment_contract"
 
 _OTHER_OPTION = "Sonstiges"
 _CATEGORY_QUESTION_RULES: tuple[dict[str, Any], ...] = (
@@ -787,6 +795,10 @@ def resolve_model_for_task(
         TASK_GENERATE_QUESTION_PLAN: resolved_settings.medium_reasoning_model,
         TASK_GENERATE_VACANCY_BRIEF: resolved_settings.medium_reasoning_model,
         TASK_GENERATE_JOB_AD: resolved_settings.high_reasoning_model,
+        TASK_GENERATE_INTERVIEW_SHEET_HR: resolved_settings.high_reasoning_model,
+        TASK_GENERATE_INTERVIEW_SHEET_HM: resolved_settings.high_reasoning_model,
+        TASK_GENERATE_BOOLEAN_SEARCH: resolved_settings.medium_reasoning_model,
+        TASK_GENERATE_EMPLOYMENT_CONTRACT: resolved_settings.high_reasoning_model,
     }
     routed_model = model_by_task.get(task_kind, "").strip()
     if routed_model:
@@ -1611,3 +1623,315 @@ def generate_custom_job_ad(
     result = cast(JobAdGenerationResult, parsed)
     cache[cache_key] = {"result": result.model_dump(mode="json")}
     return result, usage
+
+
+def _build_task_fallback_usage(
+    *,
+    task_kind: str,
+    ui_message: str,
+    error_code: str | None,
+) -> dict[str, Any]:
+    """Return deterministic metadata for local minimal fallbacks."""
+
+    return {
+        "fallback": True,
+        "task_kind": task_kind,
+        "provider": "local_minimal_output",
+        "error_code": error_code or "OPENAI_UNKNOWN",
+        "ui_message": ui_message,
+    }
+
+
+def _generate_structured_with_fallback(
+    *,
+    task_kind: str,
+    messages: list[dict[str, str]],
+    out_model: type[BaseModel],
+    fallback_payload: dict[str, Any],
+    model: str,
+    store: bool,
+    temperature: float | None,
+) -> tuple[BaseModel, dict[str, Any]]:
+    """Run structured generation and return deterministic fallback on failures."""
+
+    runtime_config = _resolve_runtime_config(
+        task_kind=task_kind,
+        session_override=model,
+    )
+    prompt_limits = build_task_prompt_limits_suffix(
+        max_bullets_per_field=runtime_config.task_max_bullets_per_field,
+        max_sentences_per_field=runtime_config.task_max_sentences_per_field,
+        max_output_tokens=runtime_config.task_max_output_tokens,
+    )
+    if prompt_limits and messages:
+        messages[0]["content"] = f"{messages[0]['content']}{prompt_limits}"
+
+    try:
+        parsed, usage = _parse_with_structured_outputs(
+            runtime_config=runtime_config,
+            messages=messages,
+            out_model=out_model,
+            store=store,
+            maybe_temperature=temperature,
+        )
+        return parsed, usage or {}
+    except OpenAICallError as exc:
+        fallback_model = out_model.model_validate(fallback_payload)
+        return fallback_model, _build_task_fallback_usage(
+            task_kind=task_kind,
+            ui_message=exc.ui_message,
+            error_code=exc.error_code,
+        )
+    except ValidationError as exc:
+        mapped = _error_from_structured_output_exception(exc)
+        fallback_model = out_model.model_validate(fallback_payload)
+        return fallback_model, _build_task_fallback_usage(
+            task_kind=task_kind,
+            ui_message=mapped.ui_message,
+            error_code=mapped.error_code,
+        )
+
+
+def generate_interview_sheet_hr(
+    *,
+    brief: VacancyBrief,
+    model: str,
+    language: str = DEFAULT_LANGUAGE,
+    store: bool = False,
+    temperature: float | None = None,
+) -> tuple[InterviewPrepSheetHR, dict[str, Any]]:
+    """Generate recruiter-facing interview prep sheet with deterministic fallback."""
+
+    role_title = brief.one_liner.strip() or "Rolle"
+    system = (
+        "Du bist ein Senior Talent Acquisition Partner. "
+        "Erstelle ein strukturiertes HR-Interviewvorbereitungssheet mit klaren "
+        "Fragen, fairer Bewertung und konsistenter Candidate Experience. "
+        f"Sprache: {language}."
+    )
+    user = (
+        "Nutze den Vacancy Brief als einzige Quelle und liefere ein vollständiges "
+        "InterviewPrepSheetHR-Objekt.\n\n"
+        "Vacancy Brief (JSON):\n"
+        f"{json.dumps(brief.model_dump(mode='json'), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}"
+    )
+    fallback_payload = {
+        "role_title": role_title,
+        "interview_stage": "HR Screen",
+        "duration_minutes": 45,
+        "opening_script": "Vielen Dank für Ihre Zeit. Ich führe strukturiert durch das Gespräch und beantworte zum Schluss Ihre Fragen.",
+        "question_blocks": [],
+        "knockout_criteria": [
+            "Muss-Kriterien aus dem Brief im Gespräch valide prüfen."
+        ],
+        "candidate_experience_notes": [
+            "Klaren Ablauf kommunizieren und Zeitrahmen einhalten."
+        ],
+        "evaluation_rubric": [],
+        "final_recommendation_options": [
+            "Strong Yes",
+            "Yes",
+            "Hold",
+            "No",
+        ],
+    }
+    parsed, usage = _generate_structured_with_fallback(
+        task_kind=TASK_GENERATE_INTERVIEW_SHEET_HR,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        out_model=InterviewPrepSheetHR,
+        fallback_payload=fallback_payload,
+        model=model,
+        store=store,
+        temperature=temperature,
+    )
+    return cast(InterviewPrepSheetHR, parsed), usage
+
+
+def generate_interview_sheet_hm(
+    *,
+    brief: VacancyBrief,
+    model: str,
+    language: str = DEFAULT_LANGUAGE,
+    store: bool = False,
+    temperature: float | None = None,
+) -> tuple[InterviewPrepSheetHiringManager, dict[str, Any]]:
+    """Generate hiring-manager interview prep sheet with deterministic fallback."""
+
+    role_title = brief.one_liner.strip() or "Rolle"
+    system = (
+        "Du bist ein erfahrener Hiring Manager Interview-Coach. "
+        "Erstelle ein strukturiertes Vorbereitungssheet mit Fokus auf "
+        "Kompetenzvalidierung, technische Tiefenprüfung und kalibrierte Bewertung. "
+        f"Sprache: {language}."
+    )
+    user = (
+        "Nutze den Vacancy Brief als einzige Quelle und liefere ein vollständiges "
+        "InterviewPrepSheetHiringManager-Objekt.\n\n"
+        "Vacancy Brief (JSON):\n"
+        f"{json.dumps(brief.model_dump(mode='json'), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}"
+    )
+    fallback_payload = {
+        "role_title": role_title,
+        "interview_stage": "Fachinterview",
+        "duration_minutes": 60,
+        "competencies_to_validate": brief.must_have[:5],
+        "question_blocks": [],
+        "technical_deep_dive_topics": brief.top_responsibilities[:3],
+        "case_or_task_prompt": "Bitte schildern Sie eine vergleichbare Aufgabe inklusive Ziel, Vorgehen und Ergebnis.",
+        "evaluation_rubric": [],
+        "hiring_signal_summary": [
+            "Belegbare Ergebnisse, klare Priorisierung, nachvollziehbare Entscheidungen."
+        ],
+        "debrief_questions": [
+            "Welche evidenzbasierten Signale sprechen für/gegen eine Einstellung?"
+        ],
+    }
+    parsed, usage = _generate_structured_with_fallback(
+        task_kind=TASK_GENERATE_INTERVIEW_SHEET_HM,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        out_model=InterviewPrepSheetHiringManager,
+        fallback_payload=fallback_payload,
+        model=model,
+        store=store,
+        temperature=temperature,
+    )
+    return cast(InterviewPrepSheetHiringManager, parsed), usage
+
+
+def generate_boolean_search_pack(
+    *,
+    brief: VacancyBrief,
+    model: str,
+    language: str = DEFAULT_LANGUAGE,
+    store: bool = False,
+    temperature: float | None = None,
+) -> tuple[BooleanSearchPack, dict[str, Any]]:
+    """Generate structured sourcing-ready boolean queries with safe fallback."""
+
+    role_title = brief.one_liner.strip() or "Rolle"
+    system = (
+        "Du bist ein Senior Sourcing Specialist. "
+        "Erzeuge strukturierte, kanalbezogene Boolean-Search-Varianten für "
+        "Recruiting-Recherche ohne irrelevante Zusatztexte. "
+        f"Sprache: {language}."
+    )
+    user = (
+        "Nutze den Vacancy Brief als einzige Quelle und liefere ein vollständiges "
+        "BooleanSearchPack-Objekt.\n\n"
+        "Vacancy Brief (JSON):\n"
+        f"{json.dumps(brief.model_dump(mode='json'), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}"
+    )
+    must_have_terms = brief.must_have[:8]
+    fallback_query = (
+        " AND ".join(term for term in must_have_terms[:3] if term) or role_title
+    )
+    fallback_payload = {
+        "role_title": role_title,
+        "target_locations": [],
+        "seniority_terms": [],
+        "must_have_terms": must_have_terms,
+        "exclusion_terms": [],
+        "google": {
+            "broad": [fallback_query],
+            "focused": [fallback_query],
+            "fallback": [role_title],
+        },
+        "linkedin": {
+            "broad": [fallback_query],
+            "focused": [fallback_query],
+            "fallback": [role_title],
+        },
+        "xing": {
+            "broad": [fallback_query],
+            "focused": [fallback_query],
+            "fallback": [role_title],
+        },
+        "channel_limitations": [
+            "Kanal-Operatoren variieren; Query ggf. pro Plattform anpassen."
+        ],
+        "usage_notes": ["Mit breiter Variante starten und iterativ einschränken."],
+    }
+    parsed, usage = _generate_structured_with_fallback(
+        task_kind=TASK_GENERATE_BOOLEAN_SEARCH,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        out_model=BooleanSearchPack,
+        fallback_payload=fallback_payload,
+        model=model,
+        store=store,
+        temperature=temperature,
+    )
+    return cast(BooleanSearchPack, parsed), usage
+
+
+def generate_employment_contract_draft(
+    *,
+    brief: VacancyBrief,
+    model: str,
+    language: str = DEFAULT_LANGUAGE,
+    store: bool = False,
+    temperature: float | None = None,
+) -> tuple[EmploymentContractDraft, dict[str, Any]]:
+    """Generate a contract draft skeleton with deterministic local fallback."""
+
+    role_title = brief.one_liner.strip() or "Rolle"
+    system = (
+        "Du bist ein HR-Operations Specialist. "
+        "Erstelle einen strukturierten, exportfähigen Arbeitsvertragsentwurf "
+        "als Vorlage und markiere fehlende Inputs klar. "
+        f"Sprache: {language}."
+    )
+    user = (
+        "Nutze den Vacancy Brief als einzige Quelle und liefere ein vollständiges "
+        "EmploymentContractDraft-Objekt.\n\n"
+        "Vacancy Brief (JSON):\n"
+        f"{json.dumps(brief.model_dump(mode='json'), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}"
+    )
+    fallback_payload = {
+        "contract_language": language,
+        "jurisdiction": "Nicht angegeben",
+        "role_title": role_title,
+        "employment_type": "Vollzeit",
+        "contract_type": "Unbefristet",
+        "start_date": None,
+        "probation_period_months": None,
+        "salary": {
+            "min": 0,
+            "max": 0,
+            "currency": "EUR",
+            "period": "yearly",
+            "notes": "Bitte Vergütung ergänzen.",
+        },
+        "working_hours_per_week": None,
+        "vacation_days_per_year": None,
+        "place_of_work": None,
+        "notice_period": None,
+        "clauses": [],
+        "signature_requirements": ["Vertrag vor Unterzeichnung rechtlich prüfen."],
+        "missing_inputs": [
+            "Jurisdiction",
+            "Salary",
+            "Start date",
+        ],
+    }
+    parsed, usage = _generate_structured_with_fallback(
+        task_kind=TASK_GENERATE_EMPLOYMENT_CONTRACT,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        out_model=EmploymentContractDraft,
+        fallback_payload=fallback_payload,
+        model=model,
+        store=store,
+        temperature=temperature,
+    )
+    return cast(EmploymentContractDraft, parsed), usage
