@@ -19,7 +19,6 @@ from wizard_pages.base import (
 
 LANDING_COPY: dict[str, object] = {
     "hero_headline": "Recruiting beginnt nicht mit Sourcing. Es beginnt mit einem sauberen Vacancy Intake.",
-    "hero_subhead": (""),
     "primary_cta": "",
     "secondary_cta_hint": "",
     "next_step_line": "",
@@ -77,9 +76,6 @@ LANDING_COPY: dict[str, object] = {
         "Vor der Verarbeitung können sensible personenbezogene Angaben optional reduziert werden. "
         "Ziel ist eine datensparsame, nachvollziehbare Nutzung im Vacancy Intake."
     ),
-    "consent_hint": (
-        "Kurz vor dem Start: Bitte Consent bestätigen, damit der Upload freigeschaltet ist."
-    ),
     "consent_warning": (
         "Start ist gesperrt, bis die Einwilligung bestätigt wurde. "
         "Start is blocked until consent is confirmed."
@@ -88,23 +84,14 @@ LANDING_COPY: dict[str, object] = {
         "Hinweise gelesen und erforderliche Endnutzer-Information/Einwilligung bestätigt. "
         "Read and confirmed required end-user notice/consent."
     ),
-    "consent_expander_title": "Consent-Details anzeigen / Show consent details",
-    "consent_details": (
-        """
-        **DE:** Wenn für eure Organisation *Designated Content* freigegeben ist,
-        können diese Inhalte von OpenAI zu Entwicklungszwecken genutzt werden
-        (inkl. Training, Evaluierung, Tests). Ihr müsst Endnutzende informieren
-        und – falls erforderlich – Einwilligungen einholen.
-
-        **EN:** If your organization enables *Designated Content* sharing, that
-        content may be used by OpenAI for development purposes (including model
-        training, evaluation, and testing). You must inform end users and collect
-        consent where required.
-
-        **Nicht eingeben / Do not submit:** PHI (HIPAA), Daten von Kindern unter 13
-        (oder unter lokalem Mindestalter), sowie Informationen, die nicht für
-        Entwicklungszwecke genutzt werden dürfen.
-        """
+    "consent_details_inline": (
+        "DE: Wenn für eure Organisation Designated Content freigegeben ist, können diese "
+        "Inhalte von OpenAI zu Entwicklungszwecken genutzt werden (inkl. Training, Evaluierung, "
+        "Tests). Ihr müsst Endnutzende informieren und – falls erforderlich – Einwilligungen "
+        "einholen.\n\n"
+        "EN: If your organization enables Designated Content sharing, that content may be used "
+        "by OpenAI for development purposes (including model training, evaluation, and testing). "
+        "You must inform end users and collect consent where required."
     ),
 }
 
@@ -112,15 +99,16 @@ LANDING_COPY: dict[str, object] = {
 def render(ctx: WizardContext) -> None:
     render_landing_css(LANDING_STYLE_TOKENS)
     st.title(APP_TITLE)
+    st.subheader(str(LANDING_COPY["hero_headline"]))
 
-    st.caption(str(LANDING_COPY["consent_hint"]))
-    with st.expander(str(LANDING_COPY["consent_expander_title"]), expanded=False):
-        st.markdown(str(LANDING_COPY["consent_details"]))
-
-    st.checkbox(
-        str(LANDING_COPY["consent_checkbox"]),
-        key=LANDING_CTA_KEYS["consent"],
-    )
+    consent_text_col, consent_checkbox_col = st.columns((4, 2), gap="medium")
+    with consent_text_col:
+        st.markdown(str(LANDING_COPY["consent_details_inline"]))
+    with consent_checkbox_col:
+        st.checkbox(
+            str(LANDING_COPY["consent_checkbox"]),
+            key=LANDING_CTA_KEYS["consent"],
+        )
 
     output_col, importance_col = st.columns(2, gap="medium")
     with output_col:
