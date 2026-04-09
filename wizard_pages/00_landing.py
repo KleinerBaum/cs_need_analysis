@@ -150,19 +150,21 @@ def render(ctx: WizardContext) -> None:
         key=LANDING_CTA_KEYS["consent"],
     )
 
-    render_importance_section(
-        section_id=LANDING_SECTION_IDS["importance"],
-        title=str(LANDING_COPY["importance_title"]),
-        intro=str(LANDING_COPY["importance_intro"]),
-        points=cast(tuple[tuple[str, str], ...], LANDING_COPY["importance_points"]),
-        closer=str(LANDING_COPY["importance_closer"]),
-    )
-
-    render_output_section(
-        section_id=LANDING_SECTION_IDS["output"],
-        title=str(LANDING_COPY["output_title"]),
-        bullets=cast(tuple[str, ...], LANDING_COPY["output_bullets"]),
-    )
+    output_col, importance_col = st.columns(2, gap="medium")
+    with output_col:
+        render_output_section(
+            section_id=LANDING_SECTION_IDS["output"],
+            title=str(LANDING_COPY["output_title"]),
+            bullets=cast(tuple[str, ...], LANDING_COPY["output_bullets"]),
+        )
+    with importance_col:
+        render_importance_section(
+            section_id=LANDING_SECTION_IDS["importance"],
+            title=str(LANDING_COPY["importance_title"]),
+            intro=str(LANDING_COPY["importance_intro"]),
+            points=cast(tuple[tuple[str, str], ...], LANDING_COPY["importance_points"]),
+            closer=str(LANDING_COPY["importance_closer"]),
+        )
 
     st.divider()
     render_jobad_intake()
