@@ -197,6 +197,10 @@ def test_generate_boolean_search_appends_runtime_output_limits_to_system_prompt(
     assert "Zusätzliche Output-Limits" in system_prompt
     assert "Maximal 2 Bulletpoints" in system_prompt
     assert "Maximal 1 Sätze" in system_prompt
+    assert "LinkedIn nur mit großgeschriebenen AND/OR/NOT" in system_prompt
+    assert "kein Wildcard-Operator '*'" in system_prompt
+    assert "Google darf site:-Operatoren" in system_prompt
+    assert "XING nutzt AND/OR/NOT" in system_prompt
 
 
 def test_generate_interview_sheet_hm_returns_validated_payload(monkeypatch) -> None:

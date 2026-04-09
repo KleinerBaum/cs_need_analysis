@@ -1829,6 +1829,11 @@ def generate_boolean_search_pack(
         "Du bist ein Senior Sourcing Specialist. "
         "Erzeuge strukturierte, kanalbezogene Boolean-Search-Varianten für "
         "Recruiting-Recherche ohne irrelevante Zusatztexte. "
+        "Operatoren-Regeln strikt einhalten: "
+        "LinkedIn nur mit großgeschriebenen AND/OR/NOT, keine Sondersyntax mit {*}[]<>, "
+        "und kein Wildcard-Operator '*'. "
+        "Google darf site:-Operatoren, Anführungszeichen und Minus-Operatoren für Ausschlüsse nutzen. "
+        "XING nutzt AND/OR/NOT sowie Klammern und Anführungszeichen. "
         f"Sprache: {language}."
     )
     user = (

@@ -57,10 +57,12 @@ def test_build_action_registry_contains_expected_actions_and_requirements() -> N
         resolved_job_ad_model="gpt-4o-mini",
         resolved_hr_sheet_model="gpt-5-nano",
         resolved_fach_sheet_model="gpt-5",
+        resolved_boolean_search_model="gpt-5-mini",
         generate_recruiting_brief=lambda: None,
         generate_job_ad=lambda: None,
         generate_interview_prep_hr=lambda: None,
         generate_interview_prep_fach=lambda: None,
+        generate_boolean_search=lambda: None,
     )
 
     assert [action["id"] for action in action_registry] == [
@@ -77,6 +79,8 @@ def test_build_action_registry_contains_expected_actions_and_requirements() -> N
     assert action_registry[2]["generator_fn"] is not None
     assert action_registry[3]["requires"] == (SSKey.BRIEF,)
     assert action_registry[3]["generator_fn"] is not None
+    assert action_registry[4]["requires"] == (SSKey.BRIEF,)
+    assert action_registry[4]["generator_fn"] is not None
 
 
 def test_render_action_card_returns_false_when_requirements_missing(
