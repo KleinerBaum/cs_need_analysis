@@ -72,7 +72,9 @@ def render_openai_error(error: OpenAICallError) -> None:
 
 
 def render_job_extract_overview(
-    job: JobAdExtract, plan: QuestionPlan | None = None
+    job: JobAdExtract,
+    plan: QuestionPlan | None = None,
+    show_question_limits: bool = True,
 ) -> None:
     with st.expander(
         "Aus dem Jobspec extrahiert (strukturierte Übersicht)", expanded=True
@@ -85,7 +87,8 @@ def render_job_extract_overview(
         else:
             st.info("Keine expliziten Gaps erkannt.")
 
-    _render_question_limits_editor(plan)
+    if show_question_limits:
+        _render_question_limits_editor(plan)
 
     with st.expander("Assumptions (Annahmen)", expanded=True):
         if job.assumptions:
@@ -246,11 +249,14 @@ def _suggested_question_limit(step: QuestionStep) -> int:
     return required_count if required_count > 0 else len(step.questions)
 
 
-def _render_question_limits_editor(plan: QuestionPlan | None) -> None:
+def _render_question_limits_editor(
+    plan: QuestionPlan | None, compact: bool = False
+) -> None:
     if plan is None or not plan.steps:
         return
 
-    st.markdown("#### Fragen pro Step")
+    heading = "##### Fragen pro Step" if compact else "#### Fragen pro Step"
+    st.markdown(heading)
     st.caption(
         "Lege fest, wie viele Fragen pro Step angezeigt werden. "
         "Standardwert: erforderliche Fragen pro Step (falls keine markiert sind: alle)."
