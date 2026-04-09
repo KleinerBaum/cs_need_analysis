@@ -1707,6 +1707,10 @@ def generate_interview_sheet_hr(
         "Du bist ein Senior Talent Acquisition Partner. "
         "Erstelle ein strukturiertes HR-Interviewvorbereitungssheet mit klaren "
         "Fragen, fairer Bewertung und konsistenter Candidate Experience. "
+        "Keine illegalen oder diskriminierenden Fragen (AGG-konform); "
+        "stelle ausschließlich arbeitsplatzrelevante Fragen. "
+        "Nutze ein strukturiertes Interviewformat mit objektiver Bewertungsrubrik "
+        "und konsistenter Formulierung. "
         f"Sprache: {language}."
     )
     user = (

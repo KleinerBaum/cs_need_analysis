@@ -55,8 +55,10 @@ def test_build_action_registry_contains_expected_actions_and_requirements() -> N
     action_registry = SUMMARY_MODULE._build_action_registry(
         resolved_brief_model="gpt-5-mini",
         resolved_job_ad_model="gpt-4o-mini",
+        resolved_hr_sheet_model="gpt-5-nano",
         generate_recruiting_brief=lambda: None,
         generate_job_ad=lambda: None,
+        generate_interview_prep_hr=lambda: None,
     )
 
     assert [action["id"] for action in action_registry] == [
@@ -70,7 +72,7 @@ def test_build_action_registry_contains_expected_actions_and_requirements() -> N
     assert action_registry[0]["requires"] == (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN)
     assert action_registry[1]["requires"] == (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN)
     assert action_registry[2]["requires"] == (SSKey.BRIEF,)
-    assert action_registry[2]["generator_fn"] is None
+    assert action_registry[2]["generator_fn"] is not None
 
 
 def test_render_action_card_returns_false_when_requirements_missing(
@@ -106,8 +108,8 @@ def test_render_action_card_disables_placeholder_actions(monkeypatch) -> None:
     monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
 
     action = {
-        "id": "interview_hr_sheet",
-        "title": "HR Sheet",
+        "id": "interview_fach_sheet",
+        "title": "Fachbereich Sheet",
         "description": "desc",
         "cta_label": "Generate",
         "requires": (SSKey.BRIEF,),
