@@ -738,19 +738,6 @@ def render_question_step(step: QuestionStep) -> None:
     if step.description_de:
         st.caption(step.description_de)
 
-    mode_labels = {"quick": "Quick", "standard": "Standard", "expert": "Expert"}
-    selected_mode_label = st.radio(
-        "Ansichtsmodus",
-        options=["Quick", "Standard", "Expert"],
-        index=["Quick", "Standard", "Expert"].index(mode_labels[ui_mode]),
-        key=f"cs.ui_mode.{step.step_key}",
-        horizontal=True,
-        help="Quick: kompakt. Standard: kompakt mit Ein-Klick-Ausklappen. Expert: alle Detailgruppen geöffnet.",
-    )
-    if isinstance(selected_mode_label, str):
-        ui_mode = selected_mode_label.lower()
-        st.session_state[SSKey.UI_MODE.value] = ui_mode
-
     limits_raw = st.session_state.get(SSKey.QUESTION_LIMITS.value, {})
     step_limit: int | None = None
     if isinstance(limits_raw, dict):
