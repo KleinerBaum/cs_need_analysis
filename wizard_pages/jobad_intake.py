@@ -41,23 +41,19 @@ def _on_manual_text_change() -> None:
     _set_active_source("text", manual_text)
 
 
-def _on_upload_change() -> None:
-    upload = st.session_state.get("cs.source_upload_file")
-    if upload is None:
-        return
-
+def _extract_upload_to_state(upload: object, *, step: str) -> str | None:
     try:
         uploaded_text, source_meta = extract_text_from_uploaded_file(upload)
-    except Exception as exc:  # pragma: no cover - streamlit callback runtime
+    except Exception as exc:
         error_type = type(exc).__name__
         handle_unexpected_exception(
-            step="_on_upload_change.extract_text_from_uploaded_file",
+            step=step,
             exc=exc,
             error_type=error_type,
             error_code="JOBAD_FILE_READ_UNEXPECTED",
             user_message="Datei konnte nicht gelesen werden (DE) / Could not read file (EN).",
         )
-        return
+        return None
 
     st.session_state[SOURCE_UPLOAD_TEXT_KEY] = uploaded_text
     st.session_state[SSKey.SOURCE_FILE_META.value] = source_meta
@@ -66,6 +62,15 @@ def _on_upload_change() -> None:
         source_meta.get("size", 0),
     )
     _set_active_source("upload", uploaded_text)
+    return uploaded_text
+
+
+def _on_upload_change() -> None:
+    upload = st.session_state.get("cs.source_upload_file")
+    if upload is None:
+        return
+
+    _extract_upload_to_state(upload, step="_on_upload_change.extract_text_from_uploaded_file")
 
 
 def render_jobad_intake(*, title: str = "Jobspec / Job Ad einlesen") -> None:
@@ -158,6 +163,22 @@ def render_jobad_intake(*, title: str = "Jobspec / Job Ad einlesen") -> None:
             st.session_state.get(SSKey.SOURCE_TEXT.value, "") or ""
         )
         raw = effective_source_text
+        if not raw.strip():
+            uploaded_text = str(st.session_state.get(SOURCE_UPLOAD_TEXT_KEY, "") or "")
+            if uploaded_text.strip():
+                _set_active_source("upload", uploaded_text)
+                raw = uploaded_text
+
+        if not raw.strip():
+            upload = st.session_state.get("cs.source_upload_file")
+            if upload is not None:
+                extracted_upload_text = _extract_upload_to_state(
+                    upload,
+                    step="jobad.extract_and_plan.extract_text_from_uploaded_file",
+                )
+                if extracted_upload_text is not None:
+                    raw = extracted_upload_text
+
         if not raw.strip():
             set_error("Bitte zuerst ein Jobspec hochladen oder Text einfügen.")
             st.rerun()
