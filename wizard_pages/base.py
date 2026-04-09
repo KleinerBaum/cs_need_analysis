@@ -369,6 +369,7 @@ def render_hero_section(
     extraction_helper_copy: str = "",
     post_cta_microcopy: str = "",
     value_cards: Sequence[tuple[str, str]],
+    show_value_cards: bool = True,
     consent_given: bool,
     start_button_key: str,
     on_start: Callable[[], None],
@@ -378,45 +379,59 @@ def render_hero_section(
         f'<section id="{section_id}" class="landing-section landing-hero">',
         unsafe_allow_html=True,
     )
-    hero_left, hero_right = st.columns([1.6, 1], gap="large")
-    with hero_left:
-        st.markdown('<div class="landing-hero-copy">', unsafe_allow_html=True)
-        st.markdown(f"<h1>{headline}</h1>", unsafe_allow_html=True)
-        st.markdown(f'<p class="landing-subhead">{subhead}</p>', unsafe_allow_html=True)
-        if before_start_title and before_start_bullets:
-            st.markdown(f"#### {before_start_title}")
-            st.markdown(
-                '<ul class="landing-list">'
-                + "".join(f"<li>{bullet}</li>" for bullet in before_start_bullets)
-                + "</ul>",
-                unsafe_allow_html=True,
-            )
-        if reassurance_line:
-            st.caption(reassurance_line)
-        if st.button(
-            primary_cta,
-            key=start_button_key,
-            type="primary",
-            use_container_width=True,
-            disabled=not consent_given,
-        ):
-            on_start()
-            ctx.goto(start_target)
-            st.rerun()
-        if extraction_helper_copy:
-            st.info(extraction_helper_copy, icon="ℹ️")
-        if post_cta_microcopy:
-            st.caption(post_cta_microcopy)
-        st.markdown(
-            f'<p class="landing-caption">{secondary_cta_hint}</p>',
-            unsafe_allow_html=True,
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
-    with hero_right:
-        st.markdown("### Wertbeitrag auf einen Blick")
-        render_value_cards(value_cards=value_cards)
+    st.markdown('<div class="landing-hero-copy">', unsafe_allow_html=True)
+    st.markdown(f"<h1>{headline}</h1>", unsafe_allow_html=True)
+    st.markdown(f'<p class="landing-subhead">{subhead}</p>', unsafe_allow_html=True)
+    if st.button(
+        primary_cta,
+        key=start_button_key,
+        type="primary",
+        use_container_width=True,
+        disabled=not consent_given,
+    ):
+        on_start()
+        ctx.goto(start_target)
+        st.rerun()
+    st.markdown(
+        f'<p class="landing-caption">{secondary_cta_hint}</p>',
+        unsafe_allow_html=True,
+    )
+    has_more_details = any(
+        [
+            bool(before_start_title and before_start_bullets),
+            bool(reassurance_line),
+            bool(extraction_helper_copy),
+            bool(post_cta_microcopy),
+        ]
+    )
+    if has_more_details:
+        with st.expander("Mehr erfahren", expanded=False):
+            if before_start_title and before_start_bullets:
+                st.markdown(f"#### {before_start_title}")
+                st.markdown(
+                    '<ul class="landing-list">'
+                    + "".join(f"<li>{bullet}</li>" for bullet in before_start_bullets)
+                    + "</ul>",
+                    unsafe_allow_html=True,
+                )
+            if reassurance_line:
+                st.caption(reassurance_line)
+            if extraction_helper_copy:
+                st.info(extraction_helper_copy, icon="ℹ️")
+            if post_cta_microcopy:
+                st.caption(post_cta_microcopy)
+    st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("</section>", unsafe_allow_html=True)
+
+    if show_value_cards and value_cards:
+        st.markdown(
+            f'<section id="{LANDING_SECTION_IDS["value_cards"]}" class="landing-section">',
+            unsafe_allow_html=True,
+        )
+        st.markdown("### Wertbeitrag auf einen Blick")
+        render_value_cards(value_cards=value_cards)
+        st.markdown("</section>", unsafe_allow_html=True)
 
 
 def render_value_cards(*, value_cards: Sequence[tuple[str, str]]) -> None:

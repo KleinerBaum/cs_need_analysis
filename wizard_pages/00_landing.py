@@ -24,12 +24,11 @@ from wizard_pages.base import (
 LANDING_COPY: dict[str, object] = {
     "hero_headline": "Recruiting beginnt nicht mit Sourcing. Es beginnt mit einem sauberen Vacancy Intake.",
     "hero_subhead": (
-        "Cognitive Staffing verwandelt Jobspecs und Stellenanzeigen in einen strukturierten, "
-        "KI-gestützten Intake. So schaffen Sie von Anfang an Klarheit zu Rolle, Anforderungen, "
-        "Rahmenbedingungen und Auswahlprozess – und reduzieren teure Folgefehler."
+        "Laden Sie eine Jobspec hoch und starten Sie den strukturierten Guided Intake. "
+        "In wenigen Minuten erhalten Sie eine belastbare Basis für Recruiting und Interviews."
     ),
     "primary_cta": "Jetzt Jobspec hochladen und Guided Intake starten",
-    "secondary_cta_hint": "Geeignet für strukturierte Jobspecs und klassische Stellenanzeigen",
+    "secondary_cta_hint": "Kein Risiko: Fehlende Informationen können später ergänzt werden.",
     "before_start_title": "Vor dem Start",
     "before_start_bullets": (
         "Unterstützt Jobspecs, Rollenprofile und klassische Stellenanzeigen",
