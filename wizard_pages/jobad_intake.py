@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import Final
+from typing import Any, Final
 
 import streamlit as st
 
@@ -47,6 +47,12 @@ def _preview_height_for_text(text: str) -> int:
 def _set_active_source(source: str, text: str) -> None:
     st.session_state[SSKey.SOURCE_TEXT.value] = text
     st.session_state[SOURCE_ACTIVE_KEY] = source
+
+
+def _usage_has_cache_hit(usage: Any) -> bool:
+    if isinstance(usage, dict):
+        return bool(usage.get("cached"))
+    return bool(getattr(usage, "cached", False))
 
 
 def _on_manual_text_change() -> None:
@@ -233,8 +239,8 @@ def render_jobad_intake(*, title: str = "Jobspec / Job Ad einlesen") -> None:
 
             st.session_state[SSKey.JOB_EXTRACT.value] = job.model_dump()
             st.session_state[SSKey.QUESTION_PLAN.value] = plan.model_dump()
-            extract_cached = bool((usage1 or {}).get("cached"))
-            plan_cached = bool((usage2 or {}).get("cached"))
+            extract_cached = _usage_has_cache_hit(usage1)
+            plan_cached = _usage_has_cache_hit(usage2)
             st.session_state[SSKey.JOBAD_CACHE_HIT.value] = {
                 "extract_job_ad": extract_cached,
                 "generate_question_plan": plan_cached,
