@@ -271,3 +271,220 @@ class VacancyBrief(StrictSchemaModel):
         default_factory=dict,
         description="Machine-readable full data (job extract + manager answers).",
     )
+
+
+class InterviewQuestionBlock(StrictSchemaModel):
+    block_id: str = Field(description="Stable block identifier for UI rendering/order.")
+    title: str = Field(
+        description="Block title shown in interviewer preparation sheets."
+    )
+    objective: str = Field(
+        description="Why this block is included and what evidence should be collected."
+    )
+    questions: List[str] = Field(
+        default_factory=list,
+        description="Concrete interview questions in the sequence they should be asked.",
+    )
+    follow_up_prompts: List[str] = Field(
+        default_factory=list,
+        description="Optional prompts for deeper probing when initial answers are vague.",
+    )
+    signal_tags: List[str] = Field(
+        default_factory=list,
+        description="Stable tags used for downstream analytics and exports.",
+    )
+
+
+class EvaluationRubricCriterion(StrictSchemaModel):
+    criterion_id: str = Field(description="Stable criterion identifier.")
+    title: str = Field(description="Short criterion title.")
+    description: str = Field(description="What to evaluate for this criterion.")
+    weight_percent: int = Field(
+        ge=0,
+        le=100,
+        description="Relative importance from 0 to 100 for score normalization.",
+    )
+    score_scale: List[str] = Field(
+        default_factory=list,
+        description="Ordered anchors, e.g., ['1-low', '3-medium', '5-high'].",
+    )
+    evidence_examples: List[str] = Field(
+        default_factory=list,
+        description="Examples of observable evidence that supports the score.",
+    )
+
+
+class InterviewPrepSheetHR(StrictSchemaModel):
+    role_title: str = Field(description="Role title for recruiter-facing preparation.")
+    interview_stage: str = Field(
+        description="Pipeline stage this sheet is designed for, e.g., 'HR screen'."
+    )
+    duration_minutes: int = Field(
+        ge=0,
+        description="Planned interview duration in minutes.",
+    )
+    opening_script: str = Field(
+        description="Suggested opening script for the interviewer."
+    )
+    question_blocks: List[InterviewQuestionBlock] = Field(default_factory=list)
+    knockout_criteria: List[str] = Field(
+        default_factory=list,
+        description="Immediate rejection criteria that should be checked consistently.",
+    )
+    candidate_experience_notes: List[str] = Field(
+        default_factory=list,
+        description="Notes to keep communication and process candidate-friendly.",
+    )
+    evaluation_rubric: List[EvaluationRubricCriterion] = Field(default_factory=list)
+    final_recommendation_options: List[str] = Field(
+        default_factory=list,
+        description="Allowed recommendation labels shown in UI and exports.",
+    )
+
+
+class InterviewPrepSheetHiringManager(StrictSchemaModel):
+    role_title: str = Field(description="Role title for hiring-manager preparation.")
+    interview_stage: str = Field(
+        description="Pipeline stage this sheet is designed for, e.g., 'panel interview'."
+    )
+    duration_minutes: int = Field(
+        ge=0,
+        description="Planned interview duration in minutes.",
+    )
+    competencies_to_validate: List[str] = Field(
+        default_factory=list,
+        description="Priority competencies that must be tested in this interview.",
+    )
+    question_blocks: List[InterviewQuestionBlock] = Field(default_factory=list)
+    technical_deep_dive_topics: List[str] = Field(
+        default_factory=list,
+        description="Topics reserved for technical depth checks.",
+    )
+    case_or_task_prompt: Optional[str] = Field(
+        default=None,
+        description="Optional case-study or assignment prompt.",
+    )
+    evaluation_rubric: List[EvaluationRubricCriterion] = Field(default_factory=list)
+    hiring_signal_summary: List[str] = Field(
+        default_factory=list,
+        description="Expected strong signals used in the debrief process.",
+    )
+    debrief_questions: List[str] = Field(
+        default_factory=list,
+        description="Guided questions for panel debrief and decision alignment.",
+    )
+
+
+class BooleanSearchChannelQueries(StrictSchemaModel):
+    broad: List[str] = Field(
+        default_factory=list,
+        description="Broad query variants for discovery-oriented sourcing.",
+    )
+    focused: List[str] = Field(
+        default_factory=list,
+        description="Targeted query variants for precise sourcing.",
+    )
+    fallback: List[str] = Field(
+        default_factory=list,
+        description="Fallback query variants when result volume is too low.",
+    )
+
+
+class BooleanSearchPack(StrictSchemaModel):
+    role_title: str = Field(description="Role title these search queries target.")
+    target_locations: List[str] = Field(
+        default_factory=list,
+        description="Locations encoded in search variants.",
+    )
+    seniority_terms: List[str] = Field(
+        default_factory=list,
+        description="Seniority aliases used across channels.",
+    )
+    must_have_terms: List[str] = Field(
+        default_factory=list,
+        description="Core keywords that should appear in most queries.",
+    )
+    exclusion_terms: List[str] = Field(
+        default_factory=list,
+        description="Keywords for noise reduction using NOT clauses.",
+    )
+    google: BooleanSearchChannelQueries = Field(
+        description="Google-specific boolean query variants."
+    )
+    linkedin: BooleanSearchChannelQueries = Field(
+        description="LinkedIn-specific boolean query variants."
+    )
+    xing: BooleanSearchChannelQueries = Field(
+        description="XING-specific boolean query variants."
+    )
+    channel_limitations: List[str] = Field(
+        default_factory=list,
+        description="Known per-channel constraints and practical caveats.",
+    )
+    usage_notes: List[str] = Field(
+        default_factory=list,
+        description="Operational hints for recruiters to adapt queries quickly.",
+    )
+
+
+class ContractClause(StrictSchemaModel):
+    clause_id: str = Field(description="Stable clause identifier for legal review.")
+    title: str = Field(description="Clause title shown in contract preview/export.")
+    clause_text: str = Field(description="Draft wording for the clause.")
+    required: bool = Field(
+        description="Whether the clause is mandatory for this contract template."
+    )
+    legal_note: Optional[str] = Field(
+        default=None,
+        description="Optional legal context or implementation note.",
+    )
+
+
+class EmploymentContractDraft(StrictSchemaModel):
+    contract_language: str = Field(description="Contract language, e.g., 'de' or 'en'.")
+    jurisdiction: str = Field(
+        description="Applicable jurisdiction, e.g., country/state."
+    )
+    role_title: str = Field(description="Contracted role title.")
+    employment_type: str = Field(description="Employment type, e.g., full-time.")
+    contract_type: str = Field(description="Contract type, e.g., permanent.")
+    start_date: Optional[str] = Field(
+        default=None,
+        description="Planned start date as plain string for export compatibility.",
+    )
+    probation_period_months: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Optional probation period in months.",
+    )
+    salary: MoneyRange = Field(description="Compensation range and metadata.")
+    working_hours_per_week: Optional[float] = Field(
+        default=None,
+        ge=0,
+        description="Optional weekly working hours.",
+    )
+    vacation_days_per_year: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Optional annual vacation entitlement.",
+    )
+    place_of_work: Optional[str] = Field(
+        default=None,
+        description="Main place of work or hybrid setup statement.",
+    )
+    notice_period: Optional[str] = Field(
+        default=None,
+        description="Termination notice period wording.",
+    )
+    clauses: List[ContractClause] = Field(
+        default_factory=list,
+        description="Ordered contract clauses for rendering and export.",
+    )
+    signature_requirements: List[str] = Field(
+        default_factory=list,
+        description="Checklist for compliant execution/signatures.",
+    )
+    missing_inputs: List[str] = Field(
+        default_factory=list,
+        description="Data still required before contract can be finalized.",
+    )
