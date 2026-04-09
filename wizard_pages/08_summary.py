@@ -1265,7 +1265,7 @@ def render(ctx: WizardContext) -> None:
                 text_key=SSKey.SUMMARY_STYLEGUIDE_TEXT,
                 selection_key=SSKey.SUMMARY_STYLEGUIDE_BLOCKS,
                 template_blocks=STYLEGUIDE_TEMPLATE_BLOCKS,
-                widget_prefix="cs.summary.styleguide.block",
+                widget_prefix=SSKey.SUMMARY_STYLEGUIDE_BLOCK_WIDGET_PREFIX.value,
             )
             styleguide = styleguide_slot.text_area(
                 "Styleguide des Arbeitgebers",
@@ -1282,7 +1282,7 @@ def render(ctx: WizardContext) -> None:
                 text_key=SSKey.SUMMARY_CHANGE_REQUEST_TEXT,
                 selection_key=SSKey.SUMMARY_CHANGE_REQUEST_BLOCKS,
                 template_blocks=CHANGE_REQUEST_TEMPLATE_BLOCKS,
-                widget_prefix="cs.summary.change_request.block",
+                widget_prefix=SSKey.SUMMARY_CHANGE_REQUEST_BLOCK_WIDGET_PREFIX.value,
             )
             change_request_slot.text_area(
                 "Anpassungswünsche (für Iterationen)",
