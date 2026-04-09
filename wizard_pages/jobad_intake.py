@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import Final
 
 import streamlit as st
@@ -29,6 +30,18 @@ SOURCE_TEXT_INPUT_KEY: Final[str] = "cs.source_text_input"
 SOURCE_UPLOAD_SIG_KEY: Final[str] = "cs.source_upload_signature"
 SOURCE_UPLOAD_TEXT_KEY: Final[str] = "cs.source_uploaded_text"
 SOURCE_ACTIVE_KEY: Final[str] = "cs.source_active"
+
+
+def _preview_height_for_text(text: str) -> int:
+    """Return a dynamic textarea height so the preview does not need scrolling."""
+    chars_per_line = 95
+    line_height_px = 28
+    padding_px = 28
+    total_lines = sum(
+        max(1, math.ceil(len(line) / chars_per_line))
+        for line in text.splitlines() or [""]
+    )
+    return (total_lines * line_height_px) + padding_px
 
 
 def _set_active_source(source: str, text: str) -> None:
@@ -70,7 +83,9 @@ def _on_upload_change() -> None:
     if upload is None:
         return
 
-    _extract_upload_to_state(upload, step="_on_upload_change.extract_text_from_uploaded_file")
+    _extract_upload_to_state(
+        upload, step="_on_upload_change.extract_text_from_uploaded_file"
+    )
 
 
 def render_jobad_intake(*, title: str = "Jobspec / Job Ad einlesen") -> None:
@@ -139,10 +154,11 @@ def render_jobad_intake(*, title: str = "Jobspec / Job Ad einlesen") -> None:
                     )
                 with col_meta_right:
                     st.metric("Zeichen", f"{len(uploaded_text):,}".replace(",", "."))
+                preview_text = uploaded_text[:4000]
                 st.text_area(
                     "Preview (Textauszug)",
-                    value=uploaded_text[:4000],
-                    height=220,
+                    value=preview_text,
+                    height=_preview_height_for_text(preview_text),
                     key="cs.source_upload_preview",
                     disabled=True,
                 )
