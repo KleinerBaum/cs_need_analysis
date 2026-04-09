@@ -907,6 +907,91 @@ def _render_action_card(action: SummaryAction) -> bool:
         )
 
 
+def _build_action_registry(
+    *,
+    resolved_brief_model: str,
+    resolved_job_ad_model: str,
+    generate_recruiting_brief: Callable[[], None],
+    generate_job_ad: Callable[[], None],
+) -> list[SummaryAction]:
+    return [
+        {
+            "id": "recruiting_brief",
+            "title": "Recruiting Brief",
+            "description": (
+                "Verdichtet Jobspec + Wizard-Antworten in einen strukturierten Brief "
+                "als Ausgangsbasis für Hiring und Kommunikation."
+            ),
+            "cta_label": "Recruiting Brief generieren",
+            "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
+            "generator_fn": generate_recruiting_brief,
+            "result_key": SSKey.BRIEF,
+            "input_hints": (
+                "Extrahierte Jobspec-Daten",
+                "Strukturierte Wizard-Antworten",
+                f"Draft-Modell: {resolved_brief_model}",
+            ),
+        },
+        {
+            "id": "job_ad_generator",
+            "title": "Job-Ad-Generator",
+            "description": (
+                "Generiert oder verbessert eine zielgruppenorientierte Stellenanzeige "
+                "inkl. AGG-Checkliste auf Basis selektierter Inputs."
+            ),
+            "cta_label": "Stellenanzeige generieren/verbessern",
+            "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
+            "generator_fn": generate_job_ad,
+            "result_key": SSKey.JOB_AD_DRAFT_CUSTOM,
+            "input_hints": (
+                "Selection Matrix (optional)",
+                "Styleguide + Change Request",
+                f"Job-Ad-Modell: {resolved_job_ad_model}",
+            ),
+        },
+        {
+            "id": "interview_hr_sheet",
+            "title": "Interview-Vorbereitungssheet (HR)",
+            "description": "Platzhalter für strukturiertes HR-Interviewbriefing.",
+            "cta_label": "HR-Sheet erstellen",
+            "requires": (SSKey.BRIEF,),
+            "generator_fn": None,
+            "result_key": SSKey.INTERVIEW_PREP_HR,
+            "input_hints": ("Recruiting Brief", "Kritische Must-haves"),
+        },
+        {
+            "id": "interview_fach_sheet",
+            "title": "Interview-Vorbereitungssheet (Fachbereich)",
+            "description": "Platzhalter für fachliche Interviewleitfäden und Bewertung.",
+            "cta_label": "Fachbereich-Sheet erstellen",
+            "requires": (SSKey.BRIEF,),
+            "generator_fn": None,
+            "result_key": SSKey.INTERVIEW_PREP_FACH,
+            "input_hints": ("Recruiting Brief", "Top Responsibilities"),
+        },
+        {
+            "id": "boolean_search",
+            "title": "Boolean Search String",
+            "description": "Platzhalter für sourcing-fähige Suchstrings je Kanal.",
+            "cta_label": "Boolean String erstellen",
+            "requires": (SSKey.BRIEF,),
+            "generator_fn": None,
+            "result_key": SSKey.BOOLEAN_SEARCH_STRING,
+            "input_hints": ("Must-have + Nice-to-have Skills", "Synonyme"),
+        },
+        {
+            "id": "employment_contract",
+            "title": "Arbeitsvertrag",
+            "description": "Platzhalter für Vertragsentwurf aus den Kernparametern.",
+            "cta_label": "Arbeitsvertrag erstellen",
+            "requires": (SSKey.BRIEF,),
+            "generator_fn": None,
+            "result_key": SSKey.EMPLOYMENT_CONTRACT_DRAFT,
+            "input_hints": ("Rolle, Seniorität, Standort", "Vertragsart + Konditionen"),
+        },
+    ]
+
+
 def render(ctx: WizardContext) -> None:
     render_error_banner()
 
@@ -1033,82 +1118,12 @@ def render(ctx: WizardContext) -> None:
     st.caption(
         "Einheitliche Aktionskarten für Erzeugung, Qualitätssicherung und Folgeartefakte."
     )
-    action_registry: list[SummaryAction] = [
-        {
-            "id": "recruiting_brief",
-            "title": "Recruiting Brief",
-            "description": (
-                "Verdichtet Jobspec + Wizard-Antworten in einen strukturierten Brief "
-                "als Ausgangsbasis für Hiring und Kommunikation."
-            ),
-            "cta_label": "Recruiting Brief generieren",
-            "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
-            "generator_fn": _generate_recruiting_brief,
-            "result_key": SSKey.BRIEF,
-            "input_hints": (
-                "Extrahierte Jobspec-Daten",
-                "Strukturierte Wizard-Antworten",
-                f"Draft-Modell: {resolved_brief_model}",
-            ),
-        },
-        {
-            "id": "job_ad_generator",
-            "title": "Job-Ad-Generator",
-            "description": (
-                "Generiert oder verbessert eine zielgruppenorientierte Stellenanzeige "
-                "inkl. AGG-Checkliste auf Basis selektierter Inputs."
-            ),
-            "cta_label": "Stellenanzeige generieren/verbessern",
-            "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
-            "generator_fn": _generate_job_ad,
-            "result_key": SSKey.JOB_AD_DRAFT_CUSTOM,
-            "input_hints": (
-                "Selection Matrix (optional)",
-                "Styleguide + Change Request",
-                f"Job-Ad-Modell: {resolved_job_ad_model}",
-            ),
-        },
-        {
-            "id": "interview_hr_sheet",
-            "title": "Interview-Vorbereitungssheet (HR)",
-            "description": "Platzhalter für strukturiertes HR-Interviewbriefing.",
-            "cta_label": "HR-Sheet erstellen",
-            "requires": (SSKey.BRIEF,),
-            "generator_fn": None,
-            "result_key": SSKey.INTERVIEW_PREP_HR,
-            "input_hints": ("Recruiting Brief", "Kritische Must-haves"),
-        },
-        {
-            "id": "interview_fach_sheet",
-            "title": "Interview-Vorbereitungssheet (Fachbereich)",
-            "description": "Platzhalter für fachliche Interviewleitfäden und Bewertung.",
-            "cta_label": "Fachbereich-Sheet erstellen",
-            "requires": (SSKey.BRIEF,),
-            "generator_fn": None,
-            "result_key": SSKey.INTERVIEW_PREP_FACH,
-            "input_hints": ("Recruiting Brief", "Top Responsibilities"),
-        },
-        {
-            "id": "boolean_search",
-            "title": "Boolean Search String",
-            "description": "Platzhalter für sourcing-fähige Suchstrings je Kanal.",
-            "cta_label": "Boolean String erstellen",
-            "requires": (SSKey.BRIEF,),
-            "generator_fn": None,
-            "result_key": SSKey.BOOLEAN_SEARCH_STRING,
-            "input_hints": ("Must-have + Nice-to-have Skills", "Synonyme"),
-        },
-        {
-            "id": "employment_contract",
-            "title": "Arbeitsvertrag",
-            "description": "Platzhalter für Vertragsentwurf aus den Kernparametern.",
-            "cta_label": "Arbeitsvertrag erstellen",
-            "requires": (SSKey.BRIEF,),
-            "generator_fn": None,
-            "result_key": SSKey.EMPLOYMENT_CONTRACT_DRAFT,
-            "input_hints": ("Rolle, Seniorität, Standort", "Vertragsart + Konditionen"),
-        },
-    ]
+    action_registry = _build_action_registry(
+        resolved_brief_model=resolved_brief_model,
+        resolved_job_ad_model=resolved_job_ad_model,
+        generate_recruiting_brief=_generate_recruiting_brief,
+        generate_job_ad=_generate_job_ad,
+    )
     card_columns = st.columns(2)
     for index, action in enumerate(action_registry):
         with card_columns[index % 2]:
