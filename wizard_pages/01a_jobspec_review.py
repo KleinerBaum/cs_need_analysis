@@ -18,9 +18,9 @@ def render(ctx: WizardContext) -> None:
 
     if not job_dict or not plan_dict:
         st.warning(
-            "Bitte zuerst im Schritt 'Jobspec / Jobad' eine Analyse durchführen."
+            "Bitte zuerst im Start-Schritt eine Analyse durchführen."
         )
-        st.button("Zur Jobspec-Seite", on_click=lambda: ctx.goto("jobad"))
+        st.button("Zur Startseite", on_click=lambda: ctx.goto("landing"))
         nav_buttons(ctx, disable_next=True)
         return
 
