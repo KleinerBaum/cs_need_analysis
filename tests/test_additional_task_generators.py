@@ -287,3 +287,52 @@ def test_generate_employment_contract_fallback_on_missing_key_error(
     assert usage["fallback"] is True
     assert usage["task_kind"] == TASK_GENERATE_EMPLOYMENT_CONTRACT
     assert usage["error_code"] == "OPENAI_MISSING_API_KEY"
+
+
+def test_generate_employment_contract_prompt_enforces_template_guardrails(
+    monkeypatch,
+) -> None:
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(
+        llm_client,
+        "_resolve_runtime_config",
+        lambda **_: _runtime_config(),
+    )
+
+    def _capture_parse(**kwargs: Any) -> tuple[Any, dict[str, Any]]:
+        captured["messages"] = kwargs["messages"]
+        payload = {
+            "contract_language": "de",
+            "jurisdiction": "Deutschland",
+            "role_title": "Senior Data Engineer",
+            "employment_type": "Vollzeit",
+            "contract_type": "Unbefristet",
+            "start_date": None,
+            "probation_period_months": None,
+            "salary": {
+                "min": 0,
+                "max": 0,
+                "currency": "EUR",
+                "period": "yearly",
+                "notes": "Bitte Vergütung ergänzen.",
+            },
+            "working_hours_per_week": None,
+            "vacation_days_per_year": None,
+            "place_of_work": None,
+            "notice_period": None,
+            "clauses": [],
+            "signature_requirements": ["Vertrag vor Unterzeichnung rechtlich prüfen."],
+            "missing_inputs": ["Salary"],
+        }
+        return kwargs["out_model"].model_validate(payload), {"total_tokens": 11}
+
+    monkeypatch.setattr(llm_client, "_parse_with_structured_outputs", _capture_parse)
+
+    generate_employment_contract_draft(brief=_brief(), model="gpt-5-mini")
+
+    system_prompt = captured["messages"][0]["content"]
+    assert "kein finaler Vertrag und keine Rechtsberatung" in system_prompt
+    assert "Platzhalter für Mitarbeiter-/Arbeitgeber-Namen" in system_prompt
+    assert "Erfinde keine fehlenden Vertragsbedingungen" in system_prompt
+    assert "Nachweisgesetz" in system_prompt
+    assert "§ 622 BGB" in system_prompt

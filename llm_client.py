@@ -1902,6 +1902,12 @@ def generate_employment_contract_draft(
         "Du bist ein HR-Operations Specialist. "
         "Erstelle einen strukturierten, exportfähigen Arbeitsvertragsentwurf "
         "als Vorlage und markiere fehlende Inputs klar. "
+        "Dies ist ein Template-Draft, kein finaler Vertrag und keine Rechtsberatung. "
+        "Nutze Platzhalter für Mitarbeiter-/Arbeitgeber-Namen und -Adressen "
+        "(z. B. [EMPLOYEE_NAME], [EMPLOYER_ADDRESS]). "
+        "Erfinde keine fehlenden Vertragsbedingungen; liste Unklarheiten ausschließlich in missing_inputs. "
+        "Richte die Struktur an den wesentlichen Nachweisgesetz-Angaben (NachwG) "
+        "und Basisaspekten zur Kündigungsfrist (§ 622 BGB) aus, aber formuliere generisch. "
         f"Sprache: {language}."
     )
     user = (

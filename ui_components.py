@@ -17,6 +17,7 @@ from question_progress import build_answered_lookup, compute_question_progress
 from schemas import (
     BooleanSearchPack,
     Contact,
+    EmploymentContractDraft,
     InterviewPrepSheetHiringManager,
     InterviewPrepSheetHR,
     JobAdExtract,
@@ -1743,3 +1744,90 @@ def render_boolean_search_pack(pack: BooleanSearchPack) -> None:
             st.write(f"- {note}")
     else:
         st.info("Keine Usage Notes hinterlegt.")
+
+
+def render_employment_contract_draft(draft: EmploymentContractDraft) -> None:
+    st.info("Template-Draft zur Prüfung. Kein finaler Vertrag und keine Rechtsberatung.")
+    st.markdown(
+        f"**Jurisdiction:** {draft.jurisdiction} · "
+        f"**Rolle:** {draft.role_title} · "
+        f"**Employment Type:** {draft.employment_type} · "
+        f"**Contract Type:** {draft.contract_type}"
+    )
+
+    details = [
+        ("Start Date", draft.start_date),
+        (
+            "Probation (Monate)",
+            (
+                str(draft.probation_period_months)
+                if draft.probation_period_months is not None
+                else None
+            ),
+        ),
+        (
+            "Salary",
+            (
+                f"{draft.salary.min if draft.salary.min is not None else '—'} - "
+                f"{draft.salary.max if draft.salary.max is not None else '—'} "
+                f"{draft.salary.currency or ''} / {draft.salary.period or ''}".strip()
+            ),
+        ),
+        ("Salary Notes", draft.salary.notes),
+        (
+            "Hours / Week",
+            (
+                str(draft.working_hours_per_week)
+                if draft.working_hours_per_week is not None
+                else None
+            ),
+        ),
+        (
+            "Vacation Days / Year",
+            (
+                str(draft.vacation_days_per_year)
+                if draft.vacation_days_per_year is not None
+                else None
+            ),
+        ),
+        ("Place of Work", draft.place_of_work),
+        ("Notice Period", draft.notice_period),
+    ]
+    meta_col_left, meta_col_right = st.columns(2)
+    for index, (label, value) in enumerate(details):
+        col = meta_col_left if index % 2 == 0 else meta_col_right
+        with col:
+            st.markdown(f"**{label}**")
+            st.write(value or "—")
+
+    st.markdown("**Missing Inputs (Pflicht-Checkliste vor Finalisierung)**")
+    if draft.missing_inputs:
+        st.warning(
+            "Folgende Inputs fehlen noch. Bitte vor rechtlicher Finalisierung ergänzen."
+        )
+        for missing_input in draft.missing_inputs:
+            st.write(f"- [ ] {missing_input}")
+    else:
+        st.success("Keine fehlenden Inputs markiert.")
+
+    st.markdown("**Klauseln**")
+    if draft.clauses:
+        for clause in draft.clauses:
+            required_tag = "Pflicht" if clause.required else "Optional"
+            st.markdown(f"**{clause.title}** · `{required_tag}`")
+            st.write(clause.clause_text)
+            if clause.legal_note:
+                st.caption(f"Legal note: {clause.legal_note}")
+    else:
+        st.info("Keine Klauseln vorhanden.")
+
+    st.markdown("**Signature Requirements**")
+    signature_requirements = list(draft.signature_requirements)
+    legal_review_note = "Legal review required"
+    if all(
+        legal_review_note.lower() not in requirement.lower()
+        for requirement in signature_requirements
+    ):
+        signature_requirements.append(legal_review_note)
+    for requirement in signature_requirements:
+        st.write(f"- {requirement}")
