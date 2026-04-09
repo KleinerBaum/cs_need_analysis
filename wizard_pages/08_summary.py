@@ -796,8 +796,91 @@ def _add_logo_to_docx(document: Any, logo_payload: Any) -> bool:
     return True
 
 
-def render(ctx: WizardContext) -> None:
+def _render_summary_hero(job: JobAdExtract, answers: dict[str, Any]) -> None:
     st.header("Zusammenfassung")
+    st.subheader("Finaler Check & nächste Schritte")
+    st.caption(
+        "Verdichte alle Inputs in einen belastbaren Recruiting Brief und entscheide dann, "
+        "welches Artefakt du als Nächstes erzeugen möchtest."
+    )
+    st.info(
+        f"Value Proposition: {len(answers)} strukturierte Antworten + Jobspec = "
+        "konsistente, exportierbare Hiring-Artefakte ohne Medienbruch."
+    )
+    st.write(
+        f"**Rolle im Fokus:** {job.job_title or 'Nicht angegeben'} · "
+        f"**Unternehmen:** {job.company_name or 'Nicht angegeben'}"
+    )
+
+
+def _render_summary_snapshot(
+    job: JobAdExtract, answers: dict[str, Any], brief: VacancyBrief | None
+) -> None:
+    st.markdown("### Kompaktüberblick")
+    salary_range = "Nicht angegeben"
+    if job.salary_range and (job.salary_range.min or job.salary_range.max):
+        minimum = _safe_int(job.salary_range.min)
+        maximum = _safe_int(job.salary_range.max)
+        currency = job.salary_range.currency or "EUR"
+        if minimum and maximum:
+            salary_range = f"{minimum:,} – {maximum:,} {currency}".replace(",", ".")
+        else:
+            value = maximum or minimum
+            salary_range = f"ab {value:,} {currency}".replace(",", ".")
+
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Must-have Skills", len(job.must_have_skills))
+    with col2:
+        st.metric("Interview-Schritte", len(job.recruitment_steps))
+    with col3:
+        st.metric("Wizard-Antworten", len(answers))
+    with col4:
+        st.metric("Kritische Gaps", len(job.gaps))
+
+    fact_col1, fact_col2 = st.columns(2)
+    with fact_col1:
+        st.markdown("**Standort & Setup**")
+        st.write(
+            f"{job.location_city or 'Ort offen'}, {job.location_country or 'Land offen'}"
+        )
+        st.caption(f"Remote: {job.remote_policy or 'Nicht angegeben'}")
+    with fact_col2:
+        st.markdown("**Kompensation (falls vorhanden)**")
+        st.write(salary_range)
+        st.caption(f"Brief-Status: {'Vorhanden' if brief else 'Noch nicht generiert'}")
+
+
+def _render_action_hub(
+    *, resolved_brief_model: str, resolved_quality_model: str
+) -> tuple[bool, bool]:
+    st.markdown("### Was möchtest du jetzt erzeugen?")
+    st.caption(
+        "Starte mit dem Standard-Draft oder schärfe einen vorhandenen Brief gezielt in kritischen Bereichen."
+    )
+    col1, col2, col3 = st.columns([1, 1, 2])
+    with col1:
+        do_brief = st.button(
+            "Recruiting Brief generieren", type="primary", width="stretch"
+        )
+    with col2:
+        do_quality_upgrade = st.button(
+            "Qualitäts-Upgrade",
+            width="stretch",
+            help="Schärft nur kritische Abschnitte nach.",
+        )
+    with col3:
+        st.caption(
+            "Standard: vollständiger Draft mit MEDIUM_REASONING_MODEL. Optional: "
+            "Qualitäts-Upgrade nur für kritische Abschnitte mit HIGH_REASONING_MODEL."
+        )
+        st.caption(
+            f"Aktive Modelle: Draft=`{resolved_brief_model}` · Upgrade=`{resolved_quality_model}`"
+        )
+    return do_brief, do_quality_upgrade
+
+
+def render(ctx: WizardContext) -> None:
     render_error_banner()
 
     job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
@@ -812,10 +895,15 @@ def render(ctx: WizardContext) -> None:
     job = JobAdExtract.model_validate(job_dict)
     answers = get_answers()
     _render_sidebar_salary_forecast(job=job, answers=answers)
-
-    st.write(
-        "Hier erzeugst du den finalen Recruiting Brief und kannst ihn exportieren (JSON / Markdown / DOCX)."
+    brief_dict = st.session_state.get(SSKey.BRIEF.value)
+    brief_for_snapshot = (
+        VacancyBrief.model_validate(brief_dict)
+        if isinstance(brief_dict, dict)
+        else None
     )
+
+    _render_summary_hero(job=job, answers=answers)
+    _render_summary_snapshot(job=job, answers=answers, brief=brief_for_snapshot)
 
     settings = load_openai_settings()
     session_override = get_model_override()
@@ -828,21 +916,10 @@ def render(ctx: WizardContext) -> None:
         session_override.strip() if session_override else settings.high_reasoning_model
     )
 
-    col1, col2, col3 = st.columns([1, 1, 2])
-    with col1:
-        do_brief = st.button(
-            "Recruiting Brief generieren", type="primary", width="stretch"
-        )
-    with col2:
-        do_quality_upgrade = st.button(
-            "Qualitäts-Upgrade",
-            width="stretch",
-            help="Schärft nur kritische Abschnitte nach.",
-        )
-    with col3:
-        st.caption(
-            "Standard: vollständiger Draft mit MEDIUM_REASONING_MODEL. Optional: Qualitäts-Upgrade nur für kritische Abschnitte mit HIGH_REASONING_MODEL."
-        )
+    do_brief, do_quality_upgrade = _render_action_hub(
+        resolved_brief_model=resolved_brief_model,
+        resolved_quality_model=resolved_quality_model,
+    )
 
     if do_brief:
         clear_error()
@@ -888,7 +965,6 @@ def render(ctx: WizardContext) -> None:
             )
         st.rerun()
 
-    brief_dict = st.session_state.get(SSKey.BRIEF.value)
     if do_quality_upgrade:
         if not brief_dict:
             st.warning("Bitte zuerst einen Recruiting Brief generieren.")
@@ -956,182 +1032,204 @@ def render(ctx: WizardContext) -> None:
             else ""
         )
     )
-    render_brief(brief)
-    _render_salary_forecast(job, answers)
 
-    selected_values, critical_gaps = _render_selection_matrix(job=job, answers=answers)
-    st.session_state[SSKey.SUMMARY_SELECTIONS.value] = selected_values
+    main_tab, advanced_tab = st.tabs(["Brief & Export", "Advanced Studio"])
 
-    st.subheader("Smarte Stellenanzeigen-Generierung")
-    logo_file = st.file_uploader(
-        "Logo-Upload (optional)",
-        type=["png", "jpg", "jpeg", "svg"],
-        help="Das Logo wird als Metadatum gespeichert und kann im Exportprozess weiterverwendet werden.",
-        key="cs.summary.logo_upload",
-    )
-    normalized_logo = _normalize_logo_payload(logo_file)
-    st.session_state[SSKey.SUMMARY_LOGO.value] = normalized_logo
-    if logo_file is not None and normalized_logo is None:
-        st.warning(
-            "Logo-Format wird für Exporte nicht unterstützt. Bitte PNG oder JPG/JPEG verwenden."
-        )
-    if normalized_logo:
-        st.image(
-            normalized_logo["bytes"],
-            caption=f"Verwendetes Firmenlogo: {normalized_logo.get('name', 'logo')}",
-            width=180,
-        )
-    styleguide_slot = st.empty()
-    _render_template_toggles(
-        title="Bausteine (Styleguide-Beschleuniger)",
-        text_key=SSKey.SUMMARY_STYLEGUIDE_TEXT,
-        selection_key=SSKey.SUMMARY_STYLEGUIDE_BLOCKS,
-        template_blocks=STYLEGUIDE_TEMPLATE_BLOCKS,
-        widget_prefix="cs.summary.styleguide.block",
-    )
-    styleguide = styleguide_slot.text_area(
-        "Styleguide des Arbeitgebers",
-        placeholder="z. B. Tonalität, Wording, No-Gos, Corporate Language, Du/Sie, Diversity-Hinweise …",
-        key=SSKey.SUMMARY_STYLEGUIDE_TEXT.value,
-    )
-    styleguide = str(
-        st.session_state.get(SSKey.SUMMARY_STYLEGUIDE_TEXT.value, styleguide)
-    )
+    with main_tab:
+        render_brief(brief)
+        st.subheader("Export")
+        md = _brief_to_markdown(brief)
+        json_bytes = json.dumps(
+            brief.structured_data, indent=2, ensure_ascii=False
+        ).encode("utf-8")
+        docx_bytes = _brief_to_docx_bytes(brief)
 
-    change_request_slot = st.empty()
-    _render_template_toggles(
-        title="Bausteine (Change-Request-Beschleuniger)",
-        text_key=SSKey.SUMMARY_CHANGE_REQUEST_TEXT,
-        selection_key=SSKey.SUMMARY_CHANGE_REQUEST_BLOCKS,
-        template_blocks=CHANGE_REQUEST_TEMPLATE_BLOCKS,
-        widget_prefix="cs.summary.change_request.block",
-    )
-    change_request = change_request_slot.text_area(
-        "Anpassungswünsche (für Iterationen)",
-        placeholder="z. B. stärker auf Senior-Profile fokussieren, CTA kürzen, Benefits konkretisieren …",
-        key=SSKey.SUMMARY_CHANGE_REQUEST_TEXT.value,
-    )
-    change_request = str(
-        st.session_state.get(SSKey.SUMMARY_CHANGE_REQUEST_TEXT.value, change_request)
-    )
-    if critical_gaps:
-        st.info(
-            "Hinweis: Kritische Lücken werden in der AGG-Checkliste markiert und nicht halluziniert."
-        )
-
-    resolved_job_ad_model = resolve_model_for_task(
-        task_kind=TASK_GENERATE_JOB_AD,
-        session_override=session_override,
-        settings=settings,
-    )
-    if st.button(
-        "Stellenanzeige generieren/verbessern", type="primary", width="stretch"
-    ):
-        clear_error()
-        try:
-            with st.spinner("Generiere zielgruppen-optimierte Stellenanzeige …"):
-                result, usage = generate_custom_job_ad(
-                    job=job,
-                    answers=answers,
-                    selected_values=selected_values,
-                    style_guide=styleguide,
-                    change_request=change_request,
-                    model=resolved_job_ad_model,
-                    store=bool(
-                        st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)
-                    ),
-                )
-            payload = result.model_dump(mode="json")
-            payload["styleguide"] = styleguide
-            payload["logo_filename"] = (
-                normalized_logo.get("name") if normalized_logo else None
-            )
-            st.session_state[SSKey.JOB_AD_DRAFT_CUSTOM.value] = payload
-            st.session_state[SSKey.JOB_AD_LAST_USAGE.value] = usage or {}
-        except OpenAICallError as e:
-            render_openai_error(e)
-        except Exception as exc:
-            handle_unexpected_exception(
-                step="summary.job_ad_generation",
-                exc=exc,
-                error_type=type(exc).__name__,
-                error_code="SUMMARY_JOB_AD_GENERATION_UNEXPECTED",
-            )
-        st.rerun()
-
-    custom_job_ad_raw = st.session_state.get(SSKey.JOB_AD_DRAFT_CUSTOM.value)
-    if isinstance(custom_job_ad_raw, dict):
-        custom_job_ad = JobAdGenerationResult.model_validate(
-            {
-                "headline": custom_job_ad_raw.get("headline", ""),
-                "target_group": custom_job_ad_raw.get("target_group", []),
-                "agg_checklist": custom_job_ad_raw.get("agg_checklist", []),
-                "job_ad_text": custom_job_ad_raw.get("job_ad_text", ""),
-            }
-        )
-        st.markdown(f"### {custom_job_ad.headline}")
-        st.write(custom_job_ad.job_ad_text)
-        st.markdown("**Zielgruppe**")
-        for group in custom_job_ad.target_group:
-            st.write(f"- {group}")
-        st.markdown("**AGG-Checkliste**")
-        for item in custom_job_ad.agg_checklist:
-            st.write(f"- {item}")
-
-        custom_docx = _job_ad_to_docx_bytes(
-            custom_job_ad, str(custom_job_ad_raw.get("styleguide", ""))
-        )
-        custom_pdf = _job_ad_to_pdf_bytes(
-            custom_job_ad, str(custom_job_ad_raw.get("styleguide", ""))
-        )
-        x1, x2 = st.columns(2)
-        with x1:
+        c1, c2, c3 = st.columns(3)
+        with c1:
             st.download_button(
-                "Download Stellenanzeige (DOCX)",
-                data=custom_docx,
-                file_name="stellenanzeige.docx",
+                "Download JSON",
+                data=json_bytes,
+                file_name="vacancy_brief.json",
+                mime="application/json",
+            )
+        with c2:
+            st.download_button(
+                "Download Markdown",
+                data=md.encode("utf-8"),
+                file_name="vacancy_brief.md",
+                mime="text/markdown",
+            )
+        with c3:
+            st.download_button(
+                "Download DOCX",
+                data=docx_bytes,
+                file_name="vacancy_brief.docx",
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             )
-        with x2:
-            if custom_pdf is None:
-                st.caption("PDF-Export benötigt reportlab (nicht verfügbar).")
-            else:
-                st.download_button(
-                    "Download Stellenanzeige (PDF)",
-                    data=custom_pdf,
-                    file_name="stellenanzeige.pdf",
-                    mime="application/pdf",
+
+    with advanced_tab:
+        with st.expander("Salary Forecast", expanded=False):
+            _render_salary_forecast(job, answers)
+
+        with st.expander("Selection Matrix", expanded=False):
+            selected_values, critical_gaps = _render_selection_matrix(
+                job=job, answers=answers
+            )
+            st.session_state[SSKey.SUMMARY_SELECTIONS.value] = selected_values
+
+        with st.expander("Job-Ad-Editor", expanded=False):
+            st.subheader("Smarte Stellenanzeigen-Generierung")
+            logo_file = st.file_uploader(
+                "Logo-Upload (optional)",
+                type=["png", "jpg", "jpeg", "svg"],
+                help="Das Logo wird als Metadatum gespeichert und kann im Exportprozess weiterverwendet werden.",
+                key="cs.summary.logo_upload",
+            )
+            normalized_logo = _normalize_logo_payload(logo_file)
+            st.session_state[SSKey.SUMMARY_LOGO.value] = normalized_logo
+            if logo_file is not None and normalized_logo is None:
+                st.warning(
+                    "Logo-Format wird für Exporte nicht unterstützt. Bitte PNG oder JPG/JPEG verwenden."
+                )
+            if normalized_logo:
+                st.image(
+                    normalized_logo["bytes"],
+                    caption=f"Verwendetes Firmenlogo: {normalized_logo.get('name', 'logo')}",
+                    width=180,
                 )
 
-    st.subheader("Export")
-    md = _brief_to_markdown(brief)
-    json_bytes = json.dumps(brief.structured_data, indent=2, ensure_ascii=False).encode(
-        "utf-8"
-    )
-    docx_bytes = _brief_to_docx_bytes(brief)
+            styleguide_slot = st.empty()
+            _render_template_toggles(
+                title="Bausteine (Styleguide-Beschleuniger)",
+                text_key=SSKey.SUMMARY_STYLEGUIDE_TEXT,
+                selection_key=SSKey.SUMMARY_STYLEGUIDE_BLOCKS,
+                template_blocks=STYLEGUIDE_TEMPLATE_BLOCKS,
+                widget_prefix="cs.summary.styleguide.block",
+            )
+            styleguide = styleguide_slot.text_area(
+                "Styleguide des Arbeitgebers",
+                placeholder="z. B. Tonalität, Wording, No-Gos, Corporate Language, Du/Sie, Diversity-Hinweise …",
+                key=SSKey.SUMMARY_STYLEGUIDE_TEXT.value,
+            )
+            styleguide = str(
+                st.session_state.get(SSKey.SUMMARY_STYLEGUIDE_TEXT.value, styleguide)
+            )
 
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.download_button(
-            "Download JSON",
-            data=json_bytes,
-            file_name="vacancy_brief.json",
-            mime="application/json",
-        )
-    with c2:
-        st.download_button(
-            "Download Markdown",
-            data=md.encode("utf-8"),
-            file_name="vacancy_brief.md",
-            mime="text/markdown",
-        )
-    with c3:
-        st.download_button(
-            "Download DOCX",
-            data=docx_bytes,
-            file_name="vacancy_brief.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        )
+            change_request_slot = st.empty()
+            _render_template_toggles(
+                title="Bausteine (Change-Request-Beschleuniger)",
+                text_key=SSKey.SUMMARY_CHANGE_REQUEST_TEXT,
+                selection_key=SSKey.SUMMARY_CHANGE_REQUEST_BLOCKS,
+                template_blocks=CHANGE_REQUEST_TEMPLATE_BLOCKS,
+                widget_prefix="cs.summary.change_request.block",
+            )
+            change_request = change_request_slot.text_area(
+                "Anpassungswünsche (für Iterationen)",
+                placeholder="z. B. stärker auf Senior-Profile fokussieren, CTA kürzen, Benefits konkretisieren …",
+                key=SSKey.SUMMARY_CHANGE_REQUEST_TEXT.value,
+            )
+            change_request = str(
+                st.session_state.get(
+                    SSKey.SUMMARY_CHANGE_REQUEST_TEXT.value, change_request
+                )
+            )
+            selected_values = st.session_state.get(SSKey.SUMMARY_SELECTIONS.value, {})
+            critical_gaps = _collect_critical_gaps(
+                job,
+                _build_selection_rows(job, answers),
+            )
+            if critical_gaps:
+                st.info(
+                    "Hinweis: Kritische Lücken werden in der AGG-Checkliste markiert und nicht halluziniert."
+                )
+
+            resolved_job_ad_model = resolve_model_for_task(
+                task_kind=TASK_GENERATE_JOB_AD,
+                session_override=session_override,
+                settings=settings,
+            )
+            if st.button(
+                "Stellenanzeige generieren/verbessern", type="primary", width="stretch"
+            ):
+                clear_error()
+                try:
+                    with st.spinner(
+                        "Generiere zielgruppen-optimierte Stellenanzeige …"
+                    ):
+                        result, usage = generate_custom_job_ad(
+                            job=job,
+                            answers=answers,
+                            selected_values=selected_values,
+                            style_guide=styleguide,
+                            change_request=change_request,
+                            model=resolved_job_ad_model,
+                            store=bool(
+                                st.session_state.get(
+                                    SSKey.STORE_API_OUTPUT.value, False
+                                )
+                            ),
+                        )
+                    payload = result.model_dump(mode="json")
+                    payload["styleguide"] = styleguide
+                    payload["logo_filename"] = (
+                        normalized_logo.get("name") if normalized_logo else None
+                    )
+                    st.session_state[SSKey.JOB_AD_DRAFT_CUSTOM.value] = payload
+                    st.session_state[SSKey.JOB_AD_LAST_USAGE.value] = usage or {}
+                except OpenAICallError as e:
+                    render_openai_error(e)
+                except Exception as exc:
+                    handle_unexpected_exception(
+                        step="summary.job_ad_generation",
+                        exc=exc,
+                        error_type=type(exc).__name__,
+                        error_code="SUMMARY_JOB_AD_GENERATION_UNEXPECTED",
+                    )
+                st.rerun()
+
+            custom_job_ad_raw = st.session_state.get(SSKey.JOB_AD_DRAFT_CUSTOM.value)
+            if isinstance(custom_job_ad_raw, dict):
+                custom_job_ad = JobAdGenerationResult.model_validate(
+                    {
+                        "headline": custom_job_ad_raw.get("headline", ""),
+                        "target_group": custom_job_ad_raw.get("target_group", []),
+                        "agg_checklist": custom_job_ad_raw.get("agg_checklist", []),
+                        "job_ad_text": custom_job_ad_raw.get("job_ad_text", ""),
+                    }
+                )
+                st.markdown(f"### {custom_job_ad.headline}")
+                st.write(custom_job_ad.job_ad_text)
+                st.markdown("**Zielgruppe**")
+                for group in custom_job_ad.target_group:
+                    st.write(f"- {group}")
+                st.markdown("**AGG-Checkliste**")
+                for item in custom_job_ad.agg_checklist:
+                    st.write(f"- {item}")
+
+                custom_docx = _job_ad_to_docx_bytes(
+                    custom_job_ad, str(custom_job_ad_raw.get("styleguide", ""))
+                )
+                custom_pdf = _job_ad_to_pdf_bytes(
+                    custom_job_ad, str(custom_job_ad_raw.get("styleguide", ""))
+                )
+                x1, x2 = st.columns(2)
+                with x1:
+                    st.download_button(
+                        "Download Stellenanzeige (DOCX)",
+                        data=custom_docx,
+                        file_name="stellenanzeige.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    )
+                with x2:
+                    if custom_pdf is None:
+                        st.caption("PDF-Export benötigt reportlab (nicht verfügbar).")
+                    else:
+                        st.download_button(
+                            "Download Stellenanzeige (PDF)",
+                            data=custom_pdf,
+                            file_name="stellenanzeige.pdf",
+                            mime="application/pdf",
+                        )
 
     nav_buttons(ctx, disable_next=True)
 
