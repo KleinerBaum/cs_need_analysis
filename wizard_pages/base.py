@@ -438,8 +438,9 @@ def render_hero_section(
     )
     st.markdown('<div class="landing-hero-copy">', unsafe_allow_html=True)
     st.markdown(f"<h1>{headline}</h1>", unsafe_allow_html=True)
-    st.markdown(f'<p class="landing-subhead">{subhead}</p>', unsafe_allow_html=True)
-    if st.button(
+    if subhead:
+        st.markdown(f'<p class="landing-subhead">{subhead}</p>', unsafe_allow_html=True)
+    if primary_cta and st.button(
         primary_cta,
         key=start_button_key,
         type="primary",
@@ -449,10 +450,11 @@ def render_hero_section(
         on_start()
         ctx.goto(start_target)
         st.rerun()
-    st.markdown(
-        f'<p class="landing-caption">{secondary_cta_hint}</p>',
-        unsafe_allow_html=True,
-    )
+    if secondary_cta_hint:
+        st.markdown(
+            f'<p class="landing-caption">{secondary_cta_hint}</p>',
+            unsafe_allow_html=True,
+        )
     if next_step_line:
         st.caption(next_step_line)
     has_more_details = any(
