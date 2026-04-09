@@ -24,8 +24,7 @@ from wizard_pages.base import (
 LANDING_COPY: dict[str, object] = {
     "hero_headline": "Recruiting beginnt nicht mit Sourcing. Es beginnt mit einem sauberen Vacancy Intake.",
     "hero_subhead": (
-        "Laden Sie eine Jobspec hoch und starten Sie den strukturierten Guided Intake. "
-        "In wenigen Minuten erhalten Sie eine belastbare Basis für Recruiting und Interviews."
+        "Laden Sie eine Jobspec hoch und führen Sie den Guided Intake in wenigen Minuten durch."
     ),
     "primary_cta": "Jetzt Jobspec hochladen und Guided Intake starten",
     "secondary_cta_hint": "Kein Risiko: Fehlende Informationen können später ergänzt werden.",
@@ -50,25 +49,24 @@ LANDING_COPY: dict[str, object] = {
     "value_cards": (
         (
             "Mehr Klarheit von Beginn an",
-            "Extrahiert vorhandene Informationen und deckt fehlende Punkte gezielt auf.",
+            "Extrahiert Inhalte und zeigt fehlende Punkte sofort an.",
         ),
         (
             "Bessere Interviews",
-            "Schärft Must-haves, Aufgabenbild, Stakeholder und Erfolgskriterien.",
+            "Schärft Must-haves, Aufgaben und Erfolgskriterien.",
         ),
         (
             "Weniger Abstimmungsschleifen",
-            "Reduziert Rückfragen zwischen Fachbereich, HR und Recruiting.",
+            "Senkt Rückfragen zwischen Fachbereich, HR und Recruiting.",
         ),
         (
             "Sauberer Output",
-            "Erstellt ein strukturiertes Recruiting Briefing als belastbare Grundlage.",
+            "Erzeugt ein klares Recruiting-Briefing als Entscheidungsbasis.",
         ),
     ),
     "importance_title": "Warum dieser erste Schritt entscheidend ist",
     "importance_intro": (
-        "Ein unpräziser Vacancy Intake wirkt sich auf den gesamten Recruiting-Prozess aus. "
-        "Was hier unscharf bleibt, führt später zu teuren und demotivierenden Folgefehlern."
+        "Ein unpräziser Intake zieht Fehler durch den gesamten Recruiting-Prozess."
     ),
     "importance_points": (
         (
@@ -85,26 +83,25 @@ LANDING_COPY: dict[str, object] = {
         ),
     ),
     "importance_closer": (
-        "Ein sauberer Intake senkt das Risiko von Fehlbesetzungen, spart Abstimmungszeit und "
-        "erhöht die Qualität jeder nachfolgenden Recruiting-Entscheidung."
+        "Ein sauberer Intake spart Zeit und verbessert jede folgende Recruiting-Entscheidung."
     ),
     "flow_title": "So funktioniert der Ablauf",
     "flow_steps": (
         (
-            "1. Jobspec hochladen",
-            "Laden Sie eine Stellenanzeige, ein Rollenprofil oder eine Jobspec hoch.",
+            "1. Upload starten",
+            "Laden Sie Stellenanzeige, Rollenprofil oder Jobspec hoch.",
         ),
         (
-            "2. Inhalte extrahieren",
-            "Die App erkennt Rolle, Aufgaben, Skills, Benefits, Prozessdaten und Informationslücken.",
+            "2. Lücken erkennen",
+            "Die App extrahiert Kerndaten und markiert fehlende Informationen.",
         ),
         (
-            "3. Dynamische Rückfragen",
-            "Je nach Jobprofil erhalten Sie gezielte Fragen zu Company, Team, Rolle, Skills und Hiring-Prozess.",
+            "3. Antworten schärfen",
+            "Sie beantworten gezielte Rückfragen zu Rolle, Team, Skills und Prozess.",
         ),
         (
-            "4. Strukturiertes Briefing",
-            "Am Ende steht ein konsistenter Recruiting Brief als Grundlage für HR, Fachbereich und Interviews.",
+            "4. Briefing erzeugen",
+            "Sie erhalten ein konsistentes Recruiting-Briefing für HR und Fachbereich.",
         ),
     ),
     "output_title": "Was Sie am Ende erhalten",
