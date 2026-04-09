@@ -16,6 +16,7 @@ from question_dependencies import should_show_question
 from question_progress import build_answered_lookup, compute_question_progress
 from schemas import (
     Contact,
+    InterviewPrepSheetHR,
     JobAdExtract,
     LanguageRequirement,
     MoneyRange,
@@ -1564,3 +1565,56 @@ def render_brief(brief: VacancyBrief) -> None:
 
     with st.expander("Structured data (JSON)", expanded=False):
         st.json(brief.structured_data, expanded=False)
+
+
+def render_interview_prep_hr(sheet: InterviewPrepSheetHR) -> None:
+    st.markdown(
+        f"**Rolle:** {sheet.role_title} · **Stage:** {sheet.interview_stage} · "
+        f"**Dauer:** {sheet.duration_minutes} Min."
+    )
+    st.markdown("**Opening Script**")
+    st.write(sheet.opening_script)
+
+    st.markdown("**Frageblöcke**")
+    if not sheet.question_blocks:
+        st.info("Keine Frageblöcke vorhanden.")
+    for index, block in enumerate(sheet.question_blocks, start=1):
+        st.markdown(f"**{index}. {block.title}**")
+        st.caption(f"Ziel: {block.objective}")
+        if block.questions:
+            st.write("Fragen:")
+            for question in block.questions:
+                st.write(f"- {question}")
+        if block.follow_up_prompts:
+            st.write("Follow-ups:")
+            for follow_up in block.follow_up_prompts:
+                st.write(f"- {follow_up}")
+
+    st.markdown("**Knockout-Kriterien**")
+    if sheet.knockout_criteria:
+        for criterion in sheet.knockout_criteria:
+            st.write(f"- {criterion}")
+    else:
+        st.info("Keine Knockout-Kriterien hinterlegt.")
+
+    st.markdown("**Bewertungsrubrik**")
+    if not sheet.evaluation_rubric:
+        st.info("Keine Bewertungsrubrik vorhanden.")
+    for criterion in sheet.evaluation_rubric:
+        st.markdown(
+            f"- **{criterion.title}** ({criterion.weight_percent} %) — "
+            f"{criterion.description}"
+        )
+        if criterion.score_scale:
+            st.caption(f"Skala: {' | '.join(criterion.score_scale)}")
+        if criterion.evidence_examples:
+            st.caption("Beobachtbare Evidenz:")
+            for evidence in criterion.evidence_examples:
+                st.write(f"  - {evidence}")
+
+    st.markdown("**Empfehlungsoptionen**")
+    if sheet.final_recommendation_options:
+        for option in sheet.final_recommendation_options:
+            st.write(f"- {option}")
+    else:
+        st.info("Keine finalen Empfehlungsoptionen hinterlegt.")
