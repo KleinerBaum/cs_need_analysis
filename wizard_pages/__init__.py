@@ -26,7 +26,7 @@ def _load_module_from_path(path: Path, module_name: str):
 
 def load_pages() -> List[WizardPage]:
     pages_dir = Path(__file__).parent
-    ignore = {"__init__.py", "base.py"}
+    ignore = {"__init__.py", "base.py", "jobad_intake.py"}
     py_files = sorted([p for p in pages_dir.glob("*.py") if p.name not in ignore])
 
     pages: List[WizardPage] = []

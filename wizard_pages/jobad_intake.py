@@ -1,8 +1,8 @@
-# wizard_pages/01_jobad.py
 from __future__ import annotations
 
-import streamlit as st
 from typing import Final
+
+import streamlit as st
 
 from constants import SSKey
 from llm_client import (
@@ -13,19 +13,16 @@ from llm_client import (
     generate_question_plan,
     resolve_model_for_task,
 )
-from settings_openai import load_openai_settings
 from parsing import extract_text_from_uploaded_file, redact_pii
+from settings_openai import load_openai_settings
 from state import (
     clear_error,
     get_model_override,
     handle_unexpected_exception,
     set_error,
 )
-from ui_components import (
-    render_error_banner,
-    render_openai_error,
-)
-from wizard_pages.base import WizardContext, WizardPage, set_current_step
+from ui_components import render_error_banner, render_openai_error
+from wizard_pages.base import set_current_step
 
 
 SOURCE_TEXT_INPUT_KEY: Final[str] = "cs.source_text_input"
@@ -71,16 +68,14 @@ def _on_upload_change() -> None:
     _set_active_source("upload", uploaded_text)
 
 
-def render(ctx: WizardContext) -> None:
-    st.header("Jobspec / Job Ad einlesen")
-
+def render_jobad_intake(*, title: str = "Jobspec / Job Ad einlesen") -> None:
+    st.header(title)
     render_error_banner()
 
     st.caption(
         "Lade ein Jobspec als PDF/DOCX hoch oder füge den Text direkt ein. Danach klickst du auf **Analysieren**."
     )
 
-    # Preferences / settings
     with st.sidebar:
         st.subheader("LLM Settings")
         st.text_input(
@@ -157,6 +152,7 @@ def render(ctx: WizardContext) -> None:
                 on_change=_on_manual_text_change,
                 placeholder="Füge hier die Stellenanzeige oder Jobspec ein …",
             )
+
     if do_extract:
         clear_error()
         effective_source_text = str(
@@ -214,7 +210,6 @@ def render(ctx: WizardContext) -> None:
                 )
             set_current_step("jobspec_review")
 
-            # Optional: show usage
             with st.expander("API Usage (Debug)", expanded=False):
                 st.write(
                     {
@@ -226,7 +221,6 @@ def render(ctx: WizardContext) -> None:
                         "plan_usage": usage2,
                     }
                 )
-
         except OpenAICallError as e:
             render_openai_error(e)
         except Exception as exc:
@@ -239,12 +233,3 @@ def render(ctx: WizardContext) -> None:
             )
 
         st.rerun()
-
-
-PAGE = WizardPage(
-    key="jobad",
-    title_de="Jobspec / Jobad",
-    icon="📄",
-    render=render,
-    requires_jobspec=False,
-)

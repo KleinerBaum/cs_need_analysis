@@ -137,8 +137,6 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
             else:
                 status = "complete"
         elif page.key == "landing":
-            status = "complete" if has_job_extract else "not_started"
-        elif page.key == "jobad":
             source_text = st.session_state.get(SSKey.SOURCE_TEXT.value, "")
             has_source = isinstance(source_text, str) and bool(source_text.strip())
             if has_job_extract and plan is not None:

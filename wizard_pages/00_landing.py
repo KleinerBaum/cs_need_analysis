@@ -6,6 +6,7 @@ from typing import cast
 
 from constants import APP_TITLE, SSKey
 from state import reset_vacancy
+from wizard_pages.jobad_intake import render_jobad_intake
 from wizard_pages.base import (
     LANDING_CTA_KEYS,
     LANDING_SECTION_IDS,
@@ -139,7 +140,7 @@ def render(ctx: WizardContext) -> None:
         consent_given=consent_given,
         start_button_key=LANDING_CTA_KEYS["start"],
         on_start=reset_vacancy,
-        start_target="jobad",
+        start_target="landing",
     )
 
     st.caption(str(LANDING_COPY["consent_hint"]))
@@ -179,6 +180,9 @@ def render(ctx: WizardContext) -> None:
         title=str(LANDING_COPY["security_title"]),
         body=str(LANDING_COPY["security_body"]),
     )
+
+    st.divider()
+    render_jobad_intake()
 
     st.caption("Debug im Sidebar aktivierbar / Debug can be enabled in the sidebar.")
 

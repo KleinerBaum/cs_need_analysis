@@ -352,10 +352,10 @@ def main() -> None:
 
     current = sidebar_navigation(ctx)
 
-    # Guard: if page requires jobspec but it's missing, redirect to jobad
+    # Guard: if page requires jobspec but it's missing, redirect to landing
     if current.requires_jobspec and not st.session_state.get(SSKey.JOB_EXTRACT.value):
         st.warning("Bitte zuerst ein Jobspec analysieren.")
-        set_current_step("jobad")
+        set_current_step("landing")
         st.rerun()
 
     current.render(ctx)

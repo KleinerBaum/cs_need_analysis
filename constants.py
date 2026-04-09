@@ -73,7 +73,6 @@ class WizardStepDef:
 
 STEPS: Final[List[WizardStepDef]] = [
     WizardStepDef(key="landing", title_de="Start", icon="🏁"),
-    WizardStepDef(key="jobad", title_de="Jobspec / Jobad", icon="📄"),
     WizardStepDef(
         key="jobspec_review",
         title_de="Jobspec-Übersicht",
