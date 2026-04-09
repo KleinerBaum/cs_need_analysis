@@ -190,16 +190,19 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
     st.sidebar.markdown("### Wizard-Fortschritt")
     st.sidebar.caption(f"{started_steps}/{total_steps} Schritte bearbeitet")
 
-    ui_mode_raw = st.session_state.get(SSKey.UI_MODE.value, "standard")
-    ui_mode = str(ui_mode_raw).strip().lower()
-    if ui_mode not in {"quick", "standard", "expert"}:
-        ui_mode = "standard"
+    ui_mode_key = SSKey.UI_MODE.value
+    allowed_ui_modes = {"quick", "standard", "expert"}
+    ui_mode_raw = st.session_state.get(ui_mode_key)
+    ui_mode = str(ui_mode_raw).strip().lower() if ui_mode_raw is not None else ""
+    if ui_mode not in allowed_ui_modes:
+        st.session_state[ui_mode_key] = "standard"
+    elif ui_mode_raw != ui_mode:
+        st.session_state[ui_mode_key] = ui_mode
 
     _selected_mode = st.sidebar.radio(
         "Ansichtsmodus",
         options=["quick", "standard", "expert"],
-        index=["quick", "standard", "expert"].index(ui_mode),
-        key=SSKey.UI_MODE.value,
+        key=ui_mode_key,
         format_func=lambda mode: mode.capitalize(),
         help="Quick: kompakt. Standard: kompakt mit Ein-Klick-Ausklappen. Expert: alle Detailgruppen geöffnet.",
     )
