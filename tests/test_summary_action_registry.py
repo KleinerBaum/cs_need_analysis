@@ -77,13 +77,13 @@ def test_build_action_registry_contains_expected_actions_and_requirements() -> N
     ]
     assert action_registry[0]["requires"] == (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN)
     assert action_registry[1]["requires"] == (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN)
-    assert action_registry[2]["requires"] == (SSKey.BRIEF,)
+    assert action_registry[2]["requires"] == (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN)
     assert action_registry[2]["generator_fn"] is not None
-    assert action_registry[3]["requires"] == (SSKey.BRIEF,)
+    assert action_registry[3]["requires"] == (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN)
     assert action_registry[3]["generator_fn"] is not None
-    assert action_registry[4]["requires"] == (SSKey.BRIEF,)
+    assert action_registry[4]["requires"] == (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN)
     assert action_registry[4]["generator_fn"] is not None
-    assert action_registry[5]["requires"] == (SSKey.BRIEF,)
+    assert action_registry[5]["requires"] == (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN)
     assert action_registry[5]["generator_fn"] is not None
 
 

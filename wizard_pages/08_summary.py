@@ -1359,11 +1359,11 @@ def _build_action_registry(
                 "und objektiver Bewertungsrubrik."
             ),
             "cta_label": "HR-Sheet erstellen",
-            "requires": (SSKey.BRIEF,),
+            "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
             "generator_fn": generate_interview_prep_hr,
             "result_key": SSKey.INTERVIEW_PREP_HR,
             "input_hints": (
-                "Recruiting Brief",
+                "Recruiting Brief (optional, wird bei Bedarf automatisch erzeugt)",
                 "Kritische Must-haves",
                 f"HR-Sheet-Modell: {resolved_hr_sheet_model}",
             ),
@@ -1376,11 +1376,11 @@ def _build_action_registry(
                 "und strukturierter Bewertung."
             ),
             "cta_label": "Fachbereich-Sheet erstellen",
-            "requires": (SSKey.BRIEF,),
+            "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
             "generator_fn": generate_interview_prep_fach,
             "result_key": SSKey.INTERVIEW_PREP_FACH,
             "input_hints": (
-                "Recruiting Brief",
+                "Recruiting Brief (optional, wird bei Bedarf automatisch erzeugt)",
                 "Must-have + Top Responsibilities",
                 f"Fachbereich-Sheet-Modell: {resolved_fach_sheet_model}",
             ),
@@ -1393,11 +1393,11 @@ def _build_action_registry(
                 "inkl. Broad/Focused/Fallback-Varianten."
             ),
             "cta_label": "Boolean String erstellen",
-            "requires": (SSKey.BRIEF,),
+            "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
             "generator_fn": generate_boolean_search,
             "result_key": SSKey.BOOLEAN_SEARCH_STRING,
             "input_hints": (
-                "Recruiting Brief",
+                "Recruiting Brief (optional, wird bei Bedarf automatisch erzeugt)",
                 "Must-have + Nice-to-have Skills",
                 f"Boolean-Modell: {resolved_boolean_search_model}",
             ),
@@ -1410,11 +1410,11 @@ def _build_action_registry(
                 "fehlenden Inputs und klauselbasierter Review-Struktur."
             ),
             "cta_label": "Arbeitsvertrag erstellen",
-            "requires": (SSKey.BRIEF,),
+            "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
             "generator_fn": generate_employment_contract,
             "result_key": SSKey.EMPLOYMENT_CONTRACT_DRAFT,
             "input_hints": (
-                "Recruiting Brief",
+                "Recruiting Brief (optional, wird bei Bedarf automatisch erzeugt)",
                 "Vertragsart + Konditionen",
                 f"Contract-Modell: {resolved_employment_contract_model}",
             ),
@@ -1563,16 +1563,50 @@ def render(ctx: WizardContext) -> None:
                 error_code="SUMMARY_JOB_AD_GENERATION_UNEXPECTED",
             )
 
+    def _resolve_brief_for_follow_up_action() -> VacancyBrief | None:
+        brief_payload = st.session_state.get(SSKey.BRIEF.value)
+        if isinstance(brief_payload, dict):
+            try:
+                return VacancyBrief.model_validate(brief_payload)
+            except Exception:
+                st.warning(
+                    "Recruiting Brief ist ungültig. Es wird automatisch ein neuer Brief erzeugt."
+                )
+
+        store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
+        try:
+            with st.spinner("Erzeuge Recruiting Brief als Grundlage…"):
+                generated_brief, usage = generate_vacancy_brief(
+                    job,
+                    answers,
+                    model=resolved_brief_model,
+                    store=store,
+                )
+            st.session_state[SSKey.BRIEF.value] = generated_brief.model_dump()
+            st.session_state[SSKey.SUMMARY_CACHE_HIT.value] = usage_has_cache_hit(usage)
+            st.session_state[SSKey.SUMMARY_LAST_MODE.value] = "auto_draft_for_follow_up"
+            st.session_state[SSKey.SUMMARY_LAST_MODELS.value] = {
+                "draft_model": resolved_brief_model
+            }
+            return generated_brief
+        except OpenAICallError as e:
+            render_openai_error(e)
+            return None
+        except Exception as exc:
+            handle_unexpected_exception(
+                step="summary.auto_generate_brief_for_follow_up",
+                exc=exc,
+                error_type=type(exc).__name__,
+                error_code="SUMMARY_AUTO_BRIEF_GENERATION_UNEXPECTED",
+            )
+            return None
+
     def _generate_interview_prep_hr() -> None:
         clear_error()
-        brief_payload = st.session_state.get(SSKey.BRIEF.value)
-        if not isinstance(brief_payload, dict):
-            st.warning(
-                "Recruiting Brief fehlt oder ist ungültig. Bitte Brief neu generieren."
-            )
+        brief_model = _resolve_brief_for_follow_up_action()
+        if brief_model is None:
             return
         try:
-            brief_model = VacancyBrief.model_validate(brief_payload)
             store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
             with st.spinner("Generiere Interview-Sheet (HR)…"):
                 sheet, usage = generate_interview_sheet_hr(
@@ -1603,14 +1637,10 @@ def render(ctx: WizardContext) -> None:
 
     def _generate_interview_prep_fach() -> None:
         clear_error()
-        brief_payload = st.session_state.get(SSKey.BRIEF.value)
-        if not isinstance(brief_payload, dict):
-            st.warning(
-                "Recruiting Brief fehlt oder ist ungültig. Bitte Brief neu generieren."
-            )
+        brief_model = _resolve_brief_for_follow_up_action()
+        if brief_model is None:
             return
         try:
-            brief_model = VacancyBrief.model_validate(brief_payload)
             store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
             with st.spinner("Generiere Interview-Sheet (Fachbereich)…"):
                 sheet, usage = generate_interview_sheet_hm(
@@ -1641,14 +1671,10 @@ def render(ctx: WizardContext) -> None:
 
     def _generate_boolean_search_pack() -> None:
         clear_error()
-        brief_payload = st.session_state.get(SSKey.BRIEF.value)
-        if not isinstance(brief_payload, dict):
-            st.warning(
-                "Recruiting Brief fehlt oder ist ungültig. Bitte Brief neu generieren."
-            )
+        brief_model = _resolve_brief_for_follow_up_action()
+        if brief_model is None:
             return
         try:
-            brief_model = VacancyBrief.model_validate(brief_payload)
             store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
             with st.spinner("Generiere Boolean Search Pack…"):
                 pack, usage = generate_boolean_search_pack(
@@ -1679,14 +1705,10 @@ def render(ctx: WizardContext) -> None:
 
     def _generate_employment_contract() -> None:
         clear_error()
-        brief_payload = st.session_state.get(SSKey.BRIEF.value)
-        if not isinstance(brief_payload, dict):
-            st.warning(
-                "Recruiting Brief fehlt oder ist ungültig. Bitte Brief neu generieren."
-            )
+        brief_model = _resolve_brief_for_follow_up_action()
+        if brief_model is None:
             return
         try:
-            brief_model = VacancyBrief.model_validate(brief_payload)
             store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
             with st.spinner("Generiere Arbeitsvertrags-Template…"):
                 draft, usage = generate_employment_contract_draft(
