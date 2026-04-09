@@ -222,7 +222,7 @@ def nav_buttons(
 
 LANDING_STYLE_TOKENS: dict[str, str] = {
     "card_radius": "14px",
-    "section_spacing": "2.2rem 0 2.3rem 0",
+    "section_spacing": "1.2rem 0 1.4rem 0",
     "muted_text_color": "rgba(220, 233, 255, 0.9)",
     "emphasis_border": "4px solid rgba(138, 184, 255, 0.95)",
     "emphasis_background": "linear-gradient(135deg, rgba(22, 58, 112, 0.56), rgba(14, 34, 67, 0.4))",
@@ -284,7 +284,7 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
                 background: rgba(12, 27, 52, 0.78);
                 border: 1px solid rgba(228, 236, 252, 0.2);
                 border-radius: {style_tokens["card_radius"]};
-                padding: 1rem 0.95rem;
+                padding: 0.8rem 0.75rem;
                 height: 100%;
             }}
 
@@ -303,16 +303,16 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
                 background: {style_tokens["emphasis_background"]};
                 border-left: {style_tokens["emphasis_border"]};
                 border-radius: {style_tokens["card_radius"]};
-                padding: 1rem 1rem 0.25rem 1rem;
-                margin-bottom: 1rem;
+                padding: 0.8rem 0.85rem 0.2rem 0.85rem;
+                margin-bottom: 0.85rem;
             }}
 
             .landing-flow-step {{
                 background: rgba(9, 20, 42, 0.66);
                 border: 1px solid rgba(227, 235, 251, 0.18);
                 border-radius: 12px;
-                padding: 0.95rem;
-                min-height: 148px;
+                padding: 0.75rem;
+                min-height: 124px;
             }}
 
             .landing-list {{
@@ -347,6 +347,10 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
 
                 .landing-hero-copy {{
                     max-width: 100%;
+                }}
+
+                .landing-flow-step {{
+                    min-height: 0;
                 }}
             }}
         </style>
