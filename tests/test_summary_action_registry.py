@@ -56,9 +56,11 @@ def test_build_action_registry_contains_expected_actions_and_requirements() -> N
         resolved_brief_model="gpt-5-mini",
         resolved_job_ad_model="gpt-4o-mini",
         resolved_hr_sheet_model="gpt-5-nano",
+        resolved_fach_sheet_model="gpt-5",
         generate_recruiting_brief=lambda: None,
         generate_job_ad=lambda: None,
         generate_interview_prep_hr=lambda: None,
+        generate_interview_prep_fach=lambda: None,
     )
 
     assert [action["id"] for action in action_registry] == [
@@ -73,6 +75,8 @@ def test_build_action_registry_contains_expected_actions_and_requirements() -> N
     assert action_registry[1]["requires"] == (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN)
     assert action_registry[2]["requires"] == (SSKey.BRIEF,)
     assert action_registry[2]["generator_fn"] is not None
+    assert action_registry[3]["requires"] == (SSKey.BRIEF,)
+    assert action_registry[3]["generator_fn"] is not None
 
 
 def test_render_action_card_returns_false_when_requirements_missing(
@@ -98,11 +102,11 @@ def test_render_action_card_returns_false_when_requirements_missing(
     assert fake_st.last_button_kwargs == {}
 
 
-def test_render_action_card_disables_placeholder_actions(monkeypatch) -> None:
+def test_render_action_card_renders_available_fach_action(monkeypatch) -> None:
     fake_st = _FakeStreamlit(
         session_state={
             SSKey.BRIEF.value: {"one_liner": "x"},
-            SSKey.INTERVIEW_PREP_HR.value: None,
+            SSKey.INTERVIEW_PREP_FACH.value: None,
         }
     )
     monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
@@ -113,14 +117,14 @@ def test_render_action_card_disables_placeholder_actions(monkeypatch) -> None:
         "description": "desc",
         "cta_label": "Generate",
         "requires": (SSKey.BRIEF,),
-        "generator_fn": None,
-        "result_key": SSKey.INTERVIEW_PREP_HR,
+        "generator_fn": lambda: None,
+        "result_key": SSKey.INTERVIEW_PREP_FACH,
         "input_hints": (),
     }
     triggered = SUMMARY_MODULE._render_action_card(action)
 
     assert triggered is False
-    assert fake_st.last_button_kwargs["disabled"] is True
+    assert "disabled" not in fake_st.last_button_kwargs
 
 
 def test_render_action_card_returns_button_state_for_available_action(

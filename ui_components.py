@@ -16,6 +16,7 @@ from question_dependencies import should_show_question
 from question_progress import build_answered_lookup, compute_question_progress
 from schemas import (
     Contact,
+    InterviewPrepSheetHiringManager,
     InterviewPrepSheetHR,
     JobAdExtract,
     LanguageRequirement,
@@ -1592,10 +1593,74 @@ def render_interview_prep_hr(sheet: InterviewPrepSheetHR) -> None:
 
     st.markdown("**Knockout-Kriterien**")
     if sheet.knockout_criteria:
-        for criterion in sheet.knockout_criteria:
-            st.write(f"- {criterion}")
+        for knockout_criterion in sheet.knockout_criteria:
+            st.write(f"- {knockout_criterion}")
     else:
         st.info("Keine Knockout-Kriterien hinterlegt.")
+
+    st.markdown("**Bewertungsrubrik**")
+    if not sheet.evaluation_rubric:
+        st.info("Keine Bewertungsrubrik vorhanden.")
+    for rubric_criterion in sheet.evaluation_rubric:
+        st.markdown(
+            f"- **{rubric_criterion.title}** ({rubric_criterion.weight_percent} %) — "
+            f"{rubric_criterion.description}"
+        )
+        if rubric_criterion.score_scale:
+            st.caption(f"Skala: {' | '.join(rubric_criterion.score_scale)}")
+        if rubric_criterion.evidence_examples:
+            st.caption("Beobachtbare Evidenz:")
+            for evidence in rubric_criterion.evidence_examples:
+                st.write(f"  - {evidence}")
+
+    st.markdown("**Empfehlungsoptionen**")
+    if sheet.final_recommendation_options:
+        for option in sheet.final_recommendation_options:
+            st.write(f"- {option}")
+    else:
+        st.info("Keine finalen Empfehlungsoptionen hinterlegt.")
+
+
+def render_interview_prep_fach(sheet: InterviewPrepSheetHiringManager) -> None:
+    st.markdown(
+        f"**Rolle:** {sheet.role_title} · **Stage:** {sheet.interview_stage} · "
+        f"**Dauer:** {sheet.duration_minutes} Min."
+    )
+
+    st.markdown("**Kompetenzen validieren**")
+    if sheet.competencies_to_validate:
+        for competency in sheet.competencies_to_validate:
+            st.write(f"- {competency}")
+    else:
+        st.info("Keine zu validierenden Kompetenzen hinterlegt.")
+
+    st.markdown("**Frageblöcke**")
+    if not sheet.question_blocks:
+        st.info("Keine Frageblöcke vorhanden.")
+    for index, block in enumerate(sheet.question_blocks, start=1):
+        st.markdown(f"**{index}. {block.title}**")
+        st.caption(f"Ziel: {block.objective}")
+        if block.questions:
+            st.write("Fragen:")
+            for question in block.questions:
+                st.write(f"- {question}")
+        if block.follow_up_prompts:
+            st.write("Follow-ups:")
+            for follow_up in block.follow_up_prompts:
+                st.write(f"- {follow_up}")
+
+    st.markdown("**Technical Deep Dive Topics**")
+    if sheet.technical_deep_dive_topics:
+        for topic in sheet.technical_deep_dive_topics:
+            st.write(f"- {topic}")
+    else:
+        st.info("Keine Deep-Dive-Themen hinterlegt.")
+
+    st.markdown("**Case / Task Prompt**")
+    if sheet.case_or_task_prompt:
+        st.write(sheet.case_or_task_prompt)
+    else:
+        st.info("Kein Case/Task Prompt hinterlegt.")
 
     st.markdown("**Bewertungsrubrik**")
     if not sheet.evaluation_rubric:
@@ -1612,9 +1677,9 @@ def render_interview_prep_hr(sheet: InterviewPrepSheetHR) -> None:
             for evidence in criterion.evidence_examples:
                 st.write(f"  - {evidence}")
 
-    st.markdown("**Empfehlungsoptionen**")
-    if sheet.final_recommendation_options:
-        for option in sheet.final_recommendation_options:
-            st.write(f"- {option}")
+    st.markdown("**Debrief-Fragen**")
+    if sheet.debrief_questions:
+        for question in sheet.debrief_questions:
+            st.write(f"- {question}")
     else:
-        st.info("Keine finalen Empfehlungsoptionen hinterlegt.")
+        st.info("Keine Debrief-Fragen hinterlegt.")

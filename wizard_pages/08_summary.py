@@ -16,15 +16,18 @@ from constants import AnswerType, SSKey
 from llm_client import (
     JobAdGenerationResult,
     OpenAICallError,
+    TASK_GENERATE_INTERVIEW_SHEET_HM,
     TASK_GENERATE_INTERVIEW_SHEET_HR,
     TASK_GENERATE_JOB_AD,
     TASK_GENERATE_VACANCY_BRIEF,
     generate_custom_job_ad,
+    generate_interview_sheet_hm,
     generate_interview_sheet_hr,
     generate_vacancy_brief,
     resolve_model_for_task,
 )
 from schemas import (
+    InterviewPrepSheetHiringManager,
     InterviewPrepSheetHR,
     JobAdExtract,
     LanguageRequirement,
@@ -42,6 +45,7 @@ from state import (
 from ui_components import (
     render_brief,
     render_error_banner,
+    render_interview_prep_fach,
     render_interview_prep_hr,
     render_openai_error,
 )
@@ -902,8 +906,62 @@ def _interview_prep_hr_to_docx_bytes(sheet: InterviewPrepSheetHR) -> bytes:
                 d.add_paragraph(prompt, style="List Bullet")
 
     d.add_heading("Knockout-Kriterien", level=2)
-    for criterion in sheet.knockout_criteria:
-        d.add_paragraph(criterion, style="List Bullet")
+    for knockout_criterion in sheet.knockout_criteria:
+        d.add_paragraph(knockout_criterion, style="List Bullet")
+
+    d.add_heading("Bewertungsrubrik", level=2)
+    for rubric_criterion in sheet.evaluation_rubric:
+        d.add_heading(rubric_criterion.title, level=3)
+        d.add_paragraph(rubric_criterion.description)
+        d.add_paragraph(f"Gewichtung: {rubric_criterion.weight_percent} %")
+        if rubric_criterion.score_scale:
+            d.add_paragraph(f"Skala: {' | '.join(rubric_criterion.score_scale)}")
+        if rubric_criterion.evidence_examples:
+            d.add_paragraph("Evidenz-Beispiele:")
+            for evidence in rubric_criterion.evidence_examples:
+                d.add_paragraph(evidence, style="List Bullet")
+
+    d.add_heading("Finale Empfehlung", level=2)
+    for option in sheet.final_recommendation_options:
+        d.add_paragraph(option, style="List Bullet")
+
+    bio = io.BytesIO()
+    d.save(bio)
+    return bio.getvalue()
+
+
+def _interview_prep_fach_to_docx_bytes(
+    sheet: InterviewPrepSheetHiringManager,
+) -> bytes:
+    d = docx.Document()
+    d.add_heading("Interview Sheet (Fachbereich)", level=1)
+    d.add_paragraph(f"Rolle: {sheet.role_title}")
+    d.add_paragraph(f"Interview-Stage: {sheet.interview_stage}")
+    d.add_paragraph(f"Dauer: {sheet.duration_minutes} Minuten")
+
+    d.add_heading("Kompetenzen validieren", level=2)
+    for competency in sheet.competencies_to_validate:
+        d.add_paragraph(competency, style="List Bullet")
+
+    d.add_heading("Frageblöcke", level=2)
+    for block in sheet.question_blocks:
+        d.add_heading(block.title, level=3)
+        d.add_paragraph(f"Ziel: {block.objective}")
+        if block.questions:
+            d.add_paragraph("Fragen:")
+            for question in block.questions:
+                d.add_paragraph(question, style="List Bullet")
+        if block.follow_up_prompts:
+            d.add_paragraph("Follow-ups:")
+            for follow_up in block.follow_up_prompts:
+                d.add_paragraph(follow_up, style="List Bullet")
+
+    d.add_heading("Technical Deep Dive", level=2)
+    for topic in sheet.technical_deep_dive_topics:
+        d.add_paragraph(topic, style="List Bullet")
+
+    d.add_heading("Case/Task Prompt", level=2)
+    d.add_paragraph(sheet.case_or_task_prompt or "Kein Case/Task hinterlegt.")
 
     d.add_heading("Bewertungsrubrik", level=2)
     for criterion in sheet.evaluation_rubric:
@@ -917,9 +975,9 @@ def _interview_prep_hr_to_docx_bytes(sheet: InterviewPrepSheetHR) -> bytes:
             for evidence in criterion.evidence_examples:
                 d.add_paragraph(evidence, style="List Bullet")
 
-    d.add_heading("Finale Empfehlung", level=2)
-    for option in sheet.final_recommendation_options:
-        d.add_paragraph(option, style="List Bullet")
+    d.add_heading("Debrief-Fragen", level=2)
+    for question in sheet.debrief_questions:
+        d.add_paragraph(question, style="List Bullet")
 
     bio = io.BytesIO()
     d.save(bio)
@@ -1119,9 +1177,11 @@ def _build_action_registry(
     resolved_brief_model: str,
     resolved_job_ad_model: str,
     resolved_hr_sheet_model: str,
+    resolved_fach_sheet_model: str,
     generate_recruiting_brief: Callable[[], None],
     generate_job_ad: Callable[[], None],
     generate_interview_prep_hr: Callable[[], None],
+    generate_interview_prep_fach: Callable[[], None],
 ) -> list[SummaryAction]:
     return [
         {
@@ -1178,12 +1238,19 @@ def _build_action_registry(
         {
             "id": "interview_fach_sheet",
             "title": "Interview-Vorbereitungssheet (Fachbereich)",
-            "description": "Platzhalter für fachliche Interviewleitfäden und Bewertung.",
+            "description": (
+                "Fachliches Interviewblatt mit Kompetenzvalidierung, Technical Deep Dive "
+                "und strukturierter Bewertung."
+            ),
             "cta_label": "Fachbereich-Sheet erstellen",
             "requires": (SSKey.BRIEF,),
-            "generator_fn": None,
+            "generator_fn": generate_interview_prep_fach,
             "result_key": SSKey.INTERVIEW_PREP_FACH,
-            "input_hints": ("Recruiting Brief", "Top Responsibilities"),
+            "input_hints": (
+                "Recruiting Brief",
+                "Must-have + Top Responsibilities",
+                f"Fachbereich-Sheet-Modell: {resolved_fach_sheet_model}",
+            ),
         },
         {
             "id": "boolean_search",
@@ -1247,6 +1314,11 @@ def render(ctx: WizardContext) -> None:
     )
     resolved_hr_sheet_model = resolve_model_for_task(
         task_kind=TASK_GENERATE_INTERVIEW_SHEET_HR,
+        session_override=session_override,
+        settings=settings,
+    )
+    resolved_fach_sheet_model = resolve_model_for_task(
+        task_kind=TASK_GENERATE_INTERVIEW_SHEET_HM,
         session_override=session_override,
         settings=settings,
     )
@@ -1372,6 +1444,44 @@ def render(ctx: WizardContext) -> None:
                 error_code="SUMMARY_INTERVIEW_PREP_HR_GENERATION_UNEXPECTED",
             )
 
+    def _generate_interview_prep_fach() -> None:
+        clear_error()
+        brief_payload = st.session_state.get(SSKey.BRIEF.value)
+        if not isinstance(brief_payload, dict):
+            st.warning(
+                "Recruiting Brief fehlt oder ist ungültig. Bitte Brief neu generieren."
+            )
+            return
+        try:
+            brief_model = VacancyBrief.model_validate(brief_payload)
+            store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
+            with st.spinner("Generiere Interview-Sheet (Fachbereich)…"):
+                sheet, usage = generate_interview_sheet_hm(
+                    brief=brief_model,
+                    model=resolved_fach_sheet_model,
+                    store=store,
+                )
+            st.session_state[SSKey.INTERVIEW_PREP_FACH.value] = sheet.model_dump(
+                mode="json"
+            )
+            st.session_state[SSKey.INTERVIEW_PREP_FACH_LAST_USAGE.value] = usage or {}
+            st.session_state[SSKey.INTERVIEW_PREP_FACH_CACHE_HIT.value] = (
+                usage_has_cache_hit(usage)
+            )
+            st.session_state[SSKey.INTERVIEW_PREP_FACH_LAST_MODE.value] = "from_brief"
+            st.session_state[SSKey.INTERVIEW_PREP_FACH_LAST_MODELS.value] = {
+                "draft_model": resolved_fach_sheet_model
+            }
+        except OpenAICallError as e:
+            render_openai_error(e)
+        except Exception as exc:
+            handle_unexpected_exception(
+                step="summary.interview_prep_fach_generation",
+                exc=exc,
+                error_type=type(exc).__name__,
+                error_code="SUMMARY_INTERVIEW_PREP_FACH_GENERATION_UNEXPECTED",
+            )
+
     st.markdown("### Action Hub")
     st.caption(
         "Einheitliche Aktionskarten für Erzeugung, Qualitätssicherung und Folgeartefakte."
@@ -1380,9 +1490,11 @@ def render(ctx: WizardContext) -> None:
         resolved_brief_model=resolved_brief_model,
         resolved_job_ad_model=resolved_job_ad_model,
         resolved_hr_sheet_model=resolved_hr_sheet_model,
+        resolved_fach_sheet_model=resolved_fach_sheet_model,
         generate_recruiting_brief=_generate_recruiting_brief,
         generate_job_ad=_generate_job_ad,
         generate_interview_prep_hr=_generate_interview_prep_hr,
+        generate_interview_prep_fach=_generate_interview_prep_fach,
     )
     card_columns = st.columns(2)
     for index, action in enumerate(action_registry):
@@ -1457,6 +1569,60 @@ def render(ctx: WizardContext) -> None:
                         "Download Interview Sheet DOCX",
                         data=hr_docx_bytes,
                         file_name="interview_sheet_hr.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    )
+
+        fach_sheet_payload = st.session_state.get(SSKey.INTERVIEW_PREP_FACH.value)
+        if isinstance(fach_sheet_payload, dict):
+            fach_sheet = InterviewPrepSheetHiringManager.model_validate(
+                fach_sheet_payload
+            )
+            with st.expander("Interview Sheet (Fachbereich)", expanded=False):
+                fach_cache_hit = bool(
+                    st.session_state.get(
+                        SSKey.INTERVIEW_PREP_FACH_CACHE_HIT.value, False
+                    )
+                )
+                fach_usage = (
+                    st.session_state.get(SSKey.INTERVIEW_PREP_FACH_LAST_USAGE.value, {})
+                    or {}
+                )
+                fach_mode = (
+                    st.session_state.get(SSKey.INTERVIEW_PREP_FACH_LAST_MODE.value)
+                    or "unknown"
+                )
+                fach_models = (
+                    st.session_state.get(
+                        SSKey.INTERVIEW_PREP_FACH_LAST_MODELS.value, {}
+                    )
+                    or {}
+                )
+                fach_cache_label = "Cache-Hit" if fach_cache_hit else "Kein Cache-Hit"
+                st.caption(
+                    f"📦 {fach_cache_label} · Modus: `{fach_mode}` · "
+                    f"Modell: `{fach_models.get('draft_model', resolved_fach_sheet_model)}`"
+                )
+                with st.expander("API Usage (Debug)", expanded=False):
+                    st.write({"usage": fach_usage})
+                render_interview_prep_fach(fach_sheet)
+
+                fach_json_bytes = json.dumps(
+                    fach_sheet.model_dump(mode="json"), indent=2, ensure_ascii=False
+                ).encode("utf-8")
+                fach_docx_bytes = _interview_prep_fach_to_docx_bytes(fach_sheet)
+                x1, x2 = st.columns(2)
+                with x1:
+                    st.download_button(
+                        "Download Interview Sheet (Fachbereich) JSON",
+                        data=fach_json_bytes,
+                        file_name="interview_sheet_fachbereich.json",
+                        mime="application/json",
+                    )
+                with x2:
+                    st.download_button(
+                        "Download Interview Sheet (Fachbereich) DOCX",
+                        data=fach_docx_bytes,
+                        file_name="interview_sheet_fachbereich.docx",
                         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     )
 
