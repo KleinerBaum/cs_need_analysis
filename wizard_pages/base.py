@@ -307,6 +307,41 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
                 margin-bottom: 0.85rem;
             }}
 
+            .landing-emphasis--subtle {{
+                background: rgba(11, 26, 50, 0.42);
+                border-left: 3px solid rgba(158, 189, 240, 0.45);
+                padding-bottom: 0.65rem;
+                margin-bottom: 0.65rem;
+            }}
+
+            .landing-problem-panel {{
+                background: rgba(8, 19, 38, 0.28);
+                border: 1px solid rgba(202, 219, 247, 0.16);
+                border-radius: {style_tokens["card_radius"]};
+                padding: 0.65rem 0.85rem;
+            }}
+
+            .landing-problem-list {{
+                margin: 0.1rem 0 0 0;
+                padding-left: 1rem;
+                color: rgba(236, 243, 255, 0.88);
+            }}
+
+            .landing-problem-list li {{
+                margin-bottom: 0.42rem;
+                line-height: 1.35;
+            }}
+
+            .landing-problem-list strong {{
+                color: rgba(244, 249, 255, 0.94);
+            }}
+
+            .landing-problem-caption {{
+                color: rgba(214, 228, 252, 0.76);
+                font-size: 0.84rem;
+                margin-top: 0.45rem;
+            }}
+
             .landing-flow-step {{
                 background: rgba(9, 20, 42, 0.66);
                 border: 1px solid rgba(227, 235, 251, 0.18);
@@ -464,17 +499,18 @@ def render_importance_section(
     )
     st.subheader(title)
     st.markdown(
-        f'<div class="landing-emphasis"><p>{intro}</p></div>',
+        f'<div class="landing-emphasis landing-emphasis--subtle"><p>{intro}</p></div>',
         unsafe_allow_html=True,
     )
-    importance_cols = st.columns(3, gap="medium")
-    for col, (point_title, body) in zip(importance_cols, points):
-        with col:
-            st.markdown(
-                f'<div class="landing-card"><h4>{point_title}</h4><p>{body}</p></div>',
-                unsafe_allow_html=True,
-            )
-    st.write(closer)
+    list_items = "".join(
+        f"<li><strong>{point_title}:</strong> {body}</li>"
+        for point_title, body in points
+    )
+    st.markdown(
+        f'<div class="landing-problem-panel"><ul class="landing-problem-list">{list_items}</ul></div>',
+        unsafe_allow_html=True,
+    )
+    st.caption(closer)
     st.markdown("</section>", unsafe_allow_html=True)
 
 

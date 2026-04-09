@@ -65,9 +65,7 @@ LANDING_COPY: dict[str, object] = {
         ),
     ),
     "importance_title": "Warum dieser erste Schritt entscheidend ist",
-    "importance_intro": (
-        "Ein unpräziser Intake zieht Fehler durch den gesamten Recruiting-Prozess."
-    ),
+    "importance_intro": "Unscharfer Intake = teure Folgeschleifen im Recruiting.",
     "importance_points": (
         (
             "Unklare Anforderungen",
@@ -82,9 +80,7 @@ LANDING_COPY: dict[str, object] = {
             "Verursachen Verzögerungen, Rückfragen und vermeidbare Reibung im Prozess.",
         ),
     ),
-    "importance_closer": (
-        "Ein sauberer Intake spart Zeit und verbessert jede folgende Recruiting-Entscheidung."
-    ),
+    "importance_closer": "Guter Intake spart Zeit und verbessert jede Folgeentscheidung.",
     "flow_title": "So funktioniert der Ablauf",
     "flow_steps": (
         (
