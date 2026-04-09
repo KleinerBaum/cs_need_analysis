@@ -34,6 +34,22 @@ def test_new_interview_and_contract_schemas_are_strict() -> None:
     assert contract_schema.get("additionalProperties") is False
 
 
+def test_interview_hr_sheet_contract_references_strict_question_blocks() -> None:
+    hr_schema = InterviewPrepSheetHR.model_json_schema()
+    defs = hr_schema.get("$defs", {})
+    question_block_schema = defs["InterviewQuestionBlock"]
+    assert question_block_schema.get("additionalProperties") is False
+    assert "signal_tags" in question_block_schema["properties"]
+
+
+def test_employment_contract_contract_references_strict_clauses() -> None:
+    contract_schema = EmploymentContractDraft.model_json_schema()
+    defs = contract_schema.get("$defs", {})
+    clause_schema = defs["ContractClause"]
+    assert clause_schema.get("additionalProperties") is False
+    assert clause_schema["properties"]["required"]["type"] == "boolean"
+
+
 def test_boolean_search_pack_has_channel_specific_fields() -> None:
     schema = BooleanSearchPack.model_json_schema()
     assert schema.get("additionalProperties") is False

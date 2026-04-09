@@ -4,14 +4,16 @@ from typing import Any
 
 import llm_client
 from llm_client import (
+    TASK_GENERATE_EMPLOYMENT_CONTRACT,
     OpenAICallError,
     OpenAIRuntimeConfig,
     TASK_GENERATE_BOOLEAN_SEARCH,
-    TASK_GENERATE_EMPLOYMENT_CONTRACT,
     TASK_GENERATE_INTERVIEW_SHEET_HM,
     TASK_GENERATE_INTERVIEW_SHEET_HR,
     generate_boolean_search_pack,
+    generate_employment_contract_draft,
     generate_interview_sheet_hr,
+    generate_interview_sheet_hm,
     resolve_model_for_task,
 )
 from schemas import VacancyBrief
@@ -195,3 +197,89 @@ def test_generate_boolean_search_appends_runtime_output_limits_to_system_prompt(
     assert "Zusätzliche Output-Limits" in system_prompt
     assert "Maximal 2 Bulletpoints" in system_prompt
     assert "Maximal 1 Sätze" in system_prompt
+
+
+def test_generate_interview_sheet_hm_returns_validated_payload(monkeypatch) -> None:
+    monkeypatch.setattr(
+        llm_client,
+        "_resolve_runtime_config",
+        lambda **_: _runtime_config(),
+    )
+
+    def _parse_success(**kwargs: Any) -> tuple[Any, dict[str, Any]]:
+        payload = {
+            "role_title": "Senior Data Engineer",
+            "interview_stage": "Fachinterview",
+            "duration_minutes": 60,
+            "competencies_to_validate": ["Systemdesign"],
+            "question_blocks": [],
+            "technical_deep_dive_topics": ["Data Modelling"],
+            "case_or_task_prompt": None,
+            "evaluation_rubric": [],
+            "hiring_signal_summary": ["Strong ownership"],
+            "debrief_questions": ["Would you hire this candidate?"],
+        }
+        return kwargs["out_model"].model_validate(payload), {"total_tokens": 23}
+
+    monkeypatch.setattr(llm_client, "_parse_with_structured_outputs", _parse_success)
+
+    result, usage = generate_interview_sheet_hm(brief=_brief(), model="gpt-5-mini")
+
+    assert result.interview_stage == "Fachinterview"
+    assert usage["total_tokens"] == 23
+
+
+def test_generate_interview_sheet_hm_fallback_on_validation_error(monkeypatch) -> None:
+    monkeypatch.setattr(
+        llm_client,
+        "_resolve_runtime_config",
+        lambda **_: _runtime_config(),
+    )
+
+    def _raise_validation_error(**_: Any) -> tuple[Any, Any]:
+        try:
+            llm_client.InterviewPrepSheetHiringManager.model_validate({})
+        except llm_client.ValidationError as exc:
+            raise exc
+        raise AssertionError("ValidationError expected")
+
+    monkeypatch.setattr(
+        llm_client, "_parse_with_structured_outputs", _raise_validation_error
+    )
+
+    result, usage = generate_interview_sheet_hm(brief=_brief(), model="gpt-5-mini")
+
+    assert result.role_title == "Senior Data Engineer"
+    assert usage["fallback"] is True
+    assert usage["task_kind"] == TASK_GENERATE_INTERVIEW_SHEET_HM
+    assert usage["error_code"] == "OPENAI_PARSE"
+
+
+def test_generate_employment_contract_fallback_on_missing_key_error(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        llm_client,
+        "_resolve_runtime_config",
+        lambda **_: _runtime_config(),
+    )
+
+    def _raise_missing_key(**_: Any) -> tuple[Any, Any]:
+        raise OpenAICallError(
+            "OpenAI API Key fehlt.",
+            error_code="OPENAI_MISSING_API_KEY",
+        )
+
+    monkeypatch.setattr(
+        llm_client, "_parse_with_structured_outputs", _raise_missing_key
+    )
+
+    result, usage = generate_employment_contract_draft(
+        brief=_brief(), model="gpt-5-mini"
+    )
+
+    assert result.role_title == "Senior Data Engineer"
+    assert result.salary.min == 0
+    assert usage["fallback"] is True
+    assert usage["task_kind"] == TASK_GENERATE_EMPLOYMENT_CONTRACT
+    assert usage["error_code"] == "OPENAI_MISSING_API_KEY"
