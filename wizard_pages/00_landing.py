@@ -29,22 +29,30 @@ LANDING_COPY: dict[str, object] = {
     "cta_microcopy": "",
     "value_cards": (),
     "importance_title": "Warum dieser erste Schritt entscheidend ist",
-    "importance_intro": "Unscharfer Intake = teure Folgeschleifen im Recruiting.",
+    "importance_intro": "Die Qualität des Intakes bestimmt Präzision, Tempo und Entscheidungssicherheit im gesamten Recruitingprozess.",
     "importance_points": (
         (
-            "Unklare Anforderungen",
-            "Führen zu falschen Kandidatenprofilen, schwächeren Shortlists und unnötigem Sourcing-Aufwand.",
+            "Unscharfer Intake",
+            "Verursacht kostspielige Folgeschleifen: Re-Briefings, Neupriorisierungen und wiederholte Suchläufe binden Zeit, Budget und Managementaufmerksamkeit.",
         ),
         (
-            "Unscharfe Must-haves",
-            "Erzeugen inkonsistente Interviews und erschweren belastbare Auswahlentscheidungen.",
+            "Unklare Anforderungsarchitektur",
+            "Verzerrt das Zielprofil, schwächt die Shortlist-Qualität und erhöht den Sourcing-Aufwand durch vermeidbare Streuverluste.",
         ),
         (
-            "Fehlende Rahmenbedingungen",
-            "Verursachen Verzögerungen, Rückfragen und vermeidbare Reibung im Prozess.",
+            "Unspezifische Must-haves",
+            "Führen zu uneinheitlichen Interviewmaßstäben und unterminieren die Vergleichbarkeit von Kandidatinnen und Kandidaten in der Auswahlentscheidung.",
+        ),
+        (
+            "Unvollständige Prozessparameter",
+            "Erzeugen Rückfragen, Entscheidungslatenzen und operative Reibung zwischen Hiring Manager, Recruiting und Fachbereich.",
+        ),
+        (
+            "Präziser Intake",
+            "Spart Zeit, erhöht die Konsistenz entlang der Prozesskette und verbessert die Qualität jeder nachgelagerten Entscheidung.",
         ),
     ),
-    "importance_closer": "Guter Intake spart Zeit und verbessert jede Folgeentscheidung.",
+    "importance_closer": "Ein sauber definierter Start reduziert Risiko, beschleunigt Umsetzung und erhöht die Trefferquote im gesamten Hiring-Funnel.",
     "flow_title": "So funktioniert der Ablauf",
     "flow_steps": (
         (
