@@ -120,8 +120,7 @@ def render_jobad_intake(*, title: str = "Jobspec / Job Ad einlesen") -> None:
             with analyze_col:
                 st.caption("Aktive Quelle: **Upload**")
                 do_extract = st.button(
-                    "⬆",
-                    type="primary",
+                    "Investigiere!",
                     width="stretch",
                     help="Analysieren und direkt zur Jobspec-Übersicht wechseln",
                 )
