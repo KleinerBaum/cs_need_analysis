@@ -4,7 +4,11 @@ import streamlit as st
 
 from constants import SSKey
 from schemas import JobAdExtract, QuestionPlan
-from ui_components import render_error_banner, render_job_extract_overview
+from ui_components import (
+    _render_question_limits_editor,
+    render_error_banner,
+    render_job_extract_overview,
+)
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
 
 
@@ -25,12 +29,16 @@ def render(ctx: WizardContext) -> None:
 
     st.header("Jobspec-Übersicht")
     st.caption(
-        "Hier prüfst und ergänzt du die extrahierten Inhalte, Gaps, Fragen pro Step "
-        "sowie Assumptions, bevor du in den Schritt 'Unternehmen' wechselst."
+        "Hier prüfst und ergänzt du die extrahierten Inhalte, Gaps und Assumptions, "
+        "bevor du in den Schritt 'Unternehmen' wechselst."
     )
     render_error_banner()
 
-    render_job_extract_overview(job, plan=plan)
+    with st.sidebar:
+        with st.expander("Fragen pro Step", expanded=False):
+            _render_question_limits_editor(plan, compact=True)
+
+    render_job_extract_overview(job, plan=plan, show_question_limits=False)
 
     st.info(
         f"QuestionPlan geladen: {sum(len(s.questions) for s in plan.steps)} Fragen in "
