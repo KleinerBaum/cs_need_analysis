@@ -194,9 +194,8 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
     ui_mode = str(ui_mode_raw).strip().lower()
     if ui_mode not in {"quick", "standard", "expert"}:
         ui_mode = "standard"
-        st.session_state[SSKey.UI_MODE.value] = ui_mode
 
-    selected_mode = st.sidebar.radio(
+    _selected_mode = st.sidebar.radio(
         "Ansichtsmodus",
         options=["quick", "standard", "expert"],
         index=["quick", "standard", "expert"].index(ui_mode),
@@ -204,9 +203,6 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
         format_func=lambda mode: mode.capitalize(),
         help="Quick: kompakt. Standard: kompakt mit Ein-Klick-Ausklappen. Expert: alle Detailgruppen geöffnet.",
     )
-    if isinstance(selected_mode, str):
-        st.session_state[SSKey.UI_MODE.value] = selected_mode
-
     format_map: dict[str, str] = {}
     for page in pages:
         step_status = status_by_key.get(page.key)
