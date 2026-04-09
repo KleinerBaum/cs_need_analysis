@@ -25,7 +25,7 @@ from ui_components import (
     render_error_banner,
     render_openai_error,
 )
-from wizard_pages.base import WizardContext, WizardPage
+from wizard_pages.base import WizardContext, WizardPage, set_current_step
 
 
 SOURCE_TEXT_INPUT_KEY: Final[str] = "cs.source_text_input"
@@ -212,7 +212,7 @@ def render(ctx: WizardContext) -> None:
                 st.info(
                     "Mindestens ein Ergebnis wurde aus Cache geladen (DE) / At least one result was loaded from cache (EN)."
                 )
-            st.session_state[SSKey.CURRENT_STEP.value] = "jobspec_review"
+            set_current_step("jobspec_review")
 
             # Optional: show usage
             with st.expander("API Usage (Debug)", expanded=False):

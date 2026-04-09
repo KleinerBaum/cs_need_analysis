@@ -17,7 +17,7 @@ from llm_client import (
 from settings_openai import load_openai_settings
 from state import init_session_state, reset_vacancy
 from wizard_pages import load_pages
-from wizard_pages.base import WizardContext, sidebar_navigation
+from wizard_pages.base import WizardContext, set_current_step, sidebar_navigation
 
 
 def _image_as_data_uri(image_path: Path, mime_type: str) -> str:
@@ -355,7 +355,7 @@ def main() -> None:
     # Guard: if page requires jobspec but it's missing, redirect to jobad
     if current.requires_jobspec and not st.session_state.get(SSKey.JOB_EXTRACT.value):
         st.warning("Bitte zuerst ein Jobspec analysieren.")
-        st.session_state[SSKey.CURRENT_STEP.value] = "jobad"
+        set_current_step("jobad")
         st.rerun()
 
     current.render(ctx)
