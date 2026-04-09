@@ -14,6 +14,7 @@ import docx
 
 from constants import AnswerType, SSKey
 from llm_client import (
+    TASK_GENERATE_EMPLOYMENT_CONTRACT,
     JobAdGenerationResult,
     OpenAICallError,
     TASK_GENERATE_BOOLEAN_SEARCH,
@@ -23,6 +24,7 @@ from llm_client import (
     TASK_GENERATE_VACANCY_BRIEF,
     generate_boolean_search_pack,
     generate_custom_job_ad,
+    generate_employment_contract_draft,
     generate_interview_sheet_hm,
     generate_interview_sheet_hr,
     generate_vacancy_brief,
@@ -30,6 +32,7 @@ from llm_client import (
 )
 from schemas import (
     BooleanSearchPack,
+    EmploymentContractDraft,
     InterviewPrepSheetHiringManager,
     InterviewPrepSheetHR,
     JobAdExtract,
@@ -48,6 +51,7 @@ from state import (
 from ui_components import (
     render_boolean_search_pack,
     render_brief,
+    render_employment_contract_draft,
     render_error_banner,
     render_interview_prep_fach,
     render_interview_prep_hr,
@@ -1047,6 +1051,68 @@ def _interview_prep_fach_to_docx_bytes(
     return bio.getvalue()
 
 
+def _employment_contract_to_docx_bytes(draft: EmploymentContractDraft) -> bytes:
+    d = docx.Document()
+    d.add_heading("Arbeitsvertrag (Template Draft)", level=1)
+    d.add_paragraph(
+        "Hinweis: Diese Vorlage ist kein finaler Vertrag und keine Rechtsberatung."
+    )
+    d.add_paragraph(f"Jurisdiction: {draft.jurisdiction}")
+    d.add_paragraph(f"Rolle: {draft.role_title}")
+    d.add_paragraph(f"Employment Type: {draft.employment_type}")
+    d.add_paragraph(f"Contract Type: {draft.contract_type}")
+    d.add_paragraph(f"Start Date: {draft.start_date or '—'}")
+    d.add_paragraph(
+        "Probation (Monate): "
+        + (str(draft.probation_period_months) if draft.probation_period_months else "—")
+    )
+    salary = draft.salary
+    d.add_paragraph(
+        "Salary: "
+        f"{salary.min if salary.min is not None else '—'} - "
+        f"{salary.max if salary.max is not None else '—'} "
+        f"{salary.currency or ''} / {salary.period or ''}".strip()
+    )
+    if salary.notes:
+        d.add_paragraph(f"Salary Notes: {salary.notes}")
+    d.add_paragraph(
+        "Working Hours / Week: "
+        + (str(draft.working_hours_per_week) if draft.working_hours_per_week else "—")
+    )
+    d.add_paragraph(
+        "Vacation Days / Year: "
+        + (str(draft.vacation_days_per_year) if draft.vacation_days_per_year else "—")
+    )
+    d.add_paragraph(f"Place of Work: {draft.place_of_work or '—'}")
+    d.add_paragraph(f"Notice Period: {draft.notice_period or '—'}")
+
+    d.add_heading("Missing Inputs", level=2)
+    if draft.missing_inputs:
+        for missing_input in draft.missing_inputs:
+            d.add_paragraph(missing_input, style="List Bullet")
+    else:
+        d.add_paragraph("Keine fehlenden Inputs markiert.")
+
+    d.add_heading("Clauses", level=2)
+    if draft.clauses:
+        for clause in draft.clauses:
+            d.add_heading(clause.title, level=3)
+            d.add_paragraph(clause.clause_text)
+            d.add_paragraph(f"Pflichtklausel: {'Ja' if clause.required else 'Nein'}")
+            if clause.legal_note:
+                d.add_paragraph(f"Legal Note: {clause.legal_note}")
+    else:
+        d.add_paragraph("Keine Klauseln hinterlegt.")
+
+    d.add_heading("Signature Requirements", level=2)
+    for requirement in draft.signature_requirements:
+        d.add_paragraph(requirement, style="List Bullet")
+
+    bio = io.BytesIO()
+    d.save(bio)
+    return bio.getvalue()
+
+
 def _normalize_logo_payload(uploaded_logo: Any) -> dict[str, Any] | None:
     if uploaded_logo is None:
         return None
@@ -1242,11 +1308,13 @@ def _build_action_registry(
     resolved_hr_sheet_model: str,
     resolved_fach_sheet_model: str,
     resolved_boolean_search_model: str,
+    resolved_employment_contract_model: str,
     generate_recruiting_brief: Callable[[], None],
     generate_job_ad: Callable[[], None],
     generate_interview_prep_hr: Callable[[], None],
     generate_interview_prep_fach: Callable[[], None],
     generate_boolean_search: Callable[[], None],
+    generate_employment_contract: Callable[[], None],
 ) -> list[SummaryAction]:
     return [
         {
@@ -1337,12 +1405,19 @@ def _build_action_registry(
         {
             "id": "employment_contract",
             "title": "Arbeitsvertrag",
-            "description": "Platzhalter für Vertragsentwurf aus den Kernparametern.",
+            "description": (
+                "Generiert einen Arbeitsvertrags-Template-Draft mit Platzhaltern, "
+                "fehlenden Inputs und klauselbasierter Review-Struktur."
+            ),
             "cta_label": "Arbeitsvertrag erstellen",
             "requires": (SSKey.BRIEF,),
-            "generator_fn": None,
+            "generator_fn": generate_employment_contract,
             "result_key": SSKey.EMPLOYMENT_CONTRACT_DRAFT,
-            "input_hints": ("Rolle, Seniorität, Standort", "Vertragsart + Konditionen"),
+            "input_hints": (
+                "Recruiting Brief",
+                "Vertragsart + Konditionen",
+                f"Contract-Modell: {resolved_employment_contract_model}",
+            ),
         },
     ]
 
@@ -1396,6 +1471,11 @@ def render(ctx: WizardContext) -> None:
     )
     resolved_boolean_search_model = resolve_model_for_task(
         task_kind=TASK_GENERATE_BOOLEAN_SEARCH,
+        session_override=session_override,
+        settings=settings,
+    )
+    resolved_employment_contract_model = resolve_model_for_task(
+        task_kind=TASK_GENERATE_EMPLOYMENT_CONTRACT,
         session_override=session_override,
         settings=settings,
     )
@@ -1597,6 +1677,44 @@ def render(ctx: WizardContext) -> None:
                 error_code="SUMMARY_BOOLEAN_SEARCH_GENERATION_UNEXPECTED",
             )
 
+    def _generate_employment_contract() -> None:
+        clear_error()
+        brief_payload = st.session_state.get(SSKey.BRIEF.value)
+        if not isinstance(brief_payload, dict):
+            st.warning(
+                "Recruiting Brief fehlt oder ist ungültig. Bitte Brief neu generieren."
+            )
+            return
+        try:
+            brief_model = VacancyBrief.model_validate(brief_payload)
+            store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
+            with st.spinner("Generiere Arbeitsvertrags-Template…"):
+                draft, usage = generate_employment_contract_draft(
+                    brief=brief_model,
+                    model=resolved_employment_contract_model,
+                    store=store,
+                )
+            st.session_state[SSKey.EMPLOYMENT_CONTRACT_DRAFT.value] = draft.model_dump(
+                mode="json"
+            )
+            st.session_state[SSKey.EMPLOYMENT_CONTRACT_LAST_USAGE.value] = usage or {}
+            st.session_state[SSKey.EMPLOYMENT_CONTRACT_CACHE_HIT.value] = (
+                usage_has_cache_hit(usage)
+            )
+            st.session_state[SSKey.EMPLOYMENT_CONTRACT_LAST_MODE.value] = "from_brief"
+            st.session_state[SSKey.EMPLOYMENT_CONTRACT_LAST_MODELS.value] = {
+                "draft_model": resolved_employment_contract_model
+            }
+        except OpenAICallError as e:
+            render_openai_error(e)
+        except Exception as exc:
+            handle_unexpected_exception(
+                step="summary.employment_contract_generation",
+                exc=exc,
+                error_type=type(exc).__name__,
+                error_code="SUMMARY_EMPLOYMENT_CONTRACT_GENERATION_UNEXPECTED",
+            )
+
     st.markdown("### Action Hub")
     st.caption(
         "Einheitliche Aktionskarten für Erzeugung, Qualitätssicherung und Folgeartefakte."
@@ -1607,11 +1725,13 @@ def render(ctx: WizardContext) -> None:
         resolved_hr_sheet_model=resolved_hr_sheet_model,
         resolved_fach_sheet_model=resolved_fach_sheet_model,
         resolved_boolean_search_model=resolved_boolean_search_model,
+        resolved_employment_contract_model=resolved_employment_contract_model,
         generate_recruiting_brief=_generate_recruiting_brief,
         generate_job_ad=_generate_job_ad,
         generate_interview_prep_hr=_generate_interview_prep_hr,
         generate_interview_prep_fach=_generate_interview_prep_fach,
         generate_boolean_search=_generate_boolean_search_pack,
+        generate_employment_contract=_generate_employment_contract,
     )
     card_columns = st.columns(2)
     for index, action in enumerate(action_registry):
@@ -1793,6 +1913,71 @@ def render(ctx: WizardContext) -> None:
                         data=boolean_md,
                         file_name="boolean_search_pack.md",
                         mime="text/markdown",
+                    )
+
+        employment_contract_payload = st.session_state.get(
+            SSKey.EMPLOYMENT_CONTRACT_DRAFT.value
+        )
+        if isinstance(employment_contract_payload, dict):
+            employment_contract_draft = EmploymentContractDraft.model_validate(
+                employment_contract_payload
+            )
+            with st.expander("Arbeitsvertrag (Template Draft)", expanded=False):
+                contract_cache_hit = bool(
+                    st.session_state.get(
+                        SSKey.EMPLOYMENT_CONTRACT_CACHE_HIT.value, False
+                    )
+                )
+                contract_usage = (
+                    st.session_state.get(
+                        SSKey.EMPLOYMENT_CONTRACT_LAST_USAGE.value, {}
+                    )
+                    or {}
+                )
+                contract_mode = (
+                    st.session_state.get(SSKey.EMPLOYMENT_CONTRACT_LAST_MODE.value)
+                    or "unknown"
+                )
+                contract_models = (
+                    st.session_state.get(
+                        SSKey.EMPLOYMENT_CONTRACT_LAST_MODELS.value, {}
+                    )
+                    or {}
+                )
+                contract_cache_label = (
+                    "Cache-Hit" if contract_cache_hit else "Kein Cache-Hit"
+                )
+                st.caption(
+                    f"📦 {contract_cache_label} · Modus: `{contract_mode}` · "
+                    f"Modell: `{contract_models.get('draft_model', resolved_employment_contract_model)}`"
+                )
+                with st.expander("API Usage (Debug)", expanded=False):
+                    st.write({"usage": contract_usage})
+
+                render_employment_contract_draft(employment_contract_draft)
+
+                contract_json_bytes = json.dumps(
+                    employment_contract_draft.model_dump(mode="json"),
+                    indent=2,
+                    ensure_ascii=False,
+                ).encode("utf-8")
+                contract_docx_bytes = _employment_contract_to_docx_bytes(
+                    employment_contract_draft
+                )
+                x1, x2 = st.columns(2)
+                with x1:
+                    st.download_button(
+                        "Download Arbeitsvertrag JSON",
+                        data=contract_json_bytes,
+                        file_name="employment_contract_draft.json",
+                        mime="application/json",
+                    )
+                with x2:
+                    st.download_button(
+                        "Download Arbeitsvertrag DOCX",
+                        data=contract_docx_bytes,
+                        file_name="employment_contract_draft.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     )
 
         st.subheader("Export")
