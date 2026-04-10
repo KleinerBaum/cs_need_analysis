@@ -45,6 +45,13 @@ def _preview_height_for_text(text: str) -> int:
     return (total_lines * line_height_px) + padding_px
 
 
+def _manual_input_height_for_text(text: str) -> int:
+    """Return a compact default height for short text and grow moderately for longer text."""
+    min_height_px = 200
+    max_height_px = 380
+    return max(min_height_px, min(_preview_height_for_text(text), max_height_px))
+
+
 def _set_active_source(source: str, text: str) -> None:
     st.session_state[SSKey.SOURCE_TEXT.value] = text
     st.session_state[SOURCE_ACTIVE_KEY] = source
@@ -149,10 +156,11 @@ def render_jobad_intake(*, title: str = "Jobspec / Job Ad einlesen") -> None:
 
     with tab2:
         with st.container(border=True):
+            manual_text = str(st.session_state.get(SOURCE_TEXT_INPUT_KEY, ""))
             st.text_area(
                 "Jobspec Text",
                 key=SOURCE_TEXT_INPUT_KEY,
-                height=320,
+                height=_manual_input_height_for_text(manual_text),
                 on_change=_on_manual_text_change,
                 placeholder="Füge hier die Stellenanzeige oder Jobspec ein …",
             )
