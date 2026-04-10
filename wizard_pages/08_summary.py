@@ -290,10 +290,88 @@ def _render_template_toggles(
 
 
 def _build_salary_forecast_snapshot(
-    job: JobAdExtract, answers: dict[str, Any]
+    job: JobAdExtract,
+    answers: dict[str, Any],
+    *,
+    scenario_name: str = "base",
+    scenario_overrides: SalaryScenarioOverrides | None = None,
 ) -> dict[str, Any]:
-    forecast = compute_salary_forecast(job_extract=job, answers=answers)
-    return forecast.model_dump()
+    overrides = scenario_overrides or SalaryScenarioOverrides()
+    forecast = compute_salary_forecast(
+        job_extract=job,
+        answers=answers,
+        scenario_overrides=overrides,
+    )
+    full_result = forecast.model_dump(mode="json")
+    return {
+        **full_result,
+        "scenario": scenario_name,
+        "scenario_overrides": overrides.model_dump(mode="json"),
+        "inputs": {
+            "skills_add": st.session_state.get(
+                SSKey.SALARY_SCENARIO_SKILLS_ADD.value, []
+            ),
+            "skills_remove": st.session_state.get(
+                SSKey.SALARY_SCENARIO_SKILLS_REMOVE.value, []
+            ),
+            "location_override": st.session_state.get(
+                SSKey.SALARY_SCENARIO_LOCATION_OVERRIDE.value, ""
+            ),
+            "radius_km": _safe_int(
+                st.session_state.get(SSKey.SALARY_SCENARIO_RADIUS_KM.value, 50)
+            ),
+        },
+        "forecast": forecast.forecast.model_dump(mode="json"),
+        "forecast_result": full_result,
+    }
+
+
+def _parse_skill_tokens(raw: str) -> list[str]:
+    values = [token.strip() for token in raw.split(",")]
+    return _dedupe_preserve_order([token for token in values if token])
+
+
+def _apply_salary_scenario_inputs(job: JobAdExtract) -> JobAdExtract:
+    skills_add_raw = st.text_input(
+        "Skills hinzufügen (CSV)",
+        key=_widget_key(SSKey.SALARY_SCENARIO_SKILLS_ADD, "input"),
+        help="Kommagetrennte Skill-Liste, die temporär zur Szenario-Simulation addiert wird.",
+    )
+    skills_remove_raw = st.text_input(
+        "Skills entfernen (CSV)",
+        key=_widget_key(SSKey.SALARY_SCENARIO_SKILLS_REMOVE, "input"),
+        help="Kommagetrennte Skill-Liste, die temporär aus den Must-haves entfernt wird.",
+    )
+    location_override = st.text_input(
+        "Standort-Override",
+        key=SSKey.SALARY_SCENARIO_LOCATION_OVERRIDE.value,
+        help="Optionaler Standort für diese Szenario-Berechnung.",
+    ).strip()
+    st.number_input(
+        "Suchradius (km)",
+        min_value=0,
+        max_value=500,
+        step=5,
+        key=SSKey.SALARY_SCENARIO_RADIUS_KM.value,
+        help="Dokumentationswert für Szenario-Analysen. Die aktuelle Engine nutzt diesen Wert nicht als Rechenfaktor.",
+    )
+
+    skills_add = _parse_skill_tokens(skills_add_raw)
+    skills_remove = _parse_skill_tokens(skills_remove_raw)
+    st.session_state[SSKey.SALARY_SCENARIO_SKILLS_ADD.value] = skills_add
+    st.session_state[SSKey.SALARY_SCENARIO_SKILLS_REMOVE.value] = skills_remove
+
+    current_skills = _dedupe_preserve_order([*job.must_have_skills, *skills_add])
+    remove_set = {item.casefold() for item in skills_remove}
+    filtered_skills = [
+        skill for skill in current_skills if skill.casefold() not in remove_set
+    ]
+    return job.model_copy(
+        update={
+            "must_have_skills": filtered_skills,
+            "location_country": location_override or job.location_country,
+        }
+    )
 
 
 def _render_sidebar_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) -> None:
@@ -311,61 +389,104 @@ def _render_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) -> None:
 
     with controls_col:
         st.markdown("**Szenario-Overrides**")
+        selected_scenario = st.radio(
+            "Szenario",
+            options=("base", "market_upside", "cost_focus"),
+            format_func=lambda value: {
+                "base": "Baseline",
+                "market_upside": "Marktaufschwung",
+                "cost_focus": "Kostenfokus",
+            }[value],
+            key=SSKey.SALARY_FORECAST_SELECTED_SCENARIO.value,
+        )
+        forecast_job = _apply_salary_scenario_inputs(job)
+
+        preset_overrides = {
+            "base": SalaryScenarioOverrides(),
+            "market_upside": SalaryScenarioOverrides(
+                requirements_multiplier_delta=0.04,
+                seniority_multiplier_delta=0.03,
+                remote_multiplier_delta=0.02,
+                interview_multiplier_delta=0.01,
+                location_multiplier_factor=1.05,
+                title_multiplier_factor=1.04,
+                spread_factor_delta=0.02,
+                confidence_delta=5,
+            ),
+            "cost_focus": SalaryScenarioOverrides(
+                requirements_multiplier_delta=-0.03,
+                seniority_multiplier_delta=-0.02,
+                remote_multiplier_delta=-0.01,
+                interview_multiplier_delta=-0.01,
+                location_multiplier_factor=0.96,
+                title_multiplier_factor=0.97,
+                spread_factor_delta=-0.01,
+                confidence_delta=-4,
+            ),
+        }[selected_scenario]
         requirements_delta = st.slider(
             "Requirements Δ",
             min_value=-0.30,
             max_value=0.30,
-            value=0.0,
+            value=float(preset_overrides.requirements_multiplier_delta),
             step=0.01,
+            key=_widget_key(SSKey.SUMMARY_SALARY_FORECAST_WIDGET, "requirements_delta"),
         )
         seniority_delta = st.slider(
             "Seniority Δ",
             min_value=-0.30,
             max_value=0.30,
-            value=0.0,
+            value=float(preset_overrides.seniority_multiplier_delta),
             step=0.01,
+            key=_widget_key(SSKey.SUMMARY_SALARY_FORECAST_WIDGET, "seniority_delta"),
         )
         remote_delta = st.slider(
             "Remote Δ",
             min_value=-0.20,
             max_value=0.20,
-            value=0.0,
+            value=float(preset_overrides.remote_multiplier_delta),
             step=0.01,
+            key=_widget_key(SSKey.SUMMARY_SALARY_FORECAST_WIDGET, "remote_delta"),
         )
         interview_delta = st.slider(
             "Interview Δ",
             min_value=-0.20,
             max_value=0.20,
-            value=0.0,
+            value=float(preset_overrides.interview_multiplier_delta),
             step=0.01,
+            key=_widget_key(SSKey.SUMMARY_SALARY_FORECAST_WIDGET, "interview_delta"),
         )
         location_factor = st.slider(
             "Location-Faktor",
             min_value=0.60,
             max_value=1.60,
-            value=1.00,
+            value=float(preset_overrides.location_multiplier_factor),
             step=0.01,
+            key=_widget_key(SSKey.SUMMARY_SALARY_FORECAST_WIDGET, "location_factor"),
         )
         title_factor = st.slider(
             "Titel-Faktor",
             min_value=0.60,
             max_value=1.60,
-            value=1.00,
+            value=float(preset_overrides.title_multiplier_factor),
             step=0.01,
+            key=_widget_key(SSKey.SUMMARY_SALARY_FORECAST_WIDGET, "title_factor"),
         )
         spread_delta = st.slider(
             "Spread Δ",
             min_value=-0.08,
             max_value=0.08,
-            value=0.0,
+            value=float(preset_overrides.spread_factor_delta),
             step=0.01,
+            key=_widget_key(SSKey.SUMMARY_SALARY_FORECAST_WIDGET, "spread_delta"),
         )
         confidence_delta = st.slider(
             "Confidence Δ",
             min_value=-30,
             max_value=30,
-            value=0,
+            value=int(preset_overrides.confidence_delta),
             step=1,
+            key=_widget_key(SSKey.SUMMARY_SALARY_FORECAST_WIDGET, "confidence_delta"),
         )
 
     scenario_overrides = SalaryScenarioOverrides(
@@ -379,9 +500,17 @@ def _render_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) -> None:
         confidence_delta=confidence_delta,
     )
     forecast = compute_salary_forecast(
-        job_extract=job,
+        job_extract=forecast_job,
         answers=answers,
         scenario_overrides=scenario_overrides,
+    )
+    st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = (
+        _build_salary_forecast_snapshot(
+            forecast_job,
+            answers,
+            scenario_name=selected_scenario,
+            scenario_overrides=scenario_overrides,
+        )
     )
 
     with result_col:

@@ -140,6 +140,15 @@ def _status_prefix(status: StepStatus) -> str:
     return "⬜"
 
 
+def _ensure_salary_forecast_state_defaults() -> None:
+    st.session_state.setdefault(SSKey.SALARY_SCENARIO_SKILLS_ADD.value, [])
+    st.session_state.setdefault(SSKey.SALARY_SCENARIO_SKILLS_REMOVE.value, [])
+    st.session_state.setdefault(SSKey.SALARY_SCENARIO_LOCATION_OVERRIDE.value, "")
+    st.session_state.setdefault(SSKey.SALARY_SCENARIO_RADIUS_KM.value, 50)
+    st.session_state.setdefault(SSKey.SALARY_FORECAST_SELECTED_SCENARIO.value, "base")
+    st.session_state.setdefault(SSKey.SALARY_FORECAST_LAST_RESULT.value, {})
+
+
 def set_current_step(key: str, *, sync_navigation: bool = True) -> None:
     st.session_state[SSKey.CURRENT_STEP.value] = key
     if sync_navigation:
@@ -235,6 +244,7 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
 
 
 def sidebar_navigation(ctx: WizardContext) -> WizardPage:
+    _ensure_salary_forecast_state_defaults()
     pages = ctx.pages
     options = [p.key for p in pages]
     cur_key = ctx.get_current_page_key()

@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import streamlit as st
 
+from constants import SSKey
 from salary.types import SalaryForecastResult
 
 
 def render_sidebar_salary_forecast(*, forecast: SalaryForecastResult) -> None:
     """Render a salary forecast in the sidebar without computing domain data."""
+    st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = forecast.model_dump(
+        mode="json"
+    )
 
     st.sidebar.markdown("### 💶 Gehaltsvorcast")
     st.sidebar.caption("Kompakte Prognose auf Basis der bisher erfassten Stelleninfos.")
