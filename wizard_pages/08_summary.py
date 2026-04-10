@@ -1420,16 +1420,6 @@ def render(ctx: WizardContext) -> None:
                 st.info(
                     "Recruiting Brief aus Cache geladen (DE) / Recruiting brief loaded from cache (EN)."
                 )
-            with st.expander("API Usage (Debug)", expanded=False):
-                st.write(
-                    {
-                        "resolved_models": {
-                            "generate_vacancy_brief": resolved_brief_model
-                        },
-                        "mode": "standard_draft",
-                        "usage": usage,
-                    }
-                )
             return True
         except OpenAICallError as e:
             render_openai_error(e)
@@ -1722,10 +1712,6 @@ def render(ctx: WizardContext) -> None:
                 hr_cache_hit = bool(
                     st.session_state.get(SSKey.INTERVIEW_PREP_HR_CACHE_HIT.value, False)
                 )
-                hr_usage = (
-                    st.session_state.get(SSKey.INTERVIEW_PREP_HR_LAST_USAGE.value, {})
-                    or {}
-                )
                 hr_mode = (
                     st.session_state.get(SSKey.INTERVIEW_PREP_HR_LAST_MODE.value)
                     or "unknown"
@@ -1739,8 +1725,6 @@ def render(ctx: WizardContext) -> None:
                     f"📦 {cache_label} · Modus: `{hr_mode}` · "
                     f"Modell: `{hr_models.get('draft_model', resolved_hr_sheet_model)}`"
                 )
-                with st.expander("API Usage (Debug)", expanded=False):
-                    st.write({"usage": hr_usage})
                 render_interview_prep_hr(hr_sheet)
 
                 hr_json_bytes = json.dumps(
@@ -1774,10 +1758,6 @@ def render(ctx: WizardContext) -> None:
                         SSKey.INTERVIEW_PREP_FACH_CACHE_HIT.value, False
                     )
                 )
-                fach_usage = (
-                    st.session_state.get(SSKey.INTERVIEW_PREP_FACH_LAST_USAGE.value, {})
-                    or {}
-                )
                 fach_mode = (
                     st.session_state.get(SSKey.INTERVIEW_PREP_FACH_LAST_MODE.value)
                     or "unknown"
@@ -1793,8 +1773,6 @@ def render(ctx: WizardContext) -> None:
                     f"📦 {fach_cache_label} · Modus: `{fach_mode}` · "
                     f"Modell: `{fach_models.get('draft_model', resolved_fach_sheet_model)}`"
                 )
-                with st.expander("API Usage (Debug)", expanded=False):
-                    st.write({"usage": fach_usage})
                 render_interview_prep_fach(fach_sheet)
 
                 fach_json_bytes = json.dumps(
@@ -1824,10 +1802,6 @@ def render(ctx: WizardContext) -> None:
                 boolean_cache_hit = bool(
                     st.session_state.get(SSKey.BOOLEAN_SEARCH_CACHE_HIT.value, False)
                 )
-                boolean_usage = (
-                    st.session_state.get(SSKey.BOOLEAN_SEARCH_LAST_USAGE.value, {})
-                    or {}
-                )
                 boolean_mode = (
                     st.session_state.get(SSKey.BOOLEAN_SEARCH_LAST_MODE.value)
                     or "unknown"
@@ -1843,8 +1817,6 @@ def render(ctx: WizardContext) -> None:
                     f"📦 {boolean_cache_label} · Modus: `{boolean_mode}` · "
                     f"Modell: `{boolean_models.get('draft_model', resolved_boolean_search_model)}`"
                 )
-                with st.expander("API Usage (Debug)", expanded=False):
-                    st.write({"usage": boolean_usage})
                 render_boolean_search_pack(boolean_pack)
 
                 boolean_json_bytes = json.dumps(
@@ -1882,10 +1854,6 @@ def render(ctx: WizardContext) -> None:
                         SSKey.EMPLOYMENT_CONTRACT_CACHE_HIT.value, False
                     )
                 )
-                contract_usage = (
-                    st.session_state.get(SSKey.EMPLOYMENT_CONTRACT_LAST_USAGE.value, {})
-                    or {}
-                )
                 contract_mode = (
                     st.session_state.get(SSKey.EMPLOYMENT_CONTRACT_LAST_MODE.value)
                     or "unknown"
@@ -1903,9 +1871,6 @@ def render(ctx: WizardContext) -> None:
                     f"📦 {contract_cache_label} · Modus: `{contract_mode}` · "
                     f"Modell: `{contract_models.get('draft_model', resolved_employment_contract_model)}`"
                 )
-                with st.expander("API Usage (Debug)", expanded=False):
-                    st.write({"usage": contract_usage})
-
                 render_employment_contract_draft(employment_contract_draft)
 
                 contract_json_bytes = json.dumps(
