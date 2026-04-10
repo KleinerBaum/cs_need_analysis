@@ -10,8 +10,76 @@ import streamlit as st
 from constants import SSKey, STEPS
 from question_dependencies import should_show_question
 from question_progress import compute_question_progress
+from salary.engine import compute_salary_forecast
+from salary.types import SalaryForecastResult
 from schemas import JobAdExtract, Question, QuestionPlan
 from wizard_pages.salary_forecast import render_sidebar_salary_forecast
+
+
+def _has_meaningful_value(value: object) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, tuple, set, dict)):
+        return len(value) > 0
+    return True
+
+
+def _fallback_job_from_session(
+    *, answers: Mapping[str, object], source_text: str
+) -> JobAdExtract | None:
+    seniority_hint = ""
+    location_hint = ""
+    job_title_hint = ""
+    for key, value in answers.items():
+        if not _has_meaningful_value(value):
+            continue
+        normalized_key = str(key).lower()
+        value_text = str(value).strip()
+        if not seniority_hint and "senior" in normalized_key:
+            seniority_hint = value_text
+        if not location_hint and (
+            "location" in normalized_key or "standort" in normalized_key
+        ):
+            location_hint = value_text
+        if not job_title_hint and (
+            "job_title" in normalized_key or "rolle" in normalized_key
+        ):
+            job_title_hint = value_text
+
+    source_lower = source_text.lower()
+    if not seniority_hint:
+        for marker in ("principal", "lead", "senior", "junior"):
+            if marker in source_lower:
+                seniority_hint = marker
+                break
+    if not job_title_hint and source_text.strip():
+        first_line = source_text.strip().splitlines()[0]
+        job_title_hint = first_line[:90]
+
+    if not any((seniority_hint, location_hint, job_title_hint, source_text.strip())):
+        return None
+
+    return JobAdExtract(
+        job_title=job_title_hint or None,
+        location_country=location_hint or None,
+        seniority_level=seniority_hint or None,
+    )
+
+
+def _compute_sidebar_salary_forecast(
+    *,
+    job: JobAdExtract | None,
+    answers: dict[str, object],
+    source_text: str,
+) -> SalaryForecastResult | None:
+    forecast_job = job or _fallback_job_from_session(
+        answers=answers, source_text=source_text
+    )
+    if forecast_job is None:
+        return None
+    return compute_salary_forecast(job_extract=forecast_job, answers=answers)
 
 
 @dataclass(frozen=True)
@@ -241,11 +309,13 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
             job = JobAdExtract.model_validate(job_dict)
         except Exception:
             job = None
-    render_sidebar_salary_forecast(
+    forecast = _compute_sidebar_salary_forecast(
         job=job,
         answers=answers,
         source_text=source_text,
     )
+    if forecast is not None:
+        render_sidebar_salary_forecast(forecast=forecast)
     return current_page
 
 
