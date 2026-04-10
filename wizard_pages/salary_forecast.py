@@ -7,6 +7,7 @@ from typing import Any
 import streamlit as st
 
 from salary.engine import compute_salary_forecast, estimate_salary_baseline
+from salary.types import parse_salary_forecast_result
 from schemas import JobAdExtract
 
 
@@ -69,7 +70,8 @@ def _fallback_job_from_session(
 def build_salary_forecast_snapshot(
     job: JobAdExtract, answers: dict[str, Any]
 ) -> dict[str, Any]:
-    return compute_salary_forecast(job_extract=job, answers=answers).model_dump()
+    computed_forecast = compute_salary_forecast(job_extract=job, answers=answers)
+    return parse_salary_forecast_result(computed_forecast.model_dump()).model_dump()
 
 
 def render_sidebar_salary_forecast(
@@ -83,32 +85,32 @@ def render_sidebar_salary_forecast(
     if forecast_job is None:
         return
 
-    forecast = build_salary_forecast_snapshot(job=forecast_job, answers=answers)
+    forecast = parse_salary_forecast_result(
+        build_salary_forecast_snapshot(job=forecast_job, answers=answers)
+    )
 
     st.sidebar.markdown("### 💶 Gehaltsvorcast")
     st.sidebar.caption("Kompakte Prognose auf Basis der bisher erfassten Stelleninfos.")
     st.sidebar.metric(
         "Prognose (Jahr, Mitte)",
-        f"{int(forecast['forecast']['p50']):,} {forecast['currency']}".replace(
-            ",", "."
-        ),
+        f"{int(forecast.forecast.p50):,} {forecast.currency}".replace(",", "."),
     )
     st.sidebar.write(
-        f"**Bandbreite:** {int(forecast['forecast']['p10']):,} – {int(forecast['forecast']['p90']):,} {forecast['currency']}".replace(
+        f"**Bandbreite:** {int(forecast.forecast.p10):,} – {int(forecast.forecast.p90):,} {forecast.currency}".replace(
             ",", "."
         )
     )
-    quality_percent = int(round(float(forecast["quality"]["value"]) * 100, 0))
+    quality_percent = int(round(float(forecast.quality.value) * 100, 0))
     st.sidebar.progress(
         quality_percent,
         text=f"Prognose-Sicherheit: {quality_percent}%",
     )
     st.sidebar.caption(
         "Treiber: "
-        f"{forecast['must_have_count']} Must-haves · "
-        f"{forecast['interview_steps']} Interview-Schritte · "
-        f"{forecast['answers_count']} beantwortete Wizard-Felder · "
-        f"Standort: {forecast['location']}"
+        f"{forecast.must_have_count} Must-haves · "
+        f"{forecast.interview_steps} Interview-Schritte · "
+        f"{forecast.answers_count} beantwortete Wizard-Felder · "
+        f"Standort: {forecast.location}"
     )
     with st.sidebar.expander("Annahmen", expanded=False):
         st.write(
