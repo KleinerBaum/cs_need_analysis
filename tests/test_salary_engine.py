@@ -29,14 +29,18 @@ def test_compute_salary_forecast_returns_expected_shape() -> None:
 
     snapshot = compute_salary_forecast(job_extract=job, answers={"team_size": 8})
 
-    assert snapshot.forecast_min > 0
-    assert snapshot.forecast_central >= snapshot.forecast_min
-    assert snapshot.forecast_max >= snapshot.forecast_central
+    assert snapshot.forecast.p10 > 0
+    assert snapshot.forecast.p50 >= snapshot.forecast.p10
+    assert snapshot.forecast.p90 >= snapshot.forecast.p50
     assert snapshot.currency == "EUR"
+    assert snapshot.period == "yearly"
     assert snapshot.location == "Deutschland"
     assert snapshot.must_have_count == 5
     assert snapshot.answers_count == 1
-    assert 35 <= snapshot.confidence <= 100
+    assert 0.35 <= snapshot.quality.value <= 1.0
+    assert snapshot.quality.kind == "confidence_score"
+    assert snapshot.drivers
+    assert snapshot.provenance.engine
 
 
 def test_compute_salary_forecast_applies_scenario_overrides() -> None:
@@ -54,5 +58,5 @@ def test_compute_salary_forecast_applies_scenario_overrides() -> None:
         ),
     )
 
-    assert boosted.forecast_central > baseline.forecast_central
-    assert boosted.confidence >= baseline.confidence
+    assert boosted.forecast.p50 > baseline.forecast.p50
+    assert boosted.quality.value >= baseline.quality.value

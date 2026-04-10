@@ -68,7 +68,7 @@ def _fallback_job_from_session(
 
 def build_salary_forecast_snapshot(
     job: JobAdExtract, answers: dict[str, Any]
-) -> dict[str, float | int | str]:
+) -> dict[str, Any]:
     return compute_salary_forecast(job_extract=job, answers=answers).model_dump()
 
 
@@ -89,18 +89,19 @@ def render_sidebar_salary_forecast(
     st.sidebar.caption("Kompakte Prognose auf Basis der bisher erfassten Stelleninfos.")
     st.sidebar.metric(
         "Prognose (Jahr, Mitte)",
-        f"{int(forecast['forecast_central']):,} {forecast['currency']}".replace(
+        f"{int(forecast['forecast']['p50']):,} {forecast['currency']}".replace(
             ",", "."
         ),
     )
     st.sidebar.write(
-        f"**Bandbreite:** {int(forecast['forecast_min']):,} – {int(forecast['forecast_max']):,} {forecast['currency']}".replace(
+        f"**Bandbreite:** {int(forecast['forecast']['p10']):,} – {int(forecast['forecast']['p90']):,} {forecast['currency']}".replace(
             ",", "."
         )
     )
+    quality_percent = int(round(float(forecast["quality"]["value"]) * 100, 0))
     st.sidebar.progress(
-        int(forecast["confidence"]),
-        text=f"Prognose-Sicherheit: {forecast['confidence']}%",
+        quality_percent,
+        text=f"Prognose-Sicherheit: {quality_percent}%",
     )
     st.sidebar.caption(
         "Treiber: "
