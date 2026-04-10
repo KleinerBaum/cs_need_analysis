@@ -41,6 +41,7 @@ from salary.scenarios import (
 from salary.types import SalaryScenarioOverrides
 from schemas import (
     BooleanSearchPack,
+    EscoConceptRef,
     EmploymentContractDraft,
     InterviewPrepSheetHiringManager,
     InterviewPrepSheetHR,
@@ -467,9 +468,10 @@ def _render_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) -> None:
 
 
 def _brief_to_markdown(brief: VacancyBrief) -> str:
+    structured_data = brief.structured_data.model_dump(mode="json")
     lines = []
     lines.append(
-        f"# Recruiting Brief – {brief.structured_data.get('job_extract', {}).get('job_title', '')}".strip()
+        f"# Recruiting Brief – {structured_data.get('job_extract', {}).get('job_title', '')}".strip()
     )
     lines.append("")
     lines.append(f"**One-liner:** {brief.one_liner}")
@@ -505,6 +507,52 @@ def _brief_to_markdown(brief: VacancyBrief) -> str:
     lines.append(brief.job_ad_draft)
     lines.append("")
     return "\n".join(lines)
+
+
+def _to_esco_export_concepts(raw_items: Any) -> list[dict[str, str]]:
+    if not isinstance(raw_items, list):
+        return []
+    concepts: list[dict[str, str]] = []
+    for item in raw_items:
+        try:
+            parsed = EscoConceptRef.model_validate(item)
+        except Exception:
+            continue
+        concepts.append({"uri": parsed.uri, "label": parsed.title})
+    return concepts
+
+
+def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
+    payload = dict(brief.structured_data.model_dump(mode="json", exclude_none=True))
+    selected_occupation = get_esco_occupation_selected()
+    if isinstance(selected_occupation, dict):
+        try:
+            parsed_occupation = EscoConceptRef.model_validate(selected_occupation)
+        except Exception:
+            pass
+        else:
+            payload["esco_occupations"] = [
+                {"uri": parsed_occupation.uri, "label": parsed_occupation.title}
+            ]
+
+    must_skills = _to_esco_export_concepts(
+        st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
+    )
+    if must_skills:
+        payload["esco_skills_must"] = must_skills
+
+    nice_skills = _to_esco_export_concepts(
+        st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
+    )
+    if nice_skills:
+        payload["esco_skills_nice"] = nice_skills
+
+    esco_config = st.session_state.get(SSKey.ESCO_CONFIG.value, {})
+    if isinstance(esco_config, dict):
+        selected_version = str(esco_config.get("selected_version") or "").strip()
+        if selected_version:
+            payload["esco_version"] = selected_version
+    return payload
 
 
 def _boolean_search_pack_to_markdown(pack: BooleanSearchPack) -> str:
@@ -1938,7 +1986,7 @@ def render(ctx: WizardContext) -> None:
         st.subheader("Export")
         md = _brief_to_markdown(brief)
         json_bytes = json.dumps(
-            brief.structured_data, indent=2, ensure_ascii=False
+            _build_structured_export_payload(brief), indent=2, ensure_ascii=False
         ).encode("utf-8")
         docx_bytes = _brief_to_docx_bytes(brief)
 
