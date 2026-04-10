@@ -9,6 +9,7 @@ Python syntax. We therefore load them by file path and assign a safe module name
 from __future__ import annotations
 
 import importlib.util
+import re
 from pathlib import Path
 from typing import List
 
@@ -27,7 +28,14 @@ def _load_module_from_path(path: Path, module_name: str):
 def load_pages() -> List[WizardPage]:
     pages_dir = Path(__file__).parent
     ignore = {"__init__.py", "base.py", "jobad_intake.py"}
-    py_files = sorted([p for p in pages_dir.glob("*.py") if p.name not in ignore])
+    page_pattern = re.compile(r"^\d+[a-z]?_")
+    py_files = sorted(
+        [
+            p
+            for p in pages_dir.glob("*.py")
+            if p.name not in ignore and page_pattern.match(p.stem)
+        ]
+    )
 
     pages: List[WizardPage] = []
     for p in py_files:
