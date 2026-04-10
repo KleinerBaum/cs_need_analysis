@@ -19,6 +19,24 @@ ESCO_CACHE_TTL_SECONDS = 600
 DEFAULT_TIMEOUT_SECONDS = 10.0
 
 
+def clear_esco_cache() -> None:
+    """Clear cached ESCO GET responses."""
+
+    _cached_get_json.clear()
+
+
+def _coerce_bool(value: object, *, default: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "off"}:
+            return False
+    return default
+
+
 @dataclass(slots=True)
 class EscoClientError(Exception):
     """User-safe ESCO client error payload."""
@@ -184,7 +202,7 @@ class EscoClient:
             "base_url": str(config.get("base_url") or "https://ec.europa.eu/esco/api/"),
             "selected_version": str(config.get("selected_version") or "latest"),
             "language": str(config.get("language") or "de"),
-            "view_obsolete": bool(config.get("view_obsolete", False)),
+            "view_obsolete": _coerce_bool(config.get("view_obsolete"), default=False),
         }
 
     @staticmethod
