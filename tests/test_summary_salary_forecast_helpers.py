@@ -61,14 +61,15 @@ def test_build_salary_forecast_snapshot_uses_job_inputs() -> None:
 
     snapshot = SUMMARY_MODULE._build_salary_forecast_snapshot(job=job, answers=answers)
 
-    assert snapshot["forecast_min"] > 0
-    assert snapshot["forecast_central"] >= snapshot["forecast_min"]
-    assert snapshot["forecast_max"] >= snapshot["forecast_central"]
+    assert snapshot["forecast"]["p10"] > 0
+    assert snapshot["forecast"]["p50"] >= snapshot["forecast"]["p10"]
+    assert snapshot["forecast"]["p90"] >= snapshot["forecast"]["p50"]
     assert snapshot["currency"] == "EUR"
+    assert snapshot["period"] == "yearly"
     assert snapshot["location"] == "Deutschland"
     assert snapshot["must_have_count"] == 5
     assert snapshot["answers_count"] == 3
-    assert 35 <= int(snapshot["confidence"]) <= 100
+    assert 0.35 <= float(snapshot["quality"]["value"]) <= 1.0
 
 
 def test_normalize_logo_payload_rejects_unsupported_type() -> None:

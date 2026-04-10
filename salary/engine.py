@@ -6,7 +6,14 @@ from typing import Any
 
 from schemas import JobAdExtract
 
-from salary.types import SalaryForecastResult, SalaryScenarioOverrides
+from salary.types import (
+    SalaryForecastBand,
+    SalaryForecastDriver,
+    SalaryForecastProvenance,
+    SalaryForecastQuality,
+    SalaryForecastResult,
+    SalaryScenarioOverrides,
+)
 
 
 def _has_meaningful_value(value: Any) -> bool:
@@ -159,22 +166,87 @@ def compute_salary_forecast(
         + min(8, responsibilities_count)
     )
     confidence = min(100, max(35, int(confidence_base + overrides.confidence_delta)))
+    quality_value = round(confidence / 100.0, 2)
+
+    location = job_extract.location_country or "Nicht angegeben"
+    seniority_label = job_extract.seniority_level or "Nicht angegeben"
+    job_title = job_extract.job_title or "Nicht angegeben"
+    currency = (
+        job_extract.salary_range.currency if job_extract.salary_range else None
+    ) or ("EUR")
+    period = (
+        job_extract.salary_range.period if job_extract.salary_range else None
+    ) or ("yearly")
+
+    drivers: list[SalaryForecastDriver] = [
+        SalaryForecastDriver(
+            key="requirements_density",
+            label="Anforderungsdichte",
+            direction="up" if requirements_multiplier >= 0 else "down",
+            impact=round(abs(requirements_multiplier), 3),
+            detail=f"{requirements_density} Anforderungen/Zertifikate/Sprachen berücksichtigt.",
+        ),
+        SalaryForecastDriver(
+            key="seniority",
+            label="Seniorität",
+            direction="up" if seniority_multiplier >= 0 else "down",
+            impact=round(abs(seniority_multiplier), 3),
+            detail=f"Ausprägung: {seniority_label}.",
+        ),
+        SalaryForecastDriver(
+            key="location",
+            label="Standort",
+            direction="up" if location_multiplier >= 1.0 else "down",
+            impact=round(abs(location_multiplier - 1.0), 3),
+            detail=f"Standortfaktor für {location}: {location_multiplier:.2f}.",
+        ),
+        SalaryForecastDriver(
+            key="job_title",
+            label="Jobtitel",
+            direction="up" if title_multiplier >= 1.0 else "down",
+            impact=round(abs(title_multiplier - 1.0), 3),
+            detail=f"Titelfaktor für {job_title}: {title_multiplier:.2f}.",
+        ),
+        SalaryForecastDriver(
+            key="answer_coverage",
+            label="Antwortabdeckung",
+            direction="up",
+            impact=round(min(1.0, answers_count / 10.0), 3),
+            detail=f"{answers_count} beantwortete Wizard-Felder.",
+        ),
+    ]
 
     return SalaryForecastResult(
-        forecast_min=round(forecast_min, 0),
-        forecast_central=round(forecast_central, 0),
-        forecast_max=round(forecast_max, 0),
-        confidence=confidence,
+        forecast=SalaryForecastBand(
+            p10=round(forecast_min, 0),
+            p50=round(forecast_central, 0),
+            p90=round(forecast_max, 0),
+        ),
+        currency=currency,
+        period=period,
+        quality=SalaryForecastQuality(
+            kind="confidence_score",
+            value=quality_value,
+            signals=[
+                f"answers_count={answers_count}",
+                f"salary_range_present={bool(job_extract.salary_range)}",
+                f"requirements_density={requirements_density}",
+                f"responsibilities_count={responsibilities_count}",
+            ],
+        ),
+        drivers=drivers,
+        provenance=SalaryForecastProvenance(
+            engine="heuristic_salary_engine_v1",
+            benchmark_version="internal_heuristic_baseline_2026_01",
+            occupation_mapping="title_keyword_rules_v1",
+            region_mapping="location_keyword_rules_v1",
+        ),
         answers_count=answers_count,
         must_have_count=must_have_count,
         interview_steps=interview_steps,
-        location=(job_extract.location_country or "Nicht angegeben"),
-        seniority=(job_extract.seniority_level or "Nicht angegeben"),
-        job_title=(job_extract.job_title or "Nicht angegeben"),
-        currency=(
-            job_extract.salary_range.currency if job_extract.salary_range else None
-        )
-        or "EUR",
+        location=location,
+        seniority=seniority_label,
+        job_title=job_title,
         base_salary=round(base_salary, 0),
         salary_multiplier=salary_multiplier,
         spread_factor=spread_factor,

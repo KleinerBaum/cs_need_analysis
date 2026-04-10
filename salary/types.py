@@ -63,10 +63,12 @@ class SalaryScenarioOverrides(StrictSchemaModel):
 class SalaryForecastResult(StrictSchemaModel):
     """Structured output for salary forecast calculations."""
 
-    forecast_min: float
-    forecast_central: float
-    forecast_max: float
-    confidence: int
+    forecast: SalaryForecastBand
+    currency: str
+    period: str
+    quality: SalaryForecastQuality
+    drivers: list[SalaryForecastDriver]
+    provenance: SalaryForecastProvenance
 
     answers_count: int
     must_have_count: int
@@ -74,7 +76,6 @@ class SalaryForecastResult(StrictSchemaModel):
     location: str
     seniority: str
     job_title: str
-    currency: str
 
     base_salary: float
     salary_multiplier: float
@@ -109,7 +110,9 @@ class SalaryForecastProvenance(StrictSchemaModel):
     occupation_mapping: str = Field(
         description="Occupation mapping key or strategy identifier."
     )
-    region_mapping: str = Field(description="Region mapping key or strategy identifier.")
+    region_mapping: str = Field(
+        description="Region mapping key or strategy identifier."
+    )
 
 
 class SalaryForecastQuality(StrictSchemaModel):
