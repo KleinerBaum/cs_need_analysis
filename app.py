@@ -206,6 +206,58 @@ def _render_openai_debug_panel() -> None:
         st.json(debug_payload, expanded=False)
 
 
+def _get_info_page_key() -> str | None:
+    query_params = st.query_params
+    info_param = query_params.get("info")
+    if isinstance(info_param, list):
+        info_param = info_param[0] if info_param else None
+    if isinstance(info_param, str) and info_param == "esco":
+        return info_param
+    return None
+
+
+def _render_info_page(info_page_key: str) -> None:
+    if info_page_key == "esco":
+        st.title("ESCO-API-Integration für cs_need_analysis")
+        st.markdown(
+            """
+            ESCO (European Skills, Competences, Qualifications and Occupations) ist eine
+            europäische, mehrsprachige Klassifikation, die **Berufe (Occupations)** und
+            **Skills** beschreibt und miteinander verknüpft.
+
+            ### Warum das für diese App wertvoll ist
+            - **Kanonische Skill-Begriffe statt Dubletten:** Intake-Eingaben wie
+              "Python", "Python 3" oder "Programming in Python" können auf ein
+              gemeinsames ESCO-Konzept gemappt werden.
+            - **Stabilere Jobtitel und Rollenprofile:** Statt freier, uneinheitlicher
+              Titel nutzt du standardisierte Occupation-Profile.
+            - **Bessere Mehrsprachigkeit:** Labels und alternative Begriffe helfen bei
+              konsistenten Ausgaben, Sourcing und Übersetzungen über viele Sprachen hinweg.
+
+            ### API-first statt Portal-first
+            Für Produktqualität ist die **ESCO-API** oft robuster als ein reines
+            Portal-Screen-Scraping:
+            - zentrale Versionierung und Caching
+            - kontrollierte Fehlerbehandlung
+            - weniger Abhängigkeit von Portal-UI/Seitenzuständen
+
+            ### Relevantes Datenmodell (vereinfacht)
+            - **Occupations:** Hierarchien, Metadaten, Mappings (u. a. Richtung ISCO)
+            - **Skills/Knowledge:** Typisierung, Beschreibungen, Scope Notes, Beziehungen
+              untereinander und zu Occupations
+
+            ### Produktchancen im Wizard
+            - Vorschläge für kanonische Skills direkt im Intake
+            - Qualitätschecks auf Vollständigkeit und Konsistenz
+            - sauberere Übergabe an Job-Ad-Generierung, Interviewdesign und Matching
+            """
+        )
+
+    if st.button("← Back to Wizard / Zurück zum Wizard"):
+        st.query_params.clear()
+        st.rerun()
+
+
 def _get_legal_page_key() -> str | None:
     query_params = st.query_params
     legal_param = query_params.get("legal")
@@ -304,6 +356,13 @@ def main() -> None:
     with st.sidebar:
         st.markdown("### Aktionen")
         st.button("Reset Vacancy", on_click=reset_vacancy)
+        st.markdown("[ℹ️ ESCO-API-Info](?info=esco)")
+
+    info_page_key = _get_info_page_key()
+    if info_page_key is not None:
+        _render_info_page(info_page_key)
+        st.session_state[SSKey.LAST_RENDERED_STEP.value] = None
+        return
 
     legal_page_key = _get_legal_page_key()
     if legal_page_key is not None:
