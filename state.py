@@ -36,6 +36,7 @@ def get_active_model() -> str:
 def init_session_state() -> None:
     defaults = {
         SSKey.CURRENT_STEP.value: STEPS[0].key,
+        SSKey.LAST_RENDERED_STEP.value: None,
         SSKey.NAV_SELECTED.value: STEPS[0].key,
         SSKey.NAV_SYNC_PENDING.value: False,
         SSKey.LANGUAGE.value: DEFAULT_LANGUAGE,
@@ -142,6 +143,7 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.EMPLOYMENT_CONTRACT_LAST_MODELS.value] = {}
     st.session_state[SSKey.LAST_ERROR.value] = None
     st.session_state[SSKey.CURRENT_STEP.value] = STEPS[0].key
+    st.session_state[SSKey.LAST_RENDERED_STEP.value] = STEPS[0].key
     st.session_state[SSKey.NAV_SELECTED.value] = STEPS[0].key
     st.session_state[SSKey.NAV_SYNC_PENDING.value] = False
 

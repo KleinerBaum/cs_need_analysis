@@ -1270,6 +1270,11 @@ def _has_required_state(requirements: tuple[SSKey, ...]) -> bool:
     return True
 
 
+def _is_summary_entry() -> bool:
+    last_rendered_step = st.session_state.get(SSKey.LAST_RENDERED_STEP.value)
+    return last_rendered_step != "summary"
+
+
 def _render_action_card(action: SummaryAction) -> bool:
     has_result = bool(st.session_state.get(action["result_key"].value))
     requirements_ok = _has_required_state(action["requires"])
@@ -1480,11 +1485,16 @@ def render(ctx: WizardContext) -> None:
         settings=settings,
     )
 
-    def _generate_recruiting_brief() -> None:
+    def _run_generate_recruiting_brief(
+        *,
+        mode: str = "standard_draft",
+        spinner_text: str = "Generiere Recruiting Brief…",
+        error_step: str = "summary.generate_brief",
+    ) -> bool:
         clear_error()
         store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
         try:
-            with st.spinner("Generiere Recruiting Brief…"):
+            with st.spinner(spinner_text):
                 brief, usage = generate_vacancy_brief(
                     job,
                     answers,
@@ -1494,7 +1504,7 @@ def render(ctx: WizardContext) -> None:
             st.session_state[SSKey.BRIEF.value] = brief.model_dump()
             brief_cached = usage_has_cache_hit(usage)
             st.session_state[SSKey.SUMMARY_CACHE_HIT.value] = brief_cached
-            st.session_state[SSKey.SUMMARY_LAST_MODE.value] = "standard_draft"
+            st.session_state[SSKey.SUMMARY_LAST_MODE.value] = mode
             st.session_state[SSKey.SUMMARY_LAST_MODELS.value] = {
                 "draft_model": resolved_brief_model
             }
@@ -1512,16 +1522,22 @@ def render(ctx: WizardContext) -> None:
                         "usage": usage,
                     }
                 )
+            return True
         except OpenAICallError as e:
             render_openai_error(e)
+            return False
         except Exception as exc:
             error_type = type(exc).__name__
             handle_unexpected_exception(
-                step="summary.generate_brief",
+                step=error_step,
                 exc=exc,
                 error_type=error_type,
                 error_code="SUMMARY_BRIEF_GENERATION_UNEXPECTED",
             )
+            return False
+
+    def _generate_recruiting_brief() -> None:
+        _run_generate_recruiting_brief()
 
     def _generate_job_ad() -> None:
         clear_error()
@@ -1737,6 +1753,13 @@ def render(ctx: WizardContext) -> None:
                 error_code="SUMMARY_EMPLOYMENT_CONTRACT_GENERATION_UNEXPECTED",
             )
 
+    if _is_summary_entry():
+        _run_generate_recruiting_brief(
+            mode="auto_refresh_on_summary_entry",
+            spinner_text="Aktualisiere Recruiting Brief für Summary-Entry…",
+            error_step="summary.auto_refresh_on_entry",
+        )
+
     st.markdown("### Action Hub")
     st.caption(
         "Einheitliche Aktionskarten für Erzeugung, Qualitätssicherung und Folgeartefakte."
@@ -1763,9 +1786,10 @@ def render(ctx: WizardContext) -> None:
                 action["generator_fn"]()
                 st.rerun()
 
+    brief_dict = st.session_state.get(SSKey.BRIEF.value)
     if not brief_dict:
         st.info(
-            "Noch kein Brief generiert. Beantworte die Fragen und klicke dann auf 'Recruiting Brief generieren'."
+            "Noch kein Recruiting Brief verfügbar. Prüfe die Eingaben und versuche es erneut."
         )
         nav_buttons(ctx, disable_next=True)
         return

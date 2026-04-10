@@ -308,6 +308,7 @@ def main() -> None:
     legal_page_key = _get_legal_page_key()
     if legal_page_key is not None:
         _render_legal_page(legal_page_key)
+        st.session_state[SSKey.LAST_RENDERED_STEP.value] = None
         return
 
     current = sidebar_navigation(ctx)
@@ -319,6 +320,7 @@ def main() -> None:
         st.rerun()
 
     current.render(ctx)
+    st.session_state[SSKey.LAST_RENDERED_STEP.value] = current.key
 
 
 if __name__ == "__main__":
