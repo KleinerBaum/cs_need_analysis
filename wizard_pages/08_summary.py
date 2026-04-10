@@ -125,6 +125,7 @@ class SummaryAction(TypedDict):
     generator_fn: Callable[[], None] | None
     result_key: SSKey
     input_hints: tuple[str, ...]
+    input_renderer: Callable[[], None] | None
 
 
 def _normalize_list_item(value: str) -> str:
@@ -1192,7 +1193,10 @@ def _render_action_card(action: SummaryAction) -> bool:
         st.markdown(f"**{action['title']}**")
         st.caption(action["description"])
         st.caption(f"Status: {status_label}")
-        if action["input_hints"]:
+        input_renderer = action.get("input_renderer")
+        if input_renderer is not None:
+            input_renderer()
+        elif action["input_hints"]:
             st.markdown("**Inputs**")
             for input_hint in action["input_hints"]:
                 st.write(f"- {input_hint}")
@@ -1223,6 +1227,7 @@ def _build_action_registry(
     resolved_fach_sheet_model: str,
     resolved_boolean_search_model: str,
     resolved_employment_contract_model: str,
+    render_job_ad_inputs: Callable[[], None] | None = None,
     generate_recruiting_brief: Callable[[], None],
     generate_job_ad: Callable[[], None],
     generate_interview_prep_hr: Callable[[], None],
@@ -1247,6 +1252,7 @@ def _build_action_registry(
                 "Strukturierte Wizard-Antworten",
                 f"Draft-Modell: {resolved_brief_model}",
             ),
+            "input_renderer": None,
         },
         {
             "id": "job_ad_generator",
@@ -1259,11 +1265,8 @@ def _build_action_registry(
             "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
             "generator_fn": generate_job_ad,
             "result_key": SSKey.JOB_AD_DRAFT_CUSTOM,
-            "input_hints": (
-                "Selection Matrix (optional)",
-                "Styleguide + Change Request",
-                f"Job-Ad-Modell: {resolved_job_ad_model}",
-            ),
+            "input_hints": (),
+            "input_renderer": render_job_ad_inputs,
         },
         {
             "id": "interview_hr_sheet",
@@ -1281,6 +1284,7 @@ def _build_action_registry(
                 "Kritische Must-haves",
                 f"HR-Sheet-Modell: {resolved_hr_sheet_model}",
             ),
+            "input_renderer": None,
         },
         {
             "id": "interview_fach_sheet",
@@ -1298,6 +1302,7 @@ def _build_action_registry(
                 "Must-have + Top Responsibilities",
                 f"Fachbereich-Sheet-Modell: {resolved_fach_sheet_model}",
             ),
+            "input_renderer": None,
         },
         {
             "id": "boolean_search",
@@ -1315,6 +1320,7 @@ def _build_action_registry(
                 "Must-have + Nice-to-have Skills",
                 f"Boolean-Modell: {resolved_boolean_search_model}",
             ),
+            "input_renderer": None,
         },
         {
             "id": "employment_contract",
@@ -1332,6 +1338,7 @@ def _build_action_registry(
                 "Vertragsart + Konditionen",
                 f"Contract-Modell: {resolved_employment_contract_model}",
             ),
+            "input_renderer": None,
         },
     ]
 
@@ -1658,6 +1665,71 @@ def render(ctx: WizardContext) -> None:
             error_step="summary.auto_refresh_on_entry",
         )
 
+    def _render_job_ad_action_hub_inputs() -> None:
+        st.markdown("**Selection Matrix (optional)**")
+        selected_values, _ = _render_selection_matrix(job=job, answers=answers)
+        st.session_state[SSKey.SUMMARY_SELECTIONS.value] = selected_values
+
+        st.markdown("**Job-Ad-Editor**")
+        logo_file = st.file_uploader(
+            "Logo-Upload (optional)",
+            type=["png", "jpg", "jpeg", "svg"],
+            help="Das Logo wird als Metadatum gespeichert und kann im Exportprozess weiterverwendet werden.",
+            key=SSKey.SUMMARY_LOGO_UPLOAD_WIDGET.value,
+        )
+        normalized_logo = _normalize_logo_payload(logo_file)
+        st.session_state[SSKey.SUMMARY_LOGO.value] = normalized_logo
+        if logo_file is not None and normalized_logo is None:
+            st.warning(
+                "Logo-Format wird für Exporte nicht unterstützt. Bitte PNG oder JPG/JPEG verwenden."
+            )
+        if normalized_logo:
+            st.image(
+                normalized_logo["bytes"],
+                caption=f"Verwendetes Firmenlogo: {normalized_logo.get('name', 'logo')}",
+                width=180,
+            )
+
+        styleguide_slot = st.empty()
+        _render_template_toggles(
+            title="Bausteine (Styleguide-Beschleuniger)",
+            text_key=SSKey.SUMMARY_STYLEGUIDE_TEXT,
+            selection_key=SSKey.SUMMARY_STYLEGUIDE_BLOCKS,
+            template_blocks=STYLEGUIDE_TEMPLATE_BLOCKS,
+            widget_prefix=SSKey.SUMMARY_STYLEGUIDE_BLOCK_WIDGET_PREFIX.value,
+        )
+        styleguide = styleguide_slot.text_area(
+            "Styleguide des Arbeitgebers",
+            placeholder="z. B. Tonalität, Wording, No-Gos, Corporate Language, Du/Sie, Diversity-Hinweise …",
+            key=SSKey.SUMMARY_STYLEGUIDE_TEXT.value,
+        )
+        st.session_state[SSKey.SUMMARY_STYLEGUIDE_TEXT.value] = str(
+            st.session_state.get(SSKey.SUMMARY_STYLEGUIDE_TEXT.value, styleguide)
+        )
+
+        change_request_slot = st.empty()
+        _render_template_toggles(
+            title="Bausteine (Change-Request-Beschleuniger)",
+            text_key=SSKey.SUMMARY_CHANGE_REQUEST_TEXT,
+            selection_key=SSKey.SUMMARY_CHANGE_REQUEST_BLOCKS,
+            template_blocks=CHANGE_REQUEST_TEMPLATE_BLOCKS,
+            widget_prefix=SSKey.SUMMARY_CHANGE_REQUEST_BLOCK_WIDGET_PREFIX.value,
+        )
+        change_request_slot.text_area(
+            "Anpassungswünsche (für Iterationen)",
+            placeholder="z. B. stärker auf Senior-Profile fokussieren, CTA kürzen, Benefits konkretisieren …",
+            key=SSKey.SUMMARY_CHANGE_REQUEST_TEXT.value,
+        )
+        critical_gaps = _collect_critical_gaps(
+            job,
+            _build_selection_rows(job, answers),
+        )
+        if critical_gaps:
+            st.info(
+                "Hinweis: Kritische Lücken werden in der AGG-Checkliste markiert und nicht halluziniert."
+            )
+        st.caption(f"Job-Ad-Modell: `{resolved_job_ad_model}`")
+
     st.markdown("### Action Hub")
     st.caption(
         "Einheitliche Aktionskarten für Erzeugung, Qualitätssicherung und Folgeartefakte."
@@ -1669,6 +1741,7 @@ def render(ctx: WizardContext) -> None:
         resolved_fach_sheet_model=resolved_fach_sheet_model,
         resolved_boolean_search_model=resolved_boolean_search_model,
         resolved_employment_contract_model=resolved_employment_contract_model,
+        render_job_ad_inputs=_render_job_ad_action_hub_inputs,
         generate_recruiting_brief=_generate_recruiting_brief,
         generate_job_ad=_generate_job_ad,
         generate_interview_prep_hr=_generate_interview_prep_hr,
@@ -1930,77 +2003,10 @@ def render(ctx: WizardContext) -> None:
     with advanced_tab:
         with st.expander("Salary Forecast", expanded=False):
             _render_salary_forecast(job, answers)
-
-        with st.expander("Selection Matrix", expanded=False):
-            selected_values, critical_gaps = _render_selection_matrix(
-                job=job, answers=answers
-            )
-            st.session_state[SSKey.SUMMARY_SELECTIONS.value] = selected_values
-
-        with st.expander("Job-Ad-Editor", expanded=False):
-            st.subheader("Smarte Stellenanzeigen-Generierung")
-            logo_file = st.file_uploader(
-                "Logo-Upload (optional)",
-                type=["png", "jpg", "jpeg", "svg"],
-                help="Das Logo wird als Metadatum gespeichert und kann im Exportprozess weiterverwendet werden.",
-                key=SSKey.SUMMARY_LOGO_UPLOAD_WIDGET.value,
-            )
-            normalized_logo = _normalize_logo_payload(logo_file)
-            st.session_state[SSKey.SUMMARY_LOGO.value] = normalized_logo
-            if logo_file is not None and normalized_logo is None:
-                st.warning(
-                    "Logo-Format wird für Exporte nicht unterstützt. Bitte PNG oder JPG/JPEG verwenden."
-                )
-            if normalized_logo:
-                st.image(
-                    normalized_logo["bytes"],
-                    caption=f"Verwendetes Firmenlogo: {normalized_logo.get('name', 'logo')}",
-                    width=180,
-                )
-
-            styleguide_slot = st.empty()
-            _render_template_toggles(
-                title="Bausteine (Styleguide-Beschleuniger)",
-                text_key=SSKey.SUMMARY_STYLEGUIDE_TEXT,
-                selection_key=SSKey.SUMMARY_STYLEGUIDE_BLOCKS,
-                template_blocks=STYLEGUIDE_TEMPLATE_BLOCKS,
-                widget_prefix=SSKey.SUMMARY_STYLEGUIDE_BLOCK_WIDGET_PREFIX.value,
-            )
-            styleguide = styleguide_slot.text_area(
-                "Styleguide des Arbeitgebers",
-                placeholder="z. B. Tonalität, Wording, No-Gos, Corporate Language, Du/Sie, Diversity-Hinweise …",
-                key=SSKey.SUMMARY_STYLEGUIDE_TEXT.value,
-            )
-            styleguide = str(
-                st.session_state.get(SSKey.SUMMARY_STYLEGUIDE_TEXT.value, styleguide)
-            )
-
-            change_request_slot = st.empty()
-            _render_template_toggles(
-                title="Bausteine (Change-Request-Beschleuniger)",
-                text_key=SSKey.SUMMARY_CHANGE_REQUEST_TEXT,
-                selection_key=SSKey.SUMMARY_CHANGE_REQUEST_BLOCKS,
-                template_blocks=CHANGE_REQUEST_TEMPLATE_BLOCKS,
-                widget_prefix=SSKey.SUMMARY_CHANGE_REQUEST_BLOCK_WIDGET_PREFIX.value,
-            )
-            change_request_slot.text_area(
-                "Anpassungswünsche (für Iterationen)",
-                placeholder="z. B. stärker auf Senior-Profile fokussieren, CTA kürzen, Benefits konkretisieren …",
-                key=SSKey.SUMMARY_CHANGE_REQUEST_TEXT.value,
-            )
-            critical_gaps = _collect_critical_gaps(
-                job,
-                _build_selection_rows(job, answers),
-            )
-            if critical_gaps:
-                st.info(
-                    "Hinweis: Kritische Lücken werden in der AGG-Checkliste markiert und nicht halluziniert."
-                )
-
-            st.caption(
-                "Die Generierung wird im Action Hub ausgelöst. Hier kannst du Inputs vorbereiten und Ergebnisse prüfen."
-            )
-
+        st.caption(
+            "Selection Matrix und Job-Ad-Editor sind direkt im Action Hub beim Job-Ad-Generator verfügbar."
+        )
+        with st.expander("Job-Ad-Ergebnis", expanded=False):
             custom_job_ad_raw = st.session_state.get(SSKey.JOB_AD_DRAFT_CUSTOM.value)
             if isinstance(custom_job_ad_raw, dict):
                 custom_job_ad = JobAdGenerationResult.model_validate(
