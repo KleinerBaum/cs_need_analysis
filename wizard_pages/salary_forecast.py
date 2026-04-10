@@ -6,6 +6,7 @@ from typing import Any
 
 import streamlit as st
 
+from salary.engine import compute_salary_forecast, estimate_salary_baseline
 from schemas import JobAdExtract
 
 
@@ -20,21 +21,7 @@ def _has_meaningful_value(value: Any) -> bool:
 
 
 def _estimate_salary_baseline(job: JobAdExtract) -> float:
-    if job.salary_range and job.salary_range.min and job.salary_range.max:
-        return (job.salary_range.min + job.salary_range.max) / 2
-    if job.salary_range and job.salary_range.max:
-        return job.salary_range.max
-    if job.salary_range and job.salary_range.min:
-        return job.salary_range.min
-
-    seniority = (job.seniority_level or "").lower()
-    if "lead" in seniority or "principal" in seniority:
-        return 105_000
-    if "senior" in seniority:
-        return 90_000
-    if "junior" in seniority:
-        return 60_000
-    return 75_000
+    return estimate_salary_baseline(job)
 
 
 def _fallback_job_from_session(
@@ -79,115 +66,10 @@ def _fallback_job_from_session(
     )
 
 
-def _location_salary_multiplier(location: str) -> float:
-    location_lower = location.lower()
-    if any(marker in location_lower for marker in ("schweiz", "switzerland", "zurich")):
-        return 1.22
-    if any(
-        marker in location_lower
-        for marker in ("usa", "united states", "san francisco", "new york")
-    ):
-        return 1.28
-    if any(
-        marker in location_lower
-        for marker in (
-            "deutschland",
-            "germany",
-            "münchen",
-            "munich",
-            "berlin",
-            "hamburg",
-        )
-    ):
-        return 1.07
-    if any(marker in location_lower for marker in ("eu", "europe")):
-        return 1.03
-    return 1.0
-
-
-def _title_salary_multiplier(job_title: str) -> float:
-    title = job_title.lower()
-    if any(
-        marker in title
-        for marker in ("engineer", "entwickler", "scientist", "ai", "ml")
-    ):
-        return 1.08
-    if any(marker in title for marker in ("director", "head", "leiter")):
-        return 1.14
-    if any(marker in title for marker in ("assistant", "associate", "support")):
-        return 0.92
-    return 1.0
-
-
-def _count_meaningful_answers(answers: dict[str, Any]) -> int:
-    return sum(1 for value in answers.values() if _has_meaningful_value(value))
-
-
 def build_salary_forecast_snapshot(
     job: JobAdExtract, answers: dict[str, Any]
 ) -> dict[str, float | int | str]:
-    base_salary = _estimate_salary_baseline(job)
-    must_have_count = len(job.must_have_skills)
-    interview_steps = len(job.recruitment_steps)
-    answers_count = _count_meaningful_answers(answers)
-    responsibilities_count = len(job.responsibilities)
-    requirements_density = (
-        must_have_count + len(job.certifications) + len(job.languages)
-    )
-
-    salary_multiplier = 1.0
-    if requirements_density > 8:
-        salary_multiplier += 0.09
-    elif requirements_density > 4:
-        salary_multiplier += 0.05
-
-    seniority = (job.seniority_level or "").lower()
-    if "lead" in seniority or "principal" in seniority:
-        salary_multiplier += 0.12
-    elif "senior" in seniority:
-        salary_multiplier += 0.06
-    elif "junior" in seniority:
-        salary_multiplier -= 0.08
-
-    remote_policy = (job.remote_policy or "").lower()
-    if "remote" in remote_policy:
-        salary_multiplier += 0.03
-    if interview_steps >= 5:
-        salary_multiplier += 0.02
-
-    salary_multiplier *= _location_salary_multiplier(job.location_country or "")
-    salary_multiplier *= _title_salary_multiplier(job.job_title or "")
-
-    forecast_central = max(35_000.0, base_salary * salary_multiplier)
-    spread_factor = 0.08 + min(0.14, max(0.0, (10 - min(answers_count, 10)) * 0.012))
-    forecast_min = max(35_000.0, forecast_central * (1 - spread_factor))
-    forecast_max = forecast_central * (1 + spread_factor)
-
-    confidence = min(
-        100,
-        max(
-            35,
-            35
-            + min(45, answers_count * 4)
-            + (12 if bool(job.salary_range) else 0)
-            + min(8, requirements_density)
-            + min(8, responsibilities_count),
-        ),
-    )
-
-    return {
-        "forecast_min": round(forecast_min, 0),
-        "forecast_central": round(forecast_central, 0),
-        "forecast_max": round(forecast_max, 0),
-        "confidence": int(confidence),
-        "answers_count": answers_count,
-        "must_have_count": must_have_count,
-        "interview_steps": interview_steps,
-        "location": (job.location_country or "Nicht angegeben"),
-        "seniority": (job.seniority_level or "Nicht angegeben"),
-        "job_title": (job.job_title or "Nicht angegeben"),
-        "currency": (job.salary_range.currency if job.salary_range else None) or "EUR",
-    }
+    return compute_salary_forecast(job_extract=job, answers=answers).model_dump()
 
 
 def render_sidebar_salary_forecast(
