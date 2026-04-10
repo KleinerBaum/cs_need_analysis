@@ -78,7 +78,11 @@ def test_generate_vacancy_brief_uses_llm_parse_model_and_injects_structured_data
     assert captured["out_model"] is VacancyBriefLLM
     assert usage == {"total_tokens": 11}
     assert isinstance(brief, VacancyBrief)
-    assert brief.structured_data == {
+    assert brief.structured_data.model_dump(mode="json") == {
         "job_extract": job.model_dump(),
         "answers": answers,
+        "esco_occupations": None,
+        "esco_skills_must": None,
+        "esco_skills_nice": None,
+        "esco_version": None,
     }

@@ -310,9 +310,35 @@ class VacancyBrief(StrictSchemaModel):
     )
 
     job_ad_draft: str = Field(description="A publishable job ad draft (German).")
-    structured_data: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Machine-readable full data (job extract + manager answers).",
+    structured_data: "VacancyStructuredData" = Field(
+        default_factory=lambda: VacancyStructuredData(),
+        description="Machine-readable full data (job extract + manager answers + optional ESCO mappings).",
+    )
+
+
+class EscoExportConcept(StrictSchemaModel):
+    uri: str = Field(description="Canonical ESCO concept URI.")
+    label: str = Field(description="Human-readable ESCO label.")
+
+
+class VacancyStructuredData(StrictSchemaModel):
+    job_extract: Dict[str, Any] = Field(default_factory=dict)
+    answers: Dict[str, Any] = Field(default_factory=dict)
+    esco_occupations: Optional[List[EscoExportConcept]] = Field(
+        default=None,
+        description="Optional mapped ESCO occupations used for the role.",
+    )
+    esco_skills_must: Optional[List[EscoExportConcept]] = Field(
+        default=None,
+        description="Optional mapped ESCO must-have skills.",
+    )
+    esco_skills_nice: Optional[List[EscoExportConcept]] = Field(
+        default=None,
+        description="Optional mapped ESCO nice-to-have skills.",
+    )
+    esco_version: Optional[str] = Field(
+        default=None,
+        description="Optional ESCO dataset version used during mapping.",
     )
 
 
