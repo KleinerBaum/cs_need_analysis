@@ -23,6 +23,7 @@ DEFAULT_LANGUAGE: Final[str] = "de"
 # ---- Session State Keys ----
 class SSKey(str, Enum):
     CURRENT_STEP = "cs.current_step"
+    LAST_RENDERED_STEP = "cs.last_rendered_step"
     NAV_SELECTED = "cs.nav_selected"
     NAV_SYNC_PENDING = "cs.nav_sync_pending"
     LANGUAGE = "cs.language"

@@ -178,3 +178,19 @@ def test_has_required_state_requires_all_truthy_values(monkeypatch) -> None:
         SUMMARY_MODULE._has_required_state((SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN))
         is True
     )
+
+
+def test_is_summary_entry_true_when_previous_page_was_not_summary(monkeypatch) -> None:
+    fake_st = SimpleNamespace(
+        session_state={SSKey.LAST_RENDERED_STEP.value: "interview"}
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
+
+    assert SUMMARY_MODULE._is_summary_entry() is True
+
+
+def test_is_summary_entry_false_when_summary_already_rendered(monkeypatch) -> None:
+    fake_st = SimpleNamespace(session_state={SSKey.LAST_RENDERED_STEP.value: "summary"})
+    monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
+
+    assert SUMMARY_MODULE._is_summary_entry() is False
