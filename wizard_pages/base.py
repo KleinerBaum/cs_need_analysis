@@ -10,7 +10,8 @@ import streamlit as st
 from constants import SSKey, STEPS
 from question_dependencies import should_show_question
 from question_progress import compute_question_progress
-from schemas import Question, QuestionPlan
+from schemas import JobAdExtract, Question, QuestionPlan
+from wizard_pages.salary_forecast import render_sidebar_salary_forecast
 
 
 @dataclass(frozen=True)
@@ -229,6 +230,22 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
         st.rerun()
 
     current_page = next(p for p in pages if p.key == selected)
+    job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
+    answers_raw = st.session_state.get(SSKey.ANSWERS.value, {})
+    answers = answers_raw if isinstance(answers_raw, dict) else {}
+    source_text_raw = st.session_state.get(SSKey.SOURCE_TEXT.value, "")
+    source_text = source_text_raw if isinstance(source_text_raw, str) else ""
+    job: JobAdExtract | None = None
+    if isinstance(job_dict, dict):
+        try:
+            job = JobAdExtract.model_validate(job_dict)
+        except Exception:
+            job = None
+    render_sidebar_salary_forecast(
+        job=job,
+        answers=answers,
+        source_text=source_text,
+    )
     return current_page
 
 

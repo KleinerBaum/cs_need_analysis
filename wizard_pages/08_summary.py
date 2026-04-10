@@ -59,6 +59,11 @@ from ui_components import (
 )
 from usage_utils import usage_has_cache_hit
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
+from wizard_pages.salary_forecast import (
+    _estimate_salary_baseline as _shared_estimate_salary_baseline,
+    build_salary_forecast_snapshot as _shared_build_salary_forecast_snapshot,
+    render_sidebar_salary_forecast as _shared_render_sidebar_salary_forecast,
+)
 
 SUPPORTED_LOGO_MIME_TYPES: dict[str, str] = {
     "image/png": "PNG",
@@ -217,21 +222,7 @@ def _safe_int(value: Any) -> int:
 
 
 def _estimate_salary_baseline(job: JobAdExtract) -> float:
-    if job.salary_range and job.salary_range.min and job.salary_range.max:
-        return (job.salary_range.min + job.salary_range.max) / 2
-    if job.salary_range and job.salary_range.max:
-        return job.salary_range.max
-    if job.salary_range and job.salary_range.min:
-        return job.salary_range.min
-
-    seniority = (job.seniority_level or "").lower()
-    if "lead" in seniority or "principal" in seniority:
-        return 105_000
-    if "senior" in seniority:
-        return 90_000
-    if "junior" in seniority:
-        return 60_000
-    return 75_000
+    return _shared_estimate_salary_baseline(job)
 
 
 def _estimate_candidate_baseline(job: JobAdExtract) -> float:
@@ -318,93 +309,11 @@ def _render_template_toggles(
 def _build_salary_forecast_snapshot(
     job: JobAdExtract, answers: dict[str, Any]
 ) -> dict[str, float | int | str]:
-    base_salary = _estimate_salary_baseline(job)
-    must_have_count = len(job.must_have_skills)
-    interview_steps = len(job.recruitment_steps)
-    answers_count = len(answers)
-
-    salary_multiplier = 1.0
-    if must_have_count > 6:
-        salary_multiplier += 0.07
-    elif must_have_count > 3:
-        salary_multiplier += 0.04
-
-    seniority = (job.seniority_level or "").lower()
-    if "lead" in seniority or "principal" in seniority:
-        salary_multiplier += 0.12
-    elif "senior" in seniority:
-        salary_multiplier += 0.06
-    elif "junior" in seniority:
-        salary_multiplier -= 0.08
-
-    remote_policy = (job.remote_policy or "").lower()
-    if "remote" in remote_policy:
-        salary_multiplier += 0.03
-    if interview_steps >= 5:
-        salary_multiplier += 0.02
-
-    forecast_central = max(35_000.0, base_salary * salary_multiplier)
-    spread_factor = 0.08 + min(0.14, max(0.0, (8 - min(answers_count, 8)) * 0.015))
-    forecast_min = max(35_000.0, forecast_central * (1 - spread_factor))
-    forecast_max = forecast_central * (1 + spread_factor)
-
-    confidence = min(
-        100,
-        max(
-            35,
-            35
-            + min(40, answers_count * 4)
-            + (10 if bool(job.salary_range) else 0)
-            + min(10, must_have_count),
-        ),
-    )
-
-    return {
-        "forecast_min": round(forecast_min, 0),
-        "forecast_central": round(forecast_central, 0),
-        "forecast_max": round(forecast_max, 0),
-        "confidence": int(confidence),
-        "answers_count": answers_count,
-        "must_have_count": must_have_count,
-        "interview_steps": interview_steps,
-        "location": (job.location_country or "Nicht angegeben"),
-        "currency": (job.salary_range.currency if job.salary_range else None) or "EUR",
-    }
+    return _shared_build_salary_forecast_snapshot(job=job, answers=answers)
 
 
 def _render_sidebar_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) -> None:
-    forecast = _build_salary_forecast_snapshot(job=job, answers=answers)
-
-    st.sidebar.markdown("### 💶 Gehaltsvorcast")
-    st.sidebar.caption("Kompakte Prognose auf Basis der bisher erfassten Stelleninfos.")
-    st.sidebar.metric(
-        "Prognose (Jahr, Mitte)",
-        f"{int(forecast['forecast_central']):,} {forecast['currency']}".replace(
-            ",", "."
-        ),
-    )
-    st.sidebar.write(
-        f"**Bandbreite:** {int(forecast['forecast_min']):,} – {int(forecast['forecast_max']):,} {forecast['currency']}".replace(
-            ",", "."
-        )
-    )
-    st.sidebar.progress(
-        int(forecast["confidence"]),
-        text=f"Prognose-Sicherheit: {forecast['confidence']}%",
-    )
-    st.sidebar.caption(
-        "Treiber: "
-        f"{forecast['must_have_count']} Must-haves · "
-        f"{forecast['interview_steps']} Interview-Schritte · "
-        f"{forecast['answers_count']} beantwortete Wizard-Felder · "
-        f"Standort: {forecast['location']}"
-    )
-    with st.sidebar.expander("Annahmen", expanded=False):
-        st.write(
-            "- Prognose ist indikativ und ersetzt kein externes Markt-Benchmarking.\n"
-            "- Höhere Anforderungsdichte und Seniorität erhöhen die Gehaltsmitte.\n"
-            "- Mehr vollständige Angaben erhöhen die Prognose-Sicherheit."
-        )
+    _shared_render_sidebar_salary_forecast(job=job, answers=answers)
 
 
 def _render_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) -> None:
@@ -1441,7 +1350,6 @@ def render(ctx: WizardContext) -> None:
 
     job = JobAdExtract.model_validate(job_dict)
     answers = get_answers()
-    _render_sidebar_salary_forecast(job=job, answers=answers)
     brief_dict = st.session_state.get(SSKey.BRIEF.value)
     brief_for_snapshot = (
         VacancyBrief.model_validate(brief_dict)
@@ -1975,9 +1883,7 @@ def render(ctx: WizardContext) -> None:
                     )
                 )
                 contract_usage = (
-                    st.session_state.get(
-                        SSKey.EMPLOYMENT_CONTRACT_LAST_USAGE.value, {}
-                    )
+                    st.session_state.get(SSKey.EMPLOYMENT_CONTRACT_LAST_USAGE.value, {})
                     or {}
                 )
                 contract_mode = (
