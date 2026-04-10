@@ -79,3 +79,45 @@ class SalaryForecastResult(StrictSchemaModel):
     base_salary: float
     salary_multiplier: float
     spread_factor: float
+
+
+class SalaryForecastBand(StrictSchemaModel):
+    """Percentile band for salary forecast outputs."""
+
+    p10: float = Field(description="10th percentile salary estimate.")
+    p50: float = Field(description="50th percentile (median) salary estimate.")
+    p90: float = Field(description="90th percentile salary estimate.")
+
+
+class SalaryForecastDriver(StrictSchemaModel):
+    """Structured explanation entry for one forecast driver."""
+
+    key: str = Field(description="Stable machine-readable driver key.")
+    label: str = Field(description="Human-readable driver label.")
+    direction: str = Field(
+        description="Direction of impact, e.g. 'up', 'down', or 'neutral'."
+    )
+    impact: float = Field(description="Relative driver impact score.")
+    detail: str = Field(description="Short explanation of the driver effect.")
+
+
+class SalaryForecastProvenance(StrictSchemaModel):
+    """Provenance metadata for salary forecast generation."""
+
+    engine: str = Field(description="Forecast engine identifier.")
+    benchmark_version: str = Field(description="Benchmark dataset version identifier.")
+    occupation_mapping: str = Field(
+        description="Occupation mapping key or strategy identifier."
+    )
+    region_mapping: str = Field(description="Region mapping key or strategy identifier.")
+
+
+class SalaryForecastQuality(StrictSchemaModel):
+    """Quality/uncertainty marker for salary forecast outputs."""
+
+    kind: str = Field(description="Quality indicator kind.")
+    value: float = Field(description="Numeric quality score/value.")
+    signals: list[str] = Field(
+        default_factory=list,
+        description="Structured signals used to derive the quality indicator.",
+    )
