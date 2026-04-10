@@ -34,7 +34,11 @@ def get_active_model() -> str:
 
 
 def init_session_state() -> None:
-    defaults = {
+    configured_language = st.session_state.get(SSKey.LANGUAGE.value, DEFAULT_LANGUAGE)
+    if not isinstance(configured_language, str) or not configured_language.strip():
+        configured_language = DEFAULT_LANGUAGE
+
+    defaults: Dict[str, Any] = {
         SSKey.CURRENT_STEP.value: STEPS[0].key,
         SSKey.LAST_RENDERED_STEP.value: None,
         SSKey.NAV_SELECTED.value: STEPS[0].key,
@@ -91,6 +95,17 @@ def init_session_state() -> None:
         SSKey.EMPLOYMENT_CONTRACT_CACHE_HIT.value: False,
         SSKey.EMPLOYMENT_CONTRACT_LAST_MODE.value: None,
         SSKey.EMPLOYMENT_CONTRACT_LAST_MODELS.value: {},
+        SSKey.ESCO_CONFIG.value: {
+            "base_url": "https://ec.europa.eu/esco/api/",
+            "selected_version": "latest",
+            "language": configured_language,
+            "view_obsolete": False,
+        },
+        SSKey.ESCO_OCCUPATION_SELECTED.value: None,
+        SSKey.ESCO_OCCUPATION_CANDIDATES.value: [],
+        SSKey.ESCO_SKILLS_SELECTED_MUST.value: [],
+        SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
+        SSKey.ESCO_SKILLS_MAPPING_REPORT.value: None,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -141,6 +156,11 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.EMPLOYMENT_CONTRACT_CACHE_HIT.value] = False
     st.session_state[SSKey.EMPLOYMENT_CONTRACT_LAST_MODE.value] = None
     st.session_state[SSKey.EMPLOYMENT_CONTRACT_LAST_MODELS.value] = {}
+    st.session_state[SSKey.ESCO_OCCUPATION_SELECTED.value] = None
+    st.session_state[SSKey.ESCO_OCCUPATION_CANDIDATES.value] = []
+    st.session_state[SSKey.ESCO_SKILLS_SELECTED_MUST.value] = []
+    st.session_state[SSKey.ESCO_SKILLS_SELECTED_NICE.value] = []
+    st.session_state[SSKey.ESCO_SKILLS_MAPPING_REPORT.value] = None
     st.session_state[SSKey.LAST_ERROR.value] = None
     st.session_state[SSKey.CURRENT_STEP.value] = STEPS[0].key
     st.session_state[SSKey.LAST_RENDERED_STEP.value] = STEPS[0].key
