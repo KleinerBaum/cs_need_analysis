@@ -8,6 +8,7 @@ from typing import Callable, List, Literal, Mapping, Sequence, TypedDict
 import streamlit as st
 
 from constants import SSKey, STEPS
+from esco_client import EscoClient, EscoClientError, clear_esco_cache
 from question_dependencies import should_show_question
 from question_progress import compute_question_progress
 from salary.engine import compute_salary_forecast
@@ -243,6 +244,149 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
     return statuses
 
 
+def _get_esco_config() -> dict[str, object]:
+    raw = st.session_state.get(SSKey.ESCO_CONFIG.value, {})
+    config = raw if isinstance(raw, dict) else {}
+    raw_view_obsolete = config.get("view_obsolete", False)
+    if isinstance(raw_view_obsolete, str):
+        normalized = raw_view_obsolete.strip().lower()
+        view_obsolete = normalized in {"true", "1", "yes", "on"}
+    else:
+        view_obsolete = bool(raw_view_obsolete)
+    return {
+        "base_url": str(config.get("base_url") or "https://ec.europa.eu/esco/api/"),
+        "selected_version": str(config.get("selected_version") or "latest"),
+        "language": str(config.get("language") or "de"),
+        "view_obsolete": view_obsolete,
+    }
+
+
+def _set_esco_config(*, selected_version: str, view_obsolete: bool) -> bool:
+    current_config = _get_esco_config()
+    normalized_version = selected_version.strip() or "latest"
+    changed = (
+        current_config["selected_version"] != normalized_version
+        or bool(current_config["view_obsolete"]) != view_obsolete
+    )
+    if not changed:
+        return False
+
+    st.session_state[SSKey.ESCO_CONFIG.value] = {
+        **current_config,
+        "selected_version": normalized_version,
+        "view_obsolete": view_obsolete,
+    }
+    clear_esco_cache()
+    return True
+
+
+def _is_legacy_esco_uri(uri: object) -> bool:
+    if not isinstance(uri, str):
+        return False
+    normalized = uri.strip().lower()
+    if not normalized:
+        return False
+    return "data.europa.eu/esco/" not in normalized
+
+
+def _find_legacy_uri_payload() -> dict[str, str] | None:
+    selected = st.session_state.get(SSKey.ESCO_OCCUPATION_SELECTED.value)
+    if isinstance(selected, dict):
+        uri = selected.get("uri")
+        if _is_legacy_esco_uri(uri):
+            return {"target": SSKey.ESCO_OCCUPATION_SELECTED.value, "uri": str(uri)}
+    return None
+
+
+def _extract_canonical_uri(payload: object) -> str | None:
+    if isinstance(payload, dict):
+        uri_value = payload.get("uri")
+        if isinstance(uri_value, str) and not _is_legacy_esco_uri(uri_value):
+            return uri_value
+        for nested in payload.values():
+            migrated = _extract_canonical_uri(nested)
+            if migrated:
+                return migrated
+    elif isinstance(payload, list):
+        for item in payload:
+            migrated = _extract_canonical_uri(item)
+            if migrated:
+                return migrated
+    return None
+
+
+def _render_esco_sidebar_status_block(ui_mode: str) -> None:
+    config = _get_esco_config()
+    selected_version = str(config["selected_version"])
+    language = str(config["language"])
+    view_obsolete = bool(config["view_obsolete"])
+
+    st.sidebar.markdown("### ESCO-Status")
+    st.sidebar.caption(f"Aktive Dataset-Version: `{selected_version}`")
+    st.sidebar.caption(f"Sprache: `{language}`")
+
+    version_input = st.sidebar.text_input(
+        "Dataset-Version",
+        value=selected_version,
+        key=f"{SSKey.ESCO_CONFIG.value}.selected_version_input",
+        help="z. B. latest oder eine konkrete ESCO-Version.",
+    )
+
+    if ui_mode == "expert":
+        view_obsolete = st.sidebar.toggle(
+            "Obsolete anzeigen (Expert only)",
+            value=view_obsolete,
+            key=f"{SSKey.ESCO_CONFIG.value}.view_obsolete_toggle",
+        )
+    else:
+        st.sidebar.caption("Obsolete-Toggle nur im Expert-Modus verfügbar.")
+
+    config_changed = _set_esco_config(
+        selected_version=version_input,
+        view_obsolete=view_obsolete,
+    )
+    if config_changed:
+        st.sidebar.success("ESCO-Konfiguration aktualisiert. Cache wurde invalidiert.")
+
+
+def _render_esco_warnings_and_migration_cta() -> None:
+    config = _get_esco_config()
+    if bool(config["view_obsolete"]):
+        st.warning(
+            "ESCO Obsolete-Modus ist aktiv. Ergebnisse können veraltete Konzepte enthalten."
+        )
+
+    legacy_payload = _find_legacy_uri_payload()
+    if legacy_payload is None:
+        return
+    legacy_uri = legacy_payload["uri"]
+    st.warning(
+        "Legacy-URI erkannt. Bitte migrieren, damit aktuelle ESCO-Daten "
+        "konsistent geladen werden."
+    )
+    with st.expander("Legacy-URI Details", expanded=False):
+        st.code(legacy_uri)
+
+    if st.button("Legacy-URI migrieren", key="esco.legacy_uri.migrate"):
+        try:
+            conversion_payload = EscoClient().conversion("occupation", uri=legacy_uri)
+        except EscoClientError as exc:
+            st.warning(f"Migration aktuell nicht möglich: {exc}")
+            return
+        canonical_uri = _extract_canonical_uri(conversion_payload)
+        if canonical_uri is None:
+            st.info("Keine kanonische URI im Conversion-Resultat gefunden.")
+            return
+        selected = st.session_state.get(SSKey.ESCO_OCCUPATION_SELECTED.value)
+        if not isinstance(selected, dict):
+            st.info("Keine aktualisierbare ESCO-Auswahl gefunden.")
+            return
+        migrated = dict(selected)
+        migrated["uri"] = canonical_uri
+        st.session_state[SSKey.ESCO_OCCUPATION_SELECTED.value] = migrated
+        st.success("Legacy-URI wurde auf eine kanonische ESCO-URI migriert.")
+
+
 def sidebar_navigation(ctx: WizardContext) -> WizardPage:
     _ensure_salary_forecast_state_defaults()
     pages = ctx.pages
@@ -285,6 +429,7 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
         format_func=lambda mode: mode.capitalize(),
         help="Quick: kompakt. Standard: kompakt mit Ein-Klick-Ausklappen. Expert: alle Detailgruppen geöffnet.",
     )
+    _render_esco_sidebar_status_block(ui_mode=str(_selected_mode))
     format_map: dict[str, str] = {}
     for page in pages:
         step_status = status_by_key.get(page.key)
@@ -326,6 +471,7 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
     )
     if forecast is not None:
         render_sidebar_salary_forecast(forecast=forecast)
+    _render_esco_warnings_and_migration_cta()
     return current_page
 
 

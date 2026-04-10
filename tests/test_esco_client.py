@@ -79,3 +79,24 @@ def test_default_config_is_used_when_session_state_is_missing(monkeypatch) -> No
         "language": "de",
         "view_obsolete": False,
     }
+
+
+@pytest.mark.parametrize(
+    ("raw_value", "expected"),
+    [
+        ("false", False),
+        ("0", False),
+        ("true", True),
+        ("1", True),
+    ],
+)
+def test_view_obsolete_string_values_are_coerced(
+    raw_value: str, expected: bool
+) -> None:
+    client = esco_client.EscoClient(
+        session_state={SSKey.ESCO_CONFIG.value: {"view_obsolete": raw_value}}
+    )
+
+    config = client._esco_config()
+
+    assert config["view_obsolete"] is expected
