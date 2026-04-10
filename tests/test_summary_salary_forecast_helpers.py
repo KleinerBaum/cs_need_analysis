@@ -3,8 +3,15 @@ from pathlib import Path
 from zipfile import ZipFile
 import base64
 import io
+from typing import Any
 
 from salary.engine import compute_salary_forecast
+from salary.scenarios import (
+    SALARY_SCENARIO_BASE,
+    SALARY_SCENARIO_COST_FOCUS,
+    SALARY_SCENARIO_MARKET_UPSIDE,
+    map_salary_scenario_to_overrides,
+)
 from salary.types import SalaryScenarioOverrides
 from schemas import JobAdExtract, MoneyRange, RecruitmentStep
 
@@ -40,6 +47,20 @@ def test_salary_forecast_engine_applies_scenario_overrides() -> None:
     assert boosted.quality.value >= baseline.quality.value
 
 
+def test_map_salary_scenario_to_overrides_uses_expected_presets() -> None:
+    base = map_salary_scenario_to_overrides(SALARY_SCENARIO_BASE)
+    market = map_salary_scenario_to_overrides(SALARY_SCENARIO_MARKET_UPSIDE)
+    cost = map_salary_scenario_to_overrides(SALARY_SCENARIO_COST_FOCUS)
+    fallback = map_salary_scenario_to_overrides("unknown")
+
+    assert base == SalaryScenarioOverrides()
+    assert market.requirements_multiplier_delta > 0
+    assert market.location_multiplier_factor > 1.0
+    assert cost.requirements_multiplier_delta < 0
+    assert cost.location_multiplier_factor < 1.0
+    assert fallback == SalaryScenarioOverrides()
+
+
 def test_build_salary_forecast_snapshot_uses_job_inputs() -> None:
     job = JobAdExtract(
         job_title="Principal Engineer",
@@ -67,6 +88,60 @@ def test_build_salary_forecast_snapshot_uses_job_inputs() -> None:
     assert snapshot["must_have_count"] == 5
     assert snapshot["answers_count"] == 3
     assert 0.35 <= float(snapshot["quality"]["value"]) <= 1.0
+
+
+def test_build_salary_forecast_snapshot_uses_compute_salary_forecast_only() -> None:
+    job = JobAdExtract(job_title="Data Engineer")
+    answers: dict[str, Any] = {"team_size": 4}
+    calls: list[dict[str, Any]] = []
+    baseline = compute_salary_forecast(job_extract=job, answers=answers)
+
+    def _fake_compute_salary_forecast(
+        *,
+        job_extract: JobAdExtract,
+        answers: dict[str, Any],
+        scenario_overrides: SalaryScenarioOverrides | None = None,
+    ) -> Any:
+        calls.append(
+            {
+                "job_title": job_extract.job_title,
+                "answers": answers,
+                "scenario_overrides": scenario_overrides,
+            }
+        )
+        return baseline
+
+    original_compute_salary_forecast = SUMMARY_MODULE.compute_salary_forecast
+    SUMMARY_MODULE.compute_salary_forecast = _fake_compute_salary_forecast
+    overrides = map_salary_scenario_to_overrides(SALARY_SCENARIO_MARKET_UPSIDE)
+    try:
+        snapshot = SUMMARY_MODULE._build_salary_forecast_snapshot(
+            job=job,
+            answers=answers,
+            scenario_name=SALARY_SCENARIO_MARKET_UPSIDE,
+            scenario_overrides=overrides,
+        )
+    finally:
+        SUMMARY_MODULE.compute_salary_forecast = original_compute_salary_forecast
+
+    assert len(calls) == 1
+    assert calls[0]["scenario_overrides"] == overrides
+    assert snapshot["forecast_result"]["forecast"]["p50"] == baseline.forecast.p50
+
+
+def test_summary_source_hides_engine_internal_delta_widgets() -> None:
+    source = SUMMARY_PATH.read_text(encoding="utf-8")
+
+    assert "Requirements Δ" not in source
+    assert "Seniority Δ" not in source
+    assert "Remote Δ" not in source
+    assert "Interview Δ" not in source
+    assert "Location-Faktor" not in source
+    assert "Titel-Faktor" not in source
+    assert "Spread Δ" not in source
+    assert "Confidence Δ" not in source
+    assert "_render_sidebar_salary_forecast" not in source
+    assert "map_salary_scenario_to_overrides(" in source
 
 
 def test_normalize_logo_payload_rejects_unsupported_type() -> None:
