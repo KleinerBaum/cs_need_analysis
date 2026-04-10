@@ -108,6 +108,15 @@ class EscoLinks(StrictSchemaModel):
     )
 
 
+class EscoBreadcrumbNode(StrictSchemaModel):
+    uri: str = Field(description="Canonical ESCO concept URI.")
+    title: str = Field(description="Preferred label for breadcrumb display.")
+    type: Optional[str] = Field(
+        default=None,
+        description="Optional ESCO concept type.",
+    )
+
+
 class JobAdExtract(StrictSchemaModel):
     """Normalized extraction from a jobspec/job ad."""
 
