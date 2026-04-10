@@ -4,6 +4,8 @@ from zipfile import ZipFile
 import base64
 import io
 
+from salary.engine import compute_salary_forecast
+from salary.types import SalaryScenarioOverrides
 from schemas import JobAdExtract, MoneyRange, RecruitmentStep
 
 
@@ -15,32 +17,27 @@ SUMMARY_MODULE = module_from_spec(SPEC)
 SPEC.loader.exec_module(SUMMARY_MODULE)  # type: ignore[attr-defined]
 
 
-def test_estimate_salary_baseline_uses_range_average() -> None:
+def test_salary_forecast_engine_applies_scenario_overrides() -> None:
     job = JobAdExtract(
         job_title="Data Scientist",
+        seniority_level="Senior",
         salary_range=MoneyRange(min=70000, max=90000, currency="EUR", period="yearly"),
     )
+    answers = {"team_size": 8}
 
-    assert SUMMARY_MODULE._estimate_salary_baseline(job) == 80000
-
-
-def test_estimate_salary_baseline_uses_seniority_fallback() -> None:
-    job = JobAdExtract(job_title="Engineer", seniority_level="Senior")
-
-    assert SUMMARY_MODULE._estimate_salary_baseline(job) == 90000
-
-
-def test_estimate_candidate_baseline_has_floor() -> None:
-    job = JobAdExtract(
-        must_have_skills=["Python", "SQL", "ML", "Spark", "Kubernetes", "Terraform"],
-        certifications=["AWS", "GCP", "Azure"],
-        languages=["Deutsch", "Englisch", "Französisch"],
+    baseline = compute_salary_forecast(job_extract=job, answers=answers)
+    boosted = compute_salary_forecast(
+        job_extract=job,
+        answers=answers,
+        scenario_overrides=SalaryScenarioOverrides(
+            seniority_multiplier_delta=0.1,
+            title_multiplier_factor=1.1,
+            confidence_delta=10,
+        ),
     )
 
-    baseline = SUMMARY_MODULE._estimate_candidate_baseline(job)
-
-    assert baseline >= 8.0
-    assert baseline == 55.0
+    assert boosted.forecast.p50 > baseline.forecast.p50
+    assert boosted.quality.value >= baseline.quality.value
 
 
 def test_build_salary_forecast_snapshot_uses_job_inputs() -> None:
