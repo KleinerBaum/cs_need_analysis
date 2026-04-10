@@ -6,6 +6,7 @@ from typing import Any
 import streamlit as st
 
 from constants import SSKey
+from esco_client import EscoClient, EscoClientError
 from schemas import EscoMappingReport
 from schemas import JobAdExtract, QuestionPlan
 from state import get_esco_occupation_selected
@@ -56,6 +57,84 @@ def _dedupe_selected_skills_across_buckets(
         deduped_nice.append(item)
         seen_uris.add(uri)
     return deduped_must, deduped_nice
+
+
+def _extract_skill_candidates(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    def _walk(value: Any) -> None:
+        if isinstance(value, dict):
+            uri = str(value.get("uri") or "").strip()
+            concept_type = str(value.get("type") or "").strip().lower()
+            title = str(
+                value.get("title")
+                or value.get("preferredLabel")
+                or value.get("label")
+                or value.get("name")
+                or ""
+            ).strip()
+            is_skill_like = concept_type == "skill" or "/skill/" in uri.casefold()
+            if uri and is_skill_like and uri not in seen:
+                candidates.append(
+                    {
+                        "uri": uri,
+                        "title": title or uri,
+                        "type": concept_type or "skill",
+                    }
+                )
+                seen.add(uri)
+            for nested in value.values():
+                _walk(nested)
+        elif isinstance(value, list):
+            for nested in value:
+                _walk(nested)
+
+    _walk(payload)
+    return candidates
+
+
+def _merge_suggested_skills_by_uri(
+    *,
+    suggested_skills: list[dict[str, Any]],
+    must_selected: list[dict[str, Any]],
+    nice_selected: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], int]:
+    existing_uris = {
+        str(item.get("uri") or "").strip()
+        for item in (must_selected + nice_selected)
+        if str(item.get("uri") or "").strip()
+    }
+    merged: list[dict[str, Any]] = list(must_selected)
+    added_count = 0
+    for item in suggested_skills:
+        uri = str(item.get("uri") or "").strip()
+        if not uri or uri in existing_uris:
+            continue
+        merged.append(item)
+        existing_uris.add(uri)
+        added_count += 1
+    return merged, added_count
+
+
+def _load_related_skills_from_selected_occupation(
+    occupation_uri: str,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str | None]:
+    client = EscoClient()
+    try:
+        client.resource_occupation(uri=occupation_uri)
+        must_payload = client.resource_related(
+            uri=occupation_uri, relation="hasEssentialSkill"
+        )
+        nice_payload = client.resource_related(
+            uri=occupation_uri, relation="hasOptionalSkill"
+        )
+    except EscoClientError as exc:
+        return [], [], str(exc)
+
+    must_suggestions = _extract_skill_candidates(must_payload)
+    nice_suggestions = _extract_skill_candidates(nice_payload)
+    return must_suggestions, nice_suggestions, None
 
 
 def render(ctx: WizardContext) -> None:
@@ -135,6 +214,65 @@ def render(ctx: WizardContext) -> None:
             target_state_key=SSKey.ESCO_SKILLS_SELECTED_NICE,
             allow_multi=True,
             enable_preview=True,
+        )
+
+    st.markdown("### ESCO-Vorschläge aus Occupation")
+    if selected_occupation and str(selected_occupation.get("uri") or "").strip():
+        occupation_uri = str(selected_occupation.get("uri") or "").strip()
+        occupation_title = str(selected_occupation.get("title") or "—").strip()
+        st.caption(
+            "Lädt ESCO Occupation-Details und relationale Skills "
+            "(hasEssentialSkill/hasOptionalSkill)."
+        )
+        if st.button("Occupation-Skill-Vorschläge laden"):
+            with st.spinner("Lade relationale Skills aus ESCO …"):
+                suggested_must, suggested_nice, load_error = (
+                    _load_related_skills_from_selected_occupation(occupation_uri)
+                )
+
+            if load_error:
+                st.warning(
+                    f"ESCO-Vorschläge konnten nicht geladen werden ({load_error})."
+                )
+            else:
+                st.success(
+                    f"ESCO-Vorschläge für {occupation_title}: "
+                    f"{len(suggested_must)} essential, {len(suggested_nice)} optional."
+                )
+
+                selected_must_raw = st.session_state.get(
+                    SSKey.ESCO_SKILLS_SELECTED_MUST.value, []
+                )
+                selected_nice_raw = st.session_state.get(
+                    SSKey.ESCO_SKILLS_SELECTED_NICE.value, []
+                )
+                selected_must = (
+                    selected_must_raw if isinstance(selected_must_raw, list) else []
+                )
+                selected_nice = (
+                    selected_nice_raw if isinstance(selected_nice_raw, list) else []
+                )
+
+                merged_must, added_must = _merge_suggested_skills_by_uri(
+                    suggested_skills=suggested_must,
+                    must_selected=selected_must,
+                    nice_selected=selected_nice,
+                )
+                merged_nice, added_nice = _merge_suggested_skills_by_uri(
+                    suggested_skills=suggested_nice,
+                    must_selected=merged_must,
+                    nice_selected=selected_nice,
+                )
+                st.session_state[SSKey.ESCO_SKILLS_SELECTED_MUST.value] = merged_must
+                st.session_state[SSKey.ESCO_SKILLS_SELECTED_NICE.value] = merged_nice
+                st.info(
+                    f"Übernommen: {added_must} Must, {added_nice} Nice "
+                    "(dedupliziert anhand ESCO-URI)."
+                )
+    else:
+        st.caption(
+            "Keine ESCO Occupation ausgewählt. Bitte zuerst im Jobspec-Review eine "
+            "Occupation übernehmen."
         )
 
     selected_must_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
