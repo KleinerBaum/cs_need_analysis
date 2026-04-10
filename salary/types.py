@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any, Mapping
+
 from pydantic import Field
 
 from schemas import StrictSchemaModel
@@ -124,3 +126,9 @@ class SalaryForecastQuality(StrictSchemaModel):
         default_factory=list,
         description="Structured signals used to derive the quality indicator.",
     )
+
+
+def parse_salary_forecast_result(payload: Mapping[str, Any]) -> SalaryForecastResult:
+    """Validate a salary-forecast payload against the strict schema contract."""
+
+    return SalaryForecastResult.model_validate(payload, strict=True)
