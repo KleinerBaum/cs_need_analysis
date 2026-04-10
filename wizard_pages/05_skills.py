@@ -5,6 +5,7 @@ import streamlit as st
 
 from constants import SSKey
 from schemas import JobAdExtract, QuestionPlan
+from state import get_esco_occupation_selected
 from ui_components import (
     has_meaningful_value,
     render_error_banner,
@@ -21,9 +22,7 @@ def render(ctx: WizardContext) -> None:
     plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
 
     if not job_dict or not plan_dict:
-        st.warning(
-            "Bitte zuerst im Start-Schritt eine Analyse durchführen."
-        )
+        st.warning("Bitte zuerst im Start-Schritt eine Analyse durchführen.")
         st.button("Zur Startseite", on_click=lambda: ctx.goto("landing"))
         nav_buttons(ctx, disable_next=True)
         return
@@ -35,6 +34,13 @@ def render(ctx: WizardContext) -> None:
         "Ziel: Must-have vs Nice-to-have klar trennen, Level definieren, "
         "und daraus eine Interview- & Assessment-Logik ableiten."
     )
+    selected_occupation = get_esco_occupation_selected()
+    if selected_occupation:
+        st.caption(
+            f"ESCO Occupation aus Jobspec-Review: {selected_occupation.get('title', '—')}"
+        )
+    else:
+        st.caption("ESCO Occupation: Keine passende Occupation ausgewählt.")
 
     with st.expander("Aus Jobspec extrahiert (Skills)", expanded=True):
         must_have_skills = [x for x in job.must_have_skills if has_meaningful_value(x)]
