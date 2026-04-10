@@ -65,6 +65,49 @@ class LanguageRequirement(StrictSchemaModel):
     level: CEFRLevel = Field(description="Required CEFR level from A1 to C2.")
 
 
+class EscoConceptRef(StrictSchemaModel):
+    uri: str = Field(description="Canonical ESCO concept URI.")
+    title: str = Field(description="Preferred ESCO label.")
+    type: str = Field(description="ESCO concept type, e.g., 'occupation' or 'skill'.")
+    code: Optional[str] = Field(
+        default=None,
+        description="Optional ESCO concept code.",
+    )
+
+
+class EscoSuggestionItem(StrictSchemaModel):
+    uri: str = Field(description="Canonical ESCO concept URI.")
+    title: str = Field(description="Preferred ESCO label.")
+    type: str = Field(description="ESCO concept type, e.g., 'occupation' or 'skill'.")
+    score: Optional[float] = Field(
+        default=None,
+        description="Optional suggestion confidence score.",
+    )
+
+
+class EscoMappingReport(StrictSchemaModel):
+    mapped_count: int = Field(ge=0, description="Count of terms successfully mapped.")
+    unmapped_terms: List[str] = Field(
+        default_factory=list,
+        description="Input terms that could not be mapped to ESCO concepts.",
+    )
+    collisions: List[str] = Field(
+        default_factory=list,
+        description="Terms that matched multiple candidate concepts.",
+    )
+    notes: List[str] = Field(
+        default_factory=list,
+        description="Additional normalization or mapping notes.",
+    )
+
+
+class EscoLinks(StrictSchemaModel):
+    links: Dict[str, EscoConceptRef] = Field(
+        default_factory=dict,
+        description="Normalized ESCO _links payload by relation key.",
+    )
+
+
 class JobAdExtract(StrictSchemaModel):
     """Normalized extraction from a jobspec/job ad."""
 

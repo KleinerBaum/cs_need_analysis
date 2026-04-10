@@ -13,6 +13,7 @@ import streamlit as st
 
 from constants import DEFAULT_LANGUAGE, SSKey, STEPS
 from question_progress import AnswerMeta, AnswerMetaMap, value_hash
+from schemas import EscoConceptRef, EscoMappingReport, EscoSuggestionItem
 from settings_openai import load_openai_settings
 
 
@@ -248,3 +249,42 @@ def handle_unexpected_exception(
 def clear_error() -> None:
     st.session_state[SSKey.LAST_ERROR.value] = None
     st.session_state[SSKey.LAST_ERROR_DEBUG.value] = None
+
+
+def get_esco_occupation_selected() -> Dict[str, Any] | None:
+    """Return a validated ESCO occupation payload or None for legacy sessions."""
+
+    raw = st.session_state.get(SSKey.ESCO_OCCUPATION_SELECTED.value)
+    if raw is None:
+        return None
+    try:
+        return EscoConceptRef.model_validate(raw).model_dump()
+    except Exception:
+        return None
+
+
+def get_esco_occupation_candidates() -> list[Dict[str, Any]]:
+    """Return validated ESCO candidate suggestions; tolerate legacy payloads."""
+
+    raw = st.session_state.get(SSKey.ESCO_OCCUPATION_CANDIDATES.value, [])
+    if not isinstance(raw, list):
+        return []
+    items: list[Dict[str, Any]] = []
+    for item in raw:
+        try:
+            items.append(EscoSuggestionItem.model_validate(item).model_dump())
+        except Exception:
+            continue
+    return items
+
+
+def get_esco_skills_mapping_report() -> Dict[str, Any] | None:
+    """Return validated ESCO mapping report or None for missing/legacy sessions."""
+
+    raw = st.session_state.get(SSKey.ESCO_SKILLS_MAPPING_REPORT.value)
+    if raw is None:
+        return None
+    try:
+        return EscoMappingReport.model_validate(raw).model_dump()
+    except Exception:
+        return None
