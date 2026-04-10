@@ -113,24 +113,16 @@ def render_jobad_intake(*, title: str = "Jobspec / Job Ad einlesen") -> None:
 
     with tab1:
         with st.container(border=True):
-            upload_col, analyze_col = st.columns([2, 1], vertical_alignment="bottom")
-            with upload_col:
-                st.file_uploader(
-                    "Jobspec hochladen (PDF oder DOCX)",
-                    type=["pdf", "docx", "txt"],
-                    accept_multiple_files=False,
-                    key="cs.source_upload_file",
-                    on_change=_on_upload_change,
-                )
-            with analyze_col:
-                st.caption("Aktive Quelle: **Upload**")
-                do_extract = st.button(
-                    "Investigiere!",
-                    width="stretch",
-                    help="Analysieren und direkt zur Jobspec-Übersicht wechseln",
-                )
+            st.file_uploader(
+                "Jobspec hochladen (PDF oder DOCX)",
+                type=["pdf", "docx", "txt"],
+                accept_multiple_files=False,
+                key="cs.source_upload_file",
+                on_change=_on_upload_change,
+            )
             uploaded_text = str(st.session_state.get(SOURCE_UPLOAD_TEXT_KEY, ""))
             upload_meta = st.session_state.get(SSKey.SOURCE_FILE_META.value, {})
+            st.caption("Aktive Quelle: **Upload**")
             if uploaded_text:
                 col_meta_left, col_meta_right = st.columns([2, 1])
                 with col_meta_left:
@@ -146,6 +138,13 @@ def render_jobad_intake(*, title: str = "Jobspec / Job Ad einlesen") -> None:
                     height=_preview_height_for_text(preview_text),
                     key="cs.source_upload_preview",
                     disabled=True,
+                )
+            button_spacer_col, button_col = st.columns([3, 2])
+            with button_col:
+                do_extract = st.button(
+                    "Jetzt analysieren",
+                    width="stretch",
+                    help="Analysieren und direkt zur Jobspec-Übersicht wechseln",
                 )
 
     with tab2:
