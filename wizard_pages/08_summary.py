@@ -53,6 +53,7 @@ from schemas import (
 from settings_openai import load_openai_settings
 from state import (
     clear_error,
+    get_esco_occupation_selected,
     get_answers,
     get_model_override,
     handle_unexpected_exception,
@@ -456,9 +457,9 @@ def _render_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) -> None:
             st.write(
                 {
                     "szenario": selected_scenario,
-                    "eingaben": st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value][
-                        "inputs"
-                    ],
+                    "eingaben": st.session_state[
+                        SSKey.SALARY_FORECAST_LAST_RESULT.value
+                    ]["inputs"],
                     "prognose": forecast.forecast.model_dump(),
                     "qualität": forecast.quality.model_dump(),
                 }
@@ -569,6 +570,7 @@ def _build_selection_rows(
     job: JobAdExtract, answers: dict[str, Any]
 ) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
+    selected_occupation = get_esco_occupation_selected()
 
     def _format_language_requirement(raw_value: Any) -> str:
         if not isinstance(raw_value, dict):
@@ -596,6 +598,13 @@ def _build_selection_rows(
         )
 
     add_row("Basis", "Titel", job.job_title or "", "Jobspec", True)
+    add_row(
+        "Basis",
+        "ESCO Occupation",
+        (selected_occupation or {}).get("title", ""),
+        "ESCO",
+        False,
+    )
     add_row("Basis", "Unternehmen", job.company_name or "", "Jobspec", True)
     add_row("Basis", "Brand", job.brand_name or "", "Jobspec", False)
     add_row("Basis", "Anstellungsart", job.employment_type or "", "Jobspec", True)
@@ -1314,6 +1323,13 @@ def render(ctx: WizardContext) -> None:
     )
 
     _render_summary_hero(job=job, answers=answers)
+    selected_occupation = get_esco_occupation_selected()
+    if selected_occupation:
+        st.caption(
+            f"ESCO Occupation aus Jobspec-Review: {selected_occupation.get('title', '—')}"
+        )
+    else:
+        st.caption("ESCO Occupation: Keine passende Occupation ausgewählt.")
     _render_summary_snapshot(job=job, answers=answers, brief=brief_for_snapshot)
 
     settings = load_openai_settings()
