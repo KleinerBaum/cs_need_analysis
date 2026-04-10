@@ -30,6 +30,8 @@ from llm_client import (
     generate_vacancy_brief,
     resolve_model_for_task,
 )
+from salary.engine import compute_salary_forecast
+from salary.types import SalaryScenarioOverrides
 from schemas import (
     BooleanSearchPack,
     EmploymentContractDraft,
@@ -60,7 +62,6 @@ from ui_components import (
 from usage_utils import usage_has_cache_hit
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
 from wizard_pages.salary_forecast import (
-    _estimate_salary_baseline as _shared_estimate_salary_baseline,
     build_salary_forecast_snapshot as _shared_build_salary_forecast_snapshot,
     render_sidebar_salary_forecast as _shared_render_sidebar_salary_forecast,
 )
@@ -222,24 +223,6 @@ def _safe_int(value: Any) -> int:
         return 0
 
 
-def _estimate_salary_baseline(job: JobAdExtract) -> float:
-    return _shared_estimate_salary_baseline(job)
-
-
-def _estimate_candidate_baseline(job: JobAdExtract) -> float:
-    strictness_penalty = (
-        len(job.must_have_skills) * 3
-        + len(job.certifications) * 2
-        + len(job.languages) * 2
-    )
-    baseline = 85 - strictness_penalty
-    if job.remote_policy and "remote" in job.remote_policy.lower():
-        baseline += 20
-    if job.location_country:
-        baseline += 5
-    return max(8.0, float(baseline))
-
-
 def _append_template_blocks(
     *,
     text_key: SSKey,
@@ -318,200 +301,143 @@ def _render_sidebar_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) 
 
 
 def _render_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) -> None:
-    import plotly.graph_objects as go
-
     st.subheader("Gehaltsprognose")
     st.caption(
-        "Interaktive Szenario-Simulation: Wähle Anforderungen, gewichte deren Bedeutung und analysiere den Effekt auf Gehalt und Kandidatenpool."
+        "Szenario-Simulation auf Basis der Salary-Engine. UI-Controls setzen nur Overrides; die Berechnung erfolgt vollständig in der Domain-Engine."
     )
 
-    scope_options = {
-        "Lokal": {"salary": 1.00, "candidates": 1.0},
-        "Deutschland": {"salary": 1.07, "candidates": 2.5},
-        "Global": {"salary": 1.18, "candidates": 6.0},
-    }
-    left_col_1, left_col_2, left_col_3, criteria_col = st.columns(4)
+    controls_col, result_col = st.columns((1, 2))
 
-    with criteria_col:
-        st.markdown("**Szenario-Kriterien**")
-        scope = st.selectbox(
-            "Suchraum",
-            options=list(scope_options.keys()),
-            index=1,
-            help="Erweitert den Talentpool, kann aber die Gehaltserwartung erhöhen.",
+    with controls_col:
+        st.markdown("**Szenario-Overrides**")
+        requirements_delta = st.slider(
+            "Requirements Δ",
+            min_value=-0.30,
+            max_value=0.30,
+            value=0.0,
+            step=0.01,
         )
-        remote_share = st.slider("Remote-Anteil (%)", 0, 100, 60, 5)
-        requirement_strictness = st.slider("Anforderungs-Strenge (%)", 0, 100, 55, 5)
-        employer_attractiveness = st.slider(
-            "Arbeitgeber-Attraktivität (%)", 0, 100, 50, 5
+        seniority_delta = st.slider(
+            "Seniority Δ",
+            min_value=-0.30,
+            max_value=0.30,
+            value=0.0,
+            step=0.01,
         )
-
-        influential_requirements = [
-            "Suchraum",
-            "Remote-Anteil",
-            "Anforderungs-Strenge",
-            "Arbeitgeber-Attraktivität",
-            "Must-have Skills",
-            "Interviewprozess",
-        ]
-        selected_requirements = st.multiselect(
-            "Entscheidende Stellenanforderungen (Selektion)",
-            options=influential_requirements,
-            default=influential_requirements[:4],
-            help="Nur selektierte Faktoren gehen in die Gewichtung der Prognose ein.",
+        remote_delta = st.slider(
+            "Remote Δ",
+            min_value=-0.20,
+            max_value=0.20,
+            value=0.0,
+            step=0.01,
         )
-        if not selected_requirements:
-            st.info("Bitte mindestens eine Stellenanforderung auswählen.")
-            return
-
-        st.markdown("**Gewichtung (Zuordnung & Priorisierung)**")
-        weights_raw: dict[str, int] = {}
-        for requirement in selected_requirements:
-            weights_raw[requirement] = st.slider(
-                f"Gewicht: {requirement}",
-                min_value=0,
-                max_value=100,
-                value=50,
-                key=_widget_key(SSKey.SUMMARY_WEIGHT_WIDGET_PREFIX, requirement),
-            )
-
-    total_weight = sum(weights_raw.values())
-    if total_weight == 0:
-        st.warning(
-            "Die Summe der Gewichte ist 0. Bitte mindestens ein Gewicht > 0 setzen."
+        interview_delta = st.slider(
+            "Interview Δ",
+            min_value=-0.20,
+            max_value=0.20,
+            value=0.0,
+            step=0.01,
         )
-        return
-    weights = {key: value / total_weight for key, value in weights_raw.items()}
-
-    base_salary = _estimate_salary_baseline(job)
-    base_candidates = _estimate_candidate_baseline(job)
-    must_have_count = max(1, len(job.must_have_skills))
-    interview_steps = max(1, len(job.recruitment_steps))
-
-    scenario_points: list[dict[str, float]] = []
-    for level in range(0, 101, 10):
-        requirement_factor = 1 + ((level - requirement_strictness) / 100.0) * 0.35
-        remote_factor_candidates = 1 + (remote_share - 50) / 100.0 * 0.8
-        remote_factor_salary = 1 + (remote_share - 50) / 100.0 * 0.12
-        attraction_factor_candidates = 1 + (employer_attractiveness - 50) / 100.0 * 0.9
-        attraction_factor_salary = 1 + (employer_attractiveness - 50) / 100.0 * 0.15
-
-        factor_salary = (
-            scope_options[scope]["salary"]
-            * remote_factor_salary
-            * requirement_factor
-            * attraction_factor_salary
+        location_factor = st.slider(
+            "Location-Faktor",
+            min_value=0.60,
+            max_value=1.60,
+            value=1.00,
+            step=0.01,
         )
-        factor_candidates = (
-            scope_options[scope]["candidates"]
-            * remote_factor_candidates
-            * (2 - requirement_factor)
-            * attraction_factor_candidates
-            * max(0.5, 1.25 - must_have_count * 0.06)
-            * max(0.55, 1.15 - interview_steps * 0.08)
+        title_factor = st.slider(
+            "Titel-Faktor",
+            min_value=0.60,
+            max_value=1.60,
+            value=1.00,
+            step=0.01,
+        )
+        spread_delta = st.slider(
+            "Spread Δ",
+            min_value=-0.08,
+            max_value=0.08,
+            value=0.0,
+            step=0.01,
+        )
+        confidence_delta = st.slider(
+            "Confidence Δ",
+            min_value=-30,
+            max_value=30,
+            value=0,
+            step=1,
         )
 
-        weighted_adjustment = 1.0
-        for requirement, weight in weights.items():
-            if requirement == "Suchraum":
-                weighted_adjustment += (
-                    weight * (scope_options[scope]["salary"] - 1) * 0.7
-                )
-            elif requirement == "Remote-Anteil":
-                weighted_adjustment += weight * (remote_share - 50) / 100.0 * 0.3
-            elif requirement == "Anforderungs-Strenge":
-                weighted_adjustment += weight * (level - 50) / 100.0 * 0.4
-            elif requirement == "Arbeitgeber-Attraktivität":
-                weighted_adjustment += (
-                    weight * (employer_attractiveness - 50) / 100.0 * 0.25
-                )
-            elif requirement == "Must-have Skills":
-                weighted_adjustment += weight * (must_have_count - 4) * 0.03
-            elif requirement == "Interviewprozess":
-                weighted_adjustment -= weight * (interview_steps - 3) * 0.02
-
-        predicted_salary = max(
-            35_000.0, base_salary * factor_salary * weighted_adjustment
-        )
-        predicted_candidates = max(3.0, base_candidates * factor_candidates)
-
-        scenario_points.append(
-            {
-                "strictness_level": float(level),
-                "predicted_salary": round(predicted_salary, 0),
-                "predicted_candidates": round(predicted_candidates, 1),
-            }
-        )
-
-    basiswerte = {
-        "gehalt_basis_jahr": round(base_salary, 0),
-        "kandidaten_basis": round(base_candidates, 1),
-        "must_have_skills": must_have_count,
-        "interview_schritte": interview_steps,
-        "antworten_im_wizard": len(answers),
-    }
-
-    strictness_levels = [p["strictness_level"] for p in scenario_points]
-    salaries = [p["predicted_salary"] for p in scenario_points]
-
-    fig_salary = go.Figure()
-    fig_salary.add_trace(
-        go.Scatter(
-            x=strictness_levels,
-            y=salaries,
-            mode="lines+markers",
-            name="Prognose Jahresgehalt",
-        )
+    scenario_overrides = SalaryScenarioOverrides(
+        requirements_multiplier_delta=requirements_delta,
+        seniority_multiplier_delta=seniority_delta,
+        remote_multiplier_delta=remote_delta,
+        interview_multiplier_delta=interview_delta,
+        location_multiplier_factor=location_factor,
+        title_multiplier_factor=title_factor,
+        spread_factor_delta=spread_delta,
+        confidence_delta=confidence_delta,
     )
-    fig_salary.update_layout(
-        title="Effekt der Anforderungs-Strenge auf Gehaltsprognose",
-        xaxis_title="Anforderungs-Strenge (%)",
-        yaxis_title="Jahresgehalt (geschätzt)",
-        dragmode="select",
+    forecast = compute_salary_forecast(
+        job_extract=job,
+        answers=answers,
+        scenario_overrides=scenario_overrides,
     )
 
-    with left_col_1:
-        selection = st.plotly_chart(
-            fig_salary,
-            key=SSKey.SUMMARY_SALARY_FORECAST_WIDGET.value,
+    with result_col:
+        p10, p50, p90 = st.columns(3)
+        p10.metric(
+            f"p10 ({forecast.period})",
+            f"{int(forecast.forecast.p10):,} {forecast.currency}".replace(",", "."),
+        )
+        p50.metric(
+            f"p50 ({forecast.period})",
+            f"{int(forecast.forecast.p50):,} {forecast.currency}".replace(",", "."),
+        )
+        p90.metric(
+            f"p90 ({forecast.period})",
+            f"{int(forecast.forecast.p90):,} {forecast.currency}".replace(",", "."),
+        )
+
+        quality_percent = int(round(forecast.quality.value * 100))
+        st.progress(
+            quality_percent,
+            text=f"Quality ({forecast.quality.kind}): {quality_percent}%",
+        )
+        if forecast.quality.signals:
+            st.caption("Quality-Signale: " + " · ".join(forecast.quality.signals))
+
+        st.markdown("**Drivers**")
+        st.dataframe(
+            [
+                {
+                    "key": driver.key,
+                    "label": driver.label,
+                    "direction": driver.direction,
+                    "impact": driver.impact,
+                    "detail": driver.detail,
+                }
+                for driver in forecast.drivers
+            ],
+            hide_index=True,
             width="stretch",
-            on_select="rerun",
-            selection_mode=("points", "box", "lasso"),
         )
-    selected_indices = ((selection or {}).get("selection") or {}).get(
-        "point_indices"
-    ) or []
-    selected_points = [
-        point
-        for index, point in enumerate(scenario_points)
-        if index in selected_indices
-    ]
-    filtered_points = selected_points or scenario_points
 
-    fig_candidates = go.Figure()
-    fig_candidates.add_trace(
-        go.Bar(
-            x=[p["strictness_level"] for p in filtered_points],
-            y=[p["predicted_candidates"] for p in filtered_points],
-            name="Potenzielle Kandidat:innen",
-        )
-    )
-    fig_candidates.update_layout(
-        title="Crossfilter: Kandidatenpool für ausgewählte Gehalts-Szenarien",
-        xaxis_title="Anforderungs-Strenge (%)",
-        yaxis_title="Kandidaten (geschätzt)",
-    )
-    with left_col_2:
-        st.plotly_chart(fig_candidates, width="stretch")
-    with left_col_3:
-        st.dataframe(filtered_points, width="stretch", hide_index=True)
-        with st.expander("Basiswerte & normalisierte Gewichte", expanded=False):
+        with st.expander("Provenance & Engine-Metadaten", expanded=False):
             st.write(
                 {
-                    "basiswerte": basiswerte,
-                    "gewichtung_normalisiert": {
-                        k: round(v, 3) for k, v in weights.items()
+                    "provenance": forecast.provenance.model_dump(),
+                    "summary": {
+                        "base_salary": forecast.base_salary,
+                        "salary_multiplier": round(forecast.salary_multiplier, 4),
+                        "spread_factor": round(forecast.spread_factor, 4),
+                        "answers_count": forecast.answers_count,
+                        "must_have_count": forecast.must_have_count,
+                        "interview_steps": forecast.interview_steps,
+                        "location": forecast.location,
+                        "seniority": forecast.seniority,
+                        "job_title": forecast.job_title,
                     },
+                    "overrides": scenario_overrides.model_dump(),
                 }
             )
 
