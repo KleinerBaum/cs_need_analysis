@@ -18,6 +18,7 @@ from question_progress import build_answered_lookup, compute_question_progress
 from schemas import (
     BooleanSearchPack,
     Contact,
+    EscoBreadcrumbNode,
     EmploymentContractDraft,
     EscoConceptRef,
     InterviewPrepSheetHiringManager,
@@ -105,6 +106,140 @@ def _extract_esco_suggestions(
 
     _walk(payload)
     return [item for item in collected if item["type"] == concept_type]
+
+
+def _normalize_esco_breadcrumb_nodes(
+    payload: dict[str, Any],
+) -> list[EscoBreadcrumbNode]:
+    nodes: list[EscoBreadcrumbNode] = []
+    seen: set[str] = set()
+
+    def _append_candidate(uri_raw: Any, title_raw: Any, type_raw: Any) -> None:
+        if not isinstance(uri_raw, str) or not isinstance(title_raw, str):
+            return
+        uri = uri_raw.strip()
+        title = title_raw.strip()
+        if not uri or not title or uri in seen:
+            return
+        try:
+            node = EscoBreadcrumbNode.model_validate(
+                {
+                    "uri": uri,
+                    "title": title,
+                    "type": str(type_raw).strip().lower() if type_raw else None,
+                }
+            )
+        except Exception:
+            return
+        seen.add(node.uri)
+        nodes.append(node)
+
+    def _walk(value: Any) -> None:
+        if isinstance(value, dict):
+            _append_candidate(
+                value.get("uri"),
+                value.get("title")
+                or value.get("preferredLabel")
+                or value.get("label")
+                or value.get("name"),
+                value.get("type"),
+            )
+            for nested in value.values():
+                _walk(nested)
+        elif isinstance(value, list):
+            for nested in value:
+                _walk(nested)
+
+    _walk(payload)
+    return nodes
+
+
+def _render_esco_taxonomy_breadcrumb(
+    *, session_key: str, concept: dict[str, Any]
+) -> None:
+    concept_uri = str(concept.get("uri") or "").strip()
+    concept_title = str(concept.get("title") or "—").strip()
+    if not concept_uri:
+        return
+
+    expander_key = f"{session_key}.esco_picker.taxonomy.open"
+    fetch_key = f"{session_key}.esco_picker.taxonomy.fetch"
+    cache_key = f"{session_key}.esco_picker.taxonomy.cache"
+    loaded_key = f"{session_key}.esco_picker.taxonomy.loaded"
+    error_key = f"{session_key}.esco_picker.taxonomy.error"
+    uri_key = f"{session_key}.esco_picker.taxonomy.uri"
+
+    with st.expander(
+        "Taxonomie/Breadcrumb", expanded=bool(st.session_state.get(expander_key, False))
+    ):
+        st.session_state[expander_key] = True
+
+        cache_hit_for_uri = st.session_state.get(uri_key) == concept_uri
+        if not cache_hit_for_uri:
+            st.session_state.pop(cache_key, None)
+            st.session_state.pop(error_key, None)
+            st.session_state[loaded_key] = False
+            st.session_state[uri_key] = concept_uri
+
+        if st.button("Taxonomie laden", key=fetch_key):
+            try:
+                payload = EscoClient().resource_related(
+                    uri=concept_uri,
+                    relation="hasBroaderTransitive",
+                )
+                normalized_nodes = _normalize_esco_breadcrumb_nodes(payload)
+                st.session_state[cache_key] = [
+                    node.model_dump() for node in normalized_nodes
+                ]
+                st.session_state[loaded_key] = True
+                st.session_state.pop(error_key, None)
+            except EscoClientError as exc:
+                st.session_state[error_key] = str(exc)
+                st.session_state[loaded_key] = False
+
+        cached_nodes_raw = st.session_state.get(cache_key, [])
+        cached_nodes: list[EscoBreadcrumbNode] = []
+        if isinstance(cached_nodes_raw, list):
+            for item in cached_nodes_raw:
+                try:
+                    cached_nodes.append(EscoBreadcrumbNode.model_validate(item))
+                except Exception:
+                    continue
+
+        fetch_error = st.session_state.get(error_key)
+        if isinstance(fetch_error, str) and fetch_error.strip():
+            st.warning(f"Taxonomie konnte nicht geladen werden: {fetch_error}")
+            return
+
+        if not cached_nodes:
+            if bool(st.session_state.get(loaded_key, False)):
+                st.caption(
+                    "Keine übergeordnete Relation (`hasBroaderTransitive`) für dieses ESCO-Konzept gefunden."
+                )
+                return
+            st.caption(
+                "Keine Taxonomie geladen. Öffne den Expander und klicke auf „Taxonomie laden“."
+            )
+            return
+
+        breadcrumb_nodes = list(reversed(cached_nodes))
+        breadcrumb_nodes.append(
+            EscoBreadcrumbNode.model_validate(
+                {
+                    "uri": concept_uri,
+                    "title": concept_title or "—",
+                    "type": concept.get("type"),
+                }
+            )
+        )
+        titles = [node.title for node in breadcrumb_nodes if node.title.strip()]
+        if not titles:
+            st.caption(
+                "Keine übergeordnete Taxonomie für dieses ESCO-Konzept verfügbar."
+            )
+            return
+
+        st.write(" → ".join(titles))
 
 
 def render_esco_picker_card(
@@ -286,6 +421,7 @@ def render_esco_picker_card(
             )
         else:
             st.write(f"- {concept['title']}")
+        _render_esco_taxonomy_breadcrumb(session_key=session_key, concept=concept)
 
 
 def render_error_banner() -> None:
