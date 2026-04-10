@@ -6,11 +6,12 @@ from __future__ import annotations
 import re
 from datetime import date
 from collections.abc import Sequence
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 
 import streamlit as st
 
 from constants import AnswerType, SSKey, WIDGET_KEY_PREFIX
+from esco_client import EscoClient, EscoClientError
 from llm_client import OpenAICallError
 from question_dependencies import should_show_question
 from question_progress import build_answered_lookup, compute_question_progress
@@ -18,6 +19,7 @@ from schemas import (
     BooleanSearchPack,
     Contact,
     EmploymentContractDraft,
+    EscoConceptRef,
     InterviewPrepSheetHiringManager,
     InterviewPrepSheetHR,
     JobAdExtract,
@@ -50,6 +52,221 @@ _LANGUAGE_OPTIONS = [
     "Portugiesisch",
 ]
 _CEFR_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2"]
+
+
+def _set_session_flag_true(flag_key: str) -> None:
+    st.session_state[flag_key] = True
+
+
+def _normalize_target_state_key(target_state_key: SSKey | str) -> str:
+    if isinstance(target_state_key, SSKey):
+        return target_state_key.value
+    return str(target_state_key).strip()
+
+
+def _extract_esco_suggestions(
+    payload: dict[str, Any],
+    *,
+    concept_type: Literal["occupation", "skill"],
+    source: Literal["auto", "manual"],
+) -> list[dict[str, str]]:
+    seen_uris: set[str] = set()
+    collected: list[dict[str, str]] = []
+
+    def _walk(node: Any) -> None:
+        if isinstance(node, dict):
+            uri_raw = node.get("uri")
+            title_raw = (
+                node.get("title")
+                or node.get("preferredLabel")
+                or node.get("label")
+                or node.get("name")
+            )
+            type_raw = node.get("type") or concept_type
+            if isinstance(uri_raw, str) and isinstance(title_raw, str):
+                uri = uri_raw.strip()
+                title = title_raw.strip()
+                if uri and title and uri not in seen_uris:
+                    seen_uris.add(uri)
+                    collected.append(
+                        {
+                            "uri": uri,
+                            "title": title,
+                            "type": str(type_raw or concept_type).strip().lower()
+                            or concept_type,
+                            "source": source,
+                        }
+                    )
+            for value in node.values():
+                _walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                _walk(item)
+
+    _walk(payload)
+    return [item for item in collected if item["type"] == concept_type]
+
+
+def render_esco_picker_card(
+    *,
+    concept_type: Literal["occupation", "skill"],
+    target_state_key: SSKey | str,
+    allow_multi: bool = False,
+) -> None:
+    session_key = _normalize_target_state_key(target_state_key)
+    if not session_key:
+        st.error("ESCO-Picker-Konfiguration ist ungültig (fehlender target_state_key).")
+        return
+
+    base_key = f"{session_key}.esco_picker"
+    query_key = f"{base_key}.query"
+    submit_flag_key = f"{base_key}.submit_enter"
+    options_state_key = f"{base_key}.options"
+    selected_key = f"{base_key}.selected"
+    applied_meta_key = f"{base_key}.applied_meta"
+    apply_button_key = f"{base_key}.apply"
+
+    ui_mode = str(st.session_state.get(SSKey.UI_MODE.value, "standard")).strip().lower()
+    if ui_mode not in {"quick", "standard", "expert"}:
+        ui_mode = "standard"
+
+    query_text = st.text_input(
+        "ESCO Suche",
+        value=str(st.session_state.get(query_key, "")),
+        key=query_key,
+        placeholder="Begriff eingeben (z. B. Data Engineer)",
+        on_change=_set_session_flag_true,
+        args=(submit_flag_key,),
+    ).strip()
+
+    suggestions: list[dict[str, str]] = []
+    if len(query_text) >= 2:
+        client = EscoClient()
+        try:
+            suggestions = _extract_esco_suggestions(
+                client.suggest2(text=query_text, type=concept_type, limit=12),
+                concept_type=concept_type,
+                source="auto",
+            )
+            if not suggestions:
+                suggestions = _extract_esco_suggestions(
+                    client.terms(text=query_text, type=concept_type, limit=12),
+                    concept_type=concept_type,
+                    source="manual",
+                )
+        except EscoClientError as exc:
+            st.warning(f"ESCO-Suche aktuell nicht verfügbar: {exc}")
+
+    st.session_state[options_state_key] = suggestions
+    options = st.session_state.get(options_state_key, [])
+    options = options if isinstance(options, list) else []
+
+    def _label_for_option(item: dict[str, str]) -> str:
+        title = item.get("title", "—")
+        if ui_mode == "expert":
+            return f"{title} · {item.get('uri', '—')} · {item.get('source', 'auto')}"
+        return title
+
+    option_labels = [_label_for_option(item) for item in options]
+    selected_payload: list[dict[str, str]] = []
+    if allow_multi:
+        selected_indices = st.multiselect(
+            "Vorschläge",
+            options=list(range(len(options))),
+            format_func=lambda idx: option_labels[idx],
+            key=selected_key,
+        )
+        selected_payload = [
+            options[idx] for idx in selected_indices if idx < len(options)
+        ]
+    else:
+        selected_index = st.selectbox(
+            "Top-Vorschlag auswählen",
+            options=list(range(len(options))),
+            format_func=lambda idx: option_labels[idx],
+            index=0 if options else None,
+            key=selected_key,
+            placeholder="Keine Vorschläge verfügbar",
+        )
+        if selected_index is not None and selected_index < len(options):
+            selected_payload = [options[selected_index]]
+
+    enter_submit = bool(st.session_state.get(submit_flag_key, False))
+    if enter_submit:
+        st.session_state[submit_flag_key] = False
+        if options:
+            selected_payload = [options[0]] if not allow_multi else selected_payload
+            st.info("Top-Treffer wurde per Enter übernommen.")
+
+    if st.button("Apply", key=apply_button_key) or (enter_submit and bool(options)):
+        try:
+            validated = [
+                EscoConceptRef.model_validate(
+                    {
+                        "uri": item["uri"],
+                        "title": item["title"],
+                        "type": item["type"],
+                    }
+                ).model_dump()
+                for item in selected_payload
+            ]
+        except Exception:
+            st.warning("Auswahl konnte nicht validiert werden. Bitte erneut auswählen.")
+            return
+
+        if allow_multi:
+            st.session_state[session_key] = validated
+        else:
+            st.session_state[session_key] = validated[0] if validated else None
+
+        st.session_state[applied_meta_key] = {
+            "version": (st.session_state.get(SSKey.ESCO_CONFIG.value, {}) or {}).get(
+                "selected_version", "latest"
+            ),
+            "source": ", ".join(
+                sorted({item.get("source", "auto") for item in selected_payload})
+            )
+            if selected_payload
+            else "auto",
+        }
+
+    stored = st.session_state.get(session_key)
+    current_entries: list[dict[str, Any]] = []
+    if allow_multi and isinstance(stored, list):
+        for entry in stored:
+            try:
+                current_entries.append(
+                    EscoConceptRef.model_validate(entry).model_dump()
+                )
+            except Exception:
+                continue
+    elif isinstance(stored, dict):
+        try:
+            current_entries = [EscoConceptRef.model_validate(stored).model_dump()]
+        except Exception:
+            current_entries = []
+
+    if not current_entries:
+        return
+
+    applied_meta = st.session_state.get(applied_meta_key, {})
+    version = (
+        applied_meta.get("version", "latest")
+        if isinstance(applied_meta, dict)
+        else "latest"
+    )
+    source = (
+        applied_meta.get("source", "auto") if isinstance(applied_meta, dict) else "auto"
+    )
+
+    st.markdown("**Ausgewählte ESCO-Konzepte**")
+    for concept in current_entries:
+        if ui_mode == "expert":
+            st.caption(
+                f"{concept['title']} · URI: {concept['uri']} · Version: {version} · Quelle: {source}"
+            )
+        else:
+            st.write(f"- {concept['title']}")
 
 
 def render_error_banner() -> None:
@@ -1747,7 +1964,9 @@ def render_boolean_search_pack(pack: BooleanSearchPack) -> None:
 
 
 def render_employment_contract_draft(draft: EmploymentContractDraft) -> None:
-    st.info("Template-Draft zur Prüfung. Kein finaler Vertrag und keine Rechtsberatung.")
+    st.info(
+        "Template-Draft zur Prüfung. Kein finaler Vertrag und keine Rechtsberatung."
+    )
     st.markdown(
         f"**Jurisdiction:** {draft.jurisdiction} · "
         f"**Rolle:** {draft.role_title} · "
