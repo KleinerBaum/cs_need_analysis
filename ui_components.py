@@ -112,6 +112,7 @@ def render_esco_picker_card(
     concept_type: Literal["occupation", "skill"],
     target_state_key: SSKey | str,
     allow_multi: bool = False,
+    enable_preview: bool = False,
 ) -> None:
     session_key = _normalize_target_state_key(target_state_key)
     if not session_key:
@@ -123,6 +124,7 @@ def render_esco_picker_card(
     submit_flag_key = f"{base_key}.submit_enter"
     options_state_key = f"{base_key}.options"
     selected_key = f"{base_key}.selected"
+    preview_key = f"{base_key}.preview"
     applied_meta_key = f"{base_key}.applied_meta"
     apply_button_key = f"{base_key}.apply"
 
@@ -197,6 +199,23 @@ def render_esco_picker_card(
         if options:
             selected_payload = [options[0]] if not allow_multi else selected_payload
             st.info("Top-Treffer wurde per Enter übernommen.")
+
+    if enable_preview:
+        with st.expander(
+            "Preview vor Apply", expanded=bool(st.session_state.get(preview_key, False))
+        ):
+            st.session_state[preview_key] = True
+            if not selected_payload:
+                st.caption("Noch keine Vorschläge ausgewählt.")
+            else:
+                st.markdown("**Vorschau (noch nicht angewendet):**")
+                for concept in selected_payload:
+                    if ui_mode == "expert":
+                        st.caption(
+                            f"{concept.get('title', '—')} · URI: {concept.get('uri', '—')} · Quelle: {concept.get('source', 'auto')}"
+                        )
+                    else:
+                        st.write(f"- {concept.get('title', '—')}")
 
     if st.button("Apply", key=apply_button_key) or (enter_submit and bool(options)):
         try:
