@@ -62,7 +62,6 @@ from ui_components import (
 from usage_utils import usage_has_cache_hit
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
 from wizard_pages.salary_forecast import (
-    build_salary_forecast_snapshot as _shared_build_salary_forecast_snapshot,
     render_sidebar_salary_forecast as _shared_render_sidebar_salary_forecast,
 )
 
@@ -292,12 +291,14 @@ def _render_template_toggles(
 
 def _build_salary_forecast_snapshot(
     job: JobAdExtract, answers: dict[str, Any]
-) -> dict[str, float | int | str]:
-    return _shared_build_salary_forecast_snapshot(job=job, answers=answers)
+) -> dict[str, Any]:
+    forecast = compute_salary_forecast(job_extract=job, answers=answers)
+    return forecast.model_dump()
 
 
 def _render_sidebar_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) -> None:
-    _shared_render_sidebar_salary_forecast(job=job, answers=answers)
+    forecast = compute_salary_forecast(job_extract=job, answers=answers)
+    _shared_render_sidebar_salary_forecast(forecast=forecast)
 
 
 def _render_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) -> None:
