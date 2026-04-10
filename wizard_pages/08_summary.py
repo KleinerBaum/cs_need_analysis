@@ -31,6 +31,13 @@ from llm_client import (
     resolve_model_for_task,
 )
 from salary.engine import compute_salary_forecast
+from salary.scenarios import (
+    SALARY_SCENARIO_BASE,
+    SALARY_SCENARIO_COST_FOCUS,
+    SALARY_SCENARIO_MARKET_UPSIDE,
+    SALARY_SCENARIO_OPTIONS,
+    map_salary_scenario_to_overrides,
+)
 from salary.types import SalaryScenarioOverrides
 from schemas import (
     BooleanSearchPack,
@@ -61,9 +68,6 @@ from ui_components import (
 )
 from usage_utils import usage_has_cache_hit
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
-from wizard_pages.salary_forecast import (
-    render_sidebar_salary_forecast as _shared_render_sidebar_salary_forecast,
-)
 
 SUPPORTED_LOGO_MIME_TYPES: dict[str, str] = {
     "image/png": "PNG",
@@ -306,7 +310,6 @@ def _build_salary_forecast_snapshot(
     return {
         **full_result,
         "scenario": scenario_name,
-        "scenario_overrides": overrides.model_dump(mode="json"),
         "inputs": {
             "skills_add": st.session_state.get(
                 SSKey.SALARY_SCENARIO_SKILLS_ADD.value, []
@@ -374,131 +377,28 @@ def _apply_salary_scenario_inputs(job: JobAdExtract) -> JobAdExtract:
     )
 
 
-def _render_sidebar_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) -> None:
-    forecast = compute_salary_forecast(job_extract=job, answers=answers)
-    _shared_render_sidebar_salary_forecast(forecast=forecast)
-
-
 def _render_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) -> None:
     st.subheader("Gehaltsprognose")
     st.caption(
-        "Szenario-Simulation auf Basis der Salary-Engine. UI-Controls setzen nur Overrides; die Berechnung erfolgt vollständig in der Domain-Engine."
+        "Szenario-Simulation auf Basis der Salary-Engine. Die UI sammelt nur fachliche Eingaben, die Berechnung erfolgt vollständig in der Domain-Engine."
     )
 
     controls_col, result_col = st.columns((1, 2))
 
     with controls_col:
-        st.markdown("**Szenario-Overrides**")
+        st.markdown("**Szenario**")
         selected_scenario = st.radio(
             "Szenario",
-            options=("base", "market_upside", "cost_focus"),
+            options=SALARY_SCENARIO_OPTIONS,
             format_func=lambda value: {
-                "base": "Baseline",
-                "market_upside": "Marktaufschwung",
-                "cost_focus": "Kostenfokus",
+                SALARY_SCENARIO_BASE: "Baseline",
+                SALARY_SCENARIO_MARKET_UPSIDE: "Marktaufschwung",
+                SALARY_SCENARIO_COST_FOCUS: "Kostenfokus",
             }[value],
             key=SSKey.SALARY_FORECAST_SELECTED_SCENARIO.value,
         )
         forecast_job = _apply_salary_scenario_inputs(job)
-
-        preset_overrides = {
-            "base": SalaryScenarioOverrides(),
-            "market_upside": SalaryScenarioOverrides(
-                requirements_multiplier_delta=0.04,
-                seniority_multiplier_delta=0.03,
-                remote_multiplier_delta=0.02,
-                interview_multiplier_delta=0.01,
-                location_multiplier_factor=1.05,
-                title_multiplier_factor=1.04,
-                spread_factor_delta=0.02,
-                confidence_delta=5,
-            ),
-            "cost_focus": SalaryScenarioOverrides(
-                requirements_multiplier_delta=-0.03,
-                seniority_multiplier_delta=-0.02,
-                remote_multiplier_delta=-0.01,
-                interview_multiplier_delta=-0.01,
-                location_multiplier_factor=0.96,
-                title_multiplier_factor=0.97,
-                spread_factor_delta=-0.01,
-                confidence_delta=-4,
-            ),
-        }[selected_scenario]
-        requirements_delta = st.slider(
-            "Requirements Δ",
-            min_value=-0.30,
-            max_value=0.30,
-            value=float(preset_overrides.requirements_multiplier_delta),
-            step=0.01,
-            key=_widget_key(SSKey.SUMMARY_SALARY_FORECAST_WIDGET, "requirements_delta"),
-        )
-        seniority_delta = st.slider(
-            "Seniority Δ",
-            min_value=-0.30,
-            max_value=0.30,
-            value=float(preset_overrides.seniority_multiplier_delta),
-            step=0.01,
-            key=_widget_key(SSKey.SUMMARY_SALARY_FORECAST_WIDGET, "seniority_delta"),
-        )
-        remote_delta = st.slider(
-            "Remote Δ",
-            min_value=-0.20,
-            max_value=0.20,
-            value=float(preset_overrides.remote_multiplier_delta),
-            step=0.01,
-            key=_widget_key(SSKey.SUMMARY_SALARY_FORECAST_WIDGET, "remote_delta"),
-        )
-        interview_delta = st.slider(
-            "Interview Δ",
-            min_value=-0.20,
-            max_value=0.20,
-            value=float(preset_overrides.interview_multiplier_delta),
-            step=0.01,
-            key=_widget_key(SSKey.SUMMARY_SALARY_FORECAST_WIDGET, "interview_delta"),
-        )
-        location_factor = st.slider(
-            "Location-Faktor",
-            min_value=0.60,
-            max_value=1.60,
-            value=float(preset_overrides.location_multiplier_factor),
-            step=0.01,
-            key=_widget_key(SSKey.SUMMARY_SALARY_FORECAST_WIDGET, "location_factor"),
-        )
-        title_factor = st.slider(
-            "Titel-Faktor",
-            min_value=0.60,
-            max_value=1.60,
-            value=float(preset_overrides.title_multiplier_factor),
-            step=0.01,
-            key=_widget_key(SSKey.SUMMARY_SALARY_FORECAST_WIDGET, "title_factor"),
-        )
-        spread_delta = st.slider(
-            "Spread Δ",
-            min_value=-0.08,
-            max_value=0.08,
-            value=float(preset_overrides.spread_factor_delta),
-            step=0.01,
-            key=_widget_key(SSKey.SUMMARY_SALARY_FORECAST_WIDGET, "spread_delta"),
-        )
-        confidence_delta = st.slider(
-            "Confidence Δ",
-            min_value=-30,
-            max_value=30,
-            value=int(preset_overrides.confidence_delta),
-            step=1,
-            key=_widget_key(SSKey.SUMMARY_SALARY_FORECAST_WIDGET, "confidence_delta"),
-        )
-
-    scenario_overrides = SalaryScenarioOverrides(
-        requirements_multiplier_delta=requirements_delta,
-        seniority_multiplier_delta=seniority_delta,
-        remote_multiplier_delta=remote_delta,
-        interview_multiplier_delta=interview_delta,
-        location_multiplier_factor=location_factor,
-        title_multiplier_factor=title_factor,
-        spread_factor_delta=spread_delta,
-        confidence_delta=confidence_delta,
-    )
+    scenario_overrides = map_salary_scenario_to_overrides(selected_scenario)
     forecast = compute_salary_forecast(
         job_extract=forecast_job,
         answers=answers,
@@ -552,22 +452,15 @@ def _render_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) -> None:
             width="stretch",
         )
 
-        with st.expander("Provenance & Engine-Metadaten", expanded=False):
+        with st.expander("Berechnungsdetails", expanded=False):
             st.write(
                 {
-                    "provenance": forecast.provenance.model_dump(),
-                    "summary": {
-                        "base_salary": forecast.base_salary,
-                        "salary_multiplier": round(forecast.salary_multiplier, 4),
-                        "spread_factor": round(forecast.spread_factor, 4),
-                        "answers_count": forecast.answers_count,
-                        "must_have_count": forecast.must_have_count,
-                        "interview_steps": forecast.interview_steps,
-                        "location": forecast.location,
-                        "seniority": forecast.seniority,
-                        "job_title": forecast.job_title,
-                    },
-                    "overrides": scenario_overrides.model_dump(),
+                    "szenario": selected_scenario,
+                    "eingaben": st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value][
+                        "inputs"
+                    ],
+                    "prognose": forecast.forecast.model_dump(),
+                    "qualität": forecast.quality.model_dump(),
                 }
             )
 
