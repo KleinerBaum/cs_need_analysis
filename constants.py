@@ -95,6 +95,12 @@ class SSKey(str, Enum):
     EMPLOYMENT_CONTRACT_CACHE_HIT = "cs.summary.employment_contract_cache_hit"
     EMPLOYMENT_CONTRACT_LAST_MODE = "cs.summary.employment_contract_last_mode"
     EMPLOYMENT_CONTRACT_LAST_MODELS = "cs.summary.employment_contract_last_models"
+    ESCO_CONFIG = "cs.esco_config"
+    ESCO_OCCUPATION_SELECTED = "cs.esco_occupation_selected"
+    ESCO_OCCUPATION_CANDIDATES = "cs.esco_occupation_candidates"
+    ESCO_SKILLS_SELECTED_MUST = "cs.esco_skills_selected_must"
+    ESCO_SKILLS_SELECTED_NICE = "cs.esco_skills_selected_nice"
+    ESCO_SKILLS_MAPPING_REPORT = "cs.esco_skills_mapping_report"
 
 
 # ---- Wizard Steps (match your screenshot structure) ----
