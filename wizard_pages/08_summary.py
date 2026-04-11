@@ -49,6 +49,7 @@ from schemas import (
     Question,
     QuestionPlan,
     VacancyBrief,
+    question_option_label_map,
 )
 from settings_openai import load_openai_settings
 from state import (
@@ -1623,14 +1624,23 @@ def _render_summary_facts_section(vm: SummaryViewModel) -> None:
 
 
 def _format_summary_answer_value(question: Question, value: Any) -> str:
+    option_label_map = question_option_label_map(question)
+
+    def _label_for(item: Any) -> str:
+        item_str = str(item).strip()
+        if not item_str:
+            return ""
+        return option_label_map.get(item_str, item_str)
+
     if question.answer_type == AnswerType.BOOLEAN:
         return "Ja" if bool(value) else "Nein"
     if question.answer_type == AnswerType.MULTI_SELECT:
         if isinstance(value, list):
-            return ", ".join(str(item).strip() for item in value if str(item).strip())
+            labels = [_label_for(item) for item in value]
+            return ", ".join(label for label in labels if label)
         return ""
     if question.answer_type == AnswerType.SINGLE_SELECT:
-        return str(value or "").strip()
+        return _label_for(value)
     if question.answer_type in {
         AnswerType.LONG_TEXT,
         AnswerType.SHORT_TEXT,

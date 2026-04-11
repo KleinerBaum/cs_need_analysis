@@ -216,13 +216,20 @@ class RequirementSuggestionPack(StrictSchemaModel):
     tasks: list[RequirementSuggestionItem] = Field(default_factory=list)
 
 
+class QuestionOption(StrictSchemaModel):
+    value: str = Field(description="Canonical machine-readable option value.")
+    label: Optional[str] = Field(
+        default=None, description="Human-readable label rendered in the UI."
+    )
+
+
 class Question(StrictSchemaModel):
     id: str = Field(description="Stable unique question id (machine-readable).")
     label: str = Field(description="Exact question text shown to the user.")
     help: Optional[str] = Field(default=None, description="Helper text / tooltip.")
     answer_type: AnswerType = Field(description="Widget/answer type.")
     required: bool = Field(default=False)
-    options: Optional[List[str]] = Field(
+    options: Optional[List[Union[str, QuestionOption]]] = Field(
         default=None, description="Options for select widgets."
     )
     default: Optional[
@@ -260,6 +267,43 @@ class Question(StrictSchemaModel):
         default=None,
         description="Optional declarative dependency rules for conditional visibility.",
     )
+
+
+_OPTION_LABEL_OVERRIDES: dict[str, str] = {
+    "keine_hands_on_mentalitaet": "Keine Hands-on-Mentalität",
+}
+
+
+def _humanize_option_value(value: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        return normalized
+    override = _OPTION_LABEL_OVERRIDES.get(normalized.lower())
+    if override:
+        return override
+    normalized = normalized.replace("_", " ").replace("-", " ")
+    words = [word for word in normalized.split() if word]
+    if not words:
+        return value
+    return " ".join(word.capitalize() for word in words)
+
+
+def question_option_label_map(question: Question) -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    for raw_option in question.options or []:
+        if isinstance(raw_option, str):
+            option_value = raw_option.strip()
+            if option_value:
+                mapping[option_value] = _humanize_option_value(option_value)
+            continue
+        option_value = raw_option.value.strip()
+        if not option_value:
+            continue
+        option_label = (raw_option.label or "").strip() or _humanize_option_value(
+            option_value
+        )
+        mapping[option_value] = option_label
+    return mapping
 
 
 class QuestionDependency(StrictSchemaModel):
