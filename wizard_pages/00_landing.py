@@ -7,7 +7,6 @@ from typing import cast
 from constants import APP_TITLE
 from wizard_pages.jobad_intake import render_jobad_intake
 from wizard_pages.base import (
-    LANDING_CTA_KEYS,
     LANDING_SECTION_IDS,
     LANDING_STYLE_TOKENS,
     WizardContext,
@@ -19,11 +18,7 @@ from wizard_pages.base import (
 
 LANDING_COPY: dict[str, object] = {
     "hero_headline": "Präzise Anforderungen. Schnellere Besetzungen. Bessere Einstellungen.",
-    "hero_subheadline": (
-        "Recruiting beginnt nicht mit Sourcing, sondern mit einem sauberen Vacancy Intake. "
-        "Diese App strukturiert den ersten Schritt jeder Suche: die vollständige Aufnahme "
-        "aller suchrelevanten Anforderungen."
-    ),
+    "hero_subheadline": "",
     "hero_supporting_paragraph": (
         "Was am Anfang fehlt, fehlt später überall. Fehlende Informationen kosten passende "
         "Bewerbungen, erzeugen Rückfragen und erhöhen das Risiko teurer Fehlbesetzungen. "
@@ -111,7 +106,9 @@ def render(ctx: WizardContext) -> None:
     render_landing_css(LANDING_STYLE_TOKENS)
     st.caption(APP_TITLE)
     st.title(str(LANDING_COPY["hero_headline"]))
-    st.subheader(str(LANDING_COPY["hero_subheadline"]))
+    hero_subheadline = str(LANDING_COPY["hero_subheadline"])
+    if hero_subheadline:
+        st.subheader(hero_subheadline)
     st.markdown(str(LANDING_COPY["hero_supporting_paragraph"]))
 
     output_col, importance_col = st.columns(2, gap="medium")
@@ -130,15 +127,8 @@ def render(ctx: WizardContext) -> None:
             closer=str(LANDING_COPY["importance_closer"]),
         )
 
-    st.caption(str(LANDING_COPY["consent_details_inline"]))
-    st.checkbox(
-        "Bestätigung", key=LANDING_CTA_KEYS["consent"], label_visibility="collapsed"
-    )
-
     st.divider()
     render_jobad_intake(title=str(LANDING_COPY["primary_cta"]))
-
-    st.caption("Debug im Sidebar aktivierbar / Debug can be enabled in the sidebar.")
 
 
 PAGE = WizardPage(

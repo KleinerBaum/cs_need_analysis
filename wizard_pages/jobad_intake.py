@@ -24,7 +24,7 @@ from state import (
 )
 from ui_components import render_error_banner, render_openai_error
 from usage_utils import usage_has_cache_hit
-from wizard_pages.base import set_current_step
+from wizard_pages.base import LANDING_CTA_KEYS, set_current_step
 
 
 SOURCE_TEXT_INPUT_KEY: Final[str] = "cs.source_text_input"
@@ -129,7 +129,6 @@ def render_jobad_intake(*, title: str = "Jobspec / Job Ad einlesen") -> None:
             )
             uploaded_text = str(st.session_state.get(SOURCE_UPLOAD_TEXT_KEY, ""))
             upload_meta = st.session_state.get(SSKey.SOURCE_FILE_META.value, {})
-            st.caption("Aktive Quelle: **Upload**")
             if uploaded_text:
                 col_meta_left, col_meta_right = st.columns([2, 1])
                 with col_meta_left:
@@ -146,6 +145,16 @@ def render_jobad_intake(*, title: str = "Jobspec / Job Ad einlesen") -> None:
                     key="cs.source_upload_preview",
                     disabled=True,
                 )
+            st.caption(
+                "Wenn für eure Organisation Designated Content freigegeben ist, können diese Inhalte "
+                "von OpenAI zu Entwicklungszwecken genutzt werden (inkl. Training, Evaluierung, Tests). "
+                "Ihr müsst Endnutzende informieren und – falls erforderlich – Einwilligungen einholen."
+            )
+            st.checkbox(
+                "Bestätigung",
+                key=LANDING_CTA_KEYS["consent"],
+                label_visibility="collapsed",
+            )
             button_spacer_col, button_col = st.columns([3, 2])
             with button_col:
                 do_extract = st.button(
