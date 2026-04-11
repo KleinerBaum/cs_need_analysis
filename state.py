@@ -129,6 +129,15 @@ def init_session_state() -> None:
         SSKey.EURES_NACE_TO_ESCO.value: eures_nace_lookup,
         SSKey.EURES_NACE_SOURCE.value: configured_eures_nace_source,
         SSKey.COMPANY_NACE_CODE.value: "",
+        SSKey.ROLE_TASKS_JOBSPEC_SUGGESTED.value: [],
+        SSKey.ROLE_TASKS_ESCO_SUGGESTED.value: [],
+        SSKey.ROLE_TASKS_LLM_SUGGESTED.value: [],
+        SSKey.ROLE_TASKS_SELECTED.value: [],
+        SSKey.ROLE_TASKS_SUGGEST_COUNT.value: 5,
+        SSKey.SKILLS_JOBSPEC_SUGGESTED.value: [],
+        SSKey.SKILLS_LLM_SUGGESTED.value: [],
+        SSKey.SKILLS_SELECTED.value: [],
+        SSKey.SKILLS_SUGGEST_COUNT.value: 5,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -188,6 +197,15 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.ESCO_MIGRATION_LOG.value] = []
     st.session_state[SSKey.ESCO_MIGRATION_PENDING.value] = None
     st.session_state[SSKey.COMPANY_NACE_CODE.value] = ""
+    st.session_state[SSKey.ROLE_TASKS_JOBSPEC_SUGGESTED.value] = []
+    st.session_state[SSKey.ROLE_TASKS_ESCO_SUGGESTED.value] = []
+    st.session_state[SSKey.ROLE_TASKS_LLM_SUGGESTED.value] = []
+    st.session_state[SSKey.ROLE_TASKS_SELECTED.value] = []
+    st.session_state[SSKey.ROLE_TASKS_SUGGEST_COUNT.value] = 5
+    st.session_state[SSKey.SKILLS_JOBSPEC_SUGGESTED.value] = []
+    st.session_state[SSKey.SKILLS_LLM_SUGGESTED.value] = []
+    st.session_state[SSKey.SKILLS_SELECTED.value] = []
+    st.session_state[SSKey.SKILLS_SUGGEST_COUNT.value] = 5
     st.session_state[SSKey.LAST_ERROR.value] = None
     st.session_state[SSKey.CURRENT_STEP.value] = STEPS[0].key
     st.session_state[SSKey.LAST_RENDERED_STEP.value] = STEPS[0].key

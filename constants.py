@@ -108,6 +108,15 @@ class SSKey(str, Enum):
     EURES_NACE_TO_ESCO = "cs.eures_nace_to_esco"
     EURES_NACE_SOURCE = "cs.eures_nace_source"
     COMPANY_NACE_CODE = "cs.company_nace_code"
+    ROLE_TASKS_JOBSPEC_SUGGESTED = "cs.role_tasks.jobspec_suggested"
+    ROLE_TASKS_ESCO_SUGGESTED = "cs.role_tasks.esco_suggested"
+    ROLE_TASKS_LLM_SUGGESTED = "cs.role_tasks.llm_suggested"
+    ROLE_TASKS_SELECTED = "cs.role_tasks.selected"
+    ROLE_TASKS_SUGGEST_COUNT = "cs.role_tasks.suggest_count"
+    SKILLS_JOBSPEC_SUGGESTED = "cs.skills.jobspec_suggested"
+    SKILLS_LLM_SUGGESTED = "cs.skills.llm_suggested"
+    SKILLS_SELECTED = "cs.skills.selected"
+    SKILLS_SUGGEST_COUNT = "cs.skills.suggest_count"
 
 
 # ---- Wizard Steps (match your screenshot structure) ----
