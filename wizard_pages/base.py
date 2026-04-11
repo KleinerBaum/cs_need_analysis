@@ -771,13 +771,14 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
             job = JobAdExtract.model_validate(job_dict)
         except Exception:
             job = None
-    forecast = _compute_sidebar_salary_forecast(
-        job=job,
-        answers=answers,
-        source_text=source_text,
-    )
-    if forecast is not None:
-        render_sidebar_salary_forecast(forecast=forecast)
+    if str(_selected_mode).strip().lower() == "expert":
+        forecast = _compute_sidebar_salary_forecast(
+            job=job,
+            answers=answers,
+            source_text=source_text,
+        )
+        if forecast is not None:
+            render_sidebar_salary_forecast(forecast=forecast)
     _render_esco_warnings_and_migration_cta()
     return current_page
 

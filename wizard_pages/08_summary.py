@@ -70,7 +70,13 @@ from ui_components import (
     render_openai_error,
 )
 from usage_utils import usage_has_cache_hit
-from wizard_pages.base import WizardContext, WizardPage, nav_buttons
+from wizard_pages.base import (
+    WizardContext,
+    WizardPage,
+    get_current_ui_mode,
+    nav_buttons,
+)
+from wizard_pages.salary_forecast_panel import render_salary_forecast_panel
 
 SUPPORTED_LOGO_MIME_TYPES: dict[str, str] = {
     "image/png": "PNG",
@@ -2684,6 +2690,8 @@ def _render_summary_export_workspace(*, brief: VacancyBrief) -> None:
 
 def render(ctx: WizardContext) -> None:
     render_error_banner()
+    ui_mode = get_current_ui_mode()
+    is_advanced_mode = ui_mode == "expert"
 
     # SUMMARY_ZONE: GUARD_INIT
     vm = _build_summary_view_model()
@@ -3073,7 +3081,9 @@ def render(ctx: WizardContext) -> None:
         resolved_fach_sheet_model=resolved_fach_sheet_model,
         resolved_boolean_search_model=resolved_boolean_search_model,
         resolved_employment_contract_model=resolved_employment_contract_model,
-        render_job_ad_inputs=_render_job_ad_action_hub_inputs,
+        render_job_ad_inputs=_render_job_ad_action_hub_inputs
+        if is_advanced_mode
+        else None,
         follow_up_requirement_check=lambda: _get_brief_requirement_status(
             resolved_brief_model
         ),
@@ -3150,7 +3160,16 @@ def render(ctx: WizardContext) -> None:
             st.caption(
                 f"🧠 Modus: `{last_mode}` · Modelle: Draft=`{last_models.get('draft_model', resolved_brief_model)}`"
             )
-            _render_job_ad_configuration_panel(action_registry=action_registry)
+            if not is_advanced_mode:
+                st.info(
+                    "Advanced Studio ist im aktuellen UI-Modus reduziert. "
+                    "Wechsle auf **Expert**, um Gehaltsprognose und Job-Ad-Editor zu öffnen."
+                )
+            else:
+                with st.container(border=True):
+                    st.markdown("### Gehaltsprognose")
+                    render_salary_forecast_panel(vm.job, vm.answers)
+                _render_job_ad_configuration_panel(action_registry=action_registry)
     else:
         _render_summary_results_workspace(brief=brief)
 
