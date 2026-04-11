@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import streamlit as st
 
 from constants import SSKey
 from question_dependencies import should_show_question
-from question_progress import is_answered
+from question_progress import AnswerMetaMap, is_answered
 from schemas import JobAdExtract, Question, QuestionPlan
 
 
@@ -68,7 +68,7 @@ def _question_is_covered(
     question: Question,
     *,
     answers: dict[str, Any],
-    answer_meta: dict[str, dict[str, Any]],
+    answer_meta: AnswerMetaMap,
     job_extract: JobAdExtract | None,
 ) -> bool:
     if is_answered(question, answers.get(question.id), answer_meta.get(question.id)):
@@ -86,7 +86,7 @@ def compute_adaptive_question_limits(
     plan: QuestionPlan,
     ui_mode: str,
     answers: dict[str, Any],
-    answer_meta: dict[str, dict[str, Any]],
+    answer_meta: AnswerMetaMap,
     job_extract: JobAdExtract | None,
 ) -> dict[str, int]:
     profile = _resolve_mode_profile(ui_mode)
@@ -134,7 +134,11 @@ def sync_adaptive_question_limits() -> None:
     answers_raw = st.session_state.get(SSKey.ANSWERS.value, {})
     answers = answers_raw if isinstance(answers_raw, dict) else {}
     answer_meta_raw = st.session_state.get(SSKey.ANSWER_META.value, {})
-    answer_meta = answer_meta_raw if isinstance(answer_meta_raw, dict) else {}
+    answer_meta: AnswerMetaMap = (
+        cast(AnswerMetaMap, answer_meta_raw)
+        if isinstance(answer_meta_raw, dict)
+        else {}
+    )
     ui_mode_raw = st.session_state.get(SSKey.UI_MODE.value, "standard")
     ui_mode = str(ui_mode_raw).strip().lower()
 
