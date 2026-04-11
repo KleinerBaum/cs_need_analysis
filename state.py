@@ -131,6 +131,9 @@ def init_session_state() -> None:
         },
         SSKey.ESCO_OCCUPATION_SELECTED.value: None,
         SSKey.ESCO_OCCUPATION_CANDIDATES.value: [],
+        SSKey.ESCO_MATCH_REASON.value: None,
+        SSKey.ESCO_MATCH_CONFIDENCE.value: None,
+        SSKey.ESCO_MATCH_PROVENANCE.value: [],
         SSKey.ESCO_SKILLS_SELECTED_MUST.value: [],
         SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
         SSKey.ESCO_SKILLS_MAPPING_REPORT.value: None,
@@ -213,6 +216,9 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.EMPLOYMENT_CONTRACT_LAST_MODELS.value] = {}
     st.session_state[SSKey.ESCO_OCCUPATION_SELECTED.value] = None
     st.session_state[SSKey.ESCO_OCCUPATION_CANDIDATES.value] = []
+    st.session_state[SSKey.ESCO_MATCH_REASON.value] = None
+    st.session_state[SSKey.ESCO_MATCH_CONFIDENCE.value] = None
+    st.session_state[SSKey.ESCO_MATCH_PROVENANCE.value] = []
     st.session_state[SSKey.ESCO_SKILLS_SELECTED_MUST.value] = []
     st.session_state[SSKey.ESCO_SKILLS_SELECTED_NICE.value] = []
     st.session_state[SSKey.ESCO_SKILLS_MAPPING_REPORT.value] = None

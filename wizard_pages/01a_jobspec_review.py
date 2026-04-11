@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from difflib import SequenceMatcher
+
 import streamlit as st
 
 from constants import SSKey
@@ -212,6 +214,91 @@ def _render_esco_post_confirm_impact(job: JobAdExtract) -> None:
         )
 
 
+def _normalize_intent_title(query_text: str) -> str:
+    normalized_query = query_text.strip()
+    if "(" in normalized_query:
+        normalized_query = normalized_query.split("(", 1)[0]
+    return normalized_query.strip()
+
+
+def _infer_esco_match_explainability(
+    *,
+    query_text: str,
+    selected: dict[str, object],
+    options: list[dict[str, object]],
+    applied_meta: dict[str, object],
+) -> dict[str, object]:
+    selected_title = str(selected.get("title") or "").strip()
+    selected_uri = str(selected.get("uri") or "").strip()
+    intent_title = _normalize_intent_title(query_text)
+    intent_folded = intent_title.casefold()
+    selected_folded = selected_title.casefold()
+    top_option = options[0] if options else {}
+    top_uri = str(top_option.get("uri") or "").strip()
+    top_title = str(top_option.get("title") or "").strip()
+    top_folded = top_title.casefold()
+    manual_override = bool(selected_uri and top_uri and selected_uri != top_uri)
+
+    similarity = (
+        SequenceMatcher(None, intent_folded, selected_folded).ratio()
+        if intent_folded and selected_folded
+        else 0.0
+    )
+    direct_match = bool(
+        intent_folded
+        and selected_folded
+        and (intent_folded in selected_folded or selected_folded in intent_folded)
+    )
+    top_intent_match = bool(
+        intent_folded
+        and top_folded
+        and (intent_folded in top_folded or top_folded in intent_folded)
+    )
+
+    provenance_raw = applied_meta.get("provenance_categories", [])
+    provenance_categories = (
+        [str(item).strip() for item in provenance_raw if str(item).strip()]
+        if isinstance(provenance_raw, list)
+        else []
+    )
+
+    if manual_override and "manual override" not in provenance_categories:
+        provenance_categories.append("manual override")
+    if direct_match and "matched from jobspec title" not in provenance_categories:
+        provenance_categories.append("matched from jobspec title")
+    if (
+        str(applied_meta.get("source") or "").strip().lower().startswith("manual")
+        and "matched from synonyms/hidden terms" not in provenance_categories
+    ):
+        provenance_categories.append("matched from synonyms/hidden terms")
+
+    if manual_override:
+        badge_label = "Manual Override"
+        reason = f"Auswahl weicht vom Top-Vorschlag '{top_title or '—'}' ab und wurde manuell bestätigt."
+        confidence = "high"
+    elif direct_match or similarity >= 0.72:
+        badge_label = "Jobspec-Titel Match"
+        reason = f"ESCO-Titel '{selected_title or '—'}' passt direkt zur Query-Intention '{intent_title or '—'}'."
+        confidence = "high" if direct_match else "medium"
+    elif top_intent_match:
+        badge_label = "Query-Intent Match"
+        reason = f"Top-Vorschlag '{top_title or '—'}' entspricht der Query-Intention; Auswahl nutzt denselben Kandidatenraum."
+        confidence = "medium"
+    else:
+        badge_label = "Synonym/Hidden-Term Match"
+        reason = f"Auswahl '{selected_title or '—'}' wurde als semantische Alternative zur Query '{intent_title or '—'}' übernommen."
+        confidence = "low"
+        if "matched from synonyms/hidden terms" not in provenance_categories:
+            provenance_categories.append("matched from synonyms/hidden terms")
+
+    return {
+        "badge_label": badge_label,
+        "reason": reason,
+        "confidence": confidence,
+        "provenance_categories": provenance_categories,
+    }
+
+
 def _render_esco_occupation_block(job: JobAdExtract) -> None:
     st.markdown("### ESCO Occupation")
     query_text = _build_esco_query(job)
@@ -241,8 +328,41 @@ def _render_esco_occupation_block(job: JobAdExtract) -> None:
     selected = selected_raw if isinstance(selected_raw, dict) else {}
     occupation_uri = str(selected.get("uri") or "").strip()
     if not occupation_uri:
+        st.session_state[SSKey.ESCO_MATCH_REASON.value] = None
+        st.session_state[SSKey.ESCO_MATCH_CONFIDENCE.value] = None
+        st.session_state[SSKey.ESCO_MATCH_PROVENANCE.value] = []
         st.session_state[SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value] = {}
         return
+
+    applied_meta_key = (
+        f"{SSKey.ESCO_OCCUPATION_SELECTED.value}.esco_picker.applied_meta"
+    )
+    applied_meta_raw = st.session_state.get(applied_meta_key, {})
+    applied_meta = applied_meta_raw if isinstance(applied_meta_raw, dict) else {}
+    explainability = _infer_esco_match_explainability(
+        query_text=query_text,
+        selected=selected,
+        options=options if isinstance(options, list) else [],
+        applied_meta=applied_meta,
+    )
+    st.session_state[SSKey.ESCO_MATCH_REASON.value] = explainability["reason"]
+    st.session_state[SSKey.ESCO_MATCH_CONFIDENCE.value] = explainability["confidence"]
+    st.session_state[SSKey.ESCO_MATCH_PROVENANCE.value] = explainability[
+        "provenance_categories"
+    ]
+
+    selected_title = str(selected.get("title") or "—").strip() or "—"
+    st.markdown(
+        (
+            f"**Ausgewählte Occupation:** {selected_title} "
+            f"<span style='display:inline-block;padding:0.1rem 0.5rem;border:1px solid #999;border-radius:0.75rem;font-size:0.8rem;'>"
+            f"{explainability['badge_label']}</span>"
+        ),
+        unsafe_allow_html=True,
+    )
+    st.caption(
+        f"{explainability['reason']} (Confidence: {explainability['confidence']})"
+    )
 
     configured_language = (
         str(
