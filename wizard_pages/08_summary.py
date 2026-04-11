@@ -135,9 +135,12 @@ CHANGE_REQUEST_TEMPLATE_BLOCKS: dict[str, str] = {
 class SummaryAction(TypedDict):
     id: str
     title: str
-    description: str
+    benefit: str
     cta_label: str
+    blocked_cta_label: str | None
     requires: tuple[SSKey, ...]
+    requirement_text: str
+    requirement_check_fn: Callable[[], tuple[bool, str]] | None
     generator_fn: Callable[[], None] | None
     result_key: SSKey
     input_hints: tuple[str, ...]
@@ -1692,14 +1695,50 @@ def _has_required_state(requirements: tuple[SSKey, ...]) -> bool:
     return True
 
 
+def _get_brief_requirement_status(resolved_brief_model: str) -> tuple[bool, str]:
+    brief_payload = st.session_state.get(SSKey.BRIEF.value)
+    if not isinstance(brief_payload, dict):
+        return False, "Kein Recruiting Brief vorhanden."
+
+    try:
+        VacancyBrief.model_validate(brief_payload)
+    except Exception:
+        return False, "Recruiting Brief ist ungültig."
+
+    last_models_raw = st.session_state.get(SSKey.SUMMARY_LAST_MODELS.value, {})
+    last_models = last_models_raw if isinstance(last_models_raw, dict) else {}
+    if last_models.get("draft_model") != resolved_brief_model:
+        return False, "Recruiting Brief ist veraltet."
+    return True, "Aktueller Recruiting Brief vorhanden."
+
+
 def _render_action_card(action: SummaryAction) -> bool:
     has_result = bool(st.session_state.get(action["result_key"].value))
     requirements_ok = _has_required_state(action["requires"])
-    status_label = "✅ aktuell" if has_result else "🕒 noch nicht generiert"
+    requirement_status_ok = True
+    requirement_status_message = ""
+    requirement_check_fn = action.get("requirement_check_fn")
+    if requirement_check_fn is not None:
+        requirement_status_ok, requirement_status_message = requirement_check_fn()
+
+    cta_enabled = (
+        requirements_ok and requirement_status_ok and action["generator_fn"] is not None
+    )
+    status_chip = "🟢 aktuell" if has_result else "🟡 offen"
+
     with st.container(border=True):
         st.markdown(f"**{action['title']}**")
-        st.caption(action["description"])
-        st.caption(f"Status: {status_label}")
+        st.caption(action["benefit"])
+        st.caption(f"Status-Chip: {status_chip}")
+
+        requirement_label = action["requirement_text"]
+        if requirement_status_message:
+            requirement_label = f"{requirement_label} — {requirement_status_message}"
+        if requirements_ok and requirement_status_ok:
+            st.caption(f"Voraussetzung: ✅ {requirement_label}")
+        else:
+            st.caption(f"Voraussetzung: ⚠️ {requirement_label}")
+
         input_renderer = action.get("input_renderer")
         if input_renderer is not None:
             input_renderer()
@@ -1707,9 +1746,7 @@ def _render_action_card(action: SummaryAction) -> bool:
             st.markdown("**Inputs**")
             for input_hint in action["input_hints"]:
                 st.write(f"- {input_hint}")
-        if not requirements_ok:
-            st.warning("Voraussetzungen fehlen – Aktion aktuell nicht verfügbar.")
-            return False
+
         if action["generator_fn"] is None:
             st.button(
                 f"{action['cta_label']} (Platzhalter)",
@@ -1718,12 +1755,26 @@ def _render_action_card(action: SummaryAction) -> bool:
                 key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, action["id"]),
             )
             return False
-        return st.button(
+
+        triggered = st.button(
             action["cta_label"],
             width="stretch",
             type="primary",
+            disabled=not cta_enabled,
             key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, action["id"]),
         )
+        blocked_cta_label = action.get("blocked_cta_label")
+        if blocked_cta_label and not requirement_status_ok:
+            st.button(
+                blocked_cta_label,
+                width="stretch",
+                disabled=True,
+                key=_widget_key(
+                    SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
+                    f"{action['id']}.blocked",
+                ),
+            )
+        return triggered
 
 
 def _build_action_registry(
@@ -1735,6 +1786,7 @@ def _build_action_registry(
     resolved_boolean_search_model: str,
     resolved_employment_contract_model: str,
     render_job_ad_inputs: Callable[[], None] | None = None,
+    follow_up_requirement_check: Callable[[], tuple[bool, str]],
     generate_recruiting_brief: Callable[[], None],
     generate_job_ad: Callable[[], None],
     generate_interview_prep_hr: Callable[[], None],
@@ -1746,12 +1798,12 @@ def _build_action_registry(
         {
             "id": "recruiting_brief",
             "title": "Recruiting Brief",
-            "description": (
-                "Verdichtet Jobspec + Wizard-Antworten in einen strukturierten Brief "
-                "als Ausgangsbasis für Hiring und Kommunikation."
-            ),
+            "benefit": "Verdichtet Jobspec und Wizard-Antworten zu einem sofort nutzbaren Recruiting Brief.",
             "cta_label": "Recruiting Brief generieren",
+            "blocked_cta_label": None,
             "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
+            "requirement_text": "Jobspec und Wizard-Plan sind vorhanden",
+            "requirement_check_fn": None,
             "generator_fn": generate_recruiting_brief,
             "result_key": SSKey.BRIEF,
             "input_hints": (
@@ -1764,12 +1816,12 @@ def _build_action_registry(
         {
             "id": "job_ad_generator",
             "title": "Job-Ad-Generator",
-            "description": (
-                "Generiert oder verbessert eine zielgruppenorientierte Stellenanzeige "
-                "inkl. AGG-Checkliste auf Basis selektierter Inputs."
-            ),
+            "benefit": "Erstellt eine zielgruppenorientierte Stellenanzeige mit nachvollziehbarer AGG-Checkliste.",
             "cta_label": "Stellenanzeige generieren/verbessern",
+            "blocked_cta_label": None,
             "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
+            "requirement_text": "Jobspec und Wizard-Plan sind vorhanden",
+            "requirement_check_fn": None,
             "generator_fn": generate_job_ad,
             "result_key": SSKey.JOB_AD_DRAFT_CUSTOM,
             "input_hints": (),
@@ -1778,16 +1830,16 @@ def _build_action_registry(
         {
             "id": "interview_hr_sheet",
             "title": "Interview-Vorbereitungssheet (HR)",
-            "description": (
-                "Strukturiertes HR-Interviewblatt mit Leitfaden, Knockout-Kriterien "
-                "und objektiver Bewertungsrubrik."
-            ),
+            "benefit": "Liefert ein strukturiertes HR-Interviewblatt mit Leitfaden und Bewertungsrubrik.",
             "cta_label": "HR-Sheet erstellen",
+            "blocked_cta_label": "Recruiting Brief erstellen und danach HR-Sheet erstellen",
             "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
+            "requirement_text": "Aktueller Recruiting Brief ist erforderlich",
+            "requirement_check_fn": follow_up_requirement_check,
             "generator_fn": generate_interview_prep_hr,
             "result_key": SSKey.INTERVIEW_PREP_HR,
             "input_hints": (
-                "Recruiting Brief (vorab explizit erstellen/aktualisieren)",
+                "Aktueller Recruiting Brief (kein Auto-Fallback)",
                 "Kritische Must-haves",
                 f"HR-Sheet-Modell: {resolved_hr_sheet_model}",
             ),
@@ -1796,17 +1848,17 @@ def _build_action_registry(
         {
             "id": "interview_fach_sheet",
             "title": "Interview-Vorbereitungssheet (Fachbereich)",
-            "description": (
-                "Fachliches Interviewblatt mit Kompetenzvalidierung, Technical Deep Dive "
-                "und strukturierter Bewertung."
-            ),
+            "benefit": "Liefert ein fachliches Interviewblatt für Deep Dives und konsistente Bewertung.",
             "cta_label": "Fachbereich-Sheet erstellen",
+            "blocked_cta_label": "Recruiting Brief erstellen und danach Fachbereich-Sheet erstellen",
             "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
+            "requirement_text": "Aktueller Recruiting Brief ist erforderlich",
+            "requirement_check_fn": follow_up_requirement_check,
             "generator_fn": generate_interview_prep_fach,
             "result_key": SSKey.INTERVIEW_PREP_FACH,
             "input_hints": (
-                "Recruiting Brief (vorab explizit erstellen/aktualisieren)",
-                "Must-have + Top Responsibilities",
+                "Aktueller Recruiting Brief (kein Auto-Fallback)",
+                "Must-have-Skills und Top Responsibilities",
                 f"Fachbereich-Sheet-Modell: {resolved_fach_sheet_model}",
             ),
             "input_renderer": None,
@@ -1814,17 +1866,17 @@ def _build_action_registry(
         {
             "id": "boolean_search",
             "title": "Boolean Search String",
-            "description": (
-                "Erstellt kanal-spezifische Boolean-Queries (Google, LinkedIn, XING) "
-                "inkl. Broad/Focused/Fallback-Varianten."
-            ),
+            "benefit": "Erstellt kanal-spezifische Boolean-Queries für Google, LinkedIn und XING.",
             "cta_label": "Boolean String erstellen",
+            "blocked_cta_label": "Recruiting Brief erstellen und danach Boolean String erstellen",
             "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
+            "requirement_text": "Aktueller Recruiting Brief ist erforderlich",
+            "requirement_check_fn": follow_up_requirement_check,
             "generator_fn": generate_boolean_search,
             "result_key": SSKey.BOOLEAN_SEARCH_STRING,
             "input_hints": (
-                "Recruiting Brief (vorab explizit erstellen/aktualisieren)",
-                "Must-have + Nice-to-have Skills",
+                "Aktueller Recruiting Brief (kein Auto-Fallback)",
+                "Must-have- und Nice-to-have-Skills",
                 f"Boolean-Modell: {resolved_boolean_search_model}",
             ),
             "input_renderer": None,
@@ -1832,17 +1884,17 @@ def _build_action_registry(
         {
             "id": "employment_contract",
             "title": "Arbeitsvertrag",
-            "description": (
-                "Generiert einen Arbeitsvertrags-Template-Draft mit Platzhaltern, "
-                "fehlenden Inputs und klauselbasierter Review-Struktur."
-            ),
+            "benefit": "Erstellt einen Vertragsentwurf mit Platzhaltern und klarer Review-Struktur.",
             "cta_label": "Arbeitsvertrag erstellen",
+            "blocked_cta_label": "Recruiting Brief erstellen und danach Arbeitsvertrag erstellen",
             "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
+            "requirement_text": "Aktueller Recruiting Brief ist erforderlich",
+            "requirement_check_fn": follow_up_requirement_check,
             "generator_fn": generate_employment_contract,
             "result_key": SSKey.EMPLOYMENT_CONTRACT_DRAFT,
             "input_hints": (
-                "Recruiting Brief (vorab explizit erstellen/aktualisieren)",
-                "Vertragsart + Konditionen",
+                "Aktueller Recruiting Brief (kein Auto-Fallback)",
+                "Vertragsart und Konditionen",
                 f"Contract-Modell: {resolved_employment_contract_model}",
             ),
             "input_renderer": None,
@@ -2004,17 +2056,15 @@ def render(ctx: WizardContext) -> None:
             )
 
     def _get_brief_status() -> tuple[str, VacancyBrief | None]:
+        requirement_ok, _ = _get_brief_requirement_status(resolved_brief_model)
         brief_payload = st.session_state.get(SSKey.BRIEF.value)
+        if not isinstance(brief_payload, dict):
+            return "missing", None
         try:
-            if not isinstance(brief_payload, dict):
-                return "missing", None
             brief = VacancyBrief.model_validate(brief_payload)
         except Exception:
             return "invalid", None
-
-        last_models_raw = st.session_state.get(SSKey.SUMMARY_LAST_MODELS.value, {})
-        last_models = last_models_raw if isinstance(last_models_raw, dict) else {}
-        if last_models.get("draft_model") != resolved_brief_model:
+        if not requirement_ok:
             return "stale", brief
         return "ready", brief
 
@@ -2256,6 +2306,9 @@ def render(ctx: WizardContext) -> None:
         resolved_boolean_search_model=resolved_boolean_search_model,
         resolved_employment_contract_model=resolved_employment_contract_model,
         render_job_ad_inputs=_render_job_ad_action_hub_inputs,
+        follow_up_requirement_check=lambda: _get_brief_requirement_status(
+            resolved_brief_model
+        ),
         generate_recruiting_brief=_generate_recruiting_brief,
         generate_job_ad=_generate_job_ad,
         generate_interview_prep_hr=_generate_interview_prep_hr,

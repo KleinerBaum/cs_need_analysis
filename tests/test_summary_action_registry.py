@@ -28,7 +28,6 @@ class _FakeStreamlit:
     def __init__(self, session_state: dict[str, Any], *, button_result: bool = False):
         self.session_state = session_state
         self.button_result = button_result
-        self.warning_messages: list[str] = []
         self.last_button_kwargs: dict[str, Any] = {}
 
     def container(self, **_: Any) -> _NoopContext:
@@ -43,9 +42,6 @@ class _FakeStreamlit:
     def write(self, *_: Any, **__: Any) -> None:
         return None
 
-    def warning(self, message: str) -> None:
-        self.warning_messages.append(message)
-
     def button(self, label: str, **kwargs: Any) -> bool:
         self.last_button_kwargs = {"label": label, **kwargs}
         return self.button_result
@@ -59,6 +55,10 @@ def test_build_action_registry_contains_expected_actions_and_requirements() -> N
         resolved_fach_sheet_model="gpt-5",
         resolved_boolean_search_model="gpt-5-mini",
         resolved_employment_contract_model="o3-mini",
+        follow_up_requirement_check=lambda: (
+            True,
+            "Aktueller Recruiting Brief vorhanden.",
+        ),
         generate_recruiting_brief=lambda: None,
         generate_job_ad=lambda: None,
         generate_interview_prep_hr=lambda: None,
@@ -96,18 +96,21 @@ def test_render_action_card_returns_false_when_requirements_missing(
     action = {
         "id": "recruiting_brief",
         "title": "Recruiting Brief",
-        "description": "desc",
+        "benefit": "desc",
         "cta_label": "Generate",
+        "blocked_cta_label": None,
         "requires": (SSKey.JOB_EXTRACT,),
+        "requirement_text": "Jobspec vorhanden",
+        "requirement_check_fn": None,
         "generator_fn": lambda: None,
         "result_key": SSKey.BRIEF,
         "input_hints": ("hint",),
+        "input_renderer": None,
     }
     triggered = SUMMARY_MODULE._render_action_card(action)
 
     assert triggered is False
-    assert fake_st.warning_messages
-    assert fake_st.last_button_kwargs == {}
+    assert fake_st.last_button_kwargs["disabled"] is True
 
 
 def test_render_action_card_renders_available_fach_action(monkeypatch) -> None:
@@ -122,17 +125,21 @@ def test_render_action_card_renders_available_fach_action(monkeypatch) -> None:
     action = {
         "id": "interview_fach_sheet",
         "title": "Fachbereich Sheet",
-        "description": "desc",
+        "benefit": "desc",
         "cta_label": "Generate",
+        "blocked_cta_label": None,
         "requires": (SSKey.BRIEF,),
+        "requirement_text": "Aktueller Brief erforderlich",
+        "requirement_check_fn": None,
         "generator_fn": lambda: None,
         "result_key": SSKey.INTERVIEW_PREP_FACH,
         "input_hints": (),
+        "input_renderer": None,
     }
     triggered = SUMMARY_MODULE._render_action_card(action)
 
     assert triggered is False
-    assert "disabled" not in fake_st.last_button_kwargs
+    assert fake_st.last_button_kwargs["disabled"] is False
 
 
 def test_render_action_card_returns_button_state_for_available_action(
@@ -147,12 +154,16 @@ def test_render_action_card_returns_button_state_for_available_action(
     action = {
         "id": "job_ad_generator",
         "title": "Job Ad",
-        "description": "desc",
+        "benefit": "desc",
         "cta_label": "Generate",
+        "blocked_cta_label": None,
         "requires": (SSKey.JOB_EXTRACT,),
+        "requirement_text": "Jobspec vorhanden",
+        "requirement_check_fn": None,
         "generator_fn": lambda: None,
         "result_key": SSKey.JOB_AD_DRAFT_CUSTOM,
         "input_hints": (),
+        "input_renderer": None,
     }
     triggered = SUMMARY_MODULE._render_action_card(action)
 
@@ -188,6 +199,10 @@ def test_follow_up_actions_describe_explicit_brief_dependency() -> None:
         resolved_fach_sheet_model="gpt-5",
         resolved_boolean_search_model="gpt-5-mini",
         resolved_employment_contract_model="o3-mini",
+        follow_up_requirement_check=lambda: (
+            True,
+            "Aktueller Recruiting Brief vorhanden.",
+        ),
         generate_recruiting_brief=lambda: None,
         generate_job_ad=lambda: None,
         generate_interview_prep_hr=lambda: None,
@@ -205,4 +220,9 @@ def test_follow_up_actions_describe_explicit_brief_dependency() -> None:
     for action in action_registry:
         if action["id"] in follow_up_ids:
             hints = " ".join(action["input_hints"]).lower()
-            assert "explizit" in hints
+            assert "kein auto-fallback" in hints
+            assert (
+                action["requirement_text"]
+                == "Aktueller Recruiting Brief ist erforderlich"
+            )
+            assert action["blocked_cta_label"]
