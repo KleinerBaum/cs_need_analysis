@@ -216,6 +216,27 @@ def _get_info_page_key() -> str | None:
     return None
 
 
+def _render_info_page_sidebar_navigation(ctx: WizardContext) -> None:
+    current_step = st.session_state.get(SSKey.CURRENT_STEP.value, ctx.pages[0].key)
+    wizard_keys = [page.key for page in ctx.pages]
+    current_index = (
+        wizard_keys.index(current_step) if current_step in wizard_keys else 0
+    )
+
+    selected_label = st.sidebar.radio(
+        "Wizard",
+        options=[page.label for page in ctx.pages],
+        index=current_index,
+        key="info_page.wizard_nav",
+    )
+
+    selected_page = next(page for page in ctx.pages if page.label == selected_label)
+    if selected_page.key != current_step:
+        set_current_step(selected_page.key)
+        st.query_params.clear()
+        st.rerun()
+
+
 def _render_info_page(info_page_key: str) -> None:
     if info_page_key == "esco":
         st.title("ESCO-API-Integration für cs_need_analysis")
@@ -360,6 +381,7 @@ def main() -> None:
 
     info_page_key = _get_info_page_key()
     if info_page_key is not None:
+        _render_info_page_sidebar_navigation(ctx)
         _render_info_page(info_page_key)
         st.session_state[SSKey.LAST_RENDERED_STEP.value] = None
         return
