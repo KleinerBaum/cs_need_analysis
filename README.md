@@ -12,22 +12,16 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 - Detailgruppen werden über eine globale Sidebar-Präferenz gesteuert; zusätzlich gibt es je Schritt einen kompakten Toggle. `expert` startet standardmäßig geöffnet, `quick`/`standard` standardmäßig kompakt.
 - Im Schritt **Identifizierte Informationen** werden die angezeigten Fragen pro Step automatisch und laufend neu bestimmt (basierend auf vorhandenen Informationen aus Jobspec + bisherigen Antworten sowie dem Ansichtsmodus `quick`/`standard`/`expert`).
 - Finaler **Recruiting Brief** mit Export als JSON, Markdown und DOCX.
-- **Action Hub** in der Summary für Folgeartefakte inkl. kanonischer Artefakt-IDs (`brief`, `job_ad`, `interview_hr`, `interview_fach`, `boolean_search`, `employment_contract`).
-  - Recruiting Brief
-  - Job-Ad-Generator (mit Zielgruppe + AGG-Checkliste)
-  - Interview-Vorbereitungssheet (HR)
-  - Interview-Vorbereitungssheet (Fachbereich)
-  - Boolean Search Pack (Google/LinkedIn/XING, Broad/Focused/Fallback)
-  - Arbeitsvertrag (Template Draft)
-- Die Summary ist als Workspace mit Tabs aufgebaut (`Readiness`, `Fakten`, `Artefakte`, `Export`, `Advanced`); standardmäßig startet die Ansicht in `Readiness`.
-- Der Ergebnisbereich wird im Tab `Artefakte` über das aktive Artefakt gesteuert (fokussierte Darstellung + sekundäres Umschalten auf weitere Ergebnisse); Exporte liegen separat im Tab `Export`.
-- Beim Job-Ad-Generator stehen zusätzlich eine Selection Matrix, ein Job-Ad-Editor sowie optionaler Logo-Upload und Styleguide-/Change-Request-Bausteine zur Verfügung.
+- **Summary-Workspace** mit klarer Tab-Struktur: `Readiness` (Startansicht), `Fakten`, `Artefakte`, `Export`, `Advanced`.
+- **Action Hub im Tab `Artefakte`** mit kanonischen Artefakt-IDs (`brief`, `job_ad`, `interview_hr`, `interview_fach`, `boolean_search`, `employment_contract`) und fokussiertem Primärpfad (Recruiting Brief → Folgeartefakte → Export).
+- Der Artefaktbereich wurde auf eine scannbare Einzeldarstellung konsolidiert (keine doppelten Ergebnisblöcke); weitere Ergebnisse werden sekundär umgeschaltet.
+- Beim Job-Ad-Generator liegen **Selection Matrix** und **Job-Ad-Editor** gebündelt im erweiterten Bereich, inkl. optionalem Logo-Upload sowie Styleguide-/Change-Request-Bausteinen.
 - Der Salary Forecast wird in den Schritten Rolle & Aufgaben, Skills & Anforderungen sowie Benefits & Rahmenbedingungen als standardmäßig geöffnete Sektion angezeigt.
 - ESCO-Integration im Jobspec-Review mit Occupation-Picker, Preview und optionalem Laden von Occupation-Titelvarianten in mehreren Sprachen.
 - Skills-Mapping gegen ESCO inkl. Must-/Nice-to-have-Zuordnung, relationalen Occupation-Skill-Vorschlägen und on-demand Skill-Details.
 - Optionales NACE/EURES-Mapping im Unternehmensschritt als Grundlage für spätere Country-/Occupation-Kontexte.
 - Primäre Fakten-Tabelle in der Summary (Bereich/Feld/Wert/Quelle/Status) inkl. Such-/Statusfilter, plus sekundärer Kompaktüberblick und ESCO Mapping Report (JSON/CSV-Export).
-- In den Schritten Rolle & Aufgaben und Skills & Anforderungen werden Vorschläge aus Jobspec, ESCO und AI nebeneinander dargestellt und können gezielt übernommen werden.
+- In den Schritten **Rolle & Aufgaben** sowie **Skills & Anforderungen** läuft die Übernahme über „**Vergleichen & übernehmen**“-Tabellen: Vorschläge aus Jobspec, ESCO und AI werden nebeneinander gestellt und selektiv übernommen.
 - Session-basiertes LLM-Response-Caching mit Cache-Hinweisen in Intake/Summary (DE/EN), inkl. Cache-Status für Folgeartefakte.
 
 ## Voraussetzungen
