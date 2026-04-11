@@ -63,6 +63,23 @@ def test_conversion_endpoint_must_not_be_empty() -> None:
         client.conversion("   ")
 
 
+def test_conversion_uses_split_endpoint_paths(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_cached_get_json(**kwargs):
+        captured.update(kwargs)
+        return {"ok": True}
+
+    monkeypatch.setattr(esco_client, "_cached_get_json", fake_cached_get_json)
+    client = esco_client.EscoClient(session_state={SSKey.ESCO_CONFIG.value: {}})
+
+    payload = client.conversion("skill", uri="legacy:123")
+
+    assert payload == {"ok": True}
+    assert captured["endpoint"] == "conversion/skill"
+    assert ("uri", "legacy:123") in captured["query_items"]
+
+
 def test_default_config_is_used_when_session_state_is_missing(monkeypatch) -> None:
     monkeypatch.setattr(
         esco_client,

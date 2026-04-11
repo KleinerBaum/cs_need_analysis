@@ -108,6 +108,8 @@ def init_session_state() -> None:
         SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
         SSKey.ESCO_SKILLS_MAPPING_REPORT.value: None,
         SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value: {},
+        SSKey.ESCO_MIGRATION_LOG.value: [],
+        SSKey.ESCO_MIGRATION_PENDING.value: None,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -164,6 +166,8 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.ESCO_SKILLS_SELECTED_NICE.value] = []
     st.session_state[SSKey.ESCO_SKILLS_MAPPING_REPORT.value] = None
     st.session_state[SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value] = {}
+    st.session_state[SSKey.ESCO_MIGRATION_LOG.value] = []
+    st.session_state[SSKey.ESCO_MIGRATION_PENDING.value] = None
     st.session_state[SSKey.LAST_ERROR.value] = None
     st.session_state[SSKey.CURRENT_STEP.value] = STEPS[0].key
     st.session_state[SSKey.LAST_RENDERED_STEP.value] = STEPS[0].key

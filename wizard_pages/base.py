@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Callable, List, Literal, Mapping, Sequence, TypedDict
 
 import streamlit as st
@@ -302,25 +303,232 @@ def _find_legacy_uri_payload() -> dict[str, str] | None:
     if isinstance(selected, dict):
         uri = selected.get("uri")
         if _is_legacy_esco_uri(uri):
-            return {"target": SSKey.ESCO_OCCUPATION_SELECTED.value, "uri": str(uri)}
+            return {
+                "target": SSKey.ESCO_OCCUPATION_SELECTED.value,
+                "uri": str(uri),
+                "concept_type": "occupation",
+            }
+    for bucket_key in (
+        SSKey.ESCO_SKILLS_SELECTED_MUST.value,
+        SSKey.ESCO_SKILLS_SELECTED_NICE.value,
+    ):
+        bucket = st.session_state.get(bucket_key)
+        if not isinstance(bucket, list):
+            continue
+        for index, item in enumerate(bucket):
+            if not isinstance(item, dict):
+                continue
+            uri = item.get("uri")
+            if _is_legacy_esco_uri(uri):
+                return {
+                    "target": bucket_key,
+                    "uri": str(uri),
+                    "concept_type": "skill",
+                    "index": str(index),
+                }
     return None
 
 
-def _extract_canonical_uri(payload: object) -> str | None:
-    if isinstance(payload, dict):
-        uri_value = payload.get("uri")
-        if isinstance(uri_value, str) and not _is_legacy_esco_uri(uri_value):
-            return uri_value
-        for nested in payload.values():
-            migrated = _extract_canonical_uri(nested)
-            if migrated:
-                return migrated
-    elif isinstance(payload, list):
-        for item in payload:
-            migrated = _extract_canonical_uri(item)
-            if migrated:
-                return migrated
-    return None
+def _extract_conversion_candidates(
+    payload: object, *, concept_type: str
+) -> list[dict[str, str]]:
+    candidates: list[dict[str, str]] = []
+    seen_uris: set[str] = set()
+
+    def _matches_type(concept_uri: str, value_type: str) -> bool:
+        normalized_type = value_type.strip().lower()
+        if normalized_type == concept_type:
+            return True
+        return f"/{concept_type}/" in concept_uri.strip().lower()
+
+    def _walk(node: object) -> None:
+        if isinstance(node, dict):
+            uri_value = node.get("uri")
+            if isinstance(uri_value, str) and not _is_legacy_esco_uri(uri_value):
+                node_type = str(node.get("type") or "")
+                if _matches_type(uri_value, node_type) and uri_value not in seen_uris:
+                    label = str(
+                        node.get("title")
+                        or node.get("preferredLabel")
+                        or node.get("label")
+                        or uri_value
+                    ).strip()
+                    candidates.append({"uri": uri_value, "label": label})
+                    seen_uris.add(uri_value)
+            for nested in node.values():
+                _walk(nested)
+        elif isinstance(node, list):
+            for item in node:
+                _walk(item)
+
+    _walk(payload)
+    return candidates
+
+
+def _append_esco_migration_log(
+    *,
+    concept_type: str,
+    old_uri: str,
+    new_uri: str,
+    decision: str,
+) -> None:
+    raw_log = st.session_state.get(SSKey.ESCO_MIGRATION_LOG.value, [])
+    migration_log = list(raw_log) if isinstance(raw_log, list) else []
+    migration_log.append(
+        {
+            "concept_type": concept_type,
+            "old_uri": old_uri,
+            "new_uri": new_uri,
+            "decision": decision,
+            "migrated_at": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+    st.session_state[SSKey.ESCO_MIGRATION_LOG.value] = migration_log
+
+
+def _apply_canonical_uri(
+    *,
+    migration_payload: Mapping[str, str],
+    canonical_uri: str,
+    decision: str,
+) -> bool:
+    target = str(migration_payload.get("target") or "").strip()
+    legacy_uri = str(migration_payload.get("uri") or "").strip()
+    concept_type = str(migration_payload.get("concept_type") or "").strip()
+    if not target or not legacy_uri or not concept_type:
+        return False
+
+    if target == SSKey.ESCO_OCCUPATION_SELECTED.value:
+        selected = st.session_state.get(target)
+        if not isinstance(selected, dict):
+            return False
+        migrated = dict(selected)
+        migrated["uri"] = canonical_uri
+        st.session_state[target] = migrated
+    elif target in (
+        SSKey.ESCO_SKILLS_SELECTED_MUST.value,
+        SSKey.ESCO_SKILLS_SELECTED_NICE.value,
+    ):
+        raw_bucket = st.session_state.get(target)
+        if not isinstance(raw_bucket, list):
+            return False
+        try:
+            index = int(str(migration_payload.get("index") or "").strip())
+        except ValueError:
+            return False
+        if index < 0 or index >= len(raw_bucket):
+            return False
+        entry = raw_bucket[index]
+        if not isinstance(entry, dict):
+            return False
+        bucket = list(raw_bucket)
+        migrated = dict(entry)
+        migrated["uri"] = canonical_uri
+        bucket[index] = migrated
+        st.session_state[target] = bucket
+    else:
+        return False
+
+    _append_esco_migration_log(
+        concept_type=concept_type,
+        old_uri=legacy_uri,
+        new_uri=canonical_uri,
+        decision=decision,
+    )
+    st.session_state[SSKey.ESCO_MIGRATION_PENDING.value] = None
+    return True
+
+
+def _render_pending_esco_migration_choice() -> None:
+    pending = st.session_state.get(SSKey.ESCO_MIGRATION_PENDING.value)
+    if not isinstance(pending, dict):
+        return
+    raw_candidates = pending.get("candidates")
+    candidates = raw_candidates if isinstance(raw_candidates, list) else []
+    if len(candidates) <= 1:
+        return
+
+    st.info("Mehrere mögliche Zielkonzepte gefunden. Bitte explizit auswählen.")
+    options = [
+        str(candidate.get("uri") or "").strip()
+        for candidate in candidates
+        if isinstance(candidate, dict) and str(candidate.get("uri") or "").strip()
+    ]
+    if not options:
+        st.session_state[SSKey.ESCO_MIGRATION_PENDING.value] = None
+        return
+
+    labels_by_uri = {
+        str(candidate.get("uri") or "").strip(): str(
+            candidate.get("label") or candidate.get("uri") or "Unbenannt"
+        ).strip()
+        for candidate in candidates
+        if isinstance(candidate, dict)
+    }
+    selected_uri = st.selectbox(
+        "Migrationsziel auswählen",
+        options=options,
+        format_func=lambda uri: f"{labels_by_uri.get(uri, uri)} — {uri}",
+        key="esco.legacy_uri.candidate_select",
+    )
+    c_apply, c_cancel = st.columns([1, 1])
+    with c_apply:
+        if st.button("Auswahl übernehmen", key="esco.legacy_uri.apply_selection"):
+            applied = _apply_canonical_uri(
+                migration_payload=pending,
+                canonical_uri=selected_uri,
+                decision="selected_from_multiple",
+            )
+            if applied:
+                st.success("Legacy-URI wurde auf eine kanonische ESCO-URI migriert.")
+            else:
+                st.warning("Die Auswahl konnte nicht übernommen werden.")
+    with c_cancel:
+        if st.button("Auswahl verwerfen", key="esco.legacy_uri.cancel_selection"):
+            st.session_state[SSKey.ESCO_MIGRATION_PENDING.value] = None
+            st.info("Migrationsauswahl wurde verworfen.")
+
+
+def _conversion_endpoint_for_concept(concept_type: str) -> str:
+    return "occupation" if concept_type == "occupation" else "skill"
+
+
+def _render_esco_migration_trigger(legacy_payload: Mapping[str, str]) -> None:
+    concept_type = str(legacy_payload.get("concept_type") or "").strip()
+    conversion_endpoint = _conversion_endpoint_for_concept(concept_type)
+    if st.button("Legacy-URI migrieren", key="esco.legacy_uri.migrate"):
+        try:
+            conversion_payload = EscoClient().conversion(
+                conversion_endpoint,
+                uri=legacy_payload["uri"],
+            )
+        except EscoClientError as exc:
+            st.warning(f"Migration aktuell nicht möglich: {exc}")
+            return
+
+        candidates = _extract_conversion_candidates(
+            conversion_payload,
+            concept_type=concept_type,
+        )
+        if not candidates:
+            st.info("Keine kanonische URI im Conversion-Resultat gefunden.")
+            return
+        if len(candidates) == 1:
+            applied = _apply_canonical_uri(
+                migration_payload=legacy_payload,
+                canonical_uri=candidates[0]["uri"],
+                decision="single_candidate",
+            )
+            if applied:
+                st.success("Legacy-URI wurde auf eine kanonische ESCO-URI migriert.")
+            else:
+                st.info("Keine aktualisierbare ESCO-Auswahl gefunden.")
+            return
+
+        pending = dict(legacy_payload)
+        pending["candidates"] = candidates
+        st.session_state[SSKey.ESCO_MIGRATION_PENDING.value] = pending
+        st.info("Bitte wählen Sie ein Zielkonzept für die Migration aus.")
 
 
 def _render_esco_sidebar_status_block(ui_mode: str) -> None:
@@ -368,6 +576,7 @@ def _render_esco_sidebar_status_block(ui_mode: str) -> None:
 
 
 def _render_esco_warnings_and_migration_cta() -> None:
+    _render_pending_esco_migration_choice()
     config = _get_esco_config()
     if bool(config["view_obsolete"]):
         st.warning(
@@ -384,25 +593,7 @@ def _render_esco_warnings_and_migration_cta() -> None:
     )
     with st.expander("Legacy-URI Details", expanded=False):
         st.code(legacy_uri)
-
-    if st.button("Legacy-URI migrieren", key="esco.legacy_uri.migrate"):
-        try:
-            conversion_payload = EscoClient().conversion("occupation", uri=legacy_uri)
-        except EscoClientError as exc:
-            st.warning(f"Migration aktuell nicht möglich: {exc}")
-            return
-        canonical_uri = _extract_canonical_uri(conversion_payload)
-        if canonical_uri is None:
-            st.info("Keine kanonische URI im Conversion-Resultat gefunden.")
-            return
-        selected = st.session_state.get(SSKey.ESCO_OCCUPATION_SELECTED.value)
-        if not isinstance(selected, dict):
-            st.info("Keine aktualisierbare ESCO-Auswahl gefunden.")
-            return
-        migrated = dict(selected)
-        migrated["uri"] = canonical_uri
-        st.session_state[SSKey.ESCO_OCCUPATION_SELECTED.value] = migrated
-        st.success("Legacy-URI wurde auf eine kanonische ESCO-URI migriert.")
+    _render_esco_migration_trigger(legacy_payload)
 
 
 def sidebar_navigation(ctx: WizardContext) -> WizardPage:
