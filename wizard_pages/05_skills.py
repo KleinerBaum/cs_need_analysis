@@ -172,7 +172,7 @@ def _merge_llm_skill_suggestions(
         accepted.append(
             {
                 "label": label,
-                "source": "AI",
+                "source": "AI suggestion",
                 "importance": str(item.get("importance") or "").strip(),
                 "rationale": str(item.get("rationale") or "").strip(),
                 "evidence": str(item.get("evidence") or "").strip(),
@@ -203,6 +203,20 @@ def _save_selected_skill_suggestions(labels: list[str]) -> int:
     return added_count
 
 
+def _source_badge(label: str) -> str:
+    return (
+        f"<span style='display:inline-block;padding:0.15rem 0.45rem;border-radius:0.6rem;"
+        "border:1px solid #d1d5db;font-size:0.78rem;'>"
+        f"{label}</span>"
+    )
+
+
+def _render_badge_line(labels: list[str]) -> None:
+    rendered = " ".join(_source_badge(label) for label in labels if label.strip())
+    if rendered:
+        st.markdown(rendered, unsafe_allow_html=True)
+
+
 def _render_skills_source_columns(
     *,
     jobspec_suggested: list[dict[str, Any]],
@@ -210,6 +224,7 @@ def _render_skills_source_columns(
     llm_suggested: list[dict[str, Any]],
 ) -> None:
     st.markdown("### Skills vergleichen & übernehmen")
+    _render_badge_line(["Jobspec", "ESCO essential", "ESCO optional", "AI suggestion"])
     selected_labels_raw = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
     selected_labels = (
         [
@@ -380,8 +395,8 @@ def render(ctx: WizardContext) -> None:
     plan = QuestionPlan.model_validate(plan_dict)
 
     st.write(
-        "Ziel: Must-have vs Nice-to-have klar trennen, Level definieren, "
-        "und daraus eine Interview- & Assessment-Logik ableiten."
+        "Ziel: Rohbegriffe aus dem Jobspec zuerst sichtbar machen, dann mit ESCO "
+        "vereinheitlichen und abschließend als essential oder optional bestätigen."
     )
     selected_occupation = get_esco_occupation_selected()
     if selected_occupation:
@@ -404,7 +419,13 @@ def render(ctx: WizardContext) -> None:
     ]
     st.session_state[SSKey.SKILLS_JOBSPEC_SUGGESTED.value] = jobspec_suggestions
 
-    with st.expander("Aus Jobspec extrahiert (Skills)", expanded=True):
+    st.markdown("### 1) Extrahierte Skill-Phrasen aus dem Jobspec")
+    st.caption(
+        "Diese Liste zeigt nur erkannte Begriffe aus dem Jobspec. "
+        "Hier wurde noch nichts mit ESCO abgeglichen."
+    )
+    _render_badge_line(["Jobspec"])
+    with st.expander("Extraktion prüfen", expanded=True):
         if must_have_skills:
             st.write("**Must-have (Auszug):**")
             for x in must_have_skills[:12]:
@@ -424,30 +445,50 @@ def render(ctx: WizardContext) -> None:
                 "Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions."
             )
 
-    st.markdown("### ESCO Skill-Mapping")
+    st.markdown("### 2) ESCO-normalisierte Vorschläge")
+    st.caption(
+        "ESCO hilft, freie Begriffe auf standardisierte Skills abzubilden. "
+        "So werden Dubletten reduziert und Exporte konsistent."
+    )
     normalized_must_terms = _dedupe_terms(must_have_skills)
     normalized_nice_terms = _dedupe_terms(nice_to_have_skills)
 
-    with st.expander("Must-have Mapping", expanded=True):
+    with st.expander("Essential-Skills normalisieren", expanded=True):
+        _render_badge_line(["ESCO essential"])
         st.caption(
-            "Suche relevante Must-have Skills, prüfe sie im Preview und bestätige mit Apply."
+            "Wähle Skills, die zwingend erforderlich sind. "
+            "Bestätige danach explizit als essential."
         )
         render_esco_picker_card(
             concept_type="skill",
             target_state_key=SSKey.ESCO_SKILLS_SELECTED_MUST,
             allow_multi=True,
             enable_preview=True,
+            apply_label="Confirm essential skills",
+            preview_label="Vorschau essential",
+            selection_label="Vorschläge für essential",
+            confirmation_helper_text=(
+                "Bestätigung übernimmt die Auswahl als zwingende ESCO-Skills."
+            ),
         )
 
-    with st.expander("Nice-to-have Mapping", expanded=True):
+    with st.expander("Optional-Skills normalisieren", expanded=True):
+        _render_badge_line(["ESCO optional"])
         st.caption(
-            "Suche ergänzende Nice-to-have Skills, prüfe sie im Preview und bestätige mit Apply."
+            "Wähle Skills, die hilfreich sind, aber nicht zwingend. "
+            "Bestätige danach explizit als optional."
         )
         render_esco_picker_card(
             concept_type="skill",
             target_state_key=SSKey.ESCO_SKILLS_SELECTED_NICE,
             allow_multi=True,
             enable_preview=True,
+            apply_label="Confirm optional skills",
+            preview_label="Vorschau optional",
+            selection_label="Vorschläge für optional",
+            confirmation_helper_text=(
+                "Bestätigung übernimmt die Auswahl als optionale ESCO-Skills."
+            ),
         )
 
     st.markdown("### ESCO-Vorschläge aus Occupation")
@@ -552,33 +593,71 @@ def render(ctx: WizardContext) -> None:
     ).model_dump()
     st.session_state[SSKey.ESCO_SKILLS_MAPPING_REPORT.value] = mapping_report
 
-    if deduped_must:
-        st.caption(f"Mapped Must-Skills: {len(deduped_must)}")
-    if deduped_nice:
-        st.caption(f"Mapped Nice-Skills: {len(deduped_nice)}")
+    st.markdown("### 3) Essential / Optional bestätigen")
+    st.caption(
+        "Hier siehst du die bestätigte Gruppierung. Essential = erforderlich, "
+        "Optional = zusätzlicher Mehrwert."
+    )
+    col_essential, col_optional = st.columns(2)
+    with col_essential:
+        _render_badge_line(["ESCO essential"])
+        st.caption(f"Bestätigte essential Skills: {len(deduped_must)}")
+    with col_optional:
+        _render_badge_line(["ESCO optional"])
+        st.caption(f"Bestätigte optionale Skills: {len(deduped_nice)}")
     _render_selected_skill_details(
-        title="Gewählte Must-Skills",
+        title="Bestätigte essential Skills",
         selected_skills=deduped_must,
         detail_cache=detail_cache,
         is_expert_mode=is_expert_mode,
         key_prefix="skills.must",
     )
     _render_selected_skill_details(
-        title="Gewählte Nice-to-have Skills",
+        title="Bestätigte optionale Skills",
         selected_skills=deduped_nice,
         detail_cache=detail_cache,
         is_expert_mode=is_expert_mode,
         key_prefix="skills.nice",
     )
 
-    if mapping_report["unmapped_terms"]:
-        st.markdown("#### Follow-up: Unmapped Skills")
-        for term in mapping_report["unmapped_terms"]:
-            st.write(f"- {term}")
+    st.markdown("### 4) Unmapped / Ambiguous Items")
+    st.caption(
+        "Diese Begriffe konnten nicht eindeutig ESCO-normalisiert werden oder sind "
+        "inhaltlich mehrdeutig. Sie werden nicht stillschweigend verworfen."
+    )
+    ambiguous_terms = sorted(
+        {
+            term
+            for term in normalized_must_terms
+            if _normalize_term(term)
+            in {_normalize_term(x) for x in normalized_nice_terms}
+        }
+    )
+    unmapped_terms = list(mapping_report["unmapped_terms"])
+    flagged_terms = _dedupe_terms([*ambiguous_terms, *unmapped_terms])
+    if flagged_terms:
+        _render_badge_line(["Jobspec"])
+        for index, term in enumerate(flagged_terms):
+            is_ambiguous = _normalize_term(term) in {
+                _normalize_term(item) for item in ambiguous_terms
+            }
+            reason = (
+                "Mehrdeutig (taucht als essential und optional auf)"
+                if is_ambiguous
+                else "Nicht eindeutig ESCO-mappbar"
+            )
+            st.write(f"- **{term}** · {reason}")
+            if st.button(
+                "Keep as free-text requirement",
+                key=f"skills.free_text.keep.{index}",
+            ):
+                added_count = _save_selected_skill_suggestions([term])
+                if added_count > 0:
+                    st.success(f"'{term}' als Freitext-Anforderung übernommen.")
+                else:
+                    st.info(f"'{term}' war bereits als Freitext enthalten.")
     else:
-        st.caption(
-            "Alle relevanten Skill-Begriffe wurden gemappt oder bewusst übersprungen."
-        )
+        st.caption("Keine offenen oder mehrdeutigen Skill-Begriffe vorhanden.")
 
     suggestion_context = _build_skill_suggestion_context(
         job=job,
@@ -586,8 +665,19 @@ def render(ctx: WizardContext) -> None:
         esco_nice_selected=deduped_nice,
     )
     esco_suggestions = [
-        {"label": title, "source": "ESCO"}
-        for title in suggestion_context["esco_titles"]
+        {
+            "label": str(item.get("title") or "").strip(),
+            "source": "ESCO essential",
+        }
+        for item in deduped_must
+        if has_meaningful_value(str(item.get("title") or ""))
+    ] + [
+        {
+            "label": str(item.get("title") or "").strip(),
+            "source": "ESCO optional",
+        }
+        for item in deduped_nice
+        if has_meaningful_value(str(item.get("title") or ""))
     ]
 
     st.markdown("### AI Skill-Vorschläge")

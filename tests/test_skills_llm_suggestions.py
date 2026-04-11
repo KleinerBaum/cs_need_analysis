@@ -40,7 +40,7 @@ def test_merge_llm_skill_suggestions_dedupes_against_existing_esco_titles() -> N
     assert merged == [
         {
             "label": "Data Governance",
-            "source": "AI",
+            "source": "AI suggestion",
             "importance": "medium",
             "rationale": "relevant",
             "evidence": "answers",
