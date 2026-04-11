@@ -8,6 +8,7 @@ of a wizard workflow.
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
 from typing import Any, Dict, cast
 
 import streamlit as st
@@ -19,6 +20,30 @@ from schemas import EscoConceptRef, EscoMappingReport, EscoSuggestionItem
 from settings_openai import load_openai_settings
 
 DEFAULT_ESCO_API_BASE_URL = "https://ec.europa.eu/esco/api/"
+
+
+@dataclass(frozen=True)
+class EscoCoverageSnapshot:
+    selected_occupation_uri: str
+    confirmed_essential_skills: list[Dict[str, str]]
+    confirmed_optional_skills: list[Dict[str, str]]
+    unmapped_requirement_terms: list[str]
+    essential_total: int
+    essential_covered: int
+    optional_total: int
+    optional_covered: int
+
+    @property
+    def essential_coverage_percent(self) -> int:
+        if self.essential_total <= 0:
+            return 0
+        return round((self.essential_covered / self.essential_total) * 100)
+
+    @property
+    def optional_coverage_percent(self) -> int:
+        if self.optional_total <= 0:
+            return 0
+        return round((self.optional_covered / self.optional_total) * 100)
 
 
 def get_model_override() -> str | None:
@@ -130,6 +155,7 @@ def init_session_state() -> None:
             "view_obsolete": False,
         },
         SSKey.ESCO_OCCUPATION_SELECTED.value: None,
+        SSKey.ESCO_SELECTED_OCCUPATION_URI.value: "",
         SSKey.ESCO_OCCUPATION_PAYLOAD.value: None,
         SSKey.ESCO_OCCUPATION_CANDIDATES.value: [],
         SSKey.ESCO_MATCH_REASON.value: None,
@@ -137,6 +163,9 @@ def init_session_state() -> None:
         SSKey.ESCO_MATCH_PROVENANCE.value: [],
         SSKey.ESCO_SKILLS_SELECTED_MUST.value: [],
         SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
+        SSKey.ESCO_CONFIRMED_ESSENTIAL_SKILLS.value: [],
+        SSKey.ESCO_CONFIRMED_OPTIONAL_SKILLS.value: [],
+        SSKey.ESCO_UNMAPPED_REQUIREMENT_TERMS.value: [],
         SSKey.ESCO_SKILLS_MAPPING_REPORT.value: None,
         SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value: {},
         SSKey.ESCO_MIGRATION_LOG.value: [],
@@ -216,6 +245,7 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.EMPLOYMENT_CONTRACT_LAST_MODE.value] = None
     st.session_state[SSKey.EMPLOYMENT_CONTRACT_LAST_MODELS.value] = {}
     st.session_state[SSKey.ESCO_OCCUPATION_SELECTED.value] = None
+    st.session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] = ""
     st.session_state[SSKey.ESCO_OCCUPATION_PAYLOAD.value] = None
     st.session_state[SSKey.ESCO_OCCUPATION_CANDIDATES.value] = []
     st.session_state[SSKey.ESCO_MATCH_REASON.value] = None
@@ -223,6 +253,9 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.ESCO_MATCH_PROVENANCE.value] = []
     st.session_state[SSKey.ESCO_SKILLS_SELECTED_MUST.value] = []
     st.session_state[SSKey.ESCO_SKILLS_SELECTED_NICE.value] = []
+    st.session_state[SSKey.ESCO_CONFIRMED_ESSENTIAL_SKILLS.value] = []
+    st.session_state[SSKey.ESCO_CONFIRMED_OPTIONAL_SKILLS.value] = []
+    st.session_state[SSKey.ESCO_UNMAPPED_REQUIREMENT_TERMS.value] = []
     st.session_state[SSKey.ESCO_SKILLS_MAPPING_REPORT.value] = None
     st.session_state[SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value] = {}
     st.session_state[SSKey.ESCO_MIGRATION_LOG.value] = []
@@ -333,7 +366,11 @@ def get_esco_occupation_selected() -> Dict[str, Any] | None:
     if raw is None:
         return None
     try:
-        return EscoConceptRef.model_validate(raw).model_dump()
+        validated = EscoConceptRef.model_validate(raw).model_dump()
+        st.session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] = str(
+            validated.get("uri") or ""
+        ).strip()
+        return validated
     except Exception:
         return None
 
@@ -370,3 +407,114 @@ def get_esco_skills_mapping_report() -> Dict[str, Any] | None:
         return EscoMappingReport.model_validate(raw).model_dump()
     except Exception:
         return None
+
+
+def _normalize_requirement_term(value: Any) -> str:
+    return " ".join(str(value or "").strip().casefold().split())
+
+
+def _dedupe_requirement_terms(values: list[str]) -> list[str]:
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        cleaned = str(value or "").strip()
+        normalized = _normalize_requirement_term(cleaned)
+        if not normalized or normalized in seen:
+            continue
+        deduped.append(cleaned)
+        seen.add(normalized)
+    return deduped
+
+
+def _validated_esco_skill_bucket(raw: Any) -> list[Dict[str, str]]:
+    if not isinstance(raw, list):
+        return []
+    validated: list[Dict[str, str]] = []
+    seen_uris: set[str] = set()
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        uri = str(item.get("uri") or "").strip()
+        title = str(item.get("title") or "").strip()
+        if not uri and not title:
+            continue
+        dedupe_key = uri or _normalize_requirement_term(title)
+        if not dedupe_key or dedupe_key in seen_uris:
+            continue
+        validated.append(
+            {
+                "uri": uri,
+                "title": title,
+                "type": str(item.get("type") or "skill").strip() or "skill",
+            }
+        )
+        seen_uris.add(dedupe_key)
+    return validated
+
+
+def sync_esco_shared_state() -> EscoCoverageSnapshot:
+    selected = get_esco_occupation_selected() or {}
+    selected_occupation_uri = str(
+        st.session_state.get(SSKey.ESCO_SELECTED_OCCUPATION_URI.value)
+        or selected.get("uri")
+        or ""
+    ).strip()
+    st.session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] = selected_occupation_uri
+
+    essential_skills = _validated_esco_skill_bucket(
+        st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
+    )
+    optional_skills = _validated_esco_skill_bucket(
+        st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
+    )
+    st.session_state[SSKey.ESCO_CONFIRMED_ESSENTIAL_SKILLS.value] = essential_skills
+    st.session_state[SSKey.ESCO_CONFIRMED_OPTIONAL_SKILLS.value] = optional_skills
+
+    unmapped_raw = st.session_state.get(SSKey.ESCO_UNMAPPED_REQUIREMENT_TERMS.value, [])
+    unmapped_terms = (
+        _dedupe_requirement_terms([str(item) for item in unmapped_raw])
+        if isinstance(unmapped_raw, list)
+        else []
+    )
+    st.session_state[SSKey.ESCO_UNMAPPED_REQUIREMENT_TERMS.value] = unmapped_terms
+
+    job_extract = st.session_state.get(SSKey.JOB_EXTRACT.value, {})
+    essential_terms = []
+    optional_terms = []
+    if isinstance(job_extract, dict):
+        essential_terms = _dedupe_requirement_terms(
+            [str(item) for item in (job_extract.get("must_have_skills") or [])]
+        )
+        optional_terms = _dedupe_requirement_terms(
+            [str(item) for item in (job_extract.get("nice_to_have_skills") or [])]
+        )
+
+    essential_titles = {
+        _normalize_requirement_term(item.get("title") or "")
+        for item in essential_skills
+    }
+    optional_titles = {
+        _normalize_requirement_term(item.get("title") or "") for item in optional_skills
+    }
+
+    essential_covered = sum(
+        1
+        for term in essential_terms
+        if _normalize_requirement_term(term) in essential_titles
+    )
+    optional_covered = sum(
+        1
+        for term in optional_terms
+        if _normalize_requirement_term(term) in optional_titles
+    )
+
+    return EscoCoverageSnapshot(
+        selected_occupation_uri=selected_occupation_uri,
+        confirmed_essential_skills=essential_skills,
+        confirmed_optional_skills=optional_skills,
+        unmapped_requirement_terms=unmapped_terms,
+        essential_total=len(essential_terms),
+        essential_covered=essential_covered,
+        optional_total=len(optional_terms),
+        optional_covered=optional_covered,
+    )

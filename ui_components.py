@@ -463,6 +463,10 @@ def render_esco_picker_card(
             st.session_state[session_key] = validated
         else:
             st.session_state[session_key] = validated[0] if validated else None
+        if session_key == SSKey.ESCO_OCCUPATION_SELECTED.value:
+            st.session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] = (
+                str(validated[0].get("uri") or "").strip() if validated else ""
+            )
 
         st.session_state[applied_meta_key] = {
             "version": (st.session_state.get(SSKey.ESCO_CONFIG.value, {}) or {}).get(

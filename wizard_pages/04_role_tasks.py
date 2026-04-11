@@ -10,7 +10,12 @@ from constants import SSKey
 from esco_client import EscoClient, EscoClientError
 from llm_client import generate_requirement_gap_suggestions
 from schemas import JobAdExtract, QuestionPlan
-from state import get_active_model, get_answers, get_esco_occupation_selected
+from state import (
+    get_active_model,
+    get_answers,
+    get_esco_occupation_selected,
+    sync_esco_shared_state,
+)
 from ui_components import (
     has_meaningful_value,
     render_compact_requirement_board,
@@ -97,19 +102,18 @@ def _load_esco_task_suggestions_from_selected_occupation(
 
 
 def _build_task_suggestion_context(*, job: JobAdExtract) -> dict[str, list[str]]:
+    coverage = sync_esco_shared_state()
     jobspec_terms = _dedupe_task_terms(
         [*job.responsibilities, *job.deliverables, *job.success_metrics]
     )
     esco_titles = _dedupe_task_terms(
         [
             str(item.get("title") or "").strip()
-            for item in st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
-            if isinstance(item, dict)
+            for item in coverage.confirmed_essential_skills
         ]
         + [
             str(item.get("title") or "").strip()
-            for item in st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
-            if isinstance(item, dict)
+            for item in coverage.confirmed_optional_skills
         ]
     )
     selected_raw = st.session_state.get(SSKey.ROLE_TASKS_SELECTED.value, [])
@@ -258,6 +262,7 @@ def render(ctx: WizardContext) -> None:
             )
 
     def _render_main_slot() -> None:
+        coverage = sync_esco_shared_state()
         render_error_banner()
         st.write(
             "Jetzt schärfen wir Scope, Verantwortlichkeiten, Deliverables, Erfolgskriterien und Stakeholder. "
@@ -266,8 +271,12 @@ def render(ctx: WizardContext) -> None:
 
         selected_occupation = get_esco_occupation_selected()
         esco_suggestions: list[dict[str, str]] = []
-        if selected_occupation and str(selected_occupation.get("uri") or "").strip():
-            occupation_uri = str(selected_occupation.get("uri") or "").strip()
+        occupation_uri = coverage.selected_occupation_uri or (
+            str(selected_occupation.get("uri") or "").strip()
+            if selected_occupation
+            else ""
+        )
+        if occupation_uri:
             esco_suggestions, esco_error = (
                 _load_esco_task_suggestions_from_selected_occupation(occupation_uri)
             )

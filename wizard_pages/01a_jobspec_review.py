@@ -427,6 +427,7 @@ def _render_esco_occupation_block(job: JobAdExtract) -> None:
         st.info("Kein Jobtitel vorhanden. ESCO-Zuordnung aktuell nicht möglich.")
         st.session_state[SSKey.ESCO_OCCUPATION_CANDIDATES.value] = []
         st.session_state[SSKey.ESCO_OCCUPATION_SELECTED.value] = None
+        st.session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] = ""
         return
 
     st.caption(f"Suche mit: `{query_text}`")
@@ -451,12 +452,14 @@ def _render_esco_occupation_block(job: JobAdExtract) -> None:
     selected = selected_raw if isinstance(selected_raw, dict) else {}
     occupation_uri = str(selected.get("uri") or "").strip()
     if not occupation_uri:
+        st.session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] = ""
         st.session_state[SSKey.ESCO_MATCH_REASON.value] = None
         st.session_state[SSKey.ESCO_MATCH_CONFIDENCE.value] = None
         st.session_state[SSKey.ESCO_MATCH_PROVENANCE.value] = []
         st.session_state[SSKey.ESCO_OCCUPATION_PAYLOAD.value] = None
         st.session_state[SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value] = {}
         return
+    st.session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] = occupation_uri
 
     applied_meta_key = (
         f"{SSKey.ESCO_OCCUPATION_SELECTED.value}.esco_picker.applied_meta"

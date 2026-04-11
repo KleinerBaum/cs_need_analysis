@@ -15,6 +15,39 @@ def test_esco_loaders_tolerate_missing_session_keys(monkeypatch) -> None:
     assert state.get_esco_skills_mapping_report() is None
 
 
+def test_sync_esco_shared_state_updates_canonical_fields(monkeypatch) -> None:
+    fake_state = {
+        SSKey.ESCO_OCCUPATION_SELECTED.value: {
+            "uri": "http://data.europa.eu/esco/occupation/123",
+            "title": "Data Scientist",
+            "type": "occupation",
+        },
+        SSKey.ESCO_SKILLS_SELECTED_MUST.value: [
+            {"uri": "http://data.europa.eu/esco/skill/a", "title": "Python"},
+        ],
+        SSKey.ESCO_SKILLS_SELECTED_NICE.value: [
+            {"uri": "http://data.europa.eu/esco/skill/b", "title": "Docker"},
+        ],
+        SSKey.ESCO_UNMAPPED_REQUIREMENT_TERMS.value: ["PySpark", "PySpark"],
+        SSKey.JOB_EXTRACT.value: {
+            "must_have_skills": ["Python", "SQL"],
+            "nice_to_have_skills": ["Docker"],
+        },
+    }
+    monkeypatch.setattr(state, "st", SimpleNamespace(session_state=fake_state))
+
+    snapshot = state.sync_esco_shared_state()
+
+    assert snapshot.selected_occupation_uri.endswith("/123")
+    assert snapshot.essential_total == 2
+    assert snapshot.essential_covered == 1
+    assert snapshot.optional_total == 1
+    assert snapshot.optional_covered == 1
+    selected_uri = str(fake_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value])
+    assert selected_uri.endswith("/123")
+    assert fake_state[SSKey.ESCO_UNMAPPED_REQUIREMENT_TERMS.value] == ["PySpark"]
+
+
 def test_esco_loaders_return_model_dump_payloads(monkeypatch) -> None:
     fake_state = {
         SSKey.ESCO_OCCUPATION_SELECTED.value: {
