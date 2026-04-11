@@ -261,11 +261,18 @@ def _get_esco_config() -> dict[str, object]:
     }
 
 
-def _set_esco_config(*, selected_version: str, view_obsolete: bool) -> bool:
+def _set_esco_config(
+    *,
+    selected_version: str,
+    view_obsolete: bool,
+    language: str,
+) -> bool:
     current_config = _get_esco_config()
     normalized_version = selected_version.strip() or "latest"
+    normalized_language = language.strip().lower() or "de"
     changed = (
         current_config["selected_version"] != normalized_version
+        or current_config["language"] != normalized_language
         or bool(current_config["view_obsolete"]) != view_obsolete
     )
     if not changed:
@@ -274,6 +281,7 @@ def _set_esco_config(*, selected_version: str, view_obsolete: bool) -> bool:
     st.session_state[SSKey.ESCO_CONFIG.value] = {
         **current_config,
         "selected_version": normalized_version,
+        "language": normalized_language,
         "view_obsolete": view_obsolete,
     }
     clear_esco_cache()
@@ -324,12 +332,21 @@ def _render_esco_sidebar_status_block(ui_mode: str) -> None:
     st.sidebar.markdown("### ESCO-Status")
     st.sidebar.caption(f"Aktive Dataset-Version: `{selected_version}`")
     st.sidebar.caption(f"Sprache: `{language}`")
+    language_options = {"de": "Deutsch (DE)", "en": "English (EN)"}
+    current_language = language if language in language_options else "de"
 
     version_input = st.sidebar.text_input(
         "Dataset-Version",
         value=selected_version,
         key=f"{SSKey.ESCO_CONFIG.value}.selected_version_input",
         help="z. B. latest oder eine konkrete ESCO-Version.",
+    )
+    selected_language = st.sidebar.selectbox(
+        "ESCO-Sprache",
+        options=list(language_options.keys()),
+        index=list(language_options.keys()).index(current_language),
+        format_func=lambda value: language_options[value],
+        key=f"{SSKey.ESCO_CONFIG.value}.language_select",
     )
 
     if ui_mode == "expert":
@@ -344,6 +361,7 @@ def _render_esco_sidebar_status_block(ui_mode: str) -> None:
     config_changed = _set_esco_config(
         selected_version=version_input,
         view_obsolete=view_obsolete,
+        language=selected_language,
     )
     if config_changed:
         st.sidebar.success("ESCO-Konfiguration aktualisiert. Cache wurde invalidiert.")

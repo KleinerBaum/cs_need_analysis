@@ -697,6 +697,31 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
         selected_version = str(esco_config.get("selected_version") or "").strip()
         if selected_version:
             payload["esco_version"] = selected_version
+
+    title_variants_raw = st.session_state.get(
+        SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value
+    )
+    if isinstance(title_variants_raw, dict):
+        variants_uri = str(title_variants_raw.get("uri") or "").strip()
+        recommended_titles_raw = title_variants_raw.get("recommended_titles", {})
+        if (
+            isinstance(selected_occupation, dict)
+            and variants_uri == str(selected_occupation.get("uri") or "").strip()
+            and isinstance(recommended_titles_raw, dict)
+        ):
+            recommended_titles: dict[str, list[str]] = {}
+            for language, labels_raw in recommended_titles_raw.items():
+                if not isinstance(language, str) or not isinstance(labels_raw, list):
+                    continue
+                labels = [
+                    str(label).strip()
+                    for label in labels_raw
+                    if isinstance(label, str) and str(label).strip()
+                ]
+                if labels:
+                    recommended_titles[language] = labels
+            if recommended_titles:
+                payload["recommended_titles"] = recommended_titles
     return payload
 
 
