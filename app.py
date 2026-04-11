@@ -279,7 +279,6 @@ def _render_info_page(info_page_key: str) -> None:
             den Basisdaten bis zur konsistenten Zusammenfassung für Recruiting und Hiring.
             """
         )
-        st.markdown("**Wähle die passende Perspektive für die Detailansicht:**")
         col_expert, col_guided = st.columns(2)
         with col_expert:
             show_expert_view = st.checkbox(
@@ -299,7 +298,7 @@ def _render_info_page(info_page_key: str) -> None:
         elif show_expert_view:
             st.markdown(
                 """
-            ### a) Für technisch versierte User
+            ### Gehen wir ins Detail
             - **Wizard-Architektur mit Session-State:** Jeder Schritt schreibt in klar benannte
               Session-Keys; so bleiben Eingaben und Ableitungen reproduzierbar.
             - **Validierte Datenmodelle:** Eingaben und LLM-Antworten werden über Schema-/Model-
@@ -316,7 +315,7 @@ def _render_info_page(info_page_key: str) -> None:
         elif show_guided_view:
             st.markdown(
                 """
-            ### b) Für weniger technisch versierte User
+            ### Kurz und klar
             - **Schritt-für-Schritt-Assistent:** Du beantwortest nacheinander verständliche Fragen.
             - **Weniger Tipparbeit:** Die App schlägt Inhalte vor, die du übernehmen oder anpassen kannst.
             - **Mehr Konsistenz:** Angaben aus frühen Schritten werden später wiederverwendet, damit
@@ -327,11 +326,6 @@ def _render_info_page(info_page_key: str) -> None:
               unnötig anzuzeigen oder in Debug-Ansichten offenzulegen.
                 """
             )
-        else:
-            st.caption(
-                "Hinweis: Wähle eine Perspektive, um die erläuternden Details einzublenden."
-            )
-
     if st.button("← Zurück zum Wizard"):
         st.query_params.clear()
         st.rerun()
