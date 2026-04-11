@@ -47,3 +47,14 @@ def test_parse_salary_forecast_result_rejects_extra_fields() -> None:
 
     with pytest.raises(ValidationError, match="forecast_min"):
         parse_salary_forecast_result(payload)
+
+
+def test_parse_salary_forecast_result_normalizes_legacy_confidence_kind() -> None:
+    payload = _valid_payload()
+    quality = payload.get("quality")
+    assert isinstance(quality, dict)
+    quality["kind"] = "confidence_score"
+
+    parsed = parse_salary_forecast_result(payload)
+
+    assert parsed.quality.kind == "data_quality_score"

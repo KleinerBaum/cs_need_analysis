@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from constants import SSKey
-from schemas import VacancyBrief
+from schemas import VacancyBrief, VacancyStructuredData
 
 
 SUMMARY_PATH = Path(__file__).resolve().parents[1] / "wizard_pages" / "08_summary.py"
@@ -30,7 +30,10 @@ def _brief() -> VacancyBrief:
         sourcing_channels=[],
         risks_open_questions=[],
         job_ad_draft="Draft",
-        structured_data={"job_extract": {"job_title": "Engineer"}, "answers": {}},
+        structured_data=VacancyStructuredData(
+            job_extract={"job_title": "Engineer"},
+            answers={},
+        ),
     )
 
 
@@ -48,12 +51,12 @@ def _brief_with_saved_selections() -> VacancyBrief:
         sourcing_channels=[],
         risks_open_questions=[],
         job_ad_draft="Draft",
-        structured_data={
-            "job_extract": {"job_title": "Engineer"},
-            "answers": {},
-            "selected_role_tasks": ["Build ETL pipelines"],
-            "selected_skills": ["Python", "SQL"],
-        },
+        structured_data=VacancyStructuredData(
+            job_extract={"job_title": "Engineer"},
+            answers={},
+            selected_role_tasks=["Build ETL pipelines"],
+            selected_skills=["Python", "SQL"],
+        ),
     )
 
 

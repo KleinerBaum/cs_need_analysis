@@ -3,7 +3,7 @@ from pathlib import Path
 from zipfile import ZipFile
 import base64
 import io
-from typing import Any
+from typing import Any, cast
 
 from salary.engine import compute_salary_forecast
 from salary.scenarios import (
@@ -111,8 +111,9 @@ def test_build_salary_forecast_snapshot_uses_compute_salary_forecast_only() -> N
         )
         return baseline
 
-    original_compute_salary_forecast = SUMMARY_MODULE.compute_salary_forecast
-    SUMMARY_MODULE.compute_salary_forecast = _fake_compute_salary_forecast
+    summary_module = cast(Any, SUMMARY_MODULE)
+    original_compute_salary_forecast = summary_module.compute_salary_forecast
+    summary_module.compute_salary_forecast = _fake_compute_salary_forecast
     overrides = map_salary_scenario_to_overrides(SALARY_SCENARIO_MARKET_UPSIDE)
     try:
         snapshot = SUMMARY_MODULE._build_salary_forecast_snapshot(
@@ -122,7 +123,7 @@ def test_build_salary_forecast_snapshot_uses_compute_salary_forecast_only() -> N
             scenario_overrides=overrides,
         )
     finally:
-        SUMMARY_MODULE.compute_salary_forecast = original_compute_salary_forecast
+        summary_module.compute_salary_forecast = original_compute_salary_forecast
 
     assert len(calls) == 1
     assert calls[0]["scenario_overrides"] == overrides

@@ -4,9 +4,17 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from schemas import StrictSchemaModel
+
+
+def normalize_salary_quality_kind(kind: str) -> str:
+    """Normalize quality-kind semantics while keeping backwards compatibility."""
+
+    if kind == "confidence_score":
+        return "data_quality_score"
+    return kind
 
 
 class SalaryScenarioOverrides(StrictSchemaModel):
@@ -62,6 +70,24 @@ class SalaryScenarioOverrides(StrictSchemaModel):
     )
 
 
+class SalaryEscoContext(StrictSchemaModel):
+    """Optional ESCO context enrichments for salary forecast calculations."""
+
+    occupation_uri: str | None = None
+    skill_uris_must: list[str] = Field(default_factory=list)
+    skill_uris_nice: list[str] = Field(default_factory=list)
+    esco_version: str | None = None
+
+
+class SalaryScenarioInputs(StrictSchemaModel):
+    """Optional scenario inputs used for salary forecast what-if simulation."""
+
+    location_city_override: str | None = None
+    location_country_override: str | None = None
+    search_radius_km: int = Field(default=50)
+    remote_share_percent: int | None = None
+
+
 class SalaryForecastResult(StrictSchemaModel):
     """Structured output for salary forecast calculations."""
 
@@ -101,6 +127,10 @@ class SalaryForecastDriver(StrictSchemaModel):
         description="Direction of impact, e.g. 'up', 'down', or 'neutral'."
     )
     impact: float = Field(description="Relative driver impact score.")
+    impact_eur: float = Field(default=0.0, description="Absolute impact in EUR.")
+    category: str | None = Field(
+        default=None, description="Optional category for grouped waterfall charts."
+    )
     detail: str = Field(description="Short explanation of the driver effect.")
 
 
@@ -115,6 +145,10 @@ class SalaryForecastProvenance(StrictSchemaModel):
     region_mapping: str = Field(
         description="Region mapping key or strategy identifier."
     )
+    benchmark_year: int | None = None
+    benchmark_source_label: str | None = None
+    occupation_id: str | None = None
+    region_id: str | None = None
 
 
 class SalaryForecastQuality(StrictSchemaModel):
@@ -126,6 +160,16 @@ class SalaryForecastQuality(StrictSchemaModel):
         default_factory=list,
         description="Structured signals used to derive the quality indicator.",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_kind(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            kind = data.get("kind")
+            if isinstance(kind, str):
+                data = dict(data)
+                data["kind"] = normalize_salary_quality_kind(kind)
+        return data
 
 
 def parse_salary_forecast_result(payload: Mapping[str, Any]) -> SalaryForecastResult:

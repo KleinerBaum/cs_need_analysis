@@ -90,7 +90,9 @@ def test_generate_vacancy_brief_uses_llm_parse_model_and_injects_structured_data
     }
 
 
-def test_generate_vacancy_brief_includes_selected_role_tasks_and_skills(monkeypatch) -> None:
+def test_generate_vacancy_brief_includes_selected_role_tasks_and_skills(
+    monkeypatch,
+) -> None:
     def fake_parse_with_structured_outputs(**kwargs: Any):
         return (
             VacancyBriefLLM(
