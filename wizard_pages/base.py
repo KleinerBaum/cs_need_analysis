@@ -12,7 +12,7 @@ from constants import SSKey, STEPS
 from esco_client import EscoClient, EscoClientError, clear_esco_cache
 from question_dependencies import should_show_question
 from question_limits import sync_adaptive_question_limits
-from question_progress import compute_question_progress
+from question_progress import build_answered_lookup, compute_question_progress
 from salary.engine import compute_salary_forecast
 from salary.types import SalaryForecastResult
 from schemas import JobAdExtract, Question, QuestionPlan
@@ -135,6 +135,14 @@ class SidebarStepProgress(TypedDict):
     total: int
 
 
+class SidebarStepDetailStatus(TypedDict):
+    essentials_answered: int
+    essentials_total: int
+    details_answered: int
+    details_total: int
+    missing_essentials: list[str]
+
+
 def _status_prefix(status: StepStatus) -> str:
     if status == "complete":
         return "✅"
@@ -252,6 +260,79 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
             }
         )
     return statuses
+
+
+def _compute_sidebar_step_detail_status(page: WizardPage) -> SidebarStepDetailStatus:
+    plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
+    plan: QuestionPlan | None = None
+    if isinstance(plan_dict, dict):
+        try:
+            plan = QuestionPlan.model_validate(plan_dict)
+        except Exception:
+            plan = None
+
+    answers_raw = st.session_state.get(SSKey.ANSWERS.value, {})
+    answers = answers_raw if isinstance(answers_raw, dict) else {}
+    answer_meta_raw = st.session_state.get(SSKey.ANSWER_META.value, {})
+    answer_meta = answer_meta_raw if isinstance(answer_meta_raw, dict) else {}
+
+    visible_questions = [
+        question
+        for question in _get_step_questions(plan, page.key)
+        if should_show_question(question, answers, answer_meta, page.key)
+    ]
+    answered_lookup = build_answered_lookup(visible_questions, answers, answer_meta)
+
+    essential_questions = [
+        question
+        for question in visible_questions
+        if (question.priority or "") == "core"
+    ]
+    detail_questions = [
+        question
+        for question in visible_questions
+        if (question.priority or "") != "core"
+    ]
+    essentials_progress = compute_question_progress(
+        essential_questions,
+        answers,
+        answer_meta,
+        answered_lookup=answered_lookup,
+    )
+    details_progress = compute_question_progress(
+        detail_questions,
+        answers,
+        answer_meta,
+        answered_lookup=answered_lookup,
+    )
+
+    missing_essentials = [
+        question.label
+        for question in essential_questions
+        if not answered_lookup.get(question.id, False)
+    ][:5]
+
+    return {
+        "essentials_answered": essentials_progress["answered"],
+        "essentials_total": essentials_progress["total"],
+        "details_answered": details_progress["answered"],
+        "details_total": details_progress["total"],
+        "missing_essentials": missing_essentials,
+    }
+
+
+def _render_sidebar_step_status_card(page: WizardPage) -> None:
+    status = _compute_sidebar_step_detail_status(page)
+    with st.sidebar.container(border=True):
+        st.caption(f"Step: {page.title_de}")
+        st.caption(
+            f"Essentials {status['essentials_answered']}/{status['essentials_total']} · "
+            f"Details {status['details_answered']}/{status['details_total']}"
+        )
+        if status["missing_essentials"]:
+            st.caption("Missing")
+            for label in status["missing_essentials"]:
+                st.markdown(f"- {label}")
 
 
 def _get_esco_config() -> dict[str, object]:
@@ -662,6 +743,7 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
         st.rerun()
 
     current_page = next(p for p in pages if p.key == selected)
+    _render_sidebar_step_status_card(current_page)
     job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
     answers_raw = st.session_state.get(SSKey.ANSWERS.value, {})
     answers = answers_raw if isinstance(answers_raw, dict) else {}
