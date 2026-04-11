@@ -710,15 +710,6 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
     if st.session_state.get(ui_mode_key) != ui_mode:
         st.session_state[ui_mode_key] = ui_mode
 
-    st.sidebar.markdown(
-        """
-        <div class="sidebar-info-links">
-            <a href="?info=esco">ℹ️ Was ist ESCO?</a>
-            <a href="?info=about">ℹ️ Wie funktioniert`s?</a>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
     _selected_mode = st.sidebar.selectbox(
         "Ansichtsmodus",
         options=["quick", "standard", "expert"],
@@ -1007,6 +998,53 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
                 color: {style_tokens["muted_text_color"]};
                 font-size: 0.9rem;
                 margin-top: 0.35rem;
+            }}
+
+            .landing-app-title-row {{
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 0.8rem;
+                margin-bottom: 0.45rem;
+                flex-wrap: wrap;
+            }}
+
+            .landing-app-title {{
+                color: rgba(226, 239, 255, 0.82);
+                font-size: 0.84rem;
+                letter-spacing: 0.02em;
+                text-transform: uppercase;
+                font-weight: 650;
+            }}
+
+            .landing-app-links {{
+                display: inline-flex;
+                justify-content: flex-end;
+                align-items: center;
+                gap: 0.45rem;
+                flex-wrap: wrap;
+            }}
+
+            .landing-app-link-pill {{
+                display: inline-flex;
+                align-items: center;
+                gap: 0.35rem;
+                padding: 0.34rem 0.75rem;
+                border-radius: 999px;
+                border: 1px solid rgba(174, 211, 255, 0.55);
+                background: linear-gradient(135deg, rgba(20, 74, 142, 0.68), rgba(16, 49, 95, 0.76));
+                text-decoration: none;
+                color: #edf5ff !important;
+                font-size: 0.82rem;
+                font-weight: 620;
+                transition: transform 130ms ease, box-shadow 130ms ease, border-color 130ms ease;
+            }}
+
+            .landing-app-link-pill:hover {{
+                transform: translateY(-1px);
+                box-shadow: 0 8px 20px rgba(3, 11, 24, 0.35);
+                border-color: rgba(216, 236, 255, 0.9);
+                color: #ffffff !important;
             }}
 
             .landing-security-note {{
