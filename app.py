@@ -106,39 +106,6 @@ def _inject_theme_styles() -> None:
                 border: 1px solid rgba(255, 255, 255, 0.2);
             }}
 
-            .sidebar-info-links {{
-                margin-top: 0.25rem;
-                margin-bottom: 0.75rem;
-                display: grid;
-                gap: 0.5rem;
-            }}
-
-            .sidebar-info-links a {{
-                display: block;
-                padding: 0.6rem 0.75rem;
-                border-radius: 10px;
-                text-decoration: none;
-                font-weight: 600;
-                border: 1px solid rgba(129, 183, 255, 0.45);
-                background: linear-gradient(
-                    140deg,
-                    rgba(20, 75, 144, 0.65),
-                    rgba(18, 54, 106, 0.72)
-                );
-                color: #e8f2ff !important;
-                transition:
-                    transform 130ms ease,
-                    box-shadow 130ms ease,
-                    border-color 130ms ease;
-            }}
-
-            .sidebar-info-links a:hover {{
-                transform: translateY(-1px);
-                box-shadow: 0 8px 18px rgba(2, 8, 18, 0.35);
-                border-color: rgba(184, 217, 255, 0.95);
-                color: #ffffff !important;
-            }}
-
             .stTextInput input,
             .stTextArea textarea,
             .stSelectbox [data-baseweb="select"] > div,
@@ -307,7 +274,7 @@ def _render_info_page(info_page_key: str) -> None:
             """
         )
     elif info_page_key == "about":
-        st.title("Wie funktioniert`s?")
+        st.title("Was passiert da und ist das sicher?")
         st.markdown(
             """
             Diese App führt dich strukturiert durch die Erstellung eines Vacancy Briefs – von

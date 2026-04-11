@@ -107,7 +107,18 @@ LANDING_COPY: dict[str, object] = {
 
 def render(ctx: WizardContext) -> None:
     render_landing_css(LANDING_STYLE_TOKENS)
-    st.caption(APP_TITLE)
+    st.markdown(
+        f"""
+        <div class="landing-app-title-row">
+            <span class="landing-app-title">{APP_TITLE}</span>
+            <span class="landing-app-links">
+                <a class="landing-app-link-pill" href="?info=esco">ℹ️ Über ESCO</a>
+                <a class="landing-app-link-pill" href="?info=about">🔐 Was passiert da und ist das sicher?</a>
+            </span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.title(str(LANDING_COPY["hero_headline"]))
     hero_subheadline = str(LANDING_COPY["hero_subheadline"])
     if hero_subheadline:
