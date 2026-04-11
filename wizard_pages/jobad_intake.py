@@ -82,7 +82,7 @@ def _extract_upload_to_state(upload: object, *, step: str) -> str | None:
             exc=exc,
             error_type=error_type,
             error_code="JOBAD_FILE_READ_UNEXPECTED",
-            user_message="Datei konnte nicht gelesen werden (DE) / Could not read file (EN).",
+            user_message="Datei konnte nicht gelesen werden.",
         )
         return None
 
@@ -106,7 +106,7 @@ def _on_upload_change() -> None:
     )
 
 
-def render_jobad_intake(*, title: str = "Jobspec / Job Ad einlesen") -> None:
+def render_jobad_intake(*, title: str = "Jobspezifikation einlesen") -> None:
     st.header(title)
     render_error_banner()
 
@@ -150,9 +150,7 @@ def render_jobad_intake(*, title: str = "Jobspec / Job Ad einlesen") -> None:
             if uploaded_text:
                 col_meta_left, col_meta_right = st.columns([2, 1])
                 with col_meta_left:
-                    st.success(
-                        f"Datei geladen: {upload_meta.get('name', 'Unbekannt')} / File loaded"
-                    )
+                    st.success(f"Datei geladen: {upload_meta.get('name', 'Unbekannt')}")
                 with col_meta_right:
                     st.metric("Zeichen", f"{len(uploaded_text):,}".replace(",", "."))
                 preview_text = uploaded_text[:4000]
@@ -261,9 +259,7 @@ def render_jobad_intake(*, title: str = "Jobspec / Job Ad einlesen") -> None:
             }
             st.success("Fertig: Jobspec extrahiert und Fragebogen erzeugt.")
             if extract_cached or plan_cached:
-                st.info(
-                    "Mindestens ein Ergebnis wurde aus Cache geladen (DE) / At least one result was loaded from cache (EN)."
-                )
+                st.info("Mindestens ein Ergebnis wurde aus dem Cache geladen.")
             set_current_step("jobspec_review")
 
             with st.expander("API Usage (Debug)", expanded=False):

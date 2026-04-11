@@ -169,9 +169,7 @@ def _render_openai_debug_panel() -> None:
         ),
     }
 
-    with st.expander(
-        "Debug (DE/EN): OpenAI-Auflösung / OpenAI resolution", expanded=False
-    ):
+    with st.expander("Debug: OpenAI-Auflösung", expanded=False):
         st.caption("Nur aufgelöste Laufzeitwerte, keine Secrets.")
         st.caption("Resolved runtime values only, no secrets.")
         debug_payload: dict[str, object] = {
@@ -334,7 +332,7 @@ def _render_info_page(info_page_key: str) -> None:
                 "Hinweis: Wähle eine Perspektive, um die erläuternden Details einzublenden."
             )
 
-    if st.button("← Back to Wizard / Zurück zum Wizard"):
+    if st.button("← Zurück zum Wizard"):
         st.query_params.clear()
         st.rerun()
 
@@ -351,7 +349,7 @@ def _get_legal_page_key() -> str | None:
 
 def _render_legal_page(legal_page_key: str) -> None:
     if legal_page_key == "terms":
-        st.title("Terms of Service / Nutzungsbedingungen")
+        st.title("Nutzungsbedingungen")
         st.markdown(
             """
             ### EN
@@ -393,7 +391,7 @@ def _render_legal_page(legal_page_key: str) -> None:
             """
         )
     elif legal_page_key == "privacy":
-        st.title("Privacy Policy / Datenschutzerklärung")
+        st.title("Datenschutzerklärung")
         st.markdown(
             """
             ### EN
@@ -420,7 +418,7 @@ def _render_legal_page(legal_page_key: str) -> None:
             """
         )
 
-    if st.button("← Back to Wizard / Zurück zum Wizard"):
+    if st.button("← Zurück zum Wizard"):
         st.query_params.clear()
         st.rerun()
 

@@ -2378,7 +2378,7 @@ def _render_summary_processing_hub(
     st.markdown(
         (
             f"**Pipeline:** `Recruiting Brief` → `Interview HR/Fach` → "
-            f"`Boolean Search` / `Arbeitsvertrag` → `Export`  \n"
+            f"`Boolean Search` → `Arbeitsvertrag` → `Export`  \n"
             f"Status Recruiting Brief: {header_badge} · {brief_status_label}"
         )
     )
@@ -2804,9 +2804,7 @@ def render(ctx: WizardContext) -> None:
                 "draft_model": resolved_brief_model
             }
             if brief_cached:
-                st.info(
-                    "Recruiting Brief aus Cache geladen (DE) / Recruiting brief loaded from cache (EN)."
-                )
+                st.info("Recruiting Brief aus dem Cache geladen.")
             return True
         except OpenAICallError as e:
             render_openai_error(e)
@@ -3181,9 +3179,7 @@ def render(ctx: WizardContext) -> None:
 
         with advanced_tab:
             if bool(st.session_state.get(SSKey.SUMMARY_CACHE_HIT.value, False)):
-                st.caption(
-                    "📦 Summary: aus Cache geladen (DE) / loaded from cache (EN)."
-                )
+                st.caption("📦 Zusammenfassung: aus dem Cache geladen.")
             last_mode = st.session_state.get(SSKey.SUMMARY_LAST_MODE.value) or "unknown"
             last_models = (
                 st.session_state.get(SSKey.SUMMARY_LAST_MODELS.value, {}) or {}
