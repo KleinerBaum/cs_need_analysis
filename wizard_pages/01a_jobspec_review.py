@@ -3,6 +3,7 @@ from __future__ import annotations
 import streamlit as st
 
 from constants import SSKey
+from esco_client import EscoClient, EscoClientError
 from schemas import JobAdExtract, QuestionPlan
 from ui_components import (
     _render_question_limits_editor,
@@ -22,6 +23,62 @@ def _build_esco_query(job: JobAdExtract) -> str:
     if not context:
         return title
     return f"{title} ({context})"
+
+
+def _collect_occupation_labels(payload: object) -> list[str]:
+    collected: list[str] = []
+    seen: set[str] = set()
+
+    def _append(value: object) -> None:
+        if not isinstance(value, str):
+            return
+        normalized = value.strip()
+        if not normalized:
+            return
+        dedupe_key = normalized.casefold()
+        if dedupe_key in seen:
+            return
+        seen.add(dedupe_key)
+        collected.append(normalized)
+
+    def _walk(node: object) -> None:
+        if isinstance(node, dict):
+            _append(node.get("preferredLabel"))
+            _append(node.get("preferredTerm"))
+            _append(node.get("title"))
+            alt_labels = (
+                node.get("alternativeLabel")
+                or node.get("altLabel")
+                or node.get("alternativeLabels")
+            )
+            if isinstance(alt_labels, str):
+                _append(alt_labels)
+            elif isinstance(alt_labels, list):
+                for alt in alt_labels:
+                    _append(alt)
+            for value in node.values():
+                _walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                _walk(item)
+
+    _walk(payload)
+    return collected
+
+
+def _load_occupation_title_variants(
+    *,
+    occupation_uri: str,
+    languages: list[str],
+) -> dict[str, list[str]]:
+    client = EscoClient()
+    variants: dict[str, list[str]] = {}
+    for language in languages:
+        payload = client.terms(uri=occupation_uri, type="occupation", language=language)
+        labels = _collect_occupation_labels(payload)
+        if labels:
+            variants[language] = labels
+    return variants
 
 
 def _render_esco_occupation_block(job: JobAdExtract) -> None:
@@ -47,6 +104,69 @@ def _render_esco_occupation_block(job: JobAdExtract) -> None:
     st.session_state[SSKey.ESCO_OCCUPATION_CANDIDATES.value] = (
         options if isinstance(options, list) else []
     )
+
+    selected_raw = st.session_state.get(SSKey.ESCO_OCCUPATION_SELECTED.value)
+    selected = selected_raw if isinstance(selected_raw, dict) else {}
+    occupation_uri = str(selected.get("uri") or "").strip()
+    if not occupation_uri:
+        st.session_state[SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value] = {}
+        return
+
+    configured_language = (
+        str(
+            (st.session_state.get(SSKey.ESCO_CONFIG.value, {}) or {}).get("language")
+            or "de"
+        )
+        .strip()
+        .lower()
+    )
+    language_options = {"de": "Deutsch (DE)", "en": "English (EN)"}
+    default_languages = (
+        [configured_language] if configured_language in language_options else ["de"]
+    )
+    selected_languages = st.multiselect(
+        "Bevorzugte Occupation-Titelsprachen",
+        options=list(language_options.keys()),
+        default=default_languages,
+        format_func=lambda value: language_options[value],
+        key=f"{SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value}.languages",
+    )
+    languages = selected_languages or default_languages
+
+    if st.button(
+        "Titel-Varianten laden",
+        key=f"{SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value}.load",
+    ):
+        try:
+            variants = _load_occupation_title_variants(
+                occupation_uri=occupation_uri,
+                languages=languages,
+            )
+        except EscoClientError as exc:
+            st.warning(f"ESCO-Titelvarianten konnten nicht geladen werden: {exc}")
+        else:
+            st.session_state[SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value] = {
+                "uri": occupation_uri,
+                "recommended_titles": variants,
+            }
+
+    title_variants_raw = st.session_state.get(
+        SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value
+    )
+    if isinstance(title_variants_raw, dict):
+        variant_uri = str(title_variants_raw.get("uri") or "").strip()
+        variants_by_language = title_variants_raw.get("recommended_titles", {})
+        if variant_uri == occupation_uri and isinstance(variants_by_language, dict):
+            with st.expander("Geladene Occupation-Titelvarianten", expanded=False):
+                for language in languages:
+                    labels_raw = variants_by_language.get(language, [])
+                    labels = labels_raw if isinstance(labels_raw, list) else []
+                    if not labels:
+                        st.caption(f"{language.upper()}: keine Titel gefunden.")
+                        continue
+                    st.markdown(f"**{language.upper()}**")
+                    for label in labels:
+                        st.write(f"- {label}")
 
 
 def render(ctx: WizardContext) -> None:

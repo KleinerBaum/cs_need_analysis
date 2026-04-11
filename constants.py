@@ -102,6 +102,7 @@ class SSKey(str, Enum):
     ESCO_SKILLS_SELECTED_NICE = "cs.esco_skills_selected_nice"
     ESCO_SKILLS_MAPPING_REPORT = "cs.esco_skills_mapping_report"
     ESCO_SKILL_DETAIL_CACHE = "cs.esco_skill_detail_cache"
+    ESCO_OCCUPATION_TITLE_VARIANTS = "cs.esco_occupation_title_variants"
 
 
 # ---- Wizard Steps (match your screenshot structure) ----

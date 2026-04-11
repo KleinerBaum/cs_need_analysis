@@ -89,6 +89,41 @@ def test_build_structured_export_payload_includes_esco_uri_and_label(
     assert payload["esco_version"] == "v1.2.0"
 
 
+def test_build_structured_export_payload_includes_recommended_titles_by_language(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.ESCO_CONFIG.value: {"selected_version": "latest"},
+                SSKey.ESCO_SKILLS_SELECTED_MUST.value: [],
+                SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
+                SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value: {
+                    "uri": "uri:occ:1",
+                    "recommended_titles": {
+                        "de": ["Data Engineer", "Dateningenieur/in"],
+                        "en": ["Data Engineer"],
+                    },
+                },
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "get_esco_occupation_selected",
+        lambda: {"uri": "uri:occ:1", "title": "Data Engineer", "type": "occupation"},
+    )
+
+    payload = SUMMARY_MODULE._build_structured_export_payload(_brief())
+
+    assert payload["recommended_titles"] == {
+        "de": ["Data Engineer", "Dateningenieur/in"],
+        "en": ["Data Engineer"],
+    }
+
+
 def test_build_esco_mapping_report_rows_uses_expected_fields_and_sorting(
     monkeypatch,
 ) -> None:
