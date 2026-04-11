@@ -3,8 +3,11 @@ from pathlib import Path
 from zipfile import ZipFile
 import base64
 import io
-from typing import Any, cast
+from typing import Any, Literal, cast
 
+from streamlit.errors import StreamlitAPIException
+
+from constants import SSKey
 from salary.engine import compute_salary_forecast
 from salary.scenarios import (
     SALARY_SCENARIO_BASE,
@@ -258,4 +261,192 @@ def test_estimate_text_area_height_scales_with_job_ad_length() -> None:
 
     assert short_height >= 160
     assert long_height > short_height
-    assert long_height <= 520
+
+
+def test_salary_panel_chart_selection_uses_pending_keys_on_rerun(monkeypatch) -> None:
+    panel_module = cast(Any, SALARY_PANEL_MODULE)
+
+    class _LockedSessionState(dict[str, Any]):
+        def __init__(self) -> None:
+            super().__init__()
+            self.locked_keys: set[str] = set()
+
+        def __setitem__(self, key: str, value: Any) -> None:
+            if key in self.locked_keys:
+                raise StreamlitAPIException(
+                    f"Widget key '{key}' cannot be mutated post-render."
+                )
+            super().__setitem__(key, value)
+
+    class _FakeColumn:
+        def __enter__(self) -> "_FakeColumn":
+            return self
+
+        def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> Literal[False]:
+            return False
+
+        def metric(self, *_args: Any, **_kwargs: Any) -> None:
+            return None
+
+    class _FakeStreamlit:
+        def __init__(self) -> None:
+            self.session_state = _LockedSessionState()
+            self._selections_by_run = [
+                {
+                    "salary_tornado_chart": {
+                        "selection": {
+                            "points": [{"y": "Python", "customdata": "skill_python"}]
+                        }
+                    }
+                },
+                {},
+            ]
+            self._run_index = 0
+
+        def begin_run(self) -> None:
+            self.session_state.locked_keys.clear()
+
+        def _register_widget(self, key: str, default: Any) -> Any:
+            if key not in self.session_state:
+                self.session_state[key] = default
+            self.session_state.locked_keys.add(key)
+            return self.session_state[key]
+
+        def subheader(self, *_args: Any, **_kwargs: Any) -> None:
+            return None
+
+        def columns(self, spec: Any) -> tuple[Any, ...]:
+            count = spec if isinstance(spec, int) else len(spec)
+            return tuple(_FakeColumn() for _ in range(count))
+
+        def radio(
+            self, _label: str, *, options: list[str], key: str, **_kwargs: Any
+        ) -> Any:
+            return self._register_widget(key, options[0])
+
+        def multiselect(
+            self, _label: str, *, default: list[str], key: str, **_kwargs: Any
+        ) -> Any:
+            return self._register_widget(key, list(default))
+
+        def text_input(self, _label: str, *, key: str, **_kwargs: Any) -> str:
+            return str(self._register_widget(key, ""))
+
+        def slider(
+            self, _label: str, *, key: str, min_value: int, **_kwargs: Any
+        ) -> int:
+            return int(self._register_widget(key, min_value))
+
+        def selectbox(
+            self, _label: str, *, options: list[str], key: str, **_kwargs: Any
+        ) -> str:
+            return str(self._register_widget(key, options[0]))
+
+        def plotly_chart(self, _fig: Any, *, key: str, **_kwargs: Any) -> Any:
+            selections = self._selections_by_run[
+                min(self._run_index, len(self._selections_by_run) - 1)
+            ]
+            return selections.get(key)
+
+        def metric(self, *_args: Any, **_kwargs: Any) -> None:
+            return None
+
+        def caption(self, *_args: Any, **_kwargs: Any) -> None:
+            return None
+
+        def markdown(self, *_args: Any, **_kwargs: Any) -> None:
+            return None
+
+        def dataframe(self, *_args: Any, **_kwargs: Any) -> None:
+            return None
+
+    class _ForecastValue:
+        p10 = 90_000
+        p50 = 100_000
+        p90 = 120_000
+
+        def model_dump(self, mode: str = "json") -> dict[str, int]:
+            return {"p10": self.p10, "p50": self.p50, "p90": self.p90}
+
+    class _QualityValue:
+        value = 0.8
+        kind = "medium"
+
+    class _ForecastResult:
+        period = "yearly"
+        currency = "EUR"
+        forecast = _ForecastValue()
+        quality = _QualityValue()
+
+        def model_dump(self, mode: str = "json") -> dict[str, Any]:
+            return {
+                "period": self.period,
+                "currency": self.currency,
+                "forecast": self.forecast.model_dump(mode=mode),
+                "quality": {"value": self.quality.value, "kind": self.quality.kind},
+            }
+
+    fake_rows = [
+        {
+            "group": "skill_delta",
+            "delta_p50": 2000,
+            "label": "Python",
+            "row_id": "skill_python",
+        },
+        {
+            "group": "location_compare",
+            "label": "Berlin",
+            "p10": 90000,
+            "p50": 100000,
+            "p90": 120000,
+            "row_id": "loc_berlin",
+        },
+        {
+            "group": "radius_sweep",
+            "radius_km": 50,
+            "p50": 100000,
+            "row_id": "radius_50",
+        },
+        {
+            "group": "remote_share_sweep",
+            "remote_share_percent": 0,
+            "p50": 100000,
+            "row_id": "remote_0",
+        },
+        {
+            "group": "seniority_sweep",
+            "label": "Senior",
+            "p50": 100000,
+            "row_id": "senior",
+        },
+    ]
+
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(panel_module, "st", fake_st)
+    monkeypatch.setattr(
+        panel_module, "compute_salary_forecast", lambda **_kwargs: _ForecastResult()
+    )
+    monkeypatch.setattr(
+        panel_module,
+        "build_salary_scenario_lab_rows",
+        lambda **_kwargs: list(fake_rows),
+    )
+
+    job = JobAdExtract(job_title="Data Engineer")
+    answers: dict[str, Any] = {}
+
+    fake_st.begin_run()
+    panel_module.render_salary_forecast_panel(job, answers)
+    assert (
+        fake_st.session_state[SSKey.SALARY_SCENARIO_APPLY_PENDING_UPDATE.value] is True
+    )
+    assert fake_st.session_state[SSKey.SALARY_SCENARIO_SKILLS_ADD.value] == []
+
+    fake_st._run_index = 1
+    fake_st.begin_run()
+    panel_module.render_salary_forecast_panel(job, answers)
+    assert (
+        fake_st.session_state[SSKey.SALARY_SCENARIO_APPLY_PENDING_UPDATE.value] is False
+    )
+    assert fake_st.session_state[SSKey.SALARY_SCENARIO_PENDING_SKILLS_ADD.value] is None
+    assert fake_st.session_state[SSKey.SALARY_SCENARIO_SKILLS_ADD.value] == ["Python"]

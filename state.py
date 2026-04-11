@@ -189,6 +189,26 @@ def init_session_state() -> None:
         SSKey.SKILLS_LLM_SUGGESTED.value: [],
         SSKey.SKILLS_SELECTED.value: [],
         SSKey.SKILLS_SUGGEST_COUNT.value: 5,
+        SSKey.SALARY_SCENARIO_SKILLS_ADD.value: [],
+        SSKey.SALARY_SCENARIO_SKILLS_REMOVE.value: [],
+        SSKey.SALARY_SCENARIO_LOCATION_OVERRIDE.value: "",
+        SSKey.SALARY_SCENARIO_LOCATION_CITY_OVERRIDE.value: "",
+        SSKey.SALARY_SCENARIO_LOCATION_COUNTRY_OVERRIDE.value: "",
+        SSKey.SALARY_SCENARIO_RADIUS_KM.value: 50,
+        SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value: 0,
+        SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value: "",
+        SSKey.SALARY_SCENARIO_LAB_ROWS.value: [],
+        SSKey.SALARY_SCENARIO_SELECTED_ROW_ID.value: "",
+        SSKey.SALARY_SCENARIO_PENDING_SKILLS_ADD.value: None,
+        SSKey.SALARY_SCENARIO_PENDING_SKILLS_REMOVE.value: None,
+        SSKey.SALARY_SCENARIO_PENDING_LOCATION_CITY_OVERRIDE.value: None,
+        SSKey.SALARY_SCENARIO_PENDING_RADIUS_KM.value: None,
+        SSKey.SALARY_SCENARIO_PENDING_REMOTE_SHARE_PERCENT.value: None,
+        SSKey.SALARY_SCENARIO_PENDING_SENIORITY_OVERRIDE.value: None,
+        SSKey.SALARY_SCENARIO_APPLY_PENDING_UPDATE.value: False,
+        SSKey.SALARY_SCENARIO_PENDING_SELECTED_ROW_ID.value: None,
+        SSKey.SALARY_FORECAST_SELECTED_SCENARIO.value: "base",
+        SSKey.SALARY_FORECAST_LAST_RESULT.value: {},
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -279,6 +299,26 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.SKILLS_LLM_SUGGESTED.value] = []
     st.session_state[SSKey.SKILLS_SELECTED.value] = []
     st.session_state[SSKey.SKILLS_SUGGEST_COUNT.value] = 5
+    st.session_state[SSKey.SALARY_SCENARIO_SKILLS_ADD.value] = []
+    st.session_state[SSKey.SALARY_SCENARIO_SKILLS_REMOVE.value] = []
+    st.session_state[SSKey.SALARY_SCENARIO_LOCATION_OVERRIDE.value] = ""
+    st.session_state[SSKey.SALARY_SCENARIO_LOCATION_CITY_OVERRIDE.value] = ""
+    st.session_state[SSKey.SALARY_SCENARIO_LOCATION_COUNTRY_OVERRIDE.value] = ""
+    st.session_state[SSKey.SALARY_SCENARIO_RADIUS_KM.value] = 50
+    st.session_state[SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value] = 0
+    st.session_state[SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value] = ""
+    st.session_state[SSKey.SALARY_SCENARIO_LAB_ROWS.value] = []
+    st.session_state[SSKey.SALARY_SCENARIO_SELECTED_ROW_ID.value] = ""
+    st.session_state[SSKey.SALARY_SCENARIO_PENDING_SKILLS_ADD.value] = None
+    st.session_state[SSKey.SALARY_SCENARIO_PENDING_SKILLS_REMOVE.value] = None
+    st.session_state[SSKey.SALARY_SCENARIO_PENDING_LOCATION_CITY_OVERRIDE.value] = None
+    st.session_state[SSKey.SALARY_SCENARIO_PENDING_RADIUS_KM.value] = None
+    st.session_state[SSKey.SALARY_SCENARIO_PENDING_REMOTE_SHARE_PERCENT.value] = None
+    st.session_state[SSKey.SALARY_SCENARIO_PENDING_SENIORITY_OVERRIDE.value] = None
+    st.session_state[SSKey.SALARY_SCENARIO_APPLY_PENDING_UPDATE.value] = False
+    st.session_state[SSKey.SALARY_SCENARIO_PENDING_SELECTED_ROW_ID.value] = None
+    st.session_state[SSKey.SALARY_FORECAST_SELECTED_SCENARIO.value] = "base"
+    st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {}
     st.session_state[SSKey.LAST_ERROR.value] = None
     st.session_state[SSKey.CURRENT_STEP.value] = STEPS[0].key
     st.session_state[SSKey.LAST_RENDERED_STEP.value] = STEPS[0].key

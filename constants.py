@@ -85,6 +85,18 @@ class SSKey(str, Enum):
     SALARY_SCENARIO_SENIORITY_OVERRIDE = "cs.salary.scenario.seniority_override"
     SALARY_SCENARIO_LAB_ROWS = "cs.salary.scenario.scenario_lab_rows"
     SALARY_SCENARIO_SELECTED_ROW_ID = "cs.salary.scenario.selected_row_id"
+    SALARY_SCENARIO_PENDING_SKILLS_ADD = "cs.salary.scenario.pending.skills_add"
+    SALARY_SCENARIO_PENDING_SKILLS_REMOVE = "cs.salary.scenario.pending.skills_remove"
+    SALARY_SCENARIO_PENDING_LOCATION_CITY_OVERRIDE = "cs.salary.scenario.pending.city"
+    SALARY_SCENARIO_PENDING_RADIUS_KM = "cs.salary.scenario.pending.radius_km"
+    SALARY_SCENARIO_PENDING_REMOTE_SHARE_PERCENT = (
+        "cs.salary.scenario.pending.remote_share_percent"
+    )
+    SALARY_SCENARIO_PENDING_SENIORITY_OVERRIDE = (
+        "cs.salary.scenario.pending.seniority_override"
+    )
+    SALARY_SCENARIO_APPLY_PENDING_UPDATE = "cs.salary.scenario.pending.apply_update"
+    SALARY_SCENARIO_PENDING_SELECTED_ROW_ID = "cs.salary.scenario.pending.selected_row"
     SALARY_FORECAST_LAST_RESULT = "cs.salary.forecast.last_result"
     SALARY_FORECAST_SELECTED_SCENARIO = "cs.salary.forecast.selected_scenario"
     SUMMARY_SELECTION_PICK_WIDGET_PREFIX = "cs.summary.pick"
