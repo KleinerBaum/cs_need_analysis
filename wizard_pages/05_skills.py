@@ -8,9 +8,10 @@ from pydantic import ValidationError
 
 from constants import SSKey
 from esco_client import EscoClient, EscoClientError
+from llm_client import generate_requirement_gap_suggestions
 from schemas import EscoMappingReport
 from schemas import EscoSkillDetail, JobAdExtract, QuestionPlan
-from state import get_esco_occupation_selected
+from state import get_active_model, get_answers, get_esco_occupation_selected
 from ui_components import (
     has_meaningful_value,
     render_error_banner,
@@ -116,6 +117,152 @@ def _merge_suggested_skills_by_uri(
         existing_uris.add(uri)
         added_count += 1
     return merged, added_count
+
+
+def _build_skill_suggestion_context(
+    *,
+    job: JobAdExtract,
+    esco_must_selected: list[dict[str, Any]],
+    esco_nice_selected: list[dict[str, Any]],
+) -> dict[str, list[str]]:
+    jobspec_terms = _dedupe_terms(
+        [
+            *job.must_have_skills,
+            *job.nice_to_have_skills,
+            *job.tech_stack,
+        ]
+    )
+    esco_titles = _dedupe_terms(
+        [
+            str(item.get("title") or "").strip()
+            for item in (esco_must_selected + esco_nice_selected)
+        ]
+    )
+    selected_labels_raw = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
+    selected_labels = (
+        _dedupe_terms([str(item) for item in selected_labels_raw])
+        if isinstance(selected_labels_raw, list)
+        else []
+    )
+    return {
+        "jobspec_terms": jobspec_terms,
+        "esco_titles": esco_titles,
+        "selected_labels": selected_labels,
+    }
+
+
+def _merge_llm_skill_suggestions(
+    *,
+    llm_skills: list[dict[str, Any]],
+    blocked_labels: list[str],
+) -> list[dict[str, Any]]:
+    accepted: list[dict[str, Any]] = []
+    seen = {
+        _normalize_term(label)
+        for label in blocked_labels
+        if has_meaningful_value(label)
+    }
+    for item in llm_skills:
+        label = str(item.get("label") or "").strip()
+        normalized = _normalize_term(label)
+        if not normalized or normalized in seen:
+            continue
+        accepted.append(
+            {
+                "label": label,
+                "source": "AI",
+                "importance": str(item.get("importance") or "").strip(),
+                "rationale": str(item.get("rationale") or "").strip(),
+                "evidence": str(item.get("evidence") or "").strip(),
+            }
+        )
+        seen.add(normalized)
+    return accepted
+
+
+def _save_selected_skill_suggestions(labels: list[str]) -> int:
+    existing_raw = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
+    existing = (
+        [str(item) for item in existing_raw if has_meaningful_value(str(item))]
+        if isinstance(existing_raw, list)
+        else []
+    )
+    merged = list(existing)
+    seen = {_normalize_term(item) for item in existing}
+    added_count = 0
+    for label in labels:
+        normalized = _normalize_term(label)
+        if not normalized or normalized in seen:
+            continue
+        merged.append(label.strip())
+        seen.add(normalized)
+        added_count += 1
+    st.session_state[SSKey.SKILLS_SELECTED.value] = merged
+    return added_count
+
+
+def _render_skills_source_columns(
+    *,
+    jobspec_suggested: list[dict[str, Any]],
+    esco_suggested: list[dict[str, Any]],
+    llm_suggested: list[dict[str, Any]],
+) -> None:
+    st.markdown("### Skills vergleichen & übernehmen")
+    selected_labels_raw = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
+    selected_set = (
+        {_normalize_term(str(item)) for item in selected_labels_raw}
+        if isinstance(selected_labels_raw, list)
+        else set()
+    )
+    board_items = [
+        ("Aus Jobspec extrahiert", jobspec_suggested, "Jobspec"),
+        ("ESCO", esco_suggested, "ESCO"),
+        ("AI-Vorschläge", llm_suggested, "AI"),
+    ]
+    columns = st.columns(3, gap="small")
+    bulk_buffer: list[str] = []
+
+    for col, (title, entries, source_badge) in zip(columns, board_items):
+        with col:
+            st.markdown(f"#### {title}")
+            if not entries:
+                st.caption("Keine Vorschläge.")
+                continue
+
+            for index, entry in enumerate(entries):
+                label = str(entry.get("label") or "").strip()
+                if not label:
+                    continue
+                normalized = _normalize_term(label)
+                select_key = f"skills.board.select.{source_badge}.{index}.{normalized}"
+                add_key = f"skills.board.add.{source_badge}.{index}.{normalized}"
+                default_checked = normalized in selected_set
+                is_selected = st.checkbox(
+                    label,
+                    key=select_key,
+                    value=default_checked,
+                )
+                st.caption(f"Quelle: {source_badge}")
+                if source_badge == "AI":
+                    with st.expander("Begründung / Evidence", expanded=False):
+                        st.write(f"**Rationale:** {_safe_text(entry.get('rationale'))}")
+                        st.write(f"**Evidence:** {_safe_text(entry.get('evidence'))}")
+
+                if st.button("Hinzufügen", key=add_key):
+                    added = _save_selected_skill_suggestions([label])
+                    if added > 0:
+                        st.success("Skill übernommen.")
+                    else:
+                        st.caption("Bereits übernommen.")
+                if is_selected:
+                    bulk_buffer.append(label)
+
+    if st.button("Ausgewählte Skills übernehmen", use_container_width=True):
+        added_count = _save_selected_skill_suggestions(bulk_buffer)
+        if added_count > 0:
+            st.success(f"{added_count} Skill(s) übernommen.")
+        else:
+            st.info("Keine neuen Skills übernommen.")
 
 
 def _safe_text(value: str | None) -> str:
@@ -268,12 +415,20 @@ def render(ctx: WizardContext) -> None:
     else:
         st.caption("ESCO Occupation: Keine passende Occupation ausgewählt.")
 
+    must_have_skills = [x for x in job.must_have_skills if has_meaningful_value(x)]
+    nice_to_have_skills = [
+        x for x in job.nice_to_have_skills if has_meaningful_value(x)
+    ]
+    tech_stack = [x for x in job.tech_stack if has_meaningful_value(x)]
+    jobspec_suggestions = [
+        {"label": term, "source": "Jobspec"}
+        for term in _dedupe_terms(
+            [*must_have_skills, *nice_to_have_skills, *tech_stack]
+        )
+    ]
+    st.session_state[SSKey.SKILLS_JOBSPEC_SUGGESTED.value] = jobspec_suggestions
+
     with st.expander("Aus Jobspec extrahiert (Skills)", expanded=True):
-        must_have_skills = [x for x in job.must_have_skills if has_meaningful_value(x)]
-        nice_to_have_skills = [
-            x for x in job.nice_to_have_skills if has_meaningful_value(x)
-        ]
-        tech_stack = [x for x in job.tech_stack if has_meaningful_value(x)]
         if must_have_skills:
             st.write("**Must-have (Auszug):**")
             for x in must_have_skills[:12]:
@@ -448,6 +603,73 @@ def render(ctx: WizardContext) -> None:
         st.caption(
             "Alle relevanten Skill-Begriffe wurden gemappt oder bewusst übersprungen."
         )
+
+    suggestion_context = _build_skill_suggestion_context(
+        job=job,
+        esco_must_selected=deduped_must,
+        esco_nice_selected=deduped_nice,
+    )
+    esco_suggestions = [
+        {"label": title, "source": "ESCO"}
+        for title in suggestion_context["esco_titles"]
+    ]
+
+    st.markdown("### AI Skill-Vorschläge")
+    st.number_input(
+        "Anzahl AI-Skill-Vorschläge",
+        key=SSKey.SKILLS_SUGGEST_COUNT.value,
+        min_value=1,
+        max_value=12,
+        step=1,
+    )
+    if st.button("Skills-Vorschläge generieren"):
+        with st.spinner("Generiere Skill-Vorschläge …"):
+            try:
+                suggestion_pack, _usage = generate_requirement_gap_suggestions(
+                    job=job,
+                    answers=get_answers(),
+                    existing_skills=[
+                        *suggestion_context["jobspec_terms"],
+                        *suggestion_context["esco_titles"],
+                        *suggestion_context["selected_labels"],
+                    ],
+                    existing_tasks=[],
+                    esco_skill_titles=suggestion_context["esco_titles"],
+                    target_skill_count=int(
+                        st.session_state.get(SSKey.SKILLS_SUGGEST_COUNT.value, 5)
+                    ),
+                    target_task_count=0,
+                    model=get_active_model(),
+                )
+            except Exception:
+                st.warning("AI-Vorschläge konnten nicht erzeugt werden.")
+            else:
+                llm_skill_payload = [
+                    item.model_dump(mode="json")
+                    for item in suggestion_pack.skills
+                    if str(item.type) == "skill"
+                ]
+                merged_llm = _merge_llm_skill_suggestions(
+                    llm_skills=llm_skill_payload,
+                    blocked_labels=[
+                        *suggestion_context["jobspec_terms"],
+                        *suggestion_context["esco_titles"],
+                        *suggestion_context["selected_labels"],
+                    ],
+                )
+                st.session_state[SSKey.SKILLS_LLM_SUGGESTED.value] = merged_llm
+                if merged_llm:
+                    st.success(f"{len(merged_llm)} AI-Skill(s) übernommen.")
+                else:
+                    st.info("Keine zusätzlichen AI-Skills gefunden.")
+
+    llm_suggested_raw = st.session_state.get(SSKey.SKILLS_LLM_SUGGESTED.value, [])
+    llm_suggested = llm_suggested_raw if isinstance(llm_suggested_raw, list) else []
+    _render_skills_source_columns(
+        jobspec_suggested=jobspec_suggestions,
+        esco_suggested=esco_suggestions,
+        llm_suggested=llm_suggested,
+    )
 
     step = next((s for s in plan.steps if s.step_key == "skills"), None)
     if step is None or not step.questions:
