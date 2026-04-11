@@ -800,7 +800,7 @@ def _render_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) -> None:
         )
         tornado_selection = st.plotly_chart(
             tornado_fig,
-            use_container_width=True,
+            width="stretch",
             key="salary_tornado_chart",
             on_select="rerun",
         )
@@ -842,7 +842,7 @@ def _render_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) -> None:
         )
         location_selection = st.plotly_chart(
             location_fig,
-            use_container_width=True,
+            width="stretch",
             key="salary_location_chart",
             on_select="rerun",
         )
@@ -867,7 +867,7 @@ def _render_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) -> None:
         )
         radius_selection = st.plotly_chart(
             radius_fig,
-            use_container_width=True,
+            width="stretch",
             key="salary_radius_chart",
             on_select="rerun",
         )
@@ -897,7 +897,7 @@ def _render_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) -> None:
             )
             remote_selection = st.plotly_chart(
                 remote_fig,
-                use_container_width=True,
+                width="stretch",
                 key="salary_remote_chart",
                 on_select="rerun",
             )
@@ -925,7 +925,7 @@ def _render_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) -> None:
             )
             seniority_selection = st.plotly_chart(
                 seniority_fig,
-                use_container_width=True,
+                width="stretch",
                 key="salary_seniority_chart",
                 on_select="rerun",
             )
@@ -939,7 +939,7 @@ def _render_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) -> None:
                 )
 
         st.markdown("**Scenario Table**")
-        st.dataframe(scenario_rows, hide_index=True, use_container_width=True)
+        st.dataframe(scenario_rows, hide_index=True, width="stretch")
 
     st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = (
         _build_salary_forecast_snapshot(
