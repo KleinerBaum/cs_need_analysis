@@ -1103,25 +1103,31 @@ def _render_questions_two_columns(
 def _split_core_and_detail_questions(
     questions: list[Question],
 ) -> tuple[list[Question], list[Question]]:
-    core_by_priority = [
-        question for question in questions if question.priority == "core"
-    ]
-    if core_by_priority:
-        core_questions = core_by_priority
-        detail_questions = [
-            question for question in questions if question.priority != "core"
-        ]
-        return core_questions, detail_questions
+    max_core_questions = 4
+    if not questions:
+        return [], []
 
-    required_questions = [question for question in questions if question.required]
-    core_questions = required_questions[:5]
-    if len(core_questions) < 3:
-        for question in questions:
-            if question in core_questions:
-                continue
-            core_questions.append(question)
-            if len(core_questions) >= 3:
-                break
+    core_questions: list[Question] = []
+    essential_questions = [
+        question
+        for question in questions
+        if question.priority == "core" or question.required
+    ]
+
+    for question in essential_questions:
+        if question in core_questions:
+            continue
+        core_questions.append(question)
+        if len(core_questions) >= max_core_questions:
+            break
+
+    for question in questions:
+        if len(core_questions) >= max_core_questions:
+            break
+        if question in core_questions:
+            continue
+        core_questions.append(question)
+
     detail_questions = [
         question for question in questions if question not in core_questions
     ]
@@ -1184,8 +1190,12 @@ def render_question_step(step: QuestionStep) -> None:
     )
     if ui_mode == "expert" and hidden_questions_count > 0:
         st.caption("Weitere Detailfragen erscheinen nach relevanten Antworten.")
-    for question in core_questions:
-        _render_question(question, answers)
+    core_layout_columns = 2 if len(core_questions) > 1 else 1
+    if core_layout_columns == 2:
+        _render_questions_two_columns(core_questions, answers)
+    else:
+        for question in core_questions:
+            _render_question(question, answers)
 
     if not visible_questions:
         st.info(
