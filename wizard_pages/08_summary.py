@@ -1994,11 +1994,12 @@ def _build_summary_artifact_state(
     input_fingerprint: str,
 ) -> SummaryArtifactState:
     brief_dict = st.session_state.get(SSKey.BRIEF.value)
-    brief_for_snapshot = (
-        VacancyBrief.model_validate(brief_dict)
-        if isinstance(brief_dict, dict)
-        else None
-    )
+    brief_for_snapshot: VacancyBrief | None = None
+    if isinstance(brief_dict, dict):
+        try:
+            brief_for_snapshot = VacancyBrief.model_validate(brief_dict)
+        except Exception:
+            brief_for_snapshot = None
     last_brief_fingerprint = str(
         st.session_state.get(SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value, "") or ""
     )
@@ -3337,7 +3338,14 @@ def render(ctx: WizardContext) -> None:
         nav_buttons(ctx, disable_next=True)
         return
 
-    brief = VacancyBrief.model_validate(brief_dict)
+    try:
+        brief = VacancyBrief.model_validate(brief_dict)
+    except Exception:
+        st.warning(
+            "Recruiting Brief ist ungültig. Bitte über „Recruiting Brief generieren“ neu erstellen."
+        )
+        nav_buttons(ctx, disable_next=True)
+        return
 
     # SUMMARY_ZONE: RESULTS
     # SUMMARY_ZONE: ADVANCED_TOOLS
