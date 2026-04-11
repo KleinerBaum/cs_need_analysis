@@ -1920,6 +1920,10 @@ def render(ctx: WizardContext) -> None:
                 width=180,
             )
 
+        styleguide_key = SSKey.SUMMARY_STYLEGUIDE_TEXT.value
+        if styleguide_key not in st.session_state:
+            st.session_state[styleguide_key] = ""
+
         styleguide_slot = st.empty()
         _render_template_toggles(
             title="Bausteine (Styleguide-Beschleuniger)",
@@ -1928,14 +1932,15 @@ def render(ctx: WizardContext) -> None:
             template_blocks=STYLEGUIDE_TEMPLATE_BLOCKS,
             widget_prefix=SSKey.SUMMARY_STYLEGUIDE_BLOCK_WIDGET_PREFIX.value,
         )
-        styleguide = styleguide_slot.text_area(
+        _ = styleguide_slot.text_area(
             "Styleguide des Arbeitgebers",
             placeholder="z. B. Tonalität, Wording, No-Gos, Corporate Language, Du/Sie, Diversity-Hinweise …",
-            key=SSKey.SUMMARY_STYLEGUIDE_TEXT.value,
+            key=styleguide_key,
         )
-        st.session_state[SSKey.SUMMARY_STYLEGUIDE_TEXT.value] = str(
-            st.session_state.get(SSKey.SUMMARY_STYLEGUIDE_TEXT.value, styleguide)
-        )
+
+        change_request_key = SSKey.SUMMARY_CHANGE_REQUEST_TEXT.value
+        if change_request_key not in st.session_state:
+            st.session_state[change_request_key] = ""
 
         change_request_slot = st.empty()
         _render_template_toggles(
@@ -1945,10 +1950,10 @@ def render(ctx: WizardContext) -> None:
             template_blocks=CHANGE_REQUEST_TEMPLATE_BLOCKS,
             widget_prefix=SSKey.SUMMARY_CHANGE_REQUEST_BLOCK_WIDGET_PREFIX.value,
         )
-        change_request_slot.text_area(
+        _ = change_request_slot.text_area(
             "Anpassungswünsche (für Iterationen)",
             placeholder="z. B. stärker auf Senior-Profile fokussieren, CTA kürzen, Benefits konkretisieren …",
-            key=SSKey.SUMMARY_CHANGE_REQUEST_TEXT.value,
+            key=change_request_key,
         )
         critical_gaps = _collect_critical_gaps(
             job,
