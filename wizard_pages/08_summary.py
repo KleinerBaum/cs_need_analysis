@@ -1,5 +1,4 @@
 # wizard_pages/08_summary.py
-from __future__ import annotations
 
 import io
 import json
@@ -7,9 +6,10 @@ import re
 import textwrap
 import csv
 import hashlib
+from dataclasses import dataclass
 from collections import defaultdict
 from typing import Callable
-from typing import Any, NamedTuple, TypedDict
+from typing import Any, TypedDict
 
 import streamlit as st
 import docx
@@ -148,15 +148,67 @@ class SummaryAction(TypedDict):
     input_renderer: Callable[[], None] | None
 
 
-class SummaryViewModel(NamedTuple):
+@dataclass(frozen=True)
+class SummaryMeta:
+    role_label: str
+    company_label: str
+    country_label: str
+    selected_occupation_title: str
+    nace_code: str
+    nace_mapped_esco_uri: str
+    readiness_items: list[tuple[str, str, bool]]
+
+
+@dataclass(frozen=True)
+class SummaryStatus:
+    completion_ratio: float
+    completion_text: str
+    brief_state: str
+    brief_status_label: str
+    next_step: str
+    readiness_percent: int
+    ready_for_follow_ups: bool
+    esco_ready: bool
+    nace_ready: bool
+
+
+@dataclass(frozen=True)
+class SummaryFactsRow:
+    bereich: str
+    feld: str
+    wert: str
+    quelle: str
+    status: str
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "Bereich": self.bereich,
+            "Feld": self.feld,
+            "Wert": self.wert,
+            "Quelle": self.quelle,
+            "Status": self.status,
+        }
+
+
+@dataclass(frozen=True)
+class SummaryArtifactState:
+    brief: VacancyBrief | None
+    selected_role_tasks: list[str]
+    selected_skills: list[str]
+    input_fingerprint: str
+    last_brief_fingerprint: str
+    is_dirty: bool
+
+
+@dataclass(frozen=True)
+class SummaryViewModel:
     job: JobAdExtract
     answers: dict[str, Any]
     plan: QuestionPlan | None
-    brief_for_snapshot: VacancyBrief | None
-    selected_occupation_title: str | None
-    readiness_items: list[tuple[str, str, bool]]
-    selected_role_tasks: list[str]
-    selected_skills: list[str]
+    meta: SummaryMeta
+    status: SummaryStatus
+    fact_rows: list[SummaryFactsRow]
+    artifacts: SummaryArtifactState
 
 
 def _normalize_list_item(value: str) -> str:
@@ -338,12 +390,22 @@ def _build_summary_input_fingerprint(
     answers: dict[str, Any],
     selected_role_tasks: list[str],
     selected_skills: list[str],
+    esco_occupation_selected: dict[str, str],
+    esco_selected_skills_must: list[dict[str, str]],
+    esco_selected_skills_nice: list[dict[str, str]],
+    nace_code: str,
+    nace_to_esco_mapping: dict[str, str],
 ) -> str:
     non_sensitive_payload = {
         "job": job.model_dump(mode="json", exclude_none=True),
         "answers": answers,
         "selected_role_tasks": selected_role_tasks,
         "selected_skills": selected_skills,
+        "esco_occupation_selected": esco_occupation_selected,
+        "esco_selected_skills_must": esco_selected_skills_must,
+        "esco_selected_skills_nice": esco_selected_skills_nice,
+        "nace_code": nace_code,
+        "nace_to_esco_mapping": nace_to_esco_mapping,
     }
     serialized = json.dumps(
         non_sensitive_payload,
@@ -1555,21 +1617,20 @@ def _add_logo_to_docx(document: Any, logo_payload: Any) -> bool:
     return True
 
 
-def _render_summary_hero(job: JobAdExtract, answers: dict[str, Any]) -> None:
-    status = _build_summary_status(job=job, answers=answers)
-    st.header(_build_summary_headline(status))
+def _render_summary_hero(vm: SummaryViewModel) -> None:
+    st.header(_build_summary_headline(vm.meta))
     st.subheader("Finaler Check & nächste Schritte")
-    st.caption(_build_summary_subheader(status))
-    _render_summary_meta_badges(status)
+    st.caption(_build_summary_subheader(vm.meta, vm.status))
+    _render_summary_meta_badges(vm.meta, vm.status)
     st.info(
-        f"Value Proposition: {len(answers)} strukturierte Antworten + Jobspec = "
+        f"Value Proposition: {len(vm.answers)} strukturierte Antworten + Jobspec = "
         "konsistente, exportierbare Hiring-Artefakte ohne Medienbruch."
     )
 
 
-def _build_summary_headline(status: dict[str, Any]) -> str:
-    role = str(status.get("role_label", "") or "").strip()
-    company = str(status.get("company_label", "") or "").strip()
+def _build_summary_headline(meta: SummaryMeta) -> str:
+    role = meta.role_label
+    company = meta.company_label
     if role and company:
         return f"{role} bei {company}: Zusammenfassung"
     if role:
@@ -1579,15 +1640,15 @@ def _build_summary_headline(status: dict[str, Any]) -> str:
     return "Zusammenfassung"
 
 
-def _build_summary_subheader(status: dict[str, Any]) -> str:
-    role = status.get("role_label", "Nicht angegeben")
-    company = status.get("company_label", "Nicht angegeben")
-    country = status.get("country_label", "Nicht angegeben")
-    esco = status.get("esco_label", "Nicht gesetzt")
-    nace = status.get("nace_label", "Nicht gesetzt")
-    completion_text = status.get("completion_text", "0/0 beantwortet")
-    brief_status = status.get("brief_status_label", "Kein Recruiting Brief vorhanden.")
-    next_step = status.get("next_step", "Recruiting Brief generieren")
+def _build_summary_subheader(meta: SummaryMeta, status: SummaryStatus) -> str:
+    role = meta.role_label or "Nicht angegeben"
+    company = meta.company_label or "Nicht angegeben"
+    country = meta.country_label or "Nicht angegeben"
+    esco = meta.selected_occupation_title or "Nicht gesetzt"
+    nace = meta.nace_code or "Nicht gesetzt"
+    completion_text = status.completion_text
+    brief_status = status.brief_status_label
+    next_step = status.next_step
     return (
         f"Rolle: {role} · Unternehmen: {company}\n"
         f"Markt/Land: {country}\n"
@@ -1597,18 +1658,18 @@ def _build_summary_subheader(status: dict[str, Any]) -> str:
     )
 
 
-def _render_summary_meta_badges(status: dict[str, Any]) -> None:
+def _render_summary_meta_badges(meta: SummaryMeta, status: SummaryStatus) -> None:
     readiness = (
         "Bereit"
-        if bool(status.get("ready_for_follow_ups"))
-        else ("Veraltet" if status.get("brief_state") == "stale" else "In Arbeit")
+        if status.ready_for_follow_ups
+        else ("Veraltet" if status.brief_state == "stale" else "In Arbeit")
     )
     badges = (
-        ("Rolle", status.get("role_label", "Nicht angegeben")),
-        ("Unternehmen", status.get("company_label", "Nicht angegeben")),
-        ("Land", status.get("country_label", "Nicht angegeben")),
-        ("ESCO", "✅" if bool(status.get("esco_ready")) else "—"),
-        ("NACE", "✅" if bool(status.get("nace_ready")) else "—"),
+        ("Rolle", meta.role_label or "Nicht angegeben"),
+        ("Unternehmen", meta.company_label or "Nicht angegeben"),
+        ("Land", meta.country_label or "Nicht angegeben"),
+        ("ESCO", "✅" if status.esco_ready else "—"),
+        ("NACE", "✅" if status.nace_ready else "—"),
         ("Readiness", readiness),
     )
     columns = st.columns(len(badges))
@@ -1617,26 +1678,10 @@ def _render_summary_meta_badges(status: dict[str, Any]) -> None:
 
 
 def _build_summary_status(
-    *, job: JobAdExtract, answers: dict[str, Any]
-) -> dict[str, Any]:
-    role_label = str(job.job_title or "Nicht angegeben").strip()
-    company_label = str(job.company_name or "Nicht angegeben").strip()
-    country_label = str(job.location_country or "Nicht angegeben").strip()
-
-    selected_occupation = get_esco_occupation_selected()
-    esco_ready = bool(selected_occupation)
-    esco_label = (
-        str(selected_occupation.get("title", "") or "").strip()
-        if isinstance(selected_occupation, dict)
-        else ""
-    ) or "Nicht gesetzt"
-
-    nace_code = str(
-        st.session_state.get(SSKey.COMPANY_NACE_CODE.value, "") or ""
-    ).strip()
-    nace_ready = bool(nace_code)
-    nace_label = nace_code or "Nicht gesetzt"
-
+    *, answers: dict[str, Any], meta: SummaryMeta
+) -> SummaryStatus:
+    esco_ready = bool(meta.selected_occupation_title)
+    nace_ready = bool(meta.nace_code)
     completion_text = f"{len(answers)} Antworten"
     completion_ratio = 0.0
     plan_payload = st.session_state.get(SSKey.QUESTION_PLAN.value)
@@ -1684,9 +1729,9 @@ def _build_summary_status(
         next_step = "Gewünschtes Folge-Artefakt erzeugen"
 
     readiness_checks = [
-        role_label != "Nicht angegeben",
-        company_label != "Nicht angegeben",
-        country_label != "Nicht angegeben",
+        bool(meta.role_label),
+        bool(meta.company_label),
+        bool(meta.country_label),
         esco_ready,
         nace_ready,
         brief_state == "ready",
@@ -1696,22 +1741,17 @@ def _build_summary_status(
     )
     ready_for_follow_ups = brief_state == "ready"
 
-    return {
-        "role_label": role_label,
-        "company_label": company_label,
-        "country_label": country_label,
-        "esco_ready": esco_ready,
-        "esco_label": esco_label,
-        "nace_ready": nace_ready,
-        "nace_label": nace_label,
-        "completion_ratio": completion_ratio,
-        "completion_text": completion_text,
-        "brief_state": brief_state,
-        "brief_status_label": brief_status_label,
-        "next_step": next_step,
-        "readiness_percent": readiness_percent,
-        "ready_for_follow_ups": ready_for_follow_ups,
-    }
+    return SummaryStatus(
+        completion_ratio=completion_ratio,
+        completion_text=completion_text,
+        brief_state=brief_state,
+        brief_status_label=brief_status_label,
+        next_step=next_step,
+        readiness_percent=readiness_percent,
+        ready_for_follow_ups=ready_for_follow_ups,
+        esco_ready=esco_ready,
+        nace_ready=nace_ready,
+    )
 
 
 def _build_summary_view_model() -> SummaryViewModel | None:
@@ -1731,25 +1771,129 @@ def _build_summary_view_model() -> SummaryViewModel | None:
     except Exception:
         plan = None
 
+    selected_role_tasks = _read_saved_selection_labels(SSKey.ROLE_TASKS_SELECTED)
+    selected_skills = _read_saved_selection_labels(SSKey.SKILLS_SELECTED)
+    meta = _build_summary_meta(job)
+    input_fingerprint = _build_summary_input_fingerprint(
+        job=job,
+        answers=answers,
+        selected_role_tasks=selected_role_tasks,
+        selected_skills=selected_skills,
+        esco_occupation_selected=_read_selected_esco_occupation(),
+        esco_selected_skills_must=_read_esco_skill_refs(
+            SSKey.ESCO_SKILLS_SELECTED_MUST
+        ),
+        esco_selected_skills_nice=_read_esco_skill_refs(
+            SSKey.ESCO_SKILLS_SELECTED_NICE
+        ),
+        nace_code=meta.nace_code,
+        nace_to_esco_mapping=_read_nace_to_esco_mapping(),
+    )
+    artifacts = _build_summary_artifact_state(
+        selected_role_tasks=selected_role_tasks,
+        selected_skills=selected_skills,
+        input_fingerprint=input_fingerprint,
+    )
+    status = _build_summary_status(answers=answers, meta=meta)
+    fact_rows = _build_summary_fact_rows(
+        job=job,
+        answers=answers,
+        plan=plan,
+        artifacts=artifacts,
+        meta=meta,
+    )
+    return SummaryViewModel(
+        job=job,
+        answers=answers,
+        plan=plan,
+        meta=meta,
+        status=status,
+        fact_rows=fact_rows,
+        artifacts=artifacts,
+    )
+
+
+def _read_nace_to_esco_mapping() -> dict[str, str]:
+    nace_lookup_raw = st.session_state.get(SSKey.EURES_NACE_TO_ESCO.value, {})
+    if not isinstance(nace_lookup_raw, dict):
+        return {}
+    mapping: dict[str, str] = {}
+    for code, uri in nace_lookup_raw.items():
+        normalized_code = str(code or "").strip()
+        normalized_uri = str(uri or "").strip()
+        if normalized_code and normalized_uri:
+            mapping[normalized_code] = normalized_uri
+    return mapping
+
+
+def _read_esco_skill_refs(key: SSKey) -> list[dict[str, str]]:
+    raw_value = st.session_state.get(key.value, [])
+    if not isinstance(raw_value, list):
+        return []
+    refs: list[dict[str, str]] = []
+    for item in raw_value:
+        if not isinstance(item, dict):
+            continue
+        uri = str(item.get("uri", "") or "").strip()
+        title = str(item.get("title", "") or "").strip()
+        if not uri and not title:
+            continue
+        refs.append({"uri": uri, "title": title})
+    return refs
+
+
+def _read_selected_esco_occupation() -> dict[str, str]:
+    selected_occupation = get_esco_occupation_selected()
+    if not isinstance(selected_occupation, dict):
+        return {}
+    return {
+        "uri": str(selected_occupation.get("uri", "") or "").strip(),
+        "title": str(selected_occupation.get("title", "") or "").strip(),
+    }
+
+
+def _build_summary_meta(job: JobAdExtract) -> SummaryMeta:
+    selected_occupation = _read_selected_esco_occupation()
+    nace_code = str(
+        st.session_state.get(SSKey.COMPANY_NACE_CODE.value, "") or ""
+    ).strip()
+    nace_mapping = _read_nace_to_esco_mapping()
+    return SummaryMeta(
+        role_label=str(job.job_title or "").strip(),
+        company_label=str(job.company_name or "").strip(),
+        country_label=str(job.location_country or "").strip(),
+        selected_occupation_title=selected_occupation.get("title", ""),
+        nace_code=nace_code,
+        nace_mapped_esco_uri=str(nace_mapping.get(nace_code, "") or "").strip(),
+        readiness_items=_build_country_readiness_items(job),
+    )
+
+
+def _build_summary_artifact_state(
+    *,
+    selected_role_tasks: list[str],
+    selected_skills: list[str],
+    input_fingerprint: str,
+) -> SummaryArtifactState:
     brief_dict = st.session_state.get(SSKey.BRIEF.value)
     brief_for_snapshot = (
         VacancyBrief.model_validate(brief_dict)
         if isinstance(brief_dict, dict)
         else None
     )
-    selected_occupation = get_esco_occupation_selected()
-    selected_occupation_title = (
-        str(selected_occupation.get("title", "—")) if selected_occupation else None
+    last_brief_fingerprint = str(
+        st.session_state.get(SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value, "") or ""
     )
-    return SummaryViewModel(
-        job=job,
-        answers=answers,
-        plan=plan,
-        brief_for_snapshot=brief_for_snapshot,
-        selected_occupation_title=selected_occupation_title,
-        readiness_items=_build_country_readiness_items(job),
-        selected_role_tasks=_read_saved_selection_labels(SSKey.ROLE_TASKS_SELECTED),
-        selected_skills=_read_saved_selection_labels(SSKey.SKILLS_SELECTED),
+    is_dirty = bool(
+        last_brief_fingerprint and last_brief_fingerprint != input_fingerprint
+    )
+    return SummaryArtifactState(
+        brief=brief_for_snapshot,
+        selected_role_tasks=selected_role_tasks,
+        selected_skills=selected_skills,
+        input_fingerprint=input_fingerprint,
+        last_brief_fingerprint=last_brief_fingerprint,
+        is_dirty=is_dirty,
     )
 
 
@@ -1789,22 +1933,14 @@ def _build_country_readiness_items(job: JobAdExtract) -> list[tuple[str, str, bo
 
 def _render_summary_facts_section(vm: SummaryViewModel) -> None:
     st.markdown("### Fakten")
-    _render_summary_facts_table(
-        _build_summary_fact_rows(
-            job=vm.job,
-            answers=vm.answers,
-            plan=vm.plan,
-            brief=vm.brief_for_snapshot,
-            selected_occupation_title=vm.selected_occupation_title,
-        )
-    )
+    _render_summary_facts_table([row.to_dict() for row in vm.fact_rows])
 
     with st.expander("Kompaktüberblick (sekundär)", expanded=False):
         table = _build_summary_compact_table(
             job=vm.job,
             answers=vm.answers,
             plan=vm.plan,
-            brief=vm.brief_for_snapshot,
+            brief=vm.artifacts.brief,
         )
         st.dataframe(table, width="stretch", hide_index=True)
 
@@ -1902,79 +2038,66 @@ def _build_summary_fact_rows(
     job: JobAdExtract,
     answers: dict[str, Any],
     plan: QuestionPlan | None,
-    brief: VacancyBrief | None,
-    selected_occupation_title: str | None,
-) -> list[dict[str, str]]:
-    nace_lookup_raw = st.session_state.get(SSKey.EURES_NACE_TO_ESCO.value, {})
-    nace_lookup = nace_lookup_raw if isinstance(nace_lookup_raw, dict) else {}
-    nace_code = str(
-        st.session_state.get(SSKey.COMPANY_NACE_CODE.value, "") or ""
-    ).strip()
-    mapped_esco_uri = (
-        str(nace_lookup.get(nace_code, "") or "").strip() if nace_code else ""
-    )
-
-    rows: list[dict[str, str]] = [
-        {
-            "Bereich": "Kernprofil",
-            "Feld": "Rolle",
-            "Wert": str(job.job_title or "").strip() or "Nicht angegeben",
-            "Quelle": "Jobspec",
-            "Status": _status_for_value(job.job_title),
-        },
-        {
-            "Bereich": "Kernprofil",
-            "Feld": "Unternehmen",
-            "Wert": str(job.company_name or "").strip() or "Nicht angegeben",
-            "Quelle": "Jobspec",
-            "Status": _status_for_value(job.company_name),
-        },
-        {
-            "Bereich": "Kernprofil",
-            "Feld": "Land",
-            "Wert": str(job.location_country or "").strip() or "Nicht angegeben",
-            "Quelle": "Jobspec",
-            "Status": _status_for_value(job.location_country),
-        },
-        {
-            "Bereich": "Kernprofil",
-            "Feld": "Stadt",
-            "Wert": str(job.location_city or "").strip() or "Nicht angegeben",
-            "Quelle": "Jobspec",
-            "Status": _status_for_value(job.location_city),
-        },
-        {
-            "Bereich": "Klassifikation",
-            "Feld": "ESCO Occupation",
-            "Wert": str(selected_occupation_title or "").strip() or "Nicht gesetzt",
-            "Quelle": "Jobspec-Review",
-            "Status": (
-                "Automatisch erkannt"
-                if str(selected_occupation_title or "").strip()
-                else "Fehlend"
-            ),
-        },
-        {
-            "Bereich": "Klassifikation",
-            "Feld": "NACE-Code",
-            "Wert": nace_code or "Nicht gesetzt",
-            "Quelle": "Unternehmen",
-            "Status": _status_for_value(nace_code),
-        },
-        {
-            "Bereich": "Klassifikation",
-            "Feld": "NACE → ESCO Mapping",
-            "Wert": mapped_esco_uri or "Nicht verfügbar",
-            "Quelle": "EURES",
-            "Status": "Automatisch erkannt" if mapped_esco_uri else "Fehlend",
-        },
-        {
-            "Bereich": "Artefakte",
-            "Feld": "Recruiting Brief",
-            "Wert": "Vorhanden" if brief is not None else "Noch nicht generiert",
-            "Quelle": "Summary",
-            "Status": "Vollständig" if brief is not None else "Teilweise",
-        },
+    artifacts: SummaryArtifactState,
+    meta: SummaryMeta,
+) -> list[SummaryFactsRow]:
+    rows: list[SummaryFactsRow] = [
+        SummaryFactsRow(
+            "Kernprofil",
+            "Rolle",
+            str(job.job_title or "").strip() or "Nicht angegeben",
+            "Jobspec",
+            _status_for_value(job.job_title),
+        ),
+        SummaryFactsRow(
+            "Kernprofil",
+            "Unternehmen",
+            str(job.company_name or "").strip() or "Nicht angegeben",
+            "Jobspec",
+            _status_for_value(job.company_name),
+        ),
+        SummaryFactsRow(
+            "Kernprofil",
+            "Land",
+            str(job.location_country or "").strip() or "Nicht angegeben",
+            "Jobspec",
+            _status_for_value(job.location_country),
+        ),
+        SummaryFactsRow(
+            "Kernprofil",
+            "Stadt",
+            str(job.location_city or "").strip() or "Nicht angegeben",
+            "Jobspec",
+            _status_for_value(job.location_city),
+        ),
+        SummaryFactsRow(
+            "Klassifikation",
+            "ESCO Occupation",
+            meta.selected_occupation_title or "Nicht gesetzt",
+            "Jobspec-Review",
+            "Automatisch erkannt" if meta.selected_occupation_title else "Fehlend",
+        ),
+        SummaryFactsRow(
+            "Klassifikation",
+            "NACE-Code",
+            meta.nace_code or "Nicht gesetzt",
+            "Unternehmen",
+            _status_for_value(meta.nace_code),
+        ),
+        SummaryFactsRow(
+            "Klassifikation",
+            "NACE → ESCO Mapping",
+            meta.nace_mapped_esco_uri or "Nicht verfügbar",
+            "EURES",
+            "Automatisch erkannt" if meta.nace_mapped_esco_uri else "Fehlend",
+        ),
+        SummaryFactsRow(
+            "Artefakte",
+            "Recruiting Brief",
+            "Vorhanden" if artifacts.brief is not None else "Noch nicht generiert",
+            "Summary",
+            "Vollständig" if artifacts.brief is not None else "Teilweise",
+        ),
     ]
 
     if plan is None:
@@ -1987,13 +2110,13 @@ def _build_summary_fact_rows(
             raw_value = answers.get(question.id)
             formatted = _format_summary_answer_value(question, raw_value)
             rows.append(
-                {
-                    "Bereich": step.title_de,
-                    "Feld": question.label,
-                    "Wert": formatted or "Nicht beantwortet",
-                    "Quelle": "Intake-Antwort",
-                    "Status": _status_for_value(raw_value),
-                }
+                SummaryFactsRow(
+                    step.title_de,
+                    question.label,
+                    formatted or "Nicht beantwortet",
+                    "Intake-Antwort",
+                    _status_for_value(raw_value),
+                )
             )
     return rows
 
@@ -2644,23 +2767,13 @@ def render(ctx: WizardContext) -> None:
         return
 
     # SUMMARY_ZONE: HERO
-    _render_summary_hero(job=vm.job, answers=vm.answers)
+    _render_summary_hero(vm=vm)
 
-    current_summary_fingerprint = _build_summary_input_fingerprint(
-        job=vm.job,
-        answers=vm.answers,
-        selected_role_tasks=vm.selected_role_tasks,
-        selected_skills=vm.selected_skills,
-    )
+    current_summary_fingerprint = vm.artifacts.input_fingerprint
     st.session_state[SSKey.SUMMARY_INPUT_FINGERPRINT.value] = (
         current_summary_fingerprint
     )
-    last_brief_fingerprint = str(
-        st.session_state.get(SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value, "") or ""
-    )
-    st.session_state[SSKey.SUMMARY_DIRTY.value] = bool(
-        last_brief_fingerprint and last_brief_fingerprint != current_summary_fingerprint
-    )
+    st.session_state[SSKey.SUMMARY_DIRTY.value] = vm.artifacts.is_dirty
 
     # SUMMARY_ZONE: FACTS
     _render_summary_facts_section(vm)
@@ -2712,8 +2825,8 @@ def render(ctx: WizardContext) -> None:
                     vm.job,
                     vm.answers,
                     model=resolved_brief_model,
-                    selected_role_tasks=vm.selected_role_tasks,
-                    selected_skills=vm.selected_skills,
+                    selected_role_tasks=vm.artifacts.selected_role_tasks,
+                    selected_skills=vm.artifacts.selected_skills,
                     store=store,
                 )
             st.session_state[SSKey.BRIEF.value] = brief.model_dump()
