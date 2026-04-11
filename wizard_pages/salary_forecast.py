@@ -47,9 +47,11 @@ def render_sidebar_salary_forecast(*, forecast: SalaryForecastResult) -> None:
     period_label = _period_label(forecast.period)
 
     st.sidebar.markdown("### 💶 Gehaltsprognose")
-    st.sidebar.caption("Kompakte Prognose auf Basis der bisher erfassten Stelleninfos.")
+    st.sidebar.caption(
+        "Indikative Prognose auf Basis der bisher erfassten Stelleninfos."
+    )
     st.sidebar.metric(
-        f"Prognose ({period_label}, Mitte)",
+        f"Indikative Mitte ({period_label}, p50)",
         _format_salary(forecast.forecast.p50, forecast.currency),
     )
     st.sidebar.write(
@@ -111,9 +113,9 @@ def render_sidebar_salary_forecast(*, forecast: SalaryForecastResult) -> None:
             )
         except Exception:
             st.dataframe(drivers_rows, use_container_width=True, hide_index=True)
-    with st.sidebar.expander("Annahmen", expanded=False):
+    with st.sidebar.expander("Annahmen & Datenqualität", expanded=False):
         st.write(
             "- Prognose ist indikativ und ersetzt kein externes Markt-Benchmarking.\n"
             "- Standort, Jobtitel, Seniorität sowie Aufgaben/Anforderungen beeinflussen die Gehaltsmitte.\n"
-            "- Mehr vollständige Angaben erhöhen die Prognose-Sicherheit."
+            "- Mehr vollständige Angaben erhöhen die Datenqualität des Ergebnisses (nicht die statistische Sicherheit)."
         )
