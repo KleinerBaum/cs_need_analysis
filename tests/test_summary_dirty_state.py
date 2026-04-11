@@ -22,12 +22,20 @@ def _fingerprint(
     answers: dict[str, object] | None = None,
     occupation_title: str = "Data Engineer",
     nace_mapping: dict[str, str] | None = None,
+    esco_provenance: list[str] | None = None,
 ) -> str:
     monkeypatch.setattr(
         SUMMARY_MODULE,
         "st",
         SimpleNamespace(
             session_state={
+                SSKey.ESCO_MATCH_REASON.value: "Anker bestätigt",
+                SSKey.ESCO_MATCH_CONFIDENCE.value: "high",
+                SSKey.ESCO_MATCH_PROVENANCE.value: (
+                    esco_provenance
+                    if esco_provenance is not None
+                    else ["matched from jobspec title"]
+                ),
                 SSKey.ESCO_SKILLS_SELECTED_MUST.value: [
                     {"uri": "uri:skill:python", "title": "Python"}
                 ],
@@ -52,6 +60,7 @@ def _fingerprint(
         selected_role_tasks=["Build data products"],
         selected_skills=["Python", "SQL"],
         esco_occupation_selected=SUMMARY_MODULE._read_selected_esco_occupation(),
+        esco_match_explainability=SUMMARY_MODULE._read_esco_match_explainability(),
         esco_selected_skills_must=SUMMARY_MODULE._read_esco_skill_refs(
             SSKey.ESCO_SKILLS_SELECTED_MUST
         ),
@@ -88,6 +97,15 @@ def test_summary_dirty_fingerprint_changes_when_nace_mapping_changes(
     changed = _fingerprint(
         monkeypatch, nace_mapping={"62.01": "uri:occ:software-developer"}
     )
+
+    assert baseline != changed
+
+
+def test_summary_dirty_fingerprint_changes_when_esco_provenance_changes(
+    monkeypatch,
+) -> None:
+    baseline = _fingerprint(monkeypatch, esco_provenance=["matched from jobspec title"])
+    changed = _fingerprint(monkeypatch, esco_provenance=["manual override"])
 
     assert baseline != changed
 

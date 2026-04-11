@@ -116,6 +116,9 @@ def test_build_structured_export_payload_includes_esco_uri_and_label(
         SimpleNamespace(
             session_state={
                 SSKey.ESCO_CONFIG.value: {"selected_version": "v1.2.0"},
+                SSKey.ESCO_MATCH_REASON.value: "Manuell als semantischer Anker bestätigt.",
+                SSKey.ESCO_MATCH_CONFIDENCE.value: "high",
+                SSKey.ESCO_MATCH_PROVENANCE.value: ["manual override"],
                 SSKey.ESCO_SKILLS_SELECTED_MUST.value: [
                     {"uri": "uri:skill:must", "title": "Python", "type": "skill"}
                 ],
@@ -136,6 +139,11 @@ def test_build_structured_export_payload_includes_esco_uri_and_label(
     assert payload["esco_occupations"] == [
         {"uri": "uri:occ:1", "label": "Data Engineer"}
     ]
+    assert payload["esco_occupation_provenance"] == {
+        "reason": "Manuell als semantischer Anker bestätigt.",
+        "confidence": "high",
+        "provenance_categories": ["manual override"],
+    }
     assert payload["esco_skills_must"] == [{"uri": "uri:skill:must", "label": "Python"}]
     assert payload["esco_skills_nice"] == [{"uri": "uri:skill:nice", "label": "dbt"}]
     assert payload["esco_version"] == "v1.2.0"
@@ -344,6 +352,6 @@ def test_build_country_readiness_items_reports_optional_nace_context(
     )
 
     assert ("Land vorhanden", "Germany", True) in rows
-    assert ("ESCO Occupation gesetzt", "Ja", True) in rows
+    assert ("Semantischer Anker bestätigt", "Ja", True) in rows
     assert ("NACE-Code gesetzt", "62.01", True) in rows
     assert ("NACE → ESCO gemappt", "uri:occ:software", True) in rows
