@@ -2445,36 +2445,36 @@ def render_brief(brief: VacancyBrief) -> None:
     st.markdown("**Role Summary**")
     st.write(brief.role_summary)
 
-    st.markdown("**Top Responsibilities**")
-    for x in brief.top_responsibilities:
-        st.write(f"- {x}")
+    with st.expander("Top Responsibilities", expanded=False):
+        for x in brief.top_responsibilities:
+            st.write(f"- {x}")
 
-    st.markdown("**Must-have**")
-    for x in brief.must_have:
-        st.write(f"- {x}")
+    with st.expander("Must-have", expanded=False):
+        for x in brief.must_have:
+            st.write(f"- {x}")
 
-    st.markdown("**Nice-to-have**")
-    for x in brief.nice_to_have:
-        st.write(f"- {x}")
+    with st.expander("Nice-to-have", expanded=False):
+        for x in brief.nice_to_have:
+            st.write(f"- {x}")
 
-    st.markdown("**Dealbreakers**")
-    for x in brief.dealbreakers:
-        st.write(f"- {x}")
+    with st.expander("Dealbreakers", expanded=False):
+        for x in brief.dealbreakers:
+            st.write(f"- {x}")
 
-    st.markdown("**Interview Plan**")
-    for x in brief.interview_plan:
-        st.write(f"- {x}")
+    with st.expander("Interview Plan", expanded=False):
+        for x in brief.interview_plan:
+            st.write(f"- {x}")
 
-    st.markdown("**Evaluation Rubric**")
-    for x in brief.evaluation_rubric:
-        st.write(f"- {x}")
+    with st.expander("Evaluation Rubric", expanded=False):
+        for x in brief.evaluation_rubric:
+            st.write(f"- {x}")
 
-    st.markdown("**Risks / Open Questions**")
-    for x in brief.risks_open_questions:
-        st.write(f"- {x}")
+    with st.expander("Risks / Open Questions", expanded=False):
+        for x in brief.risks_open_questions:
+            st.write(f"- {x}")
 
-    st.subheader("Job Ad Draft (DE)")
-    st.write(brief.job_ad_draft)
+    with st.expander("Job Ad Draft (DE)", expanded=False):
+        st.write(brief.job_ad_draft)
 
     with st.expander("Structured data (JSON)", expanded=False):
         st.json(brief.structured_data, expanded=False)
