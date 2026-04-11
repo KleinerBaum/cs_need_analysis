@@ -13,6 +13,7 @@ from schemas import JobAdExtract, QuestionPlan
 from state import get_active_model, get_answers, get_esco_occupation_selected
 from ui_components import (
     has_meaningful_value,
+    render_compact_requirement_board,
     render_error_banner,
     render_question_step,
 )
@@ -172,11 +173,6 @@ def _save_selected_task_suggestions(labels: list[str]) -> int:
     return added
 
 
-def _safe_text(value: str | None) -> str:
-    text = str(value or "").strip()
-    return text if text else "Keine Details verfügbar."
-
-
 def _render_role_task_source_columns(
     *,
     jobspec_suggested: list[dict[str, str]],
@@ -186,56 +182,34 @@ def _render_role_task_source_columns(
     st.markdown("### Aufgaben vergleichen & übernehmen")
 
     selected_raw = st.session_state.get(SSKey.ROLE_TASKS_SELECTED.value, [])
-    selected_set = (
-        {_normalize_task_term(str(item)) for item in selected_raw}
+    selected_labels = (
+        [str(item).strip() for item in selected_raw if has_meaningful_value(item)]
         if isinstance(selected_raw, list)
-        else set()
+        else []
     )
 
-    board_items = [
-        ("Aus Jobspec extrahiert", jobspec_suggested, "Jobspec"),
-        ("ESCO", esco_suggested, "ESCO"),
-        ("AI-Vorschläge", llm_suggested, "AI"),
-    ]
-    bulk_buffer: list[str] = []
-    columns = st.columns(3, gap="small")
+    def _save_single(label: str) -> None:
+        added = _save_selected_task_suggestions([label])
+        if added > 0:
+            st.success("Aufgabe übernommen.")
+        else:
+            st.caption("Bereits übernommen.")
 
-    for col, (title, entries, source) in zip(columns, board_items):
-        with col:
-            st.markdown(f"#### {title}")
-            if not entries:
-                if source == "ESCO":
-                    st.caption(
-                        "Keine zuverlässig ableitbaren Aufgaben aus Occupation-Details."
-                    )
-                else:
-                    st.caption("Keine Vorschläge.")
-                continue
-
-            for idx, entry in enumerate(entries):
-                label = str(entry.get("label") or "").strip()
-                if not label:
-                    continue
-                normalized = _normalize_task_term(label)
-                select_key = f"role_tasks.board.select.{source}.{idx}.{normalized}"
-                add_key = f"role_tasks.board.add.{source}.{idx}.{normalized}"
-                is_selected = st.checkbox(
-                    label,
-                    key=select_key,
-                    value=normalized in selected_set,
-                )
-                if st.button("Hinzufügen", key=add_key):
-                    added = _save_selected_task_suggestions([label])
-                    if added > 0:
-                        st.success("Aufgabe übernommen.")
-                    else:
-                        st.caption("Bereits übernommen.")
-                if source == "AI":
-                    with st.expander("Begründung / Evidence", expanded=False):
-                        st.write(f"**Rationale:** {_safe_text(entry.get('rationale'))}")
-                        st.write(f"**Evidence:** {_safe_text(entry.get('evidence'))}")
-                if is_selected:
-                    bulk_buffer.append(label)
+    bulk_buffer = render_compact_requirement_board(
+        title_jobspec="Aus Jobspec extrahiert",
+        jobspec_items=jobspec_suggested,
+        title_esco="ESCO",
+        esco_items=esco_suggested,
+        title_llm="AI-Vorschläge",
+        llm_items=llm_suggested,
+        selected_labels=selected_labels,
+        selection_state_key=f"{SSKey.ROLE_TASKS_SELECTED.value}.bulk_buffer",
+        save_callback=_save_single,
+        key_prefix="role_tasks.board",
+        empty_messages={
+            "ESCO": "Keine zuverlässig ableitbaren Aufgaben aus Occupation-Details."
+        },
+    )
 
     if st.button("Ausgewählte Aufgaben übernehmen", use_container_width=True):
         added_count = _save_selected_task_suggestions(bulk_buffer)

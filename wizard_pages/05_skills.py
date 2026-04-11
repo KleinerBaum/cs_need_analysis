@@ -14,6 +14,7 @@ from schemas import EscoSkillDetail, JobAdExtract, QuestionPlan
 from state import get_active_model, get_answers, get_esco_occupation_selected
 from ui_components import (
     has_meaningful_value,
+    render_compact_requirement_board,
     render_error_banner,
     render_esco_picker_card,
     render_question_step,
@@ -209,53 +210,35 @@ def _render_skills_source_columns(
 ) -> None:
     st.markdown("### Skills vergleichen & übernehmen")
     selected_labels_raw = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
-    selected_set = (
-        {_normalize_term(str(item)) for item in selected_labels_raw}
+    selected_labels = (
+        [
+            str(item).strip()
+            for item in selected_labels_raw
+            if has_meaningful_value(item)
+        ]
         if isinstance(selected_labels_raw, list)
-        else set()
+        else []
     )
-    board_items = [
-        ("Aus Jobspec extrahiert", jobspec_suggested, "Jobspec"),
-        ("ESCO", esco_suggested, "ESCO"),
-        ("AI-Vorschläge", llm_suggested, "AI"),
-    ]
-    columns = st.columns(3, gap="small")
-    bulk_buffer: list[str] = []
 
-    for col, (title, entries, source_badge) in zip(columns, board_items):
-        with col:
-            st.markdown(f"#### {title}")
-            if not entries:
-                st.caption("Keine Vorschläge.")
-                continue
+    def _save_single(label: str) -> None:
+        added = _save_selected_skill_suggestions([label])
+        if added > 0:
+            st.success("Skill übernommen.")
+        else:
+            st.caption("Bereits übernommen.")
 
-            for index, entry in enumerate(entries):
-                label = str(entry.get("label") or "").strip()
-                if not label:
-                    continue
-                normalized = _normalize_term(label)
-                select_key = f"skills.board.select.{source_badge}.{index}.{normalized}"
-                add_key = f"skills.board.add.{source_badge}.{index}.{normalized}"
-                default_checked = normalized in selected_set
-                is_selected = st.checkbox(
-                    label,
-                    key=select_key,
-                    value=default_checked,
-                )
-                st.caption(f"Quelle: {source_badge}")
-                if source_badge == "AI":
-                    with st.expander("Begründung / Evidence", expanded=False):
-                        st.write(f"**Rationale:** {_safe_text(entry.get('rationale'))}")
-                        st.write(f"**Evidence:** {_safe_text(entry.get('evidence'))}")
-
-                if st.button("Hinzufügen", key=add_key):
-                    added = _save_selected_skill_suggestions([label])
-                    if added > 0:
-                        st.success("Skill übernommen.")
-                    else:
-                        st.caption("Bereits übernommen.")
-                if is_selected:
-                    bulk_buffer.append(label)
+    bulk_buffer = render_compact_requirement_board(
+        title_jobspec="Aus Jobspec extrahiert",
+        jobspec_items=jobspec_suggested,
+        title_esco="ESCO",
+        esco_items=esco_suggested,
+        title_llm="AI-Vorschläge",
+        llm_items=llm_suggested,
+        selected_labels=selected_labels,
+        selection_state_key=f"{SSKey.SKILLS_SELECTED.value}.bulk_buffer",
+        save_callback=_save_single,
+        key_prefix="skills.board",
+    )
 
     if st.button("Ausgewählte Skills übernehmen", use_container_width=True):
         added_count = _save_selected_skill_suggestions(bulk_buffer)

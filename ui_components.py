@@ -6,7 +6,7 @@ from __future__ import annotations
 import re
 from datetime import date
 from collections.abc import Sequence
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Callable, Dict, Literal, Optional
 
 import streamlit as st
 
@@ -1299,6 +1299,99 @@ def render_step_review_card(
             st.caption(group_title)
             for label, formatted_value in answered_items:
                 st.markdown(f"- **{label}:** {formatted_value}")
+
+
+def render_compact_requirement_source_column(
+    *,
+    title: str,
+    entries: list[dict[str, Any]],
+    source_badge: str,
+    selected_set: set[str],
+    select_key_prefix: str,
+    add_key_prefix: str,
+    save_callback: Callable[[str], None] | None = None,
+    empty_message: str = "Keine Vorschläge.",
+) -> list[str]:
+    st.markdown(f"#### {title}")
+    if not entries:
+        st.caption(empty_message)
+        return []
+
+    selected_labels: list[str] = []
+    for index, entry in enumerate(entries):
+        label = str(entry.get("label") or "").strip()
+        if not label:
+            continue
+        normalized = " ".join(label.casefold().split())
+        select_key = f"{select_key_prefix}.{index}.{normalized}"
+        add_key = f"{add_key_prefix}.{index}.{normalized}"
+        is_selected = st.checkbox(
+            label,
+            key=select_key,
+            value=normalized in selected_set,
+        )
+        st.caption(f"Quelle: {source_badge}")
+        if source_badge == "AI":
+            rationale = (
+                str(entry.get("rationale") or "").strip() or "Keine Details verfügbar."
+            )
+            evidence = (
+                str(entry.get("evidence") or "").strip() or "Keine Details verfügbar."
+            )
+            with st.expander("Begründung / Evidence", expanded=False):
+                st.write(f"**Rationale:** {rationale}")
+                st.write(f"**Evidence:** {evidence}")
+        if st.button("Hinzufügen", key=add_key) and save_callback is not None:
+            save_callback(label)
+        if is_selected:
+            selected_labels.append(label)
+    return selected_labels
+
+
+def render_compact_requirement_board(
+    *,
+    title_jobspec: str,
+    jobspec_items: list[dict[str, Any]],
+    title_esco: str,
+    esco_items: list[dict[str, Any]],
+    title_llm: str,
+    llm_items: list[dict[str, Any]],
+    selected_labels: list[str],
+    selection_state_key: str,
+    save_callback: Callable[[str], None] | None = None,
+    key_prefix: str,
+    empty_messages: dict[str, str] | None = None,
+) -> list[str]:
+    selected_set = {
+        " ".join(str(item).strip().casefold().split())
+        for item in selected_labels
+        if has_meaningful_value(item)
+    }
+    board_items = [
+        (title_jobspec, jobspec_items, "Jobspec"),
+        (title_esco, esco_items, "ESCO"),
+        (title_llm, llm_items, "AI"),
+    ]
+    columns = st.columns(3, gap="small")
+    bulk_labels: list[str] = []
+    for col, (title, entries, source_badge) in zip(columns, board_items):
+        with col:
+            bulk_labels.extend(
+                render_compact_requirement_source_column(
+                    title=title,
+                    entries=entries,
+                    source_badge=source_badge,
+                    selected_set=selected_set,
+                    select_key_prefix=f"{key_prefix}.select.{source_badge}",
+                    add_key_prefix=f"{key_prefix}.add.{source_badge}",
+                    save_callback=save_callback,
+                    empty_message=(empty_messages or {}).get(
+                        source_badge, "Keine Vorschläge."
+                    ),
+                )
+            )
+    st.session_state[selection_state_key] = bulk_labels
+    return bulk_labels
 
 
 def _collect_incomplete_group_titles(
