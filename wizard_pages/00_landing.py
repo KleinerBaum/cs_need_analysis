@@ -36,35 +36,31 @@ LANDING_COPY: dict[str, object] = {
     "value_cards": (),
     "importance_title": "Warum dieser erste Schritt entscheidend ist",
     # Leitthese
-    "importance_intro": "Die Qualität des Intakes bestimmt Präzision, Tempo und Entscheidungssicherheit im gesamten Recruitingprozess.",
+    "importance_intro": "Die Intake-Qualität steuert, wie präzise, schnell und sicher Sie im weiteren Recruiting entscheiden.",
     # Risiken ohne sauberen Intake
     "importance_risk_points": (
         (
-            "Unscharfer Intake",
-            "Verursacht kostspielige Folgeschleifen: Re-Briefings, Neupriorisierungen und wiederholte Suchläufe binden Zeit, Budget und Managementaufmerksamkeit.",
+            "Schneller eskaliert Aufwand",
+            "Mehr Re-Briefings, mehr Suchschleifen, mehr Verzögerung.",
         ),
         (
-            "Unklare Anforderungsarchitektur",
-            "Verzerrt das Zielprofil, schwächt die Shortlist-Qualität und erhöht den Sourcing-Aufwand durch vermeidbare Streuverluste.",
+            "Klarer wird Vergleichbarkeit zum Risiko",
+            "Uneinheitliche Must-haves machen Kandidatinnen und Kandidaten schwer vergleichbar.",
         ),
         (
-            "Unspezifische Must-haves",
-            "Führen zu uneinheitlichen Interviewmaßstäben und unterminieren die Vergleichbarkeit von Kandidatinnen und Kandidaten in der Auswahlentscheidung.",
-        ),
-        (
-            "Unvollständige Prozessparameter",
-            "Erzeugen Rückfragen, Entscheidungslatenzen und operative Reibung zwischen Hiring Manager, Recruiting und Fachbereich.",
+            "Planbarer sinkt Interviewqualität",
+            "Unklare Kriterien führen zu mehr Rückfragen und inkonsistenten Interviewentscheidungen.",
         ),
     ),
     # Hebel mit präzisem Intake
     "importance_leverage_points": (
         (
-            "Präziser Intake",
-            "Spart Zeit, erhöht die Konsistenz entlang der Prozesskette und verbessert die Qualität jeder nachgelagerten Entscheidung.",
+            "Schneller in die Umsetzung",
+            "Weniger Rückfragen, konsistentere Interviews, belastbarere Shortlists.",
         ),
     ),
     # Outcome
-    "importance_closer": "Ein sauber definierter Start reduziert Risiko, beschleunigt Umsetzung und erhöht die Trefferquote im gesamten Hiring-Funnel.",
+    "importance_closer": "Ein sauber definierter Start senkt Risiko, verkürzt Time-to-Hire und erhöht die Trefferquote über den gesamten Funnel.",
     "flow_title": "So funktioniert der Ablauf",
     "flow_steps": (
         (
