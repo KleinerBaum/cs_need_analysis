@@ -4,7 +4,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Callable, List, Literal, Mapping, Sequence, TypedDict
+from typing import (
+    Callable,
+    List,
+    Literal,
+    Mapping,
+    NotRequired,
+    Sequence,
+    TypedDict,
+    cast,
+)
 
 import streamlit as st
 
@@ -141,6 +150,14 @@ class SidebarStepDetailStatus(TypedDict):
     details_answered: int
     details_total: int
     missing_essentials: list[str]
+
+
+class EscoMigrationPendingPayload(TypedDict):
+    target: str
+    uri: str
+    concept_type: str
+    index: NotRequired[str]
+    candidates: NotRequired[list[dict[str, str]]]
 
 
 def _status_prefix(status: StepStatus) -> str:
@@ -388,7 +405,46 @@ def _is_legacy_esco_uri(uri: object) -> bool:
     return "data.europa.eu/esco/" not in normalized
 
 
-def _find_legacy_uri_payload() -> dict[str, str] | None:
+def _normalize_esco_migration_pending_payload(
+    payload: object,
+) -> EscoMigrationPendingPayload | None:
+    if not isinstance(payload, Mapping):
+        return None
+    target = str(payload.get("target") or "").strip()
+    uri = str(payload.get("uri") or "").strip()
+    concept_type = str(payload.get("concept_type") or "").strip()
+    if not target or not uri or not concept_type:
+        return None
+
+    normalized: EscoMigrationPendingPayload = {
+        "target": target,
+        "uri": uri,
+        "concept_type": concept_type,
+    }
+
+    index = payload.get("index")
+    if index is not None:
+        normalized_index = str(index).strip()
+        if normalized_index:
+            normalized["index"] = normalized_index
+
+    raw_candidates = payload.get("candidates")
+    if isinstance(raw_candidates, list):
+        candidates = [
+            {
+                "uri": str(candidate.get("uri") or "").strip(),
+                "label": str(candidate.get("label") or "").strip(),
+            }
+            for candidate in raw_candidates
+            if isinstance(candidate, Mapping)
+            and str(candidate.get("uri") or "").strip()
+        ]
+        if candidates:
+            normalized["candidates"] = candidates
+    return normalized
+
+
+def _find_legacy_uri_payload() -> EscoMigrationPendingPayload | None:
     selected = st.session_state.get(SSKey.ESCO_OCCUPATION_SELECTED.value)
     if isinstance(selected, dict):
         uri = selected.get("uri")
@@ -478,7 +534,7 @@ def _append_esco_migration_log(
 
 def _apply_canonical_uri(
     *,
-    migration_payload: Mapping[str, str],
+    migration_payload: EscoMigrationPendingPayload,
     canonical_uri: str,
     decision: str,
 ) -> bool:
@@ -531,11 +587,13 @@ def _apply_canonical_uri(
 
 
 def _render_pending_esco_migration_choice() -> None:
-    pending = st.session_state.get(SSKey.ESCO_MIGRATION_PENDING.value)
-    if not isinstance(pending, dict):
+    pending = _normalize_esco_migration_pending_payload(
+        st.session_state.get(SSKey.ESCO_MIGRATION_PENDING.value)
+    )
+    if pending is None:
+        st.session_state[SSKey.ESCO_MIGRATION_PENDING.value] = None
         return
-    raw_candidates = pending.get("candidates")
-    candidates = raw_candidates if isinstance(raw_candidates, list) else []
+    candidates = pending.get("candidates", [])
     if len(candidates) <= 1:
         return
 
@@ -584,7 +642,7 @@ def _conversion_endpoint_for_concept(concept_type: str) -> str:
     return "occupation" if concept_type == "occupation" else "skill"
 
 
-def _render_esco_migration_trigger(legacy_payload: Mapping[str, str]) -> None:
+def _render_esco_migration_trigger(legacy_payload: EscoMigrationPendingPayload) -> None:
     concept_type = str(legacy_payload.get("concept_type") or "").strip()
     conversion_endpoint = _conversion_endpoint_for_concept(concept_type)
     if st.button("Legacy-URI migrieren", key="esco.legacy_uri.migrate"):
@@ -616,7 +674,7 @@ def _render_esco_migration_trigger(legacy_payload: Mapping[str, str]) -> None:
                 st.info("Keine aktualisierbare ESCO-Auswahl gefunden.")
             return
 
-        pending = dict(legacy_payload)
+        pending = cast(EscoMigrationPendingPayload, dict(legacy_payload))
         pending["candidates"] = candidates
         st.session_state[SSKey.ESCO_MIGRATION_PENDING.value] = pending
         st.info("Bitte wählen Sie ein Zielkonzept für die Migration aus.")
