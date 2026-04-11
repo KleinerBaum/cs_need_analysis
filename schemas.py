@@ -202,6 +202,20 @@ class JobAdExtract(StrictSchemaModel):
     )
 
 
+class RequirementSuggestionItem(StrictSchemaModel):
+    label: str
+    type: Literal["skill", "task"]
+    source_hint: Literal["llm"]
+    rationale: str
+    evidence: str
+    importance: Literal["high", "medium", "low"]
+
+
+class RequirementSuggestionPack(StrictSchemaModel):
+    skills: list[RequirementSuggestionItem] = Field(default_factory=list)
+    tasks: list[RequirementSuggestionItem] = Field(default_factory=list)
+
+
 class Question(StrictSchemaModel):
     id: str = Field(description="Stable unique question id (machine-readable).")
     label: str = Field(description="Exact question text shown to the user.")

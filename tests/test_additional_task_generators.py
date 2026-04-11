@@ -10,13 +10,15 @@ from llm_client import (
     TASK_GENERATE_BOOLEAN_SEARCH,
     TASK_GENERATE_INTERVIEW_SHEET_HM,
     TASK_GENERATE_INTERVIEW_SHEET_HR,
+    TASK_GENERATE_REQUIREMENT_GAP_SUGGESTIONS,
     generate_boolean_search_pack,
     generate_employment_contract_draft,
     generate_interview_sheet_hr,
     generate_interview_sheet_hm,
+    generate_requirement_gap_suggestions,
     resolve_model_for_task,
 )
-from schemas import VacancyBrief
+from schemas import JobAdExtract, VacancyBrief
 from settings_openai import OpenAISettings
 
 
@@ -111,6 +113,14 @@ def test_resolve_model_for_new_tasks_uses_expected_buckets() -> None:
             settings=settings,
         )
         == settings.high_reasoning_model
+    )
+    assert (
+        resolve_model_for_task(
+            task_kind=TASK_GENERATE_REQUIREMENT_GAP_SUGGESTIONS,
+            session_override=None,
+            settings=settings,
+        )
+        == settings.medium_reasoning_model
     )
 
 
@@ -336,3 +346,85 @@ def test_generate_employment_contract_prompt_enforces_template_guardrails(
     assert "Erfinde keine fehlenden Vertragsbedingungen" in system_prompt
     assert "Nachweisgesetz" in system_prompt
     assert "§ 622 BGB" in system_prompt
+
+
+def test_generate_requirement_gap_suggestions_limits_and_cache(monkeypatch) -> None:
+    monkeypatch.setattr(
+        llm_client,
+        "_resolve_runtime_config",
+        lambda **_: _runtime_config(),
+    )
+    llm_client.st.session_state.clear()
+    calls = {"count": 0}
+
+    def _capture_parse(**kwargs: Any) -> tuple[Any, dict[str, Any]]:
+        calls["count"] += 1
+        payload = {
+            "skills": [
+                {
+                    "label": "Data Modeling",
+                    "type": "skill",
+                    "source_hint": "llm",
+                    "rationale": "Core for analytics platform scale",
+                    "evidence": "Role summary emphasizes data products",
+                    "importance": "high",
+                },
+                {
+                    "label": "Stakeholder Communication",
+                    "type": "skill",
+                    "source_hint": "llm",
+                    "rationale": "Cross-team alignment is needed",
+                    "evidence": "Hiring context mentions scaling platform",
+                    "importance": "medium",
+                },
+            ],
+            "tasks": [
+                {
+                    "label": "Define data quality SLAs",
+                    "type": "task",
+                    "source_hint": "llm",
+                    "rationale": "Improves reliability",
+                    "evidence": "Responsibilities include data models",
+                    "importance": "high",
+                },
+                {
+                    "label": "Partner with analytics consumers",
+                    "type": "task",
+                    "source_hint": "llm",
+                    "rationale": "Ensures adoption",
+                    "evidence": "Role focuses on data products",
+                    "importance": "medium",
+                },
+            ],
+        }
+        return kwargs["out_model"].model_validate(payload), {"total_tokens": 17}
+
+    monkeypatch.setattr(llm_client, "_parse_with_structured_outputs", _capture_parse)
+
+    first_result, first_usage = generate_requirement_gap_suggestions(
+        job=JobAdExtract(job_title="Data Engineer"),
+        answers={"team": {"size": 6}},
+        existing_skills=["Python"],
+        existing_tasks=["Build pipelines"],
+        esco_skill_titles=["Data modelling"],
+        target_skill_count=1,
+        target_task_count=1,
+        model="gpt-5-mini",
+    )
+    second_result, second_usage = generate_requirement_gap_suggestions(
+        job=JobAdExtract(job_title="Data Engineer"),
+        answers={"team": {"size": 6}},
+        existing_skills=["Python"],
+        existing_tasks=["Build pipelines"],
+        esco_skill_titles=["Data modelling"],
+        target_skill_count=1,
+        target_task_count=1,
+        model="gpt-5-mini",
+    )
+
+    assert calls["count"] == 1
+    assert len(first_result.skills) == 1
+    assert len(first_result.tasks) == 1
+    assert first_usage["total_tokens"] == 17
+    assert second_usage["cached"] is True
+    assert second_result == first_result
