@@ -1196,13 +1196,6 @@ def render_question_step(step: QuestionStep) -> None:
                 f"{hidden_questions_count} Detailfragen sind aktuell durch Abhängigkeiten ausgeblendet."
             )
     elif not detail_questions:
-        render_step_review_card(
-            step=step,
-            visible_questions=visible_questions,
-            answers=answers,
-            answer_meta=answer_meta,
-            answered_lookup=answered_lookup,
-        )
         return
 
     grouped_questions = _group_questions(step, detail_questions)
@@ -1247,13 +1240,7 @@ def render_question_step(step: QuestionStep) -> None:
                 st.caption(f"{progress['required_unanswered']} Pflichtfragen offen")
             _render_questions_two_columns(group_questions, answers)
 
-    render_step_review_card(
-        step=step,
-        visible_questions=visible_questions,
-        answers=answers,
-        answer_meta=answer_meta,
-        answered_lookup=answered_lookup,
-    )
+    return
 
 
 def _sort_questions_for_progressive_disclosure(
