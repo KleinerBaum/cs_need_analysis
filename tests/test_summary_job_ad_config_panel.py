@@ -8,7 +8,9 @@ from constants import SSKey
 
 
 SUMMARY_PATH = Path(__file__).resolve().parents[1] / "wizard_pages" / "08_summary.py"
-SPEC = spec_from_file_location("wizard_pages.page_08_summary_job_ad_panel", SUMMARY_PATH)
+SPEC = spec_from_file_location(
+    "wizard_pages.page_08_summary_job_ad_panel", SUMMARY_PATH
+)
 if SPEC is None or SPEC.loader is None:
     raise RuntimeError("Could not load summary page module")
 SUMMARY_MODULE = module_from_spec(SPEC)
@@ -88,9 +90,7 @@ def _job_ad_action_with_inputs(renderer) -> dict[str, Any]:
 
 
 def test_job_ad_card_open_config_button_sets_panel_state(monkeypatch) -> None:
-    open_key = (
-        f"{SSKey.SUMMARY_ACTION_WIDGET_PREFIX.value}.job_ad.open_config"
-    )
+    open_key = f"{SSKey.SUMMARY_ACTION_WIDGET_PREFIX.value}.job_ad.open_config"
     fake_st = _FakeStreamlit(
         session_state={SSKey.JOB_EXTRACT.value: {"job_title": "Engineer"}},
         button_results={open_key: True},
@@ -149,10 +149,10 @@ def test_job_ad_configuration_panel_preserves_existing_inputs(monkeypatch) -> No
 
 def test_normalize_logo_payload_supports_png_and_jpeg_only() -> None:
     png_logo = _UploadedLogo(name="brand.png", mime_type="image/png", payload=b"png")
-    jpg_logo = _UploadedLogo(
-        name="brand.jpg", mime_type="image/jpeg", payload=b"jpeg"
+    jpg_logo = _UploadedLogo(name="brand.jpg", mime_type="image/jpeg", payload=b"jpeg")
+    svg_logo = _UploadedLogo(
+        name="brand.svg", mime_type="image/svg+xml", payload=b"svg"
     )
-    svg_logo = _UploadedLogo(name="brand.svg", mime_type="image/svg+xml", payload=b"svg")
 
     normalized_png = SUMMARY_MODULE._normalize_logo_payload(png_logo)
     normalized_jpg = SUMMARY_MODULE._normalize_logo_payload(jpg_logo)

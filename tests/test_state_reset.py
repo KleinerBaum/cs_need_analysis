@@ -67,6 +67,8 @@ RESET_EXPECTATIONS: dict[SSKey, object] = {
     SSKey.ESCO_CONFIRMED_ESSENTIAL_SKILLS: [],
     SSKey.ESCO_CONFIRMED_OPTIONAL_SKILLS: [],
     SSKey.ESCO_UNMAPPED_REQUIREMENT_TERMS: [],
+    SSKey.ESCO_UNMAPPED_ROLE_TERMS: [],
+    SSKey.ESCO_UNMAPPED_TERM_ACTIONS: {},
     SSKey.ESCO_SKILLS_MAPPING_REPORT: None,
     SSKey.ESCO_OCCUPATION_TITLE_VARIANTS: {},
     SSKey.ESCO_MIGRATION_LOG: [],
@@ -190,6 +192,23 @@ def test_init_session_state_uses_env_esco_api_base_url(monkeypatch) -> None:
     assert fake_session_state[SSKey.ESCO_CONFIG.value]["base_url"] == (
         "https://env.example/esco/"
     )
+
+
+def test_init_session_state_uses_env_esco_selected_version(monkeypatch) -> None:
+    fake_session_state: dict[str, object] = {}
+    monkeypatch.setenv("ESCO_SELECTED_VERSION", "v1.3.1")
+    monkeypatch.setattr(
+        state,
+        "load_openai_settings",
+        lambda: SimpleNamespace(openai_model="gpt-5-mini"),
+    )
+    monkeypatch.setattr(
+        state,
+        "st",
+        SimpleNamespace(session_state=fake_session_state),
+    )
+    state.init_session_state()
+    assert fake_session_state[SSKey.ESCO_CONFIG.value]["selected_version"] == "v1.3.1"
 
 
 def test_init_session_state_loads_eures_nace_mapping_from_env_file(

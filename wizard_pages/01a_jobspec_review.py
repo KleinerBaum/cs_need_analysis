@@ -428,6 +428,7 @@ def _render_esco_occupation_block(job: JobAdExtract) -> None:
         st.session_state[SSKey.ESCO_OCCUPATION_CANDIDATES.value] = []
         st.session_state[SSKey.ESCO_OCCUPATION_SELECTED.value] = None
         st.session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] = ""
+        st.session_state[SSKey.ESCO_UNMAPPED_ROLE_TERMS.value] = []
         return
 
     st.caption(f"Suche mit: `{query_text}`")
@@ -458,7 +459,9 @@ def _render_esco_occupation_block(job: JobAdExtract) -> None:
         st.session_state[SSKey.ESCO_MATCH_PROVENANCE.value] = []
         st.session_state[SSKey.ESCO_OCCUPATION_PAYLOAD.value] = None
         st.session_state[SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value] = {}
+        st.session_state[SSKey.ESCO_UNMAPPED_ROLE_TERMS.value] = [query_text]
         return
+    st.session_state[SSKey.ESCO_UNMAPPED_ROLE_TERMS.value] = []
     st.session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] = occupation_uri
 
     applied_meta_key = (
@@ -491,7 +494,7 @@ def _render_esco_occupation_block(job: JobAdExtract) -> None:
         f"{explainability['reason']} (Confidence: {explainability['confidence']})"
     )
     try:
-        occupation_payload = EscoClient().resource_occupation(uri=occupation_uri)
+        occupation_payload = EscoClient().get_occupation_detail(uri=occupation_uri)
     except EscoClientError as exc:
         st.warning(f"ESCO-Occupationsdetails konnten nicht geladen werden: {exc}")
         st.session_state[SSKey.ESCO_OCCUPATION_PAYLOAD.value] = None
@@ -556,6 +559,20 @@ def _render_esco_occupation_block(job: JobAdExtract) -> None:
                     st.markdown(f"**{language.upper()}**")
                     for label in labels:
                         st.write(f"- {label}")
+
+    unmapped_roles_raw = st.session_state.get(SSKey.ESCO_UNMAPPED_ROLE_TERMS.value, [])
+    unmapped_roles = (
+        [str(item).strip() for item in unmapped_roles_raw if str(item).strip()]
+        if isinstance(unmapped_roles_raw, list)
+        else []
+    )
+    if unmapped_roles:
+        st.markdown("### Not normalized yet")
+        st.caption(
+            "Diese Rollenbegriffe konnten noch nicht robust auf ESCO abgebildet werden."
+        )
+        for term in unmapped_roles:
+            st.write(f"- {term}")
 
     _render_esco_post_confirm_impact(job)
 

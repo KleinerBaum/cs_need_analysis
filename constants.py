@@ -18,6 +18,7 @@ from typing import Final, List
 
 APP_TITLE: Final[str] = "Cognitive Staffing – Vacancy Intake Wizard"
 DEFAULT_LANGUAGE: Final[str] = "de"
+DEFAULT_ESCO_SELECTED_VERSION: Final[str] = "v1.2.0"
 
 
 # ---- Session State Keys ----
@@ -124,6 +125,8 @@ class SSKey(str, Enum):
     ESCO_CONFIRMED_ESSENTIAL_SKILLS = "cs.esco_confirmed_essential_skills"
     ESCO_CONFIRMED_OPTIONAL_SKILLS = "cs.esco_confirmed_optional_skills"
     ESCO_UNMAPPED_REQUIREMENT_TERMS = "cs.esco_unmapped_requirement_terms"
+    ESCO_UNMAPPED_ROLE_TERMS = "cs.esco_unmapped_role_terms"
+    ESCO_UNMAPPED_TERM_ACTIONS = "cs.esco_unmapped_term_actions"
     ESCO_SKILLS_MAPPING_REPORT = "cs.esco_skills_mapping_report"
     ESCO_SKILL_DETAIL_CACHE = "cs.esco_skill_detail_cache"
     ESCO_OCCUPATION_TITLE_VARIANTS = "cs.esco_occupation_title_variants"

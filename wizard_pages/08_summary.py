@@ -21,6 +21,7 @@ from constants import (
     SUMMARY_ARTIFACT_IDS,
     SUMMARY_ARTIFACT_LEGACY_ALIASES,
 )
+from esco_client import EscoClient, EscoClientError
 from llm_client import (
     TASK_GENERATE_EMPLOYMENT_CONTRACT,
     JobAdGenerationResult,
@@ -579,6 +580,10 @@ def _read_esco_shared_fields() -> dict[str, Any]:
         st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, []),
     )
     unmapped_raw = st.session_state.get(SSKey.ESCO_UNMAPPED_REQUIREMENT_TERMS.value, [])
+    unmapped_role_raw = st.session_state.get(SSKey.ESCO_UNMAPPED_ROLE_TERMS.value, [])
+    unmapped_actions_raw = st.session_state.get(
+        SSKey.ESCO_UNMAPPED_TERM_ACTIONS.value, {}
+    )
     essential = essential_raw if isinstance(essential_raw, list) else []
     optional = optional_raw if isinstance(optional_raw, list) else []
     unmapped = (
@@ -586,12 +591,43 @@ def _read_esco_shared_fields() -> dict[str, Any]:
         if isinstance(unmapped_raw, list)
         else []
     )
+    unmapped_roles = (
+        [str(item).strip() for item in unmapped_role_raw if str(item).strip()]
+        if isinstance(unmapped_role_raw, list)
+        else []
+    )
     return {
         "selected_occupation_uri": selected_uri,
         "essential_skills": essential,
         "optional_skills": optional,
         "unmapped_terms": unmapped,
+        "unmapped_roles": unmapped_roles,
+        "unmapped_actions": unmapped_actions_raw
+        if isinstance(unmapped_actions_raw, dict)
+        else {},
     }
+
+
+def _count_skill_relation_traces(skills: list[dict[str, Any]]) -> int:
+    relation_traces = 0
+    for item in skills:
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("related_occupation_uri") or "").strip():
+            relation_traces += 1
+            continue
+        skill_uri = str(item.get("uri") or "").strip()
+        if not skill_uri:
+            continue
+        try:
+            payload = EscoClient().get_skill_related_occupations(
+                skill_uri=skill_uri, limit=1
+            )
+        except EscoClientError:
+            continue
+        if isinstance(payload, dict) and payload:
+            relation_traces += 1
+    return relation_traces
 
 
 def _compute_esco_coverage_metrics(shared_esco: dict[str, Any]) -> dict[str, int]:
@@ -813,6 +849,10 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
         payload["esco_skills_nice"] = nice_skills
     if shared_esco["unmapped_terms"]:
         payload["esco_unmapped_requirement_terms"] = shared_esco["unmapped_terms"]
+    if shared_esco["unmapped_roles"]:
+        payload["esco_unmapped_role_terms"] = shared_esco["unmapped_roles"]
+    if shared_esco["unmapped_actions"]:
+        payload["esco_unmapped_term_actions"] = shared_esco["unmapped_actions"]
 
     esco_config = st.session_state.get(SSKey.ESCO_CONFIG.value, {})
     if isinstance(esco_config, dict):
@@ -2265,7 +2305,7 @@ def _render_readiness_tab(
     shared_esco = _read_esco_shared_fields()
     coverage = _compute_esco_coverage_metrics(shared_esco)
     st.markdown("**ESCO-Coverage**")
-    c1, c2, c3 = st.columns(3)
+    c1, c2, c3, c4 = st.columns(4)
     c1.metric(
         "Essential Coverage",
         f"{coverage['essential_covered']}/{coverage['essential_total']}",
@@ -2277,11 +2317,20 @@ def _render_readiness_tab(
         f"{coverage['optional_pct']}%",
     )
     c3.metric("Unmapped Gaps", str(len(shared_esco["unmapped_terms"])))
+    relation_traces = _count_skill_relation_traces(
+        shared_esco["essential_skills"] + shared_esco["optional_skills"]
+    )
+    c4.metric("Skill→Occupation traces", str(relation_traces))
     if shared_esco["unmapped_terms"]:
         st.caption(
             "Offene Begriffe: "
             + ", ".join(shared_esco["unmapped_terms"][:8])
             + (" …" if len(shared_esco["unmapped_terms"]) > 8 else "")
+        )
+    if shared_esco["unmapped_roles"]:
+        st.caption(
+            "Nicht normalisierte Rollenbegriffe: "
+            + ", ".join(shared_esco["unmapped_roles"][:4])
         )
 
     st.markdown("**Kritische Lücken (Top 5)**")
