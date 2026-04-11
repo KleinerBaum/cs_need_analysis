@@ -88,6 +88,40 @@ def _normalize_target_state_key(target_state_key: SSKey | str) -> str:
     return str(target_state_key).strip()
 
 
+def _infer_applied_provenance_categories(
+    *,
+    query_text: str,
+    selected_payload: list[dict[str, str]],
+    selected_index: int | None,
+    allow_multi: bool,
+) -> list[str]:
+    categories: list[str] = []
+    normalized_query = query_text.strip().casefold()
+    normalized_titles = [
+        str(item.get("title", "")).strip().casefold() for item in selected_payload
+    ]
+
+    if normalized_query and any(
+        normalized_query in title or title in normalized_query
+        for title in normalized_titles
+        if title
+    ):
+        categories.append("matched from jobspec title")
+
+    if any(
+        str(item.get("source", "auto")).strip().lower() == "manual"
+        for item in selected_payload
+    ):
+        categories.append("matched from synonyms/hidden terms")
+
+    if not allow_multi and selected_index is not None and selected_index > 0:
+        categories.append("manual override")
+
+    if not categories:
+        categories.append("matched from jobspec title")
+    return categories
+
+
 def _extract_esco_suggestions(
     payload: dict[str, Any],
     *,
@@ -348,6 +382,7 @@ def render_esco_picker_card(
 
     option_labels = [_label_for_option(item) for item in options]
     selected_payload: list[dict[str, str]] = []
+    selected_index: int | None = None
     if allow_multi:
         selected_indices = st.multiselect(
             "Vorschläge",
@@ -424,6 +459,12 @@ def render_esco_picker_card(
             )
             if selected_payload
             else "auto",
+            "provenance_categories": _infer_applied_provenance_categories(
+                query_text=query_text,
+                selected_payload=selected_payload,
+                selected_index=selected_index,
+                allow_multi=allow_multi,
+            ),
         }
 
     stored = st.session_state.get(session_key)
