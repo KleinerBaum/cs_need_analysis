@@ -474,7 +474,7 @@ def _apply_salary_scenario_inputs(job: JobAdExtract) -> tuple[JobAdExtract, list
 
 
 def _render_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) -> None:
-    st.subheader("Gehaltsprognose")
+    st.subheader("Gehaltsprognose (indikativ)")
     controls_col, result_col = st.columns((1, 2))
 
     with controls_col:
@@ -552,6 +552,11 @@ def _render_salary_forecast(job: JobAdExtract, answers: dict[str, Any]) -> None:
         p90.metric(
             f"p90 ({forecast.period})",
             f"{int(forecast.forecast.p90):,} {forecast.currency}".replace(",", "."),
+        )
+        quality_percent = int(round(float(forecast.quality.value) * 100, 0))
+        st.caption("Bandbreite und p50 sind indikative Richtwerte (kein Garantiewert).")
+        st.caption(
+            f"Datenqualität: {quality_percent}% (`{forecast.quality.kind}`) – signalisiert Datenabdeckung und Mapping-Treffer, nicht Prognosegenauigkeit."
         )
 
         skill_rows = [row for row in scenario_rows if row["group"] == "skill_delta"]
