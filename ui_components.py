@@ -7,7 +7,7 @@ import re
 import hashlib
 from datetime import date
 from collections.abc import Sequence
-from typing import Any, Callable, Dict, Literal, Optional
+from typing import Any, Dict, Literal, Optional
 
 import streamlit as st
 
@@ -1315,50 +1315,107 @@ def render_step_review_card(
                 st.markdown(f"- **{label}:** {formatted_value}")
 
 
-def render_compact_requirement_source_column(
-    *,
-    title: str,
-    entries: list[dict[str, Any]],
-    source_badge: str,
-    selected_set: set[str],
-    select_key_prefix: str,
-    add_key_prefix: str,
-    save_callback: Callable[[str], None] | None = None,
-    empty_message: str = "Keine Vorschläge.",
-) -> list[str]:
-    st.markdown(f"#### {title}")
-    if not entries:
-        st.caption(empty_message)
-        return []
+def _normalize_requirement_label(value: str) -> str:
+    return " ".join(value.strip().casefold().split())
 
-    selected_labels: list[str] = []
-    for index, entry in enumerate(entries):
+
+def _truncate_requirement_label(value: str, *, limit: int = 88) -> str:
+    text = " ".join(value.split())
+    if len(text) <= limit:
+        return text
+    return f"{text[: max(limit - 1, 1)].rstrip()}…"
+
+
+def _build_requirement_table_rows(
+    *,
+    source_key: str,
+    entries: list[dict[str, Any]],
+    selected_set: set[str],
+    buffer_set: set[str],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for entry in entries:
         label = str(entry.get("label") or "").strip()
         if not label:
             continue
-        normalized = " ".join(label.casefold().split())
-        select_key = f"{select_key_prefix}.{index}.{normalized}"
-        add_key = f"{add_key_prefix}.{index}.{normalized}"
-        is_selected = st.checkbox(
-            label,
-            key=select_key,
-            value=normalized in selected_set,
+        normalized = _normalize_requirement_label(label)
+        note_parts = [
+            str(entry.get("importance") or "").strip(),
+            str(entry.get("rationale") or "").strip(),
+            str(entry.get("evidence") or "").strip(),
+        ]
+        notes = " | ".join(part for part in note_parts if part)
+        rows.append(
+            {
+                "select": normalized in selected_set or normalized in buffer_set,
+                "label": _truncate_requirement_label(label),
+                "source": source_key,
+                "notes": _truncate_requirement_label(notes, limit=120) if notes else "",
+                "_full_label": label,
+                "_normalized_label": normalized,
+            }
         )
-        st.caption(f"Quelle: {source_badge}")
-        if source_badge == "AI":
-            rationale = (
-                str(entry.get("rationale") or "").strip() or "Keine Details verfügbar."
-            )
-            evidence = (
-                str(entry.get("evidence") or "").strip() or "Keine Details verfügbar."
-            )
-            with st.expander("Begründung / Evidence", expanded=False):
-                st.write(f"**Rationale:** {rationale}")
-                st.write(f"**Evidence:** {evidence}")
-        if st.button("Hinzufügen", key=add_key) and save_callback is not None:
-            save_callback(label)
-        if is_selected:
+    return rows
+
+
+def _render_requirement_selection_table(
+    *,
+    title: str,
+    source_key: str,
+    entries: list[dict[str, Any]],
+    selected_set: set[str],
+    selection_state_key: str,
+    key_prefix: str,
+) -> list[str]:
+    table_rows = _build_requirement_table_rows(
+        source_key=source_key,
+        entries=entries,
+        selected_set=selected_set,
+        buffer_set={
+            _normalize_requirement_label(str(label))
+            for label in st.session_state.get(selection_state_key, [])
+            if has_meaningful_value(label)
+        },
+    )
+    if not table_rows:
+        return []
+
+    st.caption(title)
+    editor_key = f"{key_prefix}.editor.{source_key.casefold()}"
+    edited_rows = st.data_editor(
+        table_rows,
+        key=editor_key,
+        width="stretch",
+        height=320,
+        hide_index=True,
+        num_rows="fixed",
+        column_order=["select", "label", "source", "notes"],
+        column_config={
+            "select": st.column_config.CheckboxColumn("Auswahl"),
+            "label": st.column_config.TextColumn("Bezeichnung", disabled=True),
+            "source": st.column_config.TextColumn("Quelle", disabled=True),
+            "notes": st.column_config.TextColumn("Hinweise", disabled=True),
+        },
+    )
+    selected_labels: list[str] = []
+    for row in edited_rows:
+        if not bool(row.get("select")):
+            continue
+        label = str(row.get("_full_label") or "").strip()
+        if label:
             selected_labels.append(label)
+
+    selected_index = next(
+        (index for index, row in enumerate(edited_rows) if bool(row.get("select"))), -1
+    )
+    if selected_index >= 0:
+        selected_row = edited_rows[selected_index]
+        selected_label = str(selected_row.get("_full_label") or "").strip()
+        notes = str(selected_row.get("notes") or "").strip()
+        with st.expander("Preview", expanded=False):
+            st.write(selected_label or "Keine Details verfügbar.")
+            if notes:
+                st.caption(notes)
     return selected_labels
 
 
@@ -1372,40 +1429,69 @@ def render_compact_requirement_board(
     llm_items: list[dict[str, Any]],
     selected_labels: list[str],
     selection_state_key: str,
-    save_callback: Callable[[str], None] | None = None,
     key_prefix: str,
     empty_messages: dict[str, str] | None = None,
 ) -> list[str]:
     selected_set = {
-        " ".join(str(item).strip().casefold().split())
+        _normalize_requirement_label(str(item))
         for item in selected_labels
         if has_meaningful_value(item)
     }
-    board_items = [
+    board_items_all = [
         (title_jobspec, jobspec_items, "Jobspec"),
         (title_esco, esco_items, "ESCO"),
         (title_llm, llm_items, "AI"),
     ]
-    columns = st.columns(3, gap="small")
+    board_items = [item for item in board_items_all if item[1]]
+    if not board_items:
+        st.caption("Keine Vorschläge.")
+        st.session_state[selection_state_key] = []
+        return []
+
     bulk_labels: list[str] = []
-    for col, (title, entries, source_badge) in zip(columns, board_items):
-        with col:
-            bulk_labels.extend(
-                render_compact_requirement_source_column(
-                    title=title,
-                    entries=entries,
-                    source_badge=source_badge,
-                    selected_set=selected_set,
-                    select_key_prefix=f"{key_prefix}.select.{source_badge}",
-                    add_key_prefix=f"{key_prefix}.add.{source_badge}",
-                    save_callback=save_callback,
-                    empty_message=(empty_messages or {}).get(
-                        source_badge, "Keine Vorschläge."
-                    ),
-                )
+    if len(board_items) == 1:
+        title, entries, source_badge = board_items[0]
+        bulk_labels.extend(
+            _render_requirement_selection_table(
+                title=title,
+                source_key=source_badge,
+                entries=entries,
+                selected_set=selected_set,
+                selection_state_key=selection_state_key,
+                key_prefix=key_prefix,
             )
-    st.session_state[selection_state_key] = bulk_labels
-    return bulk_labels
+        )
+    else:
+        tab_titles = [item[2] for item in board_items]
+        tabs = st.tabs(tab_titles)
+        for tab, (title, entries, source_badge) in zip(tabs, board_items):
+            with tab:
+                if entries:
+                    bulk_labels.extend(
+                        _render_requirement_selection_table(
+                            title=title,
+                            source_key=source_badge,
+                            entries=entries,
+                            selected_set=selected_set,
+                            selection_state_key=selection_state_key,
+                            key_prefix=key_prefix,
+                        )
+                    )
+                else:
+                    st.caption(
+                        (empty_messages or {}).get(source_badge, "Keine Vorschläge.")
+                    )
+
+    deduped_labels: list[str] = []
+    seen: set[str] = set()
+    for label in bulk_labels:
+        normalized = _normalize_requirement_label(label)
+        if not normalized or normalized in seen:
+            continue
+        deduped_labels.append(label)
+        seen.add(normalized)
+    st.session_state[selection_state_key] = deduped_labels
+    return deduped_labels
 
 
 def _collect_incomplete_group_titles(

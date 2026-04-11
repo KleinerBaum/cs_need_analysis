@@ -190,13 +190,6 @@ def _render_role_task_source_columns(
         else []
     )
 
-    def _save_single(label: str) -> None:
-        added = _save_selected_task_suggestions([label])
-        if added > 0:
-            st.success("Aufgabe übernommen.")
-        else:
-            st.caption("Bereits übernommen.")
-
     bulk_buffer = render_compact_requirement_board(
         title_jobspec="Aus Jobspec extrahiert",
         jobspec_items=jobspec_suggested,
@@ -206,7 +199,6 @@ def _render_role_task_source_columns(
         llm_items=llm_suggested,
         selected_labels=selected_labels,
         selection_state_key=f"{SSKey.ROLE_TASKS_SELECTED.value}.bulk_buffer",
-        save_callback=_save_single,
         key_prefix="role_tasks.board",
         empty_messages={
             "ESCO": "Keine zuverlässig ableitbaren Aufgaben aus Occupation-Details."

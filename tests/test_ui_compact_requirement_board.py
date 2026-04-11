@@ -17,8 +17,8 @@ class _FakeStreamlit:
     def __init__(self) -> None:
         self.session_state: dict[str, Any] = {}
         self.captions: list[str] = []
-        self.checkbox_values: dict[str, bool] = {}
-        self.button_values: dict[str, bool] = {}
+        self.editor_rows_by_key: dict[str, list[dict[str, Any]]] = {}
+        self.tab_titles: list[str] = []
 
     def markdown(self, *_: Any, **__: Any) -> None:
         return None
@@ -26,60 +26,76 @@ class _FakeStreamlit:
     def caption(self, message: str) -> None:
         self.captions.append(message)
 
-    def checkbox(self, _: str, *, key: str, value: bool) -> bool:
-        return self.checkbox_values.get(key, value)
-
-    def button(self, _: str, *, key: str) -> bool:
-        return self.button_values.get(key, False)
-
     def expander(self, *_: Any, **__: Any) -> _NoopContext:
         return _NoopContext()
 
     def write(self, *_: Any, **__: Any) -> None:
         return None
 
-    def columns(self, count: int, **_: Any) -> list[_NoopContext]:
-        return [_NoopContext() for _ in range(count)]
+    def tabs(self, titles: list[str]) -> list[_NoopContext]:
+        self.tab_titles = list(titles)
+        return [_NoopContext() for _ in titles]
+
+    def data_editor(
+        self, rows: list[dict[str, Any]], *, key: str, **_: Any
+    ) -> list[dict[str, Any]]:
+        return self.editor_rows_by_key.get(key, rows)
+
+    class column_config:  # noqa: N801
+        @staticmethod
+        def CheckboxColumn(*_: Any, **__: Any) -> object:
+            return object()
+
+        @staticmethod
+        def TextColumn(*_: Any, **__: Any) -> object:
+            return object()
 
 
-def test_render_compact_requirement_source_column_shows_custom_empty_message(
-    monkeypatch,
-) -> None:
+def test_render_compact_requirement_board_handles_empty_board(monkeypatch) -> None:
     fake_st = _FakeStreamlit()
     monkeypatch.setattr(ui_components, "st", fake_st)
 
-    selected = ui_components.render_compact_requirement_source_column(
-        title="ESCO",
-        entries=[],
-        source_badge="ESCO",
-        selected_set=set(),
-        select_key_prefix="board.select.ESCO",
-        add_key_prefix="board.add.ESCO",
-        empty_message="Keine ESCO-Vorschläge.",
+    selected = ui_components.render_compact_requirement_board(
+        title_jobspec="Aus Jobspec extrahiert",
+        jobspec_items=[],
+        title_esco="ESCO",
+        esco_items=[],
+        title_llm="AI-Vorschläge",
+        llm_items=[],
+        selected_labels=[],
+        selection_state_key="skills.bulk",
+        key_prefix="skills.board",
     )
 
     assert selected == []
-    assert fake_st.captions == ["Keine ESCO-Vorschläge."]
+    assert fake_st.captions == ["Keine Vorschläge."]
 
 
 def test_render_compact_requirement_board_collects_selected_labels(monkeypatch) -> None:
     fake_st = _FakeStreamlit()
     monkeypatch.setattr(ui_components, "st", fake_st)
 
-    saved: list[str] = []
+    fake_st.editor_rows_by_key["skills.board.editor.jobspec"] = [
+        {
+            "select": True,
+            "label": "SQL",
+            "source": "Jobspec",
+            "notes": "",
+            "_full_label": "SQL",
+        }
+    ]
     selected = ui_components.render_compact_requirement_board(
         title_jobspec="Aus Jobspec extrahiert",
         jobspec_items=[{"label": "SQL"}],
         title_esco="ESCO",
-        esco_items=[{"label": "Python"}],
+        esco_items=[],
         title_llm="AI-Vorschläge",
-        llm_items=[{"label": "Teamfähigkeit", "rationale": "x", "evidence": "y"}],
-        selected_labels=["Python"],
+        llm_items=[],
+        selected_labels=[],
         selection_state_key="skills.bulk",
-        save_callback=saved.append,
         key_prefix="skills.board",
     )
 
-    assert selected == ["Python"]
-    assert fake_st.session_state["skills.bulk"] == ["Python"]
-    assert saved == []
+    assert selected == ["SQL"]
+    assert fake_st.session_state["skills.bulk"] == ["SQL"]
+    assert fake_st.tab_titles == []
