@@ -43,6 +43,66 @@ from state import (
     set_error,
 )
 
+ESCO_EXPLAINABILITY_LABELS: tuple[str, ...] = (
+    "exact label match",
+    "synonym/hidden-term match",
+    "derived from occupation relation",
+    "manually selected by user",
+)
+ESCO_CONFIDENCE_BUCKETS: tuple[str, ...] = ("high", "medium", "low")
+
+
+def _normalize_esco_explainability_label(label: str) -> str:
+    normalized = " ".join(str(label or "").strip().casefold().split())
+    legacy_to_canonical = {
+        "matched from jobspec title": "exact label match",
+        "matched from synonyms/hidden terms": "synonym/hidden-term match",
+        "manual override": "manually selected by user",
+        "manual selection": "manually selected by user",
+        "label_exact": "exact label match",
+    }
+    return legacy_to_canonical.get(normalized, normalized)
+
+
+def _normalize_esco_confidence(confidence: str) -> str:
+    normalized = str(confidence or "").strip().lower()
+    return normalized if normalized in ESCO_CONFIDENCE_BUCKETS else "low"
+
+
+def render_esco_explainability(
+    *,
+    labels: Sequence[str],
+    confidence: str,
+    reason: str | None = None,
+    caption_prefix: str = "ESCO Explainability",
+) -> None:
+    normalized_labels: list[str] = []
+    seen: set[str] = set()
+    for label in labels:
+        canonical = _normalize_esco_explainability_label(label)
+        if canonical in ESCO_EXPLAINABILITY_LABELS and canonical not in seen:
+            normalized_labels.append(canonical)
+            seen.add(canonical)
+    normalized_confidence = _normalize_esco_confidence(confidence)
+    if not normalized_labels and not reason:
+        return
+    badge_html = " ".join(
+        (
+            f"<span style='display:inline-block;padding:0.15rem 0.45rem;border-radius:0.6rem;"
+            "border:1px solid #d1d5db;font-size:0.78rem;'>"
+            f"{badge}</span>"
+        )
+        for badge in (
+            [f"Confidence: {normalized_confidence.title()}"]
+            + [label.title() for label in normalized_labels]
+        )
+    )
+    if badge_html:
+        st.markdown(badge_html, unsafe_allow_html=True)
+    if reason:
+        st.caption(f"{caption_prefix}: {reason}")
+
+
 _OTHER_OPTION = "Sonstiges"
 _OTHER_PREFIX = f"{_OTHER_OPTION}: "
 _LANGUAGE_OPTIONS = [
@@ -106,19 +166,19 @@ def _infer_applied_provenance_categories(
         for title in normalized_titles
         if title
     ):
-        categories.append("matched from jobspec title")
+        categories.append("exact label match")
 
     if any(
         str(item.get("source", "auto")).strip().lower() == "manual"
         for item in selected_payload
     ):
-        categories.append("matched from synonyms/hidden terms")
+        categories.append("synonym/hidden-term match")
 
     if not allow_multi and selected_index is not None and selected_index > 0:
-        categories.append("manual override")
+        categories.append("manually selected by user")
 
     if not categories:
-        categories.append("matched from jobspec title")
+        categories.append("exact label match")
     return categories
 
 

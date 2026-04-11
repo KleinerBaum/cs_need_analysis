@@ -61,6 +61,7 @@ from state import (
     handle_unexpected_exception,
 )
 from ui_components import (
+    render_esco_explainability,
     render_boolean_search_pack,
     render_brief,
     render_employment_contract_draft,
@@ -2367,6 +2368,7 @@ def _render_readiness_tab(
 
     shared_esco = _read_esco_shared_fields()
     coverage = _compute_esco_coverage_metrics(shared_esco)
+    occupation_explainability = _read_esco_match_explainability()
     st.markdown("**ESCO-Coverage**")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric(
@@ -2384,6 +2386,38 @@ def _render_readiness_tab(
         shared_esco["essential_skills"] + shared_esco["optional_skills"]
     )
     c4.metric("Skill→Occupation traces", str(relation_traces))
+    confirmed_occupation = int(
+        str(occupation_explainability.get("confidence", "")).strip().lower() == "high"
+    )
+    inferred_occupation = (
+        1 - confirmed_occupation if vm.meta.selected_occupation_title else 0
+    )
+    inferred_skill_count = sum(
+        1
+        for item in (shared_esco["essential_skills"] + shared_esco["optional_skills"])
+        if str(item.get("relation") or "").strip().startswith("has")
+    )
+    confirmed_skill_count = (
+        len(shared_esco["essential_skills"]) + len(shared_esco["optional_skills"])
+    ) - inferred_skill_count
+    st.markdown("**Confirmed vs. Inferred ESCO Coverage**")
+    cc1, cc2 = st.columns(2)
+    cc1.metric(
+        "Confirmed",
+        str(max(confirmed_skill_count, 0) + confirmed_occupation),
+        "High-confidence / user-confirmed",
+    )
+    cc2.metric(
+        "Inferred",
+        str(max(inferred_skill_count, 0) + inferred_occupation),
+        "Relation-derived / weaker confidence",
+    )
+    render_esco_explainability(
+        labels=occupation_explainability.get("provenance_categories", []),
+        confidence=str(occupation_explainability.get("confidence", "low")),
+        reason=str(occupation_explainability.get("reason", "") or ""),
+        caption_prefix="Summary Occupation Explainability",
+    )
     if shared_esco["unmapped_terms"]:
         st.caption(
             "Offene Begriffe: "

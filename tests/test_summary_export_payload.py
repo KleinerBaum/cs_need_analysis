@@ -118,7 +118,7 @@ def test_build_structured_export_payload_includes_esco_uri_and_label(
                 SSKey.ESCO_CONFIG.value: {"selected_version": "v1.2.0"},
                 SSKey.ESCO_MATCH_REASON.value: "Manuell als semantischer Anker bestätigt.",
                 SSKey.ESCO_MATCH_CONFIDENCE.value: "high",
-                SSKey.ESCO_MATCH_PROVENANCE.value: ["manual override"],
+                SSKey.ESCO_MATCH_PROVENANCE.value: ["manually selected by user"],
                 SSKey.ESCO_SKILLS_SELECTED_MUST.value: [
                     {"uri": "uri:skill:must", "title": "Python", "type": "skill"}
                 ],
@@ -142,7 +142,7 @@ def test_build_structured_export_payload_includes_esco_uri_and_label(
     assert payload["esco_occupation_provenance"] == {
         "reason": "Manuell als semantischer Anker bestätigt.",
         "confidence": "high",
-        "provenance_categories": ["manual override"],
+        "provenance_categories": ["manually selected by user"],
     }
     assert payload["esco_skills_must"] == [{"uri": "uri:skill:must", "label": "Python"}]
     assert payload["esco_skills_nice"] == [{"uri": "uri:skill:nice", "label": "dbt"}]
