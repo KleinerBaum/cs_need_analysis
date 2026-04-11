@@ -8,6 +8,7 @@ from constants import SSKey
 from esco_client import EscoClient, EscoClientError
 from schemas import JobAdExtract, QuestionPlan
 from ui_components import (
+    render_esco_explainability,
     _render_question_limits_editor,
     render_error_banner,
     render_esco_picker_card,
@@ -383,34 +384,34 @@ def _infer_esco_match_explainability(
         else []
     )
 
-    if manual_override and "manual override" not in provenance_categories:
-        provenance_categories.append("manual override")
-    if direct_match and "matched from jobspec title" not in provenance_categories:
-        provenance_categories.append("matched from jobspec title")
+    if manual_override and "manually selected by user" not in provenance_categories:
+        provenance_categories.append("manually selected by user")
+    if direct_match and "exact label match" not in provenance_categories:
+        provenance_categories.append("exact label match")
     if (
         str(applied_meta.get("source") or "").strip().lower().startswith("manual")
-        and "matched from synonyms/hidden terms" not in provenance_categories
+        and "synonym/hidden-term match" not in provenance_categories
     ):
-        provenance_categories.append("matched from synonyms/hidden terms")
+        provenance_categories.append("synonym/hidden-term match")
 
     if manual_override:
-        badge_label = "Manual Override"
+        badge_label = "Manually Selected by User"
         reason = f"Auswahl weicht vom Top-Vorschlag '{top_title or '—'}' ab und wurde manuell bestätigt."
         confidence = "high"
     elif direct_match or similarity >= 0.72:
-        badge_label = "Jobspec-Titel Match"
+        badge_label = "Exact Label Match"
         reason = f"ESCO-Titel '{selected_title or '—'}' passt direkt zur Query-Intention '{intent_title or '—'}'."
         confidence = "high" if direct_match else "medium"
     elif top_intent_match:
-        badge_label = "Query-Intent Match"
+        badge_label = "Synonym/Hidden-Term Match"
         reason = f"Top-Vorschlag '{top_title or '—'}' entspricht der Query-Intention; Auswahl nutzt denselben Kandidatenraum."
         confidence = "medium"
     else:
         badge_label = "Synonym/Hidden-Term Match"
         reason = f"Auswahl '{selected_title or '—'}' wurde als semantische Alternative zur Query '{intent_title or '—'}' übernommen."
         confidence = "low"
-        if "matched from synonyms/hidden terms" not in provenance_categories:
-            provenance_categories.append("matched from synonyms/hidden terms")
+        if "synonym/hidden-term match" not in provenance_categories:
+            provenance_categories.append("synonym/hidden-term match")
 
     return {
         "badge_label": badge_label,
@@ -490,8 +491,11 @@ def _render_esco_occupation_block(job: JobAdExtract) -> None:
         ),
         unsafe_allow_html=True,
     )
-    st.caption(
-        f"{explainability['reason']} (Confidence: {explainability['confidence']})"
+    render_esco_explainability(
+        labels=explainability["provenance_categories"],
+        confidence=str(explainability["confidence"]),
+        reason=str(explainability["reason"]),
+        caption_prefix="Occupation Explainability",
     )
     try:
         occupation_payload = EscoClient().get_occupation_detail(uri=occupation_uri)

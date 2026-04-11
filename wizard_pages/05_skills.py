@@ -19,6 +19,7 @@ from state import (
 )
 from ui_components import (
     has_meaningful_value,
+    render_esco_explainability,
     render_compact_requirement_board,
     render_error_banner,
     render_esco_picker_card,
@@ -572,6 +573,15 @@ def render(ctx: WizardContext) -> None:
             "Lädt ESCO Occupation-Details und relationale Skills "
             "(hasEssentialSkill/hasOptionalSkill)."
         )
+        render_esco_explainability(
+            labels=["derived from occupation relation"],
+            confidence="medium",
+            reason=(
+                "Diese Skills stammen aus ESCO-Relationspfaden der gewählten Occupation "
+                "und sind starke, aber kontextabhängige Vorschläge."
+            ),
+            caption_prefix="Occupation Relation Explainability",
+        )
         if st.button("Occupation-Skill-Vorschläge laden"):
             with st.spinner("Lade relationale Skills aus ESCO …"):
                 suggested_must, suggested_nice, load_error = (
@@ -698,11 +708,23 @@ def render(ctx: WizardContext) -> None:
             "Bestätigte essential Skills: "
             f"{len(coverage_snapshot.confirmed_essential_skills)}"
         )
+        render_esco_explainability(
+            labels=["manually selected by user"],
+            confidence="high",
+            reason="Bestätigte Must-Skills sind deterministisch durch die Nutzerentscheidung.",
+            caption_prefix="Confirmed Essential Skills",
+        )
     with col_optional:
         _render_badge_line(["ESCO optional"])
         st.caption(
             "Bestätigte optionale Skills: "
             f"{len(coverage_snapshot.confirmed_optional_skills)}"
+        )
+        render_esco_explainability(
+            labels=["manually selected by user"],
+            confidence="high",
+            reason="Bestätigte Nice-to-have-Skills sind deterministisch durch die Nutzerentscheidung.",
+            caption_prefix="Confirmed Optional Skills",
         )
     _render_selected_skill_details(
         title="Bestätigte essential Skills",
@@ -745,6 +767,8 @@ def render(ctx: WizardContext) -> None:
         {
             "label": str(item.get("title") or "").strip(),
             "source": "ESCO essential",
+            "rationale": "manually selected by user",
+            "importance": "high",
         }
         for item in deduped_must
         if has_meaningful_value(str(item.get("title") or ""))
@@ -752,6 +776,8 @@ def render(ctx: WizardContext) -> None:
         {
             "label": str(item.get("title") or "").strip(),
             "source": "ESCO optional",
+            "rationale": "manually selected by user",
+            "importance": "high",
         }
         for item in deduped_nice
         if has_meaningful_value(str(item.get("title") or ""))

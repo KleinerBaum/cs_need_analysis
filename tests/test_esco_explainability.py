@@ -32,8 +32,8 @@ def test_infer_applied_provenance_categories_marks_manual_override_and_synonyms(
         allow_multi=False,
     )
 
-    assert "manual override" in categories
-    assert "matched from synonyms/hidden terms" in categories
+    assert "manually selected by user" in categories
+    assert "synonym/hidden-term match" in categories
 
 
 def test_infer_esco_match_explainability_detects_manual_override() -> None:
@@ -47,9 +47,9 @@ def test_infer_esco_match_explainability_detects_manual_override() -> None:
         applied_meta={"source": "auto"},
     )
 
-    assert explainability["badge_label"] == "Manual Override"
+    assert explainability["badge_label"] == "Manually Selected by User"
     assert explainability["confidence"] == "high"
-    assert "manual override" in explainability["provenance_categories"]
+    assert "manually selected by user" in explainability["provenance_categories"]
 
 
 def test_infer_esco_match_explainability_prefers_jobspec_title_match() -> None:
@@ -60,6 +60,6 @@ def test_infer_esco_match_explainability_prefers_jobspec_title_match() -> None:
         applied_meta={"source": "auto", "provenance_categories": []},
     )
 
-    assert explainability["badge_label"] == "Jobspec-Titel Match"
+    assert explainability["badge_label"] == "Exact Label Match"
     assert explainability["confidence"] == "high"
-    assert "matched from jobspec title" in explainability["provenance_categories"]
+    assert "exact label match" in explainability["provenance_categories"]

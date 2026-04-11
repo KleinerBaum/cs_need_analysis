@@ -18,6 +18,7 @@ from state import (
 )
 from ui_components import (
     has_meaningful_value,
+    render_esco_explainability,
     render_compact_requirement_board,
     render_error_banner,
     render_question_step,
@@ -92,7 +93,15 @@ def _load_esco_task_suggestions_from_selected_occupation(
         ]
     )
 
-    suggestions = [{"label": label, "source": "ESCO"} for label in task_terms[:8]]
+    suggestions = [
+        {
+            "label": label,
+            "source": "ESCO",
+            "rationale": "derived from occupation relation",
+            "importance": "medium",
+        }
+        for label in task_terms[:8]
+    ]
 
     if not suggestions and title:
         # Keep UI context transparent, but avoid fabricating unsupported task relations.
@@ -283,6 +292,16 @@ def render(ctx: WizardContext) -> None:
             if esco_error:
                 st.caption(
                     f"ESCO-Hinweis: Occupation-Details konnten nicht geladen werden ({esco_error})."
+                )
+            elif esco_suggestions:
+                render_esco_explainability(
+                    labels=["derived from occupation relation"],
+                    confidence="medium",
+                    reason=(
+                        "Aufgaben werden aus ESCO Occupation-Beschreibung abgeleitet "
+                        "und sollten vor Übernahme kurz geprüft werden."
+                    ),
+                    caption_prefix="Task Suggestion Explainability",
                 )
         st.session_state[SSKey.ROLE_TASKS_ESCO_SUGGESTED.value] = esco_suggestions
 

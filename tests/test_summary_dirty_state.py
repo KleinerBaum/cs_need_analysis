@@ -34,7 +34,7 @@ def _fingerprint(
                 SSKey.ESCO_MATCH_PROVENANCE.value: (
                     esco_provenance
                     if esco_provenance is not None
-                    else ["matched from jobspec title"]
+                    else ["exact label match"]
                 ),
                 SSKey.ESCO_SKILLS_SELECTED_MUST.value: [
                     {"uri": "uri:skill:python", "title": "Python"}
@@ -104,8 +104,8 @@ def test_summary_dirty_fingerprint_changes_when_nace_mapping_changes(
 def test_summary_dirty_fingerprint_changes_when_esco_provenance_changes(
     monkeypatch,
 ) -> None:
-    baseline = _fingerprint(monkeypatch, esco_provenance=["matched from jobspec title"])
-    changed = _fingerprint(monkeypatch, esco_provenance=["manual override"])
+    baseline = _fingerprint(monkeypatch, esco_provenance=["exact label match"])
+    changed = _fingerprint(monkeypatch, esco_provenance=["manually selected by user"])
 
     assert baseline != changed
 
