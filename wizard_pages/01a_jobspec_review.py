@@ -11,7 +11,12 @@ from ui_components import (
     render_esco_picker_card,
     render_job_extract_overview,
 )
-from wizard_pages.base import WizardContext, WizardPage, nav_buttons
+from wizard_pages.base import (
+    WizardContext,
+    WizardPage,
+    get_current_ui_mode,
+    nav_buttons,
+)
 
 
 def _build_esco_query(job: JobAdExtract) -> str:
@@ -247,8 +252,13 @@ def render(ctx: WizardContext) -> None:
     _render_esco_occupation_block(job)
 
     with st.sidebar:
-        with st.expander("Fragen pro Step", expanded=False):
-            _render_question_limits_editor(plan, compact=True)
+        if get_current_ui_mode() == "standard":
+            with st.expander("Advanced", expanded=False):
+                with st.expander("Fragen pro Step", expanded=False):
+                    _render_question_limits_editor(plan, compact=True)
+        else:
+            with st.expander("Fragen pro Step", expanded=False):
+                _render_question_limits_editor(plan, compact=True)
 
     render_job_extract_overview(job, plan=plan, show_question_limits=False)
 
