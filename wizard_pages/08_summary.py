@@ -2387,9 +2387,7 @@ def _render_summary_processing_hub(
     show_export_bar: bool = True,
 ) -> None:
     st.markdown("### Processing Hub")
-    st.caption(
-        "Primärer Pfad: Recruiting Brief zuerst, danach Folgeartefakte und Export."
-    )
+    st.caption("Primärer Pfad kompakt: Recruiting Brief → Folgeartefakte → Export.")
 
     primary_action = next(
         (action for action in action_registry if action["id"] == "brief"),
@@ -2402,27 +2400,94 @@ def _render_summary_processing_hub(
         primary_action=primary_action,
         resolved_brief_model=resolved_brief_model,
     )
-
-    primary_triggered = _render_primary_brief_card(
-        primary_action=primary_action,
-        brief_status=brief_status,
+    brief_state, brief_status_label, brief_cta_label = brief_status
+    header_badge = {
+        "current": "🟢 aktuell",
+        "stale": "🟠 veraltet",
+        "missing": "🟡 fehlt",
+        "invalid": "🟠 ungültig",
+        "blocked": "⚪ blockiert",
+    }.get(brief_state, "🟡 offen")
+    st.markdown(
+        (
+            f"**Pipeline:** `Recruiting Brief` → `Interview HR/Fach` → "
+            f"`Boolean Search` / `Arbeitsvertrag` → `Export`  \n"
+            f"Status Recruiting Brief: {header_badge} · {brief_status_label}"
+        )
     )
-    if primary_triggered and primary_action["generator_fn"]:
-        primary_action["generator_fn"]()
-        st.rerun()
 
-    triggered, triggered_action = _render_follow_up_cards(
-        follow_up_actions=follow_up_actions,
-    )
-    if triggered and triggered_action and triggered_action["generator_fn"]:
-        triggered_action["generator_fn"]()
-        st.rerun()
+    st.markdown("#### Artefaktübersicht")
+    header_columns = st.columns([2.1, 1.1, 1.2, 2.0], gap="small")
+    header_columns[0].markdown("**Artefakt**")
+    header_columns[1].markdown("**Status**")
+    header_columns[2].markdown("**Prereqs**")
+    header_columns[3].markdown("**Primary CTA**")
+
+    for action in [primary_action, *follow_up_actions]:
+        has_result = bool(st.session_state.get(action["result_key"].value))
+        requirements_ok = _has_required_state(action["requires"])
+        requirement_ok = True
+        requirement_message = ""
+        requirement_check_fn = action.get("requirement_check_fn")
+        if requirement_check_fn is not None:
+            requirement_ok, requirement_message = requirement_check_fn()
+
+        effective_requirements_ok = requirements_ok and requirement_ok
+        cta_label = brief_cta_label if action["id"] == "brief" else action["cta_label"]
+        if not effective_requirements_ok and action.get("blocked_cta_label"):
+            cta_label = str(action["blocked_cta_label"])
+
+        row_columns = st.columns([2.1, 1.1, 1.2, 2.0], gap="small")
+        row_columns[0].write(action["title"])
+        row_columns[1].write("🟢 Aktuell" if has_result else "🟡 Offen")
+        row_columns[2].write("✅ Erfüllt" if effective_requirements_ok else "⚠️ Offen")
+
+        with row_columns[3]:
+            triggered = st.button(
+                cta_label,
+                width="stretch",
+                type="primary" if action["id"] == "brief" else "secondary",
+                disabled=(
+                    not effective_requirements_ok or action["generator_fn"] is None
+                ),
+                key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, action["id"]),
+            )
+            if triggered and action["generator_fn"] is not None:
+                st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = (
+                    _to_canonical_artifact_id(action["id"])
+                )
+                action["generator_fn"]()
+                st.rerun()
+
+        detail_suffix = " (Recruiting Brief)" if action["id"] == "brief" else ""
+        with st.expander(f"Details: {action['title']}{detail_suffix}", expanded=False):
+            st.caption(action["benefit"])
+            requirement_label = action["requirement_text"]
+            if requirement_message:
+                requirement_label = f"{requirement_label} — {requirement_message}"
+            st.write(
+                f"**Voraussetzungen:** {'✅' if effective_requirements_ok else '⚠️'} {requirement_label}"
+            )
+            if action.get("input_renderer") is not None:
+                if st.button(
+                    "Job-Ad-Konfiguration öffnen",
+                    width="content",
+                    key=_widget_key(
+                        SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
+                        f"{action['id']}.open_config",
+                    ),
+                ):
+                    st.session_state[SSKey.SUMMARY_SHOW_JOB_AD_CONFIG.value] = True
+            elif action["input_hints"]:
+                st.markdown("**Inputs**")
+                for input_hint in action["input_hints"]:
+                    st.write(f"- {input_hint}")
 
     if show_job_ad_configuration_panel:
         _render_job_ad_configuration_panel(action_registry=action_registry)
 
     if show_export_bar:
-        _render_export_bar(has_brief=brief_status[0] == "current")
+        _render_export_bar(has_brief=brief_state == "current")
 
 
 def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
