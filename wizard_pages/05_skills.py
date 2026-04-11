@@ -11,7 +11,12 @@ from esco_client import EscoClient, EscoClientError
 from llm_client import generate_requirement_gap_suggestions
 from schemas import EscoMappingReport
 from schemas import EscoSkillDetail, JobAdExtract, QuestionPlan
-from state import get_active_model, get_answers, get_esco_occupation_selected
+from state import (
+    get_active_model,
+    get_answers,
+    get_esco_occupation_selected,
+    sync_esco_shared_state,
+)
 from ui_components import (
     has_meaningful_value,
     render_compact_requirement_board,
@@ -399,6 +404,7 @@ def render(ctx: WizardContext) -> None:
         "vereinheitlichen und abschließend als essential oder optional bestätigen."
     )
     selected_occupation = get_esco_occupation_selected()
+    coverage_snapshot = sync_esco_shared_state()
     if selected_occupation:
         st.caption(
             f"ESCO Occupation aus Jobspec-Review: {selected_occupation.get('title', '—')}"
@@ -492,9 +498,15 @@ def render(ctx: WizardContext) -> None:
         )
 
     st.markdown("### ESCO-Vorschläge aus Occupation")
-    if selected_occupation and str(selected_occupation.get("uri") or "").strip():
-        occupation_uri = str(selected_occupation.get("uri") or "").strip()
-        occupation_title = str(selected_occupation.get("title") or "—").strip()
+    occupation_uri = coverage_snapshot.selected_occupation_uri or (
+        str(selected_occupation.get("uri") or "").strip() if selected_occupation else ""
+    )
+    if occupation_uri:
+        occupation_title = (
+            str(selected_occupation.get("title") or "—").strip()
+            if isinstance(selected_occupation, dict)
+            else "—"
+        )
         st.caption(
             "Lädt ESCO Occupation-Details und relationale Skills "
             "(hasEssentialSkill/hasOptionalSkill)."
@@ -568,6 +580,8 @@ def render(ctx: WizardContext) -> None:
 
     st.session_state[SSKey.ESCO_SKILLS_SELECTED_MUST.value] = deduped_must
     st.session_state[SSKey.ESCO_SKILLS_SELECTED_NICE.value] = deduped_nice
+    st.session_state[SSKey.ESCO_CONFIRMED_ESSENTIAL_SKILLS.value] = deduped_must
+    st.session_state[SSKey.ESCO_CONFIRMED_OPTIONAL_SKILLS.value] = deduped_nice
     raw_detail_cache = st.session_state.get(SSKey.ESCO_SKILL_DETAIL_CACHE.value, {})
     detail_cache = raw_detail_cache if isinstance(raw_detail_cache, dict) else {}
     st.session_state[SSKey.ESCO_SKILL_DETAIL_CACHE.value] = detail_cache
@@ -592,6 +606,10 @@ def render(ctx: WizardContext) -> None:
         }
     ).model_dump()
     st.session_state[SSKey.ESCO_SKILLS_MAPPING_REPORT.value] = mapping_report
+    st.session_state[SSKey.ESCO_UNMAPPED_REQUIREMENT_TERMS.value] = list(
+        mapping_report["unmapped_terms"]
+    )
+    coverage_snapshot = sync_esco_shared_state()
 
     st.markdown("### 3) Essential / Optional bestätigen")
     st.caption(
@@ -601,10 +619,16 @@ def render(ctx: WizardContext) -> None:
     col_essential, col_optional = st.columns(2)
     with col_essential:
         _render_badge_line(["ESCO essential"])
-        st.caption(f"Bestätigte essential Skills: {len(deduped_must)}")
+        st.caption(
+            "Bestätigte essential Skills: "
+            f"{len(coverage_snapshot.confirmed_essential_skills)}"
+        )
     with col_optional:
         _render_badge_line(["ESCO optional"])
-        st.caption(f"Bestätigte optionale Skills: {len(deduped_nice)}")
+        st.caption(
+            "Bestätigte optionale Skills: "
+            f"{len(coverage_snapshot.confirmed_optional_skills)}"
+        )
     _render_selected_skill_details(
         title="Bestätigte essential Skills",
         selected_skills=deduped_must,
@@ -633,7 +657,7 @@ def render(ctx: WizardContext) -> None:
             in {_normalize_term(x) for x in normalized_nice_terms}
         }
     )
-    unmapped_terms = list(mapping_report["unmapped_terms"])
+    unmapped_terms = list(coverage_snapshot.unmapped_requirement_terms)
     flagged_terms = _dedupe_terms([*ambiguous_terms, *unmapped_terms])
     if flagged_terms:
         _render_badge_line(["Jobspec"])

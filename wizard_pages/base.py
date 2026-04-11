@@ -495,6 +495,7 @@ def _apply_canonical_uri(
         migrated = dict(selected)
         migrated["uri"] = canonical_uri
         st.session_state[target] = migrated
+        st.session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] = canonical_uri
     elif target in (
         SSKey.ESCO_SKILLS_SELECTED_MUST.value,
         SSKey.ESCO_SKILLS_SELECTED_NICE.value,

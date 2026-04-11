@@ -566,6 +566,86 @@ def _normalize_skill_term(value: str) -> str:
     return " ".join(str(value or "").strip().casefold().split())
 
 
+def _read_esco_shared_fields() -> dict[str, Any]:
+    selected_uri = str(
+        st.session_state.get(SSKey.ESCO_SELECTED_OCCUPATION_URI.value, "") or ""
+    ).strip()
+    essential_raw = st.session_state.get(
+        SSKey.ESCO_CONFIRMED_ESSENTIAL_SKILLS.value,
+        st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, []),
+    )
+    optional_raw = st.session_state.get(
+        SSKey.ESCO_CONFIRMED_OPTIONAL_SKILLS.value,
+        st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, []),
+    )
+    unmapped_raw = st.session_state.get(SSKey.ESCO_UNMAPPED_REQUIREMENT_TERMS.value, [])
+    essential = essential_raw if isinstance(essential_raw, list) else []
+    optional = optional_raw if isinstance(optional_raw, list) else []
+    unmapped = (
+        [str(item).strip() for item in unmapped_raw if str(item).strip()]
+        if isinstance(unmapped_raw, list)
+        else []
+    )
+    return {
+        "selected_occupation_uri": selected_uri,
+        "essential_skills": essential,
+        "optional_skills": optional,
+        "unmapped_terms": unmapped,
+    }
+
+
+def _compute_esco_coverage_metrics(shared_esco: dict[str, Any]) -> dict[str, int]:
+    job_extract = st.session_state.get(SSKey.JOB_EXTRACT.value, {})
+    must_terms = (
+        _extract_skills_step_raw_terms(
+            {"must_have_skills": job_extract.get("must_have_skills", [])}
+        )
+        if isinstance(job_extract, dict)
+        else []
+    )
+    nice_terms = (
+        _extract_skills_step_raw_terms(
+            {"nice_to_have_skills": job_extract.get("nice_to_have_skills", [])}
+        )
+        if isinstance(job_extract, dict)
+        else []
+    )
+
+    essential_titles = {
+        _normalize_skill_term(str(item.get("title") or ""))
+        for item in shared_esco.get("essential_skills", [])
+        if isinstance(item, dict)
+    }
+    optional_titles = {
+        _normalize_skill_term(str(item.get("title") or ""))
+        for item in shared_esco.get("optional_skills", [])
+        if isinstance(item, dict)
+    }
+
+    essential_covered = sum(
+        1 for term in must_terms if _normalize_skill_term(term) in essential_titles
+    )
+    optional_covered = sum(
+        1 for term in nice_terms if _normalize_skill_term(term) in optional_titles
+    )
+    essential_total = len(must_terms)
+    optional_total = len(nice_terms)
+    essential_pct = (
+        round((essential_covered / essential_total) * 100) if essential_total else 0
+    )
+    optional_pct = (
+        round((optional_covered / optional_total) * 100) if optional_total else 0
+    )
+    return {
+        "essential_covered": essential_covered,
+        "essential_total": essential_total,
+        "essential_pct": essential_pct,
+        "optional_covered": optional_covered,
+        "optional_total": optional_total,
+        "optional_pct": optional_pct,
+    }
+
+
 def _extract_skills_step_raw_terms(job_extract_payload: Any) -> list[str]:
     if not isinstance(job_extract_payload, dict):
         return []
@@ -600,12 +680,9 @@ def _build_esco_mapping_report_rows() -> list[dict[str, str]]:
             mapped_count=0, unmapped_terms=[], collisions=[], notes=[]
         )
 
-    chosen_must = _to_esco_export_concepts(
-        st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
-    )
-    chosen_nice = _to_esco_export_concepts(
-        st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
-    )
+    shared_esco = _read_esco_shared_fields()
+    chosen_must = _to_esco_export_concepts(shared_esco["essential_skills"])
+    chosen_nice = _to_esco_export_concepts(shared_esco["optional_skills"])
     chosen_concepts = chosen_must + chosen_nice
 
     by_label: defaultdict[str, list[dict[str, str]]] = defaultdict(list)
@@ -619,7 +696,12 @@ def _build_esco_mapping_report_rows() -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     linked_uris: set[str] = set()
     normalized_unmapped = {
-        _normalize_skill_term(term): term for term in report.unmapped_terms
+        _normalize_skill_term(term): term
+        for term in (
+            shared_esco["unmapped_terms"]
+            if shared_esco["unmapped_terms"]
+            else report.unmapped_terms
+        )
     }
     for raw_term in raw_terms:
         label_matches = by_label.get(_normalize_skill_term(raw_term), [])
@@ -721,17 +803,16 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
             if explainability:
                 payload["esco_occupation_provenance"] = explainability
 
-    must_skills = _to_esco_export_concepts(
-        st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
-    )
+    shared_esco = _read_esco_shared_fields()
+    must_skills = _to_esco_export_concepts(shared_esco["essential_skills"])
     if must_skills:
         payload["esco_skills_must"] = must_skills
 
-    nice_skills = _to_esco_export_concepts(
-        st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
-    )
+    nice_skills = _to_esco_export_concepts(shared_esco["optional_skills"])
     if nice_skills:
         payload["esco_skills_nice"] = nice_skills
+    if shared_esco["unmapped_terms"]:
+        payload["esco_unmapped_requirement_terms"] = shared_esco["unmapped_terms"]
 
     esco_config = st.session_state.get(SSKey.ESCO_CONFIG.value, {})
     if isinstance(esco_config, dict):
@@ -1535,11 +1616,15 @@ def _read_esco_skill_refs(key: SSKey) -> list[dict[str, str]]:
 
 
 def _read_selected_esco_occupation() -> dict[str, str]:
+    shared_esco = _read_esco_shared_fields()
     selected_occupation = get_esco_occupation_selected()
     if not isinstance(selected_occupation, dict):
+        if shared_esco["selected_occupation_uri"]:
+            return {"uri": shared_esco["selected_occupation_uri"], "title": ""}
         return {}
     return {
-        "uri": str(selected_occupation.get("uri", "") or "").strip(),
+        "uri": shared_esco["selected_occupation_uri"]
+        or str(selected_occupation.get("uri", "") or "").strip(),
         "title": str(selected_occupation.get("title", "") or "").strip(),
     }
 
@@ -2176,6 +2261,28 @@ def _render_readiness_tab(
             if next_action["generator_fn"] is not None:
                 next_action["generator_fn"]()
             st.rerun()
+
+    shared_esco = _read_esco_shared_fields()
+    coverage = _compute_esco_coverage_metrics(shared_esco)
+    st.markdown("**ESCO-Coverage**")
+    c1, c2, c3 = st.columns(3)
+    c1.metric(
+        "Essential Coverage",
+        f"{coverage['essential_covered']}/{coverage['essential_total']}",
+        f"{coverage['essential_pct']}%",
+    )
+    c2.metric(
+        "Optional Coverage",
+        f"{coverage['optional_covered']}/{coverage['optional_total']}",
+        f"{coverage['optional_pct']}%",
+    )
+    c3.metric("Unmapped Gaps", str(len(shared_esco["unmapped_terms"])))
+    if shared_esco["unmapped_terms"]:
+        st.caption(
+            "Offene Begriffe: "
+            + ", ".join(shared_esco["unmapped_terms"][:8])
+            + (" …" if len(shared_esco["unmapped_terms"]) > 8 else "")
+        )
 
     st.markdown("**Kritische Lücken (Top 5)**")
     missing_items = _build_missing_critical_items(vm)
