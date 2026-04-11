@@ -1,0 +1,59 @@
+{
+  "meta": {
+    "name": "demo_skill_premiums",
+    "version": "v1",
+    "description": "Demo and configurable ESCO skill premium map for Concept A. Values are illustrative only.",
+    "currency": "EUR",
+    "default_pct_for_nice_to_have": 0.4
+  },
+  "skills": {
+    "http://data.europa.eu/esco/skill/8f6f6e76-4f9b-4f55-8b95-2d662f1f9478": {
+      "label": "python",
+      "eur_delta": 3500
+    },
+    "http://data.europa.eu/esco/skill/f2c8f37e-1f5f-4f46-bfd3-02d79d95c63a": {
+      "label": "machine learning",
+      "pct_delta": 0.03
+    },
+    "http://data.europa.eu/esco/skill/13fcbf2a-c86e-4874-a17f-67e523adf96c": {
+      "label": "deep learning",
+      "pct_delta": 0.035
+    },
+    "http://data.europa.eu/esco/skill/e6eb667c-4dc4-46e5-b0df-c9f34e6d719f": {
+      "label": "data engineering",
+      "eur_delta": 4200
+    },
+    "http://data.europa.eu/esco/skill/e8cbf45f-5303-40a1-b1d5-fac14532395a": {
+      "label": "cloud architecture",
+      "eur_delta": 5000
+    },
+    "http://data.europa.eu/esco/skill/8f47195d-a2ee-4fca-b9f3-0528dcb7886f": {
+      "label": "kubernetes",
+      "eur_delta": 3200
+    },
+    "python": {
+      "eur_delta": 2200
+    },
+    "sql": {
+      "eur_delta": 1300
+    },
+    "aws": {
+      "eur_delta": 2600
+    },
+    "kubernetes": {
+      "eur_delta": 2800
+    },
+    "terraform": {
+      "eur_delta": 2400
+    },
+    "pytorch": {
+      "eur_delta": 3000
+    },
+    "scikit learn": {
+      "eur_delta": 1700
+    },
+    "spark": {
+      "eur_delta": 2500
+    }
+  }
+}
