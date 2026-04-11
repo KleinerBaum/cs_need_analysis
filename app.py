@@ -224,7 +224,7 @@ def _render_info_page_sidebar_navigation(ctx: WizardContext) -> None:
     )
 
     selected_label = st.sidebar.radio(
-        "Wizard",
+        "Prozess",
         options=[page.label for page in ctx.pages],
         index=current_index,
         key="info_page.wizard_nav",
@@ -399,7 +399,6 @@ def _render_legal_page(legal_page_key: str) -> None:
 def _render_sidebar_actions() -> None:
     """Render the global actions section as the last sidebar block."""
     with st.sidebar:
-        st.markdown("### Aktionen")
         st.button("Reset Vacancy", on_click=reset_vacancy)
 
 
