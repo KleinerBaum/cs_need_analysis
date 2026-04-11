@@ -5,6 +5,7 @@ import io
 import json
 import re
 import textwrap
+import csv
 from collections import defaultdict
 from typing import Callable
 from typing import Any, TypedDict
@@ -42,6 +43,7 @@ from salary.types import SalaryScenarioOverrides
 from schemas import (
     BooleanSearchPack,
     EscoConceptRef,
+    EscoMappingReport,
     EmploymentContractDraft,
     InterviewPrepSheetHiringManager,
     InterviewPrepSheetHR,
@@ -520,6 +522,149 @@ def _to_esco_export_concepts(raw_items: Any) -> list[dict[str, str]]:
             continue
         concepts.append({"uri": parsed.uri, "label": parsed.title})
     return concepts
+
+
+def _normalize_skill_term(value: str) -> str:
+    return " ".join(str(value or "").strip().casefold().split())
+
+
+def _extract_skills_step_raw_terms(job_extract_payload: Any) -> list[str]:
+    if not isinstance(job_extract_payload, dict):
+        return []
+
+    raw_terms: list[str] = []
+    for key in ("must_have_skills", "nice_to_have_skills"):
+        values = job_extract_payload.get(key, [])
+        if not isinstance(values, list):
+            continue
+        for value in values:
+            term = str(value or "").strip()
+            if term:
+                raw_terms.append(term)
+
+    deduped_terms: list[str] = []
+    seen: set[str] = set()
+    for term in raw_terms:
+        normalized = _normalize_skill_term(term)
+        if not normalized or normalized in seen:
+            continue
+        deduped_terms.append(term)
+        seen.add(normalized)
+    return deduped_terms
+
+
+def _build_esco_mapping_report_rows() -> list[dict[str, str]]:
+    report_payload = st.session_state.get(SSKey.ESCO_SKILLS_MAPPING_REPORT.value, {})
+    try:
+        report = EscoMappingReport.model_validate(report_payload)
+    except Exception:
+        report = EscoMappingReport(
+            mapped_count=0, unmapped_terms=[], collisions=[], notes=[]
+        )
+
+    chosen_must = _to_esco_export_concepts(
+        st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
+    )
+    chosen_nice = _to_esco_export_concepts(
+        st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
+    )
+    chosen_concepts = chosen_must + chosen_nice
+
+    by_label: defaultdict[str, list[dict[str, str]]] = defaultdict(list)
+    for concept in chosen_concepts:
+        by_label[_normalize_skill_term(concept.get("label", ""))].append(concept)
+
+    raw_terms = _extract_skills_step_raw_terms(
+        st.session_state.get(SSKey.JOB_EXTRACT.value, {})
+    )
+
+    rows: list[dict[str, str]] = []
+    linked_uris: set[str] = set()
+    normalized_unmapped = {
+        _normalize_skill_term(term): term for term in report.unmapped_terms
+    }
+    for raw_term in raw_terms:
+        label_matches = by_label.get(_normalize_skill_term(raw_term), [])
+        if label_matches:
+            for concept in label_matches:
+                chosen_uri = concept.get("uri", "").strip()
+                if chosen_uri:
+                    linked_uris.add(chosen_uri)
+                rows.append(
+                    {
+                        "raw_term": raw_term,
+                        "chosen_uri": chosen_uri,
+                        "chosen_label": concept.get("label", "").strip(),
+                        "match_method": "label_exact",
+                        "notes": "",
+                    }
+                )
+        elif _normalize_skill_term(raw_term) in normalized_unmapped:
+            rows.append(
+                {
+                    "raw_term": raw_term,
+                    "chosen_uri": "",
+                    "chosen_label": "",
+                    "match_method": "unmapped",
+                    "notes": "",
+                }
+            )
+
+    for concept in chosen_concepts:
+        chosen_uri = concept.get("uri", "").strip()
+        if not chosen_uri or chosen_uri in linked_uris:
+            continue
+        rows.append(
+            {
+                "raw_term": "",
+                "chosen_uri": chosen_uri,
+                "chosen_label": concept.get("label", "").strip(),
+                "match_method": "manual_selection",
+                "notes": "",
+            }
+        )
+
+    for term in report.collisions:
+        rows.append(
+            {
+                "raw_term": str(term or "").strip(),
+                "chosen_uri": "",
+                "chosen_label": "",
+                "match_method": "collision",
+                "notes": "",
+            }
+        )
+    for note in report.notes:
+        rows.append(
+            {
+                "raw_term": "",
+                "chosen_uri": "",
+                "chosen_label": "",
+                "match_method": "report_note",
+                "notes": str(note or "").strip(),
+            }
+        )
+
+    return sorted(
+        rows,
+        key=lambda row: (
+            row["raw_term"].casefold(),
+            row["chosen_uri"].casefold(),
+            row["chosen_label"].casefold(),
+            row["match_method"].casefold(),
+            row["notes"].casefold(),
+        ),
+    )
+
+
+def _build_esco_mapping_report_csv(rows: list[dict[str, str]]) -> bytes:
+    fieldnames = ["raw_term", "chosen_uri", "chosen_label", "match_method", "notes"]
+    buffer = io.StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=fieldnames)
+    writer.writeheader()
+    for row in rows:
+        writer.writerow({name: row.get(name, "") for name in fieldnames})
+    return buffer.getvalue().encode("utf-8")
 
 
 def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
@@ -2011,6 +2156,28 @@ def render(ctx: WizardContext) -> None:
                 data=docx_bytes,
                 file_name="vacancy_brief.docx",
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+
+        st.markdown("#### ESCO Mapping Report")
+        esco_rows = _build_esco_mapping_report_rows()
+        esco_mapping_json_bytes = json.dumps(
+            esco_rows, indent=2, ensure_ascii=False
+        ).encode("utf-8")
+        esco_mapping_csv_bytes = _build_esco_mapping_report_csv(esco_rows)
+        c4, c5 = st.columns(2)
+        with c4:
+            st.download_button(
+                "Download ESCO Mapping Report CSV (UTF-8)",
+                data=esco_mapping_csv_bytes,
+                file_name="esco_mapping_report.csv",
+                mime="text/csv; charset=utf-8",
+            )
+        with c5:
+            st.download_button(
+                "Download ESCO Mapping Report JSON",
+                data=esco_mapping_json_bytes,
+                file_name="esco_mapping_report.json",
+                mime="application/json",
             )
 
     with advanced_tab:
