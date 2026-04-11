@@ -112,8 +112,8 @@ def render(ctx: WizardContext) -> None:
         <div class="landing-app-title-row">
             <span class="landing-app-title">{APP_TITLE}</span>
             <span class="landing-app-links">
-                <a class="landing-app-link-pill" href="?info=esco">ℹ️ Über ESCO</a>
-                <a class="landing-app-link-pill" href="?info=about">🔐 Was passiert da und ist das sicher?</a>
+                <a class="landing-app-link-pill" href="?info=esco">Über ESCO</a>
+                <a class="landing-app-link-pill" href="?info=about">Was passiert da und ist das sicher?</a>
             </span>
         </div>
         """,
@@ -121,7 +121,7 @@ def render(ctx: WizardContext) -> None:
     )
     _, logo_col, _ = st.columns((1, 2, 1))
     with logo_col:
-        st.image("images/animation_pulse_Default_7kigl22lw.gif", width=128)
+        st.image("images/color1_logo_transparent_background.png", width=128)
     st.title(str(LANDING_COPY["hero_headline"]))
     hero_subheadline = str(LANDING_COPY["hero_subheadline"])
     if hero_subheadline:
