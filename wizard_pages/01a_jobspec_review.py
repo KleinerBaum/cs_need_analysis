@@ -317,6 +317,8 @@ def _render_esco_occupation_block(job: JobAdExtract) -> None:
         concept_type="occupation",
         target_state_key=SSKey.ESCO_OCCUPATION_SELECTED,
         enable_preview=True,
+        apply_label="Use as semantic anchor",
+        confirmation_helper_text="Confirm occupation for downstream suggestions",
     )
     options_state_key = f"{SSKey.ESCO_OCCUPATION_SELECTED.value}.esco_picker.options"
     options = st.session_state.get(options_state_key, [])

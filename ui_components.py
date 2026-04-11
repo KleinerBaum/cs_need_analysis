@@ -325,6 +325,10 @@ def render_esco_picker_card(
     target_state_key: SSKey | str,
     allow_multi: bool = False,
     enable_preview: bool = False,
+    apply_label: str | None = None,
+    preview_label: str | None = None,
+    selection_label: str | None = None,
+    confirmation_helper_text: str | None = None,
 ) -> None:
     session_key = _normalize_target_state_key(target_state_key)
     if not session_key:
@@ -384,8 +388,9 @@ def render_esco_picker_card(
     selected_payload: list[dict[str, str]] = []
     selected_index: int | None = None
     if allow_multi:
+        resolved_selection_label = selection_label or "Vorschläge"
         selected_indices = st.multiselect(
-            "Vorschläge",
+            resolved_selection_label,
             options=list(range(len(options))),
             format_func=lambda idx: option_labels[idx],
             key=selected_key,
@@ -394,8 +399,9 @@ def render_esco_picker_card(
             options[idx] for idx in selected_indices if idx < len(options)
         ]
     else:
+        resolved_selection_label = selection_label or "Top-Vorschlag auswählen"
         selected_index = st.selectbox(
-            "Top-Vorschlag auswählen",
+            resolved_selection_label,
             options=list(range(len(options))),
             format_func=lambda idx: option_labels[idx],
             index=0 if options else None,
@@ -413,8 +419,10 @@ def render_esco_picker_card(
             st.info("Top-Treffer wurde per Enter übernommen.")
 
     if enable_preview:
+        resolved_preview_label = preview_label or "Preview vor Apply"
         with st.expander(
-            "Preview vor Apply", expanded=bool(st.session_state.get(preview_key, False))
+            resolved_preview_label,
+            expanded=bool(st.session_state.get(preview_key, False)),
         ):
             st.session_state[preview_key] = True
             if not selected_payload:
@@ -429,7 +437,13 @@ def render_esco_picker_card(
                     else:
                         st.write(f"- {concept.get('title', '—')}")
 
-    if st.button("Apply", key=apply_button_key) or (enter_submit and bool(options)):
+    if confirmation_helper_text:
+        st.caption(confirmation_helper_text)
+
+    resolved_apply_label = apply_label or "Apply"
+    if st.button(resolved_apply_label, key=apply_button_key) or (
+        enter_submit and bool(options)
+    ):
         try:
             validated = [
                 EscoConceptRef.model_validate(
