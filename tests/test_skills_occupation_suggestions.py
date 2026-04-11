@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
+from types import SimpleNamespace
+
+from schemas import JobAdExtract
 
 SKILLS_PATH = Path(__file__).resolve().parents[1] / "wizard_pages" / "05_skills.py"
 SPEC = spec_from_file_location("wizard_pages.page_05_skills", SKILLS_PATH)
@@ -63,3 +66,26 @@ def test_merge_suggested_skills_dedupes_against_existing_must_and_nice() -> None
         {"uri": "uri:skill:must", "title": "Existing Must", "type": "skill"},
         {"uri": "uri:skill:new", "title": "Brand New", "type": "skill"},
     ]
+
+
+def test_build_skill_suggestion_context_normalizes_jobspec_and_esco_titles() -> None:
+    setattr(
+        SKILLS_MODULE,
+        "st",
+        SimpleNamespace(session_state={"cs.skills.selected": ["Python"]}),
+    )
+    job = JobAdExtract(
+        must_have_skills=[" Python ", "SQL"],
+        nice_to_have_skills=["sql", "Kommunikation"],
+        tech_stack=[" Airflow ", "python"],
+    )
+
+    context = SKILLS_MODULE._build_skill_suggestion_context(
+        job=job,
+        esco_must_selected=[{"title": "Data Modeling"}],
+        esco_nice_selected=[{"title": "data modeling"}, {"title": "Stakeholder Mgmt"}],
+    )
+
+    assert context["jobspec_terms"] == ["Python", "SQL", "Kommunikation", "Airflow"]
+    assert context["esco_titles"] == ["Data Modeling", "Stakeholder Mgmt"]
+    assert context["selected_labels"] == ["Python"]
