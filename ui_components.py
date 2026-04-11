@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import re
+import hashlib
 from datetime import date
 from collections.abc import Sequence
 from typing import Any, Callable, Dict, Literal, Optional
@@ -154,20 +155,35 @@ def _normalize_esco_breadcrumb_nodes(
     return nodes
 
 
+def _build_esco_concept_id(concept: dict[str, Any], index: int) -> str:
+    uri = str(concept.get("uri") or "").strip()
+    if uri:
+        uri_suffix = uri.rstrip("/").rsplit("/", 1)[-1]
+        normalized_suffix = re.sub(r"[^a-zA-Z0-9._-]+", "-", uri_suffix).strip("-")
+        if normalized_suffix:
+            return normalized_suffix
+
+    title = str(concept.get("title") or "").strip() or "untitled"
+    stable_source = f"{title.lower()}::{index}"
+    digest = hashlib.sha1(stable_source.encode("utf-8")).hexdigest()[:12]
+    return f"fallback-{digest}"
+
+
 def _render_esco_taxonomy_breadcrumb(
-    *, session_key: str, concept: dict[str, Any]
+    *,
+    session_key: str,
+    concept: dict[str, Any],
+    concept_id: str,
 ) -> None:
     concept_uri = str(concept.get("uri") or "").strip()
     concept_title = str(concept.get("title") or "—").strip()
-    if not concept_uri:
-        return
 
-    expander_key = f"{session_key}.esco_picker.taxonomy.open"
-    fetch_key = f"{session_key}.esco_picker.taxonomy.fetch"
-    cache_key = f"{session_key}.esco_picker.taxonomy.cache"
-    loaded_key = f"{session_key}.esco_picker.taxonomy.loaded"
-    error_key = f"{session_key}.esco_picker.taxonomy.error"
-    uri_key = f"{session_key}.esco_picker.taxonomy.uri"
+    expander_key = f"{session_key}.esco_picker.taxonomy.open.{concept_id}"
+    fetch_key = f"{session_key}.esco_picker.taxonomy.fetch.{concept_id}"
+    cache_key = f"{session_key}.esco_picker.taxonomy.cache.{concept_id}"
+    loaded_key = f"{session_key}.esco_picker.taxonomy.loaded.{concept_id}"
+    error_key = f"{session_key}.esco_picker.taxonomy.error.{concept_id}"
+    uri_key = f"{session_key}.esco_picker.taxonomy.uri.{concept_id}"
 
     with st.expander(
         "Taxonomie/Breadcrumb", expanded=bool(st.session_state.get(expander_key, False))
@@ -182,6 +198,11 @@ def _render_esco_taxonomy_breadcrumb(
             st.session_state[uri_key] = concept_uri
 
         if st.button("Taxonomie laden", key=fetch_key):
+            if not concept_uri:
+                st.session_state[error_key] = "ESCO-URI fehlt für dieses Konzept."
+                st.session_state[loaded_key] = False
+                st.session_state.pop(cache_key, None)
+                return
             try:
                 payload = EscoClient().resource_related(
                     uri=concept_uri,
@@ -413,14 +434,19 @@ def render_esco_picker_card(
     )
 
     st.markdown("**Ausgewählte ESCO-Konzepte**")
-    for concept in current_entries:
+    for idx, concept in enumerate(current_entries):
+        concept_id = _build_esco_concept_id(concept, idx)
         if ui_mode == "expert":
             st.caption(
                 f"{concept['title']} · URI: {concept['uri']} · Version: {version} · Quelle: {source}"
             )
         else:
             st.write(f"- {concept['title']}")
-        _render_esco_taxonomy_breadcrumb(session_key=session_key, concept=concept)
+        _render_esco_taxonomy_breadcrumb(
+            session_key=session_key,
+            concept=concept,
+            concept_id=concept_id,
+        )
 
 
 def render_error_banner() -> None:
