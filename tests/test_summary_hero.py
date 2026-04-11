@@ -63,7 +63,12 @@ class _FakeStreamlit:
 
 
 def test_summary_hero_status_complete_data(monkeypatch) -> None:
-    fake_st = SimpleNamespace(session_state={SSKey.BRIEF.value: _build_valid_brief_payload()})
+    fake_st = SimpleNamespace(
+        session_state={
+            SSKey.BRIEF.value: _build_valid_brief_payload(),
+            SSKey.SUMMARY_LAST_MODELS.value: {"draft_model": "gpt-5-mini"},
+        }
+    )
     monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
     meta = SUMMARY_MODULE.SummaryMeta(
         role_label="Senior Data Engineer",
@@ -74,9 +79,13 @@ def test_summary_hero_status_complete_data(monkeypatch) -> None:
         nace_mapped_esco_uri="uri:occ:1",
         readiness_items=[],
     )
-    status = SUMMARY_MODULE._build_summary_status(answers={"a": "b"}, meta=meta)
+    status = SUMMARY_MODULE._build_summary_status(
+        answers={"a": "b"},
+        meta=meta,
+        resolved_brief_model="gpt-5-mini",
+    )
 
-    assert status.brief_state == "ready"
+    assert status.brief_state == "current"
     assert status.esco_ready is True
     assert status.nace_ready is True
     assert status.ready_for_follow_ups is True
@@ -98,7 +107,11 @@ def test_summary_hero_status_missing_esco_and_nace(monkeypatch) -> None:
         nace_mapped_esco_uri="",
         readiness_items=[],
     )
-    status = SUMMARY_MODULE._build_summary_status(answers={}, meta=meta)
+    status = SUMMARY_MODULE._build_summary_status(
+        answers={},
+        meta=meta,
+        resolved_brief_model="gpt-5-mini",
+    )
     subheader = SUMMARY_MODULE._build_summary_subheader(meta, status)
 
     assert status.esco_ready is False
@@ -118,7 +131,11 @@ def test_summary_hero_status_missing_brief(monkeypatch) -> None:
         nace_mapped_esco_uri="uri:occ:1",
         readiness_items=[],
     )
-    status = SUMMARY_MODULE._build_summary_status(answers={}, meta=meta)
+    status = SUMMARY_MODULE._build_summary_status(
+        answers={},
+        meta=meta,
+        resolved_brief_model="gpt-5-mini",
+    )
 
     assert status.brief_state == "missing"
     assert status.next_step == "Recruiting Brief generieren"
@@ -142,7 +159,11 @@ def test_summary_hero_status_stale_brief_text_path(monkeypatch) -> None:
         nace_mapped_esco_uri="uri:occ:1",
         readiness_items=[],
     )
-    status = SUMMARY_MODULE._build_summary_status(answers={"x": "y"}, meta=meta)
+    status = SUMMARY_MODULE._build_summary_status(
+        answers={"x": "y"},
+        meta=meta,
+        resolved_brief_model="gpt-5-mini",
+    )
     subheader = SUMMARY_MODULE._build_summary_subheader(meta, status)
 
     assert status.brief_state == "stale"
