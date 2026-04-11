@@ -172,7 +172,7 @@ def test_render_follow_up_cards_disable_and_enable_based_on_current_brief(
 ) -> None:
     registry = _registry()
     follow_up_action = next(
-        action for action in registry if action["id"] == "interview_hr_sheet"
+        action for action in registry if action["id"] == "interview_hr"
     )
     base_state = {
         SSKey.JOB_EXTRACT.value: {"job_title": "Engineer"},

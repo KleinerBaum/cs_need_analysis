@@ -93,3 +93,22 @@ def test_render_entry_does_not_auto_generate_recruiting_brief(monkeypatch) -> No
     assert any(
         "Noch kein Recruiting Brief verfügbar" in msg for msg in fake_st.info_calls
     )
+
+
+def test_summary_entry_dirty_state_reports_stale_brief_message(monkeypatch) -> None:
+    session_state = {
+        SSKey.BRIEF.value: {
+            "one_liner": "Kurzpitch",
+            "hiring_context": "Kontext",
+            "role_summary": "Rollenbild",
+            "job_ad_draft": "Draft",
+        },
+        SSKey.SUMMARY_INPUT_FINGERPRINT.value: "new",
+        SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value: "old",
+    }
+    monkeypatch.setattr(SUMMARY_MODULE, "st", _FakeStreamlit(session_state))
+
+    ok, reason = SUMMARY_MODULE._get_brief_requirement_status("gpt-5-mini")
+
+    assert ok is False
+    assert reason == "Recruiting Brief ist veraltet."
