@@ -181,6 +181,22 @@ def _ensure_salary_forecast_state_defaults() -> None:
     st.session_state.setdefault(SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value, "")
     st.session_state.setdefault(SSKey.SALARY_SCENARIO_LAB_ROWS.value, [])
     st.session_state.setdefault(SSKey.SALARY_SCENARIO_SELECTED_ROW_ID.value, "")
+    st.session_state.setdefault(SSKey.SALARY_SCENARIO_PENDING_SKILLS_ADD.value, None)
+    st.session_state.setdefault(SSKey.SALARY_SCENARIO_PENDING_SKILLS_REMOVE.value, None)
+    st.session_state.setdefault(
+        SSKey.SALARY_SCENARIO_PENDING_LOCATION_CITY_OVERRIDE.value, None
+    )
+    st.session_state.setdefault(SSKey.SALARY_SCENARIO_PENDING_RADIUS_KM.value, None)
+    st.session_state.setdefault(
+        SSKey.SALARY_SCENARIO_PENDING_REMOTE_SHARE_PERCENT.value, None
+    )
+    st.session_state.setdefault(
+        SSKey.SALARY_SCENARIO_PENDING_SENIORITY_OVERRIDE.value, None
+    )
+    st.session_state.setdefault(SSKey.SALARY_SCENARIO_APPLY_PENDING_UPDATE.value, False)
+    st.session_state.setdefault(
+        SSKey.SALARY_SCENARIO_PENDING_SELECTED_ROW_ID.value, None
+    )
     st.session_state.setdefault(SSKey.SALARY_FORECAST_SELECTED_SCENARIO.value, "base")
     st.session_state.setdefault(SSKey.SALARY_FORECAST_LAST_RESULT.value, {})
 

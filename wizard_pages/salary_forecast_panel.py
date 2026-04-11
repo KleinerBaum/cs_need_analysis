@@ -127,6 +127,111 @@ def _build_salary_forecast_snapshot(
     }
 
 
+def _queue_pending_salary_scenario_update(
+    *,
+    skills_add: list[str] | None = None,
+    skills_remove: list[str] | None = None,
+    location_city_override: str | None = None,
+    radius_km: int | None = None,
+    remote_share_percent: int | None = None,
+    seniority_override: str | None = None,
+    selected_row_id: str | None = None,
+) -> None:
+    if skills_add is not None:
+        st.session_state[SSKey.SALARY_SCENARIO_PENDING_SKILLS_ADD.value] = skills_add
+    if skills_remove is not None:
+        st.session_state[SSKey.SALARY_SCENARIO_PENDING_SKILLS_REMOVE.value] = (
+            skills_remove
+        )
+    if location_city_override is not None:
+        st.session_state[SSKey.SALARY_SCENARIO_PENDING_LOCATION_CITY_OVERRIDE.value] = (
+            location_city_override
+        )
+    if radius_km is not None:
+        st.session_state[SSKey.SALARY_SCENARIO_PENDING_RADIUS_KM.value] = radius_km
+    if remote_share_percent is not None:
+        st.session_state[SSKey.SALARY_SCENARIO_PENDING_REMOTE_SHARE_PERCENT.value] = (
+            remote_share_percent
+        )
+    if seniority_override is not None:
+        st.session_state[SSKey.SALARY_SCENARIO_PENDING_SENIORITY_OVERRIDE.value] = (
+            seniority_override
+        )
+    if selected_row_id is not None:
+        st.session_state[SSKey.SALARY_SCENARIO_PENDING_SELECTED_ROW_ID.value] = (
+            selected_row_id
+        )
+    st.session_state[SSKey.SALARY_SCENARIO_APPLY_PENDING_UPDATE.value] = True
+
+
+def _apply_pending_salary_scenario_update() -> None:
+    if not bool(
+        st.session_state.get(SSKey.SALARY_SCENARIO_APPLY_PENDING_UPDATE.value, False)
+    ):
+        return
+
+    pending_skills_add = st.session_state.get(
+        SSKey.SALARY_SCENARIO_PENDING_SKILLS_ADD.value
+    )
+    if isinstance(pending_skills_add, list):
+        st.session_state[SSKey.SALARY_SCENARIO_SKILLS_ADD.value] = unique_skills(
+            [str(skill) for skill in pending_skills_add if str(skill).strip()]
+        )
+
+    pending_skills_remove = st.session_state.get(
+        SSKey.SALARY_SCENARIO_PENDING_SKILLS_REMOVE.value
+    )
+    if isinstance(pending_skills_remove, list):
+        st.session_state[SSKey.SALARY_SCENARIO_SKILLS_REMOVE.value] = unique_skills(
+            [str(skill) for skill in pending_skills_remove if str(skill).strip()]
+        )
+
+    pending_city = st.session_state.get(
+        SSKey.SALARY_SCENARIO_PENDING_LOCATION_CITY_OVERRIDE.value
+    )
+    if isinstance(pending_city, str):
+        st.session_state[SSKey.SALARY_SCENARIO_LOCATION_CITY_OVERRIDE.value] = (
+            pending_city
+        )
+
+    pending_radius = st.session_state.get(SSKey.SALARY_SCENARIO_PENDING_RADIUS_KM.value)
+    if pending_radius is not None:
+        st.session_state[SSKey.SALARY_SCENARIO_RADIUS_KM.value] = _safe_int(
+            pending_radius
+        )
+
+    pending_remote = st.session_state.get(
+        SSKey.SALARY_SCENARIO_PENDING_REMOTE_SHARE_PERCENT.value
+    )
+    if pending_remote is not None:
+        st.session_state[SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value] = _safe_int(
+            pending_remote
+        )
+
+    pending_seniority = st.session_state.get(
+        SSKey.SALARY_SCENARIO_PENDING_SENIORITY_OVERRIDE.value
+    )
+    if isinstance(pending_seniority, str):
+        st.session_state[SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value] = (
+            pending_seniority
+        )
+
+    pending_row_id = st.session_state.get(
+        SSKey.SALARY_SCENARIO_PENDING_SELECTED_ROW_ID.value
+    )
+    if isinstance(pending_row_id, str):
+        st.session_state[SSKey.SALARY_SCENARIO_SELECTED_ROW_ID.value] = pending_row_id
+
+    st.session_state[SSKey.SALARY_SCENARIO_PENDING_SKILLS_ADD.value] = None
+    st.session_state[SSKey.SALARY_SCENARIO_PENDING_SKILLS_REMOVE.value] = None
+    st.session_state[SSKey.SALARY_SCENARIO_PENDING_LOCATION_CITY_OVERRIDE.value] = None
+    st.session_state[SSKey.SALARY_SCENARIO_PENDING_RADIUS_KM.value] = None
+    st.session_state[SSKey.SALARY_SCENARIO_PENDING_REMOTE_SHARE_PERCENT.value] = None
+    st.session_state[SSKey.SALARY_SCENARIO_PENDING_SENIORITY_OVERRIDE.value] = None
+    st.session_state[SSKey.SALARY_SCENARIO_PENDING_SELECTED_ROW_ID.value] = None
+    st.session_state[SSKey.SALARY_SCENARIO_APPLY_PENDING_UPDATE.value] = False
+
+
 def _apply_salary_scenario_inputs(job: JobAdExtract) -> tuple[JobAdExtract, list[str]]:
     esco_titles = unique_skills(
         [
@@ -200,6 +305,7 @@ def _apply_salary_scenario_inputs(job: JobAdExtract) -> tuple[JobAdExtract, list
 
 
 def render_salary_forecast_panel(job: JobAdExtract, answers: dict[str, Any]) -> None:
+    _apply_pending_salary_scenario_update()
     st.subheader("Gehaltsprognose (indikativ)")
     controls_col, result_col = st.columns((1, 2))
 
@@ -314,21 +420,23 @@ def render_salary_forecast_panel(job: JobAdExtract, answers: dict[str, Any]) -> 
         selected_tornado = _get_selected_plotly_point(tornado_selection)
         if selected_tornado and isinstance(selected_tornado.get("y"), str):
             selected_skill = str(selected_tornado["y"])
-            st.session_state[SSKey.SALARY_SCENARIO_SKILLS_ADD.value] = unique_skills(
+            skills_add = unique_skills(
                 [
                     *st.session_state.get(SSKey.SALARY_SCENARIO_SKILLS_ADD.value, []),
                     selected_skill,
                 ]
             )
-            st.session_state[SSKey.SALARY_SCENARIO_SKILLS_REMOVE.value] = [
+            skills_remove = [
                 skill
                 for skill in st.session_state.get(
                     SSKey.SALARY_SCENARIO_SKILLS_REMOVE.value, []
                 )
                 if str(skill).casefold() != selected_skill.casefold()
             ]
-            st.session_state[SSKey.SALARY_SCENARIO_SELECTED_ROW_ID.value] = str(
-                selected_tornado.get("customdata") or ""
+            _queue_pending_salary_scenario_update(
+                skills_add=skills_add,
+                skills_remove=skills_remove,
+                selected_row_id=str(selected_tornado.get("customdata") or ""),
             )
 
         location_fig = go.Figure(
@@ -355,11 +463,9 @@ def render_salary_forecast_panel(job: JobAdExtract, answers: dict[str, Any]) -> 
         )
         selected_location = _get_selected_plotly_point(location_selection)
         if selected_location and isinstance(selected_location.get("x"), str):
-            st.session_state[SSKey.SALARY_SCENARIO_LOCATION_CITY_OVERRIDE.value] = str(
-                selected_location["x"]
-            )
-            st.session_state[SSKey.SALARY_SCENARIO_SELECTED_ROW_ID.value] = str(
-                selected_location.get("customdata") or ""
+            _queue_pending_salary_scenario_update(
+                location_city_override=str(selected_location["x"]),
+                selected_row_id=str(selected_location.get("customdata") or ""),
             )
 
         radius_fig = go.Figure(
@@ -378,11 +484,9 @@ def render_salary_forecast_panel(job: JobAdExtract, answers: dict[str, Any]) -> 
         )
         selected_radius = _get_selected_plotly_point(radius_selection)
         if selected_radius and selected_radius.get("x") is not None:
-            st.session_state[SSKey.SALARY_SCENARIO_RADIUS_KM.value] = _safe_int(
-                selected_radius["x"]
-            )
-            st.session_state[SSKey.SALARY_SCENARIO_SELECTED_ROW_ID.value] = str(
-                selected_radius.get("customdata") or ""
+            _queue_pending_salary_scenario_update(
+                radius_km=_safe_int(selected_radius["x"]),
+                selected_row_id=str(selected_radius.get("customdata") or ""),
             )
 
         filter_col_a, filter_col_b = st.columns(2)
@@ -408,11 +512,9 @@ def render_salary_forecast_panel(job: JobAdExtract, answers: dict[str, Any]) -> 
             )
             selected_remote = _get_selected_plotly_point(remote_selection)
             if selected_remote and selected_remote.get("x") is not None:
-                st.session_state[SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value] = (
-                    _safe_int(selected_remote["x"])
-                )
-                st.session_state[SSKey.SALARY_SCENARIO_SELECTED_ROW_ID.value] = str(
-                    selected_remote.get("customdata") or ""
+                _queue_pending_salary_scenario_update(
+                    remote_share_percent=_safe_int(selected_remote["x"]),
+                    selected_row_id=str(selected_remote.get("customdata") or ""),
                 )
 
         with filter_col_b:
@@ -436,11 +538,9 @@ def render_salary_forecast_panel(job: JobAdExtract, answers: dict[str, Any]) -> 
             )
             selected_seniority = _get_selected_plotly_point(seniority_selection)
             if selected_seniority and isinstance(selected_seniority.get("x"), str):
-                st.session_state[SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value] = str(
-                    selected_seniority["x"]
-                )
-                st.session_state[SSKey.SALARY_SCENARIO_SELECTED_ROW_ID.value] = str(
-                    selected_seniority.get("customdata") or ""
+                _queue_pending_salary_scenario_update(
+                    seniority_override=str(selected_seniority["x"]),
+                    selected_row_id=str(selected_seniority.get("customdata") or ""),
                 )
 
         st.markdown("**Scenario Table**")
