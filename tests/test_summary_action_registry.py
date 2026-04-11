@@ -192,6 +192,7 @@ def test_has_required_state_requires_all_truthy_values(monkeypatch) -> None:
 
 
 def test_follow_up_actions_describe_explicit_brief_dependency() -> None:
+    """Expected vs Actual: Follow-up-Inputs verlangen explizit aktuellen Brief (kein optionaler Auto-Brief)."""
     action_registry = SUMMARY_MODULE._build_action_registry(
         resolved_brief_model="gpt-5-mini",
         resolved_job_ad_model="gpt-4o-mini",
@@ -221,6 +222,7 @@ def test_follow_up_actions_describe_explicit_brief_dependency() -> None:
         if action["id"] in follow_up_ids:
             hints = " ".join(action["input_hints"]).lower()
             assert "kein auto-fallback" in hints
+            assert "optional auto brief" not in hints
             assert (
                 action["requirement_text"]
                 == "Aktueller Recruiting Brief ist erforderlich"
