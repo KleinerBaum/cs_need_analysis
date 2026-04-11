@@ -145,6 +145,15 @@ def test_summary_source_hides_engine_internal_delta_widgets() -> None:
     assert "map_salary_scenario_to_overrides(" in source
 
 
+def test_summary_source_uses_city_and_country_salary_overrides() -> None:
+    source = SUMMARY_PATH.read_text(encoding="utf-8")
+
+    assert "SALARY_SCENARIO_LOCATION_CITY_OVERRIDE" in source
+    assert "SALARY_SCENARIO_LOCATION_COUNTRY_OVERRIDE" in source
+    assert '"location_city":' in source
+    assert '"location_country":' in source
+
+
 def test_normalize_logo_payload_rejects_unsupported_type() -> None:
     class FakeUpload:
         name = "logo.svg"

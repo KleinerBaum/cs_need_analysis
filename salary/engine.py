@@ -6,6 +6,7 @@ from typing import Any
 
 from schemas import JobAdExtract
 
+from salary.mapping import infer_occupation_id, infer_region_id
 from salary.types import (
     SalaryEscoContext,
     SalaryForecastBand,
@@ -183,6 +184,8 @@ def compute_salary_forecast(
         if scenario_inputs and scenario_inputs.location_city_override
         else job_extract.location_city
     )
+    region_id = infer_region_id(effective_location_country, location_city)
+    occupation_id = infer_occupation_id(esco_context, job_extract.job_title)
     location_parts = [
         part
         for part in (location_city, effective_location_country)
@@ -268,12 +271,12 @@ def compute_salary_forecast(
         provenance=SalaryForecastProvenance(
             engine="heuristic_salary_engine_v1",
             benchmark_version="internal_heuristic_baseline_2026_01",
-            occupation_mapping="title_keyword_rules_v1",
-            region_mapping="location_keyword_rules_v1",
+            occupation_mapping="esco_uri_or_title_v1",
+            region_mapping="country_city_region_v1_de_seed",
             benchmark_year=2026,
             benchmark_source_label="internal_heuristic_baseline",
-            occupation_id=esco_context.occupation_uri if esco_context else None,
-            region_id=effective_location_country or None,
+            occupation_id=occupation_id,
+            region_id=region_id,
         ),
         answers_count=answers_count,
         must_have_count=must_have_count,

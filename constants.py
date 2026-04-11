@@ -67,6 +67,10 @@ class SSKey(str, Enum):
     SALARY_SCENARIO_SKILLS_ADD = "cs.salary.scenario.skills_add"
     SALARY_SCENARIO_SKILLS_REMOVE = "cs.salary.scenario.skills_remove"
     SALARY_SCENARIO_LOCATION_OVERRIDE = "cs.salary.scenario.location_override"
+    SALARY_SCENARIO_LOCATION_CITY_OVERRIDE = "cs.salary.scenario.location_city_override"
+    SALARY_SCENARIO_LOCATION_COUNTRY_OVERRIDE = (
+        "cs.salary.scenario.location_country_override"
+    )
     SALARY_SCENARIO_RADIUS_KM = "cs.salary.scenario.radius_km"
     SALARY_FORECAST_LAST_RESULT = "cs.salary.forecast.last_result"
     SALARY_FORECAST_SELECTED_SCENARIO = "cs.salary.forecast.selected_scenario"
