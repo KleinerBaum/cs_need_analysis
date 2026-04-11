@@ -1789,21 +1789,15 @@ def _build_country_readiness_items(job: JobAdExtract) -> list[tuple[str, str, bo
 
 def _render_summary_facts_section(vm: SummaryViewModel) -> None:
     st.markdown("### Fakten")
-    if vm.selected_occupation_title:
-        st.caption(
-            f"ESCO Occupation aus Jobspec-Review: {vm.selected_occupation_title}"
+    _render_summary_facts_table(
+        _build_summary_fact_rows(
+            job=vm.job,
+            answers=vm.answers,
+            plan=vm.plan,
+            brief=vm.brief_for_snapshot,
+            selected_occupation_title=vm.selected_occupation_title,
         )
-    else:
-        st.caption("ESCO Occupation: Keine passende Occupation ausgewählt.")
-
-    st.markdown("### Country Readiness (informativ)")
-    st.caption(
-        "Dieser Block ist rein informativ und blockiert den Wizard nicht. "
-        "Er zeigt, ob zentrale Länderkontext-Daten für spätere EURES/ESCO-Prozesse vorliegen."
     )
-    for label, value, ready in vm.readiness_items:
-        icon = "✅" if ready else "ℹ️"
-        st.write(f"{icon} **{label}:** {value}")
 
     with st.expander("Kompaktüberblick (sekundär)", expanded=False):
         table = _build_summary_compact_table(
@@ -1895,6 +1889,153 @@ def _build_summary_compact_table(
             row[title] = items[index] if index < len(items) else ""
         rows.append(row)
     return rows
+
+
+def _status_for_value(value: Any) -> str:
+    if value in (None, "", []):
+        return "Fehlend"
+    return "Vollständig"
+
+
+def _build_summary_fact_rows(
+    *,
+    job: JobAdExtract,
+    answers: dict[str, Any],
+    plan: QuestionPlan | None,
+    brief: VacancyBrief | None,
+    selected_occupation_title: str | None,
+) -> list[dict[str, str]]:
+    nace_lookup_raw = st.session_state.get(SSKey.EURES_NACE_TO_ESCO.value, {})
+    nace_lookup = nace_lookup_raw if isinstance(nace_lookup_raw, dict) else {}
+    nace_code = str(
+        st.session_state.get(SSKey.COMPANY_NACE_CODE.value, "") or ""
+    ).strip()
+    mapped_esco_uri = (
+        str(nace_lookup.get(nace_code, "") or "").strip() if nace_code else ""
+    )
+
+    rows: list[dict[str, str]] = [
+        {
+            "Bereich": "Kernprofil",
+            "Feld": "Rolle",
+            "Wert": str(job.job_title or "").strip() or "Nicht angegeben",
+            "Quelle": "Jobspec",
+            "Status": _status_for_value(job.job_title),
+        },
+        {
+            "Bereich": "Kernprofil",
+            "Feld": "Unternehmen",
+            "Wert": str(job.company_name or "").strip() or "Nicht angegeben",
+            "Quelle": "Jobspec",
+            "Status": _status_for_value(job.company_name),
+        },
+        {
+            "Bereich": "Kernprofil",
+            "Feld": "Land",
+            "Wert": str(job.location_country or "").strip() or "Nicht angegeben",
+            "Quelle": "Jobspec",
+            "Status": _status_for_value(job.location_country),
+        },
+        {
+            "Bereich": "Kernprofil",
+            "Feld": "Stadt",
+            "Wert": str(job.location_city or "").strip() or "Nicht angegeben",
+            "Quelle": "Jobspec",
+            "Status": _status_for_value(job.location_city),
+        },
+        {
+            "Bereich": "Klassifikation",
+            "Feld": "ESCO Occupation",
+            "Wert": str(selected_occupation_title or "").strip() or "Nicht gesetzt",
+            "Quelle": "Jobspec-Review",
+            "Status": (
+                "Automatisch erkannt"
+                if str(selected_occupation_title or "").strip()
+                else "Fehlend"
+            ),
+        },
+        {
+            "Bereich": "Klassifikation",
+            "Feld": "NACE-Code",
+            "Wert": nace_code or "Nicht gesetzt",
+            "Quelle": "Unternehmen",
+            "Status": _status_for_value(nace_code),
+        },
+        {
+            "Bereich": "Klassifikation",
+            "Feld": "NACE → ESCO Mapping",
+            "Wert": mapped_esco_uri or "Nicht verfügbar",
+            "Quelle": "EURES",
+            "Status": "Automatisch erkannt" if mapped_esco_uri else "Fehlend",
+        },
+        {
+            "Bereich": "Artefakte",
+            "Feld": "Recruiting Brief",
+            "Wert": "Vorhanden" if brief is not None else "Noch nicht generiert",
+            "Quelle": "Summary",
+            "Status": "Vollständig" if brief is not None else "Teilweise",
+        },
+    ]
+
+    if plan is None:
+        return rows
+
+    for step in plan.steps:
+        if step.step_key in {"landing", "jobspec_review", "summary"}:
+            continue
+        for question in step.questions:
+            raw_value = answers.get(question.id)
+            formatted = _format_summary_answer_value(question, raw_value)
+            rows.append(
+                {
+                    "Bereich": step.title_de,
+                    "Feld": question.label,
+                    "Wert": formatted or "Nicht beantwortet",
+                    "Quelle": "Intake-Antwort",
+                    "Status": _status_for_value(raw_value),
+                }
+            )
+    return rows
+
+
+def _render_summary_facts_table(rows: list[dict[str, str]]) -> None:
+    search_query = (
+        st.text_input(
+            "Suche in Fakten",
+            key=SSKey.SUMMARY_FACTS_SEARCH.value,
+            placeholder="Bereich, Feld, Wert oder Quelle filtern …",
+        )
+        .strip()
+        .lower()
+    )
+    status_filter = st.selectbox(
+        "Statusfilter",
+        options=["Alle", "Vollständig", "Teilweise", "Fehlend", "Automatisch erkannt"],
+        key=SSKey.SUMMARY_FACTS_STATUS_FILTER.value,
+    )
+
+    filtered_rows = rows
+    if search_query:
+        filtered_rows = [
+            row
+            for row in filtered_rows
+            if search_query
+            in " ".join(
+                str(row.get(column, "")).lower()
+                for column in ("Bereich", "Feld", "Wert", "Quelle", "Status")
+            )
+        ]
+    if status_filter != "Alle":
+        filtered_rows = [
+            row for row in filtered_rows if row.get("Status", "") == status_filter
+        ]
+
+    st.dataframe(
+        filtered_rows,
+        width="stretch",
+        hide_index=True,
+        column_order=["Bereich", "Feld", "Wert", "Quelle", "Status"],
+    )
 
 
 def _has_required_state(requirements: tuple[SSKey, ...]) -> bool:

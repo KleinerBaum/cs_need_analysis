@@ -89,6 +89,8 @@ def init_session_state() -> None:
         SSKey.SUMMARY_SHOW_JOB_AD_CONFIG.value: False,
         SSKey.SUMMARY_LAST_MODE.value: None,
         SSKey.SUMMARY_LAST_MODELS.value: {},
+        SSKey.SUMMARY_FACTS_SEARCH.value: "",
+        SSKey.SUMMARY_FACTS_STATUS_FILTER.value: "Alle",
         SSKey.SUMMARY_SELECTIONS.value: {},
         SSKey.SUMMARY_STYLEGUIDE_BLOCKS.value: [],
         SSKey.SUMMARY_CHANGE_REQUEST_BLOCKS.value: [],
@@ -170,6 +172,8 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.SUMMARY_SHOW_JOB_AD_CONFIG.value] = False
     st.session_state[SSKey.SUMMARY_LAST_MODE.value] = None
     st.session_state[SSKey.SUMMARY_LAST_MODELS.value] = {}
+    st.session_state[SSKey.SUMMARY_FACTS_SEARCH.value] = ""
+    st.session_state[SSKey.SUMMARY_FACTS_STATUS_FILTER.value] = "Alle"
     st.session_state[SSKey.SUMMARY_SELECTIONS.value] = {}
     st.session_state[SSKey.SUMMARY_STYLEGUIDE_BLOCKS.value] = []
     st.session_state[SSKey.SUMMARY_CHANGE_REQUEST_BLOCKS.value] = []
