@@ -2158,10 +2158,69 @@ def _build_summary_compact_table(
     return rows
 
 
+def _is_missing_value(value: Any) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return not value.strip()
+    if isinstance(value, (list, tuple, set)):
+        return len(value) == 0
+    if isinstance(value, dict):
+        return len(value) == 0
+    return False
+
+
+def _has_partial_payload(value: Any) -> bool:
+    if isinstance(value, dict):
+        values = list(value.values())
+        if not values:
+            return False
+        has_present = any(not _is_missing_value(item) for item in values)
+        has_missing = any(_is_missing_value(item) for item in values)
+        return has_present and has_missing
+    if isinstance(value, list):
+        if not value:
+            return False
+        has_present = any(not _is_missing_value(item) for item in value)
+        has_missing = any(_is_missing_value(item) for item in value)
+        return has_present and has_missing
+    return False
+
+
 def _status_for_value(value: Any) -> str:
-    if value in (None, "", []):
+    if _is_missing_value(value):
         return "Fehlend"
+    if _has_partial_payload(value):
+        return "Teilweise"
     return "Vollständig"
+
+
+def _status_for_classification_value(value: Any) -> str:
+    if _is_missing_value(value):
+        return "Fehlend"
+    return "Automatisch erkannt"
+
+
+def _status_for_answer_value(
+    *, question: Question, raw_value: Any, formatted: str
+) -> str:
+    if _is_missing_value(raw_value):
+        return "Fehlend"
+    if question.answer_type == AnswerType.MULTI_SELECT and isinstance(raw_value, list):
+        normalized_items = [str(item).strip() for item in raw_value]
+        non_empty_count = sum(1 for item in normalized_items if item)
+        if non_empty_count == 0:
+            return "Fehlend"
+        if non_empty_count < len(normalized_items):
+            return "Teilweise"
+    if question.answer_type in {
+        AnswerType.SHORT_TEXT,
+        AnswerType.LONG_TEXT,
+    } and isinstance(raw_value, dict):
+        return "Teilweise" if _has_partial_payload(raw_value) else "Vollständig"
+    if not formatted:
+        return "Teilweise"
+    return "Teilweise" if _has_partial_payload(raw_value) else "Vollständig"
 
 
 def _build_summary_fact_rows(
@@ -2206,21 +2265,21 @@ def _build_summary_fact_rows(
             "ESCO Occupation",
             meta.selected_occupation_title or "Nicht gesetzt",
             "Jobspec-Review",
-            "Automatisch erkannt" if meta.selected_occupation_title else "Fehlend",
+            _status_for_classification_value(meta.selected_occupation_title),
         ),
         SummaryFactsRow(
             "Klassifikation",
             "NACE-Code",
             meta.nace_code or "Nicht gesetzt",
             "Unternehmen",
-            _status_for_value(meta.nace_code),
+            _status_for_classification_value(meta.nace_code),
         ),
         SummaryFactsRow(
             "Klassifikation",
             "NACE → ESCO Mapping",
             meta.nace_mapped_esco_uri or "Nicht verfügbar",
             "EURES",
-            "Automatisch erkannt" if meta.nace_mapped_esco_uri else "Fehlend",
+            _status_for_classification_value(meta.nace_mapped_esco_uri),
         ),
         SummaryFactsRow(
             "Artefakte",
@@ -2234,10 +2293,14 @@ def _build_summary_fact_rows(
     if plan is None:
         return rows
 
+    seen_row_keys = {(row.bereich, row.feld, row.quelle) for row in rows}
     for step in plan.steps:
         if step.step_key in {"landing", "jobspec_review", "summary"}:
             continue
         for question in step.questions:
+            row_key = (step.title_de, question.label, "Intake-Antwort")
+            if row_key in seen_row_keys:
+                continue
             raw_value = answers.get(question.id)
             formatted = _format_summary_answer_value(question, raw_value)
             rows.append(
@@ -2246,9 +2309,14 @@ def _build_summary_fact_rows(
                     question.label,
                     formatted or "Nicht beantwortet",
                     "Intake-Antwort",
-                    _status_for_value(raw_value),
+                    _status_for_answer_value(
+                        question=question,
+                        raw_value=raw_value,
+                        formatted=formatted,
+                    ),
                 )
             )
+            seen_row_keys.add(row_key)
     return rows
 
 
