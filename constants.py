@@ -58,6 +58,8 @@ class SSKey(str, Enum):
     SUMMARY_SHOW_JOB_AD_CONFIG = "cs.summary_show_job_ad_config"
     SUMMARY_LAST_MODE = "cs.summary_last_mode"
     SUMMARY_LAST_MODELS = "cs.summary_last_models"
+    SUMMARY_FACTS_SEARCH = "cs.summary_facts_search"
+    SUMMARY_FACTS_STATUS_FILTER = "cs.summary_facts_status_filter"
     OPENAI_LAST_STRUCTURED_OUTPUT_PATH = "cs.openai_last_structured_output_path"
     SUMMARY_SELECTIONS = "cs.summary_selections"
     SUMMARY_STYLEGUIDE_BLOCKS = "cs.summary_styleguide_blocks"
