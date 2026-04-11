@@ -13,6 +13,7 @@ from typing import Any, Dict, cast
 import streamlit as st
 
 from constants import DEFAULT_LANGUAGE, SSKey, STEPS
+from eures_mapping import load_national_code_lookup_from_file
 from question_progress import AnswerMeta, AnswerMetaMap, value_hash
 from schemas import EscoConceptRef, EscoMappingReport, EscoSuggestionItem
 from settings_openai import load_openai_settings
@@ -44,6 +45,15 @@ def init_session_state() -> None:
     configured_esco_base_url = os.getenv("ESCO_API_BASE_URL", "").strip()
     if not configured_esco_base_url:
         configured_esco_base_url = DEFAULT_ESCO_API_BASE_URL
+    configured_eures_nace_source = os.getenv("EURES_NACE_MAPPING_CSV", "").strip()
+    eures_nace_lookup: dict[str, str] = {}
+    if configured_eures_nace_source:
+        try:
+            eures_nace_lookup = load_national_code_lookup_from_file(
+                configured_eures_nace_source
+            )
+        except Exception:
+            eures_nace_lookup = {}
 
     defaults: Dict[str, Any] = {
         SSKey.CURRENT_STEP.value: STEPS[0].key,
@@ -116,6 +126,9 @@ def init_session_state() -> None:
         SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value: {},
         SSKey.ESCO_MIGRATION_LOG.value: [],
         SSKey.ESCO_MIGRATION_PENDING.value: None,
+        SSKey.EURES_NACE_TO_ESCO.value: eures_nace_lookup,
+        SSKey.EURES_NACE_SOURCE.value: configured_eures_nace_source,
+        SSKey.COMPANY_NACE_CODE.value: "",
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -174,6 +187,7 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value] = {}
     st.session_state[SSKey.ESCO_MIGRATION_LOG.value] = []
     st.session_state[SSKey.ESCO_MIGRATION_PENDING.value] = None
+    st.session_state[SSKey.COMPANY_NACE_CODE.value] = ""
     st.session_state[SSKey.LAST_ERROR.value] = None
     st.session_state[SSKey.CURRENT_STEP.value] = STEPS[0].key
     st.session_state[SSKey.LAST_RENDERED_STEP.value] = STEPS[0].key

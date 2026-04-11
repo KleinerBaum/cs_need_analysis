@@ -49,6 +49,7 @@ RESET_EXPECTATIONS: dict[SSKey, object] = {
     SSKey.EMPLOYMENT_CONTRACT_CACHE_HIT: False,
     SSKey.EMPLOYMENT_CONTRACT_LAST_MODE: None,
     SSKey.EMPLOYMENT_CONTRACT_LAST_MODELS: {},
+    SSKey.COMPANY_NACE_CODE: "",
     SSKey.LAST_ERROR: None,
 }
 
@@ -137,3 +138,32 @@ def test_init_session_state_uses_env_esco_api_base_url(monkeypatch) -> None:
     assert fake_session_state[SSKey.ESCO_CONFIG.value]["base_url"] == (
         "https://env.example/esco/"
     )
+
+
+def test_init_session_state_loads_eures_nace_mapping_from_env_file(
+    monkeypatch, tmp_path
+) -> None:
+    fake_session_state: dict[str, object] = {}
+    mapping_path = tmp_path / "eures_mapping.csv"
+    mapping_path.write_text(
+        "national_code,esco_uri\nA1,http://example.org/esco/a1\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("EURES_NACE_MAPPING_CSV", str(mapping_path))
+    monkeypatch.setattr(
+        state,
+        "load_openai_settings",
+        lambda: SimpleNamespace(openai_model="gpt-5-mini"),
+    )
+    monkeypatch.setattr(
+        state,
+        "st",
+        SimpleNamespace(session_state=fake_session_state),
+    )
+
+    state.init_session_state()
+
+    assert fake_session_state[SSKey.EURES_NACE_SOURCE.value] == str(mapping_path)
+    assert fake_session_state[SSKey.EURES_NACE_TO_ESCO.value] == {
+        "A1": "http://example.org/esco/a1"
+    }
