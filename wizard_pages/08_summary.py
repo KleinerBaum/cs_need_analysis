@@ -2298,20 +2298,17 @@ def _render_action_card(action: SummaryAction) -> bool:
 
         input_renderer = action.get("input_renderer")
         if input_renderer is not None:
-            should_show_inputs = bool(
-                st.session_state.get(SSKey.SUMMARY_SHOW_JOB_AD_CONFIG.value, False)
+            st.caption("Konfiguration im separaten Panel unterhalb der Action Cards.")
+            open_config_clicked = st.button(
+                "Job-Ad-Konfiguration öffnen",
+                width="stretch",
+                key=_widget_key(
+                    SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
+                    f"{action['id']}.open_config",
+                ),
             )
-            st.toggle(
-                "Job-Ad-Konfiguration anzeigen",
-                key=SSKey.SUMMARY_SHOW_JOB_AD_CONFIG.value,
-                help="Blendet Selection Matrix und Job-Ad-Editor für die Stellenanzeige ein oder aus.",
-            )
-            if should_show_inputs:
-                input_renderer()
-            else:
-                st.caption(
-                    "Job-Ad-Konfiguration ausgeblendet. Für Änderungen Toggle aktivieren."
-                )
+            if open_config_clicked:
+                st.session_state[SSKey.SUMMARY_SHOW_JOB_AD_CONFIG.value] = True
         elif action["input_hints"]:
             st.markdown("**Inputs**")
             for input_hint in action["input_hints"]:
@@ -2349,6 +2346,32 @@ def _render_action_card(action: SummaryAction) -> bool:
                 action["id"]
             )
         return triggered
+
+
+def _render_job_ad_configuration_panel(*, action_registry: list[SummaryAction]) -> None:
+    job_ad_action = next(
+        (action for action in action_registry if action["id"] == "job_ad"),
+        None,
+    )
+    input_renderer = job_ad_action.get("input_renderer") if job_ad_action else None
+    if input_renderer is None:
+        return
+
+    st.markdown("### Job-Ad-Konfiguration")
+    st.caption("Selection Matrix und Editor sind ausgelagert, damit der Hub scannbar bleibt.")
+    st.toggle(
+        "Konfigurationspanel anzeigen",
+        key=SSKey.SUMMARY_SHOW_JOB_AD_CONFIG.value,
+        help="Blendet Selection Matrix und Job-Ad-Editor für die Stellenanzeige ein oder aus.",
+    )
+    if not bool(st.session_state.get(SSKey.SUMMARY_SHOW_JOB_AD_CONFIG.value, False)):
+        st.caption(
+            "Panel ausgeblendet. Nutze „Job-Ad-Konfiguration öffnen“ in der Job-Ad-Karte."
+        )
+        return
+
+    with st.container(border=True):
+        input_renderer()
 
 
 def _render_primary_brief_card(
@@ -2566,6 +2589,8 @@ def _render_summary_processing_hub(
     if triggered and triggered_action and triggered_action["generator_fn"]:
         triggered_action["generator_fn"]()
         st.rerun()
+
+    _render_job_ad_configuration_panel(action_registry=action_registry)
 
     _render_export_bar(has_brief=brief_status[0] == "current")
 
