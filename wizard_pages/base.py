@@ -1034,7 +1034,7 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
                 border-radius: 999px;
                 border: 1px solid rgba(174, 211, 255, 0.55);
                 background: linear-gradient(135deg, rgba(20, 74, 142, 0.68), rgba(16, 49, 95, 0.76));
-                text-decoration: none;
+                text-decoration: none !important;
                 color: #edf5ff !important;
                 font-size: 0.82rem;
                 font-weight: 620;
@@ -1046,6 +1046,13 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
                 box-shadow: 0 8px 20px rgba(3, 11, 24, 0.35);
                 border-color: rgba(216, 236, 255, 0.9);
                 color: #ffffff !important;
+            }}
+
+            .landing-app-link-pill:visited,
+            .landing-app-link-pill:focus,
+            .landing-app-link-pill:active {{
+                text-decoration: none !important;
+                color: #edf5ff !important;
             }}
 
             .landing-security-note {{
