@@ -480,6 +480,7 @@ def _build_summary_input_fingerprint(
     selected_role_tasks: list[str],
     selected_skills: list[str],
     esco_occupation_selected: dict[str, str],
+    esco_match_explainability: dict[str, Any],
     esco_selected_skills_must: list[dict[str, str]],
     esco_selected_skills_nice: list[dict[str, str]],
     nace_code: str,
@@ -491,6 +492,7 @@ def _build_summary_input_fingerprint(
         "selected_role_tasks": selected_role_tasks,
         "selected_skills": selected_skills,
         "esco_occupation_selected": esco_occupation_selected,
+        "esco_match_explainability": esco_match_explainability,
         "esco_selected_skills_must": esco_selected_skills_must,
         "esco_selected_skills_nice": esco_selected_skills_nice,
         "nace_code": nace_code,
@@ -715,6 +717,9 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
             payload["esco_occupations"] = [
                 {"uri": parsed_occupation.uri, "label": parsed_occupation.title}
             ]
+            explainability = _read_esco_match_explainability()
+            if explainability:
+                payload["esco_occupation_provenance"] = explainability
 
     must_skills = _to_esco_export_concepts(
         st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
@@ -1312,9 +1317,11 @@ def _build_summary_subheader(meta: SummaryMeta, status: SummaryStatus) -> str:
     country = meta.country_label or "Nicht angegeben"
     mapping_fragments: list[str] = []
     if status.esco_ready:
-        mapping_fragments.append(f"ESCO verknüpft ({meta.selected_occupation_title})")
+        mapping_fragments.append(
+            f"semantischer Anker bestätigt ({meta.selected_occupation_title})"
+        )
     else:
-        mapping_fragments.append("ESCO noch offen")
+        mapping_fragments.append("semantischer Anker noch offen")
     if status.nace_ready:
         mapping_fragments.append(f"NACE gesetzt ({meta.nace_code})")
     else:
@@ -1460,6 +1467,7 @@ def _build_summary_view_model() -> SummaryViewModel | None:
         selected_role_tasks=selected_role_tasks,
         selected_skills=selected_skills,
         esco_occupation_selected=_read_selected_esco_occupation(),
+        esco_match_explainability=_read_esco_match_explainability(),
         esco_selected_skills_must=_read_esco_skill_refs(
             SSKey.ESCO_SKILLS_SELECTED_MUST
         ),
@@ -1536,6 +1544,29 @@ def _read_selected_esco_occupation() -> dict[str, str]:
     }
 
 
+def _read_esco_match_explainability() -> dict[str, Any]:
+    reason_raw = st.session_state.get(SSKey.ESCO_MATCH_REASON.value)
+    confidence_raw = st.session_state.get(SSKey.ESCO_MATCH_CONFIDENCE.value)
+    provenance_raw = st.session_state.get(SSKey.ESCO_MATCH_PROVENANCE.value)
+
+    reason = str(reason_raw or "").strip()
+    confidence = str(confidence_raw or "").strip()
+    provenance = (
+        [str(item).strip() for item in provenance_raw if str(item).strip()]
+        if isinstance(provenance_raw, list)
+        else []
+    )
+
+    explainability: dict[str, Any] = {}
+    if reason:
+        explainability["reason"] = reason
+    if confidence:
+        explainability["confidence"] = confidence
+    if provenance:
+        explainability["provenance_categories"] = provenance
+    return explainability
+
+
 def _build_summary_meta(job: JobAdExtract) -> SummaryMeta:
     selected_occupation = _read_selected_esco_occupation()
     nace_code = str(
@@ -1599,7 +1630,7 @@ def _build_country_readiness_items(job: JobAdExtract) -> list[tuple[str, str, bo
             bool(job.location_country),
         ),
         (
-            "ESCO Occupation gesetzt",
+            "Semantischer Anker bestätigt",
             "Ja" if selected_occupation else "Nein",
             bool(selected_occupation),
         ),

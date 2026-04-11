@@ -17,9 +17,9 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 - Der Artefaktbereich wurde auf eine scannbare Einzeldarstellung konsolidiert (keine doppelten Ergebnisblöcke); weitere Ergebnisse werden sekundär umgeschaltet.
 - Beim Job-Ad-Generator liegen **Selection Matrix** und **Job-Ad-Editor** gebündelt im erweiterten Bereich, inkl. optionalem Logo-Upload sowie Styleguide-/Change-Request-Bausteinen.
 - Der Salary Forecast wird in den Schritten Rolle & Aufgaben, Skills & Anforderungen sowie Benefits & Rahmenbedingungen als standardmäßig geöffnete Sektion angezeigt.
-- ESCO-Integration im Jobspec-Review mit Occupation-Picker, Preview und optionalem Laden von Occupation-Titelvarianten in mehreren Sprachen.
+- ESCO-Integration im Jobspec-Review mit Occupation-Picker, Preview und expliziter Bestätigung als **semantischer Anker**; optionales Laden von Occupation-Titelvarianten in mehreren Sprachen.
 - Skills-Mapping gegen ESCO inkl. Must-/Nice-to-have-Zuordnung, relationalen Occupation-Skill-Vorschlägen und on-demand Skill-Details.
-- Optionales NACE/EURES-Mapping im Unternehmensschritt als Grundlage für spätere Country-/Occupation-Kontexte.
+- Optionales NACE/EURES-Mapping im Unternehmensschritt als Grundlage für spätere Country-/Occupation-Kontexte; die Summary-Readiness bewertet den bestätigten semantischen Anker (ESCO) und NACE separat.
 - Primäre Fakten-Tabelle in der Summary (Bereich/Feld/Wert/Quelle/Status) inkl. Such-/Statusfilter, plus sekundärer Kompaktüberblick und ESCO Mapping Report (JSON/CSV-Export).
 - In den Schritten **Rolle & Aufgaben** sowie **Skills & Anforderungen** läuft die Übernahme über „**Vergleichen & übernehmen**“-Tabellen: Vorschläge aus Jobspec, ESCO und AI werden nebeneinander gestellt und selektiv übernommen.
 - Session-basiertes LLM-Response-Caching mit Cache-Hinweisen in Intake/Summary (DE/EN), inkl. Cache-Status für Folgeartefakte.
@@ -211,3 +211,12 @@ Dieser Smoke-Test ist der bevorzugte Verifikationspfad für Änderungen an Model
 - Boolean Search Pack: JSON, Markdown
 - Arbeitsvertrag (Template Draft): JSON, DOCX
 - ESCO Mapping Report: CSV (UTF-8), JSON
+
+### Strukturierter Export (Summary)
+
+Der strukturierte Summary-Export enthält – sofern vorhanden – folgende ESCO-bezogene Felder:
+
+- `esco_occupations`: bestätigte ESCO Occupation(s) mit `uri` und `label`
+- `esco_occupation_provenance`: Explainability/Provenance zur bestätigten Occupation (`reason`, `confidence`, `provenance_categories`)
+- `recommended_titles`: geladene Occupation-Titelvarianten pro Sprache
+- `esco_skills_must` / `esco_skills_nice`: übernommene ESCO-Skills

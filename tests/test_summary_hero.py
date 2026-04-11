@@ -96,7 +96,9 @@ def test_summary_hero_status_complete_data(monkeypatch) -> None:
 
 
 def test_summary_hero_status_missing_esco_and_nace(monkeypatch) -> None:
-    fake_st = SimpleNamespace(session_state={SSKey.BRIEF.value: _build_valid_brief_payload()})
+    fake_st = SimpleNamespace(
+        session_state={SSKey.BRIEF.value: _build_valid_brief_payload()}
+    )
     monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
     meta = SUMMARY_MODULE.SummaryMeta(
         role_label="Senior Data Engineer",
@@ -116,7 +118,7 @@ def test_summary_hero_status_missing_esco_and_nace(monkeypatch) -> None:
 
     assert status.esco_ready is False
     assert status.nace_ready is False
-    assert "ESCO noch offen und NACE noch offen" in subheader
+    assert "semantischer Anker noch offen und NACE noch offen" in subheader
 
 
 def test_summary_hero_status_missing_brief(monkeypatch) -> None:
@@ -195,7 +197,9 @@ def test_summary_hero_meta_badges_show_dynamic_readiness(monkeypatch) -> None:
         nace_ready=True,
     )
     SUMMARY_MODULE._render_summary_meta_badges(meta, status)
-    metric_values = [value for col in fake_st.columns_calls[0] for _, value in col.metric_calls]
+    metric_values = [
+        value for col in fake_st.columns_calls[0] for _, value in col.metric_calls
+    ]
     assert "Senior Data Engineer" in metric_values
     assert "Cognitive Staffing GmbH" in metric_values
     assert "Bereit" in metric_values
