@@ -983,6 +983,16 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
                     recommended_titles[language] = labels
             if recommended_titles:
                 payload["recommended_titles"] = recommended_titles
+
+    salary_forecast = st.session_state.get(SSKey.SALARY_FORECAST_LAST_RESULT.value)
+    if isinstance(salary_forecast, dict):
+        payload["salary_forecast"] = salary_forecast
+
+    scenario_lab_rows = st.session_state.get(SSKey.SALARY_SCENARIO_LAB_ROWS.value)
+    if not isinstance(scenario_lab_rows, list):
+        scenario_lab_rows = st.session_state.get("scenario_lab_rows")
+    if isinstance(scenario_lab_rows, list):
+        payload["salary_scenarios"] = scenario_lab_rows[:100]
     return payload
 
 

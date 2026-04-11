@@ -176,6 +176,54 @@ def test_build_structured_export_payload_includes_recommended_titles_by_language
     }
 
 
+def test_build_structured_export_payload_includes_salary_artifacts_when_available(
+    monkeypatch,
+) -> None:
+    salary_forecast = {
+        "scenario": "market_upside",
+        "forecast": {"p10": 85000, "p50": 98000, "p90": 112000},
+        "provenance": {"engine": "benchmark_salary_engine_v1"},
+    }
+    scenario_rows = [
+        {
+            "row_id": f"row::{index}",
+            "group": "skill_delta",
+            "label": f"Scenario {index}",
+            "p10": 80000.0,
+            "p50": 90000.0 + index,
+            "p90": 105000.0,
+            "delta_p50": float(index),
+            "city": "",
+            "country": "DE",
+            "radius_km": 50,
+            "remote_share_percent": 25,
+            "seniority_override": "mid",
+            "skills_add": ["Python"],
+        }
+        for index in range(150)
+    ]
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.ESCO_CONFIG.value: {},
+                SSKey.ESCO_SKILLS_SELECTED_MUST.value: [],
+                SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
+                SSKey.SALARY_FORECAST_LAST_RESULT.value: salary_forecast,
+                SSKey.SALARY_SCENARIO_LAB_ROWS.value: scenario_rows,
+            }
+        ),
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "get_esco_occupation_selected", lambda: None)
+
+    payload = SUMMARY_MODULE._build_structured_export_payload(_brief())
+
+    assert payload["salary_forecast"] == salary_forecast
+    assert payload["salary_scenarios"] == scenario_rows[:100]
+    assert len(payload["salary_scenarios"]) == 100
+
+
 def test_build_esco_mapping_report_rows_uses_expected_fields_and_sorting(
     monkeypatch,
 ) -> None:
