@@ -119,6 +119,9 @@ def render(ctx: WizardContext) -> None:
         """,
         unsafe_allow_html=True,
     )
+    _, logo_col, _ = st.columns((1, 2, 1))
+    with logo_col:
+        st.image("images/animation_pulse_Default_7kigl22lw.gif", width=128)
     st.title(str(LANDING_COPY["hero_headline"]))
     hero_subheadline = str(LANDING_COPY["hero_subheadline"])
     if hero_subheadline:
