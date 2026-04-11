@@ -123,6 +123,95 @@ def _render_esco_why_this_matters() -> None:
     )
 
 
+def _extract_esco_scope_note(payload: object) -> str:
+    if not isinstance(payload, dict):
+        return ""
+
+    candidate_keys = ("description", "scopeNote", "definition", "note")
+    collected: list[str] = []
+    seen: set[str] = set()
+
+    def _append(value: object) -> None:
+        if not isinstance(value, str):
+            return
+        normalized = " ".join(value.split()).strip()
+        if not normalized:
+            return
+        key = normalized.casefold()
+        if key in seen:
+            return
+        seen.add(key)
+        collected.append(normalized)
+
+    def _walk(node: object) -> None:
+        if isinstance(node, dict):
+            for candidate_key in candidate_keys:
+                _append(node.get(candidate_key))
+            for nested in node.values():
+                _walk(nested)
+        elif isinstance(node, list):
+            for nested in node:
+                _walk(nested)
+
+    _walk(payload)
+    if not collected:
+        return ""
+    first_text = collected[0]
+    if len(first_text) <= 280:
+        return first_text
+    return f"{first_text[:277].rstrip()}..."
+
+
+def _render_esco_post_confirm_impact(job: JobAdExtract) -> None:
+    selected_raw = st.session_state.get(SSKey.ESCO_OCCUPATION_SELECTED.value)
+    selected = selected_raw if isinstance(selected_raw, dict) else {}
+    occupation_uri = str(selected.get("uri") or "").strip()
+    if not occupation_uri:
+        return
+
+    selected_title = str(selected.get("title") or "—").strip() or "—"
+    current_job_title = str(job.job_title or "—").strip() or "—"
+
+    st.markdown("### Wirkung der bestätigten ESCO Occupation")
+    with st.container(border=True):
+        st.markdown("**Normalisierte Rollenbezeichnung**")
+        st.write(f"- ESCO-Auswahl: {selected_title}")
+        st.write(f"- Jobspec (`job.job_title`): {current_job_title}")
+        if selected_title.casefold() == current_job_title.casefold():
+            st.caption("Titel sind bereits konsistent.")
+        else:
+            st.caption(
+                "Titel weichen ab: ESCO dient als normalisierte Referenz "
+                "für die Folgeschritte."
+            )
+
+        st.markdown("**Scope Note aus ESCO**")
+        try:
+            occupation_payload = EscoClient().resource_occupation(uri=occupation_uri)
+        except EscoClientError:
+            st.caption("Scope Note aktuell nicht verfügbar.")
+            st.warning("ESCO-Occupationsdetails konnten nicht sicher geladen werden.")
+        else:
+            scope_note = _extract_esco_scope_note(occupation_payload)
+            if scope_note:
+                st.write(scope_note)
+            else:
+                st.caption("Für diese Occupation liegt keine kurze Scope Note vor.")
+
+        st.markdown("**Impact auf Essential vs. Optional Skills**")
+        st.caption(
+            "In `wizard_pages/05_skills.py` lädt die Occupation relationale Skills "
+            "über `hasEssentialSkill` (Must) und `hasOptionalSkill` (Nice-to-have)."
+        )
+
+        st.markdown("**Impact auf Summary & Export**")
+        st.caption(
+            "In `wizard_pages/08_summary.py` fließt die Occupation in die "
+            "Readiness-Prüfung (`_build_country_readiness_items`) und in den "
+            "Export-Payload (`_read_selected_esco_occupation`) ein."
+        )
+
+
 def _render_esco_occupation_block(job: JobAdExtract) -> None:
     st.markdown("### ESCO Occupation")
     query_text = _build_esco_query(job)
@@ -210,6 +299,8 @@ def _render_esco_occupation_block(job: JobAdExtract) -> None:
                     st.markdown(f"**{language.upper()}**")
                     for label in labels:
                         st.write(f"- {label}")
+
+    _render_esco_post_confirm_impact(job)
 
 
 def _render_extraction_quality_summary(job: JobAdExtract) -> None:
