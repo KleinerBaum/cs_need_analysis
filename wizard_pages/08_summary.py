@@ -1692,11 +1692,6 @@ def _has_required_state(requirements: tuple[SSKey, ...]) -> bool:
     return True
 
 
-def _is_summary_entry() -> bool:
-    last_rendered_step = st.session_state.get(SSKey.LAST_RENDERED_STEP.value)
-    return last_rendered_step != "summary"
-
-
 def _render_action_card(action: SummaryAction) -> bool:
     has_result = bool(st.session_state.get(action["result_key"].value))
     requirements_ok = _has_required_state(action["requires"])
@@ -1792,7 +1787,7 @@ def _build_action_registry(
             "generator_fn": generate_interview_prep_hr,
             "result_key": SSKey.INTERVIEW_PREP_HR,
             "input_hints": (
-                "Recruiting Brief (optional, wird bei Bedarf automatisch erzeugt)",
+                "Recruiting Brief (vorab explizit erstellen/aktualisieren)",
                 "Kritische Must-haves",
                 f"HR-Sheet-Modell: {resolved_hr_sheet_model}",
             ),
@@ -1810,7 +1805,7 @@ def _build_action_registry(
             "generator_fn": generate_interview_prep_fach,
             "result_key": SSKey.INTERVIEW_PREP_FACH,
             "input_hints": (
-                "Recruiting Brief (optional, wird bei Bedarf automatisch erzeugt)",
+                "Recruiting Brief (vorab explizit erstellen/aktualisieren)",
                 "Must-have + Top Responsibilities",
                 f"Fachbereich-Sheet-Modell: {resolved_fach_sheet_model}",
             ),
@@ -1828,7 +1823,7 @@ def _build_action_registry(
             "generator_fn": generate_boolean_search,
             "result_key": SSKey.BOOLEAN_SEARCH_STRING,
             "input_hints": (
-                "Recruiting Brief (optional, wird bei Bedarf automatisch erzeugt)",
+                "Recruiting Brief (vorab explizit erstellen/aktualisieren)",
                 "Must-have + Nice-to-have Skills",
                 f"Boolean-Modell: {resolved_boolean_search_model}",
             ),
@@ -1846,7 +1841,7 @@ def _build_action_registry(
             "generator_fn": generate_employment_contract,
             "result_key": SSKey.EMPLOYMENT_CONTRACT_DRAFT,
             "input_hints": (
-                "Recruiting Brief (optional, wird bei Bedarf automatisch erzeugt)",
+                "Recruiting Brief (vorab explizit erstellen/aktualisieren)",
                 "Vertragsart + Konditionen",
                 f"Contract-Modell: {resolved_employment_contract_model}",
             ),
@@ -2008,45 +2003,40 @@ def render(ctx: WizardContext) -> None:
                 error_code="SUMMARY_JOB_AD_GENERATION_UNEXPECTED",
             )
 
-    def _resolve_brief_for_follow_up_action() -> VacancyBrief | None:
+    def _get_brief_status() -> tuple[str, VacancyBrief | None]:
         brief_payload = st.session_state.get(SSKey.BRIEF.value)
-        if isinstance(brief_payload, dict):
-            try:
-                return VacancyBrief.model_validate(brief_payload)
-            except Exception:
-                st.warning(
-                    "Recruiting Brief ist ungültig. Es wird automatisch ein neuer Brief erzeugt."
-                )
-
-        store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
         try:
-            with st.spinner("Erzeuge Recruiting Brief als Grundlage…"):
-                generated_brief, usage = generate_vacancy_brief(
-                    job,
-                    answers,
-                    model=resolved_brief_model,
-                    selected_role_tasks=selected_role_tasks,
-                    selected_skills=selected_skills,
-                    store=store,
-                )
-            st.session_state[SSKey.BRIEF.value] = generated_brief.model_dump()
-            st.session_state[SSKey.SUMMARY_CACHE_HIT.value] = usage_has_cache_hit(usage)
-            st.session_state[SSKey.SUMMARY_LAST_MODE.value] = "auto_draft_for_follow_up"
-            st.session_state[SSKey.SUMMARY_LAST_MODELS.value] = {
-                "draft_model": resolved_brief_model
-            }
-            return generated_brief
-        except OpenAICallError as e:
-            render_openai_error(e)
-            return None
-        except Exception as exc:
-            handle_unexpected_exception(
-                step="summary.auto_generate_brief_for_follow_up",
-                exc=exc,
-                error_type=type(exc).__name__,
-                error_code="SUMMARY_AUTO_BRIEF_GENERATION_UNEXPECTED",
+            if not isinstance(brief_payload, dict):
+                return "missing", None
+            brief = VacancyBrief.model_validate(brief_payload)
+        except Exception:
+            return "invalid", None
+
+        last_models_raw = st.session_state.get(SSKey.SUMMARY_LAST_MODELS.value, {})
+        last_models = last_models_raw if isinstance(last_models_raw, dict) else {}
+        if last_models.get("draft_model") != resolved_brief_model:
+            return "stale", brief
+        return "ready", brief
+
+    def _resolve_brief_for_follow_up_action() -> VacancyBrief | None:
+        brief_status, brief_model = _get_brief_status()
+        if brief_status == "ready":
+            return brief_model
+        if brief_status == "missing":
+            st.info(
+                "Kein Recruiting Brief vorhanden. Bitte zuerst die Karte "
+                "„Recruiting Brief generieren“ ausführen."
             )
             return None
+        if brief_status == "invalid":
+            st.warning(
+                "Recruiting Brief ist ungültig. Bitte über „Recruiting Brief generieren“ neu erstellen."
+            )
+            return None
+        st.info(
+            "Recruiting Brief ist veraltet. Bitte über „Recruiting Brief generieren“ aktualisieren."
+        )
+        return None
 
     def _generate_interview_prep_hr() -> None:
         clear_error()
@@ -2183,13 +2173,6 @@ def render(ctx: WizardContext) -> None:
                 error_type=type(exc).__name__,
                 error_code="SUMMARY_EMPLOYMENT_CONTRACT_GENERATION_UNEXPECTED",
             )
-
-    if _is_summary_entry():
-        _run_generate_recruiting_brief(
-            mode="auto_refresh_on_summary_entry",
-            spinner_text="Aktualisiere Recruiting Brief für Summary-Entry…",
-            error_step="summary.auto_refresh_on_entry",
-        )
 
     def _render_job_ad_action_hub_inputs() -> None:
         st.markdown("**Selection Matrix (optional)**")

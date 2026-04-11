@@ -180,17 +180,29 @@ def test_has_required_state_requires_all_truthy_values(monkeypatch) -> None:
     )
 
 
-def test_is_summary_entry_true_when_previous_page_was_not_summary(monkeypatch) -> None:
-    fake_st = SimpleNamespace(
-        session_state={SSKey.LAST_RENDERED_STEP.value: "interview"}
+def test_follow_up_actions_describe_explicit_brief_dependency() -> None:
+    action_registry = SUMMARY_MODULE._build_action_registry(
+        resolved_brief_model="gpt-5-mini",
+        resolved_job_ad_model="gpt-4o-mini",
+        resolved_hr_sheet_model="gpt-5-nano",
+        resolved_fach_sheet_model="gpt-5",
+        resolved_boolean_search_model="gpt-5-mini",
+        resolved_employment_contract_model="o3-mini",
+        generate_recruiting_brief=lambda: None,
+        generate_job_ad=lambda: None,
+        generate_interview_prep_hr=lambda: None,
+        generate_interview_prep_fach=lambda: None,
+        generate_boolean_search=lambda: None,
+        generate_employment_contract=lambda: None,
     )
-    monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
 
-    assert SUMMARY_MODULE._is_summary_entry() is True
-
-
-def test_is_summary_entry_false_when_summary_already_rendered(monkeypatch) -> None:
-    fake_st = SimpleNamespace(session_state={SSKey.LAST_RENDERED_STEP.value: "summary"})
-    monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
-
-    assert SUMMARY_MODULE._is_summary_entry() is False
+    follow_up_ids = {
+        "interview_hr_sheet",
+        "interview_fach_sheet",
+        "boolean_search",
+        "employment_contract",
+    }
+    for action in action_registry:
+        if action["id"] in follow_up_ids:
+            hints = " ".join(action["input_hints"]).lower()
+            assert "explizit" in hints
