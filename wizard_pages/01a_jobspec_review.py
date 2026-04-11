@@ -105,6 +105,24 @@ def _load_occupation_title_variants(
     return variants
 
 
+def _render_esco_why_this_matters() -> None:
+    st.info(
+        "\n".join(
+            [
+                "**Warum Occupation-Bestätigung wichtig ist**",
+                "",
+                "- Sie reduziert Mehrdeutigkeiten beim Rollenverständnis "
+                "(z. B. ähnliche Jobtitel mit unterschiedlichen Aufgaben).",
+                "- Diese Auswahl wird in `wizard_pages/04_role_tasks.py`, "
+                "`wizard_pages/05_skills.py` und `wizard_pages/08_summary.py` "
+                "weiterverwendet.",
+                "- Ihr Nutzen: schnellere, relevantere Vorschläge sowie ein "
+                "klarerer Readiness- und Export-Kontext.",
+            ]
+        )
+    )
+
+
 def _render_esco_occupation_block(job: JobAdExtract) -> None:
     st.markdown("### ESCO Occupation")
     query_text = _build_esco_query(job)
@@ -118,6 +136,7 @@ def _render_esco_occupation_block(job: JobAdExtract) -> None:
     query_state_key = f"{SSKey.ESCO_OCCUPATION_SELECTED.value}.esco_picker.query"
     if not st.session_state.get(query_state_key):
         st.session_state[query_state_key] = query_text
+    _render_esco_why_this_matters()
     render_esco_picker_card(
         concept_type="occupation",
         target_state_key=SSKey.ESCO_OCCUPATION_SELECTED,
