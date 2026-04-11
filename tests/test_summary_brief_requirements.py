@@ -133,7 +133,6 @@ def test_follow_up_requirement_accepts_current_brief(monkeypatch) -> None:
 def test_get_brief_status_changes_primary_cta_label_by_state(monkeypatch) -> None:
     registry = _registry()
     primary_action = registry[0]
-    follow_up_actions = registry[1:]
     fake_st = _FakeStreamlit(
         session_state={
             SSKey.JOB_EXTRACT.value: {"job_title": "Engineer"},
@@ -144,24 +143,28 @@ def test_get_brief_status_changes_primary_cta_label_by_state(monkeypatch) -> Non
 
     state, _, cta = SUMMARY_MODULE._get_brief_status(
         primary_action=primary_action,
-        follow_up_actions=follow_up_actions,
+        resolved_brief_model="gpt-5-mini",
     )
     assert state == "missing"
     assert cta == "Recruiting Brief generieren"
 
     fake_st.session_state[SSKey.BRIEF.value] = _valid_brief_payload()
-    fake_st.session_state[SSKey.SUMMARY_LAST_MODELS.value] = {"draft_model": "gpt-4o-mini"}
+    fake_st.session_state[SSKey.SUMMARY_LAST_MODELS.value] = {
+        "draft_model": "gpt-4o-mini"
+    }
     state, _, cta = SUMMARY_MODULE._get_brief_status(
         primary_action=primary_action,
-        follow_up_actions=follow_up_actions,
+        resolved_brief_model="gpt-5-mini",
     )
     assert state == "stale"
     assert cta == "Recruiting Brief aktualisieren"
 
-    fake_st.session_state[SSKey.SUMMARY_LAST_MODELS.value] = {"draft_model": "gpt-5-mini"}
+    fake_st.session_state[SSKey.SUMMARY_LAST_MODELS.value] = {
+        "draft_model": "gpt-5-mini"
+    }
     state, _, cta = SUMMARY_MODULE._get_brief_status(
         primary_action=primary_action,
-        follow_up_actions=follow_up_actions,
+        resolved_brief_model="gpt-5-mini",
     )
     assert state == "current"
     assert cta == "Brief aktualisieren"
