@@ -2955,8 +2955,10 @@ def _render_summary_results_workspace(
         available_artifact_ids=available_artifact_ids,
     )
 
-    main_tab, advanced_tab = st.tabs(["Brief & Export", "Advanced Studio"])
-    with main_tab:
+    st.markdown("---")
+    st.caption("Sekundärbereich: Export & weiterführende Tools")
+
+    with st.expander("Export (sekundär)", expanded=False):
         st.subheader("Export")
         md = _brief_to_markdown(brief)
         json_bytes = json.dumps(
@@ -2986,7 +2988,7 @@ def _render_summary_results_workspace(
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             )
 
-    with advanced_tab:
+    with st.expander("Advanced Studio (tertiär)", expanded=False):
         st.caption(
             "Modell-Mapping: "
             f"HR=`{resolved_hr_sheet_model}`, "
