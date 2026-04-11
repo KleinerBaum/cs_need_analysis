@@ -269,7 +269,6 @@ def render_esco_picker_card(
 
     query_text = st.text_input(
         "ESCO Suche",
-        value=str(st.session_state.get(query_key, "")),
         key=query_key,
         placeholder="Begriff eingeben (z. B. Data Engineer)",
         on_change=_set_session_flag_true,
