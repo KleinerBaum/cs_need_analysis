@@ -8,7 +8,7 @@ import textwrap
 import csv
 from collections import defaultdict
 from typing import Callable
-from typing import Any, TypedDict
+from typing import Any, NamedTuple, TypedDict
 
 import streamlit as st
 import docx
@@ -145,6 +145,17 @@ class SummaryAction(TypedDict):
     result_key: SSKey
     input_hints: tuple[str, ...]
     input_renderer: Callable[[], None] | None
+
+
+class SummaryViewModel(NamedTuple):
+    job: JobAdExtract
+    answers: dict[str, Any]
+    plan: QuestionPlan | None
+    brief_for_snapshot: VacancyBrief | None
+    selected_occupation_title: str | None
+    readiness_items: list[tuple[str, str, bool]]
+    selected_role_tasks: list[str]
+    selected_skills: list[str]
 
 
 def _normalize_list_item(value: str) -> str:
@@ -1540,24 +1551,43 @@ def _render_summary_hero(job: JobAdExtract, answers: dict[str, Any]) -> None:
     )
 
 
-def _render_summary_snapshot(
-    job: JobAdExtract, answers: dict[str, Any], brief: VacancyBrief | None
-) -> None:
-    st.markdown("### Kompaktüberblick")
-    plan_raw = st.session_state.get(SSKey.QUESTION_PLAN.value)
+def _build_summary_view_model() -> SummaryViewModel | None:
+    job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
+    plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
+    if not job_dict or not plan_dict:
+        return None
+
+    job = JobAdExtract.model_validate(job_dict)
+    answers = get_answers()
     try:
         plan = (
-            QuestionPlan.model_validate(plan_raw)
-            if isinstance(plan_raw, dict)
+            QuestionPlan.model_validate(plan_dict)
+            if isinstance(plan_dict, dict)
             else None
         )
     except Exception:
         plan = None
 
-    table = _build_summary_compact_table(
-        job=job, answers=answers, plan=plan, brief=brief
+    brief_dict = st.session_state.get(SSKey.BRIEF.value)
+    brief_for_snapshot = (
+        VacancyBrief.model_validate(brief_dict)
+        if isinstance(brief_dict, dict)
+        else None
     )
-    st.dataframe(table, width="stretch", hide_index=True)
+    selected_occupation = get_esco_occupation_selected()
+    selected_occupation_title = (
+        str(selected_occupation.get("title", "—")) if selected_occupation else None
+    )
+    return SummaryViewModel(
+        job=job,
+        answers=answers,
+        plan=plan,
+        brief_for_snapshot=brief_for_snapshot,
+        selected_occupation_title=selected_occupation_title,
+        readiness_items=_build_country_readiness_items(job),
+        selected_role_tasks=_read_saved_selection_labels(SSKey.ROLE_TASKS_SELECTED),
+        selected_skills=_read_saved_selection_labels(SSKey.SKILLS_SELECTED),
+    )
 
 
 def _build_country_readiness_items(job: JobAdExtract) -> list[tuple[str, str, bool]]:
@@ -1594,16 +1624,32 @@ def _build_country_readiness_items(job: JobAdExtract) -> list[tuple[str, str, bo
     ]
 
 
-def _render_country_readiness_block(job: JobAdExtract) -> None:
+def _render_summary_facts_section(vm: SummaryViewModel) -> None:
+    st.markdown("### Fakten")
+    if vm.selected_occupation_title:
+        st.caption(
+            f"ESCO Occupation aus Jobspec-Review: {vm.selected_occupation_title}"
+        )
+    else:
+        st.caption("ESCO Occupation: Keine passende Occupation ausgewählt.")
+
     st.markdown("### Country Readiness (informativ)")
     st.caption(
         "Dieser Block ist rein informativ und blockiert den Wizard nicht. "
         "Er zeigt, ob zentrale Länderkontext-Daten für spätere EURES/ESCO-Prozesse vorliegen."
     )
-    readiness_items = _build_country_readiness_items(job)
-    for label, value, ready in readiness_items:
+    for label, value, ready in vm.readiness_items:
         icon = "✅" if ready else "ℹ️"
         st.write(f"{icon} **{label}:** {value}")
+
+    with st.expander("Kompaktüberblick (sekundär)", expanded=False):
+        table = _build_summary_compact_table(
+            job=vm.job,
+            answers=vm.answers,
+            plan=vm.plan,
+            brief=vm.brief_for_snapshot,
+        )
+        st.dataframe(table, width="stretch", hide_index=True)
 
 
 def _format_summary_answer_value(question: Question, value: Any) -> str:
@@ -1902,419 +1948,13 @@ def _build_action_registry(
     ]
 
 
-def render(ctx: WizardContext) -> None:
-    render_error_banner()
-
-    job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
-    plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
-
-    if not job_dict or not plan_dict:
-        st.warning("Bitte zuerst im Start-Schritt eine Analyse durchführen.")
-        st.button("Zur Startseite", on_click=lambda: ctx.goto("landing"))
-        nav_buttons(ctx, disable_next=True)
-        return
-
-    job = JobAdExtract.model_validate(job_dict)
-    answers = get_answers()
-    selected_role_tasks = _read_saved_selection_labels(SSKey.ROLE_TASKS_SELECTED)
-    selected_skills = _read_saved_selection_labels(SSKey.SKILLS_SELECTED)
-    brief_dict = st.session_state.get(SSKey.BRIEF.value)
-    brief_for_snapshot = (
-        VacancyBrief.model_validate(brief_dict)
-        if isinstance(brief_dict, dict)
-        else None
-    )
-
-    _render_summary_hero(job=job, answers=answers)
-    selected_occupation = get_esco_occupation_selected()
-    if selected_occupation:
-        st.caption(
-            f"ESCO Occupation aus Jobspec-Review: {selected_occupation.get('title', '—')}"
-        )
-    else:
-        st.caption("ESCO Occupation: Keine passende Occupation ausgewählt.")
-    _render_summary_snapshot(job=job, answers=answers, brief=brief_for_snapshot)
-    _render_country_readiness_block(job)
-
-    settings = load_openai_settings()
-    session_override = get_model_override()
-    resolved_brief_model = resolve_model_for_task(
-        task_kind=TASK_GENERATE_VACANCY_BRIEF,
-        session_override=session_override,
-        settings=settings,
-    )
-    resolved_job_ad_model = resolve_model_for_task(
-        task_kind=TASK_GENERATE_JOB_AD,
-        session_override=session_override,
-        settings=settings,
-    )
-    resolved_hr_sheet_model = resolve_model_for_task(
-        task_kind=TASK_GENERATE_INTERVIEW_SHEET_HR,
-        session_override=session_override,
-        settings=settings,
-    )
-    resolved_fach_sheet_model = resolve_model_for_task(
-        task_kind=TASK_GENERATE_INTERVIEW_SHEET_HM,
-        session_override=session_override,
-        settings=settings,
-    )
-    resolved_boolean_search_model = resolve_model_for_task(
-        task_kind=TASK_GENERATE_BOOLEAN_SEARCH,
-        session_override=session_override,
-        settings=settings,
-    )
-    resolved_employment_contract_model = resolve_model_for_task(
-        task_kind=TASK_GENERATE_EMPLOYMENT_CONTRACT,
-        session_override=session_override,
-        settings=settings,
-    )
-
-    def _run_generate_recruiting_brief(
-        *,
-        mode: str = "standard_draft",
-        spinner_text: str = "Generiere Recruiting Brief…",
-        error_step: str = "summary.generate_brief",
-    ) -> bool:
-        clear_error()
-        store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
-        try:
-            with st.spinner(spinner_text):
-                brief, usage = generate_vacancy_brief(
-                    job,
-                    answers,
-                    model=resolved_brief_model,
-                    selected_role_tasks=selected_role_tasks,
-                    selected_skills=selected_skills,
-                    store=store,
-                )
-            st.session_state[SSKey.BRIEF.value] = brief.model_dump()
-            brief_cached = usage_has_cache_hit(usage)
-            st.session_state[SSKey.SUMMARY_CACHE_HIT.value] = brief_cached
-            st.session_state[SSKey.SUMMARY_LAST_MODE.value] = mode
-            st.session_state[SSKey.SUMMARY_LAST_MODELS.value] = {
-                "draft_model": resolved_brief_model
-            }
-            if brief_cached:
-                st.info(
-                    "Recruiting Brief aus Cache geladen (DE) / Recruiting brief loaded from cache (EN)."
-                )
-            return True
-        except OpenAICallError as e:
-            render_openai_error(e)
-            return False
-        except Exception as exc:
-            error_type = type(exc).__name__
-            handle_unexpected_exception(
-                step=error_step,
-                exc=exc,
-                error_type=error_type,
-                error_code="SUMMARY_BRIEF_GENERATION_UNEXPECTED",
-            )
-            return False
-
-    def _generate_recruiting_brief() -> None:
-        _run_generate_recruiting_brief()
-
-    def _generate_job_ad() -> None:
-        clear_error()
-        selected_values = st.session_state.get(SSKey.SUMMARY_SELECTIONS.value, {})
-        styleguide = str(st.session_state.get(SSKey.SUMMARY_STYLEGUIDE_TEXT.value, ""))
-        change_request = str(
-            st.session_state.get(SSKey.SUMMARY_CHANGE_REQUEST_TEXT.value, "")
-        )
-        logo_payload = st.session_state.get(SSKey.SUMMARY_LOGO.value)
-        try:
-            with st.spinner("Generiere zielgruppen-optimierte Stellenanzeige …"):
-                result, usage = generate_custom_job_ad(
-                    job=job,
-                    answers=answers,
-                    selected_values=selected_values,
-                    style_guide=styleguide,
-                    change_request=change_request,
-                    model=resolved_job_ad_model,
-                    store=bool(
-                        st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)
-                    ),
-                )
-            normalized_result, extracted_notes = _sanitize_generated_job_ad(result)
-            payload = normalized_result.model_dump(mode="json")
-            payload["generation_notes"] = extracted_notes
-            payload["styleguide"] = styleguide
-            payload["logo_filename"] = (
-                logo_payload.get("name") if isinstance(logo_payload, dict) else None
-            )
-            st.session_state[SSKey.JOB_AD_DRAFT_CUSTOM.value] = payload
-            st.session_state[SSKey.JOB_AD_LAST_USAGE.value] = usage or {}
-        except OpenAICallError as e:
-            render_openai_error(e)
-        except Exception as exc:
-            handle_unexpected_exception(
-                step="summary.job_ad_generation",
-                exc=exc,
-                error_type=type(exc).__name__,
-                error_code="SUMMARY_JOB_AD_GENERATION_UNEXPECTED",
-            )
-
-    def _get_brief_status() -> tuple[str, VacancyBrief | None]:
-        requirement_ok, _ = _get_brief_requirement_status(resolved_brief_model)
-        brief_payload = st.session_state.get(SSKey.BRIEF.value)
-        if not isinstance(brief_payload, dict):
-            return "missing", None
-        try:
-            brief = VacancyBrief.model_validate(brief_payload)
-        except Exception:
-            return "invalid", None
-        if not requirement_ok:
-            return "stale", brief
-        return "ready", brief
-
-    def _resolve_brief_for_follow_up_action() -> VacancyBrief | None:
-        brief_status, brief_model = _get_brief_status()
-        if brief_status == "ready":
-            return brief_model
-        if brief_status == "missing":
-            st.info(
-                "Kein Recruiting Brief vorhanden. Bitte zuerst die Karte "
-                "„Recruiting Brief generieren“ ausführen."
-            )
-            return None
-        if brief_status == "invalid":
-            st.warning(
-                "Recruiting Brief ist ungültig. Bitte über „Recruiting Brief generieren“ neu erstellen."
-            )
-            return None
-        st.info(
-            "Recruiting Brief ist veraltet. Bitte über „Recruiting Brief generieren“ aktualisieren."
-        )
-        return None
-
-    def _generate_interview_prep_hr() -> None:
-        clear_error()
-        brief_model = _resolve_brief_for_follow_up_action()
-        if brief_model is None:
-            return
-        try:
-            store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
-            with st.spinner("Generiere Interview-Sheet (HR)…"):
-                sheet, usage = generate_interview_sheet_hr(
-                    brief=brief_model,
-                    model=resolved_hr_sheet_model,
-                    store=store,
-                )
-            st.session_state[SSKey.INTERVIEW_PREP_HR.value] = sheet.model_dump(
-                mode="json"
-            )
-            st.session_state[SSKey.INTERVIEW_PREP_HR_LAST_USAGE.value] = usage or {}
-            st.session_state[SSKey.INTERVIEW_PREP_HR_CACHE_HIT.value] = (
-                usage_has_cache_hit(usage)
-            )
-            st.session_state[SSKey.INTERVIEW_PREP_HR_LAST_MODE.value] = "from_brief"
-            st.session_state[SSKey.INTERVIEW_PREP_HR_LAST_MODELS.value] = {
-                "draft_model": resolved_hr_sheet_model
-            }
-        except OpenAICallError as e:
-            render_openai_error(e)
-        except Exception as exc:
-            handle_unexpected_exception(
-                step="summary.interview_prep_hr_generation",
-                exc=exc,
-                error_type=type(exc).__name__,
-                error_code="SUMMARY_INTERVIEW_PREP_HR_GENERATION_UNEXPECTED",
-            )
-
-    def _generate_interview_prep_fach() -> None:
-        clear_error()
-        brief_model = _resolve_brief_for_follow_up_action()
-        if brief_model is None:
-            return
-        try:
-            store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
-            with st.spinner("Generiere Interview-Sheet (Fachbereich)…"):
-                sheet, usage = generate_interview_sheet_hm(
-                    brief=brief_model,
-                    model=resolved_fach_sheet_model,
-                    store=store,
-                )
-            st.session_state[SSKey.INTERVIEW_PREP_FACH.value] = sheet.model_dump(
-                mode="json"
-            )
-            st.session_state[SSKey.INTERVIEW_PREP_FACH_LAST_USAGE.value] = usage or {}
-            st.session_state[SSKey.INTERVIEW_PREP_FACH_CACHE_HIT.value] = (
-                usage_has_cache_hit(usage)
-            )
-            st.session_state[SSKey.INTERVIEW_PREP_FACH_LAST_MODE.value] = "from_brief"
-            st.session_state[SSKey.INTERVIEW_PREP_FACH_LAST_MODELS.value] = {
-                "draft_model": resolved_fach_sheet_model
-            }
-        except OpenAICallError as e:
-            render_openai_error(e)
-        except Exception as exc:
-            handle_unexpected_exception(
-                step="summary.interview_prep_fach_generation",
-                exc=exc,
-                error_type=type(exc).__name__,
-                error_code="SUMMARY_INTERVIEW_PREP_FACH_GENERATION_UNEXPECTED",
-            )
-
-    def _generate_boolean_search_pack() -> None:
-        clear_error()
-        brief_model = _resolve_brief_for_follow_up_action()
-        if brief_model is None:
-            return
-        try:
-            store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
-            with st.spinner("Generiere Boolean Search Pack…"):
-                pack, usage = generate_boolean_search_pack(
-                    brief=brief_model,
-                    model=resolved_boolean_search_model,
-                    store=store,
-                )
-            st.session_state[SSKey.BOOLEAN_SEARCH_STRING.value] = pack.model_dump(
-                mode="json"
-            )
-            st.session_state[SSKey.BOOLEAN_SEARCH_LAST_USAGE.value] = usage or {}
-            st.session_state[SSKey.BOOLEAN_SEARCH_CACHE_HIT.value] = (
-                usage_has_cache_hit(usage)
-            )
-            st.session_state[SSKey.BOOLEAN_SEARCH_LAST_MODE.value] = "from_brief"
-            st.session_state[SSKey.BOOLEAN_SEARCH_LAST_MODELS.value] = {
-                "draft_model": resolved_boolean_search_model
-            }
-        except OpenAICallError as e:
-            render_openai_error(e)
-        except Exception as exc:
-            handle_unexpected_exception(
-                step="summary.boolean_search_generation",
-                exc=exc,
-                error_type=type(exc).__name__,
-                error_code="SUMMARY_BOOLEAN_SEARCH_GENERATION_UNEXPECTED",
-            )
-
-    def _generate_employment_contract() -> None:
-        clear_error()
-        brief_model = _resolve_brief_for_follow_up_action()
-        if brief_model is None:
-            return
-        try:
-            store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
-            with st.spinner("Generiere Arbeitsvertrags-Template…"):
-                draft, usage = generate_employment_contract_draft(
-                    brief=brief_model,
-                    model=resolved_employment_contract_model,
-                    store=store,
-                )
-            st.session_state[SSKey.EMPLOYMENT_CONTRACT_DRAFT.value] = draft.model_dump(
-                mode="json"
-            )
-            st.session_state[SSKey.EMPLOYMENT_CONTRACT_LAST_USAGE.value] = usage or {}
-            st.session_state[SSKey.EMPLOYMENT_CONTRACT_CACHE_HIT.value] = (
-                usage_has_cache_hit(usage)
-            )
-            st.session_state[SSKey.EMPLOYMENT_CONTRACT_LAST_MODE.value] = "from_brief"
-            st.session_state[SSKey.EMPLOYMENT_CONTRACT_LAST_MODELS.value] = {
-                "draft_model": resolved_employment_contract_model
-            }
-        except OpenAICallError as e:
-            render_openai_error(e)
-        except Exception as exc:
-            handle_unexpected_exception(
-                step="summary.employment_contract_generation",
-                exc=exc,
-                error_type=type(exc).__name__,
-                error_code="SUMMARY_EMPLOYMENT_CONTRACT_GENERATION_UNEXPECTED",
-            )
-
-    def _render_job_ad_action_hub_inputs() -> None:
-        st.markdown("**Selection Matrix (optional)**")
-        selected_values, _ = _render_selection_matrix(job=job, answers=answers)
-        st.session_state[SSKey.SUMMARY_SELECTIONS.value] = selected_values
-
-        st.markdown("**Job-Ad-Editor**")
-        logo_file = st.file_uploader(
-            "Logo-Upload (optional)",
-            type=["png", "jpg", "jpeg", "svg"],
-            help="Das Logo wird als Metadatum gespeichert und kann im Exportprozess weiterverwendet werden.",
-            key=SSKey.SUMMARY_LOGO_UPLOAD_WIDGET.value,
-        )
-        normalized_logo = _normalize_logo_payload(logo_file)
-        st.session_state[SSKey.SUMMARY_LOGO.value] = normalized_logo
-        if logo_file is not None and normalized_logo is None:
-            st.warning(
-                "Logo-Format wird für Exporte nicht unterstützt. Bitte PNG oder JPG/JPEG verwenden."
-            )
-        if normalized_logo:
-            st.image(
-                normalized_logo["bytes"],
-                caption=f"Verwendetes Firmenlogo: {normalized_logo.get('name', 'logo')}",
-                width=180,
-            )
-
-        styleguide_key = SSKey.SUMMARY_STYLEGUIDE_TEXT.value
-        if styleguide_key not in st.session_state:
-            st.session_state[styleguide_key] = ""
-
-        styleguide_slot = st.empty()
-        _render_template_toggles(
-            title="Bausteine (Styleguide-Beschleuniger)",
-            text_key=SSKey.SUMMARY_STYLEGUIDE_TEXT,
-            selection_key=SSKey.SUMMARY_STYLEGUIDE_BLOCKS,
-            template_blocks=STYLEGUIDE_TEMPLATE_BLOCKS,
-            widget_prefix=SSKey.SUMMARY_STYLEGUIDE_BLOCK_WIDGET_PREFIX.value,
-        )
-        _ = styleguide_slot.text_area(
-            "Styleguide des Arbeitgebers",
-            placeholder="z. B. Tonalität, Wording, No-Gos, Corporate Language, Du/Sie, Diversity-Hinweise …",
-            key=styleguide_key,
-        )
-
-        change_request_key = SSKey.SUMMARY_CHANGE_REQUEST_TEXT.value
-        if change_request_key not in st.session_state:
-            st.session_state[change_request_key] = ""
-
-        change_request_slot = st.empty()
-        _render_template_toggles(
-            title="Bausteine (Change-Request-Beschleuniger)",
-            text_key=SSKey.SUMMARY_CHANGE_REQUEST_TEXT,
-            selection_key=SSKey.SUMMARY_CHANGE_REQUEST_BLOCKS,
-            template_blocks=CHANGE_REQUEST_TEMPLATE_BLOCKS,
-            widget_prefix=SSKey.SUMMARY_CHANGE_REQUEST_BLOCK_WIDGET_PREFIX.value,
-        )
-        _ = change_request_slot.text_area(
-            "Anpassungswünsche (für Iterationen)",
-            placeholder="z. B. stärker auf Senior-Profile fokussieren, CTA kürzen, Benefits konkretisieren …",
-            key=change_request_key,
-        )
-        critical_gaps = _collect_critical_gaps(
-            job,
-            _build_selection_rows(job, answers),
-        )
-        if critical_gaps:
-            st.info(
-                "Hinweis: Kritische Lücken werden in der AGG-Checkliste markiert und nicht halluziniert."
-            )
-        st.caption(f"Job-Ad-Modell: `{resolved_job_ad_model}`")
-
-    st.markdown("### Action Hub")
+def _render_summary_processing_hub(
+    *,
+    action_registry: list[SummaryAction],
+) -> None:
+    st.markdown("### Processing Hub")
     st.caption(
         "Einheitliche Aktionskarten für Erzeugung, Qualitätssicherung und Folgeartefakte."
-    )
-    action_registry = _build_action_registry(
-        resolved_brief_model=resolved_brief_model,
-        resolved_job_ad_model=resolved_job_ad_model,
-        resolved_hr_sheet_model=resolved_hr_sheet_model,
-        resolved_fach_sheet_model=resolved_fach_sheet_model,
-        resolved_boolean_search_model=resolved_boolean_search_model,
-        resolved_employment_contract_model=resolved_employment_contract_model,
-        render_job_ad_inputs=_render_job_ad_action_hub_inputs,
-        follow_up_requirement_check=lambda: _get_brief_requirement_status(
-            resolved_brief_model
-        ),
-        generate_recruiting_brief=_generate_recruiting_brief,
-        generate_job_ad=_generate_job_ad,
-        generate_interview_prep_hr=_generate_interview_prep_hr,
-        generate_interview_prep_fach=_generate_interview_prep_fach,
-        generate_boolean_search=_generate_boolean_search_pack,
-        generate_employment_contract=_generate_employment_contract,
     )
     card_columns = st.columns(2)
     for index, action in enumerate(action_registry):
@@ -2324,15 +1964,17 @@ def render(ctx: WizardContext) -> None:
                 action["generator_fn"]()
                 st.rerun()
 
-    brief_dict = st.session_state.get(SSKey.BRIEF.value)
-    if not brief_dict:
-        st.info(
-            "Noch kein Recruiting Brief verfügbar. Prüfe die Eingaben und versuche es erneut."
-        )
-        nav_buttons(ctx, disable_next=True)
-        return
 
-    brief = VacancyBrief.model_validate(brief_dict)
+def _render_summary_results_workspace(
+    *,
+    brief: VacancyBrief,
+    resolved_brief_model: str,
+    resolved_hr_sheet_model: str,
+    resolved_fach_sheet_model: str,
+    resolved_boolean_search_model: str,
+    resolved_employment_contract_model: str,
+    vm: SummaryViewModel,
+) -> None:
     if bool(st.session_state.get(SSKey.SUMMARY_CACHE_HIT.value, False)):
         st.caption("📦 Summary: aus Cache geladen (DE) / loaded from cache (EN).")
     last_mode = st.session_state.get(SSKey.SUMMARY_LAST_MODE.value) or "unknown"
@@ -2591,7 +2233,7 @@ def render(ctx: WizardContext) -> None:
 
     with advanced_tab:
         with st.expander("Salary Forecast", expanded=False):
-            _render_salary_forecast(job, answers)
+            _render_salary_forecast(vm.job, vm.answers)
         st.caption(
             "Selection Matrix und Job-Ad-Editor sind direkt im Action Hub beim Job-Ad-Generator verfügbar."
         )
@@ -2657,6 +2299,426 @@ def render(ctx: WizardContext) -> None:
                             file_name="stellenanzeige.pdf",
                             mime="application/pdf",
                         )
+
+
+def render(ctx: WizardContext) -> None:
+    render_error_banner()
+
+    # SUMMARY_ZONE: GUARD_INIT
+    vm = _build_summary_view_model()
+    if vm is None:
+        st.warning("Bitte zuerst im Start-Schritt eine Analyse durchführen.")
+        st.button("Zur Startseite", on_click=lambda: ctx.goto("landing"))
+        nav_buttons(ctx, disable_next=True)
+        return
+
+    # SUMMARY_ZONE: HERO
+    _render_summary_hero(job=vm.job, answers=vm.answers)
+
+    # SUMMARY_ZONE: FACTS
+    _render_summary_facts_section(vm)
+
+    settings = load_openai_settings()
+    session_override = get_model_override()
+    resolved_brief_model = resolve_model_for_task(
+        task_kind=TASK_GENERATE_VACANCY_BRIEF,
+        session_override=session_override,
+        settings=settings,
+    )
+    resolved_job_ad_model = resolve_model_for_task(
+        task_kind=TASK_GENERATE_JOB_AD,
+        session_override=session_override,
+        settings=settings,
+    )
+    resolved_hr_sheet_model = resolve_model_for_task(
+        task_kind=TASK_GENERATE_INTERVIEW_SHEET_HR,
+        session_override=session_override,
+        settings=settings,
+    )
+    resolved_fach_sheet_model = resolve_model_for_task(
+        task_kind=TASK_GENERATE_INTERVIEW_SHEET_HM,
+        session_override=session_override,
+        settings=settings,
+    )
+    resolved_boolean_search_model = resolve_model_for_task(
+        task_kind=TASK_GENERATE_BOOLEAN_SEARCH,
+        session_override=session_override,
+        settings=settings,
+    )
+    resolved_employment_contract_model = resolve_model_for_task(
+        task_kind=TASK_GENERATE_EMPLOYMENT_CONTRACT,
+        session_override=session_override,
+        settings=settings,
+    )
+
+    def _run_generate_recruiting_brief(
+        *,
+        mode: str = "standard_draft",
+        spinner_text: str = "Generiere Recruiting Brief…",
+        error_step: str = "summary.generate_brief",
+    ) -> bool:
+        clear_error()
+        store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
+        try:
+            with st.spinner(spinner_text):
+                brief, usage = generate_vacancy_brief(
+                    vm.job,
+                    vm.answers,
+                    model=resolved_brief_model,
+                    selected_role_tasks=vm.selected_role_tasks,
+                    selected_skills=vm.selected_skills,
+                    store=store,
+                )
+            st.session_state[SSKey.BRIEF.value] = brief.model_dump()
+            brief_cached = usage_has_cache_hit(usage)
+            st.session_state[SSKey.SUMMARY_CACHE_HIT.value] = brief_cached
+            st.session_state[SSKey.SUMMARY_LAST_MODE.value] = mode
+            st.session_state[SSKey.SUMMARY_LAST_MODELS.value] = {
+                "draft_model": resolved_brief_model
+            }
+            if brief_cached:
+                st.info(
+                    "Recruiting Brief aus Cache geladen (DE) / Recruiting brief loaded from cache (EN)."
+                )
+            return True
+        except OpenAICallError as e:
+            render_openai_error(e)
+            return False
+        except Exception as exc:
+            error_type = type(exc).__name__
+            handle_unexpected_exception(
+                step=error_step,
+                exc=exc,
+                error_type=error_type,
+                error_code="SUMMARY_BRIEF_GENERATION_UNEXPECTED",
+            )
+            return False
+
+    def _generate_recruiting_brief() -> None:
+        _run_generate_recruiting_brief()
+
+    def _generate_job_ad() -> None:
+        clear_error()
+        selected_values = st.session_state.get(SSKey.SUMMARY_SELECTIONS.value, {})
+        styleguide = str(st.session_state.get(SSKey.SUMMARY_STYLEGUIDE_TEXT.value, ""))
+        change_request = str(
+            st.session_state.get(SSKey.SUMMARY_CHANGE_REQUEST_TEXT.value, "")
+        )
+        logo_payload = st.session_state.get(SSKey.SUMMARY_LOGO.value)
+        try:
+            with st.spinner("Generiere zielgruppen-optimierte Stellenanzeige …"):
+                result, usage = generate_custom_job_ad(
+                    job=vm.job,
+                    answers=vm.answers,
+                    selected_values=selected_values,
+                    style_guide=styleguide,
+                    change_request=change_request,
+                    model=resolved_job_ad_model,
+                    store=bool(
+                        st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)
+                    ),
+                )
+            normalized_result, extracted_notes = _sanitize_generated_job_ad(result)
+            payload = normalized_result.model_dump(mode="json")
+            payload["generation_notes"] = extracted_notes
+            payload["styleguide"] = styleguide
+            payload["logo_filename"] = (
+                logo_payload.get("name") if isinstance(logo_payload, dict) else None
+            )
+            st.session_state[SSKey.JOB_AD_DRAFT_CUSTOM.value] = payload
+            st.session_state[SSKey.JOB_AD_LAST_USAGE.value] = usage or {}
+        except OpenAICallError as e:
+            render_openai_error(e)
+        except Exception as exc:
+            handle_unexpected_exception(
+                step="summary.job_ad_generation",
+                exc=exc,
+                error_type=type(exc).__name__,
+                error_code="SUMMARY_JOB_AD_GENERATION_UNEXPECTED",
+            )
+
+    def _get_brief_status() -> tuple[str, VacancyBrief | None]:
+        requirement_ok, _ = _get_brief_requirement_status(resolved_brief_model)
+        brief_payload = st.session_state.get(SSKey.BRIEF.value)
+        if not isinstance(brief_payload, dict):
+            return "missing", None
+        try:
+            brief = VacancyBrief.model_validate(brief_payload)
+        except Exception:
+            return "invalid", None
+        if not requirement_ok:
+            return "stale", brief
+        return "ready", brief
+
+    def _resolve_brief_for_follow_up_action() -> VacancyBrief | None:
+        brief_status, brief_model = _get_brief_status()
+        if brief_status == "ready":
+            return brief_model
+        if brief_status == "missing":
+            st.info(
+                "Kein Recruiting Brief vorhanden. Bitte zuerst die Karte "
+                "„Recruiting Brief generieren“ ausführen."
+            )
+            return None
+        if brief_status == "invalid":
+            st.warning(
+                "Recruiting Brief ist ungültig. Bitte über „Recruiting Brief generieren“ neu erstellen."
+            )
+            return None
+        st.info(
+            "Recruiting Brief ist veraltet. Bitte über „Recruiting Brief generieren“ aktualisieren."
+        )
+        return None
+
+    def _generate_interview_prep_hr() -> None:
+        clear_error()
+        brief_model = _resolve_brief_for_follow_up_action()
+        if brief_model is None:
+            return
+        try:
+            store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
+            with st.spinner("Generiere Interview-Sheet (HR)…"):
+                sheet, usage = generate_interview_sheet_hr(
+                    brief=brief_model,
+                    model=resolved_hr_sheet_model,
+                    store=store,
+                )
+            st.session_state[SSKey.INTERVIEW_PREP_HR.value] = sheet.model_dump(
+                mode="json"
+            )
+            st.session_state[SSKey.INTERVIEW_PREP_HR_LAST_USAGE.value] = usage or {}
+            st.session_state[SSKey.INTERVIEW_PREP_HR_CACHE_HIT.value] = (
+                usage_has_cache_hit(usage)
+            )
+            st.session_state[SSKey.INTERVIEW_PREP_HR_LAST_MODE.value] = "from_brief"
+            st.session_state[SSKey.INTERVIEW_PREP_HR_LAST_MODELS.value] = {
+                "draft_model": resolved_hr_sheet_model
+            }
+        except OpenAICallError as e:
+            render_openai_error(e)
+        except Exception as exc:
+            handle_unexpected_exception(
+                step="summary.interview_prep_hr_generation",
+                exc=exc,
+                error_type=type(exc).__name__,
+                error_code="SUMMARY_INTERVIEW_PREP_HR_GENERATION_UNEXPECTED",
+            )
+
+    def _generate_interview_prep_fach() -> None:
+        clear_error()
+        brief_model = _resolve_brief_for_follow_up_action()
+        if brief_model is None:
+            return
+        try:
+            store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
+            with st.spinner("Generiere Interview-Sheet (Fachbereich)…"):
+                sheet, usage = generate_interview_sheet_hm(
+                    brief=brief_model,
+                    model=resolved_fach_sheet_model,
+                    store=store,
+                )
+            st.session_state[SSKey.INTERVIEW_PREP_FACH.value] = sheet.model_dump(
+                mode="json"
+            )
+            st.session_state[SSKey.INTERVIEW_PREP_FACH_LAST_USAGE.value] = usage or {}
+            st.session_state[SSKey.INTERVIEW_PREP_FACH_CACHE_HIT.value] = (
+                usage_has_cache_hit(usage)
+            )
+            st.session_state[SSKey.INTERVIEW_PREP_FACH_LAST_MODE.value] = "from_brief"
+            st.session_state[SSKey.INTERVIEW_PREP_FACH_LAST_MODELS.value] = {
+                "draft_model": resolved_fach_sheet_model
+            }
+        except OpenAICallError as e:
+            render_openai_error(e)
+        except Exception as exc:
+            handle_unexpected_exception(
+                step="summary.interview_prep_fach_generation",
+                exc=exc,
+                error_type=type(exc).__name__,
+                error_code="SUMMARY_INTERVIEW_PREP_FACH_GENERATION_UNEXPECTED",
+            )
+
+    def _generate_boolean_search_pack() -> None:
+        clear_error()
+        brief_model = _resolve_brief_for_follow_up_action()
+        if brief_model is None:
+            return
+        try:
+            store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
+            with st.spinner("Generiere Boolean Search Pack…"):
+                pack, usage = generate_boolean_search_pack(
+                    brief=brief_model,
+                    model=resolved_boolean_search_model,
+                    store=store,
+                )
+            st.session_state[SSKey.BOOLEAN_SEARCH_STRING.value] = pack.model_dump(
+                mode="json"
+            )
+            st.session_state[SSKey.BOOLEAN_SEARCH_LAST_USAGE.value] = usage or {}
+            st.session_state[SSKey.BOOLEAN_SEARCH_CACHE_HIT.value] = (
+                usage_has_cache_hit(usage)
+            )
+            st.session_state[SSKey.BOOLEAN_SEARCH_LAST_MODE.value] = "from_brief"
+            st.session_state[SSKey.BOOLEAN_SEARCH_LAST_MODELS.value] = {
+                "draft_model": resolved_boolean_search_model
+            }
+        except OpenAICallError as e:
+            render_openai_error(e)
+        except Exception as exc:
+            handle_unexpected_exception(
+                step="summary.boolean_search_generation",
+                exc=exc,
+                error_type=type(exc).__name__,
+                error_code="SUMMARY_BOOLEAN_SEARCH_GENERATION_UNEXPECTED",
+            )
+
+    def _generate_employment_contract() -> None:
+        clear_error()
+        brief_model = _resolve_brief_for_follow_up_action()
+        if brief_model is None:
+            return
+        try:
+            store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
+            with st.spinner("Generiere Arbeitsvertrags-Template…"):
+                draft, usage = generate_employment_contract_draft(
+                    brief=brief_model,
+                    model=resolved_employment_contract_model,
+                    store=store,
+                )
+            st.session_state[SSKey.EMPLOYMENT_CONTRACT_DRAFT.value] = draft.model_dump(
+                mode="json"
+            )
+            st.session_state[SSKey.EMPLOYMENT_CONTRACT_LAST_USAGE.value] = usage or {}
+            st.session_state[SSKey.EMPLOYMENT_CONTRACT_CACHE_HIT.value] = (
+                usage_has_cache_hit(usage)
+            )
+            st.session_state[SSKey.EMPLOYMENT_CONTRACT_LAST_MODE.value] = "from_brief"
+            st.session_state[SSKey.EMPLOYMENT_CONTRACT_LAST_MODELS.value] = {
+                "draft_model": resolved_employment_contract_model
+            }
+        except OpenAICallError as e:
+            render_openai_error(e)
+        except Exception as exc:
+            handle_unexpected_exception(
+                step="summary.employment_contract_generation",
+                exc=exc,
+                error_type=type(exc).__name__,
+                error_code="SUMMARY_EMPLOYMENT_CONTRACT_GENERATION_UNEXPECTED",
+            )
+
+    def _render_job_ad_action_hub_inputs() -> None:
+        st.markdown("**Selection Matrix (optional)**")
+        selected_values, _ = _render_selection_matrix(job=vm.job, answers=vm.answers)
+        st.session_state[SSKey.SUMMARY_SELECTIONS.value] = selected_values
+
+        st.markdown("**Job-Ad-Editor**")
+        logo_file = st.file_uploader(
+            "Logo-Upload (optional)",
+            type=["png", "jpg", "jpeg", "svg"],
+            help="Das Logo wird als Metadatum gespeichert und kann im Exportprozess weiterverwendet werden.",
+            key=SSKey.SUMMARY_LOGO_UPLOAD_WIDGET.value,
+        )
+        normalized_logo = _normalize_logo_payload(logo_file)
+        st.session_state[SSKey.SUMMARY_LOGO.value] = normalized_logo
+        if logo_file is not None and normalized_logo is None:
+            st.warning(
+                "Logo-Format wird für Exporte nicht unterstützt. Bitte PNG oder JPG/JPEG verwenden."
+            )
+        if normalized_logo:
+            st.image(
+                normalized_logo["bytes"],
+                caption=f"Verwendetes Firmenlogo: {normalized_logo.get('name', 'logo')}",
+                width=180,
+            )
+
+        styleguide_key = SSKey.SUMMARY_STYLEGUIDE_TEXT.value
+        if styleguide_key not in st.session_state:
+            st.session_state[styleguide_key] = ""
+
+        styleguide_slot = st.empty()
+        _render_template_toggles(
+            title="Bausteine (Styleguide-Beschleuniger)",
+            text_key=SSKey.SUMMARY_STYLEGUIDE_TEXT,
+            selection_key=SSKey.SUMMARY_STYLEGUIDE_BLOCKS,
+            template_blocks=STYLEGUIDE_TEMPLATE_BLOCKS,
+            widget_prefix=SSKey.SUMMARY_STYLEGUIDE_BLOCK_WIDGET_PREFIX.value,
+        )
+        _ = styleguide_slot.text_area(
+            "Styleguide des Arbeitgebers",
+            placeholder="z. B. Tonalität, Wording, No-Gos, Corporate Language, Du/Sie, Diversity-Hinweise …",
+            key=styleguide_key,
+        )
+
+        change_request_key = SSKey.SUMMARY_CHANGE_REQUEST_TEXT.value
+        if change_request_key not in st.session_state:
+            st.session_state[change_request_key] = ""
+
+        change_request_slot = st.empty()
+        _render_template_toggles(
+            title="Bausteine (Change-Request-Beschleuniger)",
+            text_key=SSKey.SUMMARY_CHANGE_REQUEST_TEXT,
+            selection_key=SSKey.SUMMARY_CHANGE_REQUEST_BLOCKS,
+            template_blocks=CHANGE_REQUEST_TEMPLATE_BLOCKS,
+            widget_prefix=SSKey.SUMMARY_CHANGE_REQUEST_BLOCK_WIDGET_PREFIX.value,
+        )
+        _ = change_request_slot.text_area(
+            "Anpassungswünsche (für Iterationen)",
+            placeholder="z. B. stärker auf Senior-Profile fokussieren, CTA kürzen, Benefits konkretisieren …",
+            key=change_request_key,
+        )
+        critical_gaps = _collect_critical_gaps(
+            vm.job,
+            _build_selection_rows(vm.job, vm.answers),
+        )
+        if critical_gaps:
+            st.info(
+                "Hinweis: Kritische Lücken werden in der AGG-Checkliste markiert und nicht halluziniert."
+            )
+        st.caption(f"Job-Ad-Modell: `{resolved_job_ad_model}`")
+
+    action_registry = _build_action_registry(
+        resolved_brief_model=resolved_brief_model,
+        resolved_job_ad_model=resolved_job_ad_model,
+        resolved_hr_sheet_model=resolved_hr_sheet_model,
+        resolved_fach_sheet_model=resolved_fach_sheet_model,
+        resolved_boolean_search_model=resolved_boolean_search_model,
+        resolved_employment_contract_model=resolved_employment_contract_model,
+        render_job_ad_inputs=_render_job_ad_action_hub_inputs,
+        follow_up_requirement_check=lambda: _get_brief_requirement_status(
+            resolved_brief_model
+        ),
+        generate_recruiting_brief=_generate_recruiting_brief,
+        generate_job_ad=_generate_job_ad,
+        generate_interview_prep_hr=_generate_interview_prep_hr,
+        generate_interview_prep_fach=_generate_interview_prep_fach,
+        generate_boolean_search=_generate_boolean_search_pack,
+        generate_employment_contract=_generate_employment_contract,
+    )
+
+    # SUMMARY_ZONE: PROCESSING_HUB
+    _render_summary_processing_hub(action_registry=action_registry)
+
+    brief_dict = st.session_state.get(SSKey.BRIEF.value)
+    if not brief_dict:
+        st.info(
+            "Noch kein Recruiting Brief verfügbar. Prüfe die Eingaben und versuche es erneut."
+        )
+        nav_buttons(ctx, disable_next=True)
+        return
+
+    brief = VacancyBrief.model_validate(brief_dict)
+
+    # SUMMARY_ZONE: RESULTS
+    # SUMMARY_ZONE: ADVANCED_TOOLS
+    _render_summary_results_workspace(
+        brief=brief,
+        resolved_brief_model=resolved_brief_model,
+        resolved_hr_sheet_model=resolved_hr_sheet_model,
+        resolved_fach_sheet_model=resolved_fach_sheet_model,
+        resolved_boolean_search_model=resolved_boolean_search_model,
+        resolved_employment_contract_model=resolved_employment_contract_model,
+        vm=vm,
+    )
 
     nav_buttons(ctx, disable_next=True)
 
