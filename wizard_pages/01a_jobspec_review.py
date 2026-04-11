@@ -74,7 +74,26 @@ def _load_occupation_title_variants(
     client = EscoClient()
     variants: dict[str, list[str]] = {}
     for language in languages:
-        payload = client.terms(uri=occupation_uri, type="occupation", language=language)
+        try:
+            payload = client.terms(
+                uri=occupation_uri,
+                type="occupation",
+                language=language,
+            )
+        except EscoClientError as exc:
+            fallback_language = "en" if language == "de" else "de"
+            if exc.status_code and exc.status_code >= 500:
+                payload = client.terms(
+                    uri=occupation_uri,
+                    type="occupation",
+                    language=fallback_language,
+                )
+                labels = _collect_occupation_labels(payload)
+                if labels:
+                    variants[language] = labels
+                continue
+            raise
+
         labels = _collect_occupation_labels(payload)
         if labels:
             variants[language] = labels
