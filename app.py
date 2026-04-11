@@ -279,7 +279,28 @@ def _render_info_page(info_page_key: str) -> None:
             """
             Diese App führt dich strukturiert durch die Erstellung eines Vacancy Briefs – von
             den Basisdaten bis zur konsistenten Zusammenfassung für Recruiting und Hiring.
+            """
+        )
+        st.markdown("**Wähle die passende Perspektive für die Detailansicht:**")
+        col_expert, col_guided = st.columns(2)
+        with col_expert:
+            show_expert_view = st.checkbox(
+                "Für fachlich-technische Einordnung",
+                key="about_view_technical_expert",
+            )
+        with col_guided:
+            show_guided_view = st.checkbox(
+                "Für praxisnahe, allgemeinverständliche Einordnung",
+                key="about_view_general_user",
+            )
 
+        if show_expert_view and show_guided_view:
+            st.info(
+                "Bitte wähle eine Perspektive aus, damit die Inhalte gezielt angezeigt werden."
+            )
+        elif show_expert_view:
+            st.markdown(
+                """
             ### a) Für technisch versierte User
             - **Wizard-Architektur mit Session-State:** Jeder Schritt schreibt in klar benannte
               Session-Keys; so bleiben Eingaben und Ableitungen reproduzierbar.
@@ -292,7 +313,11 @@ def _render_info_page(info_page_key: str) -> None:
             - **API-gestützte Erweiterbarkeit:** Externe Datenquellen (z. B. ESCO) werden als
               Ergänzung in den Wizard eingebunden, um Begriffe zu normalisieren und Vorschläge
               zu verbessern.
-
+                """
+            )
+        elif show_guided_view:
+            st.markdown(
+                """
             ### b) Für weniger technisch versierte User
             - **Schritt-für-Schritt-Assistent:** Du beantwortest nacheinander verständliche Fragen.
             - **Weniger Tipparbeit:** Die App schlägt Inhalte vor, die du übernehmen oder anpassen kannst.
@@ -302,8 +327,12 @@ def _render_info_page(info_page_key: str) -> None:
               und kannst sie direkt für weitere Prozesse verwenden.
             - **Sicherer Umgang mit Daten:** Die App ist darauf ausgelegt, sensible Informationen nicht
               unnötig anzuzeigen oder in Debug-Ansichten offenzulegen.
-            """
-        )
+                """
+            )
+        else:
+            st.caption(
+                "Hinweis: Wähle eine Perspektive, um die erläuternden Details einzublenden."
+            )
 
     if st.button("← Back to Wizard / Zurück zum Wizard"):
         st.query_params.clear()
