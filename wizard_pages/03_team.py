@@ -21,9 +21,7 @@ def render(ctx: WizardContext) -> None:
     plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
 
     if not job_dict or not plan_dict:
-        st.warning(
-            "Bitte zuerst im Start-Schritt eine Analyse durchführen."
-        )
+        st.warning("Bitte zuerst im Start-Schritt eine Analyse durchführen.")
         st.button("Zur Startseite", on_click=lambda: ctx.goto("landing"))
         nav_buttons(ctx, disable_next=True)
         return

@@ -105,6 +105,9 @@ class SSKey(str, Enum):
     ESCO_OCCUPATION_TITLE_VARIANTS = "cs.esco_occupation_title_variants"
     ESCO_MIGRATION_LOG = "cs.esco_migration_log"
     ESCO_MIGRATION_PENDING = "cs.esco_migration_pending"
+    EURES_NACE_TO_ESCO = "cs.eures_nace_to_esco"
+    EURES_NACE_SOURCE = "cs.eures_nace_source"
+    COMPANY_NACE_CODE = "cs.company_nace_code"
 
 
 # ---- Wizard Steps (match your screenshot structure) ----

@@ -1267,6 +1267,52 @@ def _render_summary_snapshot(
     st.dataframe(table, width="stretch", hide_index=True)
 
 
+def _build_country_readiness_items(job: JobAdExtract) -> list[tuple[str, str, bool]]:
+    nace_lookup_raw = st.session_state.get(SSKey.EURES_NACE_TO_ESCO.value, {})
+    nace_lookup = nace_lookup_raw if isinstance(nace_lookup_raw, dict) else {}
+    selected_nace_code = str(
+        st.session_state.get(SSKey.COMPANY_NACE_CODE.value, "") or ""
+    ).strip()
+    mapped_esco_uri = (
+        str(nace_lookup.get(selected_nace_code, "") or "") if selected_nace_code else ""
+    )
+    selected_occupation = get_esco_occupation_selected()
+    return [
+        (
+            "Land vorhanden",
+            job.location_country or "Nicht angegeben",
+            bool(job.location_country),
+        ),
+        (
+            "ESCO Occupation gesetzt",
+            "Ja" if selected_occupation else "Nein",
+            bool(selected_occupation),
+        ),
+        (
+            "NACE-Code gesetzt",
+            selected_nace_code or "Nicht gesetzt",
+            bool(selected_nace_code),
+        ),
+        (
+            "NACE → ESCO gemappt",
+            mapped_esco_uri or "Nicht verfügbar",
+            bool(mapped_esco_uri),
+        ),
+    ]
+
+
+def _render_country_readiness_block(job: JobAdExtract) -> None:
+    st.markdown("### Country Readiness (informativ)")
+    st.caption(
+        "Dieser Block ist rein informativ und blockiert den Wizard nicht. "
+        "Er zeigt, ob zentrale Länderkontext-Daten für spätere EURES/ESCO-Prozesse vorliegen."
+    )
+    readiness_items = _build_country_readiness_items(job)
+    for label, value, ready in readiness_items:
+        icon = "✅" if ready else "ℹ️"
+        st.write(f"{icon} **{label}:** {value}")
+
+
 def _format_summary_answer_value(question: Question, value: Any) -> str:
     if question.answer_type == AnswerType.BOOLEAN:
         return "Ja" if bool(value) else "Nein"
@@ -1549,6 +1595,7 @@ def render(ctx: WizardContext) -> None:
     else:
         st.caption("ESCO Occupation: Keine passende Occupation ausgewählt.")
     _render_summary_snapshot(job=job, answers=answers, brief=brief_for_snapshot)
+    _render_country_readiness_block(job)
 
     settings = load_openai_settings()
     session_override = get_model_override()
