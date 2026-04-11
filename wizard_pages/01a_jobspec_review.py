@@ -188,6 +188,40 @@ def _render_esco_occupation_block(job: JobAdExtract) -> None:
                         st.write(f"- {label}")
 
 
+def _render_extraction_quality_summary(job: JobAdExtract) -> None:
+    expected_fields = [
+        "job_title",
+        "company_name",
+        "role_overview",
+        "responsibilities",
+        "must_have_skills",
+        "location_city",
+        "employment_type",
+    ]
+    populated = 0
+    for field_name in expected_fields:
+        value = getattr(job, field_name, None)
+        if isinstance(value, list):
+            if any(str(item).strip() for item in value if item):
+                populated += 1
+            continue
+        if value and str(value).strip():
+            populated += 1
+
+    quality_ratio = populated / len(expected_fields)
+    if quality_ratio >= 0.75:
+        quality_label = "hoch"
+    elif quality_ratio >= 0.45:
+        quality_label = "mittel"
+    else:
+        quality_label = "niedrig"
+
+    st.caption(
+        "Extraktionsqualität: "
+        f"{quality_label} ({populated}/{len(expected_fields)} Kernfelder gefüllt)."
+    )
+
+
 def render(ctx: WizardContext) -> None:
     job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
     plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
@@ -209,6 +243,7 @@ def render(ctx: WizardContext) -> None:
     render_error_banner()
 
     st.markdown(f"**Jobtitel:** {job.job_title or '—'}")
+    _render_extraction_quality_summary(job)
     _render_esco_occupation_block(job)
 
     with st.sidebar:
