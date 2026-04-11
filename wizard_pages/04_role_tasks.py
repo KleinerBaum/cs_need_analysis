@@ -17,6 +17,7 @@ from ui_components import (
     render_error_banner,
     render_question_step,
 )
+from ui_layout import render_step_shell
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
 from wizard_pages.salary_forecast_panel import render_salary_forecast_panel
 
@@ -221,9 +222,6 @@ def _render_role_task_source_columns(
 
 
 def render(ctx: WizardContext) -> None:
-    st.header("Rolle & Aufgaben")
-    render_error_banner()
-
     job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
     plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
 
@@ -235,11 +233,7 @@ def render(ctx: WizardContext) -> None:
 
     job = JobAdExtract.model_validate(job_dict)
     plan = QuestionPlan.model_validate(plan_dict)
-
-    st.write(
-        "Jetzt schärfen wir Scope, Verantwortlichkeiten, Deliverables, Erfolgskriterien und Stakeholder. "
-        "Das ist der Kern für Briefing, Interviewleitfaden und Erwartungsmanagement."
-    )
+    step = next((s for s in plan.steps if s.step_key == "role_tasks"), None)
 
     responsibilities = [r for r in job.responsibilities if has_meaningful_value(r)]
     deliverables = [r for r in job.deliverables if has_meaningful_value(r)]
@@ -253,9 +247,7 @@ def render(ctx: WizardContext) -> None:
     ]
     st.session_state[SSKey.ROLE_TASKS_JOBSPEC_SUGGESTED.value] = jobspec_suggestions
 
-    with st.expander(
-        "Aus Jobspec extrahiert (Responsibilities & Metrics)", expanded=True
-    ):
+    def _render_extracted_slot() -> None:
         if responsibilities:
             st.write("**Responsibilities (Auszug):**")
             for r in responsibilities[:10]:
@@ -273,83 +265,101 @@ def render(ctx: WizardContext) -> None:
                 "Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions."
             )
 
-    selected_occupation = get_esco_occupation_selected()
-    esco_suggestions: list[dict[str, str]] = []
-    if selected_occupation and str(selected_occupation.get("uri") or "").strip():
-        occupation_uri = str(selected_occupation.get("uri") or "").strip()
-        esco_suggestions, esco_error = (
-            _load_esco_task_suggestions_from_selected_occupation(occupation_uri)
+    def _render_main_slot() -> None:
+        render_error_banner()
+        st.write(
+            "Jetzt schärfen wir Scope, Verantwortlichkeiten, Deliverables, Erfolgskriterien und Stakeholder. "
+            "Das ist der Kern für Briefing, Interviewleitfaden und Erwartungsmanagement."
         )
-        if esco_error:
-            st.caption(
-                f"ESCO-Hinweis: Occupation-Details konnten nicht geladen werden ({esco_error})."
+
+        selected_occupation = get_esco_occupation_selected()
+        esco_suggestions: list[dict[str, str]] = []
+        if selected_occupation and str(selected_occupation.get("uri") or "").strip():
+            occupation_uri = str(selected_occupation.get("uri") or "").strip()
+            esco_suggestions, esco_error = (
+                _load_esco_task_suggestions_from_selected_occupation(occupation_uri)
             )
-    st.session_state[SSKey.ROLE_TASKS_ESCO_SUGGESTED.value] = esco_suggestions
+            if esco_error:
+                st.caption(
+                    f"ESCO-Hinweis: Occupation-Details konnten nicht geladen werden ({esco_error})."
+                )
+        st.session_state[SSKey.ROLE_TASKS_ESCO_SUGGESTED.value] = esco_suggestions
 
-    st.markdown("### AI-Vorschläge ergänzen")
-    st.number_input(
-        "Anzahl AI-Aufgaben-Vorschläge",
-        min_value=1,
-        max_value=12,
-        key=SSKey.ROLE_TASKS_SUGGEST_COUNT.value,
-    )
-
-    if st.button("Aufgaben-Vorschläge generieren"):
-        context = _build_task_suggestion_context(job=job)
-        existing_tasks = _dedupe_task_terms(
-            [
-                *context["jobspec_terms"],
-                *[str(item.get("label") or "") for item in esco_suggestions],
-                *context["selected_terms"],
-            ]
-        )
-        target_task_count = int(
-            st.session_state.get(SSKey.ROLE_TASKS_SUGGEST_COUNT.value, 5)
+        st.markdown("### AI-Vorschläge ergänzen")
+        st.number_input(
+            "Anzahl AI-Aufgaben-Vorschläge",
+            min_value=1,
+            max_value=12,
+            key=SSKey.ROLE_TASKS_SUGGEST_COUNT.value,
         )
 
-        with st.spinner("Generiere Aufgaben-Vorschläge …"):
-            pack, _usage = generate_requirement_gap_suggestions(
-                job=job,
-                answers=get_answers(),
-                existing_skills=[],
-                existing_tasks=existing_tasks,
-                esco_skill_titles=context["esco_skill_titles"],
-                target_skill_count=0,
-                target_task_count=target_task_count,
-                model=get_active_model(),
-                language=str(st.session_state.get(SSKey.LANGUAGE.value, "de")),
-                store=bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)),
+        if st.button("Aufgaben-Vorschläge generieren"):
+            context = _build_task_suggestion_context(job=job)
+            existing_tasks = _dedupe_task_terms(
+                [
+                    *context["jobspec_terms"],
+                    *[str(item.get("label") or "") for item in esco_suggestions],
+                    *context["selected_terms"],
+                ]
+            )
+            target_task_count = int(
+                st.session_state.get(SSKey.ROLE_TASKS_SUGGEST_COUNT.value, 5)
             )
 
-        merged_llm = _merge_llm_task_suggestions(
-            llm_tasks=[item.model_dump(mode="json") for item in pack.tasks],
-            blocked_labels=existing_tasks,
+            with st.spinner("Generiere Aufgaben-Vorschläge …"):
+                pack, _usage = generate_requirement_gap_suggestions(
+                    job=job,
+                    answers=get_answers(),
+                    existing_skills=[],
+                    existing_tasks=existing_tasks,
+                    esco_skill_titles=context["esco_skill_titles"],
+                    target_skill_count=0,
+                    target_task_count=target_task_count,
+                    model=get_active_model(),
+                    language=str(st.session_state.get(SSKey.LANGUAGE.value, "de")),
+                    store=bool(
+                        st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)
+                    ),
+                )
+
+            merged_llm = _merge_llm_task_suggestions(
+                llm_tasks=[item.model_dump(mode="json") for item in pack.tasks],
+                blocked_labels=existing_tasks,
+            )
+            st.session_state[SSKey.ROLE_TASKS_LLM_SUGGESTED.value] = merged_llm
+            st.success(f"{len(merged_llm)} neue AI-Aufgabe(n) vorgeschlagen.")
+
+        llm_suggested_raw = st.session_state.get(
+            SSKey.ROLE_TASKS_LLM_SUGGESTED.value, []
         )
-        st.session_state[SSKey.ROLE_TASKS_LLM_SUGGESTED.value] = merged_llm
-        st.success(f"{len(merged_llm)} neue AI-Aufgabe(n) vorgeschlagen.")
+        llm_suggested = llm_suggested_raw if isinstance(llm_suggested_raw, list) else []
 
-    llm_suggested_raw = st.session_state.get(SSKey.ROLE_TASKS_LLM_SUGGESTED.value, [])
-    llm_suggested = llm_suggested_raw if isinstance(llm_suggested_raw, list) else []
+        _render_role_task_source_columns(
+            jobspec_suggested=jobspec_suggestions,
+            esco_suggested=esco_suggestions,
+            llm_suggested=llm_suggested,
+        )
 
-    _render_role_task_source_columns(
-        jobspec_suggested=jobspec_suggestions,
-        esco_suggested=esco_suggestions,
-        llm_suggested=llm_suggested,
+        with st.expander("Salary Forecast", expanded=True):
+            render_salary_forecast_panel(job, get_answers())
+
+        if step is None or not step.questions:
+            st.info(
+                "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
+            )
+            return
+
+        render_question_step(step)
+
+    render_step_shell(
+        title="Rolle & Aufgaben",
+        subtitle="Scope, Verantwortlichkeiten und Erfolgskriterien der Rolle.",
+        step=step,
+        extracted_from_jobspec_slot=_render_extracted_slot,
+        extracted_from_jobspec_label="Aus Jobspec extrahiert (Responsibilities & Metrics)",
+        main_content_slot=_render_main_slot,
+        footer_slot=lambda: nav_buttons(ctx),
     )
-
-    with st.expander("Salary Forecast", expanded=True):
-        render_salary_forecast_panel(job, get_answers())
-
-    step = next((s for s in plan.steps if s.step_key == "role_tasks"), None)
-    if step is None or not step.questions:
-        st.info(
-            "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
-        )
-        nav_buttons(ctx)
-        return
-
-    render_question_step(step)
-    nav_buttons(ctx)
 
 
 PAGE = WizardPage(
