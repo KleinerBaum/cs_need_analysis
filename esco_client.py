@@ -19,6 +19,9 @@ LOGGER = logging.getLogger(__name__)
 ESCO_CACHE_TTL_SECONDS = 600
 DEFAULT_TIMEOUT_SECONDS = 10.0
 DEFAULT_ESCO_API_BASE_URL = "https://ec.europa.eu/esco/api/"
+RETRYABLE_HTTP_STATUS_CODES = frozenset({500, 502, 503, 504})
+MAX_RETRIES = 2
+RETRY_BACKOFF_SECONDS = 0.25
 
 
 def clear_esco_cache() -> None:
@@ -75,37 +78,58 @@ def _cached_get_json(
         url = f"{url}?{urlencode(query_items, doseq=True)}"
 
     request = Request(url, headers={"Accept": "application/json"}, method="GET")
+    max_attempts = MAX_RETRIES + 1
+    body = ""
+    status_code = 200
     started = time.perf_counter()
 
-    try:
-        with urlopen(request, timeout=timeout_seconds) as response:  # nosec B310
-            status_code = int(getattr(response, "status", 200))
-            body = response.read().decode("utf-8")
-    except HTTPError as exc:
-        elapsed_ms = int((time.perf_counter() - started) * 1000)
-        LOGGER.warning(
-            "ESCO request failed endpoint=%s status=%s latency_ms=%s",
-            endpoint,
-            exc.code,
-            elapsed_ms,
-        )
-        raise EscoClientError(
-            status_code=exc.code,
-            endpoint=endpoint,
-            message="ESCO service returned an error response.",
-        ) from exc
-    except URLError as exc:
-        elapsed_ms = int((time.perf_counter() - started) * 1000)
-        LOGGER.warning(
-            "ESCO request failed endpoint=%s status=network_error latency_ms=%s",
-            endpoint,
-            elapsed_ms,
-        )
-        raise EscoClientError(
-            status_code=None,
-            endpoint=endpoint,
-            message="ESCO service is currently unreachable.",
-        ) from exc
+    for attempt in range(1, max_attempts + 1):
+        try:
+            with urlopen(request, timeout=timeout_seconds) as response:  # nosec B310
+                status_code = int(getattr(response, "status", 200))
+                body = response.read().decode("utf-8")
+            break
+        except HTTPError as exc:
+            elapsed_ms = int((time.perf_counter() - started) * 1000)
+            should_retry = (
+                exc.code in RETRYABLE_HTTP_STATUS_CODES and attempt < max_attempts
+            )
+            LOGGER.warning(
+                "ESCO request failed endpoint=%s status=%s latency_ms=%s attempt=%s/%s retry=%s",
+                endpoint,
+                exc.code,
+                elapsed_ms,
+                attempt,
+                max_attempts,
+                should_retry,
+            )
+            if should_retry:
+                time.sleep(RETRY_BACKOFF_SECONDS * attempt)
+                continue
+            raise EscoClientError(
+                status_code=exc.code,
+                endpoint=endpoint,
+                message="ESCO service returned an error response.",
+            ) from exc
+        except URLError as exc:
+            elapsed_ms = int((time.perf_counter() - started) * 1000)
+            should_retry = attempt < max_attempts
+            LOGGER.warning(
+                "ESCO request failed endpoint=%s status=network_error latency_ms=%s attempt=%s/%s retry=%s",
+                endpoint,
+                elapsed_ms,
+                attempt,
+                max_attempts,
+                should_retry,
+            )
+            if should_retry:
+                time.sleep(RETRY_BACKOFF_SECONDS * attempt)
+                continue
+            raise EscoClientError(
+                status_code=None,
+                endpoint=endpoint,
+                message="ESCO service is currently unreachable.",
+            ) from exc
 
     elapsed_ms = int((time.perf_counter() - started) * 1000)
     LOGGER.info(
@@ -219,9 +243,14 @@ class EscoClient:
         query: Mapping[str, object],
     ) -> dict[str, object]:
         merged = dict(query)
-        merged["language"] = str(config["language"])
-        merged["selectedVersion"] = str(config["selected_version"])
-        merged["viewObsolete"] = "true" if bool(config["view_obsolete"]) else "false"
+        if "language" not in merged:
+            merged["language"] = str(config["language"])
+        if "selectedVersion" not in merged:
+            merged["selectedVersion"] = str(config["selected_version"])
+        if "viewObsolete" not in merged:
+            merged["viewObsolete"] = (
+                "true" if bool(config["view_obsolete"]) else "false"
+            )
         return merged
 
     @staticmethod
