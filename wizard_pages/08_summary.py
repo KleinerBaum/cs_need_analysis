@@ -1736,42 +1736,54 @@ def _add_logo_to_docx(document: Any, logo_payload: Any) -> bool:
 
 def _render_summary_hero(vm: SummaryViewModel) -> None:
     st.header(_build_summary_headline(vm.meta))
-    st.subheader("Finaler Check & nächste Schritte")
-    st.caption(_build_summary_subheader(vm.meta, vm.status))
+    st.markdown(_build_summary_subheader(vm.meta, vm.status))
     _render_summary_meta_badges(vm.meta, vm.status)
-    st.info(
-        f"Value Proposition: {len(vm.answers)} strukturierte Antworten + Jobspec = "
-        "konsistente, exportierbare Hiring-Artefakte ohne Medienbruch."
-    )
 
 
 def _build_summary_headline(meta: SummaryMeta) -> str:
     role = meta.role_label
     company = meta.company_label
     if role and company:
-        return f"{role} bei {company}: Zusammenfassung"
+        return f"{role} bei {company} – entscheidungsreif zusammengefasst"
     if role:
-        return f"{role}: Zusammenfassung"
+        return f"{role} – entscheidungsreif zusammengefasst"
     if company:
-        return f"Zusammenfassung für {company}"
-    return "Zusammenfassung"
+        return f"Hiring-Zusammenfassung für {company}"
+    return "Hiring-Zusammenfassung mit klaren nächsten Schritten"
 
 
 def _build_summary_subheader(meta: SummaryMeta, status: SummaryStatus) -> str:
     role = meta.role_label or "Nicht angegeben"
     company = meta.company_label or "Nicht angegeben"
     country = meta.country_label or "Nicht angegeben"
-    esco = meta.selected_occupation_title or "Nicht gesetzt"
-    nace = meta.nace_code or "Nicht gesetzt"
-    completion_text = status.completion_text
-    brief_status = status.brief_status_label
-    next_step = status.next_step
+    mapping_fragments: list[str] = []
+    if status.esco_ready:
+        mapping_fragments.append(f"ESCO verknüpft ({meta.selected_occupation_title})")
+    else:
+        mapping_fragments.append("ESCO noch offen")
+    if status.nace_ready:
+        mapping_fragments.append(f"NACE gesetzt ({meta.nace_code})")
+    else:
+        mapping_fragments.append("NACE noch offen")
+    mapping_status = " und ".join(mapping_fragments)
+
+    readiness_intro = (
+        "Die Vakanz ist inhaltlich bereit für Folge-Artefakte."
+        if status.ready_for_follow_ups
+        else "Die Vakanz ist noch nicht vollständig entscheidungsreif."
+    )
+    brief_clause = (
+        "Der Recruiting Brief ist aktuell."
+        if status.brief_state == "current"
+        else status.brief_status_label
+    )
     return (
-        f"Rolle: {role} · Unternehmen: {company}\n"
-        f"Markt/Land: {country}\n"
-        f"ESCO/NACE: {esco} · {nace}\n"
-        f"Vollständigkeit: {completion_text} · Brief: {brief_status}\n"
-        f"Nächster Schritt: {next_step}"
+        f"**Für {company} ist die Rolle {role} für den Zielmarkt {country} als klare Hiring-Story "
+        "zusammengeführt.**\n\n"
+        f"{readiness_intro} Aktueller Stand: **{status.completion_text}**, {brief_clause}\n\n"
+        f"Die fachliche Verortung ist {mapping_status}, damit Übergaben an Sourcing, Interview und "
+        "Angebotsphase konsistent bleiben.\n\n"
+        f"**Empfohlener nächster Schritt:** {status.next_step}."
     )
 
 

@@ -91,7 +91,7 @@ def test_summary_hero_status_complete_data(monkeypatch) -> None:
     assert status.ready_for_follow_ups is True
     assert (
         SUMMARY_MODULE._build_summary_headline(meta)
-        == "Senior Data Engineer bei Cognitive Staffing GmbH: Zusammenfassung"
+        == "Senior Data Engineer bei Cognitive Staffing GmbH – entscheidungsreif zusammengefasst"
     )
 
 
@@ -116,7 +116,7 @@ def test_summary_hero_status_missing_esco_and_nace(monkeypatch) -> None:
 
     assert status.esco_ready is False
     assert status.nace_ready is False
-    assert "ESCO/NACE: Nicht gesetzt · Nicht gesetzt" in subheader
+    assert "ESCO noch offen und NACE noch offen" in subheader
 
 
 def test_summary_hero_status_missing_brief(monkeypatch) -> None:
@@ -168,7 +168,7 @@ def test_summary_hero_status_stale_brief_text_path(monkeypatch) -> None:
 
     assert status.brief_state == "stale"
     assert status.next_step == "Recruiting Brief aktualisieren"
-    assert "Brief: Recruiting Brief ist veraltet." in subheader
+    assert "Recruiting Brief ist veraltet." in subheader
 
 
 def test_summary_hero_meta_badges_show_dynamic_readiness(monkeypatch) -> None:
