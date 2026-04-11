@@ -72,6 +72,10 @@ class SSKey(str, Enum):
         "cs.salary.scenario.location_country_override"
     )
     SALARY_SCENARIO_RADIUS_KM = "cs.salary.scenario.radius_km"
+    SALARY_SCENARIO_REMOTE_SHARE_PERCENT = "cs.salary.scenario.remote_share_percent"
+    SALARY_SCENARIO_SENIORITY_OVERRIDE = "cs.salary.scenario.seniority_override"
+    SALARY_SCENARIO_LAB_ROWS = "cs.salary.scenario.scenario_lab_rows"
+    SALARY_SCENARIO_SELECTED_ROW_ID = "cs.salary.scenario.selected_row_id"
     SALARY_FORECAST_LAST_RESULT = "cs.salary.forecast.last_result"
     SALARY_FORECAST_SELECTED_SCENARIO = "cs.salary.forecast.selected_scenario"
     SUMMARY_SELECTION_PICK_WIDGET_PREFIX = "cs.summary.pick"
