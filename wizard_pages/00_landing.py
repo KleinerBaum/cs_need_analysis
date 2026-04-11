@@ -20,10 +20,11 @@ LANDING_COPY: dict[str, object] = {
     "hero_headline": "Präzise Anforderungen. Schnellere Besetzungen. Bessere Einstellungen.",
     "hero_subheadline": "",
     "hero_supporting_paragraph": (
-        "Was am Anfang fehlt, fehlt später überall. Fehlende Informationen kosten passende "
-        "Bewerbungen, erzeugen Rückfragen und erhöhen das Risiko teurer Fehlbesetzungen. "
-        "Ein sauberer Intake schafft die Grundlage für bessere Anzeigen, schnellere Prozesse "
-        "und belastbare Entscheidungen."
+        "Willkommen bei einer hochmodernen, KI-gestützten Recruiting-Anwendung: dem "
+        "„Cognitive Staffing – Vacancy Intake Wizard“. Ziel ist es, den Vacancy-Intake-"
+        "Prozess in einen intelligenten, unternehmenstauglichen Workspace zu verwandeln. "
+        "Mit Präzision und ruhiger Eleganz gestaltet, setzt dieses Konzept einen neuen "
+        "Standard in der Recruiting-Technologie."
     ),
     "primary_cta": "Vacancy Intake starten",
     "secondary_cta_hint": "",
