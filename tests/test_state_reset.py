@@ -15,6 +15,7 @@ RESET_EXPECTATIONS: dict[SSKey, object] = {
     SSKey.ANSWERS: {},
     SSKey.ANSWER_META: {},
     SSKey.UI_MODE: "standard",
+    SSKey.UI_PREFERENCES: {"details_expanded_default": False, "step_compact": {}},
     SSKey.OPEN_GROUPS: {},
     SSKey.BRIEF: None,
     SSKey.JOBAD_CACHE_HIT: {},
@@ -131,6 +132,27 @@ def test_init_session_state_and_reset_vacancy_share_same_defaults(monkeypatch) -
     for key, expected in RESET_EXPECTATIONS.items():
         assert fake_session_state[key.value] == expected
         assert initialized_defaults[key.value] == expected
+
+
+def test_reset_vacancy_preserves_existing_ui_preferences(monkeypatch) -> None:
+    preserved_preferences = {
+        "details_expanded_default": True,
+        "step_compact": {"company": False},
+    }
+    fake_session_state = {
+        SSKey.UI_PREFERENCES.value: preserved_preferences,
+        SSKey.UI_MODE.value: "expert",
+    }
+    monkeypatch.setattr(
+        state,
+        "st",
+        SimpleNamespace(session_state=fake_session_state),
+    )
+
+    state.reset_vacancy()
+
+    assert fake_session_state[SSKey.UI_MODE.value] == "standard"
+    assert fake_session_state[SSKey.UI_PREFERENCES.value] == preserved_preferences
 
 
 def test_init_session_state_uses_env_esco_api_base_url(monkeypatch) -> None:

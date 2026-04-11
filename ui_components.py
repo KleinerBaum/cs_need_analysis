@@ -1209,17 +1209,30 @@ def render_question_step(step: QuestionStep) -> None:
         return
 
     grouped_questions = _group_questions(step, detail_questions)
-    details_expanded_default = ui_mode == "expert"
+    global_details_expanded_default = _get_global_details_expanded_default(
+        ui_mode=ui_mode
+    )
+    details_compact = _get_step_compact_preference(
+        step_key=step.step_key,
+        fallback_compact=not global_details_expanded_default,
+    )
+    details_expanded_default = not details_compact
     _ensure_step_group_state(
         step.step_key,
         grouped_questions,
         default_open=details_expanded_default,
     )
-    if ui_mode == "standard":
-        if st.button(
-            "Alle Detailgruppen ausklappen", key=f"cs.expand_all.{step.step_key}"
-        ):
-            _set_step_group_open_state(step.step_key, grouped_questions, is_open=True)
+    details_compact = st.toggle(
+        "Details kompakt anzeigen",
+        value=details_compact,
+        key=f"cs.details_compact.{step.step_key}",
+        help=(
+            "Schritt-spezifische Anzeige: kompakt = Detailgruppen geschlossen, "
+            "deaktiviert = Detailgruppen standardmäßig geöffnet."
+        ),
+    )
+    _set_step_compact_preference(step_key=step.step_key, compact=details_compact)
+    details_expanded_default = not details_compact
 
     incomplete_groups = _collect_incomplete_group_titles(
         grouped_questions, answers, answer_meta, answered_lookup
@@ -1636,6 +1649,41 @@ def _truncate_for_review(text: str, *, limit: int) -> str:
     if len(text) <= limit:
         return text
     return f"{text[: max(limit - 1, 1)].rstrip()}…"
+
+
+def _get_ui_preferences() -> dict[str, Any]:
+    raw_ui_preferences = st.session_state.get(SSKey.UI_PREFERENCES.value, {})
+    if isinstance(raw_ui_preferences, dict):
+        return raw_ui_preferences
+    return {}
+
+
+def _get_global_details_expanded_default(*, ui_mode: str) -> bool:
+    ui_preferences = _get_ui_preferences()
+    configured = ui_preferences.get("details_expanded_default")
+    if isinstance(configured, bool):
+        return configured
+    return ui_mode == "expert"
+
+
+def _get_step_compact_preference(*, step_key: str, fallback_compact: bool) -> bool:
+    ui_preferences = _get_ui_preferences()
+    raw_step_compact = ui_preferences.get("step_compact", {})
+    step_compact = raw_step_compact if isinstance(raw_step_compact, dict) else {}
+    configured = step_compact.get(step_key)
+    if isinstance(configured, bool):
+        return configured
+    return fallback_compact
+
+
+def _set_step_compact_preference(*, step_key: str, compact: bool) -> None:
+    ui_preferences = dict(_get_ui_preferences())
+    raw_step_compact = ui_preferences.get("step_compact", {})
+    step_compact = raw_step_compact if isinstance(raw_step_compact, dict) else {}
+    updated_step_compact = dict(step_compact)
+    updated_step_compact[step_key] = compact
+    ui_preferences["step_compact"] = updated_step_compact
+    st.session_state[SSKey.UI_PREFERENCES.value] = ui_preferences
 
 
 def _ensure_step_group_state(

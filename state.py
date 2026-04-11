@@ -72,6 +72,10 @@ def init_session_state() -> None:
         SSKey.ANSWERS.value: {},
         SSKey.ANSWER_META.value: {},
         SSKey.UI_MODE.value: "standard",
+        SSKey.UI_PREFERENCES.value: {
+            "details_expanded_default": False,
+            "step_compact": {},
+        },
         SSKey.OPEN_GROUPS.value: {},
         SSKey.BRIEF.value: None,
         SSKey.LAST_ERROR.value: None,
@@ -161,6 +165,11 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.ANSWERS.value] = {}
     st.session_state[SSKey.ANSWER_META.value] = {}
     st.session_state[SSKey.UI_MODE.value] = "standard"
+    if SSKey.UI_PREFERENCES.value not in st.session_state:
+        st.session_state[SSKey.UI_PREFERENCES.value] = {
+            "details_expanded_default": False,
+            "step_compact": {},
+        }
     st.session_state[SSKey.OPEN_GROUPS.value] = {}
     st.session_state[SSKey.BRIEF.value] = None
     st.session_state[SSKey.JOBAD_CACHE_HIT.value] = {}
