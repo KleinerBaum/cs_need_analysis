@@ -173,6 +173,20 @@ class AnswerType(str, Enum):
 QUESTION_SCHEMA_VERSION: Final[str] = "2026-04-09"
 VACANCY_SCHEMA_VERSION: Final[str] = "2026-04-07"
 JOB_AD_SCHEMA_VERSION: Final[str] = "2026-04-07"
+SUMMARY_ARTIFACT_IDS: Final[tuple[str, ...]] = (
+    "brief",
+    "job_ad",
+    "interview_hr",
+    "interview_fach",
+    "boolean_search",
+    "employment_contract",
+)
+SUMMARY_ARTIFACT_LEGACY_ALIASES: Final[dict[str, str]] = {
+    "recruiting_brief": "brief",
+    "job_ad_generator": "job_ad",
+    "interview_hr_sheet": "interview_hr",
+    "interview_fach_sheet": "interview_fach",
+}
 
 # Prefix used to generate stable Streamlit widget keys per question
 WIDGET_KEY_PREFIX: Final[str] = "cs.q::"

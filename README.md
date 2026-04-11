@@ -10,16 +10,16 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 - LLM-gestützte **Extraktion** der Jobspec in ein strukturiertes Schema (Structured Outputs) und automatische Erzeugung eines dynamischen Frageplans.
 - Wizard mit Fortschrittsanzeige und drei Ansichtsmodi (`quick`, `standard`, `expert`) für die Schritte Unternehmen, Team, Rolle & Aufgaben, Skills, Benefits, Interviewprozess und Summary.
 - Finaler **Recruiting Brief** mit Export als JSON, Markdown und DOCX.
-- **Action Hub** in der Summary für Folgeartefakte inkl. eigener Ergebnisbereiche und Exporte:
+- **Action Hub** in der Summary für Folgeartefakte inkl. kanonischer Artefakt-IDs (`brief`, `job_ad`, `interview_hr`, `interview_fach`, `boolean_search`, `employment_contract`).
   - Recruiting Brief
   - Job-Ad-Generator (mit Zielgruppe + AGG-Checkliste)
   - Interview-Vorbereitungssheet (HR)
   - Interview-Vorbereitungssheet (Fachbereich)
   - Boolean Search Pack (Google/LinkedIn/XING, Broad/Focused/Fallback)
   - Arbeitsvertrag (Template Draft)
-- Action Hub in der Summary mit einheitlichen Aktionskarten für Recruiting Brief, Job-Ad-Generator, Interview-Sheets, Boolean Search Pack und Arbeitsvertrag.
+- Der Ergebnisbereich wird primär über das aktive Artefakt gesteuert (fokussierte Darstellung + sekundäres Umschalten auf weitere Ergebnisse).
 - Beim Job-Ad-Generator stehen zusätzlich eine Selection Matrix, ein Job-Ad-Editor sowie optionaler Logo-Upload und Styleguide-/Change-Request-Bausteine zur Verfügung.
-- Das Advanced Studio enthält aktuell den Salary Forecast sowie die Anzeige und Exporte des erzeugten Job-Ad-Ergebnisses.
+- Das Advanced Studio enthält aktuell den Salary Forecast.
 - ESCO-Integration im Jobspec-Review mit Occupation-Picker, Preview und optionalem Laden von Occupation-Titelvarianten in mehreren Sprachen.
 - Skills-Mapping gegen ESCO inkl. Must-/Nice-to-have-Zuordnung, relationalen Occupation-Skill-Vorschlägen und on-demand Skill-Details.
 - Optionales NACE/EURES-Mapping im Unternehmensschritt als Grundlage für spätere Country-/Occupation-Kontexte.

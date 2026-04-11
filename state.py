@@ -85,7 +85,7 @@ def init_session_state() -> None:
         SSKey.SUMMARY_DIRTY.value: False,
         SSKey.SUMMARY_INPUT_FINGERPRINT.value: "",
         SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value: "",
-        SSKey.SUMMARY_ACTIVE_ARTIFACT.value: "",
+        SSKey.SUMMARY_ACTIVE_ARTIFACT.value: "brief",
         SSKey.SUMMARY_SHOW_JOB_AD_CONFIG.value: False,
         SSKey.SUMMARY_LAST_MODE.value: None,
         SSKey.SUMMARY_LAST_MODELS.value: {},
@@ -168,7 +168,7 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.SUMMARY_DIRTY.value] = False
     st.session_state[SSKey.SUMMARY_INPUT_FINGERPRINT.value] = ""
     st.session_state[SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value] = ""
-    st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = ""
+    st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = "brief"
     st.session_state[SSKey.SUMMARY_SHOW_JOB_AD_CONFIG.value] = False
     st.session_state[SSKey.SUMMARY_LAST_MODE.value] = None
     st.session_state[SSKey.SUMMARY_LAST_MODELS.value] = {}

@@ -68,10 +68,10 @@ def test_build_action_registry_contains_expected_actions_and_requirements() -> N
     )
 
     assert [action["id"] for action in action_registry] == [
-        "recruiting_brief",
-        "job_ad_generator",
-        "interview_hr_sheet",
-        "interview_fach_sheet",
+        "brief",
+        "job_ad",
+        "interview_hr",
+        "interview_fach",
         "boolean_search",
         "employment_contract",
     ]
@@ -94,7 +94,7 @@ def test_render_action_card_returns_false_when_requirements_missing(
     monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
 
     action = {
-        "id": "recruiting_brief",
+        "id": "brief",
         "title": "Recruiting Brief",
         "benefit": "desc",
         "cta_label": "Generate",
@@ -123,7 +123,7 @@ def test_render_action_card_renders_available_fach_action(monkeypatch) -> None:
     monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
 
     action = {
-        "id": "interview_fach_sheet",
+        "id": "interview_fach",
         "title": "Fachbereich Sheet",
         "benefit": "desc",
         "cta_label": "Generate",
@@ -152,7 +152,7 @@ def test_render_action_card_returns_button_state_for_available_action(
     monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
 
     action = {
-        "id": "job_ad_generator",
+        "id": "job_ad",
         "title": "Job Ad",
         "benefit": "desc",
         "cta_label": "Generate",
@@ -213,8 +213,8 @@ def test_follow_up_actions_describe_explicit_brief_dependency() -> None:
     )
 
     follow_up_ids = {
-        "interview_hr_sheet",
-        "interview_fach_sheet",
+        "interview_hr",
+        "interview_fach",
         "boolean_search",
         "employment_contract",
     }
