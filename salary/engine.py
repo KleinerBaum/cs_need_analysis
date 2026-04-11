@@ -7,11 +7,13 @@ from typing import Any
 from schemas import JobAdExtract
 
 from salary.types import (
+    SalaryEscoContext,
     SalaryForecastBand,
     SalaryForecastDriver,
     SalaryForecastProvenance,
     SalaryForecastQuality,
     SalaryForecastResult,
+    SalaryScenarioInputs,
     SalaryScenarioOverrides,
 )
 
@@ -92,6 +94,9 @@ def compute_salary_forecast(
     job_extract: JobAdExtract,
     answers: dict,
     scenario_overrides: SalaryScenarioOverrides | None = None,
+    *,
+    esco_context: SalaryEscoContext | None = None,
+    scenario_inputs: SalaryScenarioInputs | None = None,
 ) -> SalaryForecastResult:
     """Compute salary forecast from normalized job extract and wizard answers."""
 
@@ -136,8 +141,13 @@ def compute_salary_forecast(
         + overrides.interview_multiplier_delta
     )
 
+    effective_location_country = (
+        scenario_inputs.location_country_override
+        if scenario_inputs and scenario_inputs.location_country_override
+        else job_extract.location_country
+    ) or ""
     location_multiplier = (
-        _location_salary_multiplier(job_extract.location_country or "")
+        _location_salary_multiplier(effective_location_country)
         * overrides.location_multiplier_factor
     )
     title_multiplier = (
@@ -168,7 +178,17 @@ def compute_salary_forecast(
     confidence = min(100, max(35, int(confidence_base + overrides.confidence_delta)))
     quality_value = round(confidence / 100.0, 2)
 
-    location = job_extract.location_country or "Nicht angegeben"
+    location_city = (
+        scenario_inputs.location_city_override
+        if scenario_inputs and scenario_inputs.location_city_override
+        else job_extract.location_city
+    )
+    location_parts = [
+        part
+        for part in (location_city, effective_location_country)
+        if isinstance(part, str) and part
+    ]
+    location = ", ".join(location_parts) or "Nicht angegeben"
     seniority_label = job_extract.seniority_level or "Nicht angegeben"
     job_title = job_extract.job_title or "Nicht angegeben"
     currency = (
@@ -184,6 +204,8 @@ def compute_salary_forecast(
             label="Anforderungsdichte",
             direction="up" if requirements_multiplier >= 0 else "down",
             impact=round(abs(requirements_multiplier), 3),
+            impact_eur=round(base_salary * abs(requirements_multiplier), 0),
+            category="requirements",
             detail=f"{requirements_density} Anforderungen/Zertifikate/Sprachen berücksichtigt.",
         ),
         SalaryForecastDriver(
@@ -191,6 +213,8 @@ def compute_salary_forecast(
             label="Seniorität",
             direction="up" if seniority_multiplier >= 0 else "down",
             impact=round(abs(seniority_multiplier), 3),
+            impact_eur=round(base_salary * abs(seniority_multiplier), 0),
+            category="role",
             detail=f"Ausprägung: {seniority_label}.",
         ),
         SalaryForecastDriver(
@@ -198,6 +222,8 @@ def compute_salary_forecast(
             label="Standort",
             direction="up" if location_multiplier >= 1.0 else "down",
             impact=round(abs(location_multiplier - 1.0), 3),
+            impact_eur=round(base_salary * abs(location_multiplier - 1.0), 0),
+            category="market",
             detail=f"Standortfaktor für {location}: {location_multiplier:.2f}.",
         ),
         SalaryForecastDriver(
@@ -205,6 +231,8 @@ def compute_salary_forecast(
             label="Jobtitel",
             direction="up" if title_multiplier >= 1.0 else "down",
             impact=round(abs(title_multiplier - 1.0), 3),
+            impact_eur=round(base_salary * abs(title_multiplier - 1.0), 0),
+            category="role",
             detail=f"Titelfaktor für {job_title}: {title_multiplier:.2f}.",
         ),
         SalaryForecastDriver(
@@ -212,6 +240,8 @@ def compute_salary_forecast(
             label="Antwortabdeckung",
             direction="up",
             impact=round(min(1.0, answers_count / 10.0), 3),
+            impact_eur=0.0,
+            category="quality",
             detail=f"{answers_count} beantwortete Wizard-Felder.",
         ),
     ]
@@ -225,7 +255,7 @@ def compute_salary_forecast(
         currency=currency,
         period=period,
         quality=SalaryForecastQuality(
-            kind="confidence_score",
+            kind="data_quality_score",
             value=quality_value,
             signals=[
                 f"answers_count={answers_count}",
@@ -240,6 +270,10 @@ def compute_salary_forecast(
             benchmark_version="internal_heuristic_baseline_2026_01",
             occupation_mapping="title_keyword_rules_v1",
             region_mapping="location_keyword_rules_v1",
+            benchmark_year=2026,
+            benchmark_source_label="internal_heuristic_baseline",
+            occupation_id=esco_context.occupation_uri if esco_context else None,
+            region_id=effective_location_country or None,
         ),
         answers_count=answers_count,
         must_have_count=must_have_count,

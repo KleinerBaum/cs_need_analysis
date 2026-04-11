@@ -38,7 +38,7 @@ def test_compute_salary_forecast_returns_expected_shape() -> None:
     assert snapshot.must_have_count == 5
     assert snapshot.answers_count == 1
     assert 0.35 <= snapshot.quality.value <= 1.0
-    assert snapshot.quality.kind == "confidence_score"
+    assert snapshot.quality.kind == "data_quality_score"
     assert snapshot.drivers
     assert snapshot.provenance.engine
 
