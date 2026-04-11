@@ -1339,8 +1339,9 @@ def _build_requirement_table_rows(
         if not label:
             continue
         normalized = _normalize_requirement_label(label)
+        importance = str(entry.get("importance") or "").strip()
         note_parts = [
-            str(entry.get("importance") or "").strip(),
+            importance,
             str(entry.get("rationale") or "").strip(),
             str(entry.get("evidence") or "").strip(),
         ]
@@ -1353,9 +1354,25 @@ def _build_requirement_table_rows(
                 "notes": _truncate_requirement_label(notes, limit=120) if notes else "",
                 "_full_label": label,
                 "_normalized_label": normalized,
+                "_importance": importance,
             }
         )
     return rows
+
+
+def _is_high_importance(importance: str) -> bool:
+    normalized = _normalize_requirement_label(importance)
+    if not normalized:
+        return False
+    high_markers = {
+        "hoch",
+        "high",
+        "sehr hoch",
+        "very high",
+        "critical",
+        "kritisch",
+    }
+    return normalized in high_markers
 
 
 def _render_requirement_selection_table(
@@ -1381,9 +1398,68 @@ def _render_requirement_selection_table(
         return []
 
     st.caption(title)
+    filter_key_prefix = f"{key_prefix}.filters.{source_key.casefold()}"
+    default_only_new_key = f"{filter_key_prefix}.default_only_new"
+    if default_only_new_key not in st.session_state:
+        st.session_state[default_only_new_key] = True
+    search_term = st.text_input(
+        "Suche",
+        value="",
+        key=f"{filter_key_prefix}.search",
+        placeholder="Begriff eingeben…",
+        help="Filtert Vorschläge direkt nach Bezeichnung und Hinweisen.",
+    ).strip()
+    filter_col_new, filter_col_long, filter_col_high = st.columns(3)
+    with filter_col_new:
+        only_new = st.toggle(
+            "Nur neue Vorschläge",
+            key=f"{filter_key_prefix}.only_new",
+            value=bool(st.session_state.get(default_only_new_key, True)),
+        )
+    st.session_state[default_only_new_key] = False
+    with filter_col_long:
+        only_long_items = st.toggle(
+            "Nur lange Items",
+            key=f"{filter_key_prefix}.only_long",
+            value=False,
+        )
+    with filter_col_high:
+        only_ai_high = st.toggle(
+            "Nur AI high-importance",
+            key=f"{filter_key_prefix}.only_ai_high",
+            value=False,
+        )
+
+    filtered_rows: list[dict[str, Any]] = []
+    normalized_search = _normalize_requirement_label(search_term)
+    for row in table_rows:
+        if only_new and bool(row.get("select")):
+            continue
+        if only_long_items and len(str(row.get("_full_label") or "").strip()) < 48:
+            continue
+        if (
+            only_ai_high
+            and source_key.casefold() == "ai"
+            and not _is_high_importance(str(row.get("_importance") or ""))
+        ):
+            continue
+        if only_ai_high and source_key.casefold() != "ai":
+            continue
+        if normalized_search:
+            haystack = _normalize_requirement_label(
+                f"{row.get('_full_label', '')} {row.get('notes', '')}"
+            )
+            if normalized_search not in haystack:
+                continue
+        filtered_rows.append(row)
+
+    if not filtered_rows:
+        st.caption("Keine Treffer für die aktuellen Filter.")
+        return []
+
     editor_key = f"{key_prefix}.editor.{source_key.casefold()}"
     edited_rows = st.data_editor(
-        table_rows,
+        filtered_rows,
         key=editor_key,
         width="stretch",
         height=320,
