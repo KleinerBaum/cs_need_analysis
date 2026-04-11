@@ -17,7 +17,14 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
   - Interview-Vorbereitungssheet (Fachbereich)
   - Boolean Search Pack (Google/LinkedIn/XING, Broad/Focused/Fallback)
   - Arbeitsvertrag (Template Draft)
-- „Advanced Studio“ in der Summary mit Salary Forecast, Selection Matrix und Job-Ad-Editor (inkl. optionalem Logo-Upload, Styleguide- und Change-Request-Bausteinen).
+- Action Hub in der Summary mit einheitlichen Aktionskarten für Recruiting Brief, Job-Ad-Generator, Interview-Sheets, Boolean Search Pack und Arbeitsvertrag.
+- Beim Job-Ad-Generator stehen zusätzlich eine Selection Matrix, ein Job-Ad-Editor sowie optionaler Logo-Upload und Styleguide-/Change-Request-Bausteine zur Verfügung.
+- Das Advanced Studio enthält aktuell den Salary Forecast sowie die Anzeige und Exporte des erzeugten Job-Ad-Ergebnisses.
+- ESCO-Integration im Jobspec-Review mit Occupation-Picker, Preview und optionalem Laden von Occupation-Titelvarianten in mehreren Sprachen.
+- Skills-Mapping gegen ESCO inkl. Must-/Nice-to-have-Zuordnung, relationalen Occupation-Skill-Vorschlägen und on-demand Skill-Details.
+- Optionales NACE/EURES-Mapping im Unternehmensschritt als Grundlage für spätere Country-/Occupation-Kontexte.
+- Country Readiness und ESCO Mapping Report in der Summary inkl. Export als JSON und CSV.
+- In den Schritten Rolle & Aufgaben und Skills & Anforderungen werden Vorschläge aus Jobspec, ESCO und AI nebeneinander dargestellt und können gezielt übernommen werden.
 - Session-basiertes LLM-Response-Caching mit Cache-Hinweisen in Intake/Summary (DE/EN), inkl. Cache-Status für Folgeartefakte.
 
 ## Voraussetzungen
@@ -95,7 +102,7 @@ Die UI kann das aufgelöste Modell zur Laufzeit überschreiben (Session-State). 
 **UI-Override > `OPENAI_MODEL` (global) > task-spezifische Modelle > `DEFAULT_MODEL`**.
 
 - Modell-spezifische Request-Optionen werden zentral über `model_capabilities.py` definiert und in `llm_client.py` verwendet.
-- Optionales task-basiertes Modell-Routing ist schlank integriert (ohne UX-Umbau): `extract_job_ad -> LIGHTWEIGHT_MODEL`, `generate_question_plan -> MEDIUM_REASONING_MODEL`, `generate_vacancy_brief -> HIGH_REASONING_MODEL`.
+- Optionales task-basiertes Modell-Routing ist schlank integriert (ohne UX-Umbau): `extract_job_ad -> LIGHTWEIGHT_MODEL`, `generate_question_plan -> MEDIUM_REASONING_MODEL`, `generate_vacancy_brief -> MEDIUM_REASONING_MODEL`, `generate_job_ad -> HIGH_REASONING_MODEL`, `generate_interview_sheet_hr -> HIGH_REASONING_MODEL`, `generate_interview_sheet_hm -> HIGH_REASONING_MODEL`, `generate_boolean_search -> MEDIUM_REASONING_MODEL`, `generate_employment_contract -> HIGH_REASONING_MODEL`.
 - Priorität beim Modellrouting: **Session/UI-Override** > **`OPENAI_MODEL` (globaler Override)** > **task-spezifische Modell-Keys** > **`DEFAULT_MODEL`** > **zentraler finaler Fallback (`gpt-4o-mini`)**.
 - Die Debug-Expander in den Wizard-Schritten zeigen zusätzlich die effektiv aufgelösten Task-Modelle an (`resolved_models`), damit Routing-Entscheidungen ohne Secret-Leak nachvollziehbar bleiben.
 - OpenAI-Settings bleiben bei `REASONING_EFFORT`/`VERBOSITY` bewusst optional: wenn nicht gesetzt, werden diese Werte als `None` behandelt und nicht künstlich vorbelegt.
@@ -195,3 +202,15 @@ Der Smoke-Test zeigt die tatsächlich gebauten `request_kwargs`, damit sich dies
 
 Die App-Konfiguration nutzt dieselbe Priorität wie `settings_openai.py`: `st.secrets` (inkl. `openai`-Namespace) kann Umgebungsvariablen überschreiben.  
 Für verlässliche lokale Verifikation daher nicht nur auf Env-Mutation verlassen, sondern die effektiven Request-Kwargs/Metadaten im Smoke-Test prüfen.
+
+Dieser Smoke-Test ist der bevorzugte Verifikationspfad für Änderungen an Modellrouting, Capability-Gating, `reasoning_effort`, `verbosity`, `temperature` und OpenAI-Request-Building.
+
+## Exporte
+
+- Recruiting Brief: JSON, Markdown, DOCX
+- Job-Ad-Ergebnis: DOCX, PDF
+- Interview-Sheet (HR): JSON, DOCX
+- Interview-Sheet (Fachbereich): JSON, DOCX
+- Boolean Search Pack: JSON, Markdown
+- Arbeitsvertrag (Template Draft): JSON, DOCX
+- ESCO Mapping Report: CSV (UTF-8), JSON
