@@ -24,7 +24,11 @@ from state import (
 )
 from ui_components import render_error_banner, render_openai_error
 from usage_utils import usage_has_cache_hit
-from wizard_pages.base import LANDING_CTA_KEYS, set_current_step
+from wizard_pages.base import (
+    LANDING_CTA_KEYS,
+    render_ui_mode_selector,
+    set_current_step,
+)
 
 
 SOURCE_TEXT_INPUT_KEY: Final[str] = "cs.source_text_input"
@@ -120,6 +124,19 @@ def render_jobad_intake(*, title: str = "Jobspec / Job Ad einlesen") -> None:
 
     with tab1:
         with st.container(border=True):
+            st.markdown(
+                """
+                <style>
+                .st-key-cs_ui_mode [data-baseweb="select"] > div,
+                .st-key-cs-ui_mode [data-baseweb="select"] > div {
+                    background: rgba(255, 255, 255, 0.10) !important;
+                    color: #eaf2ff !important;
+                    border: 1px solid rgba(255, 255, 255, 0.25) !important;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
             st.file_uploader(
                 "Jobspec hochladen (PDF oder DOCX)",
                 type=["pdf", "docx", "txt"],
@@ -127,6 +144,7 @@ def render_jobad_intake(*, title: str = "Jobspec / Job Ad einlesen") -> None:
                 key="cs.source_upload_file",
                 on_change=_on_upload_change,
             )
+            render_ui_mode_selector()
             uploaded_text = str(st.session_state.get(SOURCE_UPLOAD_TEXT_KEY, ""))
             upload_meta = st.session_state.get(SSKey.SOURCE_FILE_META.value, {})
             if uploaded_text:
