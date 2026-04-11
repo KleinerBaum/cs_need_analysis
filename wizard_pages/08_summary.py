@@ -1894,11 +1894,11 @@ def _build_summary_view_model() -> SummaryViewModel | None:
     selected_skills = _read_saved_selection_labels(SSKey.SKILLS_SELECTED)
     meta = _build_summary_meta(job)
     session_override = get_model_override()
+    settings = load_openai_settings()
     resolved_brief_model = resolve_model_for_task(
-        TASK_GENERATE_VACANCY_BRIEF,
-        default_model=load_openai_settings().default_model,
-        override=session_override,
-        context=job,
+        task_kind=TASK_GENERATE_VACANCY_BRIEF,
+        session_override=session_override,
+        settings=settings,
     )
     input_fingerprint = _build_summary_input_fingerprint(
         job=job,
