@@ -19,7 +19,8 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
   - Interview-Vorbereitungssheet (Fachbereich)
   - Boolean Search Pack (Google/LinkedIn/XING, Broad/Focused/Fallback)
   - Arbeitsvertrag (Template Draft)
-- Der Ergebnisbereich wird primär über das aktive Artefakt gesteuert (fokussierte Darstellung + sekundäres Umschalten auf weitere Ergebnisse); Export liegt in einem separaten Sekundär-Expander.
+- Die Summary ist als Workspace mit Tabs aufgebaut (`Readiness`, `Fakten`, `Artefakte`, `Export`, `Advanced`); standardmäßig startet die Ansicht in `Readiness`.
+- Der Ergebnisbereich wird im Tab `Artefakte` über das aktive Artefakt gesteuert (fokussierte Darstellung + sekundäres Umschalten auf weitere Ergebnisse); Exporte liegen separat im Tab `Export`.
 - Beim Job-Ad-Generator stehen zusätzlich eine Selection Matrix, ein Job-Ad-Editor sowie optionaler Logo-Upload und Styleguide-/Change-Request-Bausteine zur Verfügung.
 - Der Salary Forecast wird in den Schritten Rolle & Aufgaben, Skills & Anforderungen sowie Benefits & Rahmenbedingungen als standardmäßig geöffnete Sektion angezeigt.
 - ESCO-Integration im Jobspec-Review mit Occupation-Picker, Preview und optionalem Laden von Occupation-Titelvarianten in mehreren Sprachen.

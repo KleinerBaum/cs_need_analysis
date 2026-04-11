@@ -6,6 +6,7 @@ import re
 import textwrap
 import csv
 import hashlib
+from contextlib import nullcontext
 from dataclasses import dataclass
 from collections import defaultdict
 from typing import Callable
@@ -2114,6 +2115,145 @@ def _render_export_bar(*, has_brief: bool) -> None:
             )
 
 
+def _build_missing_critical_items(vm: SummaryViewModel, *, limit: int = 5) -> list[str]:
+    missing_rows = [row for row in vm.fact_rows if row.status == "Fehlend"]
+    partial_rows = [row for row in vm.fact_rows if row.status == "Teilweise"]
+    ordered_rows = [*missing_rows, *partial_rows]
+    items: list[str] = []
+    for row in ordered_rows:
+        label = f"{row.bereich} · {row.feld}"
+        if row.wert and row.wert not in {"Nicht angegeben", "—"}:
+            label = f"{label} ({row.wert})"
+        items.append(label)
+        if len(items) >= limit:
+            break
+    return items
+
+
+def _build_artifact_status_rows(
+    *, action_registry: list[SummaryAction]
+) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for action in action_registry:
+        has_result = bool(st.session_state.get(action["result_key"].value))
+        requirements_ok = _has_required_state(action["requires"])
+        requirement_ok = True
+        requirement_check_fn = action.get("requirement_check_fn")
+        if requirement_check_fn is not None:
+            requirement_ok, _ = requirement_check_fn()
+        rows.append(
+            {
+                "Artefakt": action["title"],
+                "Status": "Aktuell" if has_result else "Offen",
+                "Voraussetzungen": (
+                    "Erfüllt" if (requirements_ok and requirement_ok) else "Offen"
+                ),
+            }
+        )
+    return rows
+
+
+def _resolve_next_best_action(
+    action_registry: list[SummaryAction],
+) -> SummaryAction | None:
+    brief_action = next(
+        (action for action in action_registry if action["id"] == "brief"),
+        None,
+    )
+    if brief_action is not None:
+        brief_status = _resolve_canonical_brief_status(resolved_brief_model="")
+        if not brief_status.ready_for_follow_ups:
+            return brief_action
+    for action in action_registry:
+        if action["id"] == "brief":
+            continue
+        if bool(st.session_state.get(action["result_key"].value)):
+            continue
+        if not _has_required_state(action["requires"]):
+            continue
+        requirement_check_fn = action.get("requirement_check_fn")
+        if requirement_check_fn is not None:
+            requirement_ok, _ = requirement_check_fn()
+            if not requirement_ok:
+                continue
+        return action
+    return brief_action
+
+
+def _render_readiness_tab(
+    *,
+    vm: SummaryViewModel,
+    action_registry: list[SummaryAction],
+) -> None:
+    if hasattr(st, "subheader"):
+        st.subheader("Readiness")
+    else:
+        st.markdown("### Readiness")
+    next_action = _resolve_next_best_action(action_registry)
+    if next_action is None:
+        st.info("Aktuell ist kein nächster Schritt verfügbar.")
+    else:
+        st.markdown(f"**Nächste beste Aktion:** {next_action['title']}")
+        if st.button(
+            f"CTA: {next_action['cta_label']}",
+            type="primary",
+            width="stretch",
+            key=_widget_key(
+                SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "readiness.next_action"
+            ),
+            disabled=next_action["generator_fn"] is None,
+        ):
+            st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = (
+                _to_canonical_artifact_id(next_action["id"])
+            )
+            if next_action["generator_fn"] is not None:
+                next_action["generator_fn"]()
+            st.rerun()
+
+    st.markdown("**Kritische Lücken (Top 5)**")
+    missing_items = _build_missing_critical_items(vm)
+    if not missing_items:
+        st.success("Keine kritischen Lücken erkannt.")
+    else:
+        for item in missing_items:
+            st.write(f"- {item}")
+
+    st.markdown("**Artefakt-Status**")
+    status_rows = _build_artifact_status_rows(action_registry=action_registry)
+    if hasattr(st, "dataframe"):
+        st.dataframe(
+            status_rows,
+            hide_index=True,
+            width="stretch",
+        )
+    else:
+        for row in status_rows:
+            st.write(
+                f"- {row['Artefakt']}: {row['Status']} (Voraussetzungen: {row['Voraussetzungen']})"
+            )
+
+
+def _build_summary_tabs() -> tuple[Any, Any, Any, Any, Any]:
+    tab_labels = ["Readiness", "Fakten", "Artefakte", "Export", "Advanced"]
+    if hasattr(st, "tabs"):
+        return tuple(st.tabs(tab_labels))
+    if hasattr(st, "container"):
+        return (
+            st.container(),
+            st.container(),
+            st.container(),
+            st.container(),
+            st.container(),
+        )
+    return (
+        nullcontext(),
+        nullcontext(),
+        nullcontext(),
+        nullcontext(),
+        nullcontext(),
+    )
+
+
 def _build_action_registry(
     *,
     resolved_brief_model: str,
@@ -2243,6 +2383,8 @@ def _render_summary_processing_hub(
     *,
     action_registry: list[SummaryAction],
     resolved_brief_model: str,
+    show_job_ad_configuration_panel: bool = True,
+    show_export_bar: bool = True,
 ) -> None:
     st.markdown("### Processing Hub")
     st.caption(
@@ -2276,9 +2418,11 @@ def _render_summary_processing_hub(
         triggered_action["generator_fn"]()
         st.rerun()
 
-    _render_job_ad_configuration_panel(action_registry=action_registry)
+    if show_job_ad_configuration_panel:
+        _render_job_ad_configuration_panel(action_registry=action_registry)
 
-    _render_export_bar(has_brief=brief_status[0] == "current")
+    if show_export_bar:
+        _render_export_bar(has_brief=brief_status[0] == "current")
 
 
 def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
@@ -2473,24 +2617,7 @@ def _render_secondary_artifacts(
             st.rerun()
 
 
-def _render_summary_results_workspace(
-    *,
-    brief: VacancyBrief,
-    resolved_brief_model: str,
-    resolved_hr_sheet_model: str,
-    resolved_fach_sheet_model: str,
-    resolved_boolean_search_model: str,
-    resolved_employment_contract_model: str,
-    vm: SummaryViewModel,
-) -> None:
-    if bool(st.session_state.get(SSKey.SUMMARY_CACHE_HIT.value, False)):
-        st.caption("📦 Summary: aus Cache geladen (DE) / loaded from cache (EN).")
-    last_mode = st.session_state.get(SSKey.SUMMARY_LAST_MODE.value) or "unknown"
-    last_models = st.session_state.get(SSKey.SUMMARY_LAST_MODELS.value, {}) or {}
-    st.caption(
-        f"🧠 Modus: `{last_mode}` · Modelle: Draft=`{last_models.get('draft_model', resolved_brief_model)}`"
-    )
-
+def _render_summary_results_workspace(*, brief: VacancyBrief) -> None:
     available_artifact_ids: list[str] = ["brief"]
     if isinstance(st.session_state.get(SSKey.JOB_AD_DRAFT_CUSTOM.value), dict):
         available_artifact_ids.append("job_ad")
@@ -2513,38 +2640,36 @@ def _render_summary_results_workspace(
         available_artifact_ids=available_artifact_ids,
     )
 
-    st.markdown("---")
-    st.caption("Sekundärbereich: Export & weiterführende Tools")
 
-    with st.expander("Export (sekundär)", expanded=False):
-        st.subheader("Export")
-        md = _brief_to_markdown(brief)
-        json_bytes = json.dumps(
-            _build_structured_export_payload(brief), indent=2, ensure_ascii=False
-        ).encode("utf-8")
-        docx_bytes = _brief_to_docx_bytes(brief)
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.download_button(
-                "Download JSON",
-                data=json_bytes,
-                file_name="vacancy_brief.json",
-                mime="application/json",
-            )
-        with c2:
-            st.download_button(
-                "Download Markdown",
-                data=md.encode("utf-8"),
-                file_name="vacancy_brief.md",
-                mime="text/markdown",
-            )
-        with c3:
-            st.download_button(
-                "Download DOCX",
-                data=docx_bytes,
-                file_name="vacancy_brief.docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            )
+def _render_summary_export_workspace(*, brief: VacancyBrief) -> None:
+    st.subheader("Export")
+    md = _brief_to_markdown(brief)
+    json_bytes = json.dumps(
+        _build_structured_export_payload(brief), indent=2, ensure_ascii=False
+    ).encode("utf-8")
+    docx_bytes = _brief_to_docx_bytes(brief)
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.download_button(
+            "Download JSON",
+            data=json_bytes,
+            file_name="vacancy_brief.json",
+            mime="application/json",
+        )
+    with c2:
+        st.download_button(
+            "Download Markdown",
+            data=md.encode("utf-8"),
+            file_name="vacancy_brief.md",
+            mime="text/markdown",
+        )
+    with c3:
+        st.download_button(
+            "Download DOCX",
+            data=docx_bytes,
+            file_name="vacancy_brief.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
 
 
 def render(ctx: WizardContext) -> None:
@@ -2566,9 +2691,6 @@ def render(ctx: WizardContext) -> None:
         current_summary_fingerprint
     )
     st.session_state[SSKey.SUMMARY_DIRTY.value] = vm.artifacts.is_dirty
-
-    # SUMMARY_ZONE: FACTS
-    _render_summary_facts_section(vm)
 
     settings = load_openai_settings()
     session_override = get_model_override()
@@ -2953,11 +3075,32 @@ def render(ctx: WizardContext) -> None:
         generate_employment_contract=_generate_employment_contract,
     )
 
-    # SUMMARY_ZONE: PROCESSING_HUB
-    _render_summary_processing_hub(
-        action_registry=action_registry,
-        resolved_brief_model=resolved_brief_model,
-    )
+    supports_tabs = hasattr(st, "tabs")
+    if supports_tabs:
+        readiness_tab, facts_tab, artifacts_tab, export_tab, advanced_tab = (
+            _build_summary_tabs()
+        )
+
+        with readiness_tab:
+            _render_readiness_tab(vm=vm, action_registry=action_registry)
+
+        with facts_tab:
+            # SUMMARY_ZONE: FACTS
+            _render_summary_facts_section(vm)
+
+        with artifacts_tab:
+            # SUMMARY_ZONE: PROCESSING_HUB
+            _render_summary_processing_hub(
+                action_registry=action_registry,
+                resolved_brief_model=resolved_brief_model,
+                show_job_ad_configuration_panel=False,
+                show_export_bar=False,
+            )
+    else:
+        _render_summary_processing_hub(
+            action_registry=action_registry,
+            resolved_brief_model=resolved_brief_model,
+        )
 
     brief_dict = st.session_state.get(SSKey.BRIEF.value)
     if not brief_dict:
@@ -2976,17 +3119,30 @@ def render(ctx: WizardContext) -> None:
         nav_buttons(ctx, disable_next=True)
         return
 
-    # SUMMARY_ZONE: RESULTS
-    # SUMMARY_ZONE: ADVANCED_TOOLS
-    _render_summary_results_workspace(
-        brief=brief,
-        resolved_brief_model=resolved_brief_model,
-        resolved_hr_sheet_model=resolved_hr_sheet_model,
-        resolved_fach_sheet_model=resolved_fach_sheet_model,
-        resolved_boolean_search_model=resolved_boolean_search_model,
-        resolved_employment_contract_model=resolved_employment_contract_model,
-        vm=vm,
-    )
+    if supports_tabs:
+        with artifacts_tab:
+            # SUMMARY_ZONE: RESULTS
+            _render_summary_results_workspace(brief=brief)
+
+        with export_tab:
+            _render_export_bar(has_brief=True)
+            _render_summary_export_workspace(brief=brief)
+
+        with advanced_tab:
+            if bool(st.session_state.get(SSKey.SUMMARY_CACHE_HIT.value, False)):
+                st.caption(
+                    "📦 Summary: aus Cache geladen (DE) / loaded from cache (EN)."
+                )
+            last_mode = st.session_state.get(SSKey.SUMMARY_LAST_MODE.value) or "unknown"
+            last_models = (
+                st.session_state.get(SSKey.SUMMARY_LAST_MODELS.value, {}) or {}
+            )
+            st.caption(
+                f"🧠 Modus: `{last_mode}` · Modelle: Draft=`{last_models.get('draft_model', resolved_brief_model)}`"
+            )
+            _render_job_ad_configuration_panel(action_registry=action_registry)
+    else:
+        _render_summary_results_workspace(brief=brief)
 
     nav_buttons(ctx, disable_next=True)
 
