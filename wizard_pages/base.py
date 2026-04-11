@@ -146,6 +146,10 @@ def _ensure_salary_forecast_state_defaults() -> None:
     st.session_state.setdefault(SSKey.SALARY_SCENARIO_SKILLS_ADD.value, [])
     st.session_state.setdefault(SSKey.SALARY_SCENARIO_SKILLS_REMOVE.value, [])
     st.session_state.setdefault(SSKey.SALARY_SCENARIO_LOCATION_OVERRIDE.value, "")
+    st.session_state.setdefault(SSKey.SALARY_SCENARIO_LOCATION_CITY_OVERRIDE.value, "")
+    st.session_state.setdefault(
+        SSKey.SALARY_SCENARIO_LOCATION_COUNTRY_OVERRIDE.value, ""
+    )
     st.session_state.setdefault(SSKey.SALARY_SCENARIO_RADIUS_KM.value, 50)
     st.session_state.setdefault(SSKey.SALARY_FORECAST_SELECTED_SCENARIO.value, "base")
     st.session_state.setdefault(SSKey.SALARY_FORECAST_LAST_RESULT.value, {})

@@ -321,8 +321,11 @@ def _build_salary_forecast_snapshot(
             "skills_remove": st.session_state.get(
                 SSKey.SALARY_SCENARIO_SKILLS_REMOVE.value, []
             ),
-            "location_override": st.session_state.get(
-                SSKey.SALARY_SCENARIO_LOCATION_OVERRIDE.value, ""
+            "location_city_override": st.session_state.get(
+                SSKey.SALARY_SCENARIO_LOCATION_CITY_OVERRIDE.value, ""
+            ),
+            "location_country_override": st.session_state.get(
+                SSKey.SALARY_SCENARIO_LOCATION_COUNTRY_OVERRIDE.value, ""
             ),
             "radius_km": _safe_int(
                 st.session_state.get(SSKey.SALARY_SCENARIO_RADIUS_KM.value, 50)
@@ -349,10 +352,15 @@ def _apply_salary_scenario_inputs(job: JobAdExtract) -> JobAdExtract:
         key=_widget_key(SSKey.SALARY_SCENARIO_SKILLS_REMOVE, "input"),
         help="Kommagetrennte Skill-Liste, die temporär aus den Must-haves entfernt wird.",
     )
-    location_override = st.text_input(
-        "Standort-Override",
-        key=SSKey.SALARY_SCENARIO_LOCATION_OVERRIDE.value,
-        help="Optionaler Standort für diese Szenario-Berechnung.",
+    location_city_override = st.text_input(
+        "Stadt-Override",
+        key=SSKey.SALARY_SCENARIO_LOCATION_CITY_OVERRIDE.value,
+        help="Optionale Stadt für diese Szenario-Berechnung.",
+    ).strip()
+    location_country_override = st.text_input(
+        "Land-Override",
+        key=SSKey.SALARY_SCENARIO_LOCATION_COUNTRY_OVERRIDE.value,
+        help="Optionales Land für diese Szenario-Berechnung.",
     ).strip()
     st.number_input(
         "Suchradius (km)",
@@ -376,7 +384,8 @@ def _apply_salary_scenario_inputs(job: JobAdExtract) -> JobAdExtract:
     return job.model_copy(
         update={
             "must_have_skills": filtered_skills,
-            "location_country": location_override or job.location_country,
+            "location_city": location_city_override or job.location_city,
+            "location_country": location_country_override or job.location_country,
         }
     )
 
