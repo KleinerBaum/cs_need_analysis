@@ -482,7 +482,7 @@ def render_job_extract_overview(
     ):
         _render_editable_job_extract(job)
 
-    with st.expander("Gaps (fehlende/unklare Punkte)", expanded=True):
+    with st.expander("Fehlende oder unklare Punkte", expanded=True):
         if job.gaps:
             st.write("\n".join([f"- {g}" for g in job.gaps]))
         else:
@@ -491,7 +491,7 @@ def render_job_extract_overview(
     if show_question_limits:
         _render_question_limits_editor(plan)
 
-    with st.expander("Assumptions (Annahmen)", expanded=True):
+    with st.expander("Annahmen", expanded=True):
         if job.assumptions:
             st.write("\n".join([f"- {a}" for a in job.assumptions]))
         else:

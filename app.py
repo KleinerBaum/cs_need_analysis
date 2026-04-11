@@ -307,7 +307,7 @@ def _render_info_page(info_page_key: str) -> None:
             """
         )
     elif info_page_key == "about":
-        st.title("Über die App")
+        st.title("Wie funktioniert`s?")
         st.markdown(
             """
             Diese App führt dich strukturiert durch die Erstellung eines Vacancy Briefs – von

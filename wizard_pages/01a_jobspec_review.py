@@ -201,7 +201,7 @@ def render(ctx: WizardContext) -> None:
     job = JobAdExtract.model_validate(job_dict)
     plan = QuestionPlan.model_validate(plan_dict)
 
-    st.header("Jobspec-Übersicht")
+    st.header("Identifizierte Informationen")
     st.caption(
         "Hier prüfst und ergänzt du die extrahierten Inhalte, Gaps und Assumptions, "
         "bevor du in den Schritt 'Unternehmen' wechselst."
@@ -226,7 +226,7 @@ def render(ctx: WizardContext) -> None:
 
 PAGE = WizardPage(
     key="jobspec_review",
-    title_de="Jobspec-Übersicht",
+    title_de="Identifizierte Informationen",
     icon="🧾",
     render=render,
     requires_jobspec=True,
