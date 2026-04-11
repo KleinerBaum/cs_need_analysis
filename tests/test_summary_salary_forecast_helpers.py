@@ -17,11 +17,22 @@ from schemas import JobAdExtract, MoneyRange, RecruitmentStep
 
 
 SUMMARY_PATH = Path(__file__).resolve().parents[1] / "wizard_pages" / "08_summary.py"
+SALARY_PANEL_PATH = (
+    Path(__file__).resolve().parents[1] / "wizard_pages" / "salary_forecast_panel.py"
+)
 SPEC = spec_from_file_location("wizard_pages.page_08_summary", SUMMARY_PATH)
 if SPEC is None or SPEC.loader is None:
     raise RuntimeError("Could not load summary page module")
 SUMMARY_MODULE = module_from_spec(SPEC)
 SPEC.loader.exec_module(SUMMARY_MODULE)  # type: ignore[attr-defined]
+
+SALARY_PANEL_SPEC = spec_from_file_location(
+    "wizard_pages.salary_forecast_panel", SALARY_PANEL_PATH
+)
+if SALARY_PANEL_SPEC is None or SALARY_PANEL_SPEC.loader is None:
+    raise RuntimeError("Could not load salary forecast panel module")
+SALARY_PANEL_MODULE = module_from_spec(SALARY_PANEL_SPEC)
+SALARY_PANEL_SPEC.loader.exec_module(SALARY_PANEL_MODULE)  # type: ignore[attr-defined]
 
 
 def test_salary_forecast_engine_applies_scenario_overrides() -> None:
@@ -77,7 +88,9 @@ def test_build_salary_forecast_snapshot_uses_job_inputs() -> None:
     )
     answers = {"team_size": 8, "benefits": "Top", "work_mode": "hybrid"}
 
-    snapshot = SUMMARY_MODULE._build_salary_forecast_snapshot(job=job, answers=answers)
+    snapshot = SALARY_PANEL_MODULE._build_salary_forecast_snapshot(
+        job=job, answers=answers
+    )
 
     assert snapshot["forecast"]["p10"] > 0
     assert snapshot["forecast"]["p50"] >= snapshot["forecast"]["p10"]
@@ -113,19 +126,19 @@ def test_build_salary_forecast_snapshot_uses_compute_salary_forecast_only() -> N
         )
         return baseline
 
-    summary_module = cast(Any, SUMMARY_MODULE)
-    original_compute_salary_forecast = summary_module.compute_salary_forecast
-    summary_module.compute_salary_forecast = _fake_compute_salary_forecast
+    panel_module = cast(Any, SALARY_PANEL_MODULE)
+    original_compute_salary_forecast = panel_module.compute_salary_forecast
+    panel_module.compute_salary_forecast = _fake_compute_salary_forecast
     overrides = map_salary_scenario_to_overrides(SALARY_SCENARIO_MARKET_UPSIDE)
     try:
-        snapshot = SUMMARY_MODULE._build_salary_forecast_snapshot(
+        snapshot = SALARY_PANEL_MODULE._build_salary_forecast_snapshot(
             job=job,
             answers=answers,
             scenario_name=SALARY_SCENARIO_MARKET_UPSIDE,
             scenario_overrides=overrides,
         )
     finally:
-        summary_module.compute_salary_forecast = original_compute_salary_forecast
+        panel_module.compute_salary_forecast = original_compute_salary_forecast
 
     assert len(calls) == 1
     assert calls[0]["scenario_overrides"] == overrides
@@ -144,11 +157,11 @@ def test_summary_source_hides_engine_internal_delta_widgets() -> None:
     assert "Spread Δ" not in source
     assert "Confidence Δ" not in source
     assert "_render_sidebar_salary_forecast" not in source
-    assert "map_salary_scenario_to_overrides(" in source
+    assert "Salary Forecast" not in source
 
 
 def test_summary_source_uses_city_and_country_salary_overrides() -> None:
-    source = SUMMARY_PATH.read_text(encoding="utf-8")
+    source = SALARY_PANEL_PATH.read_text(encoding="utf-8")
 
     assert "SALARY_SCENARIO_LOCATION_CITY_OVERRIDE" in source
     assert "SALARY_SCENARIO_LOCATION_COUNTRY_OVERRIDE" in source
