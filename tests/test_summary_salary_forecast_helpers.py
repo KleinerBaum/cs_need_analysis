@@ -101,12 +101,14 @@ def test_build_salary_forecast_snapshot_uses_compute_salary_forecast_only() -> N
         job_extract: JobAdExtract,
         answers: dict[str, Any],
         scenario_overrides: SalaryScenarioOverrides | None = None,
+        scenario_inputs: Any | None = None,
     ) -> Any:
         calls.append(
             {
                 "job_title": job_extract.job_title,
                 "answers": answers,
                 "scenario_overrides": scenario_overrides,
+                "scenario_inputs": scenario_inputs,
             }
         )
         return baseline
@@ -150,8 +152,8 @@ def test_summary_source_uses_city_and_country_salary_overrides() -> None:
 
     assert "SALARY_SCENARIO_LOCATION_CITY_OVERRIDE" in source
     assert "SALARY_SCENARIO_LOCATION_COUNTRY_OVERRIDE" in source
-    assert '"location_city":' in source
-    assert '"location_country":' in source
+    assert "location_city_override" in source
+    assert "location_country_override" in source
 
 
 def test_normalize_logo_payload_rejects_unsupported_type() -> None:
