@@ -9,8 +9,7 @@ import hashlib
 from contextlib import nullcontext
 from dataclasses import dataclass
 from collections import defaultdict
-from typing import Callable
-from typing import Any, TypedDict
+from typing import Any, Callable, Protocol, TypedDict
 
 import streamlit as st
 import docx
@@ -128,6 +127,56 @@ CHANGE_REQUEST_TEMPLATE_BLOCKS: dict[str, str] = {
         "inklusive Sprache konsequent verwenden."
     ),
 }
+
+
+class DocxPictureDocument(Protocol):
+    def add_picture(self, image_path_or_stream: Any, width: Any = ...) -> Any: ...
+
+
+class RenderableContainer(Protocol):
+    def __enter__(self) -> object: ...
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: Any,
+    ) -> bool | None: ...
+
+
+SummaryTabs = tuple[
+    RenderableContainer,
+    RenderableContainer,
+    RenderableContainer,
+    RenderableContainer,
+    RenderableContainer,
+]
+
+
+class LogoPayload(TypedDict):
+    name: str
+    mime_type: str
+    bytes: bytes
+
+
+class EscoExportConcept(TypedDict):
+    uri: str
+    label: str
+
+
+class EscoMatchExplainability(TypedDict, total=False):
+    reason: str
+    confidence: str
+    provenance_categories: list[str]
+
+
+class EscoSharedFields(TypedDict):
+    selected_occupation_uri: str
+    essential_skills: list[dict[str, Any]]
+    optional_skills: list[dict[str, Any]]
+    unmapped_terms: list[str]
+    unmapped_roles: list[str]
+    unmapped_actions: dict[str, Any]
 
 
 class SummaryAction(TypedDict):
@@ -481,7 +530,7 @@ def _build_summary_input_fingerprint(
     selected_role_tasks: list[str],
     selected_skills: list[str],
     esco_occupation_selected: dict[str, str],
-    esco_match_explainability: dict[str, Any],
+    esco_match_explainability: EscoMatchExplainability,
     esco_selected_skills_must: list[dict[str, str]],
     esco_selected_skills_nice: list[dict[str, str]],
     nace_code: str,
@@ -550,10 +599,24 @@ def _brief_to_markdown(brief: VacancyBrief) -> str:
     return "\n".join(lines)
 
 
-def _to_esco_export_concepts(raw_items: Any) -> list[dict[str, str]]:
+def _session_list(key: SSKey, default: list[Any] | None = None) -> list[Any]:
+    raw = st.session_state.get(key.value, default if default is not None else [])
+    return raw if isinstance(raw, list) else []
+
+
+def _session_dict(key: SSKey, default: dict[str, Any] | None = None) -> dict[str, Any]:
+    raw = st.session_state.get(key.value, default if default is not None else {})
+    return raw if isinstance(raw, dict) else {}
+
+
+def _session_str(key: SSKey, default: str = "") -> str:
+    return str(st.session_state.get(key.value, default) or "").strip()
+
+
+def _to_esco_export_concepts(raw_items: Any) -> list[EscoExportConcept]:
     if not isinstance(raw_items, list):
         return []
-    concepts: list[dict[str, str]] = []
+    concepts: list[EscoExportConcept] = []
     for item in raw_items:
         try:
             parsed = EscoConceptRef.model_validate(item)
@@ -567,23 +630,19 @@ def _normalize_skill_term(value: str) -> str:
     return " ".join(str(value or "").strip().casefold().split())
 
 
-def _read_esco_shared_fields() -> dict[str, Any]:
-    selected_uri = str(
-        st.session_state.get(SSKey.ESCO_SELECTED_OCCUPATION_URI.value, "") or ""
-    ).strip()
-    essential_raw = st.session_state.get(
-        SSKey.ESCO_CONFIRMED_ESSENTIAL_SKILLS.value,
-        st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, []),
+def _read_esco_shared_fields() -> EscoSharedFields:
+    selected_uri = _session_str(SSKey.ESCO_SELECTED_OCCUPATION_URI)
+    essential_raw = _session_list(
+        SSKey.ESCO_CONFIRMED_ESSENTIAL_SKILLS,
+        default=_session_list(SSKey.ESCO_SKILLS_SELECTED_MUST),
     )
-    optional_raw = st.session_state.get(
-        SSKey.ESCO_CONFIRMED_OPTIONAL_SKILLS.value,
-        st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, []),
+    optional_raw = _session_list(
+        SSKey.ESCO_CONFIRMED_OPTIONAL_SKILLS,
+        default=_session_list(SSKey.ESCO_SKILLS_SELECTED_NICE),
     )
-    unmapped_raw = st.session_state.get(SSKey.ESCO_UNMAPPED_REQUIREMENT_TERMS.value, [])
-    unmapped_role_raw = st.session_state.get(SSKey.ESCO_UNMAPPED_ROLE_TERMS.value, [])
-    unmapped_actions_raw = st.session_state.get(
-        SSKey.ESCO_UNMAPPED_TERM_ACTIONS.value, {}
-    )
+    unmapped_raw = _session_list(SSKey.ESCO_UNMAPPED_REQUIREMENT_TERMS)
+    unmapped_role_raw = _session_list(SSKey.ESCO_UNMAPPED_ROLE_TERMS)
+    unmapped_actions_raw = _session_dict(SSKey.ESCO_UNMAPPED_TERM_ACTIONS)
     essential = essential_raw if isinstance(essential_raw, list) else []
     optional = optional_raw if isinstance(optional_raw, list) else []
     unmapped = (
@@ -602,9 +661,7 @@ def _read_esco_shared_fields() -> dict[str, Any]:
         "optional_skills": optional,
         "unmapped_terms": unmapped,
         "unmapped_roles": unmapped_roles,
-        "unmapped_actions": unmapped_actions_raw
-        if isinstance(unmapped_actions_raw, dict)
-        else {},
+        "unmapped_actions": unmapped_actions_raw,
     }
 
 
@@ -630,7 +687,7 @@ def _count_skill_relation_traces(skills: list[dict[str, Any]]) -> int:
     return relation_traces
 
 
-def _compute_esco_coverage_metrics(shared_esco: dict[str, Any]) -> dict[str, int]:
+def _compute_esco_coverage_metrics(shared_esco: EscoSharedFields) -> dict[str, int]:
     job_extract = st.session_state.get(SSKey.JOB_EXTRACT.value, {})
     must_terms = (
         _extract_skills_step_raw_terms(
@@ -721,7 +778,7 @@ def _build_esco_mapping_report_rows() -> list[dict[str, str]]:
     chosen_nice = _to_esco_export_concepts(shared_esco["optional_skills"])
     chosen_concepts = chosen_must + chosen_nice
 
-    by_label: defaultdict[str, list[dict[str, str]]] = defaultdict(list)
+    by_label: defaultdict[str, list[EscoExportConcept]] = defaultdict(list)
     for concept in chosen_concepts:
         by_label[_normalize_skill_term(concept.get("label", ""))].append(concept)
 
@@ -854,36 +911,32 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
     if shared_esco["unmapped_actions"]:
         payload["esco_unmapped_term_actions"] = shared_esco["unmapped_actions"]
 
-    esco_config = st.session_state.get(SSKey.ESCO_CONFIG.value, {})
-    if isinstance(esco_config, dict):
-        selected_version = str(esco_config.get("selected_version") or "").strip()
-        if selected_version:
-            payload["esco_version"] = selected_version
+    esco_config = _session_dict(SSKey.ESCO_CONFIG)
+    selected_version = str(esco_config.get("selected_version") or "").strip()
+    if selected_version:
+        payload["esco_version"] = selected_version
 
-    title_variants_raw = st.session_state.get(
-        SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value
-    )
-    if isinstance(title_variants_raw, dict):
-        variants_uri = str(title_variants_raw.get("uri") or "").strip()
-        recommended_titles_raw = title_variants_raw.get("recommended_titles", {})
-        if (
-            isinstance(selected_occupation, dict)
-            and variants_uri == str(selected_occupation.get("uri") or "").strip()
-            and isinstance(recommended_titles_raw, dict)
-        ):
-            recommended_titles: dict[str, list[str]] = {}
-            for language, labels_raw in recommended_titles_raw.items():
-                if not isinstance(language, str) or not isinstance(labels_raw, list):
-                    continue
-                labels = [
-                    str(label).strip()
-                    for label in labels_raw
-                    if isinstance(label, str) and str(label).strip()
-                ]
-                if labels:
-                    recommended_titles[language] = labels
-            if recommended_titles:
-                payload["recommended_titles"] = recommended_titles
+    title_variants_raw = _session_dict(SSKey.ESCO_OCCUPATION_TITLE_VARIANTS)
+    variants_uri = str(title_variants_raw.get("uri") or "").strip()
+    recommended_titles_raw = title_variants_raw.get("recommended_titles", {})
+    if (
+        isinstance(selected_occupation, dict)
+        and variants_uri == str(selected_occupation.get("uri") or "").strip()
+        and isinstance(recommended_titles_raw, dict)
+    ):
+        recommended_titles: dict[str, list[str]] = {}
+        for language, labels_raw in recommended_titles_raw.items():
+            if not isinstance(language, str) or not isinstance(labels_raw, list):
+                continue
+            labels = [
+                str(label).strip()
+                for label in labels_raw
+                if isinstance(label, str) and str(label).strip()
+            ]
+            if labels:
+                recommended_titles[language] = labels
+        if recommended_titles:
+            payload["recommended_titles"] = recommended_titles
 
     salary_forecast = st.session_state.get(SSKey.SALARY_FORECAST_LAST_RESULT.value)
     if isinstance(salary_forecast, dict):
@@ -1116,7 +1169,7 @@ def _render_selection_matrix(
 
 def _job_ad_to_docx_bytes(job_ad: JobAdGenerationResult, styleguide: str) -> bytes:
     d = docx.Document()
-    logo_payload = st.session_state.get(SSKey.SUMMARY_LOGO.value)
+    logo_payload = _read_logo_payload()
     _add_logo_to_docx(document=d, logo_payload=logo_payload)
     d.add_heading(job_ad.headline or "Stellenanzeige", level=1)
     d.add_paragraph(job_ad.job_ad_text)
@@ -1180,7 +1233,7 @@ def _job_ad_to_pdf_bytes(
 
 def _brief_to_docx_bytes(brief: VacancyBrief) -> bytes:
     d = docx.Document()
-    logo_payload = st.session_state.get(SSKey.SUMMARY_LOGO.value)
+    logo_payload = _read_logo_payload()
     _add_logo_to_docx(document=d, logo_payload=logo_payload)
     d.add_heading("Recruiting Brief", level=1)
     d.add_paragraph(f"One-liner: {brief.one_liner}")
@@ -1383,7 +1436,7 @@ def _employment_contract_to_docx_bytes(draft: EmploymentContractDraft) -> bytes:
     return bio.getvalue()
 
 
-def _normalize_logo_payload(uploaded_logo: Any) -> dict[str, Any] | None:
+def _normalize_logo_payload(uploaded_logo: Any) -> LogoPayload | None:
     if uploaded_logo is None:
         return None
     mime_type = str(getattr(uploaded_logo, "type", "") or "").lower().strip()
@@ -1395,15 +1448,33 @@ def _normalize_logo_payload(uploaded_logo: Any) -> dict[str, Any] | None:
     return {
         "name": str(getattr(uploaded_logo, "name", "") or "logo"),
         "mime_type": mime_type,
-        "bytes": raw_bytes,
+        "bytes": bytes(raw_bytes),
     }
 
 
-def _add_logo_to_docx(document: Any, logo_payload: Any) -> bool:
-    if not isinstance(logo_payload, dict):
+def _read_logo_payload() -> LogoPayload | None:
+    raw_payload = st.session_state.get(SSKey.SUMMARY_LOGO.value)
+    if isinstance(raw_payload, dict):
+        name = str(raw_payload.get("name") or "logo").strip() or "logo"
+        mime_type = str(raw_payload.get("mime_type") or "").strip().lower()
+        logo_bytes = raw_payload.get("bytes")
+        if (
+            mime_type in SUPPORTED_LOGO_MIME_TYPES
+            and isinstance(logo_bytes, (bytes, bytearray))
+            and logo_bytes
+        ):
+            return {"name": name, "mime_type": mime_type, "bytes": bytes(logo_bytes)}
+        return None
+    return _normalize_logo_payload(raw_payload)
+
+
+def _add_logo_to_docx(
+    document: DocxPictureDocument, logo_payload: LogoPayload | None
+) -> bool:
+    if logo_payload is None:
         return False
     logo_bytes = logo_payload.get("bytes")
-    if not isinstance(logo_bytes, (bytes, bytearray)):
+    if not isinstance(logo_bytes, bytes):
         return False
     image_stream = io.BytesIO(bytes(logo_bytes))
     image_stream.seek(0)
@@ -1627,9 +1698,7 @@ def _build_summary_view_model() -> SummaryViewModel | None:
 
 
 def _read_nace_to_esco_mapping() -> dict[str, str]:
-    nace_lookup_raw = st.session_state.get(SSKey.EURES_NACE_TO_ESCO.value, {})
-    if not isinstance(nace_lookup_raw, dict):
-        return {}
+    nace_lookup_raw = _session_dict(SSKey.EURES_NACE_TO_ESCO)
     mapping: dict[str, str] = {}
     for code, uri in nace_lookup_raw.items():
         normalized_code = str(code or "").strip()
@@ -1669,20 +1738,16 @@ def _read_selected_esco_occupation() -> dict[str, str]:
     }
 
 
-def _read_esco_match_explainability() -> dict[str, Any]:
+def _read_esco_match_explainability() -> EscoMatchExplainability:
     reason_raw = st.session_state.get(SSKey.ESCO_MATCH_REASON.value)
     confidence_raw = st.session_state.get(SSKey.ESCO_MATCH_CONFIDENCE.value)
-    provenance_raw = st.session_state.get(SSKey.ESCO_MATCH_PROVENANCE.value)
+    provenance_raw = _session_list(SSKey.ESCO_MATCH_PROVENANCE)
 
     reason = str(reason_raw or "").strip()
     confidence = str(confidence_raw or "").strip()
-    provenance = (
-        [str(item).strip() for item in provenance_raw if str(item).strip()]
-        if isinstance(provenance_raw, list)
-        else []
-    )
+    provenance = [str(item).strip() for item in provenance_raw if str(item).strip()]
 
-    explainability: dict[str, Any] = {}
+    explainability: EscoMatchExplainability = {}
     if reason:
         explainability["reason"] = reason
     if confidence:
@@ -1694,9 +1759,7 @@ def _read_esco_match_explainability() -> dict[str, Any]:
 
 def _build_summary_meta(job: JobAdExtract) -> SummaryMeta:
     selected_occupation = _read_selected_esco_occupation()
-    nace_code = str(
-        st.session_state.get(SSKey.COMPANY_NACE_CODE.value, "") or ""
-    ).strip()
+    nace_code = _session_str(SSKey.COMPANY_NACE_CODE)
     nace_mapping = _read_nace_to_esco_mapping()
     return SummaryMeta(
         role_label=str(job.job_title or "").strip(),
@@ -2356,10 +2419,12 @@ def _render_readiness_tab(
             )
 
 
-def _build_summary_tabs() -> tuple[Any, Any, Any, Any, Any]:
+def _build_summary_tabs() -> SummaryTabs:
     tab_labels = ["Readiness", "Fakten", "Artefakte", "Export", "Advanced"]
     if hasattr(st, "tabs"):
-        return tuple(st.tabs(tab_labels))
+        tabs = st.tabs(tab_labels)
+        if len(tabs) == 5:
+            return tabs[0], tabs[1], tabs[2], tabs[3], tabs[4]
     if hasattr(st, "container"):
         return (
             st.container(),
@@ -2985,7 +3050,7 @@ def render(ctx: WizardContext) -> None:
         change_request = str(
             st.session_state.get(SSKey.SUMMARY_CHANGE_REQUEST_TEXT.value, "")
         )
-        logo_payload = st.session_state.get(SSKey.SUMMARY_LOGO.value)
+        logo_payload = _read_logo_payload()
         try:
             with st.spinner("Generiere zielgruppen-optimierte Stellenanzeige …"):
                 result, usage = generate_custom_job_ad(
@@ -3004,7 +3069,7 @@ def render(ctx: WizardContext) -> None:
             payload["generation_notes"] = extracted_notes
             payload["styleguide"] = styleguide
             payload["logo_filename"] = (
-                logo_payload.get("name") if isinstance(logo_payload, dict) else None
+                logo_payload.get("name") if logo_payload else None
             )
             st.session_state[SSKey.JOB_AD_DRAFT_CUSTOM.value] = payload
             st.session_state[SSKey.JOB_AD_LAST_USAGE.value] = usage or {}
