@@ -1,0 +1,10 @@
+dataset_version,year,country_code,region_id,occupation_id,currency,period,n,p10,p50,p90,source_label
+demo_v1,2024,DE,DE,title::software-engineer,EUR,year,120,52000,68000,91000,demo_synthetic_reference
+demo_v1,2025,DE,DE,title::software-engineer,EUR,year,132,54000,71000,95000,demo_synthetic_reference
+demo_v1,2025,DE,DE-BE,title::software-engineer,EUR,year,44,56000,74000,98000,demo_synthetic_reference
+demo_v1,2025,DE,DE,title::data-scientist,EUR,year,95,58000,76000,102000,demo_synthetic_reference
+demo_v1,2025,DE,DE-BW,title::data-scientist,EUR,year,38,60000,79000,106000,demo_synthetic_reference
+demo_v1,2025,DE,DE,esco::http://data.europa.eu/esco/occupation/41b0f2f6-5122-4c00-a8fd-11be7b5af50c,EUR,year,51,50000,66000,90000,demo_synthetic_reference
+demo_v1,2025,DE,DE,title::sales-manager,EUR,year,88,55000,73000,99000,demo_synthetic_reference
+demo_v1,2025,DE,DE,ANY,EUR,year,,48000,62000,86000,demo_synthetic_reference
+demo_v1,2024,DE,DE,ANY,EUR,year,,46000,60000,83000,demo_synthetic_reference
