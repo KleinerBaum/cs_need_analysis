@@ -15,7 +15,12 @@ import streamlit as st
 import docx
 import plotly.graph_objects as go  # type: ignore[import-untyped]
 
-from constants import AnswerType, SSKey
+from constants import (
+    AnswerType,
+    SSKey,
+    SUMMARY_ARTIFACT_IDS,
+    SUMMARY_ARTIFACT_LEGACY_ALIASES,
+)
 from llm_client import (
     TASK_GENERATE_EMPLOYMENT_CONTRACT,
     JobAdGenerationResult,
@@ -146,6 +151,12 @@ class SummaryAction(TypedDict):
     result_key: SSKey
     input_hints: tuple[str, ...]
     input_renderer: Callable[[], None] | None
+
+
+ACTION_ID_TO_CANONICAL_ARTIFACT_ID: dict[str, str] = {
+    **SUMMARY_ARTIFACT_LEGACY_ALIASES,
+    **{artifact_id: artifact_id for artifact_id in SUMMARY_ARTIFACT_IDS},
+}
 
 
 @dataclass(frozen=True)
@@ -303,6 +314,29 @@ def _safe_int(value: Any) -> int:
         return int(value)
     except (TypeError, ValueError):
         return 0
+
+
+def _to_canonical_artifact_id(raw_id: Any) -> str:
+    if not isinstance(raw_id, str):
+        return ""
+    return ACTION_ID_TO_CANONICAL_ARTIFACT_ID.get(raw_id, "")
+
+
+def _resolve_active_artifact_id(*, available_artifact_ids: list[str]) -> str:
+    active_raw = st.session_state.get(SSKey.SUMMARY_ACTIVE_ARTIFACT.value, "")
+    normalized_active = _to_canonical_artifact_id(active_raw)
+    if normalized_active in available_artifact_ids:
+        if active_raw != normalized_active:
+            st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = normalized_active
+        return normalized_active
+    if "brief" in available_artifact_ids:
+        fallback = "brief"
+    elif available_artifact_ids:
+        fallback = available_artifact_ids[0]
+    else:
+        fallback = "brief"
+    st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = fallback
+    return fallback
 
 
 def _append_template_blocks(
@@ -2311,7 +2345,9 @@ def _render_action_card(action: SummaryAction) -> bool:
                 ),
             )
         if triggered:
-            st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = action["id"]
+            st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = _to_canonical_artifact_id(
+                action["id"]
+            )
         return triggered
 
 
@@ -2341,7 +2377,9 @@ def _render_primary_brief_card(
             key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, primary_action["id"]),
         )
         if triggered:
-            st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = primary_action["id"]
+            st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = _to_canonical_artifact_id(
+                primary_action["id"]
+            )
         return triggered
 
 
@@ -2391,7 +2429,7 @@ def _build_action_registry(
 ) -> list[SummaryAction]:
     return [
         {
-            "id": "recruiting_brief",
+            "id": "brief",
             "title": "Recruiting Brief",
             "benefit": "Verdichtet Jobspec und Wizard-Antworten zu einem sofort nutzbaren Recruiting Brief.",
             "cta_label": "Recruiting Brief generieren",
@@ -2409,7 +2447,7 @@ def _build_action_registry(
             "input_renderer": None,
         },
         {
-            "id": "job_ad_generator",
+            "id": "job_ad",
             "title": "Job-Ad-Generator",
             "benefit": "Erstellt eine zielgruppenorientierte Stellenanzeige mit nachvollziehbarer AGG-Checkliste.",
             "cta_label": "Stellenanzeige generieren/verbessern",
@@ -2423,7 +2461,7 @@ def _build_action_registry(
             "input_renderer": render_job_ad_inputs,
         },
         {
-            "id": "interview_hr_sheet",
+            "id": "interview_hr",
             "title": "Interview-Vorbereitungssheet (HR)",
             "benefit": "Liefert ein strukturiertes HR-Interviewblatt mit Leitfaden und Bewertungsrubrik.",
             "cta_label": "HR-Sheet erstellen",
@@ -2441,7 +2479,7 @@ def _build_action_registry(
             "input_renderer": None,
         },
         {
-            "id": "interview_fach_sheet",
+            "id": "interview_fach",
             "title": "Interview-Vorbereitungssheet (Fachbereich)",
             "benefit": "Liefert ein fachliches Interviewblatt für Deep Dives und konsistente Bewertung.",
             "cta_label": "Fachbereich-Sheet erstellen",
@@ -2505,10 +2543,10 @@ def _render_summary_processing_hub(
     st.caption("Primärer Pfad: Recruiting Brief zuerst, danach Folgeartefakte und Export.")
 
     primary_action = next(
-        (action for action in action_registry if action["id"] == "recruiting_brief"),
+        (action for action in action_registry if action["id"] == "brief"),
         action_registry[0],
     )
-    follow_up_actions = [action for action in action_registry if action["id"] != "recruiting_brief"]
+    follow_up_actions = [action for action in action_registry if action["id"] != "brief"]
     brief_status = _get_brief_status(
         primary_action=primary_action,
         follow_up_actions=follow_up_actions,
@@ -2532,6 +2570,190 @@ def _render_summary_processing_hub(
     _render_export_bar(has_brief=brief_status[0] == "current")
 
 
+def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
+    if artifact_id == "brief":
+        render_brief(brief)
+        return
+
+    if artifact_id == "job_ad":
+        custom_job_ad_raw = st.session_state.get(SSKey.JOB_AD_DRAFT_CUSTOM.value)
+        if not isinstance(custom_job_ad_raw, dict):
+            st.info("Für dieses Artefakt liegt noch kein Ergebnis vor.")
+            return
+        custom_job_ad = JobAdGenerationResult.model_validate(
+            {
+                "headline": custom_job_ad_raw.get("headline", ""),
+                "target_group": custom_job_ad_raw.get("target_group", []),
+                "agg_checklist": custom_job_ad_raw.get("agg_checklist", []),
+                "job_ad_text": custom_job_ad_raw.get("job_ad_text", ""),
+            }
+        )
+        st.markdown(f"### {custom_job_ad.headline}")
+        st.text_area(
+            "Stellenanzeige",
+            value=custom_job_ad.job_ad_text,
+            height=_estimate_text_area_height(custom_job_ad.job_ad_text),
+            disabled=True,
+        )
+        st.markdown("**Zielgruppe**")
+        for group in custom_job_ad.target_group:
+            st.write(f"- {group}")
+        st.markdown("**AGG-Checkliste**")
+        for item in custom_job_ad.agg_checklist:
+            st.write(f"- {item}")
+        custom_docx = _job_ad_to_docx_bytes(
+            custom_job_ad, str(custom_job_ad_raw.get("styleguide", ""))
+        )
+        custom_pdf = _job_ad_to_pdf_bytes(
+            custom_job_ad, str(custom_job_ad_raw.get("styleguide", ""))
+        )
+        x1, x2 = st.columns(2)
+        with x1:
+            st.download_button(
+                "Download Stellenanzeige (DOCX)",
+                data=custom_docx,
+                file_name="stellenanzeige.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        with x2:
+            if custom_pdf is None:
+                st.caption("PDF-Export benötigt reportlab (nicht verfügbar).")
+            else:
+                st.download_button(
+                    "Download Stellenanzeige (PDF)",
+                    data=custom_pdf,
+                    file_name="stellenanzeige.pdf",
+                    mime="application/pdf",
+                )
+        return
+
+    if artifact_id == "interview_hr":
+        payload = st.session_state.get(SSKey.INTERVIEW_PREP_HR.value)
+        if isinstance(payload, dict):
+            sheet = InterviewPrepSheetHR.model_validate(payload)
+            render_interview_prep_hr(sheet)
+            hr_json_bytes = json.dumps(
+                sheet.model_dump(mode="json"), indent=2, ensure_ascii=False
+            ).encode("utf-8")
+            hr_docx_bytes = _interview_prep_hr_to_docx_bytes(sheet)
+            x1, x2 = st.columns(2)
+            with x1:
+                st.download_button(
+                    "Download Interview Sheet JSON",
+                    data=hr_json_bytes,
+                    file_name="interview_sheet_hr.json",
+                    mime="application/json",
+                )
+            with x2:
+                st.download_button(
+                    "Download Interview Sheet DOCX",
+                    data=hr_docx_bytes,
+                    file_name="interview_sheet_hr.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                )
+        else:
+            st.info("Für dieses Artefakt liegt noch kein Ergebnis vor.")
+        return
+
+    if artifact_id == "interview_fach":
+        payload = st.session_state.get(SSKey.INTERVIEW_PREP_FACH.value)
+        if isinstance(payload, dict):
+            sheet = InterviewPrepSheetHiringManager.model_validate(payload)
+            render_interview_prep_fach(sheet)
+            fach_json_bytes = json.dumps(
+                sheet.model_dump(mode="json"), indent=2, ensure_ascii=False
+            ).encode("utf-8")
+            fach_docx_bytes = _interview_prep_fach_to_docx_bytes(sheet)
+            x1, x2 = st.columns(2)
+            with x1:
+                st.download_button(
+                    "Download Interview Sheet (Fachbereich) JSON",
+                    data=fach_json_bytes,
+                    file_name="interview_sheet_fachbereich.json",
+                    mime="application/json",
+                )
+            with x2:
+                st.download_button(
+                    "Download Interview Sheet (Fachbereich) DOCX",
+                    data=fach_docx_bytes,
+                    file_name="interview_sheet_fachbereich.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                )
+        else:
+            st.info("Für dieses Artefakt liegt noch kein Ergebnis vor.")
+        return
+
+    if artifact_id == "boolean_search":
+        payload = st.session_state.get(SSKey.BOOLEAN_SEARCH_STRING.value)
+        if isinstance(payload, dict):
+            boolean_pack = BooleanSearchPack.model_validate(payload)
+            render_boolean_search_pack(boolean_pack)
+            boolean_json_bytes = json.dumps(
+                boolean_pack.model_dump(mode="json"), indent=2, ensure_ascii=False
+            ).encode("utf-8")
+            boolean_md = _boolean_search_pack_to_markdown(boolean_pack).encode("utf-8")
+            x1, x2 = st.columns(2)
+            with x1:
+                st.download_button(
+                    "Download Boolean Search JSON",
+                    data=boolean_json_bytes,
+                    file_name="boolean_search_pack.json",
+                    mime="application/json",
+                )
+            with x2:
+                st.download_button(
+                    "Download Boolean Search Markdown",
+                    data=boolean_md,
+                    file_name="boolean_search_pack.md",
+                    mime="text/markdown",
+                )
+        else:
+            st.info("Für dieses Artefakt liegt noch kein Ergebnis vor.")
+        return
+
+    if artifact_id == "employment_contract":
+        payload = st.session_state.get(SSKey.EMPLOYMENT_CONTRACT_DRAFT.value)
+        if isinstance(payload, dict):
+            contract = EmploymentContractDraft.model_validate(payload)
+            render_employment_contract_draft(contract)
+            contract_json_bytes = json.dumps(
+                contract.model_dump(mode="json"), indent=2, ensure_ascii=False
+            ).encode("utf-8")
+            contract_docx_bytes = _employment_contract_to_docx_bytes(contract)
+            x1, x2 = st.columns(2)
+            with x1:
+                st.download_button(
+                    "Download Arbeitsvertrag JSON",
+                    data=contract_json_bytes,
+                    file_name="employment_contract_draft.json",
+                    mime="application/json",
+                )
+            with x2:
+                st.download_button(
+                    "Download Arbeitsvertrag DOCX",
+                    data=contract_docx_bytes,
+                    file_name="employment_contract_draft.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                )
+        else:
+            st.info("Für dieses Artefakt liegt noch kein Ergebnis vor.")
+
+
+def _render_secondary_artifacts(*, active_artifact_id: str, available_artifact_ids: list[str]) -> None:
+    secondary_ids = [artifact_id for artifact_id in available_artifact_ids if artifact_id != active_artifact_id]
+    if not secondary_ids:
+        return
+    st.caption("Weitere Ergebnisse")
+    for artifact_id in secondary_ids:
+        if st.button(
+            f"Als Fokus öffnen: {artifact_id}",
+            key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, f"activate.{artifact_id}"),
+            width="stretch",
+        ):
+            st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = artifact_id
+            st.rerun()
+
+
 def _render_summary_results_workspace(
     *,
     brief: VacancyBrief,
@@ -2550,323 +2772,54 @@ def _render_summary_results_workspace(
         f"🧠 Modus: `{last_mode}` · Modelle: Draft=`{last_models.get('draft_model', resolved_brief_model)}`"
     )
 
+    available_artifact_ids: list[str] = ["brief"]
+    if isinstance(st.session_state.get(SSKey.JOB_AD_DRAFT_CUSTOM.value), dict):
+        available_artifact_ids.append("job_ad")
+    if isinstance(st.session_state.get(SSKey.INTERVIEW_PREP_HR.value), dict):
+        available_artifact_ids.append("interview_hr")
+    if isinstance(st.session_state.get(SSKey.INTERVIEW_PREP_FACH.value), dict):
+        available_artifact_ids.append("interview_fach")
+    if isinstance(st.session_state.get(SSKey.BOOLEAN_SEARCH_STRING.value), dict):
+        available_artifact_ids.append("boolean_search")
+    if isinstance(st.session_state.get(SSKey.EMPLOYMENT_CONTRACT_DRAFT.value), dict):
+        available_artifact_ids.append("employment_contract")
+
+    active_artifact_id = _resolve_active_artifact_id(
+        available_artifact_ids=available_artifact_ids
+    )
+    st.subheader(f"Ergebnis-Fokus: {active_artifact_id}")
+    _render_active_artifact(artifact_id=active_artifact_id, brief=brief)
+    _render_secondary_artifacts(
+        active_artifact_id=active_artifact_id,
+        available_artifact_ids=available_artifact_ids,
+    )
+
     main_tab, advanced_tab = st.tabs(["Brief & Export", "Advanced Studio"])
-
     with main_tab:
-        render_brief(brief)
-        hr_sheet_payload = st.session_state.get(SSKey.INTERVIEW_PREP_HR.value)
-        if isinstance(hr_sheet_payload, dict):
-            hr_sheet = InterviewPrepSheetHR.model_validate(hr_sheet_payload)
-            with st.expander("Interview Sheet (HR)", expanded=False):
-                hr_cache_hit = bool(
-                    st.session_state.get(SSKey.INTERVIEW_PREP_HR_CACHE_HIT.value, False)
-                )
-                hr_mode = (
-                    st.session_state.get(SSKey.INTERVIEW_PREP_HR_LAST_MODE.value)
-                    or "unknown"
-                )
-                hr_models = (
-                    st.session_state.get(SSKey.INTERVIEW_PREP_HR_LAST_MODELS.value, {})
-                    or {}
-                )
-                cache_label = "Cache-Hit" if hr_cache_hit else "Kein Cache-Hit"
-                st.caption(
-                    f"📦 {cache_label} · Modus: `{hr_mode}` · "
-                    f"Modell: `{hr_models.get('draft_model', resolved_hr_sheet_model)}`"
-                )
-                render_interview_prep_hr(hr_sheet)
-
-                hr_json_bytes = json.dumps(
-                    hr_sheet.model_dump(mode="json"), indent=2, ensure_ascii=False
-                ).encode("utf-8")
-                hr_docx_bytes = _interview_prep_hr_to_docx_bytes(hr_sheet)
-                x1, x2 = st.columns(2)
-                with x1:
-                    st.download_button(
-                        "Download Interview Sheet JSON",
-                        data=hr_json_bytes,
-                        file_name="interview_sheet_hr.json",
-                        mime="application/json",
-                    )
-                with x2:
-                    st.download_button(
-                        "Download Interview Sheet DOCX",
-                        data=hr_docx_bytes,
-                        file_name="interview_sheet_hr.docx",
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    )
-
-        fach_sheet_payload = st.session_state.get(SSKey.INTERVIEW_PREP_FACH.value)
-        if isinstance(fach_sheet_payload, dict):
-            fach_sheet = InterviewPrepSheetHiringManager.model_validate(
-                fach_sheet_payload
-            )
-            with st.expander("Interview Sheet (Fachbereich)", expanded=False):
-                fach_cache_hit = bool(
-                    st.session_state.get(
-                        SSKey.INTERVIEW_PREP_FACH_CACHE_HIT.value, False
-                    )
-                )
-                fach_mode = (
-                    st.session_state.get(SSKey.INTERVIEW_PREP_FACH_LAST_MODE.value)
-                    or "unknown"
-                )
-                fach_models = (
-                    st.session_state.get(
-                        SSKey.INTERVIEW_PREP_FACH_LAST_MODELS.value, {}
-                    )
-                    or {}
-                )
-                fach_cache_label = "Cache-Hit" if fach_cache_hit else "Kein Cache-Hit"
-                st.caption(
-                    f"📦 {fach_cache_label} · Modus: `{fach_mode}` · "
-                    f"Modell: `{fach_models.get('draft_model', resolved_fach_sheet_model)}`"
-                )
-                render_interview_prep_fach(fach_sheet)
-
-                fach_json_bytes = json.dumps(
-                    fach_sheet.model_dump(mode="json"), indent=2, ensure_ascii=False
-                ).encode("utf-8")
-                fach_docx_bytes = _interview_prep_fach_to_docx_bytes(fach_sheet)
-                x1, x2 = st.columns(2)
-                with x1:
-                    st.download_button(
-                        "Download Interview Sheet (Fachbereich) JSON",
-                        data=fach_json_bytes,
-                        file_name="interview_sheet_fachbereich.json",
-                        mime="application/json",
-                    )
-                with x2:
-                    st.download_button(
-                        "Download Interview Sheet (Fachbereich) DOCX",
-                        data=fach_docx_bytes,
-                        file_name="interview_sheet_fachbereich.docx",
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    )
-
-        boolean_payload = st.session_state.get(SSKey.BOOLEAN_SEARCH_STRING.value)
-        if isinstance(boolean_payload, dict):
-            boolean_pack = BooleanSearchPack.model_validate(boolean_payload)
-            with st.expander("Boolean Search Pack", expanded=False):
-                boolean_cache_hit = bool(
-                    st.session_state.get(SSKey.BOOLEAN_SEARCH_CACHE_HIT.value, False)
-                )
-                boolean_mode = (
-                    st.session_state.get(SSKey.BOOLEAN_SEARCH_LAST_MODE.value)
-                    or "unknown"
-                )
-                boolean_models = (
-                    st.session_state.get(SSKey.BOOLEAN_SEARCH_LAST_MODELS.value, {})
-                    or {}
-                )
-                boolean_cache_label = (
-                    "Cache-Hit" if boolean_cache_hit else "Kein Cache-Hit"
-                )
-                st.caption(
-                    f"📦 {boolean_cache_label} · Modus: `{boolean_mode}` · "
-                    f"Modell: `{boolean_models.get('draft_model', resolved_boolean_search_model)}`"
-                )
-                render_boolean_search_pack(boolean_pack)
-
-                boolean_json_bytes = json.dumps(
-                    boolean_pack.model_dump(mode="json"), indent=2, ensure_ascii=False
-                ).encode("utf-8")
-                boolean_md = _boolean_search_pack_to_markdown(boolean_pack).encode(
-                    "utf-8"
-                )
-                x1, x2 = st.columns(2)
-                with x1:
-                    st.download_button(
-                        "Download Boolean Search JSON",
-                        data=boolean_json_bytes,
-                        file_name="boolean_search_pack.json",
-                        mime="application/json",
-                    )
-                with x2:
-                    st.download_button(
-                        "Download Boolean Search Markdown",
-                        data=boolean_md,
-                        file_name="boolean_search_pack.md",
-                        mime="text/markdown",
-                    )
-
-        employment_contract_payload = st.session_state.get(
-            SSKey.EMPLOYMENT_CONTRACT_DRAFT.value
-        )
-        if isinstance(employment_contract_payload, dict):
-            employment_contract_draft = EmploymentContractDraft.model_validate(
-                employment_contract_payload
-            )
-            with st.expander("Arbeitsvertrag (Template Draft)", expanded=False):
-                contract_cache_hit = bool(
-                    st.session_state.get(
-                        SSKey.EMPLOYMENT_CONTRACT_CACHE_HIT.value, False
-                    )
-                )
-                contract_mode = (
-                    st.session_state.get(SSKey.EMPLOYMENT_CONTRACT_LAST_MODE.value)
-                    or "unknown"
-                )
-                contract_models = (
-                    st.session_state.get(
-                        SSKey.EMPLOYMENT_CONTRACT_LAST_MODELS.value, {}
-                    )
-                    or {}
-                )
-                contract_cache_label = (
-                    "Cache-Hit" if contract_cache_hit else "Kein Cache-Hit"
-                )
-                st.caption(
-                    f"📦 {contract_cache_label} · Modus: `{contract_mode}` · "
-                    f"Modell: `{contract_models.get('draft_model', resolved_employment_contract_model)}`"
-                )
-                render_employment_contract_draft(employment_contract_draft)
-
-                contract_json_bytes = json.dumps(
-                    employment_contract_draft.model_dump(mode="json"),
-                    indent=2,
-                    ensure_ascii=False,
-                ).encode("utf-8")
-                contract_docx_bytes = _employment_contract_to_docx_bytes(
-                    employment_contract_draft
-                )
-                x1, x2 = st.columns(2)
-                with x1:
-                    st.download_button(
-                        "Download Arbeitsvertrag JSON",
-                        data=contract_json_bytes,
-                        file_name="employment_contract_draft.json",
-                        mime="application/json",
-                    )
-                with x2:
-                    st.download_button(
-                        "Download Arbeitsvertrag DOCX",
-                        data=contract_docx_bytes,
-                        file_name="employment_contract_draft.docx",
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    )
-
         st.subheader("Export")
         md = _brief_to_markdown(brief)
         json_bytes = json.dumps(
             _build_structured_export_payload(brief), indent=2, ensure_ascii=False
         ).encode("utf-8")
         docx_bytes = _brief_to_docx_bytes(brief)
-
         c1, c2, c3 = st.columns(3)
         with c1:
-            st.download_button(
-                "Download JSON",
-                data=json_bytes,
-                file_name="vacancy_brief.json",
-                mime="application/json",
-            )
+            st.download_button("Download JSON", data=json_bytes, file_name="vacancy_brief.json", mime="application/json")
         with c2:
-            st.download_button(
-                "Download Markdown",
-                data=md.encode("utf-8"),
-                file_name="vacancy_brief.md",
-                mime="text/markdown",
-            )
+            st.download_button("Download Markdown", data=md.encode("utf-8"), file_name="vacancy_brief.md", mime="text/markdown")
         with c3:
-            st.download_button(
-                "Download DOCX",
-                data=docx_bytes,
-                file_name="vacancy_brief.docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            )
-
-        st.markdown("#### ESCO Mapping Report")
-        esco_rows = _build_esco_mapping_report_rows()
-        esco_mapping_json_bytes = json.dumps(
-            esco_rows, indent=2, ensure_ascii=False
-        ).encode("utf-8")
-        esco_mapping_csv_bytes = _build_esco_mapping_report_csv(esco_rows)
-        c4, c5 = st.columns(2)
-        with c4:
-            st.download_button(
-                "Download ESCO Mapping Report CSV (UTF-8)",
-                data=esco_mapping_csv_bytes,
-                file_name="esco_mapping_report.csv",
-                mime="text/csv; charset=utf-8",
-            )
-        with c5:
-            st.download_button(
-                "Download ESCO Mapping Report JSON",
-                data=esco_mapping_json_bytes,
-                file_name="esco_mapping_report.json",
-                mime="application/json",
-            )
+            st.download_button("Download DOCX", data=docx_bytes, file_name="vacancy_brief.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 
     with advanced_tab:
+        st.caption(
+            "Modell-Mapping: "
+            f"HR=`{resolved_hr_sheet_model}`, "
+            f"Fach=`{resolved_fach_sheet_model}`, "
+            f"Boolean=`{resolved_boolean_search_model}`, "
+            f"Contract=`{resolved_employment_contract_model}`"
+        )
         with st.expander("Salary Forecast", expanded=False):
             _render_salary_forecast(vm.job, vm.answers)
-        st.caption(
-            "Selection Matrix und Job-Ad-Editor sind direkt im Action Hub beim Job-Ad-Generator verfügbar."
-        )
-        with st.expander("Job-Ad-Ergebnis", expanded=False):
-            custom_job_ad_raw = st.session_state.get(SSKey.JOB_AD_DRAFT_CUSTOM.value)
-            if isinstance(custom_job_ad_raw, dict):
-                custom_job_ad = JobAdGenerationResult.model_validate(
-                    {
-                        "headline": custom_job_ad_raw.get("headline", ""),
-                        "target_group": custom_job_ad_raw.get("target_group", []),
-                        "agg_checklist": custom_job_ad_raw.get("agg_checklist", []),
-                        "job_ad_text": custom_job_ad_raw.get("job_ad_text", ""),
-                    }
-                )
-                st.markdown(f"### {custom_job_ad.headline}")
-                st.text_area(
-                    "Stellenanzeige",
-                    value=custom_job_ad.job_ad_text,
-                    height=_estimate_text_area_height(custom_job_ad.job_ad_text),
-                    disabled=True,
-                )
-                st.markdown("**Zielgruppe**")
-                for group in custom_job_ad.target_group:
-                    st.write(f"- {group}")
-                st.markdown("**AGG-Checkliste**")
-                for item in custom_job_ad.agg_checklist:
-                    st.write(f"- {item}")
-
-                generation_notes_raw = custom_job_ad_raw.get("generation_notes", [])
-                generation_notes = (
-                    generation_notes_raw
-                    if isinstance(generation_notes_raw, list)
-                    else []
-                )
-                if generation_notes:
-                    st.info(
-                        "Zusätzliche Hinweise wurden aus dem Anzeigentext entfernt und hier separat abgelegt."
-                    )
-                    for note in generation_notes:
-                        st.write(f"- {note}")
-
-                custom_docx = _job_ad_to_docx_bytes(
-                    custom_job_ad, str(custom_job_ad_raw.get("styleguide", ""))
-                )
-                custom_pdf = _job_ad_to_pdf_bytes(
-                    custom_job_ad, str(custom_job_ad_raw.get("styleguide", ""))
-                )
-                x1, x2 = st.columns(2)
-                with x1:
-                    st.download_button(
-                        "Download Stellenanzeige (DOCX)",
-                        data=custom_docx,
-                        file_name="stellenanzeige.docx",
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    )
-                with x2:
-                    if custom_pdf is None:
-                        st.caption("PDF-Export benötigt reportlab (nicht verfügbar).")
-                    else:
-                        st.download_button(
-                            "Download Stellenanzeige (PDF)",
-                            data=custom_pdf,
-                            file_name="stellenanzeige.pdf",
-                            mime="application/pdf",
-                        )
-
 
 def render(ctx: WizardContext) -> None:
     render_error_banner()

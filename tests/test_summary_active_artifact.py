@@ -27,6 +27,7 @@ class _FakeStreamlit:
     def __init__(self, session_state: dict[str, Any], button_results: list[bool]):
         self.session_state = session_state
         self._button_results = button_results
+        self.rerun_called = False
 
     def container(self, **_: Any) -> _NoopContext:
         return _NoopContext()
@@ -40,8 +41,20 @@ class _FakeStreamlit:
     def write(self, *_: Any, **__: Any) -> None:
         return None
 
+    def info(self, *_: Any, **__: Any) -> None:
+        return None
+
     def button(self, *_: Any, **__: Any) -> bool:
         return self._button_results.pop(0) if self._button_results else False
+
+    def columns(self, count: int) -> list[_NoopContext]:
+        return [_NoopContext() for _ in range(count)]
+
+    def download_button(self, *_: Any, **__: Any) -> None:
+        return None
+
+    def rerun(self) -> None:
+        self.rerun_called = True
 
 
 def _build_action(action_id: str, result_key: SSKey) -> dict[str, Any]:
@@ -61,23 +74,110 @@ def _build_action(action_id: str, result_key: SSKey) -> dict[str, Any]:
     }
 
 
-def test_active_artifact_tracks_latest_triggered_action(monkeypatch) -> None:
-    """Expected vs Actual: aktives Ergebnis priorisiert zuletzt geklickte Action."""
+def test_button_action_sets_canonical_active_artifact_id(monkeypatch) -> None:
     fake_st = _FakeStreamlit(
         session_state={SSKey.JOB_EXTRACT.value: {"job_title": "Engineer"}},
-        button_results=[True, True],
+        button_results=[True],
     )
     monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
 
-    first_triggered = SUMMARY_MODULE._render_action_card(
-        _build_action("job_ad_generator", SSKey.JOB_AD_DRAFT_CUSTOM)
-    )
-    second_triggered = SUMMARY_MODULE._render_action_card(
-        _build_action("boolean_search", SSKey.BOOLEAN_SEARCH_STRING)
+    triggered = SUMMARY_MODULE._render_action_card(
+        _build_action("job_ad", SSKey.JOB_AD_DRAFT_CUSTOM)
     )
 
-    assert first_triggered is True
-    assert second_triggered is True
-    assert (
-        fake_st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] == "boolean_search"
-    ), "Expected latest action to be active artifact; actual active artifact differs"
+    assert triggered is True
+    assert fake_st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] == "job_ad"
+
+
+def test_resolve_active_artifact_falls_back_from_legacy_value(monkeypatch) -> None:
+    fake_st = _FakeStreamlit(
+        session_state={SSKey.SUMMARY_ACTIVE_ARTIFACT.value: "job_ad_generator"},
+        button_results=[],
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
+
+    active_id = SUMMARY_MODULE._resolve_active_artifact_id(
+        available_artifact_ids=["brief", "job_ad"]
+    )
+
+    assert active_id == "job_ad"
+    assert fake_st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] == "job_ad"
+
+
+def test_resolve_active_artifact_falls_back_when_selected_artifact_is_missing(
+    monkeypatch,
+) -> None:
+    fake_st = _FakeStreamlit(
+        session_state={SSKey.SUMMARY_ACTIVE_ARTIFACT.value: "employment_contract"},
+        button_results=[],
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
+
+    active_id = SUMMARY_MODULE._resolve_active_artifact_id(
+        available_artifact_ids=["brief", "job_ad"]
+    )
+
+    assert active_id == "brief"
+    assert fake_st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] == "brief"
+
+
+def test_active_artifact_renderer_uses_expected_payload(monkeypatch) -> None:
+    calls: dict[str, Any] = {}
+
+    def _capture(payload: Any) -> None:
+        calls["payload"] = payload
+
+    fake_st = _FakeStreamlit(
+        session_state={
+            SSKey.BOOLEAN_SEARCH_STRING.value: {
+                "channel_queries": [{"channel": "linkedin", "query": "x"}]
+            }
+        },
+        button_results=[],
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
+    monkeypatch.setattr(SUMMARY_MODULE, "render_boolean_search_pack", _capture)
+    monkeypatch.setattr(
+        SUMMARY_MODULE, "_boolean_search_pack_to_markdown", lambda _pack: "x"
+    )
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "BooleanSearchPack",
+        type(
+            "_FakePack",
+            (),
+            {
+                "model_validate": staticmethod(
+                    lambda value: type(
+                        "_Payload",
+                        (),
+                        {"model_dump": lambda self, mode="json": value},
+                    )()
+                )
+            },
+        ),
+    )
+
+    SUMMARY_MODULE._render_active_artifact(
+        artifact_id="boolean_search",
+        brief=None,  # type: ignore[arg-type]
+    )
+
+    dumped = calls["payload"].model_dump(mode="json")
+    assert dumped["channel_queries"][0]["channel"] == "linkedin"
+
+
+def test_secondary_artifact_switching_updates_active_artifact(monkeypatch) -> None:
+    fake_st = _FakeStreamlit(
+        session_state={SSKey.SUMMARY_ACTIVE_ARTIFACT.value: "brief"},
+        button_results=[True],
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
+
+    SUMMARY_MODULE._render_secondary_artifacts(
+        active_artifact_id="brief",
+        available_artifact_ids=["brief", "job_ad"],
+    )
+
+    assert fake_st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] == "job_ad"
+    assert fake_st.rerun_called is True
