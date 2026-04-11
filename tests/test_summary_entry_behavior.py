@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Literal
 
 from constants import SSKey
@@ -64,10 +65,14 @@ def test_render_entry_does_not_auto_generate_recruiting_brief(monkeypatch) -> No
     monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
     monkeypatch.setattr(SUMMARY_MODULE, "render_error_banner", lambda: None)
     monkeypatch.setattr(SUMMARY_MODULE, "nav_buttons", lambda *_, **__: None)
-    monkeypatch.setattr(SUMMARY_MODULE, "load_openai_settings", lambda: object())
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "load_openai_settings",
+        lambda: SimpleNamespace(default_model="gpt-5-mini"),
+    )
     monkeypatch.setattr(SUMMARY_MODULE, "get_model_override", lambda: None)
     monkeypatch.setattr(
-        SUMMARY_MODULE, "resolve_model_for_task", lambda **_: "gpt-5-mini"
+        SUMMARY_MODULE, "resolve_model_for_task", lambda *_, **__: "gpt-5-mini"
     )
     monkeypatch.setattr(SUMMARY_MODULE, "_render_summary_hero", lambda **_: None)
     monkeypatch.setattr(
