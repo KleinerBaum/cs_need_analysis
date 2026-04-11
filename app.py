@@ -434,15 +434,6 @@ def _render_sidebar_actions() -> None:
     with st.sidebar:
         st.markdown("### Aktionen")
         st.button("Reset Vacancy", on_click=reset_vacancy)
-        st.markdown(
-            """
-            <div class="sidebar-info-links">
-                <a href="?info=esco">ℹ️ ESCO-API-Info</a>
-                <a href="?info=about">ℹ️ Über die App</a>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
 
 
 def main() -> None:

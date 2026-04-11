@@ -541,12 +541,11 @@ def _render_esco_sidebar_status_block(ui_mode: str) -> None:
     language = str(config["language"])
     view_obsolete = bool(config["view_obsolete"])
 
-    st.sidebar.markdown("### ESCO-Status")
     language_options = {"de": "Deutsch (DE)", "en": "English (EN)"}
     current_language = language if language in language_options else "de"
 
     selected_language = st.sidebar.selectbox(
-        "ESCO-Sprache",
+        "Wähle Sprache",
         options=list(language_options.keys()),
         index=list(language_options.keys()).index(current_language),
         format_func=lambda value: language_options[value],
@@ -617,6 +616,15 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
     elif ui_mode_raw != ui_mode:
         st.session_state[ui_mode_key] = ui_mode
 
+    st.sidebar.markdown(
+        """
+        <div class="sidebar-info-links">
+            <a href="?info=esco">ℹ️ ESCO-API-Info</a>
+            <a href="?info=about">ℹ️ Über die App</a>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     _selected_mode = st.sidebar.radio(
         "Ansichtsmodus",
         options=["quick", "standard", "expert"],
