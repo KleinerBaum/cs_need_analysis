@@ -113,6 +113,7 @@ class SSKey(str, Enum):
     EMPLOYMENT_CONTRACT_LAST_MODELS = "cs.summary.employment_contract_last_models"
     ESCO_CONFIG = "cs.esco_config"
     ESCO_OCCUPATION_SELECTED = "cs.esco_occupation_selected"
+    ESCO_OCCUPATION_PAYLOAD = "cs.esco_occupation_payload"
     ESCO_OCCUPATION_CANDIDATES = "cs.esco_occupation_candidates"
     ESCO_MATCH_REASON = "cs.esco_match_reason"
     ESCO_MATCH_CONFIDENCE = "cs.esco_match_confidence"

@@ -130,6 +130,7 @@ def init_session_state() -> None:
             "view_obsolete": False,
         },
         SSKey.ESCO_OCCUPATION_SELECTED.value: None,
+        SSKey.ESCO_OCCUPATION_PAYLOAD.value: None,
         SSKey.ESCO_OCCUPATION_CANDIDATES.value: [],
         SSKey.ESCO_MATCH_REASON.value: None,
         SSKey.ESCO_MATCH_CONFIDENCE.value: None,
@@ -215,6 +216,7 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.EMPLOYMENT_CONTRACT_LAST_MODE.value] = None
     st.session_state[SSKey.EMPLOYMENT_CONTRACT_LAST_MODELS.value] = {}
     st.session_state[SSKey.ESCO_OCCUPATION_SELECTED.value] = None
+    st.session_state[SSKey.ESCO_OCCUPATION_PAYLOAD.value] = None
     st.session_state[SSKey.ESCO_OCCUPATION_CANDIDATES.value] = []
     st.session_state[SSKey.ESCO_MATCH_REASON.value] = None
     st.session_state[SSKey.ESCO_MATCH_CONFIDENCE.value] = None
@@ -334,6 +336,13 @@ def get_esco_occupation_selected() -> Dict[str, Any] | None:
         return EscoConceptRef.model_validate(raw).model_dump()
     except Exception:
         return None
+
+
+def get_esco_occupation_payload() -> Dict[str, Any] | None:
+    """Return selected ESCO occupation detail payload if available."""
+
+    raw = st.session_state.get(SSKey.ESCO_OCCUPATION_PAYLOAD.value)
+    return raw if isinstance(raw, dict) else None
 
 
 def get_esco_occupation_candidates() -> list[Dict[str, Any]]:
