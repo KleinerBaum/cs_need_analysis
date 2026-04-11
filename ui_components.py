@@ -659,8 +659,8 @@ def _render_question_limits_editor(
     heading = "##### Fragen pro Step" if compact else "#### Fragen pro Step"
     st.markdown(heading)
     st.caption(
-        "Lege fest, wie viele Fragen pro Step angezeigt werden. "
-        "Standardwert: erforderliche Fragen pro Step (falls keine markiert sind: alle)."
+        "Wird automatisch aus Informationsgrad + Ansichtsmodus berechnet "
+        "(Quick = oberflächlich, Standard = ausgewogen, Expert = vollumfänglich)."
     )
 
     limits_raw = st.session_state.get(SSKey.QUESTION_LIMITS.value, {})
@@ -685,6 +685,7 @@ def _render_question_limits_editor(
             value=current,
             step=1,
             key=f"cs.question_limit.{step.step_key}",
+            disabled=True,
             help=f"Maximal {len(step.questions)} verfügbare Fragen in diesem Step.",
         )
         limits[step.step_key] = int(selected)

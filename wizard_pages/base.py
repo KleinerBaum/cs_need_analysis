@@ -11,6 +11,7 @@ import streamlit as st
 from constants import SSKey, STEPS
 from esco_client import EscoClient, EscoClientError, clear_esco_cache
 from question_dependencies import should_show_question
+from question_limits import sync_adaptive_question_limits
 from question_progress import compute_question_progress
 from salary.engine import compute_salary_forecast
 from salary.types import SalaryForecastResult
@@ -595,6 +596,7 @@ def _render_esco_warnings_and_migration_cta() -> None:
 
 def sidebar_navigation(ctx: WizardContext) -> WizardPage:
     _ensure_salary_forecast_state_defaults()
+    sync_adaptive_question_limits()
     pages = ctx.pages
     options = [p.key for p in pages]
     cur_key = ctx.get_current_page_key()
