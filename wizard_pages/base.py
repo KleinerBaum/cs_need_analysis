@@ -625,7 +625,7 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
         """,
         unsafe_allow_html=True,
     )
-    _selected_mode = st.sidebar.radio(
+    _selected_mode = st.sidebar.selectbox(
         "Ansichtsmodus",
         options=["quick", "standard", "expert"],
         key=ui_mode_key,
