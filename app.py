@@ -429,15 +429,8 @@ def _render_legal_page(legal_page_key: str) -> None:
         st.rerun()
 
 
-def main() -> None:
-    st.set_page_config(page_title=APP_TITLE, layout="wide")
-    _inject_theme_styles()
-
-    init_session_state()
-
-    pages = load_pages()
-    ctx = WizardContext(pages=pages)
-
+def _render_sidebar_actions() -> None:
+    """Render the global actions section as the last sidebar block."""
     with st.sidebar:
         st.markdown("### Aktionen")
         st.button("Reset Vacancy", on_click=reset_vacancy)
@@ -451,16 +444,28 @@ def main() -> None:
             unsafe_allow_html=True,
         )
 
+
+def main() -> None:
+    st.set_page_config(page_title=APP_TITLE, layout="wide")
+    _inject_theme_styles()
+
+    init_session_state()
+
+    pages = load_pages()
+    ctx = WizardContext(pages=pages)
+
     info_page_key = _get_info_page_key()
     if info_page_key is not None:
         _render_info_page_sidebar_navigation(ctx)
         _render_info_page(info_page_key)
+        _render_sidebar_actions()
         st.session_state[SSKey.LAST_RENDERED_STEP.value] = None
         return
 
     legal_page_key = _get_legal_page_key()
     if legal_page_key is not None:
         _render_legal_page(legal_page_key)
+        _render_sidebar_actions()
         st.session_state[SSKey.LAST_RENDERED_STEP.value] = None
         return
 
@@ -473,6 +478,7 @@ def main() -> None:
         st.rerun()
 
     current.render(ctx)
+    _render_sidebar_actions()
     st.session_state[SSKey.LAST_RENDERED_STEP.value] = current.key
 
 
