@@ -9,7 +9,7 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 - Entkoppeltes Quellenhandling im Intake: Upload-Text und manuelle Eingabe überschreiben sich nicht; die aktive Quelle wird zur Analyse genutzt.
 - LLM-gestützte **Extraktion** der Jobspec in ein strukturiertes Schema (Structured Outputs) und automatische Erzeugung eines dynamischen Frageplans.
 - Wizard mit Fortschrittsanzeige und drei Ansichtsmodi (`quick`, `standard`, `expert`) für die Schritte Unternehmen, Team, Rolle & Aufgaben, Skills, Benefits, Interviewprozess und Summary.
-- Detailgruppen werden über eine globale Sidebar-Präferenz gesteuert; zusätzlich gibt es je Schritt einen kompakten Toggle. `expert` startet standardmäßig geöffnet, `quick`/`standard` standardmäßig kompakt.
+- Der Ansichtsmodus (`schnell`, `ausführlich`, `vollumfänglich`) wird im ersten Intake-Schritt direkt unter dem Jobspec-Upload gewählt; zusätzlich gibt es je Schritt einen kompakten Toggle. `expert` startet standardmäßig geöffnet, `quick`/`standard` standardmäßig kompakt.
 - Im Schritt **Identifizierte Informationen** werden die angezeigten Fragen pro Step automatisch und laufend neu bestimmt (basierend auf vorhandenen Informationen aus Jobspec + bisherigen Antworten sowie dem Ansichtsmodus `quick`/`standard`/`expert`).
 - Finaler **Recruiting Brief** mit Export als JSON, Markdown und DOCX.
 - **Summary-Workspace** mit klarer Tab-Struktur: `Readiness` (Startansicht), `Fakten`, `Artefakte`, `Export`, `Advanced`.

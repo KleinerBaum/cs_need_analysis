@@ -705,6 +705,27 @@ def get_current_ui_mode() -> str:
     return ui_mode
 
 
+def render_ui_mode_selector(*, sidebar: bool = False) -> str:
+    ui_mode_key = SSKey.UI_MODE.value
+    mode_labels = {
+        "quick": "schnell",
+        "standard": "ausführlich",
+        "expert": "vollumfänglich",
+    }
+    selectbox = st.sidebar.selectbox if sidebar else st.selectbox
+    selected_mode = selectbox(
+        "Wie weit möchten Sie ins Detail gehen?",
+        options=["quick", "standard", "expert"],
+        key=ui_mode_key,
+        format_func=lambda mode: mode_labels.get(mode, str(mode).capitalize()),
+        help=(
+            "schnell/ausführlich: Detailgruppen standardmäßig kompakt. "
+            "vollumfänglich: Detailgruppen standardmäßig geöffnet."
+        ),
+    )
+    return str(selected_mode).strip().lower()
+
+
 def sidebar_navigation(ctx: WizardContext) -> WizardPage:
     _ensure_salary_forecast_state_defaults()
     sync_adaptive_question_limits()
@@ -724,32 +745,13 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
 
     step_statuses = _compute_step_statuses(pages)
     status_by_key = {entry["key"]: entry for entry in step_statuses}
-    ui_mode_key = SSKey.UI_MODE.value
     ui_preferences_key = SSKey.UI_PREFERENCES.value
     ui_mode = get_current_ui_mode()
-    if st.session_state.get(ui_mode_key) != ui_mode:
-        st.session_state[ui_mode_key] = ui_mode
-
-    mode_labels = {
-        "quick": "Quick",
-        "standard": "ausführlich",
-        "expert": "vollumfänglich",
-    }
-    _selected_mode = st.sidebar.selectbox(
-        "Wie weit möchten Sie ins Detail gehen?",
-        options=["quick", "standard", "expert"],
-        key=ui_mode_key,
-        format_func=lambda mode: mode_labels.get(mode, str(mode).capitalize()),
-        help=(
-            "Quick/ausführlich: Detailgruppen standardmäßig kompakt. "
-            "vollumfänglich: Detailgruppen standardmäßig geöffnet."
-        ),
-    )
     raw_ui_preferences = st.session_state.get(ui_preferences_key, {})
     ui_preferences = raw_ui_preferences if isinstance(raw_ui_preferences, dict) else {}
     details_expanded_default = ui_preferences.get("details_expanded_default")
     if not isinstance(details_expanded_default, bool):
-        details_expanded_default = str(_selected_mode).strip().lower() == "expert"
+        details_expanded_default = ui_mode == "expert"
     details_expanded_default = st.sidebar.toggle(
         "Details standardmäßig öffnen",
         value=details_expanded_default,
@@ -763,7 +765,7 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
     if not isinstance(normalized_preferences.get("step_compact"), dict):
         normalized_preferences["step_compact"] = {}
     st.session_state[ui_preferences_key] = normalized_preferences
-    _render_esco_sidebar_status_block(ui_mode=str(_selected_mode))
+    _render_esco_sidebar_status_block(ui_mode=ui_mode)
     format_map: dict[str, str] = {}
     for page in pages:
         step_status = status_by_key.get(page.key)
@@ -799,7 +801,7 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
             job = JobAdExtract.model_validate(job_dict)
         except Exception:
             job = None
-    if str(_selected_mode).strip().lower() == "expert":
+    if ui_mode == "expert":
         forecast = _compute_sidebar_salary_forecast(
             job=job,
             answers=answers,
