@@ -28,10 +28,12 @@ from schemas import (
     LanguageRequirement,
     MoneyRange,
     Question,
+    QuestionOption,
     QuestionPlan,
     QuestionStep,
     RecruitmentStep,
     VacancyBrief,
+    question_option_label_map,
 )
 from state import (
     get_answer_meta,
@@ -54,6 +56,26 @@ _LANGUAGE_OPTIONS = [
     "Portugiesisch",
 ]
 _CEFR_OPTIONS = ["A1", "A2", "B1", "B2", "C1", "C2"]
+
+
+def _question_option_entries(question: Question) -> list[tuple[str, str]]:
+    label_map = question_option_label_map(question)
+    entries: list[tuple[str, str]] = []
+    used_labels: set[str] = set()
+    for raw_option in question.options or []:
+        if isinstance(raw_option, QuestionOption):
+            option_value = raw_option.value.strip()
+        else:
+            option_value = str(raw_option).strip()
+        if not option_value:
+            continue
+        option_label = label_map.get(option_value, option_value).strip() or option_value
+        deduped_label = option_label
+        if deduped_label in used_labels:
+            deduped_label = f"{option_label} ({option_value})"
+        used_labels.add(deduped_label)
+        entries.append((option_value, deduped_label))
+    return entries
 
 
 def _set_session_flag_true(flag_key: str) -> None:
@@ -1779,37 +1801,50 @@ def _render_question(q: Question, answers: Dict[str, Any]) -> None:
                 placeholder=q.help or "Details ergänzen …",
             )
         elif q.answer_type == AnswerType.SINGLE_SELECT:
-            options = q.options or []
+            option_entries = _question_option_entries(q)
+            options = [value for value, _ in option_entries]
+            label_by_value = {value: label for value, label in option_entries}
+            value_by_label = {label: value for value, label in option_entries}
             current_value = _coerce_single_select_value(current_value)
             other_text_default = _extract_other_text(current_value)
             if other_text_default and _OTHER_OPTION not in options:
                 options = [*options, _OTHER_OPTION]
+                label_by_value[_OTHER_OPTION] = _OTHER_OPTION
+                value_by_label[_OTHER_OPTION] = _OTHER_OPTION
             if other_text_default and current_value not in options:
                 current_value = _OTHER_OPTION
             if current_value and current_value not in options:
                 options = [str(current_value)] + options
+                label_by_value[str(current_value)] = str(current_value)
+                value_by_label[str(current_value)] = str(current_value)
+            display_options = [label_by_value.get(item, item) for item in options]
             if not q.required:
-                options = ["— Bitte wählen —", *options]
+                display_options = ["— Bitte wählen —", *display_options]
             selected_value = str(current_value) if current_value is not None else None
-            default_index = (
-                options.index(selected_value)
-                if selected_value in options
-                else (0 if options else None)
+            selected_label = (
+                label_by_value.get(selected_value, selected_value)
+                if selected_value is not None
+                else None
             )
-            if hasattr(st, "segmented_control") and 2 <= len(options) <= 5:
+            default_index = (
+                display_options.index(selected_label)
+                if selected_label in display_options
+                else (0 if display_options else None)
+            )
+            if hasattr(st, "segmented_control") and 2 <= len(display_options) <= 5:
                 value = st.segmented_control(
                     label,
-                    options=options,
-                    default=options[default_index]
+                    options=display_options,
+                    default=display_options[default_index]
                     if default_index is not None
                     else None,
                     key=key,
                     help=q.help,
                 )
-            elif len(options) <= 4:
+            elif len(display_options) <= 4:
                 value = st.radio(
                     label,
-                    options=options,
+                    options=display_options,
                     index=default_index if default_index is not None else 0,
                     horizontal=True,
                     help=q.help,
@@ -1818,13 +1853,15 @@ def _render_question(q: Question, answers: Dict[str, Any]) -> None:
             else:
                 value = st.selectbox(
                     label,
-                    options=options,
+                    options=display_options,
                     index=default_index if default_index is not None else 0,
                     help=q.help,
                     key=key,
                 )
             if value == "— Bitte wählen —":
                 value = None
+            elif value is not None:
+                value = value_by_label.get(value, value)
             if value == _OTHER_OPTION:
                 other_text = st.text_input(
                     "Bitte spezifizieren",
@@ -1834,20 +1871,30 @@ def _render_question(q: Question, answers: Dict[str, Any]) -> None:
                 ).strip()
                 value = f"{_OTHER_PREFIX}{other_text}" if other_text else _OTHER_OPTION
         elif q.answer_type == AnswerType.MULTI_SELECT:
-            options = q.options or []
+            option_entries = _question_option_entries(q)
+            options = [item[0] for item in option_entries]
+            label_by_value = {value: label for value, label in option_entries}
+            value_by_label = {label: value for value, label in option_entries}
             cur_list = _coerce_multi_select_values(current_value)
             cur_list, other_text_default = _strip_other_from_multiselect(cur_list)
             if other_text_default and _OTHER_OPTION not in options:
                 options = [*options, _OTHER_OPTION]
+                label_by_value[_OTHER_OPTION] = _OTHER_OPTION
+                value_by_label[_OTHER_OPTION] = _OTHER_OPTION
             for v in cur_list:
                 if v not in options:
                     options = [v] + options
-            default_values = [v for v in cur_list if v in options]
+                    label_by_value[v] = v
+                    value_by_label[v] = v
+            display_options = [label_by_value.get(item, item) for item in options]
+            default_values = [
+                label_by_value.get(v, v) for v in cur_list if v in options
+            ]
             if hasattr(st, "pills") and options:
                 value = (
                     st.pills(
                         label,
-                        options=options,
+                        options=display_options,
                         default=default_values,
                         selection_mode="multi",
                         key=key,
@@ -1858,11 +1905,12 @@ def _render_question(q: Question, answers: Dict[str, Any]) -> None:
             else:
                 value = st.multiselect(
                     label,
-                    options=options,
+                    options=display_options,
                     default=default_values,
                     help=q.help,
                     key=key,
                 )
+            value = [value_by_label.get(item, item) for item in (value or [])]
             if _OTHER_OPTION in value:
                 other_text = st.text_input(
                     "Bitte spezifizieren",
@@ -2036,7 +2084,7 @@ def _infer_default_value(q: Question) -> Any:
     if q.default is not None:
         return q.default
     if q.answer_type == AnswerType.SINGLE_SELECT:
-        options = q.options or []
+        options = [value for value, _ in _question_option_entries(q)]
         return options[0] if options else None
     if q.answer_type == AnswerType.MULTI_SELECT:
         return []

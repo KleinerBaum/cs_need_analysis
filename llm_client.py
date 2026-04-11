@@ -1287,14 +1287,18 @@ def _normalize_category_question(q: Any) -> None:
 
 
 def _merge_options_with_fallback(
-    existing_options: list[str] | None,
+    existing_options: list[Any] | None,
     rule_options: tuple[str, ...],
 ) -> list[str]:
     merged: list[str] = []
     for option in [*(existing_options or []), *rule_options]:
-        if not isinstance(option, str):
+        if isinstance(option, dict):
+            candidate = option.get("value", "")
+        else:
+            candidate = option
+        if not isinstance(candidate, str):
             continue
-        cleaned = option.strip()
+        cleaned = candidate.strip()
         if cleaned and cleaned not in merged:
             merged.append(cleaned)
     if _OTHER_OPTION not in merged:
