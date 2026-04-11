@@ -11,6 +11,7 @@ from wizard_pages.base import (
     LANDING_STYLE_TOKENS,
     WizardContext,
     WizardPage,
+    render_esco_language_toggle,
     render_importance_section,
     render_landing_css,
     render_output_section,
@@ -107,18 +108,24 @@ LANDING_COPY: dict[str, object] = {
 
 def render(ctx: WizardContext) -> None:
     render_landing_css(LANDING_STYLE_TOKENS)
-    st.markdown(
-        f"""
-        <div class="landing-app-title-row">
-            <span class="landing-app-title">{APP_TITLE}</span>
+    title_col, language_col, links_col = st.columns((1.45, 0.7, 1.45), gap="small")
+    with title_col:
+        st.markdown(
+            f'<span class="landing-app-title">{APP_TITLE}</span>',
+            unsafe_allow_html=True,
+        )
+    with language_col:
+        render_esco_language_toggle()
+    with links_col:
+        st.markdown(
+            """
             <span class="landing-app-links">
                 <a class="landing-app-link-pill" href="?info=esco">Über ESCO</a>
                 <a class="landing-app-link-pill" href="?info=about">Was passiert da und ist das sicher?</a>
             </span>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+            """,
+            unsafe_allow_html=True,
+        )
     _, logo_col, _ = st.columns((1, 2, 1))
     with logo_col:
         st.image("images/color1_logo_transparent_background.png", width=128)

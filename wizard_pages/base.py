@@ -624,19 +624,10 @@ def _render_esco_migration_trigger(legacy_payload: Mapping[str, str]) -> None:
 def _render_esco_sidebar_status_block(ui_mode: str) -> None:
     config = _get_esco_config()
     selected_version = str(config["selected_version"])
-    language = str(config["language"])
     view_obsolete = bool(config["view_obsolete"])
-
-    language_options = {"de": "Deutsch (DE)", "en": "English (EN)"}
-    current_language = language if language in language_options else "de"
-
-    selected_language = st.sidebar.selectbox(
-        "Wähle Sprache",
-        options=list(language_options.keys()),
-        index=list(language_options.keys()).index(current_language),
-        format_func=lambda value: language_options[value],
-        key=f"{SSKey.ESCO_CONFIG.value}.language_select",
-    )
+    selected_language = str(config["language"]).strip().lower() or "de"
+    if selected_language not in {"de", "en"}:
+        selected_language = "de"
 
     if ui_mode == "expert":
         view_obsolete = st.sidebar.toggle(
@@ -652,6 +643,35 @@ def _render_esco_sidebar_status_block(ui_mode: str) -> None:
     )
     if config_changed:
         st.sidebar.success("ESCO-Konfiguration aktualisiert. Cache wurde invalidiert.")
+
+
+def render_esco_language_toggle() -> None:
+    config = _get_esco_config()
+    selected_version = str(config["selected_version"])
+    view_obsolete = bool(config["view_obsolete"])
+    language = str(config["language"]).strip().lower() or "de"
+    if language not in {"de", "en"}:
+        language = "de"
+
+    left_flag_col, toggle_col, right_flag_col = st.columns((0.55, 0.9, 0.55))
+    with left_flag_col:
+        st.markdown("<div style='text-align: right;'>🇩🇪</div>", unsafe_allow_html=True)
+    with toggle_col:
+        english_selected = st.toggle(
+            "Sprache",
+            value=language == "en",
+            key=f"{SSKey.ESCO_CONFIG.value}.language_toggle",
+            label_visibility="collapsed",
+        )
+    with right_flag_col:
+        st.markdown("<div>🇬🇧</div>", unsafe_allow_html=True)
+
+    selected_language = "en" if english_selected else "de"
+    _set_esco_config(
+        selected_version=selected_version,
+        view_obsolete=view_obsolete,
+        language=selected_language,
+    )
 
 
 def _render_esco_warnings_and_migration_cta() -> None:
