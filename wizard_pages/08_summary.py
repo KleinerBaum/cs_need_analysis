@@ -212,6 +212,14 @@ class SummaryArtifactState:
 
 
 @dataclass(frozen=True)
+class CanonicalBriefStatus:
+    state: str
+    message: str
+    cta_label: str
+    ready_for_follow_ups: bool
+
+
+@dataclass(frozen=True)
 class SummaryViewModel:
     job: JobAdExtract
     answers: dict[str, Any]
@@ -220,6 +228,81 @@ class SummaryViewModel:
     status: SummaryStatus
     fact_rows: list[SummaryFactsRow]
     artifacts: SummaryArtifactState
+
+
+def _resolve_canonical_brief_status(
+    *,
+    resolved_brief_model: str | None,
+    has_brief_prerequisites: bool = True,
+) -> CanonicalBriefStatus:
+    if not has_brief_prerequisites:
+        return CanonicalBriefStatus(
+            state="blocked",
+            message="Brief-Grundlagen fehlen",
+            cta_label="Recruiting Brief vorbereiten",
+            ready_for_follow_ups=False,
+        )
+
+    brief_payload = st.session_state.get(SSKey.BRIEF.value)
+    if not isinstance(brief_payload, dict):
+        return CanonicalBriefStatus(
+            state="missing",
+            message="Kein Recruiting Brief vorhanden.",
+            cta_label="Recruiting Brief generieren",
+            ready_for_follow_ups=False,
+        )
+    try:
+        VacancyBrief.model_validate(brief_payload)
+    except Exception:
+        return CanonicalBriefStatus(
+            state="invalid",
+            message="Recruiting Brief ist ungültig.",
+            cta_label="Recruiting Brief neu generieren",
+            ready_for_follow_ups=False,
+        )
+
+    if bool(st.session_state.get(SSKey.SUMMARY_DIRTY.value)):
+        return CanonicalBriefStatus(
+            state="stale",
+            message="Recruiting Brief ist veraltet.",
+            cta_label="Recruiting Brief aktualisieren",
+            ready_for_follow_ups=False,
+        )
+
+    last_models_raw = st.session_state.get(SSKey.SUMMARY_LAST_MODELS.value, {})
+    last_models = last_models_raw if isinstance(last_models_raw, dict) else {}
+    if resolved_brief_model and last_models.get("draft_model") != resolved_brief_model:
+        return CanonicalBriefStatus(
+            state="stale",
+            message="Recruiting Brief ist veraltet.",
+            cta_label="Recruiting Brief aktualisieren",
+            ready_for_follow_ups=False,
+        )
+
+    current_input_fingerprint = str(
+        st.session_state.get(SSKey.SUMMARY_INPUT_FINGERPRINT.value, "") or ""
+    )
+    last_brief_fingerprint = str(
+        st.session_state.get(SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value, "") or ""
+    )
+    if (
+        current_input_fingerprint
+        and last_brief_fingerprint
+        and current_input_fingerprint != last_brief_fingerprint
+    ):
+        return CanonicalBriefStatus(
+            state="stale",
+            message="Recruiting Brief passt nicht mehr zu den aktuellen Eingaben.",
+            cta_label="Recruiting Brief aktualisieren",
+            ready_for_follow_ups=False,
+        )
+
+    return CanonicalBriefStatus(
+        state="current",
+        message="Aktueller Recruiting Brief vorhanden.",
+        cta_label="Brief aktualisieren",
+        ready_for_follow_ups=True,
+    )
 
 
 def _normalize_list_item(value: str) -> str:
@@ -1712,7 +1795,7 @@ def _render_summary_meta_badges(meta: SummaryMeta, status: SummaryStatus) -> Non
 
 
 def _build_summary_status(
-    *, answers: dict[str, Any], meta: SummaryMeta
+    *, answers: dict[str, Any], meta: SummaryMeta, resolved_brief_model: str | None
 ) -> SummaryStatus:
     esco_ready = bool(meta.selected_occupation_title)
     nace_ready = bool(meta.nace_code)
@@ -1739,23 +1822,13 @@ def _build_summary_status(
         except Exception:
             completion_text = f"{len(answers)} Antworten"
 
-    brief_payload = st.session_state.get(SSKey.BRIEF.value)
-    brief_state = "missing"
-    brief_status_label = "Kein Recruiting Brief vorhanden."
-    if isinstance(brief_payload, dict):
-        try:
-            VacancyBrief.model_validate(brief_payload)
-            brief_state = "ready"
-            brief_status_label = "Aktueller Recruiting Brief vorhanden."
-        except Exception:
-            brief_state = "invalid"
-            brief_status_label = "Recruiting Brief ist ungültig."
+    brief_status = _resolve_canonical_brief_status(
+        resolved_brief_model=resolved_brief_model
+    )
+    brief_state = brief_status.state
+    brief_status_label = brief_status.message
 
-    if brief_state == "ready" and bool(st.session_state.get(SSKey.SUMMARY_DIRTY.value)):
-        brief_state = "stale"
-        brief_status_label = "Recruiting Brief ist veraltet."
-
-    if brief_state == "missing":
+    if brief_state in {"missing", "blocked"}:
         next_step = "Recruiting Brief generieren"
     elif brief_state in {"invalid", "stale"}:
         next_step = "Recruiting Brief aktualisieren"
@@ -1768,12 +1841,12 @@ def _build_summary_status(
         bool(meta.country_label),
         esco_ready,
         nace_ready,
-        brief_state == "ready",
+        brief_status.ready_for_follow_ups,
     ]
     readiness_percent = round(
         (sum(1 for item in readiness_checks if item) / len(readiness_checks)) * 100
     )
-    ready_for_follow_ups = brief_state == "ready"
+    ready_for_follow_ups = brief_status.ready_for_follow_ups
 
     return SummaryStatus(
         completion_ratio=completion_ratio,
@@ -1808,6 +1881,13 @@ def _build_summary_view_model() -> SummaryViewModel | None:
     selected_role_tasks = _read_saved_selection_labels(SSKey.ROLE_TASKS_SELECTED)
     selected_skills = _read_saved_selection_labels(SSKey.SKILLS_SELECTED)
     meta = _build_summary_meta(job)
+    session_override = get_model_override()
+    resolved_brief_model = resolve_model_for_task(
+        TASK_GENERATE_VACANCY_BRIEF,
+        default_model=load_openai_settings().default_model,
+        override=session_override,
+        context=job,
+    )
     input_fingerprint = _build_summary_input_fingerprint(
         job=job,
         answers=answers,
@@ -1828,7 +1908,11 @@ def _build_summary_view_model() -> SummaryViewModel | None:
         selected_skills=selected_skills,
         input_fingerprint=input_fingerprint,
     )
-    status = _build_summary_status(answers=answers, meta=meta)
+    status = _build_summary_status(
+        answers=answers,
+        meta=meta,
+        resolved_brief_model=resolved_brief_model,
+    )
     fact_rows = _build_summary_fact_rows(
         job=job,
         answers=answers,
@@ -2203,70 +2287,20 @@ def _has_required_state(requirements: tuple[SSKey, ...]) -> bool:
 
 
 def _get_brief_requirement_status(resolved_brief_model: str) -> tuple[bool, str]:
-    brief_payload = st.session_state.get(SSKey.BRIEF.value)
-    if not isinstance(brief_payload, dict):
-        return False, "Kein Recruiting Brief vorhanden."
-
-    try:
-        VacancyBrief.model_validate(brief_payload)
-    except Exception:
-        return False, "Recruiting Brief ist ungültig."
-
-    last_models_raw = st.session_state.get(SSKey.SUMMARY_LAST_MODELS.value, {})
-    last_models = last_models_raw if isinstance(last_models_raw, dict) else {}
-    if last_models.get("draft_model") != resolved_brief_model:
-        return False, "Recruiting Brief ist veraltet."
-    current_input_fingerprint = str(
-        st.session_state.get(SSKey.SUMMARY_INPUT_FINGERPRINT.value, "") or ""
-    )
-    last_brief_fingerprint = str(
-        st.session_state.get(SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value, "") or ""
-    )
-    if (
-        current_input_fingerprint
-        and last_brief_fingerprint
-        and current_input_fingerprint != last_brief_fingerprint
-    ):
-        return False, "Recruiting Brief passt nicht mehr zu den aktuellen Eingaben."
-    return True, "Aktueller Recruiting Brief vorhanden."
+    status = _resolve_canonical_brief_status(resolved_brief_model=resolved_brief_model)
+    return status.ready_for_follow_ups, status.message
 
 
 def _get_brief_status(
     *,
     primary_action: SummaryAction,
-    follow_up_actions: list[SummaryAction],
+    resolved_brief_model: str,
 ) -> tuple[str, str, str]:
-    if not _has_required_state(primary_action["requires"]):
-        return (
-            "blocked",
-            "Brief-Grundlagen fehlen",
-            "Recruiting Brief vorbereiten",
-        )
-
-    follow_up_check = next(
-        (
-            action.get("requirement_check_fn")
-            for action in follow_up_actions
-            if action.get("requirement_check_fn") is not None
-        ),
-        None,
+    status = _resolve_canonical_brief_status(
+        resolved_brief_model=resolved_brief_model,
+        has_brief_prerequisites=_has_required_state(primary_action["requires"]),
     )
-    if follow_up_check is not None:
-        requirement_ok, requirement_message = follow_up_check()
-        if requirement_ok:
-            return ("current", "Aktueller Recruiting Brief vorhanden", "Brief aktualisieren")
-        message = requirement_message.casefold()
-        if "veraltet" in message or "passt nicht mehr" in message:
-            return ("stale", requirement_message, "Recruiting Brief aktualisieren")
-        if "ungültig" in message:
-            return ("invalid", requirement_message, "Recruiting Brief neu generieren")
-        if "kein recruiting brief" in message:
-            return ("missing", requirement_message, "Recruiting Brief generieren")
-        return ("missing", requirement_message, "Recruiting Brief generieren")
-
-    if st.session_state.get(primary_action["result_key"].value):
-        return ("current", "Recruiting Brief vorhanden", "Brief aktualisieren")
-    return ("missing", "Kein Recruiting Brief vorhanden.", "Recruiting Brief generieren")
+    return (status.state, status.message, status.cta_label)
 
 
 def _render_action_card(action: SummaryAction) -> bool:
@@ -2342,8 +2376,8 @@ def _render_action_card(action: SummaryAction) -> bool:
                 ),
             )
         if triggered:
-            st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = _to_canonical_artifact_id(
-                action["id"]
+            st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = (
+                _to_canonical_artifact_id(action["id"])
             )
         return triggered
 
@@ -2358,7 +2392,9 @@ def _render_job_ad_configuration_panel(*, action_registry: list[SummaryAction]) 
         return
 
     st.markdown("### Job-Ad-Konfiguration")
-    st.caption("Selection Matrix und Editor sind ausgelagert, damit der Hub scannbar bleibt.")
+    st.caption(
+        "Selection Matrix und Editor sind ausgelagert, damit der Hub scannbar bleibt."
+    )
     st.toggle(
         "Konfigurationspanel anzeigen",
         key=SSKey.SUMMARY_SHOW_JOB_AD_CONFIG.value,
@@ -2400,8 +2436,8 @@ def _render_primary_brief_card(
             key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, primary_action["id"]),
         )
         if triggered:
-            st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = _to_canonical_artifact_id(
-                primary_action["id"]
+            st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = (
+                _to_canonical_artifact_id(primary_action["id"])
             )
         return triggered
 
@@ -2411,7 +2447,9 @@ def _render_follow_up_cards(
     follow_up_actions: list[SummaryAction],
 ) -> tuple[bool, SummaryAction | None]:
     st.markdown("### Folgeartefakte")
-    st.caption("Nachgelagerte Artefakte bauen auf einem aktuellen Recruiting Brief auf.")
+    st.caption(
+        "Nachgelagerte Artefakte bauen auf einem aktuellen Recruiting Brief auf."
+    )
     card_columns = st.columns(2)
     for index, action in enumerate(follow_up_actions):
         with card_columns[index % 2]:
@@ -2428,9 +2466,13 @@ def _render_export_bar(*, has_brief: bool) -> None:
             "Export wird im Bereich **Brief & Export** bereitgestellt (JSON, Markdown, DOCX, ESCO-Mapping)."
         )
         if has_brief:
-            st.success("Bereit: Recruiting Brief vorhanden – Exporte können erstellt werden.")
+            st.success(
+                "Bereit: Recruiting Brief vorhanden – Exporte können erstellt werden."
+            )
         else:
-            st.info("Noch nicht bereit: Erst den Recruiting Brief erstellen, dann Exporte nutzen.")
+            st.info(
+                "Noch nicht bereit: Erst den Recruiting Brief erstellen, dann Exporte nutzen."
+            )
 
 
 def _build_action_registry(
@@ -2561,18 +2603,23 @@ def _build_action_registry(
 def _render_summary_processing_hub(
     *,
     action_registry: list[SummaryAction],
+    resolved_brief_model: str,
 ) -> None:
     st.markdown("### Processing Hub")
-    st.caption("Primärer Pfad: Recruiting Brief zuerst, danach Folgeartefakte und Export.")
+    st.caption(
+        "Primärer Pfad: Recruiting Brief zuerst, danach Folgeartefakte und Export."
+    )
 
     primary_action = next(
         (action for action in action_registry if action["id"] == "brief"),
         action_registry[0],
     )
-    follow_up_actions = [action for action in action_registry if action["id"] != "brief"]
+    follow_up_actions = [
+        action for action in action_registry if action["id"] != "brief"
+    ]
     brief_status = _get_brief_status(
         primary_action=primary_action,
-        follow_up_actions=follow_up_actions,
+        resolved_brief_model=resolved_brief_model,
     )
 
     primary_triggered = _render_primary_brief_card(
@@ -2764,15 +2811,23 @@ def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
             st.info("Für dieses Artefakt liegt noch kein Ergebnis vor.")
 
 
-def _render_secondary_artifacts(*, active_artifact_id: str, available_artifact_ids: list[str]) -> None:
-    secondary_ids = [artifact_id for artifact_id in available_artifact_ids if artifact_id != active_artifact_id]
+def _render_secondary_artifacts(
+    *, active_artifact_id: str, available_artifact_ids: list[str]
+) -> None:
+    secondary_ids = [
+        artifact_id
+        for artifact_id in available_artifact_ids
+        if artifact_id != active_artifact_id
+    ]
     if not secondary_ids:
         return
     st.caption("Weitere Ergebnisse")
     for artifact_id in secondary_ids:
         if st.button(
             f"Als Fokus öffnen: {artifact_id}",
-            key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, f"activate.{artifact_id}"),
+            key=_widget_key(
+                SSKey.SUMMARY_ACTION_WIDGET_PREFIX, f"activate.{artifact_id}"
+            ),
             width="stretch",
         ):
             st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = artifact_id
@@ -2829,11 +2884,26 @@ def _render_summary_results_workspace(
         docx_bytes = _brief_to_docx_bytes(brief)
         c1, c2, c3 = st.columns(3)
         with c1:
-            st.download_button("Download JSON", data=json_bytes, file_name="vacancy_brief.json", mime="application/json")
+            st.download_button(
+                "Download JSON",
+                data=json_bytes,
+                file_name="vacancy_brief.json",
+                mime="application/json",
+            )
         with c2:
-            st.download_button("Download Markdown", data=md.encode("utf-8"), file_name="vacancy_brief.md", mime="text/markdown")
+            st.download_button(
+                "Download Markdown",
+                data=md.encode("utf-8"),
+                file_name="vacancy_brief.md",
+                mime="text/markdown",
+            )
         with c3:
-            st.download_button("Download DOCX", data=docx_bytes, file_name="vacancy_brief.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+            st.download_button(
+                "Download DOCX",
+                data=docx_bytes,
+                file_name="vacancy_brief.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
 
     with advanced_tab:
         st.caption(
@@ -2845,6 +2915,7 @@ def _render_summary_results_workspace(
         )
         with st.expander("Salary Forecast", expanded=False):
             _render_salary_forecast(vm.job, vm.answers)
+
 
 def render(ctx: WizardContext) -> None:
     render_error_banner()
@@ -2993,7 +3064,9 @@ def render(ctx: WizardContext) -> None:
             )
 
     def _get_brief_status() -> tuple[str, VacancyBrief | None]:
-        requirement_ok, _ = _get_brief_requirement_status(resolved_brief_model)
+        canonical_status = _resolve_canonical_brief_status(
+            resolved_brief_model=resolved_brief_model
+        )
         brief_payload = st.session_state.get(SSKey.BRIEF.value)
         if not isinstance(brief_payload, dict):
             return "missing", None
@@ -3001,7 +3074,7 @@ def render(ctx: WizardContext) -> None:
             brief = VacancyBrief.model_validate(brief_payload)
         except Exception:
             return "invalid", None
-        if not requirement_ok:
+        if not canonical_status.ready_for_follow_ups:
             return "stale", brief
         return "ready", brief
 
@@ -3251,7 +3324,10 @@ def render(ctx: WizardContext) -> None:
     )
 
     # SUMMARY_ZONE: PROCESSING_HUB
-    _render_summary_processing_hub(action_registry=action_registry)
+    _render_summary_processing_hub(
+        action_registry=action_registry,
+        resolved_brief_model=resolved_brief_model,
+    )
 
     brief_dict = st.session_state.get(SSKey.BRIEF.value)
     if not brief_dict:
