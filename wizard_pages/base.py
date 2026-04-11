@@ -730,12 +730,20 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
     if st.session_state.get(ui_mode_key) != ui_mode:
         st.session_state[ui_mode_key] = ui_mode
 
+    mode_labels = {
+        "quick": "Quick",
+        "standard": "ausführlich",
+        "expert": "vollumfänglich",
+    }
     _selected_mode = st.sidebar.selectbox(
-        "Ansichtsmodus",
+        "Wie weit möchten Sie ins Detail gehen?",
         options=["quick", "standard", "expert"],
         key=ui_mode_key,
-        format_func=lambda mode: mode.capitalize(),
-        help="Quick/Standard: Detailgruppen standardmäßig kompakt. Expert: Detailgruppen standardmäßig geöffnet.",
+        format_func=lambda mode: mode_labels.get(mode, str(mode).capitalize()),
+        help=(
+            "Quick/ausführlich: Detailgruppen standardmäßig kompakt. "
+            "vollumfänglich: Detailgruppen standardmäßig geöffnet."
+        ),
     )
     raw_ui_preferences = st.session_state.get(ui_preferences_key, {})
     ui_preferences = raw_ui_preferences if isinstance(raw_ui_preferences, dict) else {}
@@ -747,7 +755,7 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
         value=details_expanded_default,
         help=(
             "Globale Voreinstellung für Detailgruppen in allen Wizard-Schritten. "
-            "Expert setzt standardmäßig auf geöffnet, Standard/Quick auf kompakt."
+            "vollumfänglich setzt standardmäßig auf geöffnet, ausführlich/Quick auf kompakt."
         ),
     )
     normalized_preferences = dict(ui_preferences)
@@ -769,7 +777,7 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
         return format_map.get(k, k)
 
     selected = st.sidebar.radio(
-        "Wizard",
+        "Prozess",
         options=options,
         key=nav_key,
         format_func=_format,
