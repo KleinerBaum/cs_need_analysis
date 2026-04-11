@@ -13,7 +13,18 @@ import os
 import re
 import time
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, cast
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Protocol,
+    Sequence,
+    Tuple,
+    Type,
+    cast,
+)
 
 import streamlit as st
 from openai import (
@@ -184,6 +195,28 @@ class OpenAIRuntimeConfig:
     task_max_bullets_per_field: int | None
     task_max_sentences_per_field: int | None
     settings: OpenAISettings
+
+
+class ParsedResponse(Protocol):
+    """Minimal protocol for Responses API parse return objects."""
+
+    output_parsed: BaseModel
+    usage: object | None
+
+
+class _ParsedChatMessage(Protocol):
+    parsed: BaseModel | None
+
+
+class _ParsedChatChoice(Protocol):
+    message: _ParsedChatMessage
+
+
+class ParsedChatCompletion(Protocol):
+    """Minimal protocol for chat.completions.parse return objects."""
+
+    choices: Sequence[_ParsedChatChoice]
+    usage: object | None
 
 
 def _resolve_runtime_config(
@@ -530,6 +563,29 @@ def _cached_usage(*, cache_key: str) -> dict[str, Any]:
     }
 
 
+def _normalize_usage_dict(usage: object | None) -> dict[str, Any] | None:
+    """Normalize SDK usage payloads to plain dictionaries."""
+
+    if usage is None:
+        return None
+    if isinstance(usage, dict):
+        return cast(dict[str, Any], usage)
+
+    model_dump = getattr(usage, "model_dump", None)
+    if callable(model_dump):
+        dumped = model_dump(mode="python")
+        if isinstance(dumped, dict):
+            return cast(dict[str, Any], dumped)
+
+    to_dict = getattr(usage, "to_dict", None)
+    if callable(to_dict):
+        dumped = to_dict()
+        if isinstance(dumped, dict):
+            return cast(dict[str, Any], dumped)
+
+    return None
+
+
 def _invalidate_cache_entry_for_validation_error(
     *,
     cache: dict[str, dict[str, Any]],
@@ -821,7 +877,7 @@ def _parse_with_structured_outputs(
     out_model: Type[BaseModel],
     store: bool,
     maybe_temperature: float | None = None,
-) -> Tuple[BaseModel, Optional[Dict[str, Any]]]:
+) -> tuple[BaseModel, dict[str, Any] | None]:
     """Try `.responses.parse`, then fall back to `.chat.completions.parse` if needed."""
 
     def _record_final_structured_output_path(
@@ -948,12 +1004,15 @@ def _parse_with_structured_outputs(
                 raise mapped from exc
 
         try:
-            parsed = resp.output_parsed
+            parsed_response = cast(ParsedResponse, resp)
+            parsed = parsed_response.output_parsed
+            if not isinstance(parsed, BaseModel):
+                raise TypeError("Structured output parse did not return a BaseModel.")
         except Exception as exc:
             mapped = _error_from_structured_output_exception(exc)
             logger.warning("Structured parse failed: %s", mapped.debug_detail)
             raise mapped from exc
-        usage = getattr(resp, "usage", None)
+        usage = _normalize_usage_dict(parsed_response.usage)
         return parsed, usage
 
     # Fallback: Chat Completions parse helper (older projects may still use it)
@@ -993,12 +1052,18 @@ def _parse_with_structured_outputs(
             raise mapped from exc
 
         try:
-            parsed = completion.choices[0].message.parsed
+            parsed_completion = cast(ParsedChatCompletion, completion)
+            maybe_parsed = parsed_completion.choices[0].message.parsed
+            if not isinstance(maybe_parsed, BaseModel):
+                raise TypeError(
+                    "Chat structured output parse did not return a BaseModel."
+                )
+            parsed = maybe_parsed
         except Exception as exc:
             mapped = _error_from_structured_output_exception(exc)
             logger.warning("Structured chat parse failed: %s", mapped.debug_detail)
             raise mapped from exc
-        usage = getattr(completion, "usage", None)
+        usage = _normalize_usage_dict(parsed_completion.usage)
         return parsed, usage
 
     raise OpenAICallError(
@@ -1072,7 +1137,7 @@ def extract_job_ad(
     )
     cache[cache_key] = {"result": parsed.model_dump(mode="json")}
 
-    return parsed, usage
+    return cast(JobAdExtract, parsed), usage
 
 
 def generate_question_plan(
@@ -1161,7 +1226,7 @@ def generate_question_plan(
         maybe_temperature=temperature,
     )
 
-    normalized = normalize_question_plan(parsed)
+    normalized = normalize_question_plan(cast(QuestionPlan, parsed))
     cache[cache_key] = {"result": normalized.model_dump(mode="json")}
     return normalized, usage
 
