@@ -50,6 +50,7 @@ from schemas import (
     JobAdExtract,
     QuestionDependency,
     QuestionPlan,
+    RequirementSuggestionPack,
     VacancyBrief,
     VacancyBriefLLM,
 )
@@ -76,6 +77,7 @@ TASK_GENERATE_INTERVIEW_SHEET_HR = "generate_interview_sheet_hr"
 TASK_GENERATE_INTERVIEW_SHEET_HM = "generate_interview_sheet_hm"
 TASK_GENERATE_BOOLEAN_SEARCH = "generate_boolean_search"
 TASK_GENERATE_EMPLOYMENT_CONTRACT = "generate_employment_contract"
+TASK_GENERATE_REQUIREMENT_GAP_SUGGESTIONS = "generate_requirement_gap_suggestions"
 
 _OTHER_OPTION = "Sonstiges"
 _CATEGORY_QUESTION_RULES: tuple[dict[str, Any], ...] = (
@@ -799,6 +801,7 @@ def resolve_model_for_task(
         TASK_GENERATE_INTERVIEW_SHEET_HM: resolved_settings.high_reasoning_model,
         TASK_GENERATE_BOOLEAN_SEARCH: resolved_settings.medium_reasoning_model,
         TASK_GENERATE_EMPLOYMENT_CONTRACT: resolved_settings.high_reasoning_model,
+        TASK_GENERATE_REQUIREMENT_GAP_SUGGESTIONS: resolved_settings.medium_reasoning_model,
     }
     routed_model = model_by_task.get(task_kind, "").strip()
     if routed_model:
@@ -1956,3 +1959,121 @@ def generate_employment_contract_draft(
         temperature=temperature,
     )
     return cast(EmploymentContractDraft, parsed), usage
+
+
+def generate_requirement_gap_suggestions(
+    *,
+    job: JobAdExtract,
+    answers: Dict[str, Any],
+    existing_skills: list[str],
+    existing_tasks: list[str],
+    esco_skill_titles: list[str],
+    target_skill_count: int,
+    target_task_count: int,
+    model: str,
+    language: str = DEFAULT_LANGUAGE,
+    store: bool = False,
+    temperature: float | None = None,
+) -> tuple[RequirementSuggestionPack, dict[str, Any]]:
+    """Suggest missing but relevant skills/tasks using strict structured outputs."""
+
+    runtime_config = _resolve_runtime_config(
+        task_kind=TASK_GENERATE_REQUIREMENT_GAP_SUGGESTIONS,
+        session_override=model,
+    )
+    task_limits_suffix = build_task_prompt_limits_suffix(
+        max_bullets_per_field=runtime_config.task_max_bullets_per_field,
+        max_sentences_per_field=runtime_config.task_max_sentences_per_field,
+        max_output_tokens=runtime_config.task_max_output_tokens,
+    )
+    capped_skill_count = max(0, min(target_skill_count, 8))
+    capped_task_count = max(0, min(target_task_count, 8))
+    system = (
+        "Du bist ein Senior Recruiting Analyst. "
+        "Identifiziere fehlende, aber relevante Anforderungen für Skills und Aufgaben "
+        "auf Basis von Jobspec, bisherigen Antworten und vorhandenen Listen. "
+        "Liefere ausschließlich strukturierte Ausgabe entsprechend Schema. "
+        "Keine Duplikate, keine bereits vorhandenen Einträge und maximal die geforderte Anzahl je Kategorie. "
+        "Halte rationale und evidence jeweils kurz, präzise und belegbar aus dem Kontext. "
+        "Setze source_hint immer auf 'llm'. "
+        f"Sprache: {language}."
+        f"{task_limits_suffix}"
+    )
+    user = (
+        "Erzeuge ein RequirementSuggestionPack.\n\n"
+        f"Zielanzahl Skills: {capped_skill_count}\n"
+        f"Zielanzahl Tasks: {capped_task_count}\n\n"
+        "Regeln:\n"
+        f"- Genau type='skill' für skills[] und type='task' für tasks[].\n"
+        "- label als kurzer, konkreter Begriff.\n"
+        "- importance nur high/medium/low.\n"
+        "- source_hint immer 'llm'.\n"
+        "- Nur Vorschläge, die im Kontext fehlen.\n\n"
+        "Jobspec-Extraktion (JSON):\n"
+        f"{json.dumps(job.model_dump(mode='json'), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
+        "Manager-Antworten (JSON):\n"
+        f"{json.dumps(answers, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
+        "Vorhandene Skills (JSON):\n"
+        f"{json.dumps(existing_skills, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
+        "Vorhandene Tasks (JSON):\n"
+        f"{json.dumps(existing_tasks, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
+        "ESCO Skill-Titel (JSON):\n"
+        f"{json.dumps(esco_skill_titles, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}"
+    )
+
+    normalized_content = _canonicalize_for_cache(
+        {
+            "job": job.model_dump(mode="json"),
+            "answers": answers,
+            "existing_skills": existing_skills,
+            "existing_tasks": existing_tasks,
+            "esco_skill_titles": esco_skill_titles,
+            "target_skill_count": capped_skill_count,
+            "target_task_count": capped_task_count,
+        }
+    )
+    cache_key = _build_llm_cache_key(
+        task_kind=TASK_GENERATE_REQUIREMENT_GAP_SUGGESTIONS,
+        resolved_model=runtime_config.resolved_model,
+        language=language,
+        reasoning_effort=runtime_config.reasoning_effort,
+        verbosity=runtime_config.verbosity,
+        store=store,
+        normalized_content=normalized_content,
+        schema_version=VACANCY_SCHEMA_VERSION,
+    )
+    cache = _get_session_response_cache()
+    cached_entry = cache.get(cache_key)
+    if isinstance(cached_entry, dict):
+        cached_result = cached_entry.get("result")
+        if isinstance(cached_result, dict):
+            try:
+                parsed_cached = RequirementSuggestionPack.model_validate(cached_result)
+            except ValidationError:
+                _invalidate_cache_entry_for_validation_error(
+                    cache=cache,
+                    cache_key=cache_key,
+                    task_kind=TASK_GENERATE_REQUIREMENT_GAP_SUGGESTIONS,
+                    model_name=runtime_config.resolved_model,
+                )
+            else:
+                return parsed_cached, _cached_usage(cache_key=cache_key)
+
+    fallback_payload: dict[str, Any] = {"skills": [], "tasks": []}
+    parsed, usage = _generate_structured_with_fallback(
+        task_kind=TASK_GENERATE_REQUIREMENT_GAP_SUGGESTIONS,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        out_model=RequirementSuggestionPack,
+        fallback_payload=fallback_payload,
+        model=model,
+        store=store,
+        temperature=temperature,
+    )
+    result = cast(RequirementSuggestionPack, parsed)
+    result.skills = result.skills[:capped_skill_count]
+    result.tasks = result.tasks[:capped_task_count]
+    cache[cache_key] = {"result": result.model_dump(mode="json")}
+    return result, usage

@@ -4,6 +4,7 @@ from schemas import (
     InterviewPrepSheetHR,
     InterviewPrepSheetHiringManager,
     QuestionPlan,
+    RequirementSuggestionPack,
     VacancyBriefLLM,
 )
 
@@ -62,3 +63,11 @@ def test_boolean_search_pack_channel_queries_are_strict() -> None:
     defs = schema.get("$defs", {})
     channel_schema = defs["BooleanSearchChannelQueries"]
     assert channel_schema.get("additionalProperties") is False
+
+
+def test_requirement_suggestion_pack_schema_is_strict() -> None:
+    schema = RequirementSuggestionPack.model_json_schema()
+    assert schema.get("additionalProperties") is False
+    defs = schema.get("$defs", {})
+    item_schema = defs["RequirementSuggestionItem"]
+    assert item_schema.get("additionalProperties") is False
