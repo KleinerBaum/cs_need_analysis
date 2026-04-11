@@ -142,6 +142,7 @@ def test_build_summary_fact_rows_include_esco_and_nace_rows() -> None:
     fields = {row.feld: row.to_dict() for row in rows}
     assert fields["ESCO Occupation"]["Status"] == "Automatisch erkannt"
     assert fields["NACE-Code"]["Wert"] == "62.01"
+    assert fields["NACE-Code"]["Status"] == "Automatisch erkannt"
     assert fields["NACE → ESCO Mapping"]["Wert"].startswith("http://data.europa.eu")
 
 
@@ -164,3 +165,33 @@ def test_build_summary_fact_rows_have_deterministic_ordering() -> None:
         "NACE-Code",
         "NACE → ESCO Mapping",
     ]
+
+
+def test_build_summary_fact_rows_marks_partial_multiselect_as_teilweise() -> None:
+    plan = QuestionPlan(
+        steps=[
+            QuestionStep(
+                step_key="skills",
+                title_de="Skills",
+                questions=[
+                    Question(
+                        id="must_have",
+                        label="Must-Haves",
+                        answer_type=AnswerType.MULTI_SELECT,
+                    )
+                ],
+            )
+        ]
+    )
+
+    rows = SUMMARY_MODULE._build_summary_fact_rows(
+        job=JobAdExtract(job_title="Data Engineer"),
+        answers={"must_have": ["Python", ""]},
+        plan=plan,
+        artifacts=_artifacts(),
+        meta=_meta(selected_occupation_title=None),
+    )
+
+    skill_row = next(row.to_dict() for row in rows if row.feld == "Must-Haves")
+    assert skill_row["Wert"] == "Python"
+    assert skill_row["Status"] == "Teilweise"
