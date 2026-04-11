@@ -82,6 +82,11 @@ def init_session_state() -> None:
         SSKey.LLM_RESPONSE_CACHE.value: {},
         SSKey.JOBAD_CACHE_HIT.value: {},
         SSKey.SUMMARY_CACHE_HIT.value: False,
+        SSKey.SUMMARY_DIRTY.value: False,
+        SSKey.SUMMARY_INPUT_FINGERPRINT.value: "",
+        SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value: "",
+        SSKey.SUMMARY_ACTIVE_ARTIFACT.value: "",
+        SSKey.SUMMARY_SHOW_JOB_AD_CONFIG.value: False,
         SSKey.SUMMARY_LAST_MODE.value: None,
         SSKey.SUMMARY_LAST_MODELS.value: {},
         SSKey.SUMMARY_SELECTIONS.value: {},
@@ -158,6 +163,11 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.BRIEF.value] = None
     st.session_state[SSKey.JOBAD_CACHE_HIT.value] = {}
     st.session_state[SSKey.SUMMARY_CACHE_HIT.value] = False
+    st.session_state[SSKey.SUMMARY_DIRTY.value] = False
+    st.session_state[SSKey.SUMMARY_INPUT_FINGERPRINT.value] = ""
+    st.session_state[SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value] = ""
+    st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = ""
+    st.session_state[SSKey.SUMMARY_SHOW_JOB_AD_CONFIG.value] = False
     st.session_state[SSKey.SUMMARY_LAST_MODE.value] = None
     st.session_state[SSKey.SUMMARY_LAST_MODELS.value] = {}
     st.session_state[SSKey.SUMMARY_SELECTIONS.value] = {}
