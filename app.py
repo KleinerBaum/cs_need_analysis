@@ -211,7 +211,7 @@ def _get_info_page_key() -> str | None:
     info_param = query_params.get("info")
     if isinstance(info_param, list):
         info_param = info_param[0] if info_param else None
-    if isinstance(info_param, str) and info_param == "esco":
+    if isinstance(info_param, str) and info_param in {"esco", "about"}:
         return info_param
     return None
 
@@ -271,6 +271,37 @@ def _render_info_page(info_page_key: str) -> None:
             - Vorschläge für kanonische Skills direkt im Intake
             - Qualitätschecks auf Vollständigkeit und Konsistenz
             - sauberere Übergabe an Job-Ad-Generierung, Interviewdesign und Matching
+            """
+        )
+    elif info_page_key == "about":
+        st.title("Über die App")
+        st.markdown(
+            """
+            Diese App führt dich strukturiert durch die Erstellung eines Vacancy Briefs – von
+            den Basisdaten bis zur konsistenten Zusammenfassung für Recruiting und Hiring.
+
+            ### a) Für technisch versierte User
+            - **Wizard-Architektur mit Session-State:** Jeder Schritt schreibt in klar benannte
+              Session-Keys; so bleiben Eingaben und Ableitungen reproduzierbar.
+            - **Validierte Datenmodelle:** Eingaben und LLM-Antworten werden über Schema-/Model-
+              Validierung abgesichert, damit Folgeschritte mit stabilen Daten arbeiten.
+            - **Strukturierte LLM-Nutzung:** Die App nutzt strukturierte Outputs für Funktionen wie
+              Job-Ad-Extraktion, Aufgaben-Planung und Brief-Generierung.
+            - **Deterministische Fallbacks:** Bei fehlenden Keys/Antworten bleibt der Flow nutzbar
+              und zeigt sichere, nachvollziehbare Hinweise statt „stiller“ Fehler.
+            - **API-gestützte Erweiterbarkeit:** Externe Datenquellen (z. B. ESCO) werden als
+              Ergänzung in den Wizard eingebunden, um Begriffe zu normalisieren und Vorschläge
+              zu verbessern.
+
+            ### b) Für weniger technisch versierte User
+            - **Schritt-für-Schritt-Assistent:** Du beantwortest nacheinander verständliche Fragen.
+            - **Weniger Tipparbeit:** Die App schlägt Inhalte vor, die du übernehmen oder anpassen kannst.
+            - **Mehr Konsistenz:** Angaben aus frühen Schritten werden später wiederverwendet, damit
+              am Ende ein stimmiges Gesamtbild entsteht.
+            - **Klare Zusammenfassung:** Im letzten Schritt siehst du alle wichtigen Punkte gebündelt
+              und kannst sie direkt für weitere Prozesse verwenden.
+            - **Sicherer Umgang mit Daten:** Die App ist darauf ausgelegt, sensible Informationen nicht
+              unnötig anzuzeigen oder in Debug-Ansichten offenzulegen.
             """
         )
 
@@ -378,6 +409,7 @@ def main() -> None:
         st.markdown("### Aktionen")
         st.button("Reset Vacancy", on_click=reset_vacancy)
         st.markdown("[ℹ️ ESCO-API-Info](?info=esco)")
+        st.markdown("[ℹ️ Über die App](?info=about)")
 
     info_page_key = _get_info_page_key()
     if info_page_key is not None:
