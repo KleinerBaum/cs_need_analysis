@@ -10,13 +10,11 @@ from ui_components import (
     render_error_banner,
     render_question_step,
 )
+from ui_layout import render_step_shell
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
 
 
 def render(ctx: WizardContext) -> None:
-    st.header("Team")
-    render_error_banner()
-
     job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
     plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
 
@@ -28,13 +26,9 @@ def render(ctx: WizardContext) -> None:
 
     job = JobAdExtract.model_validate(job_dict)
     plan = QuestionPlan.model_validate(plan_dict)
+    step = next((s for s in plan.steps if s.step_key == "team"), None)
 
-    st.write(
-        "Hier geht es um Team-Setup, Schnittstellen, Arbeitsmodus (hybrid/remote), aktuelle Herausforderungen "
-        "und warum diese Rolle für das Team wichtig ist."
-    )
-
-    with st.expander("Aus Jobspec extrahiert (Team/Org)", expanded=True):
+    def _render_extracted_slot() -> None:
         extracted_rows = [
             ("Department", job.department_name),
             ("Reports to", job.reports_to),
@@ -50,16 +44,28 @@ def render(ctx: WizardContext) -> None:
                 "Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions."
             )
 
-    step = next((s for s in plan.steps if s.step_key == "team"), None)
-    if step is None or not step.questions:
-        st.info(
-            "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
+    def _render_main_slot() -> None:
+        render_error_banner()
+        st.write(
+            "Hier geht es um Team-Setup, Schnittstellen, Arbeitsmodus (hybrid/remote), aktuelle Herausforderungen "
+            "und warum diese Rolle für das Team wichtig ist."
         )
-        nav_buttons(ctx)
-        return
+        if step is None or not step.questions:
+            st.info(
+                "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
+            )
+            return
+        render_question_step(step)
 
-    render_question_step(step)
-    nav_buttons(ctx)
+    render_step_shell(
+        title="Team",
+        subtitle="Teamkontext, Schnittstellen und Zusammenarbeit.",
+        step=step,
+        extracted_from_jobspec_slot=_render_extracted_slot,
+        extracted_from_jobspec_label="Aus Jobspec extrahiert (Team/Org)",
+        main_content_slot=_render_main_slot,
+        footer_slot=lambda: nav_buttons(ctx),
+    )
 
 
 PAGE = WizardPage(
