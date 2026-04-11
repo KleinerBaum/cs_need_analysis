@@ -1556,20 +1556,162 @@ def _add_logo_to_docx(document: Any, logo_payload: Any) -> bool:
 
 
 def _render_summary_hero(job: JobAdExtract, answers: dict[str, Any]) -> None:
-    st.header("Zusammenfassung")
+    status = _build_summary_status(job=job, answers=answers)
+    st.header(_build_summary_headline(status))
     st.subheader("Finaler Check & nächste Schritte")
-    st.caption(
-        "Verdichte alle Inputs in einen belastbaren Recruiting Brief und entscheide dann, "
-        "welches Artefakt du als Nächstes erzeugen möchtest."
-    )
+    st.caption(_build_summary_subheader(status))
+    _render_summary_meta_badges(status)
     st.info(
         f"Value Proposition: {len(answers)} strukturierte Antworten + Jobspec = "
         "konsistente, exportierbare Hiring-Artefakte ohne Medienbruch."
     )
-    st.write(
-        f"**Rolle im Fokus:** {job.job_title or 'Nicht angegeben'} · "
-        f"**Unternehmen:** {job.company_name or 'Nicht angegeben'}"
+
+
+def _build_summary_headline(status: dict[str, Any]) -> str:
+    role = str(status.get("role_label", "") or "").strip()
+    company = str(status.get("company_label", "") or "").strip()
+    if role and company:
+        return f"{role} bei {company}: Zusammenfassung"
+    if role:
+        return f"{role}: Zusammenfassung"
+    if company:
+        return f"Zusammenfassung für {company}"
+    return "Zusammenfassung"
+
+
+def _build_summary_subheader(status: dict[str, Any]) -> str:
+    role = status.get("role_label", "Nicht angegeben")
+    company = status.get("company_label", "Nicht angegeben")
+    country = status.get("country_label", "Nicht angegeben")
+    esco = status.get("esco_label", "Nicht gesetzt")
+    nace = status.get("nace_label", "Nicht gesetzt")
+    completion_text = status.get("completion_text", "0/0 beantwortet")
+    brief_status = status.get("brief_status_label", "Kein Recruiting Brief vorhanden.")
+    next_step = status.get("next_step", "Recruiting Brief generieren")
+    return (
+        f"Rolle: {role} · Unternehmen: {company}\n"
+        f"Markt/Land: {country}\n"
+        f"ESCO/NACE: {esco} · {nace}\n"
+        f"Vollständigkeit: {completion_text} · Brief: {brief_status}\n"
+        f"Nächster Schritt: {next_step}"
     )
+
+
+def _render_summary_meta_badges(status: dict[str, Any]) -> None:
+    readiness = (
+        "Bereit"
+        if bool(status.get("ready_for_follow_ups"))
+        else ("Veraltet" if status.get("brief_state") == "stale" else "In Arbeit")
+    )
+    badges = (
+        ("Rolle", status.get("role_label", "Nicht angegeben")),
+        ("Unternehmen", status.get("company_label", "Nicht angegeben")),
+        ("Land", status.get("country_label", "Nicht angegeben")),
+        ("ESCO", "✅" if bool(status.get("esco_ready")) else "—"),
+        ("NACE", "✅" if bool(status.get("nace_ready")) else "—"),
+        ("Readiness", readiness),
+    )
+    columns = st.columns(len(badges))
+    for idx, (label, value) in enumerate(badges):
+        columns[idx].metric(label, str(value))
+
+
+def _build_summary_status(
+    *, job: JobAdExtract, answers: dict[str, Any]
+) -> dict[str, Any]:
+    role_label = str(job.job_title or "Nicht angegeben").strip()
+    company_label = str(job.company_name or "Nicht angegeben").strip()
+    country_label = str(job.location_country or "Nicht angegeben").strip()
+
+    selected_occupation = get_esco_occupation_selected()
+    esco_ready = bool(selected_occupation)
+    esco_label = (
+        str(selected_occupation.get("title", "") or "").strip()
+        if isinstance(selected_occupation, dict)
+        else ""
+    ) or "Nicht gesetzt"
+
+    nace_code = str(
+        st.session_state.get(SSKey.COMPANY_NACE_CODE.value, "") or ""
+    ).strip()
+    nace_ready = bool(nace_code)
+    nace_label = nace_code or "Nicht gesetzt"
+
+    completion_text = f"{len(answers)} Antworten"
+    completion_ratio = 0.0
+    plan_payload = st.session_state.get(SSKey.QUESTION_PLAN.value)
+    if isinstance(plan_payload, dict):
+        try:
+            plan_model = QuestionPlan.model_validate(plan_payload)
+            question_ids = [
+                question.id
+                for step in plan_model.steps
+                if step.step_key not in {"landing", "jobspec_review", "summary"}
+                for question in step.questions
+            ]
+            total_questions = len(question_ids)
+            answered_questions = sum(
+                1 for qid in question_ids if answers.get(qid) not in (None, "", [])
+            )
+            completion_ratio = (
+                answered_questions / total_questions if total_questions > 0 else 0.0
+            )
+            completion_text = f"{answered_questions}/{total_questions} beantwortet"
+        except Exception:
+            completion_text = f"{len(answers)} Antworten"
+
+    brief_payload = st.session_state.get(SSKey.BRIEF.value)
+    brief_state = "missing"
+    brief_status_label = "Kein Recruiting Brief vorhanden."
+    if isinstance(brief_payload, dict):
+        try:
+            VacancyBrief.model_validate(brief_payload)
+            brief_state = "ready"
+            brief_status_label = "Aktueller Recruiting Brief vorhanden."
+        except Exception:
+            brief_state = "invalid"
+            brief_status_label = "Recruiting Brief ist ungültig."
+
+    if brief_state == "ready" and bool(st.session_state.get(SSKey.SUMMARY_DIRTY.value)):
+        brief_state = "stale"
+        brief_status_label = "Recruiting Brief ist veraltet."
+
+    if brief_state == "missing":
+        next_step = "Recruiting Brief generieren"
+    elif brief_state in {"invalid", "stale"}:
+        next_step = "Recruiting Brief aktualisieren"
+    else:
+        next_step = "Gewünschtes Folge-Artefakt erzeugen"
+
+    readiness_checks = [
+        role_label != "Nicht angegeben",
+        company_label != "Nicht angegeben",
+        country_label != "Nicht angegeben",
+        esco_ready,
+        nace_ready,
+        brief_state == "ready",
+    ]
+    readiness_percent = round(
+        (sum(1 for item in readiness_checks if item) / len(readiness_checks)) * 100
+    )
+    ready_for_follow_ups = brief_state == "ready"
+
+    return {
+        "role_label": role_label,
+        "company_label": company_label,
+        "country_label": country_label,
+        "esco_ready": esco_ready,
+        "esco_label": esco_label,
+        "nace_ready": nace_ready,
+        "nace_label": nace_label,
+        "completion_ratio": completion_ratio,
+        "completion_text": completion_text,
+        "brief_state": brief_state,
+        "brief_status_label": brief_status_label,
+        "next_step": next_step,
+        "readiness_percent": readiness_percent,
+        "ready_for_follow_ups": ready_for_follow_ups,
+    }
 
 
 def _build_summary_view_model() -> SummaryViewModel | None:
