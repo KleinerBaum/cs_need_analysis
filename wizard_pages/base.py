@@ -695,6 +695,7 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
     step_statuses = _compute_step_statuses(pages)
     status_by_key = {entry["key"]: entry for entry in step_statuses}
     ui_mode_key = SSKey.UI_MODE.value
+    ui_preferences_key = SSKey.UI_PREFERENCES.value
     allowed_ui_modes = {"quick", "standard", "expert"}
     ui_mode_raw = st.session_state.get(ui_mode_key)
     ui_mode = str(ui_mode_raw).strip().lower() if ui_mode_raw is not None else ""
@@ -717,8 +718,26 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
         options=["quick", "standard", "expert"],
         key=ui_mode_key,
         format_func=lambda mode: mode.capitalize(),
-        help="Quick: kompakt. Standard: kompakt mit Ein-Klick-Ausklappen. Expert: alle Detailgruppen geöffnet.",
+        help="Quick/Standard: Detailgruppen standardmäßig kompakt. Expert: Detailgruppen standardmäßig geöffnet.",
     )
+    raw_ui_preferences = st.session_state.get(ui_preferences_key, {})
+    ui_preferences = raw_ui_preferences if isinstance(raw_ui_preferences, dict) else {}
+    details_expanded_default = ui_preferences.get("details_expanded_default")
+    if not isinstance(details_expanded_default, bool):
+        details_expanded_default = str(_selected_mode).strip().lower() == "expert"
+    details_expanded_default = st.sidebar.toggle(
+        "Details standardmäßig öffnen",
+        value=details_expanded_default,
+        help=(
+            "Globale Voreinstellung für Detailgruppen in allen Wizard-Schritten. "
+            "Expert setzt standardmäßig auf geöffnet, Standard/Quick auf kompakt."
+        ),
+    )
+    normalized_preferences = dict(ui_preferences)
+    normalized_preferences["details_expanded_default"] = details_expanded_default
+    if not isinstance(normalized_preferences.get("step_compact"), dict):
+        normalized_preferences["step_compact"] = {}
+    st.session_state[ui_preferences_key] = normalized_preferences
     _render_esco_sidebar_status_block(ui_mode=str(_selected_mode))
     format_map: dict[str, str] = {}
     for page in pages:
