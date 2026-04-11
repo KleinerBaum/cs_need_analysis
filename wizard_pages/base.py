@@ -789,7 +789,6 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
         st.rerun()
 
     current_page = next(p for p in pages if p.key == selected)
-    _render_sidebar_step_status_card(current_page)
     job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
     answers_raw = st.session_state.get(SSKey.ANSWERS.value, {})
     answers = answers_raw if isinstance(answers_raw, dict) else {}
