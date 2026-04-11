@@ -2638,11 +2638,14 @@ def _render_summary_results_workspace(*, brief: VacancyBrief) -> None:
 
 def _render_summary_export_workspace(*, brief: VacancyBrief) -> None:
     st.subheader("Export")
+    export_payload = _build_structured_export_payload(brief)
+    export_json_text = json.dumps(export_payload, indent=2, ensure_ascii=False)
     md = _brief_to_markdown(brief)
-    json_bytes = json.dumps(
-        _build_structured_export_payload(brief), indent=2, ensure_ascii=False
-    ).encode("utf-8")
+    json_bytes = export_json_text.encode("utf-8")
     docx_bytes = _brief_to_docx_bytes(brief)
+    st.caption(
+        "Lade die Exportformate direkt herunter. JSON-Vorschau und Debug-Details sind standardmäßig eingeklappt."
+    )
     c1, c2, c3 = st.columns(3)
     with c1:
         st.download_button(
@@ -2664,6 +2667,18 @@ def _render_summary_export_workspace(*, brief: VacancyBrief) -> None:
             data=docx_bytes,
             file_name="vacancy_brief.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+    with st.expander("JSON-Vorschau & Debug (optional)", expanded=False):
+        snippet_limit = 380
+        snippet = export_json_text[:snippet_limit]
+        if len(export_json_text) > snippet_limit:
+            snippet = f"{snippet}…"
+        st.code(snippet, language="json")
+        st.text_area(
+            "Komplette JSON-Vorschau",
+            value=export_json_text,
+            height=240,
+            disabled=True,
         )
 
 
