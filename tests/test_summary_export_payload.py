@@ -87,3 +87,99 @@ def test_build_structured_export_payload_includes_esco_uri_and_label(
     assert payload["esco_skills_must"] == [{"uri": "uri:skill:must", "label": "Python"}]
     assert payload["esco_skills_nice"] == [{"uri": "uri:skill:nice", "label": "dbt"}]
     assert payload["esco_version"] == "v1.2.0"
+
+
+def test_build_esco_mapping_report_rows_uses_expected_fields_and_sorting(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.JOB_EXTRACT.value: {
+                    "must_have_skills": ["Python", "SQL"],
+                    "nice_to_have_skills": ["Docker"],
+                },
+                SSKey.ESCO_SKILLS_SELECTED_MUST.value: [
+                    {"uri": "uri:skill:python", "title": "Python", "type": "skill"}
+                ],
+                SSKey.ESCO_SKILLS_SELECTED_NICE.value: [
+                    {"uri": "uri:skill:k8s", "title": "Kubernetes", "type": "skill"}
+                ],
+                SSKey.ESCO_SKILLS_MAPPING_REPORT.value: {
+                    "mapped_count": 2,
+                    "unmapped_terms": ["SQL"],
+                    "collisions": ["Docker"],
+                    "notes": ["1 Duplikat entfernt"],
+                },
+            }
+        ),
+    )
+
+    rows = SUMMARY_MODULE._build_esco_mapping_report_rows()
+
+    assert rows
+    assert all(
+        set(row.keys())
+        == {"raw_term", "chosen_uri", "chosen_label", "match_method", "notes"}
+        for row in rows
+    )
+    assert rows == sorted(
+        rows,
+        key=lambda row: (
+            row["raw_term"].casefold(),
+            row["chosen_uri"].casefold(),
+            row["chosen_label"].casefold(),
+            row["match_method"].casefold(),
+            row["notes"].casefold(),
+        ),
+    )
+    assert any(
+        row["raw_term"] == "Python"
+        and row["chosen_uri"] == "uri:skill:python"
+        and row["match_method"] == "label_exact"
+        for row in rows
+    )
+    assert any(
+        row["raw_term"] == "SQL"
+        and row["chosen_uri"] == ""
+        and row["match_method"] == "unmapped"
+        for row in rows
+    )
+    assert any(
+        row["raw_term"] == ""
+        and row["chosen_uri"] == "uri:skill:k8s"
+        and row["match_method"] == "manual_selection"
+        for row in rows
+    )
+
+
+def test_build_esco_mapping_report_csv_has_expected_columns(monkeypatch) -> None:
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.JOB_EXTRACT.value: {"must_have_skills": ["Python"]},
+                SSKey.ESCO_SKILLS_SELECTED_MUST.value: [
+                    {"uri": "uri:skill:python", "title": "Python", "type": "skill"}
+                ],
+                SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
+                SSKey.ESCO_SKILLS_MAPPING_REPORT.value: {
+                    "mapped_count": 1,
+                    "unmapped_terms": [],
+                    "collisions": [],
+                    "notes": [],
+                },
+            }
+        ),
+    )
+
+    rows = SUMMARY_MODULE._build_esco_mapping_report_rows()
+    csv_text = SUMMARY_MODULE._build_esco_mapping_report_csv(rows).decode("utf-8")
+
+    assert (
+        csv_text.splitlines()[0]
+        == "raw_term,chosen_uri,chosen_label,match_method,notes"
+    )
