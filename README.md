@@ -32,7 +32,8 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 ## UI-Branding
 
 - Die App nutzt `images/AdobeStock_506577005.jpeg` als vollflächiges Hintergrundbild.
-- Das Logo `images/color1_logo_transparent_background.png` wird mit transparentem Hintergrund im Sidebar-Header dargestellt.
+- Im Sidebar-Header wird das animierte GIF `images/animation_pulse_SingleColorHex1_7kigl22lw.gif` dargestellt.
+- Im Start-Schritt wird `images/white_logo_color1_background.png` als Hero-Logo angezeigt.
 - Für Lesbarkeit auf hellen und dunklen Bildbereichen nutzt die Oberfläche einen dunklen Overlay-Layer, kontrastreiche Textfarben sowie angepasste Button-/Formularfarben.
 - Rechtstexte werden als eigene Seiten über Query-Parameter gerendert (`?legal=terms`, `?legal=privacy`) und enthalten DE/EN-Hinweise zu Content Sharing, Notice/Consent und ausgeschlossenen Datenkategorien (u. a. PHI, Daten von Kindern <13).
 - Debug-Hinweise werden in den jeweiligen Fachbereichen angezeigt (z. B. API-Usage-Expander in Intake/Summary), ohne Secrets preiszugeben.

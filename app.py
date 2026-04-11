@@ -28,10 +28,10 @@ def _image_as_data_uri(image_path: Path, mime_type: str) -> str:
 
 def _inject_theme_styles() -> None:
     root_dir = Path(__file__).resolve().parent
-    logo_path = root_dir / "images" / "color1_logo_transparent_background.png"
+    logo_path = root_dir / "images" / "animation_pulse_SingleColorHex1_7kigl22lw.gif"
     bg_path = root_dir / "images" / "AdobeStock_506577005.jpeg"
 
-    logo_uri = _image_as_data_uri(logo_path, "image/png")
+    logo_uri = _image_as_data_uri(logo_path, "image/gif")
     bg_uri = _image_as_data_uri(bg_path, "image/jpeg")
 
     st.markdown(
