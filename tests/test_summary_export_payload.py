@@ -34,6 +34,29 @@ def _brief() -> VacancyBrief:
     )
 
 
+def _brief_with_saved_selections() -> VacancyBrief:
+    return VacancyBrief(
+        one_liner="One line",
+        hiring_context="Context",
+        role_summary="Summary",
+        top_responsibilities=[],
+        must_have=[],
+        nice_to_have=[],
+        dealbreakers=[],
+        interview_plan=[],
+        evaluation_rubric=[],
+        sourcing_channels=[],
+        risks_open_questions=[],
+        job_ad_draft="Draft",
+        structured_data={
+            "job_extract": {"job_title": "Engineer"},
+            "answers": {},
+            "selected_role_tasks": ["Build ETL pipelines"],
+            "selected_skills": ["Python", "SQL"],
+        },
+    )
+
+
 def test_build_structured_export_payload_keeps_legacy_export_without_esco(
     monkeypatch,
 ) -> None:
@@ -53,6 +76,32 @@ def test_build_structured_export_payload_keeps_legacy_export_without_esco(
     payload = SUMMARY_MODULE._build_structured_export_payload(_brief())
 
     assert payload == {"job_extract": {"job_title": "Engineer"}, "answers": {}}
+
+
+def test_build_structured_export_payload_preserves_saved_tasks_and_skills(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.ESCO_CONFIG.value: {},
+                SSKey.ESCO_SKILLS_SELECTED_MUST.value: [],
+                SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
+                SSKey.ROLE_TASKS_SELECTED.value: [],
+                SSKey.SKILLS_SELECTED.value: [],
+            }
+        ),
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "get_esco_occupation_selected", lambda: None)
+
+    payload = SUMMARY_MODULE._build_structured_export_payload(
+        _brief_with_saved_selections()
+    )
+
+    assert payload["selected_role_tasks"] == ["Build ETL pipelines"]
+    assert payload["selected_skills"] == ["Python", "SQL"]
 
 
 def test_build_structured_export_payload_includes_esco_uri_and_label(

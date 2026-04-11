@@ -725,6 +725,20 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
     return payload
 
 
+def _read_saved_selection_labels(key: SSKey) -> list[str]:
+    raw = st.session_state.get(key.value, [])
+    if not isinstance(raw, list):
+        return []
+    values: list[str] = []
+    for item in raw:
+        if not isinstance(item, str):
+            continue
+        label = item.strip()
+        if label:
+            values.append(label)
+    return values
+
+
 def _boolean_search_pack_to_markdown(pack: BooleanSearchPack) -> str:
     def _as_bullets(values: list[str], *, code: bool = False) -> list[str]:
         if not values:
@@ -1579,6 +1593,8 @@ def render(ctx: WizardContext) -> None:
 
     job = JobAdExtract.model_validate(job_dict)
     answers = get_answers()
+    selected_role_tasks = _read_saved_selection_labels(SSKey.ROLE_TASKS_SELECTED)
+    selected_skills = _read_saved_selection_labels(SSKey.SKILLS_SELECTED)
     brief_dict = st.session_state.get(SSKey.BRIEF.value)
     brief_for_snapshot = (
         VacancyBrief.model_validate(brief_dict)
@@ -1644,6 +1660,8 @@ def render(ctx: WizardContext) -> None:
                     job,
                     answers,
                     model=resolved_brief_model,
+                    selected_role_tasks=selected_role_tasks,
+                    selected_skills=selected_skills,
                     store=store,
                 )
             st.session_state[SSKey.BRIEF.value] = brief.model_dump()
@@ -1731,6 +1749,8 @@ def render(ctx: WizardContext) -> None:
                     job,
                     answers,
                     model=resolved_brief_model,
+                    selected_role_tasks=selected_role_tasks,
+                    selected_skills=selected_skills,
                     store=store,
                 )
             st.session_state[SSKey.BRIEF.value] = generated_brief.model_dump()

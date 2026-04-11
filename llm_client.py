@@ -1360,6 +1360,8 @@ def generate_vacancy_brief(
     answers: Dict[str, Any],
     *,
     model: str,
+    selected_role_tasks: Optional[List[str]] = None,
+    selected_skills: Optional[List[str]] = None,
     language: str = DEFAULT_LANGUAGE,
     store: bool = False,
     temperature: float | None = None,
@@ -1396,6 +1398,8 @@ def generate_vacancy_brief(
         {
             "job": job.model_dump(mode="json"),
             "answers": answers,
+            "selected_role_tasks": selected_role_tasks or [],
+            "selected_skills": selected_skills or [],
         }
     )
     cache_key = _build_llm_cache_key(
@@ -1441,6 +1445,8 @@ def generate_vacancy_brief(
     merged = {
         "job_extract": job.model_dump(),
         "answers": answers,
+        "selected_role_tasks": selected_role_tasks or None,
+        "selected_skills": selected_skills or None,
     }
     brief = VacancyBrief(
         **parsed_brief.model_dump(),
