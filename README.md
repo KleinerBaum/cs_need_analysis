@@ -18,7 +18,7 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 - Beim Job-Ad-Generator liegen **Selection Matrix** und **Job-Ad-Editor** gebündelt im erweiterten Bereich, inkl. optionalem Logo-Upload sowie Styleguide-/Change-Request-Bausteinen.
 - Der Salary Forecast wird in den Schritten Rolle & Aufgaben, Skills & Anforderungen sowie Benefits & Rahmenbedingungen als standardmäßig geöffnete Sektion angezeigt.
 - ESCO-Integration im Jobspec-Review mit Occupation-Picker, Preview und expliziter Bestätigung als **semantischer Anker**; zusätzlich ein expandierbarer Occupation-Detailbereich (u. a. Preferred/Alternative Labels, Description, Scope Note, ISCO-08, Regulated Profession sowie Skill-/Knowledge-Relationen) und optionales Laden von Occupation-Titelvarianten in mehreren Sprachen.
-- Skills-Mapping als geführter 4-Schritt-Flow: (1) extrahierte Jobspec-Phrasen, (2) ESCO-Normalisierung, (3) sichtbare Essential/Optional-Bestätigung, (4) explizite Unmapped-/Ambiguous-Liste mit Option „Keep as free-text requirement“.
+- Skills-Mapping als geführter 4-Schritt-Flow: (1) extrahierte Jobspec-Phrasen, (2) ESCO-Normalisierung über Occupation-Relationen, (3) sichtbare Essential/Optional-Bestätigung, (4) dedizierter Bereich „Not normalized yet“ mit Optionen „Keep free text“, Retry-Suche und Attach an Occupation.
 - Optionales NACE/EURES-Mapping im Unternehmensschritt als Grundlage für spätere Country-/Occupation-Kontexte; die Summary-Readiness bewertet den bestätigten semantischen Anker (ESCO) und NACE separat.
 - Der Team-Schritt enthält eine rechte **Role-context enrichment (ESCO)**-Karte: transversal abgeleitete Zusammenarbeitssignale (z. B. Collaboration, Communication, Stakeholder, Leadership/Coordination, Language, Digital Collaboration) werden als **inferred context** markiert und können gezielt als Team-Notiz übernommen werden.
 - Primäre Fakten-Tabelle in der Summary (Bereich/Feld/Wert/Quelle/Status) inkl. Such-/Statusfilter, plus sekundärer Kompaktüberblick und ESCO Mapping Report (JSON/CSV-Export).
@@ -52,6 +52,8 @@ Falls du ohne Constraints arbeiten willst, bleibt auch `pip install -r requireme
 ## ESCO API Konfiguration
 
 Die ESCO-Basis-URL kann optional über `ESCO_API_BASE_URL` gesetzt werden (z. B. für lokale Mirror/Proxy-Setups).
+Die ESCO-Version ist standardmäßig auf `v1.2.0` gepinnt und kann über `ESCO_SELECTED_VERSION` gesetzt werden.
+Optional kann `ESCO_API_MODE` (`hosted` / `local`) gesetzt werden; die Client-Abstraktion bleibt für beide Modi gleich.
 
 ### Auflösungsreihenfolge
 
@@ -59,10 +61,18 @@ Die ESCO-Basis-URL kann optional über `ESCO_API_BASE_URL` gesetzt werden (z. B.
 2. Umgebungsvariable `ESCO_API_BASE_URL`
 3. Default: `https://ec.europa.eu/esco/api/`
 
+Versionauflösung:
+
+1. explizite Session-Konfiguration (`st.session_state[SSKey.ESCO_CONFIG]["selected_version"]`)
+2. Umgebungsvariable `ESCO_SELECTED_VERSION`
+3. Default: `v1.2.0`
+
 ### Beispiel (Local Deployment)
 
 ```bash
 export ESCO_API_BASE_URL="http://localhost:9000/esco/api/"
+export ESCO_SELECTED_VERSION="v1.2.0"
+export ESCO_API_MODE="local"
 streamlit run app.py
 ```
 
@@ -222,3 +232,5 @@ Der strukturierte Summary-Export enthält – sofern vorhanden – folgende ESCO
 - `esco_occupation_provenance`: Explainability/Provenance zur bestätigten Occupation (`reason`, `confidence`, `provenance_categories`)
 - `recommended_titles`: geladene Occupation-Titelvarianten pro Sprache
 - `esco_skills_must` / `esco_skills_nice`: übernommene ESCO-Skills
+- `esco_unmapped_requirement_terms` / `esco_unmapped_role_terms`: offene, nicht normalisierte Begriffe
+- `esco_unmapped_term_actions`: dokumentierte Nutzerentscheidung je offenem Begriff

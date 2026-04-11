@@ -47,7 +47,9 @@ def _is_meaningful(value: Any) -> bool:
     return True
 
 
-def _extract_value_by_target_path(job_extract: JobAdExtract | None, target_path: str) -> Any:
+def _extract_value_by_target_path(
+    job_extract: JobAdExtract | None, target_path: str
+) -> Any:
     if job_extract is None:
         return None
 
@@ -74,7 +76,9 @@ def _question_is_covered(
     target_path = question.target_path
     if not isinstance(target_path, str) or not target_path.strip():
         return False
-    return _is_meaningful(_extract_value_by_target_path(job_extract, target_path.strip()))
+    return _is_meaningful(
+        _extract_value_by_target_path(job_extract, target_path.strip())
+    )
 
 
 def compute_adaptive_question_limits(
@@ -149,4 +153,3 @@ def sync_adaptive_question_limits() -> None:
         answer_meta=answer_meta,
         job_extract=job_extract,
     )
-

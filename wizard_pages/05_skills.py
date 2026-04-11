@@ -368,12 +368,12 @@ def _load_related_skills_from_selected_occupation(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str | None]:
     client = EscoClient()
     try:
-        client.resource_occupation(uri=occupation_uri)
-        must_payload = client.resource_related(
-            uri=occupation_uri, relation="hasEssentialSkill"
+        client.get_occupation_detail(uri=occupation_uri)
+        must_payload = client.get_occupation_essential_skills(
+            occupation_uri=occupation_uri
         )
-        nice_payload = client.resource_related(
-            uri=occupation_uri, relation="hasOptionalSkill"
+        nice_payload = client.get_occupation_optional_skills(
+            occupation_uri=occupation_uri
         )
     except EscoClientError as exc:
         return [], [], str(exc)
@@ -381,6 +381,67 @@ def _load_related_skills_from_selected_occupation(
     must_suggestions = _extract_skill_candidates(must_payload)
     nice_suggestions = _extract_skill_candidates(nice_payload)
     return must_suggestions, nice_suggestions, None
+
+
+def _render_unmapped_term_workflow(flagged_terms: list[str]) -> None:
+    st.markdown("### 4) Not normalized yet")
+    st.caption(
+        "Offene Begriffe bleiben sichtbar: als Freitext, nach Retry-Suche oder "
+        "als Anhang an ein nahegelegenes ESCO-Konzept."
+    )
+    actions_raw = st.session_state.get(SSKey.ESCO_UNMAPPED_TERM_ACTIONS.value, {})
+    actions = actions_raw if isinstance(actions_raw, dict) else {}
+    selected_occupation = get_esco_occupation_selected() or {}
+    selected_occupation_uri = str(selected_occupation.get("uri") or "").strip()
+
+    for index, term in enumerate(flagged_terms):
+        normalized = _normalize_term(term)
+        action_payload = actions.get(normalized, {})
+        st.write(f"- **{term}**")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            if st.button("Keep free text", key=f"skills.unmapped.keep.{index}"):
+                _save_selected_skill_suggestions([term])
+                actions[normalized] = {"status": "free_text", "term": term}
+        with c2:
+            if st.button("Retry ESCO search", key=f"skills.unmapped.retry.{index}"):
+                try:
+                    payload = EscoClient().suggest2(text=term, type="skill", limit=5)
+                    options = _extract_skill_candidates(payload)
+                except EscoClientError as exc:
+                    st.warning(f"ESCO-Retry fehlgeschlagen: {exc}")
+                else:
+                    if options:
+                        picked = options[0]
+                        _save_selected_skill_suggestions(
+                            [str(picked.get("title") or term)]
+                        )
+                        actions[normalized] = {
+                            "status": "retry_matched",
+                            "term": term,
+                            "attached_uri": str(picked.get("uri") or "").strip(),
+                            "attached_title": str(picked.get("title") or "").strip(),
+                        }
+                    else:
+                        st.info("Kein robustes ESCO-Match im Retry gefunden.")
+        with c3:
+            if st.button("Attach to occupation", key=f"skills.unmapped.attach.{index}"):
+                actions[normalized] = {
+                    "status": "attached_to_occupation",
+                    "term": term,
+                    "attached_uri": selected_occupation_uri,
+                    "attached_title": str(
+                        selected_occupation.get("title") or ""
+                    ).strip(),
+                }
+
+        if isinstance(action_payload, dict) and action_payload:
+            st.caption(
+                f"Aktueller Status: {action_payload.get('status', 'open')} "
+                f"{action_payload.get('attached_title', '')}".strip()
+            )
+
+    st.session_state[SSKey.ESCO_UNMAPPED_TERM_ACTIONS.value] = actions
 
 
 def render(ctx: WizardContext) -> None:
@@ -541,12 +602,26 @@ def render(ctx: WizardContext) -> None:
                 )
 
                 merged_must, added_must = _merge_suggested_skills_by_uri(
-                    suggested_skills=suggested_must,
+                    suggested_skills=[
+                        {
+                            **item,
+                            "relation": "hasEssentialSkill",
+                            "related_occupation_uri": occupation_uri,
+                        }
+                        for item in suggested_must
+                    ],
                     must_selected=selected_must,
                     nice_selected=selected_nice,
                 )
                 merged_nice, added_nice = _merge_suggested_skills_by_uri(
-                    suggested_skills=suggested_nice,
+                    suggested_skills=[
+                        {
+                            **item,
+                            "relation": "hasOptionalSkill",
+                            "related_occupation_uri": occupation_uri,
+                        }
+                        for item in suggested_nice
+                    ],
                     must_selected=merged_must,
                     nice_selected=selected_nice,
                 )
@@ -645,10 +720,6 @@ def render(ctx: WizardContext) -> None:
     )
 
     st.markdown("### 4) Unmapped / Ambiguous Items")
-    st.caption(
-        "Diese Begriffe konnten nicht eindeutig ESCO-normalisiert werden oder sind "
-        "inhaltlich mehrdeutig. Sie werden nicht stillschweigend verworfen."
-    )
     ambiguous_terms = sorted(
         {
             term
@@ -661,25 +732,7 @@ def render(ctx: WizardContext) -> None:
     flagged_terms = _dedupe_terms([*ambiguous_terms, *unmapped_terms])
     if flagged_terms:
         _render_badge_line(["Jobspec"])
-        for index, term in enumerate(flagged_terms):
-            is_ambiguous = _normalize_term(term) in {
-                _normalize_term(item) for item in ambiguous_terms
-            }
-            reason = (
-                "Mehrdeutig (taucht als essential und optional auf)"
-                if is_ambiguous
-                else "Nicht eindeutig ESCO-mappbar"
-            )
-            st.write(f"- **{term}** · {reason}")
-            if st.button(
-                "Keep as free-text requirement",
-                key=f"skills.free_text.keep.{index}",
-            ):
-                added_count = _save_selected_skill_suggestions([term])
-                if added_count > 0:
-                    st.success(f"'{term}' als Freitext-Anforderung übernommen.")
-                else:
-                    st.info(f"'{term}' war bereits als Freitext enthalten.")
+        _render_unmapped_term_workflow(flagged_terms)
     else:
         st.caption("Keine offenen oder mehrdeutigen Skill-Begriffe vorhanden.")
 

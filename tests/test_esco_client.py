@@ -180,9 +180,10 @@ def test_default_config_is_used_when_session_state_is_missing(monkeypatch) -> No
 
     assert config == {
         "base_url": "https://ec.europa.eu/esco/api/",
-        "selected_version": "latest",
+        "selected_version": "v1.2.0",
         "language": "de",
         "view_obsolete": False,
+        "api_mode": "hosted",
     }
 
 
@@ -194,6 +195,12 @@ def test_esco_config_prefers_env_base_url_when_session_value_missing(
     client = esco_client.EscoClient(session_state={SSKey.ESCO_CONFIG.value: {}})
 
     assert client._esco_config()["base_url"] == "https://env.example/esco/"
+
+
+def test_esco_config_uses_env_selected_version(monkeypatch) -> None:
+    monkeypatch.setenv("ESCO_SELECTED_VERSION", "v1.3.0")
+    client = esco_client.EscoClient(session_state={SSKey.ESCO_CONFIG.value: {}})
+    assert client._esco_config()["selected_version"] == "v1.3.0"
 
 
 def test_esco_config_prefers_session_base_url_over_env(monkeypatch) -> None:

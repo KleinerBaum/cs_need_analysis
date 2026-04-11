@@ -5,6 +5,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any, Mapping
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -12,7 +13,7 @@ from urllib.request import Request, urlopen
 
 import streamlit as st
 
-from constants import SSKey
+from constants import DEFAULT_ESCO_SELECTED_VERSION, SSKey
 
 LOGGER = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ DEFAULT_ESCO_API_BASE_URL = "https://ec.europa.eu/esco/api/"
 RETRYABLE_HTTP_STATUS_CODES = frozenset({500, 502, 503, 504})
 MAX_RETRIES = 2
 RETRY_BACKOFF_SECONDS = 0.25
+SUPPORTED_API_MODES = frozenset({"hosted", "local"})
 
 
 def clear_esco_cache() -> None:
@@ -195,6 +197,33 @@ class EscoClient:
         merged_query = {"uri": uri, **query}
         return self._get("resource/related", merged_query)
 
+    def get_occupation_detail(self, *, uri: str, **query: object) -> dict[str, Any]:
+        return self.resource_occupation(uri=uri, **query)
+
+    def get_skill_detail(self, *, uri: str, **query: object) -> dict[str, Any]:
+        return self.resource_skill(uri=uri, **query)
+
+    def get_occupation_essential_skills(
+        self, *, occupation_uri: str, **query: object
+    ) -> dict[str, Any]:
+        return self.resource_related(
+            uri=occupation_uri, relation="hasEssentialSkill", **query
+        )
+
+    def get_occupation_optional_skills(
+        self, *, occupation_uri: str, **query: object
+    ) -> dict[str, Any]:
+        return self.resource_related(
+            uri=occupation_uri, relation="hasOptionalSkill", **query
+        )
+
+    def get_skill_related_occupations(
+        self, *, skill_uri: str, **query: object
+    ) -> dict[str, Any]:
+        return self.resource_related(
+            uri=skill_uri, relation="isEssentialForOccupation", **query
+        )
+
     def conversion(self, conversion_endpoint: str, **query: object) -> dict[str, Any]:
         clean_endpoint = conversion_endpoint.strip().strip("/")
         if not clean_endpoint:
@@ -203,6 +232,9 @@ class EscoClient:
 
     def _get(self, endpoint: str, query: Mapping[str, object]) -> dict[str, Any]:
         config = self._esco_config()
+        resolved_endpoint = self._resolve_endpoint(
+            endpoint=endpoint, api_mode=str(config["api_mode"])
+        )
         injected_query = self._inject_default_query_params(config=config, query=query)
         query_items = self._query_items(injected_query)
         base_url = str(config["base_url"])
@@ -212,7 +244,7 @@ class EscoClient:
 
         return _cached_get_json(
             base_url=base_url,
-            endpoint=endpoint,
+            endpoint=resolved_endpoint,
             query_items=query_items,
             cache_selected_version=selected_version,
             cache_language=language,
@@ -229,12 +261,37 @@ class EscoClient:
             session_base_url or env_base_url or DEFAULT_ESCO_API_BASE_URL
         )
 
+        session_selected_version = str(config.get("selected_version") or "").strip()
+        env_selected_version = os.getenv("ESCO_SELECTED_VERSION", "").strip()
+        resolved_selected_version = (
+            session_selected_version
+            or env_selected_version
+            or DEFAULT_ESCO_SELECTED_VERSION
+        )
+        api_mode = (
+            str(config.get("api_mode") or os.getenv("ESCO_API_MODE", "hosted"))
+            .strip()
+            .lower()
+        )
+        if api_mode not in SUPPORTED_API_MODES:
+            api_mode = "hosted"
+
         return {
             "base_url": resolved_base_url,
-            "selected_version": str(config.get("selected_version") or "latest"),
+            "selected_version": resolved_selected_version,
             "language": str(config.get("language") or "de"),
             "view_obsolete": _coerce_bool(config.get("view_obsolete"), default=False),
+            "api_mode": api_mode,
         }
+
+    @staticmethod
+    @lru_cache(maxsize=8)
+    def _resolve_endpoint(*, endpoint: str, api_mode: str) -> str:
+        clean_endpoint = endpoint.strip().strip("/")
+        if api_mode == "local":
+            # Future-proof indirection for local deployments; currently identical paths.
+            return clean_endpoint
+        return clean_endpoint
 
     @staticmethod
     def _inject_default_query_params(

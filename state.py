@@ -13,7 +13,7 @@ from typing import Any, Dict, cast
 
 import streamlit as st
 
-from constants import DEFAULT_LANGUAGE, SSKey, STEPS
+from constants import DEFAULT_ESCO_SELECTED_VERSION, DEFAULT_LANGUAGE, SSKey, STEPS
 from eures_mapping import load_national_code_lookup_from_file
 from question_progress import AnswerMeta, AnswerMetaMap, value_hash
 from schemas import EscoConceptRef, EscoMappingReport, EscoSuggestionItem
@@ -150,9 +150,14 @@ def init_session_state() -> None:
         SSKey.EMPLOYMENT_CONTRACT_LAST_MODELS.value: {},
         SSKey.ESCO_CONFIG.value: {
             "base_url": configured_esco_base_url,
-            "selected_version": "latest",
+            "selected_version": os.getenv(
+                "ESCO_SELECTED_VERSION", DEFAULT_ESCO_SELECTED_VERSION
+            ).strip()
+            or DEFAULT_ESCO_SELECTED_VERSION,
             "language": configured_language,
             "view_obsolete": False,
+            "api_mode": os.getenv("ESCO_API_MODE", "hosted").strip().lower()
+            or "hosted",
         },
         SSKey.ESCO_OCCUPATION_SELECTED.value: None,
         SSKey.ESCO_SELECTED_OCCUPATION_URI.value: "",
@@ -166,6 +171,8 @@ def init_session_state() -> None:
         SSKey.ESCO_CONFIRMED_ESSENTIAL_SKILLS.value: [],
         SSKey.ESCO_CONFIRMED_OPTIONAL_SKILLS.value: [],
         SSKey.ESCO_UNMAPPED_REQUIREMENT_TERMS.value: [],
+        SSKey.ESCO_UNMAPPED_ROLE_TERMS.value: [],
+        SSKey.ESCO_UNMAPPED_TERM_ACTIONS.value: {},
         SSKey.ESCO_SKILLS_MAPPING_REPORT.value: None,
         SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value: {},
         SSKey.ESCO_MIGRATION_LOG.value: [],
@@ -256,6 +263,8 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.ESCO_CONFIRMED_ESSENTIAL_SKILLS.value] = []
     st.session_state[SSKey.ESCO_CONFIRMED_OPTIONAL_SKILLS.value] = []
     st.session_state[SSKey.ESCO_UNMAPPED_REQUIREMENT_TERMS.value] = []
+    st.session_state[SSKey.ESCO_UNMAPPED_ROLE_TERMS.value] = []
+    st.session_state[SSKey.ESCO_UNMAPPED_TERM_ACTIONS.value] = {}
     st.session_state[SSKey.ESCO_SKILLS_MAPPING_REPORT.value] = None
     st.session_state[SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value] = {}
     st.session_state[SSKey.ESCO_MIGRATION_LOG.value] = []
