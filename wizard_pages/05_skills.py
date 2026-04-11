@@ -20,6 +20,7 @@ from ui_components import (
     render_question_step,
 )
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
+from wizard_pages.salary_forecast_panel import render_salary_forecast_panel
 
 
 def _normalize_term(term: str) -> str:
@@ -653,6 +654,9 @@ def render(ctx: WizardContext) -> None:
         esco_suggested=esco_suggestions,
         llm_suggested=llm_suggested,
     )
+
+    with st.expander("Salary Forecast", expanded=True):
+        render_salary_forecast_panel(job, get_answers())
 
     step = next((s for s in plan.steps if s.step_key == "skills"), None)
     if step is None or not step.questions:

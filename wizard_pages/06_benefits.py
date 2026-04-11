@@ -5,12 +5,14 @@ import streamlit as st
 
 from constants import SSKey
 from schemas import JobAdExtract, QuestionPlan
+from state import get_answers
 from ui_components import (
     has_meaningful_value,
     render_error_banner,
     render_question_step,
 )
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
+from wizard_pages.salary_forecast_panel import render_salary_forecast_panel
 
 
 def render(ctx: WizardContext) -> None:
@@ -62,6 +64,9 @@ def render(ctx: WizardContext) -> None:
             st.info(
                 "Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions."
             )
+
+    with st.expander("Salary Forecast", expanded=True):
+        render_salary_forecast_panel(job, get_answers())
 
     step = next((s for s in plan.steps if s.step_key == "benefits"), None)
     if step is None or not step.questions:
