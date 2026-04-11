@@ -164,6 +164,127 @@ def _extract_esco_scope_note(payload: object) -> str:
     return f"{first_text[:277].rstrip()}..."
 
 
+def _normalize_text_list(value: object) -> list[str]:
+    if isinstance(value, str):
+        cleaned = value.strip()
+        return [cleaned] if cleaned else []
+    if not isinstance(value, list):
+        return []
+    entries: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        normalized = item.strip()
+        if not normalized:
+            continue
+        dedupe_key = normalized.casefold()
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        entries.append(normalized)
+    return entries
+
+
+def _extract_first_text(payload: object, *keys: str) -> str:
+    if not isinstance(payload, dict):
+        return ""
+    for key in keys:
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def _extract_related_resource_count(payload: object, relation_key: str) -> int:
+    if not isinstance(payload, dict):
+        return 0
+    relation_data = payload.get(relation_key)
+    if isinstance(relation_data, list):
+        return len(relation_data)
+    if isinstance(relation_data, dict):
+        embedded = relation_data.get("_embedded")
+        if isinstance(embedded, dict):
+            for value in embedded.values():
+                if isinstance(value, list):
+                    return len(value)
+    return 0
+
+
+def _render_selected_occupation_detail(payload: object) -> None:
+    if not isinstance(payload, dict):
+        st.caption("Noch keine Occupation-Details gespeichert.")
+        return
+
+    preferred_label = _extract_first_text(payload, "preferredLabel", "title")
+    alternative_labels = _normalize_text_list(
+        payload.get("alternativeLabel")
+        or payload.get("altLabel")
+        or payload.get("altLabels")
+    )
+    description = _extract_first_text(payload, "description")
+    scope_note = _extract_first_text(payload, "scopeNote")
+    isco_mapping = _extract_first_text(
+        payload, "iscoGroup", "isco08", "isco08Code", "isco_code"
+    )
+    regulated_text = _extract_first_text(
+        payload,
+        "regulatedProfessionNote",
+        "regulatedProfessionDescription",
+    )
+    regulated_flag = payload.get("regulatedProfession")
+    regulated_value = (
+        "Ja" if regulated_flag is True else "Nein" if regulated_flag is False else "—"
+    )
+    essential_skill_count = _extract_related_resource_count(
+        payload, "hasEssentialSkill"
+    )
+    optional_skill_count = _extract_related_resource_count(payload, "hasOptionalSkill")
+    essential_knowledge_count = _extract_related_resource_count(
+        payload, "hasEssentialKnowledge"
+    )
+    optional_knowledge_count = _extract_related_resource_count(
+        payload, "hasOptionalKnowledge"
+    )
+
+    with st.expander("ESCO Occupation-Details", expanded=False):
+        st.markdown("**Preferred Label**")
+        st.write(preferred_label or "—")
+
+        st.markdown("**Alternative Labels**")
+        if alternative_labels:
+            st.write(", ".join(alternative_labels))
+        else:
+            st.caption("Keine alternativen Labels verfügbar.")
+
+        st.markdown("**Description**")
+        st.write(description or "—")
+
+        st.markdown("**Scope Note**")
+        st.write(scope_note or "—")
+
+        st.markdown("**ISCO-08 Mapping**")
+        st.write(isco_mapping or "—")
+
+        st.markdown("**Regulated Profession**")
+        st.write(regulated_value)
+        if regulated_text:
+            st.caption(regulated_text)
+
+        st.markdown("**Related Skills & Knowledge (Counts)**")
+        st.write(f"- Essential skills: {essential_skill_count}")
+        st.write(f"- Optional skills: {optional_skill_count}")
+        st.write(f"- Essential knowledge: {essential_knowledge_count}")
+        st.write(f"- Optional knowledge: {optional_knowledge_count}")
+
+        links: list[str] = []
+        uri = str(payload.get("uri") or "").strip()
+        if uri:
+            links.append(f"[ESCO Occupation URI]({uri})")
+        if links:
+            st.markdown(" · ".join(links))
+
+
 def _render_esco_post_confirm_impact(job: JobAdExtract) -> None:
     selected_raw = st.session_state.get(SSKey.ESCO_OCCUPATION_SELECTED.value)
     selected = selected_raw if isinstance(selected_raw, dict) else {}
@@ -333,6 +454,7 @@ def _render_esco_occupation_block(job: JobAdExtract) -> None:
         st.session_state[SSKey.ESCO_MATCH_REASON.value] = None
         st.session_state[SSKey.ESCO_MATCH_CONFIDENCE.value] = None
         st.session_state[SSKey.ESCO_MATCH_PROVENANCE.value] = []
+        st.session_state[SSKey.ESCO_OCCUPATION_PAYLOAD.value] = None
         st.session_state[SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value] = {}
         return
 
@@ -364,6 +486,16 @@ def _render_esco_occupation_block(job: JobAdExtract) -> None:
     )
     st.caption(
         f"{explainability['reason']} (Confidence: {explainability['confidence']})"
+    )
+    try:
+        occupation_payload = EscoClient().resource_occupation(uri=occupation_uri)
+    except EscoClientError as exc:
+        st.warning(f"ESCO-Occupationsdetails konnten nicht geladen werden: {exc}")
+        st.session_state[SSKey.ESCO_OCCUPATION_PAYLOAD.value] = None
+    else:
+        st.session_state[SSKey.ESCO_OCCUPATION_PAYLOAD.value] = occupation_payload
+    _render_selected_occupation_detail(
+        st.session_state.get(SSKey.ESCO_OCCUPATION_PAYLOAD.value)
     )
 
     configured_language = (
