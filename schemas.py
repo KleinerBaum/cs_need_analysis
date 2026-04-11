@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from constants import AnswerType, QUESTION_SCHEMA_VERSION, VACANCY_SCHEMA_VERSION
 
@@ -114,6 +114,22 @@ class EscoBreadcrumbNode(StrictSchemaModel):
     type: Optional[str] = Field(
         default=None,
         description="Optional ESCO concept type.",
+    )
+
+
+class EscoSkillDetail(StrictSchemaModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    label: str = Field(description="Human-readable ESCO skill label.")
+    description: Optional[str] = Field(
+        default=None,
+        description="Short ESCO skill description text if available.",
+    )
+    scope_note: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("scopeNote", "scope_note"),
+        serialization_alias="scopeNote",
+        description="Optional ESCO scope note.",
     )
 
 

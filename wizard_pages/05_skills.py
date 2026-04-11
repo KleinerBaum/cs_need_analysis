@@ -4,11 +4,12 @@ from __future__ import annotations
 from typing import Any
 
 import streamlit as st
+from pydantic import ValidationError
 
 from constants import SSKey
 from esco_client import EscoClient, EscoClientError
 from schemas import EscoMappingReport
-from schemas import JobAdExtract, QuestionPlan
+from schemas import EscoSkillDetail, JobAdExtract, QuestionPlan
 from state import get_esco_occupation_selected
 from ui_components import (
     has_meaningful_value,
@@ -115,6 +116,108 @@ def _merge_suggested_skills_by_uri(
         existing_uris.add(uri)
         added_count += 1
     return merged, added_count
+
+
+def _safe_text(value: str | None) -> str:
+    text = str(value or "").strip()
+    return text if text else "Keine Details verfügbar."
+
+
+def _load_skill_detail_on_demand(
+    *,
+    uri: str,
+    cache: dict[str, dict[str, Any]],
+) -> tuple[EscoSkillDetail | None, str | None]:
+    cached_payload = cache.get(uri)
+    if isinstance(cached_payload, dict):
+        try:
+            return EscoSkillDetail.model_validate(cached_payload), None
+        except ValidationError:
+            cache.pop(uri, None)
+
+    client = EscoClient()
+    try:
+        payload = client.resource_skill(uri=uri)
+    except EscoClientError as exc:
+        return None, f"Details konnten nicht geladen werden ({exc})."
+
+    raw_label = (
+        payload.get("preferredLabel")
+        or payload.get("title")
+        or payload.get("label")
+        or uri
+    )
+    detail_payload = {
+        "label": str(raw_label).strip() or uri,
+        "description": payload.get("description"),
+        "scopeNote": payload.get("scopeNote"),
+    }
+    try:
+        detail = EscoSkillDetail.model_validate(detail_payload)
+    except ValidationError:
+        return None, "Details konnten nicht sicher verarbeitet werden."
+
+    cache[uri] = detail.model_dump(by_alias=True)
+    return detail, None
+
+
+def _render_selected_skill_details(
+    *,
+    title: str,
+    selected_skills: list[dict[str, Any]],
+    detail_cache: dict[str, dict[str, Any]],
+    is_expert_mode: bool,
+    key_prefix: str,
+) -> None:
+    st.markdown(f"#### {title}")
+    if not selected_skills:
+        st.caption("Noch keine Skills ausgewählt.")
+        return
+
+    for index, skill in enumerate(selected_skills):
+        uri = str(skill.get("uri") or "").strip()
+        label = (
+            str(skill.get("title") or "Unbenannter Skill").strip()
+            or "Unbenannter Skill"
+        )
+        if not uri:
+            st.caption(f"- {label}")
+            continue
+
+        with st.expander(label, expanded=False):
+            st.caption("Skill-Details werden nur bei Bedarf geladen.")
+            load_key = f"{key_prefix}.detail.load.{index}"
+            should_load = st.button("Details laden", key=load_key)
+            if should_load:
+                loaded_detail, error = _load_skill_detail_on_demand(
+                    uri=uri, cache=detail_cache
+                )
+                if error:
+                    st.warning(error)
+                elif loaded_detail is not None:
+                    st.success("Details geladen.")
+
+            cached_detail_payload = detail_cache.get(uri)
+            detail: EscoSkillDetail | None = None
+            if isinstance(cached_detail_payload, dict):
+                try:
+                    detail = EscoSkillDetail.model_validate(cached_detail_payload)
+                except ValidationError:
+                    detail_cache.pop(uri, None)
+            if detail is not None:
+                st.write(f"**Bezeichnung:** {_safe_text(detail.label)}")
+                st.write(f"**Beschreibung:** {_safe_text(detail.description)}")
+                st.write(f"**Hinweis:** {_safe_text(detail.scope_note)}")
+            elif should_load:
+                st.caption(
+                    "Für diesen Skill sind aktuell keine sicheren Details verfügbar."
+                )
+            else:
+                st.caption("Noch keine Details geladen.")
+
+            if is_expert_mode:
+                st.caption("URI (optional kopieren):")
+                st.code(uri, language=None)
 
 
 def _load_related_skills_from_selected_occupation(
@@ -293,6 +396,12 @@ def render(ctx: WizardContext) -> None:
 
     st.session_state[SSKey.ESCO_SKILLS_SELECTED_MUST.value] = deduped_must
     st.session_state[SSKey.ESCO_SKILLS_SELECTED_NICE.value] = deduped_nice
+    raw_detail_cache = st.session_state.get(SSKey.ESCO_SKILL_DETAIL_CACHE.value, {})
+    detail_cache = raw_detail_cache if isinstance(raw_detail_cache, dict) else {}
+    st.session_state[SSKey.ESCO_SKILL_DETAIL_CACHE.value] = detail_cache
+    ui_mode = str(st.session_state.get(SSKey.UI_MODE.value, "standard")).strip().lower()
+    is_expert_mode = ui_mode == "expert"
+
     mapped_titles = {
         _normalize_term(str(item.get("title") or ""))
         for item in (deduped_must + deduped_nice)
@@ -316,6 +425,20 @@ def render(ctx: WizardContext) -> None:
         st.caption(f"Mapped Must-Skills: {len(deduped_must)}")
     if deduped_nice:
         st.caption(f"Mapped Nice-Skills: {len(deduped_nice)}")
+    _render_selected_skill_details(
+        title="Gewählte Must-Skills",
+        selected_skills=deduped_must,
+        detail_cache=detail_cache,
+        is_expert_mode=is_expert_mode,
+        key_prefix="skills.must",
+    )
+    _render_selected_skill_details(
+        title="Gewählte Nice-to-have Skills",
+        selected_skills=deduped_nice,
+        detail_cache=detail_cache,
+        is_expert_mode=is_expert_mode,
+        key_prefix="skills.nice",
+    )
 
     if mapping_report["unmapped_terms"]:
         st.markdown("#### Follow-up: Unmapped Skills")
