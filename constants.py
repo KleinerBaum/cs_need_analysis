@@ -146,7 +146,7 @@ STEPS: Final[List[WizardStepDef]] = [
     WizardStepDef(key="landing", title_de="Start", icon="🏁"),
     WizardStepDef(
         key="jobspec_review",
-        title_de="Jobspec-Übersicht",
+        title_de="Identifizierte Informationen",
         icon="🧾",
     ),
     WizardStepDef(key="company", title_de="Unternehmen", icon="🏢"),

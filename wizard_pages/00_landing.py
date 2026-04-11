@@ -26,7 +26,7 @@ LANDING_COPY: dict[str, object] = {
         "Mit Präzision und ruhiger Eleganz gestaltet, setzt dieses Konzept einen neuen "
         "Standard in der Recruiting-Technologie."
     ),
-    "primary_cta": "Vacancy Intake starten",
+    "primary_cta": "Geben Sie uns ein paar Informationen zu Ihrer Vakanz",
     "secondary_cta_hint": "",
     "next_step_line": "",
     "before_start_title": "",

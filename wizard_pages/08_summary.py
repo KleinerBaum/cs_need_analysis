@@ -1678,7 +1678,9 @@ def _build_summary_compact_table(
         f"Brief-Status: {'Vorhanden' if brief is not None else 'Noch nicht generiert'}"
     )
 
-    step_payload: list[tuple[str, list[str]]] = [("Jobspec-Übersicht", jobspec_items)]
+    step_payload: list[tuple[str, list[str]]] = [
+        ("Identifizierte Informationen", jobspec_items)
+    ]
     if plan is not None:
         for step in plan.steps:
             if step.step_key in {"landing", "jobspec_review", "summary"}:

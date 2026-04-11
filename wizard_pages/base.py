@@ -625,8 +625,8 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
     st.sidebar.markdown(
         """
         <div class="sidebar-info-links">
-            <a href="?info=esco">ℹ️ ESCO-API-Info</a>
-            <a href="?info=about">ℹ️ Über die App</a>
+            <a href="?info=esco">ℹ️ Was ist ESCO?</a>
+            <a href="?info=about">ℹ️ Wie funktioniert`s?</a>
         </div>
         """,
         unsafe_allow_html=True,

@@ -160,7 +160,7 @@ def render_jobad_intake(*, title: str = "Jobspec / Job Ad einlesen") -> None:
                 do_extract = st.button(
                     "Jetzt analysieren",
                     width="stretch",
-                    help="Analysieren und direkt zur Jobspec-Übersicht wechseln",
+                    help="Analysieren und direkt zu den Identifizierten Informationen wechseln",
                 )
 
     with tab2:
