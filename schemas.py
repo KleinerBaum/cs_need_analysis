@@ -363,6 +363,14 @@ class EscoExportConcept(StrictSchemaModel):
 class VacancyStructuredData(StrictSchemaModel):
     job_extract: Dict[str, Any] = Field(default_factory=dict)
     answers: Dict[str, Any] = Field(default_factory=dict)
+    selected_role_tasks: Optional[List[str]] = Field(
+        default=None,
+        description="Optional role task labels explicitly selected in the wizard.",
+    )
+    selected_skills: Optional[List[str]] = Field(
+        default=None,
+        description="Optional skill labels explicitly selected in the wizard.",
+    )
     esco_occupations: Optional[List[EscoExportConcept]] = Field(
         default=None,
         description="Optional mapped ESCO occupations used for the role.",
