@@ -2197,6 +2197,44 @@ def _get_brief_requirement_status(resolved_brief_model: str) -> tuple[bool, str]
     return True, "Aktueller Recruiting Brief vorhanden."
 
 
+def _get_brief_status(
+    *,
+    primary_action: SummaryAction,
+    follow_up_actions: list[SummaryAction],
+) -> tuple[str, str, str]:
+    if not _has_required_state(primary_action["requires"]):
+        return (
+            "blocked",
+            "Brief-Grundlagen fehlen",
+            "Recruiting Brief vorbereiten",
+        )
+
+    follow_up_check = next(
+        (
+            action.get("requirement_check_fn")
+            for action in follow_up_actions
+            if action.get("requirement_check_fn") is not None
+        ),
+        None,
+    )
+    if follow_up_check is not None:
+        requirement_ok, requirement_message = follow_up_check()
+        if requirement_ok:
+            return ("current", "Aktueller Recruiting Brief vorhanden", "Brief aktualisieren")
+        message = requirement_message.casefold()
+        if "veraltet" in message or "passt nicht mehr" in message:
+            return ("stale", requirement_message, "Recruiting Brief aktualisieren")
+        if "ungültig" in message:
+            return ("invalid", requirement_message, "Recruiting Brief neu generieren")
+        if "kein recruiting brief" in message:
+            return ("missing", requirement_message, "Recruiting Brief generieren")
+        return ("missing", requirement_message, "Recruiting Brief generieren")
+
+    if st.session_state.get(primary_action["result_key"].value):
+        return ("current", "Recruiting Brief vorhanden", "Brief aktualisieren")
+    return ("missing", "Kein Recruiting Brief vorhanden.", "Recruiting Brief generieren")
+
+
 def _render_action_card(action: SummaryAction) -> bool:
     has_result = bool(st.session_state.get(action["result_key"].value))
     requirements_ok = _has_required_state(action["requires"])
@@ -2275,6 +2313,63 @@ def _render_action_card(action: SummaryAction) -> bool:
         if triggered:
             st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = action["id"]
         return triggered
+
+
+def _render_primary_brief_card(
+    *,
+    primary_action: SummaryAction,
+    brief_status: tuple[str, str, str],
+) -> bool:
+    state, status_label, cta_label = brief_status
+    cta_enabled = _has_required_state(primary_action["requires"])
+    with st.container(border=True):
+        st.markdown("### Recruiting Brief")
+        st.caption(primary_action["benefit"])
+        badge = {
+            "current": "🟢 aktuell",
+            "stale": "🟠 veraltet",
+            "missing": "🟡 fehlt",
+            "invalid": "🟠 ungültig",
+            "blocked": "⚪ blockiert",
+        }.get(state, "🟡 offen")
+        st.caption(f"Status: {badge} · {status_label}")
+        triggered = st.button(
+            cta_label,
+            width="stretch",
+            type="primary",
+            disabled=not cta_enabled or primary_action["generator_fn"] is None,
+            key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, primary_action["id"]),
+        )
+        if triggered:
+            st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = primary_action["id"]
+        return triggered
+
+
+def _render_follow_up_cards(
+    *,
+    follow_up_actions: list[SummaryAction],
+) -> tuple[bool, SummaryAction | None]:
+    st.markdown("### Folgeartefakte")
+    st.caption("Nachgelagerte Artefakte bauen auf einem aktuellen Recruiting Brief auf.")
+    card_columns = st.columns(2)
+    for index, action in enumerate(follow_up_actions):
+        with card_columns[index % 2]:
+            triggered = _render_action_card(action)
+            if triggered:
+                return True, action
+    return False, None
+
+
+def _render_export_bar(*, has_brief: bool) -> None:
+    st.markdown("### Export")
+    with st.container(border=True):
+        st.caption(
+            "Export wird im Bereich **Brief & Export** bereitgestellt (JSON, Markdown, DOCX, ESCO-Mapping)."
+        )
+        if has_brief:
+            st.success("Bereit: Recruiting Brief vorhanden – Exporte können erstellt werden.")
+        else:
+            st.info("Noch nicht bereit: Erst den Recruiting Brief erstellen, dann Exporte nutzen.")
 
 
 def _build_action_registry(
@@ -2407,16 +2502,34 @@ def _render_summary_processing_hub(
     action_registry: list[SummaryAction],
 ) -> None:
     st.markdown("### Processing Hub")
-    st.caption(
-        "Einheitliche Aktionskarten für Erzeugung, Qualitätssicherung und Folgeartefakte."
+    st.caption("Primärer Pfad: Recruiting Brief zuerst, danach Folgeartefakte und Export.")
+
+    primary_action = next(
+        (action for action in action_registry if action["id"] == "recruiting_brief"),
+        action_registry[0],
     )
-    card_columns = st.columns(2)
-    for index, action in enumerate(action_registry):
-        with card_columns[index % 2]:
-            triggered = _render_action_card(action)
-            if triggered and action["generator_fn"]:
-                action["generator_fn"]()
-                st.rerun()
+    follow_up_actions = [action for action in action_registry if action["id"] != "recruiting_brief"]
+    brief_status = _get_brief_status(
+        primary_action=primary_action,
+        follow_up_actions=follow_up_actions,
+    )
+
+    primary_triggered = _render_primary_brief_card(
+        primary_action=primary_action,
+        brief_status=brief_status,
+    )
+    if primary_triggered and primary_action["generator_fn"]:
+        primary_action["generator_fn"]()
+        st.rerun()
+
+    triggered, triggered_action = _render_follow_up_cards(
+        follow_up_actions=follow_up_actions,
+    )
+    if triggered and triggered_action and triggered_action["generator_fn"]:
+        triggered_action["generator_fn"]()
+        st.rerun()
+
+    _render_export_bar(has_brief=brief_status[0] == "current")
 
 
 def _render_summary_results_workspace(
