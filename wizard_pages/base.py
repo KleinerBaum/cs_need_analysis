@@ -808,6 +808,7 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
                 border: 1px solid rgba(202, 219, 247, 0.16);
                 border-radius: {style_tokens["card_radius"]};
                 padding: 0.65rem 0.85rem;
+                margin-top: 0.65rem;
             }}
 
             .landing-problem-list {{
@@ -830,6 +831,11 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
                 font-size: 0.9rem;
                 letter-spacing: 0.01em;
                 color: rgba(226, 239, 255, 0.92);
+            }}
+
+            .landing-section-stack {{
+                display: grid;
+                gap: 0.65rem;
             }}
 
             .landing-outcome-callout {{
@@ -878,6 +884,14 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
             .landing-list li {{
                 margin-bottom: 0.5rem;
                 line-height: 1.45;
+            }}
+
+            .landing-output-panel {{
+                background: rgba(8, 19, 38, 0.28);
+                border: 1px solid rgba(202, 219, 247, 0.16);
+                border-radius: {style_tokens["card_radius"]};
+                padding: 0.65rem 0.85rem;
+                min-height: 100%;
             }}
 
             .landing-caption {{
@@ -1015,7 +1029,8 @@ def render_importance_section(
     section_id: str,
     title: str,
     intro: str,
-    points: Sequence[tuple[str, str]],
+    risk_points: Sequence[tuple[str, str]],
+    leverage_points: Sequence[tuple[str, str]],
     closer: str,
 ) -> None:
     st.markdown(
@@ -1027,38 +1042,39 @@ def render_importance_section(
         f'<div class="landing-emphasis"><p>{intro}</p></div>',
         unsafe_allow_html=True,
     )
-    problem_points = []
-    leverage_points = []
-    for point_title, body in points:
-        if "präziser intake" in point_title.lower():
-            leverage_points.append((point_title, body))
-        else:
-            problem_points.append((point_title, body))
-
-    problem_items = "".join(
+    risk_items = "".join(
         f"<li><strong>{point_title}:</strong> {body}</li>"
-        for point_title, body in problem_points
+        for point_title, body in risk_points
     )
-    if problem_items:
+    leverage_items = "".join(
+        f"<li><strong>{point_title}:</strong> {body}</li>"
+        for point_title, body in leverage_points
+    )
+    if risk_items or leverage_items:
+        st.markdown('<div class="landing-section-stack">', unsafe_allow_html=True)
+    if risk_items:
         st.markdown(
             (
                 '<div class="landing-problem-panel">'
-                '<h4 class="landing-problem-heading">Typische Ursachen für Verzögerung und Streuverluste</h4>'
-                f'<ul class="landing-problem-list">{problem_items}</ul>'
+                '<h4 class="landing-problem-heading">Ohne sauberen Intake</h4>'
+                f'<ul class="landing-problem-list">{risk_items}</ul>'
                 "</div>"
             ),
             unsafe_allow_html=True,
         )
 
-    leverage_items = "".join(
-        f"<li><strong>{point_title}:</strong> {body}</li>"
-        for point_title, body in leverage_points
-    )
     if leverage_items:
         st.markdown(
-            f'<div class="landing-problem-panel"><ul class="landing-problem-list">{leverage_items}</ul></div>',
+            (
+                '<div class="landing-problem-panel">'
+                '<h4 class="landing-problem-heading">Mit präzisem Intake</h4>'
+                f'<ul class="landing-problem-list">{leverage_items}</ul>'
+                "</div>"
+            ),
             unsafe_allow_html=True,
         )
+    if risk_items or leverage_items:
+        st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown(
         (
@@ -1100,9 +1116,9 @@ def render_output_section(
     )
     st.subheader(title)
     st.markdown(
-        '<ul class="landing-list">'
+        '<div class="landing-output-panel"><ul class="landing-list">'
         + "".join(f"<li>{bullet}</li>" for bullet in bullets)
-        + "</ul>",
+        + "</ul></div>",
         unsafe_allow_html=True,
     )
     st.markdown("</section>", unsafe_allow_html=True)

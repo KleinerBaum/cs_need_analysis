@@ -37,8 +37,8 @@ LANDING_COPY: dict[str, object] = {
     "importance_title": "Warum dieser erste Schritt entscheidend ist",
     # Leitthese
     "importance_intro": "Die Qualität des Intakes bestimmt Präzision, Tempo und Entscheidungssicherheit im gesamten Recruitingprozess.",
-    # Ursachen + Hebel
-    "importance_points": (
+    # Risiken ohne sauberen Intake
+    "importance_risk_points": (
         (
             "Unscharfer Intake",
             "Verursacht kostspielige Folgeschleifen: Re-Briefings, Neupriorisierungen und wiederholte Suchläufe binden Zeit, Budget und Managementaufmerksamkeit.",
@@ -55,6 +55,9 @@ LANDING_COPY: dict[str, object] = {
             "Unvollständige Prozessparameter",
             "Erzeugen Rückfragen, Entscheidungslatenzen und operative Reibung zwischen Hiring Manager, Recruiting und Fachbereich.",
         ),
+    ),
+    # Hebel mit präzisem Intake
+    "importance_leverage_points": (
         (
             "Präziser Intake",
             "Spart Zeit, erhöht die Konsistenz entlang der Prozesskette und verbessert die Qualität jeder nachgelagerten Entscheidung.",
@@ -83,10 +86,10 @@ LANDING_COPY: dict[str, object] = {
     ),
     "output_title": "Was Sie am Ende erhalten",
     "output_bullets": (
-        "Ein klar strukturiertes Anforderungsprofil",
-        "Sauber getrennte Must-haves und Nice-to-haves",
-        "Konkrete Informationen für Interviewdesign und Kandidatenansprache",
-        "Eine deutlich bessere Basis für Recruiting-Qualität und Prozessgeschwindigkeit",
+        "Ein klar strukturiertes Anforderungsprofil auf einen Blick",
+        "Messerscharf getrennte Must-haves und Nice-to-haves",
+        "Konkrete Leitplanken für Interviewdesign und Kandidatenansprache",
+        "Schnellere, fundiertere Entscheidungen im gesamten Hiring-Team",
     ),
     "security_title": "Datenschutz und Kontrolle",
     "security_body": (
@@ -126,7 +129,14 @@ def render(ctx: WizardContext) -> None:
             section_id=LANDING_SECTION_IDS["importance"],
             title=str(LANDING_COPY["importance_title"]),
             intro=str(LANDING_COPY["importance_intro"]),
-            points=cast(tuple[tuple[str, str], ...], LANDING_COPY["importance_points"]),
+            risk_points=cast(
+                tuple[tuple[str, str], ...],
+                LANDING_COPY["importance_risk_points"],
+            ),
+            leverage_points=cast(
+                tuple[tuple[str, str], ...],
+                LANDING_COPY["importance_leverage_points"],
+            ),
             closer=str(LANDING_COPY["importance_closer"]),
         )
 
