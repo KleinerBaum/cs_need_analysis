@@ -35,7 +35,9 @@ LANDING_COPY: dict[str, object] = {
     "cta_microcopy": "",
     "value_cards": (),
     "importance_title": "Warum dieser erste Schritt entscheidend ist",
+    # Leitthese
     "importance_intro": "Die Qualität des Intakes bestimmt Präzision, Tempo und Entscheidungssicherheit im gesamten Recruitingprozess.",
+    # Ursachen + Hebel
     "importance_points": (
         (
             "Unscharfer Intake",
@@ -58,6 +60,7 @@ LANDING_COPY: dict[str, object] = {
             "Spart Zeit, erhöht die Konsistenz entlang der Prozesskette und verbessert die Qualität jeder nachgelagerten Entscheidung.",
         ),
     ),
+    # Outcome
     "importance_closer": "Ein sauber definierter Start reduziert Risiko, beschleunigt Umsetzung und erhöht die Trefferquote im gesamten Hiring-Funnel.",
     "flow_title": "So funktioniert der Ablauf",
     "flow_steps": (

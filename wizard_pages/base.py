@@ -788,6 +788,14 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
                 margin-bottom: 0.85rem;
             }}
 
+            .landing-emphasis p {{
+                margin: 0;
+                color: rgba(247, 251, 255, 0.97);
+                line-height: 1.5;
+                font-size: 1.02rem;
+                font-weight: 650;
+            }}
+
             .landing-emphasis--subtle {{
                 background: rgba(11, 26, 50, 0.42);
                 border-left: 3px solid rgba(158, 189, 240, 0.45);
@@ -817,10 +825,41 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
                 color: rgba(244, 249, 255, 0.94);
             }}
 
-            .landing-problem-caption {{
-                color: rgba(214, 228, 252, 0.76);
-                font-size: 0.84rem;
-                margin-top: 0.45rem;
+            .landing-problem-heading {{
+                margin: 0 0 0.5rem 0;
+                font-size: 0.9rem;
+                letter-spacing: 0.01em;
+                color: rgba(226, 239, 255, 0.92);
+            }}
+
+            .landing-outcome-callout {{
+                margin-top: 0.9rem;
+                border-radius: {style_tokens["card_radius"]};
+                border: 1px solid rgba(154, 197, 255, 0.38);
+                background: linear-gradient(145deg, rgba(16, 40, 77, 0.8), rgba(12, 30, 56, 0.72));
+                padding: 0.75rem 0.85rem;
+            }}
+
+            .landing-outcome-badge {{
+                display: inline-flex;
+                align-items: center;
+                gap: 0.35rem;
+                border: 1px solid rgba(180, 212, 255, 0.45);
+                border-radius: 999px;
+                padding: 0.13rem 0.48rem;
+                font-size: 0.76rem;
+                font-weight: 650;
+                text-transform: uppercase;
+                letter-spacing: 0.02em;
+                color: rgba(232, 244, 255, 0.96);
+                background: rgba(10, 25, 48, 0.56);
+            }}
+
+            .landing-outcome-text {{
+                margin: 0.5rem 0 0 0;
+                color: rgba(241, 248, 255, 0.95);
+                line-height: 1.42;
+                font-size: 0.95rem;
             }}
 
             .landing-flow-step {{
@@ -985,18 +1024,51 @@ def render_importance_section(
     )
     st.subheader(title)
     st.markdown(
-        f'<div class="landing-emphasis landing-emphasis--subtle"><p>{intro}</p></div>',
+        f'<div class="landing-emphasis"><p>{intro}</p></div>',
         unsafe_allow_html=True,
     )
-    list_items = "".join(
+    problem_points = []
+    leverage_points = []
+    for point_title, body in points:
+        if "präziser intake" in point_title.lower():
+            leverage_points.append((point_title, body))
+        else:
+            problem_points.append((point_title, body))
+
+    problem_items = "".join(
         f"<li><strong>{point_title}:</strong> {body}</li>"
-        for point_title, body in points
+        for point_title, body in problem_points
     )
+    if problem_items:
+        st.markdown(
+            (
+                '<div class="landing-problem-panel">'
+                '<h4 class="landing-problem-heading">Typische Ursachen für Verzögerung und Streuverluste</h4>'
+                f'<ul class="landing-problem-list">{problem_items}</ul>'
+                "</div>"
+            ),
+            unsafe_allow_html=True,
+        )
+
+    leverage_items = "".join(
+        f"<li><strong>{point_title}:</strong> {body}</li>"
+        for point_title, body in leverage_points
+    )
+    if leverage_items:
+        st.markdown(
+            f'<div class="landing-problem-panel"><ul class="landing-problem-list">{leverage_items}</ul></div>',
+            unsafe_allow_html=True,
+        )
+
     st.markdown(
-        f'<div class="landing-problem-panel"><ul class="landing-problem-list">{list_items}</ul></div>',
+        (
+            '<div class="landing-outcome-callout">'
+            '<span class="landing-outcome-badge">🏁 Ergebnis</span>'
+            f'<p class="landing-outcome-text">{closer}</p>'
+            "</div>"
+        ),
         unsafe_allow_html=True,
     )
-    st.caption(closer)
     st.markdown("</section>", unsafe_allow_html=True)
 
 
