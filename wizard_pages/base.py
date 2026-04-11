@@ -675,6 +675,16 @@ def _render_esco_warnings_and_migration_cta() -> None:
     _render_esco_migration_trigger(legacy_payload)
 
 
+def get_current_ui_mode() -> str:
+    """Return normalized UI mode from session state."""
+    allowed_ui_modes = {"quick", "standard", "expert"}
+    ui_mode_raw = st.session_state.get(SSKey.UI_MODE.value, "standard")
+    ui_mode = str(ui_mode_raw).strip().lower()
+    if ui_mode not in allowed_ui_modes:
+        return "standard"
+    return ui_mode
+
+
 def sidebar_navigation(ctx: WizardContext) -> WizardPage:
     _ensure_salary_forecast_state_defaults()
     sync_adaptive_question_limits()
@@ -696,12 +706,8 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
     status_by_key = {entry["key"]: entry for entry in step_statuses}
     ui_mode_key = SSKey.UI_MODE.value
     ui_preferences_key = SSKey.UI_PREFERENCES.value
-    allowed_ui_modes = {"quick", "standard", "expert"}
-    ui_mode_raw = st.session_state.get(ui_mode_key)
-    ui_mode = str(ui_mode_raw).strip().lower() if ui_mode_raw is not None else ""
-    if ui_mode not in allowed_ui_modes:
-        st.session_state[ui_mode_key] = "standard"
-    elif ui_mode_raw != ui_mode:
+    ui_mode = get_current_ui_mode()
+    if st.session_state.get(ui_mode_key) != ui_mode:
         st.session_state[ui_mode_key] = ui_mode
 
     st.sidebar.markdown(
