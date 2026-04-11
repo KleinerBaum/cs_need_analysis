@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 from dataclasses import dataclass
 from typing import Any, Mapping
@@ -17,6 +18,7 @@ LOGGER = logging.getLogger(__name__)
 
 ESCO_CACHE_TTL_SECONDS = 600
 DEFAULT_TIMEOUT_SECONDS = 10.0
+DEFAULT_ESCO_API_BASE_URL = "https://ec.europa.eu/esco/api/"
 
 
 def clear_esco_cache() -> None:
@@ -197,9 +199,14 @@ class EscoClient:
     def _esco_config(self) -> dict[str, object]:
         raw = self._session_state.get(SSKey.ESCO_CONFIG.value, {})
         config = raw if isinstance(raw, Mapping) else {}
+        session_base_url = str(config.get("base_url") or "").strip()
+        env_base_url = os.getenv("ESCO_API_BASE_URL", "").strip()
+        resolved_base_url = (
+            session_base_url or env_base_url or DEFAULT_ESCO_API_BASE_URL
+        )
 
         return {
-            "base_url": str(config.get("base_url") or "https://ec.europa.eu/esco/api/"),
+            "base_url": resolved_base_url,
             "selected_version": str(config.get("selected_version") or "latest"),
             "language": str(config.get("language") or "de"),
             "view_obsolete": _coerce_bool(config.get("view_obsolete"), default=False),

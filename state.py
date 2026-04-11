@@ -7,6 +7,7 @@ of a wizard workflow.
 
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, cast
 
 import streamlit as st
@@ -15,6 +16,8 @@ from constants import DEFAULT_LANGUAGE, SSKey, STEPS
 from question_progress import AnswerMeta, AnswerMetaMap, value_hash
 from schemas import EscoConceptRef, EscoMappingReport, EscoSuggestionItem
 from settings_openai import load_openai_settings
+
+DEFAULT_ESCO_API_BASE_URL = "https://ec.europa.eu/esco/api/"
 
 
 def get_model_override() -> str | None:
@@ -38,6 +41,9 @@ def init_session_state() -> None:
     configured_language = st.session_state.get(SSKey.LANGUAGE.value, DEFAULT_LANGUAGE)
     if not isinstance(configured_language, str) or not configured_language.strip():
         configured_language = DEFAULT_LANGUAGE
+    configured_esco_base_url = os.getenv("ESCO_API_BASE_URL", "").strip()
+    if not configured_esco_base_url:
+        configured_esco_base_url = DEFAULT_ESCO_API_BASE_URL
 
     defaults: Dict[str, Any] = {
         SSKey.CURRENT_STEP.value: STEPS[0].key,
@@ -97,7 +103,7 @@ def init_session_state() -> None:
         SSKey.EMPLOYMENT_CONTRACT_LAST_MODE.value: None,
         SSKey.EMPLOYMENT_CONTRACT_LAST_MODELS.value: {},
         SSKey.ESCO_CONFIG.value: {
-            "base_url": "https://ec.europa.eu/esco/api/",
+            "base_url": configured_esco_base_url,
             "selected_version": "latest",
             "language": configured_language,
             "view_obsolete": False,

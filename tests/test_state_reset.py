@@ -116,3 +116,24 @@ def test_init_session_state_and_reset_vacancy_share_same_defaults(monkeypatch) -
     for key, expected in RESET_EXPECTATIONS.items():
         assert fake_session_state[key.value] == expected
         assert initialized_defaults[key.value] == expected
+
+
+def test_init_session_state_uses_env_esco_api_base_url(monkeypatch) -> None:
+    fake_session_state: dict[str, object] = {}
+    monkeypatch.setenv("ESCO_API_BASE_URL", "https://env.example/esco/")
+    monkeypatch.setattr(
+        state,
+        "load_openai_settings",
+        lambda: SimpleNamespace(openai_model="gpt-5-mini"),
+    )
+    monkeypatch.setattr(
+        state,
+        "st",
+        SimpleNamespace(session_state=fake_session_state),
+    )
+
+    state.init_session_state()
+
+    assert fake_session_state[SSKey.ESCO_CONFIG.value]["base_url"] == (
+        "https://env.example/esco/"
+    )

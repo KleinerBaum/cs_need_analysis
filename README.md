@@ -43,6 +43,23 @@ pip install -r requirements.txt -c constraints.txt
 
 Falls du ohne Constraints arbeiten willst, bleibt auch `pip install -r requirements.txt` möglich.
 
+## ESCO API Konfiguration
+
+Die ESCO-Basis-URL kann optional über `ESCO_API_BASE_URL` gesetzt werden (z. B. für lokale Mirror/Proxy-Setups).
+
+### Auflösungsreihenfolge
+
+1. explizite Session-Konfiguration (`st.session_state[SSKey.ESCO_CONFIG]["base_url"]`)
+2. Umgebungsvariable `ESCO_API_BASE_URL`
+3. Default: `https://ec.europa.eu/esco/api/`
+
+### Beispiel (Local Deployment)
+
+```bash
+export ESCO_API_BASE_URL="http://localhost:9000/esco/api/"
+streamlit run app.py
+```
+
 ### Verifikation
 
 ```bash

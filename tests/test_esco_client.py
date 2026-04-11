@@ -98,6 +98,25 @@ def test_default_config_is_used_when_session_state_is_missing(monkeypatch) -> No
     }
 
 
+def test_esco_config_prefers_env_base_url_when_session_value_missing(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("ESCO_API_BASE_URL", "https://env.example/esco/")
+
+    client = esco_client.EscoClient(session_state={SSKey.ESCO_CONFIG.value: {}})
+
+    assert client._esco_config()["base_url"] == "https://env.example/esco/"
+
+
+def test_esco_config_prefers_session_base_url_over_env(monkeypatch) -> None:
+    monkeypatch.setenv("ESCO_API_BASE_URL", "https://env.example/esco/")
+    client = esco_client.EscoClient(
+        session_state={SSKey.ESCO_CONFIG.value: {"base_url": "https://session/esco/"}}
+    )
+
+    assert client._esco_config()["base_url"] == "https://session/esco/"
+
+
 @pytest.mark.parametrize(
     ("raw_value", "expected"),
     [
