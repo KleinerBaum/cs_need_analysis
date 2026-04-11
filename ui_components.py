@@ -500,11 +500,12 @@ def render_job_extract_overview(
     show_question_limits: bool = True,
 ) -> None:
     with st.expander(
-        "Aus dem Jobspec extrahiert (strukturierte Übersicht)", expanded=True
+        "Aus dem Jobspec extrahiert (strukturierte Übersicht)", expanded=False
     ):
+        _render_compact_extract_lists(job)
         _render_editable_job_extract(job)
 
-    with st.expander("Fehlende oder unklare Punkte", expanded=True):
+    with st.expander("Fehlende oder unklare Punkte", expanded=False):
         if job.gaps:
             st.write("\n".join([f"- {g}" for g in job.gaps]))
         else:
@@ -513,11 +514,55 @@ def render_job_extract_overview(
     if show_question_limits:
         _render_question_limits_editor(plan)
 
-    with st.expander("Annahmen", expanded=True):
+    with st.expander("Annahmen", expanded=False):
         if job.assumptions:
             st.write("\n".join([f"- {a}" for a in job.assumptions]))
         else:
             st.info("Keine Annahmen dokumentiert.")
+
+
+def _render_compact_extract_lists(job: JobAdExtract) -> None:
+    st.caption(
+        "Kompaktansicht für lange Listen. Gezeigt werden zunächst die Top 5 Einträge."
+    )
+    _render_compact_list_table(
+        label="Responsibilities",
+        entries=job.responsibilities,
+        key="cs.job_extract.preview.responsibilities",
+    )
+    _render_compact_list_table(
+        label="Must-have Skills",
+        entries=job.must_have_skills,
+        key="cs.job_extract.preview.must_have_skills",
+    )
+    _render_compact_list_table(
+        label="Nice-to-have Skills",
+        entries=job.nice_to_have_skills,
+        key="cs.job_extract.preview.nice_to_have_skills",
+    )
+
+
+def _render_compact_list_table(*, label: str, entries: Any, key: str) -> None:
+    source = entries if isinstance(entries, list) else []
+    cleaned = [str(item).strip() for item in source if has_meaningful_value(item)]
+    if not cleaned:
+        return
+
+    st.markdown(f"**{label}**")
+    top_five = cleaned[:5]
+    st.table(
+        [{"#": index + 1, "Eintrag": value} for index, value in enumerate(top_five)]
+    )
+    remaining = len(cleaned) - len(top_five)
+    if remaining <= 0:
+        return
+    with st.expander(f"Alle {len(cleaned)} Einträge anzeigen", expanded=False):
+        st.dataframe(
+            [{"#": index + 1, "Eintrag": value} for index, value in enumerate(cleaned)],
+            key=key,
+            hide_index=True,
+            width="stretch",
+        )
 
 
 def _render_editable_job_extract(job: JobAdExtract) -> None:
