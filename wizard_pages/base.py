@@ -538,17 +538,9 @@ def _render_esco_sidebar_status_block(ui_mode: str) -> None:
     view_obsolete = bool(config["view_obsolete"])
 
     st.sidebar.markdown("### ESCO-Status")
-    st.sidebar.caption(f"Aktive Dataset-Version: `{selected_version}`")
-    st.sidebar.caption(f"Sprache: `{language}`")
     language_options = {"de": "Deutsch (DE)", "en": "English (EN)"}
     current_language = language if language in language_options else "de"
 
-    version_input = st.sidebar.text_input(
-        "Dataset-Version",
-        value=selected_version,
-        key=f"{SSKey.ESCO_CONFIG.value}.selected_version_input",
-        help="z. B. latest oder eine konkrete ESCO-Version.",
-    )
     selected_language = st.sidebar.selectbox(
         "ESCO-Sprache",
         options=list(language_options.keys()),
@@ -563,11 +555,9 @@ def _render_esco_sidebar_status_block(ui_mode: str) -> None:
             value=view_obsolete,
             key=f"{SSKey.ESCO_CONFIG.value}.view_obsolete_toggle",
         )
-    else:
-        st.sidebar.caption("Obsolete-Toggle nur im Expert-Modus verfügbar.")
 
     config_changed = _set_esco_config(
-        selected_version=version_input,
+        selected_version=selected_version,
         view_obsolete=view_obsolete,
         language=selected_language,
     )
@@ -614,14 +604,6 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
 
     step_statuses = _compute_step_statuses(pages)
     status_by_key = {entry["key"]: entry for entry in step_statuses}
-    started_steps = sum(
-        1 for entry in step_statuses if entry["status"] != "not_started"
-    )
-    total_steps = len(step_statuses)
-
-    st.sidebar.markdown("### Wizard-Fortschritt")
-    st.sidebar.caption(f"{started_steps}/{total_steps} Schritte bearbeitet")
-
     ui_mode_key = SSKey.UI_MODE.value
     allowed_ui_modes = {"quick", "standard", "expert"}
     ui_mode_raw = st.session_state.get(ui_mode_key)
