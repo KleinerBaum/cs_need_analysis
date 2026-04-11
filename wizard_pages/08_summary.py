@@ -6,6 +6,7 @@ import json
 import re
 import textwrap
 import csv
+import hashlib
 from collections import defaultdict
 from typing import Callable
 from typing import Any, NamedTuple, TypedDict
@@ -329,6 +330,28 @@ def _extract_esco_skill_titles(raw_items: Any) -> list[str]:
             if title:
                 titles.append(title)
     return titles
+
+
+def _build_summary_input_fingerprint(
+    *,
+    job: JobAdExtract,
+    answers: dict[str, Any],
+    selected_role_tasks: list[str],
+    selected_skills: list[str],
+) -> str:
+    non_sensitive_payload = {
+        "job": job.model_dump(mode="json", exclude_none=True),
+        "answers": answers,
+        "selected_role_tasks": selected_role_tasks,
+        "selected_skills": selected_skills,
+    }
+    serialized = json.dumps(
+        non_sensitive_payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
 def _get_selected_plotly_point(selection: Any) -> dict[str, Any] | None:
@@ -1008,8 +1031,6 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
         payload["salary_forecast"] = salary_forecast
 
     scenario_lab_rows = st.session_state.get(SSKey.SALARY_SCENARIO_LAB_ROWS.value)
-    if not isinstance(scenario_lab_rows, list):
-        scenario_lab_rows = st.session_state.get("scenario_lab_rows")
     if isinstance(scenario_lab_rows, list):
         payload["salary_scenarios"] = scenario_lab_rows[:100]
     return payload
@@ -1755,6 +1776,18 @@ def _get_brief_requirement_status(resolved_brief_model: str) -> tuple[bool, str]
     last_models = last_models_raw if isinstance(last_models_raw, dict) else {}
     if last_models.get("draft_model") != resolved_brief_model:
         return False, "Recruiting Brief ist veraltet."
+    current_input_fingerprint = str(
+        st.session_state.get(SSKey.SUMMARY_INPUT_FINGERPRINT.value, "") or ""
+    )
+    last_brief_fingerprint = str(
+        st.session_state.get(SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value, "") or ""
+    )
+    if (
+        current_input_fingerprint
+        and last_brief_fingerprint
+        and current_input_fingerprint != last_brief_fingerprint
+    ):
+        return False, "Recruiting Brief passt nicht mehr zu den aktuellen Eingaben."
     return True, "Aktueller Recruiting Brief vorhanden."
 
 
@@ -1787,7 +1820,20 @@ def _render_action_card(action: SummaryAction) -> bool:
 
         input_renderer = action.get("input_renderer")
         if input_renderer is not None:
-            input_renderer()
+            should_show_inputs = bool(
+                st.session_state.get(SSKey.SUMMARY_SHOW_JOB_AD_CONFIG.value, False)
+            )
+            st.toggle(
+                "Job-Ad-Konfiguration anzeigen",
+                key=SSKey.SUMMARY_SHOW_JOB_AD_CONFIG.value,
+                help="Blendet Selection Matrix und Job-Ad-Editor für die Stellenanzeige ein oder aus.",
+            )
+            if should_show_inputs:
+                input_renderer()
+            else:
+                st.caption(
+                    "Job-Ad-Konfiguration ausgeblendet. Für Änderungen Toggle aktivieren."
+                )
         elif action["input_hints"]:
             st.markdown("**Inputs**")
             for input_hint in action["input_hints"]:
@@ -1820,6 +1866,8 @@ def _render_action_card(action: SummaryAction) -> bool:
                     f"{action['id']}.blocked",
                 ),
             )
+        if triggered:
+            st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = action["id"]
         return triggered
 
 
@@ -2315,6 +2363,22 @@ def render(ctx: WizardContext) -> None:
     # SUMMARY_ZONE: HERO
     _render_summary_hero(job=vm.job, answers=vm.answers)
 
+    current_summary_fingerprint = _build_summary_input_fingerprint(
+        job=vm.job,
+        answers=vm.answers,
+        selected_role_tasks=vm.selected_role_tasks,
+        selected_skills=vm.selected_skills,
+    )
+    st.session_state[SSKey.SUMMARY_INPUT_FINGERPRINT.value] = (
+        current_summary_fingerprint
+    )
+    last_brief_fingerprint = str(
+        st.session_state.get(SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value, "") or ""
+    )
+    st.session_state[SSKey.SUMMARY_DIRTY.value] = bool(
+        last_brief_fingerprint and last_brief_fingerprint != current_summary_fingerprint
+    )
+
     # SUMMARY_ZONE: FACTS
     _render_summary_facts_section(vm)
 
@@ -2372,6 +2436,10 @@ def render(ctx: WizardContext) -> None:
             st.session_state[SSKey.BRIEF.value] = brief.model_dump()
             brief_cached = usage_has_cache_hit(usage)
             st.session_state[SSKey.SUMMARY_CACHE_HIT.value] = brief_cached
+            st.session_state[SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value] = (
+                current_summary_fingerprint
+            )
+            st.session_state[SSKey.SUMMARY_DIRTY.value] = False
             st.session_state[SSKey.SUMMARY_LAST_MODE.value] = mode
             st.session_state[SSKey.SUMMARY_LAST_MODELS.value] = {
                 "draft_model": resolved_brief_model
