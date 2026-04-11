@@ -108,11 +108,11 @@ def render_sidebar_salary_forecast(*, forecast: SalaryForecastResult) -> None:
             )
             st.plotly_chart(
                 fig,
-                use_container_width=True,
+                width="stretch",
                 key=f"{SSKey.SALARY_FORECAST_LAST_RESULT.value}_waterfall",
             )
         except Exception:
-            st.dataframe(drivers_rows, use_container_width=True, hide_index=True)
+            st.dataframe(drivers_rows, width="stretch", hide_index=True)
     with st.sidebar.expander("Annahmen & Datenqualität", expanded=False):
         st.write(
             "- Prognose ist indikativ und ersetzt kein externes Markt-Benchmarking.\n"

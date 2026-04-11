@@ -240,7 +240,7 @@ def _render_skills_source_columns(
         key_prefix="skills.board",
     )
 
-    if st.button("Ausgewählte Skills übernehmen", use_container_width=True):
+    if st.button("Ausgewählte Skills übernehmen", width="stretch"):
         added_count = _save_selected_skill_suggestions(bulk_buffer)
         if added_count > 0:
             st.success(f"{added_count} Skill(s) übernommen.")

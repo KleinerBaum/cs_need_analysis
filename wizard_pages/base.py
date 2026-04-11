@@ -961,7 +961,7 @@ def render_hero_section(
         primary_cta,
         key=start_button_key,
         type="primary",
-        use_container_width=True,
+        width="stretch",
         disabled=not consent_given,
     ):
         on_start()

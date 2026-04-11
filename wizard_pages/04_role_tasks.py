@@ -211,7 +211,7 @@ def _render_role_task_source_columns(
         },
     )
 
-    if st.button("Ausgewählte Aufgaben übernehmen", use_container_width=True):
+    if st.button("Ausgewählte Aufgaben übernehmen", width="stretch"):
         added_count = _save_selected_task_suggestions(bulk_buffer)
         if added_count > 0:
             st.success(f"{added_count} Aufgabe(n) übernommen.")
