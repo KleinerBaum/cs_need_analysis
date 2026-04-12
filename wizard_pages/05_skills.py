@@ -469,10 +469,18 @@ def render(ctx: WizardContext) -> None:
     coverage_snapshot = sync_esco_shared_state()
     if selected_occupation:
         st.caption(
-            f"ESCO Occupation aus Jobspec-Review: {selected_occupation.get('title', '—')}"
+            "ESCO Occupation aus Start → Phase C: Semantischen Anker bestätigen: "
+            f"{selected_occupation.get('title', '—')}"
         )
     else:
-        st.caption("ESCO Occupation: Keine passende Occupation ausgewählt.")
+        st.info(
+            "ESCO Occupation fehlt. Bitte in „Start → Phase C: Semantischen Anker bestätigen“ festlegen."
+        )
+        st.button(
+            "Zu Start → Phase C",
+            key="skills.goto_start_phase_c.header",
+            on_click=lambda: ctx.goto("landing"),
+        )
 
     must_have_skills = [x for x in job.must_have_skills if has_meaningful_value(x)]
     nice_to_have_skills = [
@@ -642,9 +650,14 @@ def render(ctx: WizardContext) -> None:
                     "(dedupliziert anhand ESCO-URI)."
                 )
     else:
-        st.caption(
-            "Keine ESCO Occupation ausgewählt. Bitte zuerst im Jobspec-Review eine "
-            "Occupation übernehmen."
+        st.info(
+            "Keine ESCO Occupation ausgewählt. Bitte zuerst in "
+            "„Start → Phase C: Semantischen Anker bestätigen“ eine Occupation übernehmen."
+        )
+        st.button(
+            "Zu Start → Phase C",
+            key="skills.goto_start_phase_c.occupation",
+            on_click=lambda: ctx.goto("landing"),
         )
 
     selected_must_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
