@@ -1,0 +1,132 @@
+from __future__ import annotations
+
+from types import SimpleNamespace
+from typing import cast
+
+from constants import SSKey
+import wizard_pages.jobad_intake as jobad_intake
+
+
+class _DummyColumn:
+    def __enter__(self) -> "_DummyColumn":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        return None
+
+
+class _FakeStreamlit:
+    def __init__(
+        self,
+        *,
+        session_state: dict[str, object],
+        button_returns: dict[str, bool] | None = None,
+    ) -> None:
+        self.session_state = session_state
+        self._button_returns = button_returns or {}
+        self.button_disabled: dict[str, bool] = {}
+        self.captions: list[str] = []
+        self.successes: list[str] = []
+        self.rerun_called = False
+        self.column_config = SimpleNamespace(
+            TextColumn=lambda *args, **kwargs: None,
+        )
+
+    def markdown(self, *_args, **_kwargs) -> None:
+        return None
+
+    def caption(self, text: str, *_args, **_kwargs) -> None:
+        self.captions.append(text)
+
+    def data_editor(self, rows, **_kwargs):
+        return rows
+
+    def columns(self, spec, **_kwargs):
+        if isinstance(spec, int):
+            count = spec
+        else:
+            count = len(spec)
+        return tuple(_DummyColumn() for _ in range(count))
+
+    def write(self, *_args, **_kwargs) -> None:
+        return None
+
+    def info(self, *_args, **_kwargs) -> None:
+        return None
+
+    def success(self, text: str, *_args, **_kwargs) -> None:
+        self.successes.append(text)
+
+    def button(self, _label: str, *, key: str, disabled: bool = False) -> bool:
+        self.button_disabled[key] = disabled
+        if disabled:
+            return False
+        return self._button_returns.get(key, False)
+
+    def rerun(self) -> None:
+        self.rerun_called = True
+
+
+def _minimal_identified_info_state() -> dict[str, object]:
+    return {
+        SSKey.JOB_EXTRACT.value: {"job_title": "Data Engineer"},
+        SSKey.QUESTION_PLAN.value: {"steps": []},
+        SSKey.ESCO_SELECTED_OCCUPATION_URI.value: "",
+    }
+
+
+def test_identified_info_next_is_disabled_without_esco_anchor(monkeypatch) -> None:
+    fake_st = _FakeStreamlit(session_state=_minimal_identified_info_state())
+    next_calls = {"count": 0}
+    ctx = cast(
+        jobad_intake.WizardContext,
+        SimpleNamespace(
+            prev=lambda: None,
+            next=lambda: next_calls.__setitem__("count", next_calls["count"] + 1),
+        ),
+    )
+
+    monkeypatch.setattr(jobad_intake, "st", fake_st)
+    monkeypatch.setattr(jobad_intake, "get_esco_occupation_selected", lambda: None)
+
+    jobad_intake._render_identified_information_block(ctx)
+
+    assert fake_st.button_disabled["cs.jobspec.ident_info.next"] is True
+    assert (
+        "Bitte in Phase C einen semantischen ESCO-Anker bestätigen." in fake_st.captions
+    )
+    assert next_calls["count"] == 0
+    assert fake_st.rerun_called is False
+
+
+def test_identified_info_next_uses_selected_occupation_fallback(monkeypatch) -> None:
+    fake_st = _FakeStreamlit(
+        session_state=_minimal_identified_info_state(),
+        button_returns={"cs.jobspec.ident_info.next": True},
+    )
+    next_calls = {"count": 0}
+    ctx = cast(
+        jobad_intake.WizardContext,
+        SimpleNamespace(
+            prev=lambda: None,
+            next=lambda: next_calls.__setitem__("count", next_calls["count"] + 1),
+        ),
+    )
+
+    monkeypatch.setattr(jobad_intake, "st", fake_st)
+    monkeypatch.setattr(
+        jobad_intake,
+        "get_esco_occupation_selected",
+        lambda: {
+            "uri": "http://data.europa.eu/esco/occupation/123",
+            "title": "Data Scientist",
+            "type": "occupation",
+        },
+    )
+
+    jobad_intake._render_identified_information_block(ctx)
+
+    assert fake_st.button_disabled["cs.jobspec.ident_info.next"] is False
+    assert "ESCO-Anker bestätigt: Data Scientist" in fake_st.successes
+    assert next_calls["count"] == 1
+    assert fake_st.rerun_called is True

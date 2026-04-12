@@ -108,6 +108,7 @@ def test_reset_vacancy_clears_progressive_disclosure_state(
         SSKey.SUMMARY_SELECTIONS.value: {"a": 1},
         SSKey.JOB_AD_DRAFT_CUSTOM.value: "draft",
         SSKey.JOB_AD_LAST_USAGE.value: {"tokens": 12},
+        SSKey.ESCO_SELECTED_OCCUPATION_URI.value: "http://data.europa.eu/esco/occupation/123",
         SSKey.LAST_ERROR.value: "error",
         SSKey.CURRENT_STEP.value: "summary",
     }
