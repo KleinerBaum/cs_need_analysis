@@ -1480,7 +1480,7 @@ def render_step_review_card(
 ) -> None:
     grouped_questions = _group_questions(step, visible_questions)
     group_payload: list[tuple[str, list[tuple[str, str]]]] = []
-    missing_required_labels: list[str] = []
+    missing_essential_labels: list[str] = []
     incomplete_group_titles: list[str] = []
 
     resolved_lookup = answered_lookup or build_answered_lookup(
@@ -1489,33 +1489,34 @@ def render_step_review_card(
 
     for group_title, group_questions in grouped_questions:
         answered_items: list[tuple[str, str]] = []
-        group_missing_required = False
+        group_missing_essential = False
         for question in group_questions:
-            value = answers.get(question.id)
             if not resolved_lookup.get(question.id, False):
-                if question.required:
-                    group_missing_required = True
-                    missing_required_labels.append(question.label)
+                is_essential = question.priority == "core" or question.required
+                if is_essential:
+                    group_missing_essential = True
+                    missing_essential_labels.append(question.label)
                 continue
+            value = answers.get(question.id)
             formatted = _format_answer_for_review(question, value)
             if formatted:
                 answered_items.append((question.label, formatted))
 
         if answered_items:
             group_payload.append((group_title, answered_items))
-        if group_missing_required:
+        if group_missing_essential:
             incomplete_group_titles.append(group_title)
 
     with st.container(border=True):
         st.markdown("#### ✅ Check answers")
-        if not group_payload and not missing_required_labels:
+        if not group_payload and not missing_essential_labels:
             st.caption("Noch keine sichtbaren Antworten vorhanden.")
             return
 
-        if missing_required_labels:
+        if missing_essential_labels:
             missing_groups = ", ".join(dict.fromkeys(incomplete_group_titles))
             st.warning(
-                f"Pflichtfelder offen ({len(missing_required_labels)}). "
+                f"Essentials offen ({len(missing_essential_labels)}): "
                 f"Bitte in diesen Bereichen ergänzen: {missing_groups}."
             )
             if grouped_questions and incomplete_group_titles:

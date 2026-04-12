@@ -322,7 +322,7 @@ def _compute_sidebar_step_detail_status(page: WizardPage) -> SidebarStepDetailSt
     essential_questions = [
         question
         for question in visible_questions
-        if (question.priority or "") == "core"
+        if (question.priority or "") == "core" or question.required
     ]
     detail_questions = [
         question
