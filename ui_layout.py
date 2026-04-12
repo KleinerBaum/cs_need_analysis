@@ -7,25 +7,22 @@ from collections.abc import Callable
 import streamlit as st
 
 from question_dependencies import should_show_question
-from question_progress import compute_question_progress
 from schemas import QuestionStep
+from step_status import build_step_status_payload
 from state import get_answer_meta, get_answers
 
 
 def _render_step_status(step: QuestionStep | None) -> None:
-    if step is None:
-        st.caption("Status · keine Fragen")
-        return
-
     answers = get_answers()
     answer_meta = get_answer_meta()
-    visible_questions = [
-        question
-        for question in step.questions
-        if should_show_question(question, answers, answer_meta, step.step_key)
-    ]
-    progress = compute_question_progress(visible_questions, answers, answer_meta)
-    st.caption(f"Status · {progress['answered']}/{progress['total']} beantwortet")
+    status = build_step_status_payload(
+        step=step,
+        answers=answers,
+        answer_meta=answer_meta,
+        should_show_question=should_show_question,
+        step_key=step.step_key if step is not None else None,
+    )
+    st.caption(f"Status · {status['answered']}/{status['total']} beantwortet")
 
 
 def render_step_shell(

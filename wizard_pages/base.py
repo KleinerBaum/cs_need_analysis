@@ -29,10 +29,11 @@ from constants import (
 from esco_client import EscoClient, EscoClientError, clear_esco_cache
 from question_dependencies import should_show_question
 from question_limits import sync_adaptive_question_limits
-from question_progress import build_answered_lookup, compute_question_progress
+from question_progress import AnswerMetaMap
 from salary.engine import compute_salary_forecast
 from salary.types import SalaryForecastResult
-from schemas import JobAdExtract, Question, QuestionPlan
+from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
+from step_status import StepStatusPayload, build_step_status_payload
 from wizard_pages.salary_forecast import render_sidebar_salary_forecast
 
 
@@ -153,10 +154,11 @@ class SidebarStepProgress(TypedDict):
 
 
 class SidebarStepDetailStatus(TypedDict):
+    answered: int
+    total: int
+    completion_state: StepStatus
     essentials_answered: int
     essentials_total: int
-    details_answered: int
-    details_total: int
     missing_essentials: list[str]
 
 
@@ -257,23 +259,18 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
     statuses: list[SidebarStepProgress] = []
     for page in pages:
         questions = _get_step_questions(plan, page.key)
-        visible_questions = [
-            question
-            for question in questions
-            if should_show_question(question, answers, answer_meta, page.key)
-        ]
-        progress = compute_question_progress(visible_questions, answers, answer_meta)
-        answered = progress["answered"]
-        total = progress["total"]
+        step_status = _build_step_status_payload_for_page(
+            page_key=page.key,
+            questions=questions,
+            answers=answers,
+            answer_meta=answer_meta,
+        )
+        answered = step_status["answered"]
+        total = step_status["total"]
 
-        status: StepStatus = "not_started"
+        status: StepStatus = cast(StepStatus, step_status["completion_state"])
         if total > 0:
-            if answered == 0:
-                status = "not_started"
-            elif answered < total:
-                status = "partial"
-            else:
-                status = "complete"
+            status = cast(StepStatus, step_status["completion_state"])
         elif page.key == "landing":
             source_text = st.session_state.get(SSKey.SOURCE_TEXT.value, "")
             has_source = isinstance(source_text, str) and bool(source_text.strip())
@@ -298,6 +295,23 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
     return statuses
 
 
+def _build_step_status_payload_for_page(
+    *,
+    page_key: str,
+    questions: list[Question],
+    answers: dict[str, object],
+    answer_meta: dict[str, object],
+) -> StepStatusPayload:
+    step = QuestionStep(step_key=page_key, title_de=page_key, questions=questions)
+    return build_step_status_payload(
+        step=step,
+        answers=answers,
+        answer_meta=cast(AnswerMetaMap, answer_meta),
+        should_show_question=should_show_question,
+        step_key=page_key,
+    )
+
+
 def _compute_sidebar_step_detail_status(page: WizardPage) -> SidebarStepDetailStatus:
     plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
     plan: QuestionPlan | None = None
@@ -312,48 +326,20 @@ def _compute_sidebar_step_detail_status(page: WizardPage) -> SidebarStepDetailSt
     answer_meta_raw = st.session_state.get(SSKey.ANSWER_META.value, {})
     answer_meta = answer_meta_raw if isinstance(answer_meta_raw, dict) else {}
 
-    visible_questions = [
-        question
-        for question in _get_step_questions(plan, page.key)
-        if should_show_question(question, answers, answer_meta, page.key)
-    ]
-    answered_lookup = build_answered_lookup(visible_questions, answers, answer_meta)
-
-    essential_questions = [
-        question
-        for question in visible_questions
-        if (question.priority or "") == "core" or question.required
-    ]
-    detail_questions = [
-        question
-        for question in visible_questions
-        if (question.priority or "") != "core"
-    ]
-    essentials_progress = compute_question_progress(
-        essential_questions,
-        answers,
-        answer_meta,
-        answered_lookup=answered_lookup,
+    step_status = _build_step_status_payload_for_page(
+        page_key=page.key,
+        questions=_get_step_questions(plan, page.key),
+        answers=answers,
+        answer_meta=answer_meta,
     )
-    details_progress = compute_question_progress(
-        detail_questions,
-        answers,
-        answer_meta,
-        answered_lookup=answered_lookup,
-    )
-
-    missing_essentials = [
-        question.label
-        for question in essential_questions
-        if not answered_lookup.get(question.id, False)
-    ][:5]
 
     return {
-        "essentials_answered": essentials_progress["answered"],
-        "essentials_total": essentials_progress["total"],
-        "details_answered": details_progress["answered"],
-        "details_total": details_progress["total"],
-        "missing_essentials": missing_essentials,
+        "answered": int(step_status["answered"]),
+        "total": int(step_status["total"]),
+        "completion_state": cast(StepStatus, step_status["completion_state"]),
+        "essentials_answered": int(step_status["essentials_answered"]),
+        "essentials_total": int(step_status["essentials_total"]),
+        "missing_essentials": cast(list[str], step_status["missing_essentials"]),
     }
 
 
@@ -362,8 +348,8 @@ def _render_sidebar_step_status_card(page: WizardPage) -> None:
     with st.sidebar.container(border=True):
         st.caption(f"Step: {page.title_de}")
         st.caption(
-            f"Essentials {status['essentials_answered']}/{status['essentials_total']} · "
-            f"Details {status['details_answered']}/{status['details_total']}"
+            f"Status {status['answered']}/{status['total']} · "
+            f"Essentials {status['essentials_answered']}/{status['essentials_total']}"
         )
         if status["missing_essentials"]:
             st.caption("Missing")
