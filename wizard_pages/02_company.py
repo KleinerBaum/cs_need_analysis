@@ -127,10 +127,6 @@ def render(ctx: WizardContext) -> None:
 
     def _render_main_slot() -> None:
         render_error_banner()
-        st.write(
-            "Hier sammelst du kontextuelle Informationen zum Unternehmen/Business-Bereich, "
-            "die Kandidat:innen verstehen müssen (Mission, Markt, Value Prop, Brand, Rahmenbedingungen)."
-        )
         _render_optional_nace_section()
         if step is None or not step.questions:
             st.info(
@@ -164,6 +160,10 @@ def render(ctx: WizardContext) -> None:
     render_step_shell(
         title=_format_company_header(job),
         subtitle=_format_company_subheader(job) or "Kontext zum Unternehmen und Markt.",
+        outcome_text=(
+            "Ein klarer Company-Kontext (Mission, Markt, Brand, Rahmenbedingungen), "
+            "den Recruiting und Kandidat:innen einheitlich nutzen."
+        ),
         step=step,
         extracted_from_jobspec_slot=_render_extracted_slot,
         extracted_from_jobspec_label="Aus Jobspec extrahiert (Company & Location)",

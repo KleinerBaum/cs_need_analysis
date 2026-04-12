@@ -277,10 +277,6 @@ def render(ctx: WizardContext) -> None:
     def _render_main_slot() -> None:
         coverage = sync_esco_shared_state()
         render_error_banner()
-        st.write(
-            "Jetzt schärfen wir Scope, Verantwortlichkeiten, Deliverables, Erfolgskriterien und Stakeholder. "
-            "Das ist der Kern für Briefing, Interviewleitfaden und Erwartungsmanagement."
-        )
 
         selected_occupation = get_esco_occupation_selected()
         esco_suggestions: list[dict[str, str]] = []
@@ -400,6 +396,10 @@ def render(ctx: WizardContext) -> None:
     render_step_shell(
         title="Rolle & Aufgaben",
         subtitle="Scope, Verantwortlichkeiten und Erfolgskriterien der Rolle.",
+        outcome_text=(
+            "Ein belastbarer Rollen-Scope mit priorisierten Aufgaben und klaren Erfolgskriterien "
+            "als Basis für Briefing und Interviewleitfaden."
+        ),
         step=step,
         extracted_from_jobspec_slot=_render_extracted_slot,
         extracted_from_jobspec_label="Aus Jobspec extrahiert (Responsibilities & Metrics)",

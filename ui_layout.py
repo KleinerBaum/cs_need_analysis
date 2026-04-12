@@ -32,6 +32,8 @@ def render_step_shell(
     *,
     title: str,
     subtitle: str,
+    outcome_text: str | None = None,
+    outcome_slot: Callable[[], None] | None = None,
     step: QuestionStep | None = None,
     extracted_from_jobspec_slot: Callable[[], None] | None = None,
     extracted_from_jobspec_label: str = "Aus Jobspec extrahiert",
@@ -43,6 +45,10 @@ def render_step_shell(
     with header_col:
         st.header(title)
         st.caption(subtitle)
+        if outcome_text:
+            st.markdown(f"**Outcome:** {outcome_text}")
+        if outcome_slot is not None:
+            outcome_slot()
     with status_col:
         _render_step_status(step)
 
