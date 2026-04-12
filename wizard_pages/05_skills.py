@@ -232,7 +232,7 @@ def _render_skills_source_columns(
     esco_suggested: list[dict[str, Any]],
     llm_suggested: list[dict[str, Any]],
 ) -> None:
-    st.markdown("### Skills vergleichen & übernehmen")
+    st.markdown("#### Quellenvergleich")
     _render_badge_line(["Jobspec", "ESCO essential", "ESCO optional", "AI suggestion"])
     selected_labels_raw = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
     selected_labels = (
@@ -492,8 +492,47 @@ def _render_main_slot(
         )
     ]
     st.session_state[SSKey.SKILLS_JOBSPEC_SUGGESTED.value] = jobspec_suggestions
+    llm_suggested_raw = st.session_state.get(SSKey.SKILLS_LLM_SUGGESTED.value, [])
+    llm_suggested = llm_suggested_raw if isinstance(llm_suggested_raw, list) else []
 
-    st.markdown("### 2) ESCO-normalisierte Vorschläge")
+    selected_must_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
+    selected_nice_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
+    selected_must = selected_must_raw if isinstance(selected_must_raw, list) else []
+    selected_nice = selected_nice_raw if isinstance(selected_nice_raw, list) else []
+    deduped_must, deduped_nice = _dedupe_selected_skills_across_buckets(
+        selected_must, selected_nice
+    )
+    esco_suggestions = [
+        {
+            "label": str(item.get("title") or "").strip(),
+            "source": "ESCO essential",
+            "rationale": "manually selected by user",
+            "importance": "high",
+        }
+        for item in deduped_must
+        if has_meaningful_value(str(item.get("title") or ""))
+    ] + [
+        {
+            "label": str(item.get("title") or "").strip(),
+            "source": "ESCO optional",
+            "rationale": "manually selected by user",
+            "importance": "high",
+        }
+        for item in deduped_nice
+        if has_meaningful_value(str(item.get("title") or ""))
+    ]
+
+    st.markdown("### 1) Vergleichen & übernehmen (working set)")
+    st.caption(
+        "Vergleiche Jobspec-, ESCO- und AI-Vorschläge und übernimm dedupliziert in das Working Set."
+    )
+    _render_skills_source_columns(
+        jobspec_suggested=jobspec_suggestions,
+        esco_suggested=esco_suggestions,
+        llm_suggested=llm_suggested,
+    )
+
+    st.markdown("### 2) ESCO normalisieren / confirmen (confirmed set)")
     st.caption(
         "ESCO hilft, freie Begriffe auf standardisierte Skills abzubilden. "
         "So werden Dubletten reduziert und Exporte konsistent."
@@ -681,7 +720,7 @@ def _render_main_slot(
     )
     coverage_snapshot = sync_esco_shared_state()
 
-    st.markdown("### 3) Confirmed selection (Essential / Optional)")
+    st.markdown("### Confirmed selection (Essential / Optional)")
     st.caption(
         "Hier siehst du die confirmed selection. Essential = erforderlich, "
         "Optional = zusätzlicher Mehrwert."
@@ -726,7 +765,7 @@ def _render_main_slot(
         key_prefix="skills.nice",
     )
 
-    st.markdown("### 4) Unmapped / Ambiguous Items")
+    st.markdown("### 3) Unmapped follow-up")
     ambiguous_terms = sorted(
         {
             term
@@ -748,26 +787,6 @@ def _render_main_slot(
         esco_must_selected=deduped_must,
         esco_nice_selected=deduped_nice,
     )
-    esco_suggestions = [
-        {
-            "label": str(item.get("title") or "").strip(),
-            "source": "ESCO essential",
-            "rationale": "manually selected by user",
-            "importance": "high",
-        }
-        for item in deduped_must
-        if has_meaningful_value(str(item.get("title") or ""))
-    ] + [
-        {
-            "label": str(item.get("title") or "").strip(),
-            "source": "ESCO optional",
-            "rationale": "manually selected by user",
-            "importance": "high",
-        }
-        for item in deduped_nice
-        if has_meaningful_value(str(item.get("title") or ""))
-    ]
-
     st.markdown("### AI Skill-Vorschläge")
     st.number_input(
         "Anzahl AI-Skill-Vorschläge",
@@ -816,14 +835,6 @@ def _render_main_slot(
                     st.success(f"{len(merged_llm)} AI-Skill(s) übernommen.")
                 else:
                     st.info("Keine zusätzlichen AI-Skills gefunden.")
-
-    llm_suggested_raw = st.session_state.get(SSKey.SKILLS_LLM_SUGGESTED.value, [])
-    llm_suggested = llm_suggested_raw if isinstance(llm_suggested_raw, list) else []
-    _render_skills_source_columns(
-        jobspec_suggested=jobspec_suggestions,
-        esco_suggested=esco_suggestions,
-        llm_suggested=llm_suggested,
-    )
 
     with st.expander("Salary Forecast", expanded=True):
         render_salary_forecast_panel(job, get_answers())
