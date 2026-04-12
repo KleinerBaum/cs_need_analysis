@@ -10,13 +10,15 @@ from constants import SSKey
 from esco_client import EscoClient, EscoClientError
 from llm_client import generate_requirement_gap_suggestions
 from schemas import EscoMappingReport
-from schemas import EscoSkillDetail, JobAdExtract, QuestionPlan
+from schemas import EscoSkillDetail, JobAdExtract, QuestionPlan, QuestionStep
 from state import (
+    EscoCoverageSnapshot,
     get_active_model,
     get_answers,
     get_esco_occupation_selected,
     sync_esco_shared_state,
 )
+from ui_layout import render_step_shell
 from ui_components import (
     has_meaningful_value,
     render_esco_explainability,
@@ -445,43 +447,38 @@ def _render_unmapped_term_workflow(flagged_terms: list[str]) -> None:
     st.session_state[SSKey.ESCO_UNMAPPED_TERM_ACTIONS.value] = actions
 
 
-def render(ctx: WizardContext) -> None:
-    st.header("Skills & Anforderungen")
-    render_error_banner()
+def _render_extracted_slot(job: JobAdExtract) -> None:
+    must_have_skills = [x for x in job.must_have_skills if has_meaningful_value(x)]
+    nice_to_have_skills = [
+        x for x in job.nice_to_have_skills if has_meaningful_value(x)
+    ]
+    tech_stack = [x for x in job.tech_stack if has_meaningful_value(x)]
+    if must_have_skills:
+        st.write("**Must-have (Auszug):**")
+        for value in must_have_skills[:12]:
+            st.write(f"- {value}")
 
-    job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
-    plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
+    if nice_to_have_skills:
+        st.write("**Nice-to-have (Auszug):**")
+        for value in nice_to_have_skills[:12]:
+            st.write(f"- {value}")
 
-    if not job_dict or not plan_dict:
-        st.warning("Bitte zuerst im Start-Schritt eine Analyse durchführen.")
-        st.button("Zur Startseite", on_click=lambda: ctx.goto("landing"))
-        nav_buttons(ctx, disable_next=True)
-        return
+    if tech_stack:
+        st.write("**Tech Stack (Auszug):**")
+        for value in tech_stack[:15]:
+            st.write(f"- {value}")
+    if not must_have_skills and not nice_to_have_skills and not tech_stack:
+        st.info("Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions.")
 
-    job = JobAdExtract.model_validate(job_dict)
-    plan = QuestionPlan.model_validate(plan_dict)
 
-    st.write(
-        "Ziel: Rohbegriffe aus dem Jobspec zuerst sichtbar machen, dann mit ESCO "
-        "vereinheitlichen und abschließend als essential oder optional bestätigen."
-    )
-    selected_occupation = get_esco_occupation_selected()
-    coverage_snapshot = sync_esco_shared_state()
-    if selected_occupation:
-        st.caption(
-            "ESCO Occupation aus Start → Phase C: Semantischen Anker bestätigen: "
-            f"{selected_occupation.get('title', '—')}"
-        )
-    else:
-        st.info(
-            "ESCO Occupation fehlt. Bitte in „Start → Phase C: Semantischen Anker bestätigen“ festlegen."
-        )
-        st.button(
-            "Zu Start → Phase C",
-            key="skills.goto_start_phase_c.header",
-            on_click=lambda: ctx.goto("landing"),
-        )
-
+def _render_main_slot(
+    *,
+    ctx: WizardContext,
+    job: JobAdExtract,
+    step: QuestionStep | None,
+    selected_occupation: dict[str, Any] | None,
+    coverage_snapshot: EscoCoverageSnapshot,
+) -> None:
     must_have_skills = [x for x in job.must_have_skills if has_meaningful_value(x)]
     nice_to_have_skills = [
         x for x in job.nice_to_have_skills if has_meaningful_value(x)
@@ -494,32 +491,6 @@ def render(ctx: WizardContext) -> None:
         )
     ]
     st.session_state[SSKey.SKILLS_JOBSPEC_SUGGESTED.value] = jobspec_suggestions
-
-    st.markdown("### 1) Extrahierte Skill-Phrasen aus dem Jobspec")
-    st.caption(
-        "Diese Liste zeigt nur erkannte Begriffe aus dem Jobspec. "
-        "Hier wurde noch nichts mit ESCO abgeglichen."
-    )
-    _render_badge_line(["Jobspec"])
-    with st.expander("Extraktion prüfen", expanded=True):
-        if must_have_skills:
-            st.write("**Must-have (Auszug):**")
-            for x in must_have_skills[:12]:
-                st.write(f"- {x}")
-
-        if nice_to_have_skills:
-            st.write("**Nice-to-have (Auszug):**")
-            for x in nice_to_have_skills[:12]:
-                st.write(f"- {x}")
-
-        if tech_stack:
-            st.write("**Tech Stack (Auszug):**")
-            for x in tech_stack[:15]:
-                st.write(f"- {x}")
-        if not must_have_skills and not nice_to_have_skills and not tech_stack:
-            st.info(
-                "Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions."
-            )
 
     st.markdown("### 2) ESCO-normalisierte Vorschläge")
     st.caption(
@@ -760,7 +731,7 @@ def render(ctx: WizardContext) -> None:
             term
             for term in normalized_must_terms
             if _normalize_term(term)
-            in {_normalize_term(x) for x in normalized_nice_terms}
+            in {_normalize_term(value) for value in normalized_nice_terms}
         }
     )
     unmapped_terms = list(coverage_snapshot.unmapped_requirement_terms)
@@ -856,16 +827,66 @@ def render(ctx: WizardContext) -> None:
     with st.expander("Salary Forecast", expanded=True):
         render_salary_forecast_panel(job, get_answers())
 
-    step = next((s for s in plan.steps if s.step_key == "skills"), None)
     if step is None or not step.questions:
         st.info(
             "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
         )
-        nav_buttons(ctx)
         return
 
     render_question_step(step)
-    nav_buttons(ctx)
+
+
+def render(ctx: WizardContext) -> None:
+    render_error_banner()
+
+    job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
+    plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
+
+    if not job_dict or not plan_dict:
+        st.warning("Bitte zuerst im Start-Schritt eine Analyse durchführen.")
+        st.button("Zur Startseite", on_click=lambda: ctx.goto("landing"))
+        nav_buttons(ctx, disable_next=True)
+        return
+
+    job = JobAdExtract.model_validate(job_dict)
+    plan = QuestionPlan.model_validate(plan_dict)
+    selected_occupation = get_esco_occupation_selected()
+    coverage_snapshot = sync_esco_shared_state()
+    step = next((value for value in plan.steps if value.step_key == "skills"), None)
+
+    if selected_occupation:
+        st.caption(
+            "ESCO Occupation aus Start → Phase C: Semantischen Anker bestätigen: "
+            f"{selected_occupation.get('title', '—')}"
+        )
+    else:
+        st.info(
+            "ESCO Occupation fehlt. Bitte in „Start → Phase C: Semantischen Anker bestätigen“ festlegen."
+        )
+        st.button(
+            "Zu Start → Phase C",
+            key="skills.goto_start_phase_c.header",
+            on_click=lambda: ctx.goto("landing"),
+        )
+
+    render_step_shell(
+        title="Skills & Anforderungen",
+        subtitle=(
+            "Ziel: Rohbegriffe aus dem Jobspec zuerst sichtbar machen, dann mit ESCO "
+            "vereinheitlichen und abschließend als essential oder optional bestätigen."
+        ),
+        step=step,
+        extracted_from_jobspec_slot=lambda: _render_extracted_slot(job),
+        extracted_from_jobspec_label="1) Extrahierte Skill-Phrasen aus dem Jobspec",
+        main_content_slot=lambda: _render_main_slot(
+            ctx=ctx,
+            job=job,
+            step=step,
+            selected_occupation=selected_occupation,
+            coverage_snapshot=coverage_snapshot,
+        ),
+        footer_slot=lambda: nav_buttons(ctx),
+    )
 
 
 PAGE = WizardPage(
