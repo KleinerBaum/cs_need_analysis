@@ -36,6 +36,7 @@ def render_step_shell(
     extracted_from_jobspec_slot: Callable[[], None] | None = None,
     extracted_from_jobspec_label: str = "Aus Jobspec extrahiert",
     main_content_slot: Callable[[], None],
+    review_slot: Callable[[], None] | None = None,
     footer_slot: Callable[[], None] | None = None,
 ) -> None:
     header_col, status_col = st.columns([4, 2])
@@ -50,6 +51,8 @@ def render_step_shell(
             extracted_from_jobspec_slot()
 
     main_content_slot()
+    if review_slot is not None:
+        review_slot()
 
     if footer_slot is not None:
         st.divider()
