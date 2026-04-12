@@ -9,9 +9,12 @@ import streamlit as st
 from constants import SSKey
 from esco_client import EscoClient, EscoClientError
 from llm_client import generate_requirement_gap_suggestions
+from question_dependencies import should_show_question
+from question_progress import build_answered_lookup
 from schemas import JobAdExtract, QuestionPlan
 from state import (
     get_active_model,
+    get_answer_meta,
     get_answers,
     get_esco_occupation_selected,
     sync_esco_shared_state,
@@ -22,6 +25,7 @@ from ui_components import (
     render_compact_requirement_board,
     render_error_banner,
     render_question_step,
+    render_step_review_card,
 )
 from ui_layout import render_step_shell
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
@@ -371,6 +375,28 @@ def render(ctx: WizardContext) -> None:
 
         render_question_step(step)
 
+    def _render_review_slot() -> None:
+        if step is None or not step.questions:
+            return
+        answers = get_answers()
+        answer_meta = get_answer_meta()
+        visible_questions = [
+            question
+            for question in step.questions
+            if should_show_question(question, answers, answer_meta, step.step_key)
+        ]
+        if not visible_questions:
+            return
+        render_step_review_card(
+            step=step,
+            visible_questions=visible_questions,
+            answers=answers,
+            answer_meta=answer_meta,
+            answered_lookup=build_answered_lookup(
+                visible_questions, answers, answer_meta
+            ),
+        )
+
     render_step_shell(
         title="Rolle & Aufgaben",
         subtitle="Scope, Verantwortlichkeiten und Erfolgskriterien der Rolle.",
@@ -378,6 +404,7 @@ def render(ctx: WizardContext) -> None:
         extracted_from_jobspec_slot=_render_extracted_slot,
         extracted_from_jobspec_label="Aus Jobspec extrahiert (Responsibilities & Metrics)",
         main_content_slot=_render_main_slot,
+        review_slot=_render_review_slot,
         footer_slot=lambda: nav_buttons(ctx),
     )
 

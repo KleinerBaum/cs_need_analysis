@@ -9,11 +9,14 @@ from pydantic import ValidationError
 from constants import SSKey
 from esco_client import EscoClient, EscoClientError
 from llm_client import generate_requirement_gap_suggestions
+from question_dependencies import should_show_question
+from question_progress import build_answered_lookup
 from schemas import EscoMappingReport
 from schemas import EscoSkillDetail, JobAdExtract, QuestionPlan, QuestionStep
 from state import (
     EscoCoverageSnapshot,
     get_active_model,
+    get_answer_meta,
     get_answers,
     get_esco_occupation_selected,
     sync_esco_shared_state,
@@ -26,6 +29,7 @@ from ui_components import (
     render_error_banner,
     render_esco_picker_card,
     render_question_step,
+    render_step_review_card,
 )
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
 from wizard_pages.salary_forecast_panel import render_salary_forecast_panel
@@ -885,7 +889,29 @@ def render(ctx: WizardContext) -> None:
             selected_occupation=selected_occupation,
             coverage_snapshot=coverage_snapshot,
         ),
+        review_slot=lambda: _render_review_slot(step),
         footer_slot=lambda: nav_buttons(ctx),
+    )
+
+
+def _render_review_slot(step: QuestionStep | None) -> None:
+    if step is None or not step.questions:
+        return
+    answers = get_answers()
+    answer_meta = get_answer_meta()
+    visible_questions = [
+        question
+        for question in step.questions
+        if should_show_question(question, answers, answer_meta, step.step_key)
+    ]
+    if not visible_questions:
+        return
+    render_step_review_card(
+        step=step,
+        visible_questions=visible_questions,
+        answers=answers,
+        answer_meta=answer_meta,
+        answered_lookup=build_answered_lookup(visible_questions, answers, answer_meta),
     )
 
 

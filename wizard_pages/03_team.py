@@ -8,12 +8,15 @@ import streamlit as st
 
 from constants import AnswerType, SSKey
 from esco_client import EscoClient, EscoClientError
+from question_dependencies import should_show_question
+from question_progress import build_answered_lookup
 from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
-from state import get_answers, mark_answer_touched, set_answer
+from state import get_answer_meta, get_answers, mark_answer_touched, set_answer
 from ui_components import (
     has_meaningful_value,
     render_error_banner,
     render_question_step,
+    render_step_review_card,
 )
 from ui_layout import render_step_shell
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
@@ -220,6 +223,28 @@ def render(ctx: WizardContext) -> None:
         with context_col:
             _render_role_context_enrichment(step=step, ctx=ctx)
 
+    def _render_review_slot() -> None:
+        if step is None or not step.questions:
+            return
+        answers = get_answers()
+        answer_meta = get_answer_meta()
+        visible_questions = [
+            question
+            for question in step.questions
+            if should_show_question(question, answers, answer_meta, step.step_key)
+        ]
+        if not visible_questions:
+            return
+        render_step_review_card(
+            step=step,
+            visible_questions=visible_questions,
+            answers=answers,
+            answer_meta=answer_meta,
+            answered_lookup=build_answered_lookup(
+                visible_questions, answers, answer_meta
+            ),
+        )
+
     render_step_shell(
         title="Team",
         subtitle="Teamkontext, Schnittstellen und Zusammenarbeit.",
@@ -227,6 +252,7 @@ def render(ctx: WizardContext) -> None:
         extracted_from_jobspec_slot=_render_extracted_slot,
         extracted_from_jobspec_label="Aus Jobspec extrahiert (Team/Org)",
         main_content_slot=_render_main_slot,
+        review_slot=_render_review_slot,
         footer_slot=lambda: nav_buttons(ctx),
     )
 
