@@ -879,6 +879,10 @@ def render(ctx: WizardContext) -> None:
             "Ziel: Rohbegriffe aus dem Jobspec zuerst sichtbar machen, dann mit ESCO "
             "vereinheitlichen und abschließend als essential oder optional bestätigen."
         ),
+        outcome_text=(
+            "Eine bestätigte Skill-Liste (essential/optional) mit nachvollziehbarer Herkunft "
+            "aus Jobspec, ESCO und AI-Vorschlägen."
+        ),
         step=step,
         extracted_from_jobspec_slot=lambda: _render_extracted_slot(job),
         extracted_from_jobspec_label="1) Extrahierte Skill-Phrasen aus dem Jobspec",

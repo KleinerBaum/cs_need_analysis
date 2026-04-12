@@ -86,6 +86,10 @@ def render(ctx: WizardContext) -> None:
             "Ziel: Einen klaren, fairen Prozess definieren (Stages, Stakeholder, "
             "Assessments, Timeline) und gleichzeitig das Candidate Experience sicherstellen."
         ),
+        outcome_text=(
+            "Ein klarer, fairer Interviewablauf mit Verantwortlichkeiten und Timeline "
+            "für eine verlässliche Candidate Experience."
+        ),
         step=step,
         extracted_from_jobspec_slot=_render_extracted_slot,
         extracted_from_jobspec_label="Aus Jobspec extrahiert (Recruitment Steps)",

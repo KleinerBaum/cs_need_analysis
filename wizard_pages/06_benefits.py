@@ -106,6 +106,10 @@ def render(ctx: WizardContext) -> None:
             "Remote/Hybrid, Arbeitszeit, Benefits, Relocation, Learning Budget "
             "– inklusive der Dinge, die man im Recruiting unbedingt konsistent kommunizieren muss."
         ),
+        outcome_text=(
+            "Ein konsistentes Offer-Narrativ zu Compensation, Arbeitsmodell und Benefits, "
+            "das intern und extern einheitlich kommuniziert werden kann."
+        ),
         step=step,
         extracted_from_jobspec_slot=_render_extracted_slot,
         extracted_from_jobspec_label="Aus Jobspec extrahiert (Benefits/Comp)",

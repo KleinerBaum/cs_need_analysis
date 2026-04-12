@@ -207,10 +207,6 @@ def render(ctx: WizardContext) -> None:
 
     def _render_main_slot() -> None:
         render_error_banner()
-        st.write(
-            "Hier geht es um Team-Setup, Schnittstellen, Arbeitsmodus (hybrid/remote), aktuelle Herausforderungen "
-            "und warum diese Rolle für das Team wichtig ist."
-        )
         if step is None or not step.questions:
             st.info(
                 "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
@@ -248,6 +244,10 @@ def render(ctx: WizardContext) -> None:
     render_step_shell(
         title="Team",
         subtitle="Teamkontext, Schnittstellen und Zusammenarbeit.",
+        outcome_text=(
+            "Ein abgestimmtes Bild von Team-Setup, Interfaces und Arbeitsweise, "
+            "damit die Rolle im echten Kontext bewertet werden kann."
+        ),
         step=step,
         extracted_from_jobspec_slot=_render_extracted_slot,
         extracted_from_jobspec_label="Aus Jobspec extrahiert (Team/Org)",
