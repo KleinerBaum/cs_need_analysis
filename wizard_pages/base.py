@@ -18,6 +18,8 @@ from typing import (
 import streamlit as st
 
 from constants import (
+    COMPLETION_STATE_NOT_STARTED,
+    COMPLETION_STATE_PREFIX_TOKENS,
     SSKey,
     STEPS,
     UI_GLOBAL_DETAILS_TOGGLE_HELP,
@@ -172,11 +174,9 @@ class EscoMigrationPendingPayload(TypedDict):
 
 
 def _status_prefix(status: StepStatus) -> str:
-    if status == "complete":
-        return "✅"
-    if status == "partial":
-        return "🟡"
-    return "⬜"
+    return COMPLETION_STATE_PREFIX_TOKENS.get(
+        status, COMPLETION_STATE_PREFIX_TOKENS[COMPLETION_STATE_NOT_STARTED]
+    )
 
 
 def _ensure_salary_forecast_state_defaults() -> None:

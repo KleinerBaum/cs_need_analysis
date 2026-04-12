@@ -43,6 +43,24 @@ UI_STEP_COMPACT_TOGGLE_HELP: Final[str] = (
     "Schritt-spezifische Anzeige: Aktiv hält Detailgruppen standardmäßig geschlossen. "
     "Deaktiviert öffnet Detailgruppen standardmäßig."
 )
+COMPLETION_STATE_COMPLETE: Final[str] = "complete"
+COMPLETION_STATE_PARTIAL: Final[str] = "partial"
+COMPLETION_STATE_NOT_STARTED: Final[str] = "not_started"
+COMPLETION_STATES: Final[tuple[str, str, str]] = (
+    COMPLETION_STATE_COMPLETE,
+    COMPLETION_STATE_PARTIAL,
+    COMPLETION_STATE_NOT_STARTED,
+)
+COMPLETION_STATE_BADGE_TEXT: Final[dict[str, str]] = {
+    COMPLETION_STATE_COMPLETE: "✅ Vollständig",
+    COMPLETION_STATE_PARTIAL: "🟡 Teilweise",
+    COMPLETION_STATE_NOT_STARTED: "⬜ Offen",
+}
+COMPLETION_STATE_PREFIX_TOKENS: Final[dict[str, str]] = {
+    COMPLETION_STATE_COMPLETE: "✅",
+    COMPLETION_STATE_PARTIAL: "🟡",
+    COMPLETION_STATE_NOT_STARTED: "⬜",
+}
 
 # ---- Canonical Wizard Step Keys ----
 STEP_KEY_LANDING: Final[str] = "landing"
