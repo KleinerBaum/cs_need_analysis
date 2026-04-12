@@ -16,6 +16,7 @@ import docx
 
 from constants import (
     AnswerType,
+    NON_INTAKE_STEP_KEYS,
     SSKey,
     SUMMARY_ARTIFACT_IDS,
     SUMMARY_ARTIFACT_LEGACY_ALIASES,
@@ -1574,7 +1575,7 @@ def _build_summary_status(
             question_ids = [
                 question.id
                 for step in plan_model.steps
-                if step.step_key not in {"landing", "jobspec_review", "summary"}
+                if step.step_key not in NON_INTAKE_STEP_KEYS
                 for question in step.questions
             ]
             total_questions = len(question_ids)
@@ -2010,7 +2011,7 @@ def _build_summary_fact_rows(
 
     seen_row_keys = {(row.bereich, row.feld, row.quelle) for row in rows}
     for step in plan.steps:
-        if step.step_key in {"landing", "jobspec_review", "summary"}:
+        if step.step_key in NON_INTAKE_STEP_KEYS:
             continue
         for question in step.questions:
             row_key = (step.title_de, question.label, "Intake-Antwort")

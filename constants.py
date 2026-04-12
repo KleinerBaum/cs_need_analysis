@@ -20,6 +20,24 @@ APP_TITLE: Final[str] = "Cognitive Staffing – Vacancy Intake Wizard"
 DEFAULT_LANGUAGE: Final[str] = "de"
 DEFAULT_ESCO_SELECTED_VERSION: Final[str] = "v1.2.0"
 
+# ---- Canonical Wizard Step Keys ----
+STEP_KEY_LANDING: Final[str] = "landing"
+STEP_KEY_JOBSPEC_REVIEW: Final[str] = "jobspec_review"
+STEP_KEY_COMPANY: Final[str] = "company"
+STEP_KEY_TEAM: Final[str] = "team"
+STEP_KEY_ROLE_TASKS: Final[str] = "role_tasks"
+STEP_KEY_SKILLS: Final[str] = "skills"
+STEP_KEY_BENEFITS: Final[str] = "benefits"
+STEP_KEY_INTERVIEW: Final[str] = "interview"
+STEP_KEY_SUMMARY: Final[str] = "summary"
+
+# Plan/System steps that are intentionally excluded from intake completion/facts views.
+NON_INTAKE_STEP_KEYS: Final[tuple[str, ...]] = (
+    STEP_KEY_LANDING,
+    STEP_KEY_JOBSPEC_REVIEW,
+    STEP_KEY_SUMMARY,
+)
+
 
 # ---- Session State Keys ----
 class SSKey(str, Enum):
@@ -167,14 +185,18 @@ class WizardStepDef:
 
 
 STEPS: Final[List[WizardStepDef]] = [
-    WizardStepDef(key="landing", title_de="Start", icon="🏁"),
-    WizardStepDef(key="company", title_de="Unternehmen", icon="🏢"),
-    WizardStepDef(key="team", title_de="Team", icon="👥"),
-    WizardStepDef(key="role_tasks", title_de="Rolle & Aufgaben", icon="🧭"),
-    WizardStepDef(key="skills", title_de="Skills & Anforderungen", icon="🧠"),
-    WizardStepDef(key="benefits", title_de="Benefits & Rahmenbedingungen", icon="🎁"),
-    WizardStepDef(key="interview", title_de="Interviewprozess", icon="🗓️"),
-    WizardStepDef(key="summary", title_de="Zusammenfassung", icon="✅"),
+    WizardStepDef(key=STEP_KEY_LANDING, title_de="Start", icon="🏁"),
+    WizardStepDef(key=STEP_KEY_COMPANY, title_de="Unternehmen", icon="🏢"),
+    WizardStepDef(key=STEP_KEY_TEAM, title_de="Team", icon="👥"),
+    WizardStepDef(key=STEP_KEY_ROLE_TASKS, title_de="Rolle & Aufgaben", icon="🧭"),
+    WizardStepDef(key=STEP_KEY_SKILLS, title_de="Skills & Anforderungen", icon="🧠"),
+    WizardStepDef(
+        key=STEP_KEY_BENEFITS,
+        title_de="Benefits & Rahmenbedingungen",
+        icon="🎁",
+    ),
+    WizardStepDef(key=STEP_KEY_INTERVIEW, title_de="Interviewprozess", icon="🗓️"),
+    WizardStepDef(key=STEP_KEY_SUMMARY, title_de="Zusammenfassung", icon="✅"),
 ]
 
 
