@@ -533,18 +533,18 @@ def render(ctx: WizardContext) -> None:
         _render_badge_line(["ESCO essential"])
         st.caption(
             "Wähle Skills, die zwingend erforderlich sind. "
-            "Bestätige danach explizit als essential."
+            "Das ist zunächst Inferred suggestion/context; bestätige danach als confirmed selection (essential)."
         )
         render_esco_picker_card(
             concept_type="skill",
             target_state_key=SSKey.ESCO_SKILLS_SELECTED_MUST,
             allow_multi=True,
             enable_preview=True,
-            apply_label="Confirm essential skills",
+            apply_label="Confirm essential as confirmed selection",
             preview_label="Vorschau essential",
-            selection_label="Vorschläge für essential",
+            selection_label="Inferred suggestion/context for essential",
             confirmation_helper_text=(
-                "Bestätigung übernimmt die Auswahl als zwingende ESCO-Skills."
+                "Confirm stores the current inferred suggestion/context as confirmed selection (essential ESCO skills)."
             ),
         )
 
@@ -552,18 +552,18 @@ def render(ctx: WizardContext) -> None:
         _render_badge_line(["ESCO optional"])
         st.caption(
             "Wähle Skills, die hilfreich sind, aber nicht zwingend. "
-            "Bestätige danach explizit als optional."
+            "Das ist zunächst Inferred suggestion/context; bestätige danach als confirmed selection (optional)."
         )
         render_esco_picker_card(
             concept_type="skill",
             target_state_key=SSKey.ESCO_SKILLS_SELECTED_NICE,
             allow_multi=True,
             enable_preview=True,
-            apply_label="Confirm optional skills",
+            apply_label="Confirm optional as confirmed selection",
             preview_label="Vorschau optional",
-            selection_label="Vorschläge für optional",
+            selection_label="Inferred suggestion/context for optional",
             confirmation_helper_text=(
-                "Bestätigung übernimmt die Auswahl als optionale ESCO-Skills."
+                "Confirm stores the current inferred suggestion/context as confirmed selection (optional ESCO skills)."
             ),
         )
 
@@ -709,45 +709,45 @@ def render(ctx: WizardContext) -> None:
     )
     coverage_snapshot = sync_esco_shared_state()
 
-    st.markdown("### 3) Essential / Optional bestätigen")
+    st.markdown("### 3) Confirmed selection (Essential / Optional)")
     st.caption(
-        "Hier siehst du die bestätigte Gruppierung. Essential = erforderlich, "
+        "Hier siehst du die confirmed selection. Essential = erforderlich, "
         "Optional = zusätzlicher Mehrwert."
     )
     col_essential, col_optional = st.columns(2)
     with col_essential:
         _render_badge_line(["ESCO essential"])
         st.caption(
-            "Bestätigte essential Skills: "
+            "Confirmed selection (essential): "
             f"{len(coverage_snapshot.confirmed_essential_skills)}"
         )
         render_esco_explainability(
             labels=["manually selected by user"],
             confidence="high",
             reason="Bestätigte Must-Skills sind deterministisch durch die Nutzerentscheidung.",
-            caption_prefix="Confirmed Essential Skills",
+            caption_prefix="Confirmed selection · Essential skills",
         )
     with col_optional:
         _render_badge_line(["ESCO optional"])
         st.caption(
-            "Bestätigte optionale Skills: "
+            "Confirmed selection (optional): "
             f"{len(coverage_snapshot.confirmed_optional_skills)}"
         )
         render_esco_explainability(
             labels=["manually selected by user"],
             confidence="high",
             reason="Bestätigte Nice-to-have-Skills sind deterministisch durch die Nutzerentscheidung.",
-            caption_prefix="Confirmed Optional Skills",
+            caption_prefix="Confirmed selection · Optional skills",
         )
     _render_selected_skill_details(
-        title="Bestätigte essential Skills",
+        title="Confirmed selection · essential skills",
         selected_skills=deduped_must,
         detail_cache=detail_cache,
         is_expert_mode=is_expert_mode,
         key_prefix="skills.must",
     )
     _render_selected_skill_details(
-        title="Bestätigte optionale Skills",
+        title="Confirmed selection · optional skills",
         selected_skills=deduped_nice,
         detail_cache=detail_cache,
         is_expert_mode=is_expert_mode,
