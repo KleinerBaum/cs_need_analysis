@@ -151,6 +151,7 @@ class SidebarStepProgress(TypedDict):
     status: StepStatus
     answered: int
     total: int
+    payload: "SidebarStepDetailStatus"
 
 
 class SidebarStepDetailStatus(TypedDict):
@@ -265,10 +266,18 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
             answers=answers,
             answer_meta=answer_meta,
         )
-        answered = step_status["answered"]
-        total = step_status["total"]
+        payload: SidebarStepDetailStatus = {
+            "answered": int(step_status["answered"]),
+            "total": int(step_status["total"]),
+            "completion_state": cast(StepStatus, step_status["completion_state"]),
+            "essentials_answered": int(step_status["essentials_answered"]),
+            "essentials_total": int(step_status["essentials_total"]),
+            "missing_essentials": cast(list[str], step_status["missing_essentials"]),
+        }
+        answered = payload["answered"]
+        total = payload["total"]
 
-        status: StepStatus = cast(StepStatus, step_status["completion_state"])
+        status: StepStatus = payload["completion_state"]
         if total > 0:
             status = cast(StepStatus, step_status["completion_state"])
         elif page.key == "landing":
@@ -290,6 +299,7 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
                 "status": status,
                 "answered": answered,
                 "total": total,
+                "payload": payload,
             }
         )
     return statuses
@@ -312,49 +322,18 @@ def _build_step_status_payload_for_page(
     )
 
 
-def _compute_sidebar_step_detail_status(page: WizardPage) -> SidebarStepDetailStatus:
-    plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
-    plan: QuestionPlan | None = None
-    if isinstance(plan_dict, dict):
-        try:
-            plan = QuestionPlan.model_validate(plan_dict)
-        except Exception:
-            plan = None
-
-    answers_raw = st.session_state.get(SSKey.ANSWERS.value, {})
-    answers = answers_raw if isinstance(answers_raw, dict) else {}
-    answer_meta_raw = st.session_state.get(SSKey.ANSWER_META.value, {})
-    answer_meta = answer_meta_raw if isinstance(answer_meta_raw, dict) else {}
-
-    step_status = _build_step_status_payload_for_page(
-        page_key=page.key,
-        questions=_get_step_questions(plan, page.key),
-        answers=answers,
-        answer_meta=answer_meta,
-    )
-
-    return {
-        "answered": int(step_status["answered"]),
-        "total": int(step_status["total"]),
-        "completion_state": cast(StepStatus, step_status["completion_state"]),
-        "essentials_answered": int(step_status["essentials_answered"]),
-        "essentials_total": int(step_status["essentials_total"]),
-        "missing_essentials": cast(list[str], step_status["missing_essentials"]),
-    }
-
-
-def _render_sidebar_step_status_card(page: WizardPage) -> None:
-    status = _compute_sidebar_step_detail_status(page)
+def _render_sidebar_step_status_card(
+    *, page: WizardPage, status: SidebarStepDetailStatus
+) -> None:
+    state = status["completion_state"]
+    indicator = _status_prefix(state)
+    missing = status["missing_essentials"][:3]
     with st.sidebar.container(border=True):
-        st.caption(f"Step: {page.title_de}")
         st.caption(
-            f"Status {status['answered']}/{status['total']} · "
-            f"Essentials {status['essentials_answered']}/{status['essentials_total']}"
+            f"{indicator} {page.title_de} · {status['answered']}/{status['total']}"
         )
-        if status["missing_essentials"]:
-            st.caption("Missing")
-            for label in status["missing_essentials"]:
-                st.markdown(f"- {label}")
+        if missing:
+            st.caption(f"Missing: {', '.join(missing)}")
 
 
 def _get_esco_config() -> dict[str, object]:
@@ -844,6 +823,13 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
         st.rerun()
 
     current_page = next(p for p in pages if p.key == selected)
+    current_status = status_by_key.get(current_page.key)
+    if current_status is not None:
+        _render_sidebar_step_status_card(
+            page=current_page,
+            status=current_status["payload"],
+        )
+
     job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
     answers_raw = st.session_state.get(SSKey.ANSWERS.value, {})
     answers = answers_raw if isinstance(answers_raw, dict) else {}
