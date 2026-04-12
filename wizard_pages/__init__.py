@@ -13,6 +13,7 @@ import re
 from pathlib import Path
 from typing import List
 
+from constants import STEPS
 from wizard_pages.base import WizardPage
 
 
@@ -59,4 +60,11 @@ def load_pages() -> List[WizardPage]:
         pages.append(page)
 
     # Ensure stable ordering: by filename (00_, 01_, ...)
+    expected_step_keys = [step.key for step in STEPS]
+    loaded_step_keys = [page.key for page in pages]
+    if loaded_step_keys != expected_step_keys:
+        raise RuntimeError(
+            "Wizard page contract mismatch: loaded page keys must match constants.STEPS "
+            f"in order. loaded={loaded_step_keys}, expected={expected_step_keys}"
+        )
     return pages
