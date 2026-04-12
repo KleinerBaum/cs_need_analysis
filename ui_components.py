@@ -7,7 +7,7 @@ import re
 import hashlib
 from datetime import date
 from collections.abc import Sequence
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, Literal, Optional, TypedDict
 
 import streamlit as st
 
@@ -57,6 +57,39 @@ ESCO_EXPLAINABILITY_LABELS: tuple[str, ...] = (
     "manually selected by user",
 )
 ESCO_CONFIDENCE_BUCKETS: tuple[str, ...] = ("high", "medium", "low")
+
+
+class StepReviewPayload(TypedDict):
+    visible_questions: list[Question]
+    answers: dict[str, Any]
+    answer_meta: dict[str, Any]
+    answered_lookup: dict[str, bool]
+
+
+def build_step_review_payload(step: QuestionStep | None) -> StepReviewPayload:
+    answers = get_answers()
+    answer_meta = get_answer_meta()
+    if step is None or not step.questions:
+        return {
+            "visible_questions": [],
+            "answers": answers,
+            "answer_meta": answer_meta,
+            "answered_lookup": {},
+        }
+
+    visible_questions = [
+        question
+        for question in step.questions
+        if should_show_question(question, answers, answer_meta, step.step_key)
+    ]
+    return {
+        "visible_questions": visible_questions,
+        "answers": answers,
+        "answer_meta": answer_meta,
+        "answered_lookup": build_answered_lookup(
+            visible_questions, answers, answer_meta
+        ),
+    }
 
 
 def _normalize_esco_explainability_label(label: str) -> str:

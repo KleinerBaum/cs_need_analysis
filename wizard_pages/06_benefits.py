@@ -4,12 +4,11 @@ from __future__ import annotations
 import streamlit as st
 
 from constants import SSKey
-from question_dependencies import should_show_question
-from question_progress import build_answered_lookup
 from schemas import JobAdExtract, QuestionPlan
-from state import get_answer_meta, get_answers
+from state import get_answers
 from ui_layout import render_step_shell
 from ui_components import (
+    build_step_review_payload,
     has_meaningful_value,
     render_error_banner,
     render_question_step,
@@ -80,21 +79,13 @@ def render(ctx: WizardContext) -> None:
     def _render_review_slot() -> None:
         if step is None or not step.questions:
             return
-        answers = get_answers()
-        answer_meta = get_answer_meta()
-        visible_questions = [
-            question
-            for question in step.questions
-            if should_show_question(question, answers, answer_meta, step.step_key)
-        ]
+        review_payload = build_step_review_payload(step)
         render_step_review_card(
             step=step,
-            visible_questions=visible_questions,
-            answers=answers,
-            answer_meta=answer_meta,
-            answered_lookup=build_answered_lookup(
-                visible_questions, answers, answer_meta
-            ),
+            visible_questions=review_payload["visible_questions"],
+            answers=review_payload["answers"],
+            answer_meta=review_payload["answer_meta"],
+            answered_lookup=review_payload["answered_lookup"],
         )
 
     render_step_shell(
