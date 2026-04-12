@@ -13,12 +13,12 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 - Die vormals getrennte Ansicht **Identifizierte Informationen** ist in den Start-Schritt integriert (eine Wizard-Stufe weniger): Nach der Analyse erscheinen dort direkt die editierbare Übersicht, Gaps/Annahmen und der Übergang von Phase B zu Phase C bzw. in den nächsten Fachschritt; es gibt **keinen separaten sichtbaren Review-Wizard-Schritt** mehr.
 - Finaler **Recruiting Brief** mit Export als JSON, Markdown und DOCX.
 - **Summary-Workspace** mit klarer Tab-Struktur: `Readiness` (Startansicht), `Fakten`, `Artefakte`, `Export`, `Advanced`.
-- Der Tab **`Readiness`** zeigt modellbewusst die **„next best action“** an (inkl. kontextabhängiger Hinweise je nach aktuellem Bearbeitungsstand).
+- Der Tab **`Readiness`** zeigt modellbewusst die **„next best action“** an (inkl. kontextabhängiger Hinweise je nach aktuellem Bearbeitungsstand) sowie ESCO-Coverage-, Confirmed/Inferred- und Lückenindikatoren.
 - Die Verfügbarkeit von CTAs in der Summary folgt einer Kombination aus **fachlichen Voraussetzungen** (Prerequisites) und **kurzen Freshness-Checks** auf die zugrunde liegenden Inhalte.
 - **Artefakt-Generierung bleibt exklusiv im Tab `Artefakte`; Export bleibt exklusiv im Tab `Export`** (keine Vermischung der Verantwortlichkeiten zwischen den Tabs).
 - **Action Hub im Tab `Artefakte`** mit kanonischen Artefakt-IDs (`brief`, `job_ad`, `interview_hr`, `interview_fach`, `boolean_search`, `employment_contract`) und fokussiertem Primärpfad (Recruiting Brief → Folgeartefakte → Export).
 - Der Artefaktbereich wurde auf eine scannbare Einzeldarstellung konsolidiert (keine doppelten Ergebnisblöcke); weitere Ergebnisse werden sekundär umgeschaltet.
-- Beim Job-Ad-Generator liegen **Selection Matrix** und **Job-Ad-Editor** gebündelt im erweiterten Bereich, inkl. optionalem Logo-Upload sowie Styleguide-/Change-Request-Bausteinen.
+- Beim Job-Ad-Generator liegen **Selection Matrix** und **Job-Ad-Editor** gebündelt im erweiterten Bereich (UI-Modus `expert`), inkl. optionalem Logo-Upload sowie Styleguide-/Change-Request-Bausteinen.
 - Der Salary Forecast wird in den Schritten Rolle & Aufgaben, Skills & Anforderungen sowie Benefits & Rahmenbedingungen als standardmäßig geöffnete Sektion angezeigt.
 - ESCO-Integration in **Start · Phase C (ESCO Semantic Anchor)** mit Occupation-Picker, Preview und expliziter Bestätigung als **semantischer Anker**; diese Bestätigung erfolgt vor der Weiterarbeit in Team/Skills und dient dort als Downstream-Grundlage. Zusätzlich gibt es einen expandierbaren Occupation-Detailbereich (u. a. Preferred/Alternative Labels, Description, Scope Note, ISCO-08, Regulated Profession sowie Skill-/Knowledge-Relationen) sowie optionales Laden von Occupation-Titelvarianten in mehreren Sprachen.
 - Skills-Mapping als geführter 4-Schritt-Flow: (1) extrahierte Jobspec-Phrasen, (2) ESCO-Normalisierung über Occupation-Relationen, (3) sichtbare Essential/Optional-Bestätigung, (4) dedizierter Bereich „Not normalized yet“ mit Optionen „Keep free text“, Retry-Suche und Attach an Occupation.
@@ -27,6 +27,22 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 - Primäre Fakten-Tabelle in der Summary (Bereich/Feld/Wert/Quelle/Status) inkl. Such-/Statusfilter, plus sekundärer Kompaktüberblick und ESCO Mapping Report (JSON/CSV-Export).
 - In den Schritten **Rolle & Aufgaben** sowie **Skills & Anforderungen** läuft die Übernahme über „**Vergleichen & übernehmen**“-Tabellen: Vorschläge aus Jobspec, ESCO und AI werden nebeneinander gestellt und selektiv übernommen; im Skills-Schritt zusätzlich mit Quellen-Badges (`Jobspec`, `ESCO essential`, `ESCO optional`, `AI suggestion`) und kanonischer Semantik mit **Inferred suggestion/context** und **confirmed selection** (`Confirm essential as confirmed selection`, `Confirm optional as confirmed selection`).
 - Session-basiertes LLM-Response-Caching mit Cache-Hinweisen in Intake/Summary (DE/EN), inkl. Cache-Status für Folgeartefakte.
+
+## Wizard-Flow (implementiert)
+
+1. **Start**
+   - Phase A: Quelle, Consent, optionale PII-Redaktion, UI-Modus
+   - Phase B: editierbare „Identifizierte Informationen“ + Gaps/Assumptions
+   - Phase C: ESCO Semantic Anchor (verpflichtende Bestätigung vor „Weiter“)
+2. **Unternehmen** (optionaler NACE-Code, falls Mapping geladen ist)
+3. **Team**
+4. **Rolle & Aufgaben**
+5. **Skills & Anforderungen**
+6. **Benefits & Rahmenbedingungen**
+7. **Interviewprozess**
+8. **Zusammenfassung** (`Readiness`, `Fakten`, `Artefakte`, `Export`, `Advanced`)
+
+Hinweis: Der frühere Schritt `jobspec_review` ist nur noch als Legacy-Modul vorhanden und nicht routbar.
 
 ## Voraussetzungen
 
@@ -45,9 +61,11 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 ## Installation
 
 ```bash
+python -m pip install --upgrade pip
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt -c constraints.txt
+streamlit run app.py
 ```
 
 Falls du ohne Constraints arbeiten willst, bleibt auch `pip install -r requirements.txt` möglich.
@@ -84,9 +102,9 @@ streamlit run app.py
 ```bash
 pip check
 python -c "import openai; print(openai.__version__)"
+python -c "from eures_mapping import load_national_code_lookup_from_file as f; print('ok' if callable(f) else 'fail')"
 ```
 
-## OpenAI Modell-Kompatibilität
 ## OpenAI Konfiguration (Secrets, Env, UI)
 
 Du kannst die OpenAI-Parameter entweder als Root-Level-Secrets oder in einer `[openai]`-Sektion in `.streamlit/secrets.toml` setzen.
@@ -217,10 +235,16 @@ Für verlässliche lokale Verifikation daher nicht nur auf Env-Mutation verlasse
 
 Dieser Smoke-Test ist der bevorzugte Verifikationspfad für Änderungen an Modellrouting, Capability-Gating, `reasoning_effort`, `verbosity`, `temperature` und OpenAI-Request-Building.
 
+## EURES/NACE Mapping (optional)
+
+- Optionaler NACE→ESCO-Lookup wird über `EURES_NACE_MAPPING_CSV` geladen.
+- Ist kein Mapping geladen, bleibt der NACE-Block im Unternehmensschritt unsichtbar.
+- Ist ein Mapping geladen, wird der gesetzte NACE-Code in der Summary-Readiness separat von ESCO berücksichtigt.
+
 ## Exporte
 
 - Recruiting Brief: JSON, Markdown, DOCX
-- Job-Ad-Ergebnis: DOCX, PDF
+- Job-Ad-Ergebnis: DOCX, PDF (nur wenn `reportlab` verfügbar ist)
 - Interview-Sheet (HR): JSON, DOCX
 - Interview-Sheet (Fachbereich): JSON, DOCX
 - Boolean Search Pack: JSON, Markdown

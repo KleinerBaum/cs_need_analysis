@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-04-12
+
+- README an den aktuellen Redesign-Stand angepasst: dokumentierter Wizard-Flow (Start-Phasen A/B/C, kein separater routbarer Review-Schritt), Summary-Tab-Semantik (`Readiness`, `Fakten`, `Artefakte`, `Export`, `Advanced`) und ESCO-Anchor-/Readiness-Verhalten präzisiert.
+- README-Exportmatrix mit Laufzeitverhalten synchronisiert (`Job-Ad`-PDF nur bei verfügbarer `reportlab`-Abhängigkeit).
+- README-Install-/Run-/Verifikationsabschnitte auf die im Repo genutzten Befehle aktualisiert (`pip`-Upgrade, `streamlit run app.py`, ergänzte Verifikationschecks).
+- README um optionales EURES/NACE-Mapping (`EURES_NACE_MAPPING_CSV`) und dessen Sichtbarkeit/Readiness-Auswirkung ergänzt.
+
 ## 2026-04-07
 
 - `llm_client.py` um Session-basiertes LLM-Response-Caching erweitert: Cache-Key basiert auf task_kind, resolved_model, language, reasoning/verbosity, store-Flag, normalisiertem Inhalt (`job_text` bzw. serialisierte `job`/`answers`) plus optionaler Schema-Version.
