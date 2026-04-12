@@ -32,6 +32,9 @@ UI_MODE_HELP_TEXT: Final[str] = (
 
 # ---- Canonical Wizard Step Keys ----
 STEP_KEY_LANDING: Final[str] = "landing"
+# Legacy-only key: previously rendered as a standalone step via 01a_jobspec_review.py.
+# The integrated flow now handles extraction review and ESCO confirmation directly in
+# Start phases B/C, so this key must stay out of active runtime step contracts.
 STEP_KEY_JOBSPEC_REVIEW: Final[str] = "jobspec_review"
 STEP_KEY_COMPANY: Final[str] = "company"
 STEP_KEY_TEAM: Final[str] = "team"
@@ -44,7 +47,6 @@ STEP_KEY_SUMMARY: Final[str] = "summary"
 # Plan/System steps that are intentionally excluded from intake completion/facts views.
 NON_INTAKE_STEP_KEYS: Final[tuple[str, ...]] = (
     STEP_KEY_LANDING,
-    STEP_KEY_JOBSPEC_REVIEW,
     STEP_KEY_SUMMARY,
 )
 

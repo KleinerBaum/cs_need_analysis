@@ -28,10 +28,14 @@ def _load_module_from_path(path: Path, module_name: str):
 
 def load_pages() -> List[WizardPage]:
     pages_dir = Path(__file__).parent
+    # Keep this list explicit so detached/legacy modules never become routable by
+    # filename pattern alone.
     ignore = {
         "__init__.py",
         "base.py",
         "jobad_intake.py",
+        # Legacy hidden-step module: Start phases B/C now contain this flow.
+        # Intentionally non-routable in the canonical wizard.
         "01a_jobspec_review.py",
     }
     page_pattern = re.compile(r"^\d+[a-z]?_")

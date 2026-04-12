@@ -1,3 +1,12 @@
+"""Legacy jobspec review page.
+
+This module is intentionally kept as a non-routable legacy implementation. The active
+wizard no longer exposes a separate "Identifizierte Informationen" step; extraction
+review and ESCO confirmation are integrated into Start phases B/C.
+
+Some helper behavior in this module is still referenced by focused tests.
+"""
+
 from __future__ import annotations
 
 from typing import cast
