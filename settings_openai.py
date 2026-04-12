@@ -41,6 +41,7 @@ _TASK_KINDS = (
     "generate_interview_sheet_hm",
     "generate_boolean_search",
     "generate_employment_contract",
+    "generate_requirement_gap_suggestions",
 )
 
 
