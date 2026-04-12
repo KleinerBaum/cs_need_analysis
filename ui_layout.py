@@ -6,6 +6,7 @@ from collections.abc import Callable
 
 import streamlit as st
 
+from constants import COMPLETION_STATE_BADGE_TEXT, COMPLETION_STATE_NOT_STARTED
 from question_dependencies import should_show_question
 from schemas import QuestionStep
 from step_status import StepStatusPayload, build_step_status_payload
@@ -13,11 +14,9 @@ from state import get_answer_meta, get_answers
 
 
 def _status_badge_text(completion_state: str) -> str:
-    if completion_state == "complete":
-        return "✅ Vollständig"
-    if completion_state == "partial":
-        return "🟡 Teilweise"
-    return "⬜ Offen"
+    return COMPLETION_STATE_BADGE_TEXT.get(
+        completion_state, COMPLETION_STATE_BADGE_TEXT[COMPLETION_STATE_NOT_STARTED]
+    )
 
 
 def _truncate_missing_essentials(
