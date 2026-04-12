@@ -1824,6 +1824,41 @@ def _render_requirement_selection_table(
     return selected_labels
 
 
+def render_compare_adopt_intro(
+    *,
+    adopt_target: str,
+    canonical_target: str,
+    source_labels: Sequence[str] = ("Jobspec", "ESCO", "AI"),
+    include_inferred_confirmed_note: bool = False,
+) -> None:
+    badge_html = " ".join(
+        (
+            "<span style='display:inline-block;padding:0.15rem 0.45rem;border-radius:0.6rem;"
+            "border:1px solid #d1d5db;font-size:0.78rem;'>"
+            f"{badge}</span>"
+        )
+        for badge in (
+            [f"{'/'.join(source_labels)} = Vorschläge", "Status: inferred context"]
+            if source_labels
+            else ["Status: inferred context"]
+        )
+    )
+    st.markdown(badge_html, unsafe_allow_html=True)
+    st.caption(
+        f"Warum nebeneinander? {', '.join(source_labels)} liefern unterschiedliche Perspektiven "
+        "auf denselben Bedarf und machen Lücken/Widersprüche sichtbar."
+    )
+    st.caption(
+        f"„Übernehmen“ schreibt dedupliziert in `{canonical_target}` "
+        f"(canonical selected list für {adopt_target})."
+    )
+    if include_inferred_confirmed_note:
+        st.caption(
+            "Inferred = Vorschlag/Arbeitskontext; confirmed = durch Nutzer bestätigt "
+            "und für Summary/Exporte priorisiert."
+        )
+
+
 def render_compact_requirement_board(
     *,
     title_jobspec: str,
