@@ -103,6 +103,20 @@ def build_step_review_payload(step: QuestionStep | None) -> StepReviewPayload:
     }
 
 
+def render_standard_step_review(step: QuestionStep | None) -> None:
+    if step is None or not step.questions:
+        return
+    review_payload = build_step_review_payload(step)
+    render_step_review_card(
+        step=step,
+        visible_questions=review_payload["visible_questions"],
+        answers=review_payload["answers"],
+        answer_meta=review_payload["answer_meta"],
+        answered_lookup=review_payload["answered_lookup"],
+        step_status=review_payload["step_status"],
+    )
+
+
 def _normalize_esco_explainability_label(label: str) -> str:
     normalized = " ".join(str(label or "").strip().casefold().split())
     legacy_to_canonical = {

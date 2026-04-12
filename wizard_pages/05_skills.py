@@ -20,14 +20,13 @@ from state import (
 )
 from ui_layout import render_step_shell
 from ui_components import (
-    build_step_review_payload,
     has_meaningful_value,
     render_esco_explainability,
     render_compact_requirement_board,
     render_error_banner,
     render_esco_picker_card,
     render_question_step,
-    render_step_review_card,
+    render_standard_step_review,
 )
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
 from wizard_pages.salary_forecast_panel import render_salary_forecast_panel
@@ -891,22 +890,8 @@ def render(ctx: WizardContext) -> None:
             selected_occupation=selected_occupation,
             coverage_snapshot=coverage_snapshot,
         ),
-        review_slot=lambda: _render_review_slot(step),
+        review_slot=lambda: render_standard_step_review(step),
         footer_slot=lambda: nav_buttons(ctx),
-    )
-
-
-def _render_review_slot(step: QuestionStep | None) -> None:
-    if step is None or not step.questions:
-        return
-    review_payload = build_step_review_payload(step)
-    render_step_review_card(
-        step=step,
-        visible_questions=review_payload["visible_questions"],
-        answers=review_payload["answers"],
-        answer_meta=review_payload["answer_meta"],
-        answered_lookup=review_payload["answered_lookup"],
-        step_status=review_payload["step_status"],
     )
 
 
