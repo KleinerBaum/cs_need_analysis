@@ -2320,13 +2320,16 @@ def _build_artifact_status_rows(
 
 def _resolve_next_best_action(
     action_registry: list[SummaryAction],
+    resolved_brief_model: str,
 ) -> SummaryAction | None:
     brief_action = next(
         (action for action in action_registry if action["id"] == "brief"),
         None,
     )
     if brief_action is not None:
-        brief_status = _resolve_canonical_brief_status(resolved_brief_model="")
+        brief_status = _resolve_canonical_brief_status(
+            resolved_brief_model=resolved_brief_model
+        )
         if not brief_status.ready_for_follow_ups:
             return brief_action
     for action in action_registry:
@@ -2349,12 +2352,15 @@ def _render_readiness_tab(
     *,
     vm: SummaryViewModel,
     action_registry: list[SummaryAction],
+    resolved_brief_model: str,
 ) -> None:
     if hasattr(st, "subheader"):
         st.subheader("Readiness")
     else:
         st.markdown("### Readiness")
-    next_action = _resolve_next_best_action(action_registry)
+    next_action = _resolve_next_best_action(
+        action_registry, resolved_brief_model=resolved_brief_model
+    )
     if next_action is None:
         st.info("Aktuell ist kein nächster Schritt verfügbar.")
     else:
@@ -3395,7 +3401,11 @@ def render(ctx: WizardContext) -> None:
         )
 
         with readiness_tab:
-            _render_readiness_tab(vm=vm, action_registry=action_registry)
+            _render_readiness_tab(
+                vm=vm,
+                action_registry=action_registry,
+                resolved_brief_model=resolved_brief_model,
+            )
 
         with facts_tab:
             # SUMMARY_ZONE: FACTS
