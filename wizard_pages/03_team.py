@@ -11,12 +11,11 @@ from esco_client import EscoClient, EscoClientError
 from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
 from state import get_answers, mark_answer_touched, set_answer
 from ui_components import (
-    build_step_review_payload,
     has_meaningful_value,
     render_esco_explainability,
     render_error_banner,
     render_question_step,
-    render_step_review_card,
+    render_standard_step_review,
 )
 from ui_layout import render_step_shell
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
@@ -300,19 +299,6 @@ def render(ctx: WizardContext) -> None:
         with context_col:
             _render_role_context_enrichment(step=step, ctx=ctx)
 
-    def _render_review_slot() -> None:
-        if step is None or not step.questions:
-            return
-        review_payload = build_step_review_payload(step)
-        render_step_review_card(
-            step=step,
-            visible_questions=review_payload["visible_questions"],
-            answers=review_payload["answers"],
-            answer_meta=review_payload["answer_meta"],
-            answered_lookup=review_payload["answered_lookup"],
-            step_status=review_payload["step_status"],
-        )
-
     render_step_shell(
         title="Team",
         subtitle="Teamkontext, Schnittstellen und Zusammenarbeit.",
@@ -324,7 +310,7 @@ def render(ctx: WizardContext) -> None:
         extracted_from_jobspec_slot=_render_extracted_slot,
         extracted_from_jobspec_label="Aus Jobspec extrahiert (Team/Org)",
         main_content_slot=_render_main_slot,
-        review_slot=_render_review_slot,
+        review_slot=lambda: render_standard_step_review(step),
         footer_slot=lambda: nav_buttons(ctx),
     )
 

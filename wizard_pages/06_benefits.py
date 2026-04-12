@@ -8,11 +8,10 @@ from schemas import JobAdExtract, QuestionPlan
 from state import get_answers
 from ui_layout import render_step_shell
 from ui_components import (
-    build_step_review_payload,
     has_meaningful_value,
     render_error_banner,
     render_question_step,
-    render_step_review_card,
+    render_standard_step_review,
 )
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
 from wizard_pages.salary_forecast_panel import render_salary_forecast_panel
@@ -76,19 +75,6 @@ def render(ctx: WizardContext) -> None:
 
         render_question_step(step)
 
-    def _render_review_slot() -> None:
-        if step is None or not step.questions:
-            return
-        review_payload = build_step_review_payload(step)
-        render_step_review_card(
-            step=step,
-            visible_questions=review_payload["visible_questions"],
-            answers=review_payload["answers"],
-            answer_meta=review_payload["answer_meta"],
-            answered_lookup=review_payload["answered_lookup"],
-            step_status=review_payload["step_status"],
-        )
-
     render_step_shell(
         title="Benefits & Rahmenbedingungen",
         subtitle=(
@@ -104,7 +90,7 @@ def render(ctx: WizardContext) -> None:
         extracted_from_jobspec_slot=_render_extracted_slot,
         extracted_from_jobspec_label="Aus Jobspec extrahiert (Benefits/Comp)",
         main_content_slot=_render_main_slot,
-        review_slot=_render_review_slot,
+        review_slot=lambda: render_standard_step_review(step),
         footer_slot=lambda: nav_buttons(ctx),
     )
 
