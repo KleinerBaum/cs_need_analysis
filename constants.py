@@ -168,11 +168,6 @@ class WizardStepDef:
 
 STEPS: Final[List[WizardStepDef]] = [
     WizardStepDef(key="landing", title_de="Start", icon="🏁"),
-    WizardStepDef(
-        key="jobspec_review",
-        title_de="Identifizierte Informationen",
-        icon="🧾",
-    ),
     WizardStepDef(key="company", title_de="Unternehmen", icon="🏢"),
     WizardStepDef(key="team", title_de="Team", icon="👥"),
     WizardStepDef(key="role_tasks", title_de="Rolle & Aufgaben", icon="🧭"),

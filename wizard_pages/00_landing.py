@@ -159,7 +159,7 @@ def render(ctx: WizardContext) -> None:
         )
 
     st.divider()
-    render_jobad_intake(title=str(LANDING_COPY["primary_cta"]))
+    render_jobad_intake(ctx, title=str(LANDING_COPY["primary_cta"]))
 
 
 PAGE = WizardPage(

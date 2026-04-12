@@ -15,6 +15,7 @@ from llm_client import (
     resolve_model_for_task,
 )
 from parsing import extract_text_from_uploaded_file, redact_pii
+from schemas import JobAdExtract, QuestionPlan
 from settings_openai import load_openai_settings
 from state import (
     clear_error,
@@ -24,17 +25,27 @@ from state import (
 )
 from ui_components import render_error_banner, render_openai_error
 from usage_utils import usage_has_cache_hit
-from wizard_pages.base import (
-    LANDING_CTA_KEYS,
-    render_ui_mode_selector,
-    set_current_step,
-)
+from wizard_pages.base import WizardContext, render_ui_mode_selector
 
 
 SOURCE_TEXT_INPUT_KEY: Final[str] = "cs.source_text_input"
 SOURCE_UPLOAD_SIG_KEY: Final[str] = "cs.source_upload_signature"
 SOURCE_UPLOAD_TEXT_KEY: Final[str] = "cs.source_uploaded_text"
 SOURCE_ACTIVE_KEY: Final[str] = "cs.source_active"
+EXTRACT_FIELD_LABELS: Final[dict[str, str]] = {
+    "job_title": "Stellenbezeichnung",
+    "company_name": "Unternehmen",
+    "brand_name": "Marke",
+    "language_guess": "Sprache",
+    "employment_type": "Beschäftigungsart",
+    "contract_type": "Vertragsart",
+    "seniority_level": "Karrierestufe",
+    "start_date": "Eintrittsdatum",
+    "application_deadline": "Bewerbungsfrist",
+    "job_ref_number": "Referenznummer",
+    "department_name": "Abteilung",
+    "reports_to": "Berichtet an",
+}
 
 
 def _preview_height_for_text(text: str) -> int:
@@ -54,6 +65,109 @@ def _manual_input_height_for_text(text: str) -> int:
     min_height_px = 200
     max_height_px = 380
     return max(min_height_px, min(_preview_height_for_text(text), max_height_px))
+
+
+def _render_upload_preview(uploaded_text: str) -> None:
+    lines = uploaded_text.splitlines()
+    first_lines = "\n".join(lines[:3]).strip() or "—"
+    st.text_area(
+        "Preview (Textauszug)",
+        value=first_lines,
+        height=112,
+        key="cs.source_upload_preview_first",
+        disabled=True,
+    )
+
+    if len(lines) > 3:
+        remaining = "\n".join(lines[3:]).strip()
+        with st.expander("Weitere Zeilen anzeigen", expanded=False):
+            st.text_area(
+                "Restlicher Text",
+                value=remaining,
+                height=min(260, _preview_height_for_text(remaining)),
+                key="cs.source_upload_preview_rest",
+                disabled=True,
+            )
+
+
+def _render_identified_information_block(ctx: WizardContext) -> None:
+    job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
+    plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
+    if not isinstance(job_dict, dict) or not isinstance(plan_dict, dict):
+        return
+
+    job = JobAdExtract.model_validate(job_dict)
+    plan = QuestionPlan.model_validate(plan_dict)
+
+    st.markdown("### Identifizierte Informationen")
+
+    values = job.model_dump()
+    rows = [
+        {
+            "anzeige_feld": label,
+            "machine_field": field,
+            "inhalt": values.get(field),
+        }
+        for field, label in EXTRACT_FIELD_LABELS.items()
+        if values.get(field) not in (None, "", [])
+    ]
+    st.caption(
+        "Extrahierte Werte können hier direkt angepasst werden. Änderungen werden sofort gespeichert."
+    )
+    edited = st.data_editor(
+        rows,
+        width="stretch",
+        hide_index=True,
+        num_rows="fixed",
+        key="cs.jobspec.ident_info.table",
+        column_config={
+            "anzeige_feld": st.column_config.TextColumn("Information", disabled=True),
+            "machine_field": None,
+            "inhalt": st.column_config.TextColumn("Aktueller Wert"),
+        },
+    )
+    updated_values = dict(values)
+    for row in edited:
+        machine_field = str(row.get("machine_field", "")).strip()
+        if not machine_field:
+            continue
+        value = row.get("inhalt")
+        normalized = str(value).strip() if value is not None else ""
+        updated_values[machine_field] = normalized or None
+    st.session_state[SSKey.JOB_EXTRACT.value] = JobAdExtract.model_validate(
+        updated_values
+    ).model_dump()
+
+    gap_col, assumptions_col = st.columns(2, gap="medium")
+    with gap_col:
+        st.markdown("#### Fehlende oder unklare Punkte")
+        if job.gaps:
+            for gap in job.gaps:
+                st.write(f"- {gap}")
+        else:
+            st.write("- Keine expliziten Gaps erkannt.")
+    with assumptions_col:
+        st.markdown("#### Annahmen")
+        if job.assumptions:
+            for assumption in job.assumptions:
+                st.write(f"- {assumption}")
+        else:
+            st.write("- Keine Annahmen dokumentiert.")
+
+    plan_question_count = sum(len(step.questions) for step in plan.steps)
+    nav_col_back, nav_col_plan, nav_col_next = st.columns([1, 3, 1], gap="small")
+    with nav_col_back:
+        if st.button("← Zurück", key="cs.jobspec.ident_info.back"):
+            ctx.prev()
+            st.rerun()
+    with nav_col_plan:
+        st.info(
+            f'QuestionPlan geladen: "{plan_question_count}" Fragen in {len(plan.steps)} Steps.'
+        )
+    with nav_col_next:
+        if st.button("Weiter →", key="cs.jobspec.ident_info.next"):
+            ctx.next()
+            st.rerun()
 
 
 def _set_active_source(source: str, text: str) -> None:
@@ -106,7 +220,9 @@ def _on_upload_change() -> None:
     )
 
 
-def render_jobad_intake(*, title: str = "Jobspezifikation einlesen") -> None:
+def render_jobad_intake(
+    ctx: WizardContext, *, title: str = "Jobspezifikation einlesen"
+) -> None:
     st.header(title)
     render_error_banner()
 
@@ -119,24 +235,24 @@ def render_jobad_intake(*, title: str = "Jobspezifikation einlesen") -> None:
             SSKey.SOURCE_TEXT.value, ""
         )
 
-    tab1, tab2 = st.tabs(["📤 Upload", "📝 Text einfügen"])
     do_extract = False
 
-    with tab1:
-        with st.container(border=True):
-            st.markdown(
-                """
-                <style>
-                .st-key-cs_ui_mode [data-baseweb="select"] > div,
-                .st-key-cs-ui_mode [data-baseweb="select"] > div {
-                    background: rgba(255, 255, 255, 0.10) !important;
-                    color: #eaf2ff !important;
-                    border: 1px solid rgba(255, 255, 255, 0.25) !important;
-                }
-                </style>
-                """,
-                unsafe_allow_html=True,
-            )
+    with st.container(border=True):
+        st.markdown(
+            """
+            <style>
+            .st-key-cs_ui_mode [data-baseweb="select"] > div,
+            .st-key-cs-ui_mode [data-baseweb="select"] > div {
+                background: rgba(255, 255, 255, 0.10) !important;
+                color: #eaf2ff !important;
+                border: 1px solid rgba(255, 255, 255, 0.25) !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+        upload_col, text_col = st.columns([1, 1.4], gap="large")
+        with upload_col:
             st.file_uploader(
                 "Jobspec hochladen (PDF oder DOCX)",
                 type=["pdf", "docx", "txt"],
@@ -144,50 +260,38 @@ def render_jobad_intake(*, title: str = "Jobspezifikation einlesen") -> None:
                 key="cs.source_upload_file",
                 on_change=_on_upload_change,
             )
+            st.markdown("**Wie weit möchten Sie ins Detail gehen?**")
             render_ui_mode_selector()
-            uploaded_text = str(st.session_state.get(SOURCE_UPLOAD_TEXT_KEY, ""))
-            upload_meta = st.session_state.get(SSKey.SOURCE_FILE_META.value, {})
-            if uploaded_text:
-                col_meta_left, col_meta_right = st.columns([2, 1])
-                with col_meta_left:
-                    st.success(f"Datei geladen: {upload_meta.get('name', 'Unbekannt')}")
-                with col_meta_right:
-                    st.metric("Zeichen", f"{len(uploaded_text):,}".replace(",", "."))
-                preview_text = uploaded_text[:4000]
-                st.text_area(
-                    "Preview (Textauszug)",
-                    value=preview_text,
-                    height=_preview_height_for_text(preview_text),
-                    key="cs.source_upload_preview",
-                    disabled=True,
-                )
-            st.caption(
-                "Wenn für eure Organisation Designated Content freigegeben ist, können diese Inhalte "
-                "von OpenAI zu Entwicklungszwecken genutzt werden (inkl. Training, Evaluierung, Tests). "
-                "Ihr müsst Endnutzende informieren und – falls erforderlich – Einwilligungen einholen."
-            )
-            st.checkbox(
-                "Bestätigung",
-                key=LANDING_CTA_KEYS["consent"],
-                label_visibility="collapsed",
-            )
-            button_spacer_col, button_col = st.columns([3, 2])
-            with button_col:
-                do_extract = st.button(
-                    "Jetzt analysieren",
-                    width="stretch",
-                    help="Analysieren und direkt zu den Identifizierten Informationen wechseln",
-                )
-
-    with tab2:
-        with st.container(border=True):
+        with text_col:
             manual_text = str(st.session_state.get(SOURCE_TEXT_INPUT_KEY, ""))
             st.text_area(
-                "Jobspec Text",
+                "Text einfügen",
                 key=SOURCE_TEXT_INPUT_KEY,
-                height=_manual_input_height_for_text(manual_text),
+                height=max(280, _manual_input_height_for_text(manual_text)),
                 on_change=_on_manual_text_change,
                 placeholder="Füge hier die Stellenanzeige oder Jobspec ein …",
+            )
+
+        uploaded_text = str(st.session_state.get(SOURCE_UPLOAD_TEXT_KEY, ""))
+        upload_meta = st.session_state.get(SSKey.SOURCE_FILE_META.value, {})
+        if uploaded_text:
+            _render_upload_preview(uploaded_text)
+
+        status_col, chars_col, action_col = st.columns([2, 1, 1], gap="small")
+        with status_col:
+            if uploaded_text:
+                st.success(f"Datei geladen: {upload_meta.get('name', 'Unbekannt')}")
+            else:
+                st.caption("Noch keine Datei hochgeladen.")
+        with chars_col:
+            active_source_text = str(st.session_state.get(SSKey.SOURCE_TEXT.value, ""))
+            char_count = len(active_source_text.strip()) if active_source_text else 0
+            st.metric("Zeichen", f"{char_count:,}".replace(",", "."))
+        with action_col:
+            do_extract = st.button(
+                "Jetzt analysieren",
+                width="stretch",
+                help="Analysieren und identifizierte Informationen direkt im Start anzeigen",
             )
 
     if do_extract:
@@ -260,7 +364,6 @@ def render_jobad_intake(*, title: str = "Jobspezifikation einlesen") -> None:
             st.success("Fertig: Jobspec extrahiert und Fragebogen erzeugt.")
             if extract_cached or plan_cached:
                 st.info("Mindestens ein Ergebnis wurde aus dem Cache geladen.")
-            set_current_step("jobspec_review")
 
             with st.expander("API Usage (Debug)", expanded=False):
                 st.write(
@@ -285,3 +388,5 @@ def render_jobad_intake(*, title: str = "Jobspezifikation einlesen") -> None:
             )
 
         st.rerun()
+
+    _render_identified_information_block(ctx)

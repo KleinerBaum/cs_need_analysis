@@ -273,11 +273,6 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
                 status = "complete"
             elif has_source:
                 status = "partial"
-        elif page.key == "jobspec_review":
-            if plan is not None:
-                status = "complete"
-            elif has_job_extract:
-                status = "partial"
         elif page.key == "summary":
             if has_brief:
                 status = "complete"

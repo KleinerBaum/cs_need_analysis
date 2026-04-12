@@ -4,13 +4,13 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 
 ## Features
 
-- Intake-Start direkt auf der Landingpage mit integriertem Jobspec-Intake (Upload/Text + Analyse-Button) und separater Consent-Bestätigung (Checkbox) zum Content-Sharing-Hinweis.
+- Intake-Start direkt auf der Landingpage mit integriertem Jobspec-Intake: Upload und Texteingabe nebeneinander, Detailgrad-Auswahl sowie Analyse-Button in einer gemeinsamen Oberfläche.
 - Upload von Jobspec/Job Ad als **PDF**, **DOCX** oder **TXT** (alternativ: Text einfügen).
 - Entkoppeltes Quellenhandling im Intake: Upload-Text und manuelle Eingabe überschreiben sich nicht; die aktive Quelle wird zur Analyse genutzt.
 - LLM-gestützte **Extraktion** der Jobspec in ein strukturiertes Schema (Structured Outputs) und automatische Erzeugung eines dynamischen Frageplans.
 - Wizard mit Fortschrittsanzeige und drei Ansichtsmodi (`quick`, `standard`, `expert`) für die Schritte Unternehmen, Team, Rolle & Aufgaben, Skills, Benefits, Interviewprozess und Summary.
-- Der Ansichtsmodus (`schnell`, `ausführlich`, `vollumfänglich`) wird im ersten Intake-Schritt direkt unter dem Jobspec-Upload gewählt; zusätzlich gibt es je Schritt einen kompakten Toggle. `expert` startet standardmäßig geöffnet, `quick`/`standard` standardmäßig kompakt.
-- Im Schritt **Identifizierte Informationen** werden die angezeigten Fragen pro Step automatisch und laufend neu bestimmt (basierend auf vorhandenen Informationen aus Jobspec + bisherigen Antworten sowie dem Ansichtsmodus `quick`/`standard`/`expert`).
+- Der Ansichtsmodus (`schnell`, `ausführlich`, `vollumfänglich`) wird im Start-Schritt direkt unter dem Jobspec-Upload gewählt; zusätzlich gibt es je Schritt einen kompakten Toggle. `expert` startet standardmäßig geöffnet, `quick`/`standard` standardmäßig kompakt.
+- Die vormals getrennte Ansicht **Identifizierte Informationen** ist in den Start-Schritt integriert (eine Wizard-Stufe weniger): Nach der Analyse erscheinen dort direkt die editierbare Übersicht, Gaps/Annahmen und die Navigation in den nächsten Fachschritt.
 - Finaler **Recruiting Brief** mit Export als JSON, Markdown und DOCX.
 - **Summary-Workspace** mit klarer Tab-Struktur: `Readiness` (Startansicht), `Fakten`, `Artefakte`, `Export`, `Advanced`.
 - **Action Hub im Tab `Artefakte`** mit kanonischen Artefakt-IDs (`brief`, `job_ad`, `interview_hr`, `interview_fach`, `boolean_search`, `employment_contract`) und fokussiertem Primärpfad (Recruiting Brief → Folgeartefakte → Export).
