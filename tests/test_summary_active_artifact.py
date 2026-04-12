@@ -104,6 +104,21 @@ def test_resolve_active_artifact_falls_back_from_legacy_value(monkeypatch) -> No
     assert fake_st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] == "job_ad"
 
 
+def test_resolve_active_artifact_normalizes_case_and_whitespace(monkeypatch) -> None:
+    fake_st = _FakeStreamlit(
+        session_state={SSKey.SUMMARY_ACTIVE_ARTIFACT.value: " JOB_AD_GENERATOR "},
+        button_results=[],
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
+
+    active_id = SUMMARY_MODULE._resolve_active_artifact_id(
+        available_artifact_ids=["brief", "job_ad"]
+    )
+
+    assert active_id == "job_ad"
+    assert fake_st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] == "job_ad"
+
+
 def test_resolve_active_artifact_falls_back_when_selected_artifact_is_missing(
     monkeypatch,
 ) -> None:

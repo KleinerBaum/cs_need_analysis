@@ -228,6 +228,19 @@ SUMMARY_ARTIFACT_LEGACY_ALIASES: Final[dict[str, str]] = {
     "interview_hr_sheet": "interview_hr",
     "interview_fach_sheet": "interview_fach",
 }
+SUMMARY_SESSION_KEY_LEGACY_ALIASES: Final[dict[SSKey, tuple[str, ...]]] = {
+    SSKey.SUMMARY_ACTIVE_ARTIFACT: (
+        "cs.summary.active_artifact",
+        "cs.summary.active_action",
+    ),
+    SSKey.SUMMARY_SELECTIONS: ("cs.summary.selections",),
+    SSKey.SUMMARY_STYLEGUIDE_TEXT: ("cs.summary.style_guide",),
+    SSKey.SUMMARY_CHANGE_REQUEST_TEXT: ("cs.summary.change_requests",),
+}
+STALE_REDESIGN_SESSION_KEY_PREFIXES: Final[tuple[str, ...]] = (
+    "cs.redesign.",
+    "cs.summary.redesign.",
+)
 
 # Prefix used to generate stable Streamlit widget keys per question
 WIDGET_KEY_PREFIX: Final[str] = "cs.q::"

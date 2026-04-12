@@ -117,3 +117,19 @@ def test_summary_entry_dirty_state_reports_stale_brief_message(monkeypatch) -> N
 
     assert ok is False
     assert reason == "Recruiting Brief ist veraltet."
+
+
+def test_build_summary_view_model_tolerates_legacy_invalid_job_extract(
+    monkeypatch,
+) -> None:
+    fake_st = _FakeStreamlit(
+        {
+            SSKey.JOB_EXTRACT.value: {"legacy_payload": True},
+            SSKey.QUESTION_PLAN.value: {"steps": []},
+        }
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
+
+    vm = SUMMARY_MODULE._build_summary_view_model()
+
+    assert vm is None
