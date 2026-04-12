@@ -9,7 +9,12 @@ import streamlit as st
 from constants import AnswerType, SSKey
 from esco_client import EscoClient, EscoClientError
 from schemas import Question, QuestionStep
-from state import get_answers, mark_answer_touched, set_answer
+from state import (
+    get_answers,
+    has_confirmed_esco_anchor,
+    mark_answer_touched,
+    set_answer,
+)
 from ui_components import (
     has_meaningful_value,
     render_esco_explainability,
@@ -280,11 +285,16 @@ def render(ctx: WizardContext) -> None:
 
     def _render_main_slot() -> None:
         render_error_banner()
+        show_esco_context = has_confirmed_esco_anchor()
         if step is None or not step.questions:
             st.info(
                 "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
             )
-            _render_role_context_enrichment(step=step, ctx=ctx)
+            if show_esco_context:
+                _render_role_context_enrichment(step=step, ctx=ctx)
+            return
+        if not show_esco_context:
+            render_question_step(step)
             return
         question_col, context_col = st.columns([2, 1], gap="large")
         with question_col:

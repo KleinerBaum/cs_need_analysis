@@ -16,6 +16,7 @@ from state import (
     get_active_model,
     get_answers,
     get_esco_occupation_selected,
+    has_confirmed_esco_anchor,
     sync_esco_shared_state,
 )
 from ui_layout import render_step_shell
@@ -475,11 +476,11 @@ def _render_extracted_slot(job: JobAdExtract) -> None:
 
 def _render_main_slot(
     *,
-    ctx: WizardContext,
     job: JobAdExtract,
     step: QuestionStep | None,
     selected_occupation: dict[str, Any] | None,
     coverage_snapshot: EscoCoverageSnapshot,
+    show_esco_sections: bool,
 ) -> None:
     must_have_skills = [x for x in job.must_have_skills if has_meaningful_value(x)]
     nice_to_have_skills = [
@@ -503,31 +504,39 @@ def _render_main_slot(
     deduped_must, deduped_nice = _dedupe_selected_skills_across_buckets(
         selected_must, selected_nice
     )
-    esco_suggestions = [
-        {
-            "label": str(item.get("title") or "").strip(),
-            "source": "ESCO essential",
-            "rationale": "manually selected by user",
-            "importance": "high",
-        }
-        for item in deduped_must
-        if has_meaningful_value(str(item.get("title") or ""))
-    ] + [
-        {
-            "label": str(item.get("title") or "").strip(),
-            "source": "ESCO optional",
-            "rationale": "manually selected by user",
-            "importance": "high",
-        }
-        for item in deduped_nice
-        if has_meaningful_value(str(item.get("title") or ""))
-    ]
+    esco_suggestions = (
+        [
+            {
+                "label": str(item.get("title") or "").strip(),
+                "source": "ESCO essential",
+                "rationale": "manually selected by user",
+                "importance": "high",
+            }
+            for item in deduped_must
+            if has_meaningful_value(str(item.get("title") or ""))
+        ]
+        + [
+            {
+                "label": str(item.get("title") or "").strip(),
+                "source": "ESCO optional",
+                "rationale": "manually selected by user",
+                "importance": "high",
+            }
+            for item in deduped_nice
+            if has_meaningful_value(str(item.get("title") or ""))
+        ]
+        if show_esco_sections
+        else []
+    )
 
     st.markdown("### 1) Vergleichen & übernehmen (working set)")
     render_compare_adopt_intro(
         adopt_target="Skills",
         canonical_target="SSKey.SKILLS_SELECTED",
         include_inferred_confirmed_note=True,
+        source_labels=("Jobspec", "AI")
+        if not show_esco_sections
+        else ("Jobspec", "ESCO", "AI"),
     )
     _render_skills_source_columns(
         jobspec_suggested=jobspec_suggestions,
@@ -535,57 +544,68 @@ def _render_main_slot(
         llm_suggested=llm_suggested,
     )
 
-    st.markdown("### 2) ESCO normalisieren / confirmen (confirmed set)")
-    st.caption(
-        "ESCO hilft, freie Begriffe auf standardisierte Skills abzubilden. "
-        "So werden Dubletten reduziert und Exporte konsistent."
-    )
+    if show_esco_sections:
+        st.markdown("### 2) ESCO normalisieren / confirmen (confirmed set)")
+        st.caption(
+            "ESCO hilft, freie Begriffe auf standardisierte Skills abzubilden. "
+            "So werden Dubletten reduziert und Exporte konsistent."
+        )
     normalized_must_terms = _dedupe_terms(must_have_skills)
     normalized_nice_terms = _dedupe_terms(nice_to_have_skills)
 
-    with st.expander("Essential-Skills normalisieren", expanded=True):
-        _render_badge_line(["ESCO essential"])
-        st.caption(
-            "Wähle Skills, die zwingend erforderlich sind. "
-            "Das ist zunächst Inferred suggestion/context; bestätige danach als confirmed selection (essential)."
+    occupation_uri = (
+        (
+            coverage_snapshot.selected_occupation_uri
+            or (
+                str(selected_occupation.get("uri") or "").strip()
+                if selected_occupation
+                else ""
+            )
         )
-        render_esco_picker_card(
-            concept_type="skill",
-            target_state_key=SSKey.ESCO_SKILLS_SELECTED_MUST,
-            allow_multi=True,
-            enable_preview=True,
-            apply_label="Confirm essential as confirmed selection",
-            preview_label="Vorschau essential",
-            selection_label="Inferred suggestion/context for essential",
-            confirmation_helper_text=(
-                "Confirm stores the current inferred suggestion/context as confirmed selection (essential ESCO skills)."
-            ),
-        )
-
-    with st.expander("Optional-Skills normalisieren", expanded=True):
-        _render_badge_line(["ESCO optional"])
-        st.caption(
-            "Wähle Skills, die hilfreich sind, aber nicht zwingend. "
-            "Das ist zunächst Inferred suggestion/context; bestätige danach als confirmed selection (optional)."
-        )
-        render_esco_picker_card(
-            concept_type="skill",
-            target_state_key=SSKey.ESCO_SKILLS_SELECTED_NICE,
-            allow_multi=True,
-            enable_preview=True,
-            apply_label="Confirm optional as confirmed selection",
-            preview_label="Vorschau optional",
-            selection_label="Inferred suggestion/context for optional",
-            confirmation_helper_text=(
-                "Confirm stores the current inferred suggestion/context as confirmed selection (optional ESCO skills)."
-            ),
-        )
-
-    st.markdown("### ESCO-Vorschläge aus Occupation")
-    occupation_uri = coverage_snapshot.selected_occupation_uri or (
-        str(selected_occupation.get("uri") or "").strip() if selected_occupation else ""
+        if show_esco_sections
+        else ""
     )
-    if occupation_uri:
+    if show_esco_sections:
+        with st.expander("Essential-Skills normalisieren", expanded=True):
+            _render_badge_line(["ESCO essential"])
+            st.caption(
+                "Wähle Skills, die zwingend erforderlich sind. "
+                "Das ist zunächst Inferred suggestion/context; bestätige danach als confirmed selection (essential)."
+            )
+            render_esco_picker_card(
+                concept_type="skill",
+                target_state_key=SSKey.ESCO_SKILLS_SELECTED_MUST,
+                allow_multi=True,
+                enable_preview=True,
+                apply_label="Confirm essential as confirmed selection",
+                preview_label="Vorschau essential",
+                selection_label="Inferred suggestion/context for essential",
+                confirmation_helper_text=(
+                    "Confirm stores the current inferred suggestion/context as confirmed selection (essential ESCO skills)."
+                ),
+            )
+
+        with st.expander("Optional-Skills normalisieren", expanded=True):
+            _render_badge_line(["ESCO optional"])
+            st.caption(
+                "Wähle Skills, die hilfreich sind, aber nicht zwingend. "
+                "Das ist zunächst Inferred suggestion/context; bestätige danach als confirmed selection (optional)."
+            )
+            render_esco_picker_card(
+                concept_type="skill",
+                target_state_key=SSKey.ESCO_SKILLS_SELECTED_NICE,
+                allow_multi=True,
+                enable_preview=True,
+                apply_label="Confirm optional as confirmed selection",
+                preview_label="Vorschau optional",
+                selection_label="Inferred suggestion/context for optional",
+                confirmation_helper_text=(
+                    "Confirm stores the current inferred suggestion/context as confirmed selection (optional ESCO skills)."
+                ),
+            )
+
+        st.markdown("### ESCO-Vorschläge aus Occupation")
+    if show_esco_sections and occupation_uri:
         occupation_title = (
             str(selected_occupation.get("title") or "—").strip()
             if isinstance(selected_occupation, dict)
@@ -663,16 +683,8 @@ def _render_main_slot(
                     f"Übernommen: {added_must} Must, {added_nice} Nice "
                     "(dedupliziert anhand ESCO-URI)."
                 )
-    else:
-        st.info(
-            "Keine ESCO Occupation ausgewählt. Bitte zuerst in "
-            "„Start → Phase C: Semantischen Anker bestätigen“ eine Occupation übernehmen."
-        )
-        st.button(
-            "Zu Start → Phase C",
-            key="skills.goto_start_phase_c.occupation",
-            on_click=lambda: ctx.goto("landing"),
-        )
+    elif show_esco_sections:
+        st.info("Keine ESCO Occupation ausgewählt.")
 
     selected_must_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
     selected_nice_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
@@ -723,50 +735,51 @@ def _render_main_slot(
     )
     coverage_snapshot = sync_esco_shared_state()
 
-    st.markdown("### Confirmed selection (Essential / Optional)")
-    st.caption(
-        "Hier siehst du die confirmed selection. Essential = erforderlich, "
-        "Optional = zusätzlicher Mehrwert."
-    )
-    col_essential, col_optional = st.columns(2)
-    with col_essential:
-        _render_badge_line(["ESCO essential"])
+    if show_esco_sections:
+        st.markdown("### Confirmed selection (Essential / Optional)")
         st.caption(
-            "Confirmed selection (essential): "
-            f"{len(coverage_snapshot.confirmed_essential_skills)}"
+            "Hier siehst du die confirmed selection. Essential = erforderlich, "
+            "Optional = zusätzlicher Mehrwert."
         )
-        render_esco_explainability(
-            labels=["manually selected by user"],
-            confidence="high",
-            reason="Bestätigte Must-Skills sind deterministisch durch die Nutzerentscheidung.",
-            caption_prefix="Confirmed selection · Essential skills",
+        col_essential, col_optional = st.columns(2)
+        with col_essential:
+            _render_badge_line(["ESCO essential"])
+            st.caption(
+                "Confirmed selection (essential): "
+                f"{len(coverage_snapshot.confirmed_essential_skills)}"
+            )
+            render_esco_explainability(
+                labels=["manually selected by user"],
+                confidence="high",
+                reason="Bestätigte Must-Skills sind deterministisch durch die Nutzerentscheidung.",
+                caption_prefix="Confirmed selection · Essential skills",
+            )
+        with col_optional:
+            _render_badge_line(["ESCO optional"])
+            st.caption(
+                "Confirmed selection (optional): "
+                f"{len(coverage_snapshot.confirmed_optional_skills)}"
+            )
+            render_esco_explainability(
+                labels=["manually selected by user"],
+                confidence="high",
+                reason="Bestätigte Nice-to-have-Skills sind deterministisch durch die Nutzerentscheidung.",
+                caption_prefix="Confirmed selection · Optional skills",
+            )
+        _render_selected_skill_details(
+            title="Confirmed selection · essential skills",
+            selected_skills=deduped_must,
+            detail_cache=detail_cache,
+            is_expert_mode=is_expert_mode,
+            key_prefix="skills.must",
         )
-    with col_optional:
-        _render_badge_line(["ESCO optional"])
-        st.caption(
-            "Confirmed selection (optional): "
-            f"{len(coverage_snapshot.confirmed_optional_skills)}"
+        _render_selected_skill_details(
+            title="Confirmed selection · optional skills",
+            selected_skills=deduped_nice,
+            detail_cache=detail_cache,
+            is_expert_mode=is_expert_mode,
+            key_prefix="skills.nice",
         )
-        render_esco_explainability(
-            labels=["manually selected by user"],
-            confidence="high",
-            reason="Bestätigte Nice-to-have-Skills sind deterministisch durch die Nutzerentscheidung.",
-            caption_prefix="Confirmed selection · Optional skills",
-        )
-    _render_selected_skill_details(
-        title="Confirmed selection · essential skills",
-        selected_skills=deduped_must,
-        detail_cache=detail_cache,
-        is_expert_mode=is_expert_mode,
-        key_prefix="skills.must",
-    )
-    _render_selected_skill_details(
-        title="Confirmed selection · optional skills",
-        selected_skills=deduped_nice,
-        detail_cache=detail_cache,
-        is_expert_mode=is_expert_mode,
-        key_prefix="skills.nice",
-    )
 
     st.markdown("### 3) Unmapped follow-up")
     ambiguous_terms = sorted(
@@ -779,11 +792,15 @@ def _render_main_slot(
     )
     unmapped_terms = list(coverage_snapshot.unmapped_requirement_terms)
     flagged_terms = _dedupe_terms([*ambiguous_terms, *unmapped_terms])
-    if flagged_terms:
+    if show_esco_sections and flagged_terms:
         _render_badge_line(["Jobspec"])
         _render_unmapped_term_workflow(flagged_terms)
     else:
-        st.caption("Keine offenen oder mehrdeutigen Skill-Begriffe vorhanden.")
+        st.caption(
+            "Keine offenen oder mehrdeutigen Skill-Begriffe vorhanden."
+            if show_esco_sections
+            else "ESCO-spezifische Normalisierung ist ohne bestätigten ESCO-Anker ausgeblendet."
+        )
 
     suggestion_context = _build_skill_suggestion_context(
         job=job,
@@ -860,22 +877,14 @@ def render(ctx: WizardContext) -> None:
 
     job, plan = preflight
     selected_occupation = get_esco_occupation_selected()
+    show_esco_sections = has_confirmed_esco_anchor()
     coverage_snapshot = sync_esco_shared_state()
     step = next((value for value in plan.steps if value.step_key == "skills"), None)
 
-    if selected_occupation:
+    if show_esco_sections and selected_occupation:
         st.caption(
             "ESCO Occupation aus Start → Phase C: Semantischen Anker bestätigen: "
             f"{selected_occupation.get('title', '—')}"
-        )
-    else:
-        st.info(
-            "ESCO Occupation fehlt. Bitte in „Start → Phase C: Semantischen Anker bestätigen“ festlegen."
-        )
-        st.button(
-            "Zu Start → Phase C",
-            key="skills.goto_start_phase_c.header",
-            on_click=lambda: ctx.goto("landing"),
         )
 
     render_step_shell(
@@ -892,11 +901,11 @@ def render(ctx: WizardContext) -> None:
         extracted_from_jobspec_slot=lambda: _render_extracted_slot(job),
         extracted_from_jobspec_label="1) Extrahierte Skill-Phrasen aus dem Jobspec",
         main_content_slot=lambda: _render_main_slot(
-            ctx=ctx,
             job=job,
             step=step,
             selected_occupation=selected_occupation,
             coverage_snapshot=coverage_snapshot,
+            show_esco_sections=show_esco_sections,
         ),
         review_slot=lambda: render_standard_step_review(step),
         footer_slot=lambda: nav_buttons(ctx),

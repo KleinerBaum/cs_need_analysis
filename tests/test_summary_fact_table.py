@@ -130,7 +130,10 @@ def test_build_summary_fact_rows_marks_missing_values_as_fehlend() -> None:
     assert skill_row["Status"] == "Fehlend"
 
 
-def test_build_summary_fact_rows_include_esco_and_nace_rows() -> None:
+def test_build_summary_fact_rows_include_esco_and_nace_rows_when_anchor_confirmed(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(SUMMARY_MODULE, "has_confirmed_esco_anchor", lambda: True)
     rows = SUMMARY_MODULE._build_summary_fact_rows(
         job=JobAdExtract(job_title="Data Engineer"),
         answers={},
@@ -155,15 +158,14 @@ def test_build_summary_fact_rows_have_deterministic_ordering() -> None:
         meta=_meta(selected_occupation_title=None),
     )
 
-    ordered_fields = [row.feld for row in rows[:7]]
+    ordered_fields = [row.feld for row in rows[:6]]
     assert ordered_fields == [
         "Rolle",
         "Unternehmen",
         "Land",
         "Stadt",
-        "ESCO Occupation",
         "NACE-Code",
-        "NACE → ESCO Mapping",
+        "Recruiting Brief",
     ]
 
 

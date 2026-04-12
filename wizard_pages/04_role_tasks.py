@@ -14,6 +14,7 @@ from state import (
     get_active_model,
     get_answers,
     get_esco_occupation_selected,
+    has_confirmed_esco_anchor,
     sync_esco_shared_state,
 )
 from ui_components import (
@@ -112,20 +113,26 @@ def _load_esco_task_suggestions_from_selected_occupation(
     return suggestions, None
 
 
-def _build_task_suggestion_context(*, job: JobAdExtract) -> dict[str, list[str]]:
+def _build_task_suggestion_context(
+    *, job: JobAdExtract, include_esco_titles: bool
+) -> dict[str, list[str]]:
     coverage = sync_esco_shared_state()
     jobspec_terms = _dedupe_task_terms(
         [*job.responsibilities, *job.deliverables, *job.success_metrics]
     )
-    esco_titles = _dedupe_task_terms(
-        [
-            str(item.get("title") or "").strip()
-            for item in coverage.confirmed_essential_skills
-        ]
-        + [
-            str(item.get("title") or "").strip()
-            for item in coverage.confirmed_optional_skills
-        ]
+    esco_titles = (
+        _dedupe_task_terms(
+            [
+                str(item.get("title") or "").strip()
+                for item in coverage.confirmed_essential_skills
+            ]
+            + [
+                str(item.get("title") or "").strip()
+                for item in coverage.confirmed_optional_skills
+            ]
+        )
+        if include_esco_titles
+        else []
     )
     selected_raw = st.session_state.get(SSKey.ROLE_TASKS_SELECTED.value, [])
     selected_terms = (
@@ -267,16 +274,24 @@ def render(ctx: WizardContext) -> None:
 
     def _render_main_slot() -> None:
         coverage = sync_esco_shared_state()
+        show_esco_sections = has_confirmed_esco_anchor()
         render_error_banner()
 
         selected_occupation = get_esco_occupation_selected()
         esco_suggestions: list[dict[str, str]] = []
-        occupation_uri = coverage.selected_occupation_uri or (
-            str(selected_occupation.get("uri") or "").strip()
-            if selected_occupation
+        occupation_uri = (
+            (
+                coverage.selected_occupation_uri
+                or (
+                    str(selected_occupation.get("uri") or "").strip()
+                    if selected_occupation
+                    else ""
+                )
+            )
+            if show_esco_sections
             else ""
         )
-        if occupation_uri:
+        if show_esco_sections and occupation_uri:
             esco_suggestions, esco_error = (
                 _load_esco_task_suggestions_from_selected_occupation(occupation_uri)
             )
@@ -305,7 +320,10 @@ def render(ctx: WizardContext) -> None:
         )
 
         if st.button("Aufgaben-Vorschläge generieren"):
-            context = _build_task_suggestion_context(job=job)
+            context = _build_task_suggestion_context(
+                job=job,
+                include_esco_titles=show_esco_sections,
+            )
             existing_tasks = _dedupe_task_terms(
                 [
                     *context["jobspec_terms"],
@@ -348,6 +366,9 @@ def render(ctx: WizardContext) -> None:
         render_compare_adopt_intro(
             adopt_target="Aufgaben",
             canonical_target="SSKey.ROLE_TASKS_SELECTED",
+            source_labels=("Jobspec", "AI")
+            if not show_esco_sections
+            else ("Jobspec", "ESCO", "AI"),
         )
         _render_role_task_source_columns(
             jobspec_suggested=jobspec_suggestions,

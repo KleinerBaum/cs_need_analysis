@@ -466,6 +466,19 @@ def get_esco_occupation_selected() -> Dict[str, Any] | None:
         return None
 
 
+def has_confirmed_esco_anchor() -> bool:
+    """Return True when an ESCO occupation anchor URI is confirmed in session state."""
+
+    selected = get_esco_occupation_selected() or {}
+    selected_uri = str(
+        st.session_state.get(SSKey.ESCO_SELECTED_OCCUPATION_URI.value)
+        or selected.get("uri")
+        or ""
+    ).strip()
+    st.session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] = selected_uri
+    return bool(selected_uri)
+
+
 def get_esco_occupation_payload() -> Dict[str, Any] | None:
     """Return selected ESCO occupation detail payload if available."""
 

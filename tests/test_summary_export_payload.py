@@ -378,6 +378,7 @@ def test_build_country_readiness_items_reports_optional_nace_context(
         "get_esco_occupation_selected",
         lambda: {"uri": "uri:occ:1", "title": "Software Developer"},
     )
+    monkeypatch.setattr(SUMMARY_MODULE, "has_confirmed_esco_anchor", lambda: True)
 
     rows = SUMMARY_MODULE._build_country_readiness_items(
         SimpleNamespace(location_country="Germany")
