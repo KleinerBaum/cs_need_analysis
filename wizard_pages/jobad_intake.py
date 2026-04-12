@@ -19,6 +19,7 @@ from schemas import JobAdExtract, QuestionPlan
 from settings_openai import load_openai_settings
 from state import (
     clear_error,
+    get_esco_occupation_selected,
     get_model_override,
     handle_unexpected_exception,
     set_error,
@@ -156,6 +157,15 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
             st.write("- Keine Annahmen dokumentiert.")
 
     plan_question_count = sum(len(step.questions) for step in plan.steps)
+    selected_occupation = get_esco_occupation_selected() or {}
+    selected_occupation_uri = str(
+        st.session_state.get(SSKey.ESCO_SELECTED_OCCUPATION_URI.value, "")
+    ).strip()
+    if not selected_occupation_uri:
+        selected_occupation_uri = str(selected_occupation.get("uri") or "").strip()
+    has_confirmed_anchor = bool(selected_occupation_uri)
+    selected_occupation_title = str(selected_occupation.get("title") or "").strip()
+
     nav_col_back, nav_col_plan, nav_col_next = st.columns([1, 3, 1], gap="small")
     with nav_col_back:
         if st.button("← Zurück", key="cs.jobspec.ident_info.back"):
@@ -166,7 +176,20 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
             f'QuestionPlan geladen: "{plan_question_count}" Fragen in {len(plan.steps)} Steps.'
         )
     with nav_col_next:
-        if st.button("Weiter →", key="cs.jobspec.ident_info.next"):
+        if has_confirmed_anchor:
+            title = selected_occupation_title or "ESCO-Beruf"
+            st.success(f"ESCO-Anker bestätigt: {title}")
+        else:
+            st.caption("Bitte in Phase C einen semantischen ESCO-Anker bestätigen.")
+
+        if (
+            st.button(
+                "Weiter →",
+                key="cs.jobspec.ident_info.next",
+                disabled=not has_confirmed_anchor,
+            )
+            and has_confirmed_anchor
+        ):
             ctx.next()
             st.rerun()
 
