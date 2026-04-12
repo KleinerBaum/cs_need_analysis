@@ -13,6 +13,7 @@ from state import get_answers, mark_answer_touched, set_answer
 from ui_components import (
     build_step_review_payload,
     has_meaningful_value,
+    render_esco_explainability,
     render_error_banner,
     render_question_step,
     render_step_review_card,
@@ -117,13 +118,26 @@ def _append_context_to_team_notes(
     return True
 
 
+def _read_confirmed_team_notes(step: QuestionStep | None) -> str:
+    target_question = _resolve_team_notes_question(step)
+    if target_question is None:
+        return ""
+    answers = get_answers()
+    return str(answers.get(target_question.id) or "").strip()
+
+
+def _suggestion_state_key(theme_key: str) -> str:
+    return f"team.esco.suggestion.selected.{theme_key}"
+
+
 def _render_role_context_enrichment(
     *, step: QuestionStep | None, ctx: WizardContext
 ) -> None:
-    st.markdown("#### Role-context enrichment (ESCO · Inferred suggestion/context)")
+    st.markdown("#### Role-context enrichment (ESCO)")
     st.caption(
-        "Inferred suggestion/context from ESCO occupation content (not user-confirmed). "
-        "Adopted notes become a confirmed selection."
+        "Die linke Zone enthält ausschließlich inferred suggestion/context (nicht "
+        "nutzungsbestätigt). Erst nach Übernahme landet Inhalt als confirmed selection "
+        "in der Team-Notiz."
     )
 
     occupation = st.session_state.get(SSKey.ESCO_OCCUPATION_SELECTED.value)
@@ -153,25 +167,93 @@ def _render_role_context_enrichment(
         st.info("Keine belastbaren transversal themes aus ESCO ableitbar.")
         return
 
-    st.write("**Inferred suggestion/context for collaboration:**")
-    for theme in themes:
-        label = str(theme.get("label") or "").strip()
-        evidence = (
-            theme.get("evidence") if isinstance(theme.get("evidence"), list) else []
+    inferred_col, confirmed_col = st.columns(2, gap="medium")
+
+    with inferred_col:
+        st.write("**Zone 1 · Vorschläge (inferred)**")
+        match_confidence = str(
+            st.session_state.get(SSKey.ESCO_MATCH_CONFIDENCE.value) or ""
+        ).strip()
+        match_reason = st.session_state.get(SSKey.ESCO_MATCH_REASON.value)
+        match_provenance_raw = st.session_state.get(SSKey.ESCO_MATCH_PROVENANCE.value)
+        match_provenance = (
+            [str(item) for item in match_provenance_raw if str(item).strip()]
+            if isinstance(match_provenance_raw, list)
+            else []
         )
-        st.markdown(f"- **{label}** _(Inferred suggestion/context)_")
-        if evidence:
-            st.caption(f"Signal: {evidence[0]}")
-        adopt_label = f"Als Team-Notiz als confirmed selection übernehmen · {label}"
-        if st.button(adopt_label, key=f"team.esco.adopt.{theme.get('key')}"):
-            adopted = _append_context_to_team_notes(
-                step=step,
-                context_line=f"Confirmed selection from inferred suggestion/context: {label}",
+        if match_confidence or match_reason or match_provenance:
+            render_esco_explainability(
+                labels=match_provenance,
+                confidence=match_confidence,
+                reason=str(match_reason).strip() if match_reason else None,
+                caption_prefix="ESCO Occupation match",
             )
-            if adopted:
-                st.success("Als confirmed selection in Team-Notiz übernommen.")
+
+        st.caption(
+            "Diese Hinweise sind abgeleitet und gelten nicht als bestätigte Fakten."
+        )
+
+        selected_theme_labels: list[str] = []
+        for theme in themes:
+            theme_key = str(theme.get("key") or "").strip()
+            label = str(theme.get("label") or "").strip()
+            evidence = (
+                theme.get("evidence") if isinstance(theme.get("evidence"), list) else []
+            )
+            if not theme_key or not label:
+                continue
+            st.markdown(f"- **{label}**")
+            if evidence:
+                st.caption(f"Signal: {evidence[0]}")
+            selected = st.checkbox(
+                f"Für Übernahme markieren · {label}",
+                key=_suggestion_state_key(theme_key),
+            )
+            if selected:
+                selected_theme_labels.append(label)
+
+        if st.button(
+            "Ausgewählte Vorschläge als confirmed selection übernehmen",
+            key="team.esco.adopt.selected",
+            type="primary",
+        ):
+            if not selected_theme_labels:
+                st.info("Bitte zuerst mindestens einen Vorschlag markieren.")
             else:
-                st.info("Keine geeignete Team-Notizfrage zum Übernehmen gefunden.")
+                adopted_count = 0
+                for label in selected_theme_labels:
+                    adopted = _append_context_to_team_notes(
+                        step=step,
+                        context_line=f"Confirmed selection (ESCO suggestion): {label}",
+                    )
+                    if adopted:
+                        adopted_count += 1
+                if adopted_count:
+                    st.success(
+                        f"{adopted_count} Vorschlag/Vorschläge als confirmed selection übernommen."
+                    )
+                else:
+                    st.info("Keine geeignete Team-Notizfrage zum Übernehmen gefunden.")
+
+    with confirmed_col:
+        st.write("**Zone 2 · Confirmed input**")
+        current_notes = _read_confirmed_team_notes(step)
+        if current_notes:
+            st.caption(
+                "Bestätigte Inhalte in der kanonischen Team-Antwort (Downstream für Summary/Export)."
+            )
+            st.text_area(
+                "Bestätigte Team-Notiz",
+                value=current_notes,
+                height=220,
+                disabled=True,
+                key="team.esco.confirmed.preview",
+            )
+        else:
+            st.info(
+                "Noch keine bestätigte Team-Notiz vorhanden. Übernommene Vorschläge "
+                "werden hier sichtbar."
+            )
 
 
 def render(ctx: WizardContext) -> None:
