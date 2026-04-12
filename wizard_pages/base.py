@@ -17,7 +17,13 @@ from typing import (
 
 import streamlit as st
 
-from constants import SSKey, STEPS
+from constants import (
+    SSKey,
+    STEPS,
+    UI_MODE_DISPLAY_LABELS,
+    UI_MODE_HELP_TEXT,
+    UI_MODE_VALUES,
+)
 from esco_client import EscoClient, EscoClientError, clear_esco_cache
 from question_dependencies import should_show_question
 from question_limits import sync_adaptive_question_limits
@@ -767,7 +773,7 @@ def _render_esco_warnings_and_migration_cta() -> None:
 
 def get_current_ui_mode() -> str:
     """Return normalized UI mode from session state."""
-    allowed_ui_modes = {"quick", "standard", "expert"}
+    allowed_ui_modes = set(UI_MODE_VALUES)
     ui_mode_raw = st.session_state.get(SSKey.UI_MODE.value, "standard")
     ui_mode = str(ui_mode_raw).strip().lower()
     if ui_mode not in allowed_ui_modes:
@@ -777,21 +783,15 @@ def get_current_ui_mode() -> str:
 
 def render_ui_mode_selector(*, sidebar: bool = False) -> str:
     ui_mode_key = SSKey.UI_MODE.value
-    mode_labels = {
-        "quick": "schnell",
-        "standard": "ausführlich",
-        "expert": "vollumfänglich",
-    }
     selectbox = st.sidebar.selectbox if sidebar else st.selectbox
     selected_mode = selectbox(
         "Wie weit möchten Sie ins Detail gehen?",
-        options=["quick", "standard", "expert"],
+        options=list(UI_MODE_VALUES),
         key=ui_mode_key,
-        format_func=lambda mode: mode_labels.get(mode, str(mode).capitalize()),
-        help=(
-            "schnell/ausführlich: Detailgruppen standardmäßig kompakt. "
-            "vollumfänglich: Detailgruppen standardmäßig geöffnet."
+        format_func=lambda mode: UI_MODE_DISPLAY_LABELS.get(
+            mode, str(mode).capitalize()
         ),
+        help=UI_MODE_HELP_TEXT,
     )
     return str(selected_mode).strip().lower()
 
@@ -827,7 +827,7 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
         value=details_expanded_default,
         help=(
             "Globale Voreinstellung für Detailgruppen in allen Wizard-Schritten. "
-            "vollumfänglich setzt standardmäßig auf geöffnet, ausführlich/Quick auf kompakt."
+            f"{UI_MODE_HELP_TEXT}"
         ),
     )
     normalized_preferences = dict(ui_preferences)
