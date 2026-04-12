@@ -21,8 +21,9 @@ from state import (
 from ui_layout import render_step_shell
 from ui_components import (
     has_meaningful_value,
-    render_esco_explainability,
     render_compact_requirement_board,
+    render_compare_adopt_intro,
+    render_esco_explainability,
     render_error_banner,
     render_esco_picker_card,
     render_question_step,
@@ -523,8 +524,10 @@ def _render_main_slot(
     ]
 
     st.markdown("### 1) Vergleichen & übernehmen (working set)")
-    st.caption(
-        "Vergleiche Jobspec-, ESCO- und AI-Vorschläge und übernimm dedupliziert in das Working Set."
+    render_compare_adopt_intro(
+        adopt_target="Skills",
+        canonical_target="SSKey.SKILLS_SELECTED",
+        include_inferred_confirmed_note=True,
     )
     _render_skills_source_columns(
         jobspec_suggested=jobspec_suggestions,
