@@ -3,8 +3,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from constants import SSKey
-from schemas import JobAdExtract, QuestionPlan, QuestionStep
+from schemas import JobAdExtract, QuestionStep
 from state import get_answers
 from ui_layout import render_step_shell
 from ui_components import (

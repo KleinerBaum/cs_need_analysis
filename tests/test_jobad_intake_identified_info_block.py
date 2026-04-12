@@ -75,7 +75,7 @@ def _minimal_identified_info_state() -> dict[str, object]:
     }
 
 
-def test_identified_info_next_is_disabled_without_esco_anchor(monkeypatch) -> None:
+def test_identified_info_next_is_enabled_without_esco_anchor(monkeypatch) -> None:
     fake_st = _FakeStreamlit(session_state=_minimal_identified_info_state())
     next_calls = {"count": 0}
     ctx = cast(
@@ -91,9 +91,10 @@ def test_identified_info_next_is_disabled_without_esco_anchor(monkeypatch) -> No
 
     jobad_intake._render_identified_information_block(ctx)
 
-    assert fake_st.button_disabled["cs.jobspec.ident_info.next"] is True
+    assert fake_st.button_disabled["cs.jobspec.ident_info.next"] is False
     assert (
-        "Bitte in Phase C einen semantischen ESCO-Anker bestätigen." in fake_st.captions
+        "Optional: In Phase C können Sie einen semantischen ESCO-Anker bestätigen."
+        in fake_st.captions
     )
     assert next_calls["count"] == 0
     assert fake_st.rerun_called is False
@@ -123,6 +124,7 @@ def test_identified_info_next_uses_selected_occupation_fallback(monkeypatch) -> 
             "type": "occupation",
         },
     )
+    monkeypatch.setattr(jobad_intake, "has_confirmed_esco_anchor", lambda: True)
 
     jobad_intake._render_identified_information_block(ctx)
 

@@ -58,6 +58,7 @@ from state import (
     clear_error,
     get_esco_occupation_selected,
     get_answers,
+    has_confirmed_esco_anchor,
     get_model_override,
     handle_unexpected_exception,
 )
@@ -1821,28 +1822,36 @@ def _build_country_readiness_items(job: JobAdExtract) -> list[tuple[str, str, bo
         str(nace_lookup.get(selected_nace_code, "") or "") if selected_nace_code else ""
     )
     selected_occupation = get_esco_occupation_selected()
-    return [
+    show_esco_sections = has_confirmed_esco_anchor()
+    rows: list[tuple[str, str, bool]] = [
         (
             "Land vorhanden",
             job.location_country or "Nicht angegeben",
             bool(job.location_country),
         ),
         (
-            "Semantischer Anker bestätigt",
-            "Ja" if selected_occupation else "Nein",
-            bool(selected_occupation),
-        ),
-        (
             "NACE-Code gesetzt",
             selected_nace_code or "Nicht gesetzt",
             bool(selected_nace_code),
         ),
-        (
-            "NACE → ESCO gemappt",
-            mapped_esco_uri or "Nicht verfügbar",
-            bool(mapped_esco_uri),
-        ),
     ]
+    if show_esco_sections:
+        rows.insert(
+            1,
+            (
+                "Semantischer Anker bestätigt",
+                "Ja" if selected_occupation else "Nein",
+                bool(selected_occupation),
+            ),
+        )
+        rows.append(
+            (
+                "NACE → ESCO gemappt",
+                mapped_esco_uri or "Nicht verfügbar",
+                bool(mapped_esco_uri),
+            )
+        )
+    return rows
 
 
 def _render_summary_facts_section(vm: SummaryViewModel) -> None:
@@ -1955,6 +1964,7 @@ def _build_summary_fact_rows(
     artifacts: SummaryArtifactState,
     meta: SummaryMeta,
 ) -> list[SummaryFactsRow]:
+    show_esco_sections = has_confirmed_esco_anchor()
     rows: list[SummaryFactsRow] = [
         SummaryFactsRow(
             "Kernprofil",
@@ -1986,24 +1996,10 @@ def _build_summary_fact_rows(
         ),
         SummaryFactsRow(
             "Klassifikation",
-            "ESCO Occupation",
-            meta.selected_occupation_title or "Nicht gesetzt",
-            "Jobspec-Review",
-            _status_for_classification_value(meta.selected_occupation_title),
-        ),
-        SummaryFactsRow(
-            "Klassifikation",
             "NACE-Code",
             meta.nace_code or "Nicht gesetzt",
             "Unternehmen",
             _status_for_classification_value(meta.nace_code),
-        ),
-        SummaryFactsRow(
-            "Klassifikation",
-            "NACE → ESCO Mapping",
-            meta.nace_mapped_esco_uri or "Nicht verfügbar",
-            "EURES",
-            _status_for_classification_value(meta.nace_mapped_esco_uri),
         ),
         SummaryFactsRow(
             "Artefakte",
@@ -2013,6 +2009,27 @@ def _build_summary_fact_rows(
             "Vollständig" if artifacts.brief is not None else "Teilweise",
         ),
     ]
+    if show_esco_sections:
+        rows.insert(
+            4,
+            SummaryFactsRow(
+                "Klassifikation",
+                "ESCO Occupation",
+                meta.selected_occupation_title or "Nicht gesetzt",
+                "Jobspec-Review",
+                _status_for_classification_value(meta.selected_occupation_title),
+            ),
+        )
+        rows.insert(
+            6,
+            SummaryFactsRow(
+                "Klassifikation",
+                "NACE → ESCO Mapping",
+                meta.nace_mapped_esco_uri or "Nicht verfügbar",
+                "EURES",
+                _status_for_classification_value(meta.nace_mapped_esco_uri),
+            ),
+        )
 
     if plan is None:
         return rows
