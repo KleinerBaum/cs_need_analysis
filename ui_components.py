@@ -11,7 +11,12 @@ from typing import Any, Dict, Literal, Optional
 
 import streamlit as st
 
-from constants import AnswerType, SSKey, WIDGET_KEY_PREFIX
+from constants import (
+    AnswerType,
+    SSKey,
+    UI_MODE_DISPLAY_LABELS,
+    WIDGET_KEY_PREFIX,
+)
 from esco_client import EscoClient, EscoClientError
 from llm_client import OpenAICallError
 from question_dependencies import should_show_question
@@ -844,9 +849,13 @@ def _render_question_limits_editor(
 
     heading = "##### Fragen pro Step" if compact else "#### Fragen pro Step"
     st.markdown(heading)
+    quick_label = UI_MODE_DISPLAY_LABELS["quick"].capitalize()
+    standard_label = UI_MODE_DISPLAY_LABELS["standard"].capitalize()
+    expert_label = UI_MODE_DISPLAY_LABELS["expert"].capitalize()
     st.caption(
         "Wird automatisch aus Informationsgrad + Ansichtsmodus berechnet "
-        "(Quick = oberflächlich, Standard = ausgewogen, Expert = vollumfänglich)."
+        f"({quick_label}/{standard_label}: Detailgruppen standardmäßig kompakt; "
+        f"{expert_label}: Detailgruppen standardmäßig geöffnet)."
     )
 
     limits_raw = st.session_state.get(SSKey.QUESTION_LIMITS.value, {})

@@ -19,6 +19,16 @@ from typing import Final, List
 APP_TITLE: Final[str] = "Cognitive Staffing – Vacancy Intake Wizard"
 DEFAULT_LANGUAGE: Final[str] = "de"
 DEFAULT_ESCO_SELECTED_VERSION: Final[str] = "v1.2.0"
+UI_MODE_VALUES: Final[tuple[str, str, str]] = ("quick", "standard", "expert")
+UI_MODE_DISPLAY_LABELS: Final[dict[str, str]] = {
+    "quick": "schnell",
+    "standard": "ausführlich",
+    "expert": "vollumfänglich",
+}
+UI_MODE_HELP_TEXT: Final[str] = (
+    "schnell/ausführlich: Detailgruppen standardmäßig kompakt. "
+    "vollumfänglich: Detailgruppen standardmäßig geöffnet."
+)
 
 # ---- Canonical Wizard Step Keys ----
 STEP_KEY_LANDING: Final[str] = "landing"
