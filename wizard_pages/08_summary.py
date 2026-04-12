@@ -438,7 +438,12 @@ def _widget_key(base_key: SSKey, suffix: str | None = None) -> str:
 def _to_canonical_artifact_id(raw_id: Any) -> str:
     if not isinstance(raw_id, str):
         return ""
-    return ACTION_ID_TO_CANONICAL_ARTIFACT_ID.get(raw_id, "")
+    normalized = raw_id.strip()
+    if not normalized:
+        return ""
+    if normalized in ACTION_ID_TO_CANONICAL_ARTIFACT_ID:
+        return ACTION_ID_TO_CANONICAL_ARTIFACT_ID[normalized]
+    return ACTION_ID_TO_CANONICAL_ARTIFACT_ID.get(normalized.casefold(), "")
 
 
 def _resolve_active_artifact_id(*, available_artifact_ids: list[str]) -> str:
@@ -1634,7 +1639,10 @@ def _build_summary_view_model() -> SummaryViewModel | None:
     if not job_dict or not plan_dict:
         return None
 
-    job = JobAdExtract.model_validate(job_dict)
+    try:
+        job = JobAdExtract.model_validate(job_dict)
+    except Exception:
+        return None
     answers = get_answers()
     try:
         plan = (

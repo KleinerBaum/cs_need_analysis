@@ -238,3 +238,41 @@ def test_init_session_state_loads_eures_nace_mapping_from_env_file(
     assert fake_session_state[SSKey.EURES_NACE_TO_ESCO.value] == {
         "A1": "http://example.org/esco/a1"
     }
+
+
+def test_init_session_state_maps_legacy_summary_alias_key(monkeypatch) -> None:
+    fake_session_state: dict[str, object] = {"cs.summary.active_action": "job_ad"}
+    monkeypatch.setattr(
+        state,
+        "load_openai_settings",
+        lambda: SimpleNamespace(openai_model="gpt-5-mini"),
+    )
+    monkeypatch.setattr(
+        state,
+        "st",
+        SimpleNamespace(session_state=fake_session_state),
+    )
+
+    state.init_session_state()
+
+    assert fake_session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] == "job_ad"
+
+
+def test_reset_vacancy_clears_stale_redesign_and_legacy_alias_keys(monkeypatch) -> None:
+    fake_session_state = {
+        SSKey.SUMMARY_ACTIVE_ARTIFACT.value: "brief",
+        "cs.summary.active_action": "job_ad_generator",
+        "cs.redesign.summary.mode": "advanced",
+        "cs.summary.redesign.matrix": {"rows": []},
+    }
+    monkeypatch.setattr(
+        state,
+        "st",
+        SimpleNamespace(session_state=fake_session_state),
+    )
+
+    state.reset_vacancy()
+
+    assert "cs.summary.active_action" not in fake_session_state
+    assert "cs.redesign.summary.mode" not in fake_session_state
+    assert "cs.summary.redesign.matrix" not in fake_session_state

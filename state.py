@@ -13,13 +13,53 @@ from typing import Any, Dict, cast
 
 import streamlit as st
 
-from constants import DEFAULT_ESCO_SELECTED_VERSION, DEFAULT_LANGUAGE, SSKey, STEPS
+from constants import (
+    DEFAULT_ESCO_SELECTED_VERSION,
+    DEFAULT_LANGUAGE,
+    SSKey,
+    STALE_REDESIGN_SESSION_KEY_PREFIXES,
+    STEPS,
+    SUMMARY_SESSION_KEY_LEGACY_ALIASES,
+)
 from eures_mapping import load_national_code_lookup_from_file
 from question_progress import AnswerMeta, AnswerMetaMap, value_hash
 from schemas import EscoConceptRef, EscoMappingReport, EscoSuggestionItem
 from settings_openai import load_openai_settings
 
 DEFAULT_ESCO_API_BASE_URL = "https://ec.europa.eu/esco/api/"
+
+
+def _apply_summary_legacy_key_aliases() -> None:
+    """Populate canonical summary keys from compatible legacy aliases when possible."""
+
+    for canonical_key, legacy_keys in SUMMARY_SESSION_KEY_LEGACY_ALIASES.items():
+        canonical_name = canonical_key.value
+        if canonical_name in st.session_state:
+            continue
+        for legacy_key in legacy_keys:
+            if legacy_key not in st.session_state:
+                continue
+            st.session_state[canonical_name] = st.session_state[legacy_key]
+            break
+
+
+def _clear_stale_redesign_state() -> None:
+    """Drop stale redesign-only session keys while preserving canonical state."""
+
+    canonical_keys = {key.value for key in SSKey}
+    for session_key in list(st.session_state.keys()):
+        if session_key in canonical_keys:
+            continue
+        if any(
+            session_key.startswith(prefix)
+            for prefix in STALE_REDESIGN_SESSION_KEY_PREFIXES
+        ):
+            st.session_state.pop(session_key, None)
+            continue
+        for legacy_keys in SUMMARY_SESSION_KEY_LEGACY_ALIASES.values():
+            if session_key in legacy_keys:
+                st.session_state.pop(session_key, None)
+                break
 
 
 @dataclass(frozen=True)
@@ -64,6 +104,7 @@ def get_active_model() -> str:
 
 
 def init_session_state() -> None:
+    _apply_summary_legacy_key_aliases()
     configured_language = st.session_state.get(SSKey.LANGUAGE.value, DEFAULT_LANGUAGE)
     if not isinstance(configured_language, str) or not configured_language.strip():
         configured_language = DEFAULT_LANGUAGE
@@ -318,6 +359,7 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.SALARY_SCENARIO_APPLY_PENDING_UPDATE.value] = False
     st.session_state[SSKey.SALARY_SCENARIO_PENDING_SELECTED_ROW_ID.value] = None
     st.session_state[SSKey.SALARY_FORECAST_SELECTED_SCENARIO.value] = "base"
+    _clear_stale_redesign_state()
     st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {}
     st.session_state[SSKey.LAST_ERROR.value] = None
     st.session_state[SSKey.CURRENT_STEP.value] = STEPS[0].key
