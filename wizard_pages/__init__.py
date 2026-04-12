@@ -27,7 +27,12 @@ def _load_module_from_path(path: Path, module_name: str):
 
 def load_pages() -> List[WizardPage]:
     pages_dir = Path(__file__).parent
-    ignore = {"__init__.py", "base.py", "jobad_intake.py"}
+    ignore = {
+        "__init__.py",
+        "base.py",
+        "jobad_intake.py",
+        "01a_jobspec_review.py",
+    }
     page_pattern = re.compile(r"^\d+[a-z]?_")
     py_files = sorted(
         [
