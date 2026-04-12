@@ -115,7 +115,9 @@ def _append_context_to_team_notes(
     return True
 
 
-def _render_role_context_enrichment(*, step: QuestionStep | None) -> None:
+def _render_role_context_enrichment(
+    *, step: QuestionStep | None, ctx: WizardContext
+) -> None:
     st.markdown("#### Role-context enrichment (ESCO)")
     st.caption(
         "Inferred context from ESCO occupation content. This is guidance for team collaboration topics, "
@@ -128,7 +130,12 @@ def _render_role_context_enrichment(*, step: QuestionStep | None) -> None:
     )
     if not occupation_uri:
         st.info(
-            "Kein ESCO-Occupation-Anker bestätigt. Ergänze ihn im Schritt „Identifizierte Informationen“."
+            "Kein ESCO-Occupation-Anker bestätigt. Gehe zu „Start → Phase C: Semantischen Anker bestätigen“."
+        )
+        st.button(
+            "Zu Start → Phase C",
+            key="team.goto_start_phase_c",
+            on_click=lambda: ctx.goto("landing"),
         )
         return
 
@@ -205,13 +212,13 @@ def render(ctx: WizardContext) -> None:
             st.info(
                 "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
             )
-            _render_role_context_enrichment(step=step)
+            _render_role_context_enrichment(step=step, ctx=ctx)
             return
         question_col, context_col = st.columns([2, 1], gap="large")
         with question_col:
             render_question_step(step)
         with context_col:
-            _render_role_context_enrichment(step=step)
+            _render_role_context_enrichment(step=step, ctx=ctx)
 
     render_step_shell(
         title="Team",
