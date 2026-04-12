@@ -228,6 +228,7 @@ def render(ctx: WizardContext) -> None:
             answers=review_payload["answers"],
             answer_meta=review_payload["answer_meta"],
             answered_lookup=review_payload["answered_lookup"],
+            step_status=review_payload["step_status"],
         )
 
     render_step_shell(

@@ -49,6 +49,7 @@ from state import (
     set_answer,
     set_error,
 )
+from step_status import StepStatusPayload, build_step_status_payload
 
 ESCO_EXPLAINABILITY_LABELS: tuple[str, ...] = (
     "exact label match",
@@ -64,17 +65,26 @@ class StepReviewPayload(TypedDict):
     answers: dict[str, Any]
     answer_meta: dict[str, Any]
     answered_lookup: dict[str, bool]
+    step_status: StepStatusPayload
 
 
 def build_step_review_payload(step: QuestionStep | None) -> StepReviewPayload:
     answers = get_answers()
     answer_meta = get_answer_meta()
+    step_status = build_step_status_payload(
+        step=step,
+        answers=answers,
+        answer_meta=answer_meta,
+        should_show_question=should_show_question,
+        step_key=step.step_key if step is not None else None,
+    )
     if step is None or not step.questions:
         return {
             "visible_questions": [],
             "answers": answers,
             "answer_meta": answer_meta,
             "answered_lookup": {},
+            "step_status": step_status,
         }
 
     visible_questions = [
@@ -89,6 +99,7 @@ def build_step_review_payload(step: QuestionStep | None) -> StepReviewPayload:
         "answered_lookup": build_answered_lookup(
             visible_questions, answers, answer_meta
         ),
+        "step_status": step_status,
     }
 
 
@@ -1510,6 +1521,7 @@ def render_step_review_card(
     answers: Dict[str, Any],
     answer_meta: dict[str, Any],
     answered_lookup: dict[str, bool] | None = None,
+    step_status: StepStatusPayload | None = None,
 ) -> None:
     if not visible_questions:
         with st.container(border=True):
@@ -1522,7 +1534,9 @@ def render_step_review_card(
 
     grouped_questions = _group_questions(step, visible_questions)
     group_payload: list[tuple[str, list[tuple[str, str]]]] = []
-    missing_essential_labels: list[str] = []
+    missing_essential_labels = (
+        list(step_status["missing_essentials"]) if step_status else []
+    )
     incomplete_group_titles: list[str] = []
 
     resolved_lookup = answered_lookup or build_answered_lookup(
@@ -1534,10 +1548,8 @@ def render_step_review_card(
         group_missing_essential = False
         for question in group_questions:
             if not resolved_lookup.get(question.id, False):
-                is_essential = question.priority == "core" or question.required
-                if is_essential:
+                if question.label in missing_essential_labels:
                     group_missing_essential = True
-                    missing_essential_labels.append(question.label)
                 continue
             value = answers.get(question.id)
             formatted = _format_answer_for_review(question, value)
