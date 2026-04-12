@@ -189,6 +189,22 @@ def _save_selected_task_suggestions(labels: list[str]) -> int:
     return added
 
 
+def _render_role_task_selection_explanation() -> None:
+    badge_html = " ".join(
+        (
+            "<span style='display:inline-block;padding:0.15rem 0.45rem;border-radius:0.6rem;"
+            "border:1px solid #d1d5db;font-size:0.78rem;'>"
+            f"{badge}</span>"
+        )
+        for badge in ("Jobspec/ESCO/AI = Vorschläge", "Status: inferred context")
+    )
+    st.markdown(badge_html, unsafe_allow_html=True)
+    st.caption(
+        '"Übernehmen" schreibt dedupliziert in `SSKey.ROLE_TASKS_SELECTED`; '
+        "übernommene Einträge gelten als confirmed user selection für Summary/Briefing."
+    )
+
+
 def _render_role_task_source_columns(
     *,
     jobspec_suggested: list[dict[str, str]],
@@ -344,6 +360,7 @@ def render(ctx: WizardContext) -> None:
         )
         llm_suggested = llm_suggested_raw if isinstance(llm_suggested_raw, list) else []
 
+        _render_role_task_selection_explanation()
         _render_role_task_source_columns(
             jobspec_suggested=jobspec_suggestions,
             esco_suggested=esco_suggestions,
