@@ -25,9 +25,23 @@ UI_MODE_DISPLAY_LABELS: Final[dict[str, str]] = {
     "standard": "ausführlich",
     "expert": "vollumfänglich",
 }
-UI_MODE_HELP_TEXT: Final[str] = (
-    "schnell/ausführlich: Detailgruppen standardmäßig kompakt. "
-    "vollumfänglich: Detailgruppen standardmäßig geöffnet."
+UI_DETAILS_DEFAULT_BY_MODE_TEXT: Final[str] = (
+    f"{UI_MODE_DISPLAY_LABELS['quick'].capitalize()}/"
+    f"{UI_MODE_DISPLAY_LABELS['standard'].capitalize()}: "
+    "Detailgruppen standardmäßig kompakt. "
+    f"{UI_MODE_DISPLAY_LABELS['expert'].capitalize()}: "
+    "Detailgruppen standardmäßig geöffnet."
+)
+UI_MODE_HELP_TEXT: Final[str] = UI_DETAILS_DEFAULT_BY_MODE_TEXT
+UI_GLOBAL_DETAILS_TOGGLE_LABEL: Final[str] = "Details standardmäßig öffnen"
+UI_GLOBAL_DETAILS_TOGGLE_HELP: Final[str] = (
+    "Globale Voreinstellung für Detailgruppen in allen Wizard-Schritten. "
+    f"{UI_DETAILS_DEFAULT_BY_MODE_TEXT}"
+)
+UI_STEP_COMPACT_TOGGLE_LABEL: Final[str] = "Details kompakt anzeigen"
+UI_STEP_COMPACT_TOGGLE_HELP: Final[str] = (
+    "Schritt-spezifische Anzeige: Aktiv hält Detailgruppen standardmäßig geschlossen. "
+    "Deaktiviert öffnet Detailgruppen standardmäßig."
 )
 
 # ---- Canonical Wizard Step Keys ----

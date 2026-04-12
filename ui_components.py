@@ -14,7 +14,9 @@ import streamlit as st
 from constants import (
     AnswerType,
     SSKey,
-    UI_MODE_DISPLAY_LABELS,
+    UI_DETAILS_DEFAULT_BY_MODE_TEXT,
+    UI_STEP_COMPACT_TOGGLE_HELP,
+    UI_STEP_COMPACT_TOGGLE_LABEL,
     WIDGET_KEY_PREFIX,
 )
 from esco_client import EscoClient, EscoClientError
@@ -849,13 +851,9 @@ def _render_question_limits_editor(
 
     heading = "##### Fragen pro Step" if compact else "#### Fragen pro Step"
     st.markdown(heading)
-    quick_label = UI_MODE_DISPLAY_LABELS["quick"].capitalize()
-    standard_label = UI_MODE_DISPLAY_LABELS["standard"].capitalize()
-    expert_label = UI_MODE_DISPLAY_LABELS["expert"].capitalize()
     st.caption(
         "Wird automatisch aus Informationsgrad + Ansichtsmodus berechnet "
-        f"({quick_label}/{standard_label}: Detailgruppen standardmäßig kompakt; "
-        f"{expert_label}: Detailgruppen standardmäßig geöffnet)."
+        f"({UI_DETAILS_DEFAULT_BY_MODE_TEXT})"
     )
 
     limits_raw = st.session_state.get(SSKey.QUESTION_LIMITS.value, {})
@@ -1418,13 +1416,10 @@ def render_question_step(step: QuestionStep) -> None:
         default_open=details_expanded_default,
     )
     details_compact = st.toggle(
-        "Details kompakt anzeigen",
+        UI_STEP_COMPACT_TOGGLE_LABEL,
         value=details_compact,
         key=f"cs.details_compact.{step.step_key}",
-        help=(
-            "Schritt-spezifische Anzeige: kompakt = Detailgruppen geschlossen, "
-            "deaktiviert = Detailgruppen standardmäßig geöffnet."
-        ),
+        help=UI_STEP_COMPACT_TOGGLE_HELP,
     )
     _set_step_compact_preference(step_key=step.step_key, compact=details_compact)
     details_expanded_default = not details_compact

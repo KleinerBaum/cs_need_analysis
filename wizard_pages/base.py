@@ -20,6 +20,8 @@ import streamlit as st
 from constants import (
     SSKey,
     STEPS,
+    UI_GLOBAL_DETAILS_TOGGLE_HELP,
+    UI_GLOBAL_DETAILS_TOGGLE_LABEL,
     UI_MODE_DISPLAY_LABELS,
     UI_MODE_HELP_TEXT,
     UI_MODE_VALUES,
@@ -823,12 +825,9 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
     if not isinstance(details_expanded_default, bool):
         details_expanded_default = ui_mode == "expert"
     details_expanded_default = st.sidebar.toggle(
-        "Details standardmäßig öffnen",
+        UI_GLOBAL_DETAILS_TOGGLE_LABEL,
         value=details_expanded_default,
-        help=(
-            "Globale Voreinstellung für Detailgruppen in allen Wizard-Schritten. "
-            f"{UI_MODE_HELP_TEXT}"
-        ),
+        help=UI_GLOBAL_DETAILS_TOGGLE_HELP,
     )
     normalized_preferences = dict(ui_preferences)
     normalized_preferences["details_expanded_default"] = details_expanded_default
