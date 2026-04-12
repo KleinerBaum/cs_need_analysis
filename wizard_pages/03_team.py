@@ -118,10 +118,10 @@ def _append_context_to_team_notes(
 def _render_role_context_enrichment(
     *, step: QuestionStep | None, ctx: WizardContext
 ) -> None:
-    st.markdown("#### Role-context enrichment (ESCO)")
+    st.markdown("#### Role-context enrichment (ESCO · Inferred suggestion/context)")
     st.caption(
-        "Inferred context from ESCO occupation content. This is guidance for team collaboration topics, "
-        "not a hard requirement source."
+        "Inferred suggestion/context from ESCO occupation content (not user-confirmed). "
+        "Adopted notes become a confirmed selection."
     )
 
     occupation = st.session_state.get(SSKey.ESCO_OCCUPATION_SELECTED.value)
@@ -151,23 +151,23 @@ def _render_role_context_enrichment(
         st.info("Keine belastbaren transversal themes aus ESCO ableitbar.")
         return
 
-    st.write("**Inferred collaboration context:**")
+    st.write("**Inferred suggestion/context for collaboration:**")
     for theme in themes:
         label = str(theme.get("label") or "").strip()
         evidence = (
             theme.get("evidence") if isinstance(theme.get("evidence"), list) else []
         )
-        st.markdown(f"- **{label}** _(inferred)_")
+        st.markdown(f"- **{label}** _(Inferred suggestion/context)_")
         if evidence:
             st.caption(f"Signal: {evidence[0]}")
-        adopt_label = f"Als Team-Notiz übernehmen · {label}"
+        adopt_label = f"Als Team-Notiz als confirmed selection übernehmen · {label}"
         if st.button(adopt_label, key=f"team.esco.adopt.{theme.get('key')}"):
             adopted = _append_context_to_team_notes(
                 step=step,
-                context_line=f"ESCO context signal: {label}",
+                context_line=f"Confirmed selection from inferred suggestion/context: {label}",
             )
             if adopted:
-                st.success("Kontext in Team-Notiz übernommen.")
+                st.success("Als confirmed selection in Team-Notiz übernommen.")
             else:
                 st.info("Keine geeignete Team-Notizfrage zum Übernehmen gefunden.")
 

@@ -495,7 +495,9 @@ def render_esco_picker_card(
             if not selected_payload:
                 st.caption("Noch keine Vorschläge ausgewählt.")
             else:
-                st.markdown("**Vorschau (noch nicht angewendet):**")
+                st.markdown(
+                    "**Inferred suggestion/context preview (not user-confirmed):**"
+                )
                 for concept in selected_payload:
                     if ui_mode == "expert":
                         st.caption(
@@ -581,7 +583,7 @@ def render_esco_picker_card(
         applied_meta.get("source", "auto") if isinstance(applied_meta, dict) else "auto"
     )
 
-    st.markdown("**Ausgewählte ESCO-Konzepte**")
+    st.markdown("**Confirmed selection · ESCO concepts**")
     for idx, concept in enumerate(current_entries):
         concept_id = _build_esco_concept_id(concept, idx)
         if ui_mode == "expert":
