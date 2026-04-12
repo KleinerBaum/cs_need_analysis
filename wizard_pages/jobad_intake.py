@@ -26,6 +26,7 @@ from state import (
 from ui_components import render_error_banner, render_openai_error
 from usage_utils import usage_has_cache_hit
 from wizard_pages.base import WizardContext, render_ui_mode_selector
+from wizard_pages.esco_occupation_ui import render_esco_occupation_confirmation
 
 
 SOURCE_TEXT_INPUT_KEY: Final[str] = "cs.source_text_input"
@@ -220,20 +221,12 @@ def _on_upload_change() -> None:
     )
 
 
-def render_jobad_intake(
-    ctx: WizardContext, *, title: str = "Jobspezifikation einlesen"
-) -> None:
-    st.header(title)
-    render_error_banner()
-
+def _render_phase_a_source_and_privacy_controls() -> bool:
+    st.markdown("### Phase A · Quelle & Datenschutz")
     st.caption(
-        "Lade ein Jobspec als PDF/DOCX hoch oder füge den Text direkt ein. Danach klickst du auf **Analysieren**."
+        "Quelle bereitstellen, Consent setzen und optional PII-Redaktion aktivieren, "
+        "bevor die Analyse gestartet wird."
     )
-
-    if SOURCE_TEXT_INPUT_KEY not in st.session_state:
-        st.session_state[SOURCE_TEXT_INPUT_KEY] = st.session_state.get(
-            SSKey.SOURCE_TEXT.value, ""
-        )
 
     do_extract = False
 
@@ -272,6 +265,17 @@ def render_jobad_intake(
                 placeholder="Füge hier die Stellenanzeige oder Jobspec ein …",
             )
 
+        st.checkbox(
+            "Einwilligung zur inhaltlichen Verarbeitung der Jobspec liegt vor",
+            key=SSKey.CONTENT_SHARING_CONSENT.value,
+            help="Steuert den dokumentierten Consent-Status dieser Session.",
+        )
+        st.checkbox(
+            "PII vor Analyse automatisch redigieren",
+            key=SSKey.SOURCE_REDACT_PII.value,
+            help="Bei Aktivierung wird der Quelltext vor dem LLM-Aufruf redigiert.",
+        )
+
         uploaded_text = str(st.session_state.get(SOURCE_UPLOAD_TEXT_KEY, ""))
         upload_meta = st.session_state.get(SSKey.SOURCE_FILE_META.value, {})
         if uploaded_text:
@@ -293,6 +297,45 @@ def render_jobad_intake(
                 width="stretch",
                 help="Analysieren und identifizierte Informationen direkt im Start anzeigen",
             )
+
+    return do_extract
+
+
+def _render_phase_b_extraction_review(ctx: WizardContext) -> None:
+    st.markdown("### Phase B · Extraktion prüfen")
+    _render_identified_information_block(ctx)
+
+
+def _render_phase_c_esco_anchor() -> None:
+    st.markdown("### Phase C · ESCO Semantic Anchor")
+    job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
+    plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
+    if not isinstance(job_dict, dict) or not isinstance(plan_dict, dict):
+        st.info(
+            "Phase C wird nach erfolgreicher Analyse (Extraktion + QuestionPlan) aktiviert."
+        )
+        return
+
+    job = JobAdExtract.model_validate(job_dict)
+    render_esco_occupation_confirmation(job)
+
+
+def render_jobad_intake(
+    ctx: WizardContext, *, title: str = "Jobspezifikation einlesen"
+) -> None:
+    st.header(title)
+    render_error_banner()
+
+    st.caption(
+        "Lade ein Jobspec als PDF/DOCX hoch oder füge den Text direkt ein. Danach klickst du auf **Analysieren**."
+    )
+
+    if SOURCE_TEXT_INPUT_KEY not in st.session_state:
+        st.session_state[SOURCE_TEXT_INPUT_KEY] = st.session_state.get(
+            SSKey.SOURCE_TEXT.value, ""
+        )
+
+    do_extract = _render_phase_a_source_and_privacy_controls()
 
     if do_extract:
         clear_error()
@@ -389,4 +432,5 @@ def render_jobad_intake(
 
         st.rerun()
 
-    _render_identified_information_block(ctx)
+    _render_phase_b_extraction_review(ctx)
+    _render_phase_c_esco_anchor()
