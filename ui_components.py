@@ -138,6 +138,30 @@ def render_recruiting_consistency_checklist(
         st.write(f"- {token} {label}")
 
 
+def has_answered_question_with_keywords(
+    *,
+    questions: Sequence[Question],
+    answered_lookup: dict[str, bool],
+    keywords: Sequence[str],
+) -> bool:
+    """Return True if a visible question matching any keyword is answered."""
+
+    normalized_keywords = tuple(
+        keyword.strip().casefold() for keyword in keywords if keyword.strip()
+    )
+    if not normalized_keywords:
+        return False
+
+    for question in questions:
+        question_label = question.label.strip().casefold()
+        if not question_label:
+            continue
+        if any(keyword in question_label for keyword in normalized_keywords):
+            if answered_lookup.get(question.id, False):
+                return True
+    return False
+
+
 def _normalize_esco_explainability_label(label: str) -> str:
     normalized = " ".join(str(label or "").strip().casefold().split())
     legacy_to_canonical = {

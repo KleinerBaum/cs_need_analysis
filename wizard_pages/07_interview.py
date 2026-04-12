@@ -4,10 +4,11 @@ from __future__ import annotations
 import streamlit as st
 
 from constants import SSKey
-from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep, RecruitmentStep
+from schemas import JobAdExtract, QuestionPlan, QuestionStep, RecruitmentStep
 from ui_layout import render_step_shell
 from ui_components import (
     build_step_review_payload,
+    has_answered_question_with_keywords,
     has_meaningful_value,
     render_error_banner,
     render_question_step,
@@ -15,22 +16,6 @@ from ui_components import (
     render_standard_step_review,
 )
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
-
-
-def _has_answer_for_keywords(
-    *,
-    questions: list[Question],
-    answered_lookup: dict[str, bool],
-    keywords: tuple[str, ...],
-) -> bool:
-    for question in questions:
-        question_label = question.label.strip().casefold()
-        if not question_label:
-            continue
-        if any(keyword in question_label for keyword in keywords):
-            if answered_lookup.get(question.id, False):
-                return True
-    return False
 
 
 def _has_extract_for_keywords(
@@ -59,7 +44,7 @@ def _render_interview_consistency_checklist(
         (
             "Interview-Stages sind klar beschrieben.",
             bool(job.recruitment_steps)
-            or _has_answer_for_keywords(
+            or has_answered_question_with_keywords(
                 questions=visible_questions,
                 answered_lookup=answered_lookup,
                 keywords=("stage", "prozess", "schritt", "ablauf", "interview"),
@@ -78,7 +63,7 @@ def _render_interview_consistency_checklist(
                     "hiring manager",
                 ),
             )
-            or _has_answer_for_keywords(
+            or has_answered_question_with_keywords(
                 questions=visible_questions,
                 answered_lookup=answered_lookup,
                 keywords=(
@@ -103,7 +88,7 @@ def _render_interview_consistency_checklist(
                     "rückmeldung",
                 ),
             )
-            or _has_answer_for_keywords(
+            or has_answered_question_with_keywords(
                 questions=visible_questions,
                 answered_lookup=answered_lookup,
                 keywords=("timeline", "dauer", "feedback", "rückmeldung", "sla"),

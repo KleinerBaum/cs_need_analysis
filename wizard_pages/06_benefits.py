@@ -4,11 +4,12 @@ from __future__ import annotations
 import streamlit as st
 
 from constants import SSKey
-from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
+from schemas import JobAdExtract, QuestionPlan, QuestionStep
 from state import get_answers
 from ui_layout import render_step_shell
 from ui_components import (
     build_step_review_payload,
+    has_answered_question_with_keywords,
     has_meaningful_value,
     render_error_banner,
     render_question_step,
@@ -17,22 +18,6 @@ from ui_components import (
 )
 from wizard_pages.base import WizardContext, WizardPage, nav_buttons
 from wizard_pages.salary_forecast_panel import render_salary_forecast_panel
-
-
-def _has_answer_for_keywords(
-    *,
-    questions: list[Question],
-    answered_lookup: dict[str, bool],
-    keywords: tuple[str, ...],
-) -> bool:
-    for question in questions:
-        question_label = question.label.strip().casefold()
-        if not question_label:
-            continue
-        if any(keyword in question_label for keyword in keywords):
-            if answered_lookup.get(question.id, False):
-                return True
-    return False
 
 
 def _render_benefits_consistency_checklist(
@@ -53,9 +38,9 @@ def _render_benefits_consistency_checklist(
 
     checks = [
         (
-            "Compensation ist für Recruiting kommunizierbar.",
+            "Vergütungsrahmen ist intern abgestimmt und kommunizierbar.",
             salary_extracted
-            or _has_answer_for_keywords(
+            or has_answered_question_with_keywords(
                 questions=visible_questions,
                 answered_lookup=answered_lookup,
                 keywords=("gehalt", "salary", "vergütung", "compensation"),
@@ -64,16 +49,16 @@ def _render_benefits_consistency_checklist(
         (
             "Arbeitsmodell (Remote/Hybrid/Onsite) ist abgestimmt.",
             remote_extracted
-            or _has_answer_for_keywords(
+            or has_answered_question_with_keywords(
                 questions=visible_questions,
                 answered_lookup=answered_lookup,
                 keywords=("remote", "hybrid", "onsite", "homeoffice", "arbeitsmodell"),
             ),
         ),
         (
-            "Benefits sind priorisiert und konsistent benennbar.",
+            "Benefits sind priorisiert und einheitlich benennbar.",
             benefits_extracted
-            or _has_answer_for_keywords(
+            or has_answered_question_with_keywords(
                 questions=visible_questions,
                 answered_lookup=answered_lookup,
                 keywords=("benefit", "perk", "zusatz", "budget"),
