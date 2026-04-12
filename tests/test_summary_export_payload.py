@@ -184,6 +184,38 @@ def test_build_structured_export_payload_includes_recommended_titles_by_language
     }
 
 
+def test_build_structured_export_payload_skips_invalid_or_unmatched_recommended_titles(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.ESCO_CONFIG.value: {"selected_version": "latest"},
+                SSKey.ESCO_SKILLS_SELECTED_MUST.value: [],
+                SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
+                SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value: {
+                    "uri": "uri:occ:other",
+                    "recommended_titles": {
+                        "de": ["Data Engineer", "   ", 123],
+                        "en": "Data Engineer",
+                    },
+                },
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "get_esco_occupation_selected",
+        lambda: {"uri": "uri:occ:1", "title": "Data Engineer", "type": "occupation"},
+    )
+
+    payload = SUMMARY_MODULE._build_structured_export_payload(_brief())
+
+    assert "recommended_titles" not in payload
+
+
 def test_build_structured_export_payload_includes_salary_artifacts_when_available(
     monkeypatch,
 ) -> None:

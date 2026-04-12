@@ -78,9 +78,10 @@ def _load_occupation_title_variants(
     *,
     occupation_uri: str,
     languages: list[str],
-) -> dict[str, list[str]]:
+) -> tuple[dict[str, list[str]], list[str]]:
     client = EscoClient()
     variants: dict[str, list[str]] = {}
+    warnings: list[str] = []
     for language in languages:
         try:
             payload = client.terms(
@@ -90,12 +91,22 @@ def _load_occupation_title_variants(
             )
         except EscoClientError as exc:
             fallback_language = "en" if language == "de" else "de"
-            if exc.status_code and exc.status_code >= 500:
-                payload = client.terms(
-                    uri=occupation_uri,
-                    type="occupation",
-                    language=fallback_language,
-                )
+            if exc.status_code is None or exc.status_code >= 500:
+                try:
+                    payload = client.terms(
+                        uri=occupation_uri,
+                        type="occupation",
+                        language=fallback_language,
+                    )
+                except EscoClientError as fallback_exc:
+                    if (
+                        fallback_exc.status_code is None
+                        or fallback_exc.status_code >= 500
+                    ):
+                        warnings.append(language)
+                        continue
+                    raise
+
                 labels = _collect_occupation_labels(payload)
                 if labels:
                     variants[language] = labels
@@ -105,7 +116,7 @@ def _load_occupation_title_variants(
         labels = _collect_occupation_labels(payload)
         if labels:
             variants[language] = labels
-    return variants
+    return variants, warnings
 
 
 def _render_esco_why_this_matters() -> None:
@@ -534,7 +545,7 @@ def _render_esco_occupation_block(job: JobAdExtract) -> None:
         key=f"{SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value}.load",
     ):
         try:
-            variants = _load_occupation_title_variants(
+            variants, warning_languages = _load_occupation_title_variants(
                 occupation_uri=occupation_uri,
                 languages=languages,
             )
@@ -544,6 +555,7 @@ def _render_esco_occupation_block(job: JobAdExtract) -> None:
             st.session_state[SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value] = {
                 "uri": occupation_uri,
                 "recommended_titles": variants,
+                "warnings": warning_languages,
             }
 
     title_variants_raw = st.session_state.get(
@@ -553,6 +565,20 @@ def _render_esco_occupation_block(job: JobAdExtract) -> None:
         variant_uri = str(title_variants_raw.get("uri") or "").strip()
         variants_by_language = title_variants_raw.get("recommended_titles", {})
         if variant_uri == occupation_uri and isinstance(variants_by_language, dict):
+            warnings_raw = title_variants_raw.get("warnings", [])
+            warning_languages = (
+                [str(item).strip() for item in warnings_raw if str(item).strip()]
+                if isinstance(warnings_raw, list)
+                else []
+            )
+            if warning_languages:
+                joined_languages = ", ".join(
+                    f"{item.upper()}" for item in warning_languages
+                )
+                st.warning(
+                    "Titelvarianten konnten nicht in allen Sprachen geladen werden "
+                    f"({joined_languages}). Bitte später erneut versuchen."
+                )
             with st.expander("Geladene Occupation-Titelvarianten", expanded=False):
                 for language in languages:
                     labels_raw = variants_by_language.get(language, [])
