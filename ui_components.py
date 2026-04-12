@@ -117,6 +117,27 @@ def render_standard_step_review(step: QuestionStep | None) -> None:
     )
 
 
+def render_recruiting_consistency_checklist(
+    *,
+    title: str,
+    checks: Sequence[tuple[str, bool]],
+    caption: str = "Kurzcheck vor dem Weitergehen",
+) -> None:
+    """Render a concise, state-derived readiness checklist for recruiting consistency."""
+
+    compact_checks = [
+        (label.strip(), is_ok) for label, is_ok in checks if label.strip()
+    ]
+    if not compact_checks:
+        return
+
+    st.markdown(f"#### {title}")
+    st.caption(caption)
+    for label, is_ok in compact_checks:
+        token = "✅" if is_ok else "⬜"
+        st.write(f"- {token} {label}")
+
+
 def _normalize_esco_explainability_label(label: str) -> str:
     normalized = " ".join(str(label or "").strip().casefold().split())
     legacy_to_canonical = {
