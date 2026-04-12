@@ -2364,7 +2364,27 @@ def _render_readiness_tab(
     if next_action is None:
         st.info("Aktuell ist kein nächster Schritt verfügbar.")
     else:
+        requirements_ok = _has_required_state(next_action["requires"])
+        requirement_status_ok = True
+        requirement_status_message = ""
+        requirement_check_fn = next_action.get("requirement_check_fn")
+        if requirement_check_fn is not None:
+            requirement_status_ok, requirement_status_message = requirement_check_fn()
+        cta_enabled = (
+            requirements_ok
+            and requirement_status_ok
+            and next_action["generator_fn"] is not None
+        )
+
         st.markdown(f"**Nächste beste Aktion:** {next_action['title']}")
+        requirement_label = next_action["requirement_text"]
+        if requirement_status_message:
+            requirement_label = f"{requirement_label} — {requirement_status_message}"
+        if requirements_ok and requirement_status_ok:
+            st.caption(f"Voraussetzung: ✅ {requirement_label}")
+        else:
+            st.caption(f"Voraussetzung: ⚠️ {requirement_label}")
+
         if st.button(
             f"CTA: {next_action['cta_label']}",
             type="primary",
@@ -2372,7 +2392,7 @@ def _render_readiness_tab(
             key=_widget_key(
                 SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "readiness.next_action"
             ),
-            disabled=next_action["generator_fn"] is None,
+            disabled=not cta_enabled,
         ):
             st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = (
                 _to_canonical_artifact_id(next_action["id"])
