@@ -9,7 +9,7 @@ import streamlit as st
 from constants import SSKey
 from esco_client import EscoClient, EscoClientError
 from llm_client import generate_requirement_gap_suggestions
-from schemas import JobAdExtract, QuestionPlan
+from schemas import JobAdExtract
 from state import (
     get_active_model,
     get_answers,
@@ -26,7 +26,7 @@ from ui_components import (
     render_step_review_card,
 )
 from ui_layout import render_step_shell
-from wizard_pages.base import WizardContext, WizardPage, nav_buttons
+from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
 from wizard_pages.salary_forecast_panel import render_salary_forecast_panel
 
 
@@ -229,17 +229,10 @@ def _render_role_task_source_columns(
 
 
 def render(ctx: WizardContext) -> None:
-    job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
-    plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
-
-    if not job_dict or not plan_dict:
-        st.warning("Bitte zuerst im Start-Schritt eine Analyse durchführen.")
-        st.button("Zur Startseite", on_click=lambda: ctx.goto("landing"))
-        nav_buttons(ctx, disable_next=True)
+    preflight = guard_job_and_plan(ctx)
+    if preflight is None:
         return
-
-    job = JobAdExtract.model_validate(job_dict)
-    plan = QuestionPlan.model_validate(plan_dict)
+    job, plan = preflight
     step = next((s for s in plan.steps if s.step_key == "role_tasks"), None)
 
     responsibilities = [r for r in job.responsibilities if has_meaningful_value(r)]

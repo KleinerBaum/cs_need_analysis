@@ -8,7 +8,7 @@ import streamlit as st
 
 from constants import AnswerType, SSKey
 from esco_client import EscoClient, EscoClientError
-from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
+from schemas import Question, QuestionStep
 from state import get_answers, mark_answer_touched, set_answer
 from ui_components import (
     build_step_review_payload,
@@ -18,7 +18,7 @@ from ui_components import (
     render_step_review_card,
 )
 from ui_layout import render_step_shell
-from wizard_pages.base import WizardContext, WizardPage, nav_buttons
+from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
 
 
 def _walk_text_values(value: Any) -> Iterable[str]:
@@ -175,17 +175,10 @@ def _render_role_context_enrichment(
 
 
 def render(ctx: WizardContext) -> None:
-    job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
-    plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
-
-    if not job_dict or not plan_dict:
-        st.warning("Bitte zuerst im Start-Schritt eine Analyse durchführen.")
-        st.button("Zur Startseite", on_click=lambda: ctx.goto("landing"))
-        nav_buttons(ctx, disable_next=True)
+    preflight = guard_job_and_plan(ctx)
+    if preflight is None:
         return
-
-    job = JobAdExtract.model_validate(job_dict)
-    plan = QuestionPlan.model_validate(plan_dict)
+    job, plan = preflight
     step = next((s for s in plan.steps if s.step_key == "team"), None)
 
     def _render_extracted_slot() -> None:

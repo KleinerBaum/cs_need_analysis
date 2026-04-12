@@ -3,8 +3,6 @@ from __future__ import annotations
 
 import streamlit as st
 
-from constants import SSKey
-from schemas import JobAdExtract, QuestionPlan
 from state import get_answers
 from ui_layout import render_step_shell
 from ui_components import (
@@ -14,24 +12,18 @@ from ui_components import (
     render_question_step,
     render_step_review_card,
 )
-from wizard_pages.base import WizardContext, WizardPage, nav_buttons
+from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
 from wizard_pages.salary_forecast_panel import render_salary_forecast_panel
 
 
 def render(ctx: WizardContext) -> None:
     render_error_banner()
 
-    job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
-    plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
-
-    if not job_dict or not plan_dict:
-        st.warning("Bitte zuerst im Start-Schritt eine Analyse durchführen.")
-        st.button("Zur Startseite", on_click=lambda: ctx.goto("landing"))
-        nav_buttons(ctx, disable_next=True)
+    preflight = guard_job_and_plan(ctx)
+    if preflight is None:
         return
 
-    job = JobAdExtract.model_validate(job_dict)
-    plan = QuestionPlan.model_validate(plan_dict)
+    job, plan = preflight
 
     step = next((s for s in plan.steps if s.step_key == "benefits"), None)
 

@@ -872,6 +872,23 @@ def nav_buttons(
         st.rerun()
 
 
+def guard_job_and_plan(
+    ctx: WizardContext,
+) -> tuple[JobAdExtract, QuestionPlan] | None:
+    job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
+    plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
+
+    if not job_dict or not plan_dict:
+        st.warning("Bitte zuerst im Start-Schritt eine Analyse durchführen.")
+        st.button("Zur Startseite", on_click=lambda: ctx.goto("landing"))
+        nav_buttons(ctx, disable_next=True)
+        return None
+
+    job = JobAdExtract.model_validate(job_dict)
+    plan = QuestionPlan.model_validate(plan_dict)
+    return job, plan
+
+
 LANDING_STYLE_TOKENS: dict[str, str] = {
     "card_radius": "14px",
     "section_spacing": "1.2rem 0 1.4rem 0",
