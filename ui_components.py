@@ -1478,6 +1478,15 @@ def render_step_review_card(
     answer_meta: dict[str, Any],
     answered_lookup: dict[str, bool] | None = None,
 ) -> None:
+    if not visible_questions:
+        with st.container(border=True):
+            st.markdown("#### ✅ Check answers")
+            st.caption("Keine sichtbaren Fragen in diesem Schritt.")
+            st.caption(
+                "Hinweis: Abhängigkeiten können Detailfragen ausblenden, bis die vorausgesetzten Antworten gesetzt sind."
+            )
+        return
+
     grouped_questions = _group_questions(step, visible_questions)
     group_payload: list[tuple[str, list[tuple[str, str]]]] = []
     missing_essential_labels: list[str] = []

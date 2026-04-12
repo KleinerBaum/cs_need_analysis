@@ -908,8 +908,6 @@ def _render_review_slot(step: QuestionStep | None) -> None:
         for question in step.questions
         if should_show_question(question, answers, answer_meta, step.step_key)
     ]
-    if not visible_questions:
-        return
     render_step_review_card(
         step=step,
         visible_questions=visible_questions,
