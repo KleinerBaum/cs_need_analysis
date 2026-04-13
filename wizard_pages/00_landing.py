@@ -151,7 +151,7 @@ def render(ctx: WizardContext) -> None:
             bullets=cast(tuple[str, ...], LANDING_COPY["output_bullets"]),
         )
     with image_col:
-        st.image("images/iceberg v1.png", use_container_width=True)
+        st.image("images/iceberg v1.png", width="stretch")
 
     st.divider()
     render_jobad_intake(ctx, title=str(LANDING_COPY["primary_cta"]))

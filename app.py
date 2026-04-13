@@ -451,6 +451,8 @@ def main() -> None:
     current = sidebar_navigation(ctx)
     step_changed = bool(previous_step and previous_step != current.key)
     if step_changed:
+        # Keep inline HTML script until Streamlit offers an equivalent native API
+        # for parent-window scroll reset on wizard step changes.
         st.components.v1.html(
             """
             <script>
