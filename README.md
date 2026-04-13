@@ -4,7 +4,7 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 
 ## Features
 
-- Intake-Start direkt auf der Landingpage mit integriertem Jobspec-Intake in **drei klaren Start-Phasen**: **Phase A (Quelle & Datenschutz)**, **Phase B (Extraktion prüfen)**, **Phase C (ESCO Semantic Anchor)**.
+- Intake-Start direkt auf der Landingpage mit integriertem Jobspec-Intake in **drei klaren Start-Phasen**: **Phase A (Quelle & Datenschutz)**, **Phase B (Extraktion prüfen)**, **Phase C (ESCO-Suche)**.
 - Upload von Jobspec/Job Ad als **PDF**, **DOCX** oder **TXT** (alternativ: Text einfügen).
 - Entkoppeltes Quellenhandling im Intake: Upload-Text und manuelle Eingabe überschreiben sich nicht; die aktive Quelle wird zur Analyse genutzt.
 - LLM-gestützte **Extraktion** der Jobspec in ein strukturiertes Schema (Structured Outputs) und automatische Erzeugung eines dynamischen Frageplans.
@@ -20,7 +20,7 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 - Der Artefaktbereich wurde auf eine scannbare Einzeldarstellung konsolidiert (keine doppelten Ergebnisblöcke); weitere Ergebnisse werden sekundär umgeschaltet.
 - Beim Job-Ad-Generator liegen **Selection Matrix** und **Job-Ad-Editor** gebündelt im erweiterten Bereich (UI-Modus `expert`), inkl. optionalem Logo-Upload sowie Styleguide-/Change-Request-Bausteinen.
 - Der Salary Forecast wird in den Schritten Rolle & Aufgaben, Skills & Anforderungen sowie Benefits & Rahmenbedingungen als standardmäßig geöffnete Sektion angezeigt.
-- ESCO-Integration in **Start · Phase C (ESCO Semantic Anchor)** mit Occupation-Picker, Preview und expliziter Bestätigung als **semantischer Anker**; diese Bestätigung erfolgt vor der Weiterarbeit in Team/Skills und dient dort als Downstream-Grundlage. Zusätzlich gibt es einen expandierbaren Occupation-Detailbereich (u. a. Preferred/Alternative Labels, Description, Scope Note, ISCO-08, Regulated Profession sowie Skill-/Knowledge-Relationen) sowie optionales Laden von Occupation-Titelvarianten in mehreren Sprachen.
+- ESCO-Integration in **Start · Phase C (ESCO-Suche)** mit Occupation-Picker, Preview und expliziter Bestätigung als **semantischer Anker**; diese Bestätigung erfolgt vor der Weiterarbeit in Team/Skills und dient dort als Downstream-Grundlage. Zusätzlich gibt es einen expandierbaren Occupation-Detailbereich (u. a. Preferred/Alternative Labels, Description, Scope Note, ISCO-08, Regulated Profession sowie Skill-/Knowledge-Relationen) sowie optionales Laden von Occupation-Titelvarianten in mehreren Sprachen.
 - Degradiertes Verhalten bei ESCO-Ausfall: Bei temporären ESCO-Fehlern (z. B. 5xx/Netzwerk) bleibt der Wizard bedienbar, zeigt verständliche Hinweise und bietet „manuell fortfahren“ sowie „später erneut versuchen“ statt eines harten Abbruchs.
 - Skills-Mapping als geführter 4-Schritt-Flow: (1) extrahierte Jobspec-Phrasen, (2) ESCO-Normalisierung über Occupation-Relationen, (3) sichtbare Essential/Optional-Bestätigung, (4) dedizierter Bereich „Not normalized yet“ mit Optionen „Keep free text“, Retry-Suche und Attach an Occupation.
 - Optionales NACE/EURES-Mapping im Unternehmensschritt als Grundlage für spätere Country-/Occupation-Kontexte; die Summary-Readiness bewertet den bestätigten semantischen Anker (ESCO) und NACE separat.
@@ -34,7 +34,7 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 1. **Start**
    - Phase A: Quelle, Consent, optionale PII-Redaktion, UI-Modus (auch global in der Sidebar verfügbar)
    - Phase B: editierbare „Identifizierte Informationen“ + Gaps/Assumptions
-   - Phase C: ESCO Semantic Anchor (verpflichtende Bestätigung vor „Weiter“)
+   - Phase C: ESCO-Suche (verpflichtende Bestätigung vor „Weiter“)
 2. **Unternehmen** (optionaler NACE-Code, falls Mapping geladen ist)
 3. **Team**
 4. **Rolle & Aufgaben**
