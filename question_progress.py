@@ -29,6 +29,34 @@ class QuestionProgress(TypedDict):
     required_unanswered: int
 
 
+class StepScopeProgressLabels(TypedDict):
+    visible_label: str
+    overall_label: str
+    has_different_denominator: bool
+
+
+def build_step_scope_progress_labels(
+    *,
+    visible_answered: int,
+    visible_total: int,
+    overall_answered: int,
+    overall_total: int,
+) -> StepScopeProgressLabels:
+    """Build explicit UX labels for visible vs. overall step progress scopes."""
+
+    has_different_denominator = visible_total != overall_total
+    return {
+        "visible_label": (
+            f"Sichtbar im aktuellen Umfang: {visible_answered}/{visible_total}"
+        ),
+        "overall_label": (
+            "Gesamt im Step (inkl. derzeit ausgeblendeter Details): "
+            f"{overall_answered}/{overall_total}"
+        ),
+        "has_different_denominator": has_different_denominator,
+    }
+
+
 def build_answered_lookup(
     questions: list[Question],
     answers: dict[str, Any],

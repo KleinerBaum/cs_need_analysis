@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from constants import AnswerType
-from question_progress import compute_question_progress, is_answered
+from question_progress import (
+    build_step_scope_progress_labels,
+    compute_question_progress,
+    is_answered,
+)
 from schemas import Question
 
 
@@ -94,3 +98,19 @@ def test_compute_question_progress_counts_answered_and_required_open() -> None:
     )
 
     assert progress == {"total": 4, "answered": 3, "required_unanswered": 1}
+
+
+def test_build_step_scope_progress_labels_marks_scope_difference() -> None:
+    labels = build_step_scope_progress_labels(
+        visible_answered=1,
+        visible_total=1,
+        overall_answered=1,
+        overall_total=3,
+    )
+
+    assert labels["visible_label"] == "Sichtbar im aktuellen Umfang: 1/1"
+    assert (
+        labels["overall_label"]
+        == "Gesamt im Step (inkl. derzeit ausgeblendeter Details): 1/3"
+    )
+    assert labels["has_different_denominator"] is True

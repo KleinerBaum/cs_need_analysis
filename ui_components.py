@@ -22,7 +22,11 @@ from constants import (
 from esco_client import EscoClient, EscoClientError
 from llm_client import OpenAICallError
 from question_dependencies import should_show_question
-from question_progress import build_answered_lookup, compute_question_progress
+from question_progress import (
+    build_answered_lookup,
+    build_step_scope_progress_labels,
+    compute_question_progress,
+)
 from schemas import (
     BooleanSearchPack,
     Contact,
@@ -1474,6 +1478,22 @@ def render_question_step(step: QuestionStep) -> None:
     detail_progress = compute_question_progress(
         detail_questions, answers, answer_meta, answered_lookup=answered_lookup
     )
+    visible_progress = compute_question_progress(
+        visible_questions, answers, answer_meta, answered_lookup=answered_lookup
+    )
+    overall_answered_lookup = build_answered_lookup(questions, answers, answer_meta)
+    overall_progress = compute_question_progress(
+        questions,
+        answers,
+        answer_meta,
+        answered_lookup=overall_answered_lookup,
+    )
+    scope_labels = build_step_scope_progress_labels(
+        visible_answered=visible_progress["answered"],
+        visible_total=visible_progress["total"],
+        overall_answered=overall_progress["answered"],
+        overall_total=overall_progress["total"],
+    )
 
     st.caption(
         "Minimalprofil "
@@ -1481,6 +1501,9 @@ def render_question_step(step: QuestionStep) -> None:
         " · Details "
         f"{detail_progress['answered']}/{detail_progress['total']} beantwortet"
     )
+    st.caption(scope_labels["visible_label"])
+    if scope_labels["has_different_denominator"]:
+        st.caption(scope_labels["overall_label"])
 
     st.markdown("#### Minimalprofil")
     st.caption(
