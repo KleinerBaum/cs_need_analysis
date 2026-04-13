@@ -806,7 +806,10 @@ def render_active_ui_mode_caption(*, ui_mode: str | None = None) -> None:
 
 
 def render_ui_mode_selector(
-    *, sidebar: bool = False, widget_key: str | None = None
+    *,
+    sidebar: bool = False,
+    widget_key: str | None = None,
+    show_label: bool = True,
 ) -> str:
     ui_mode_key = widget_key or SSKey.UI_MODE.value
     selectbox = st.sidebar.selectbox if sidebar else st.selectbox
@@ -821,6 +824,7 @@ def render_ui_mode_selector(
             ),
             help=UI_MODE_HELP_TEXT,
             on_change=_sync_mode_change,
+            label_visibility="visible" if show_label else "collapsed",
         )
         return str(selected_mode).strip().lower()
 
@@ -833,6 +837,7 @@ def render_ui_mode_selector(
             mode, str(mode).capitalize()
         ),
         help=UI_MODE_HELP_TEXT,
+        label_visibility="visible" if show_label else "collapsed",
     )
     normalized_mode = str(selected_mode).strip().lower()
     if normalized_mode != current_mode:
