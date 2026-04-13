@@ -63,7 +63,6 @@ from state import (
     handle_unexpected_exception,
 )
 from ui_components import (
-    render_esco_explainability,
     render_boolean_search_pack,
     render_brief,
     render_employment_contract_draft,
@@ -80,7 +79,6 @@ from wizard_pages.base import (
     nav_buttons,
     render_active_ui_mode_caption,
 )
-from wizard_pages.salary_forecast_panel import render_salary_forecast_panel
 
 SUPPORTED_LOGO_MIME_TYPES: dict[str, str] = {
     "image/png": "PNG",
@@ -455,12 +453,10 @@ def _resolve_active_artifact_id(*, available_artifact_ids: list[str]) -> str:
         if active_raw != normalized_active:
             st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = normalized_active
         return normalized_active
-    if "brief" in available_artifact_ids:
-        fallback = "brief"
-    elif available_artifact_ids:
+    if available_artifact_ids:
         fallback = available_artifact_ids[0]
     else:
-        fallback = "brief"
+        fallback = ""
     st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = fallback
     return fallback
 
@@ -2377,6 +2373,7 @@ def _render_readiness_tab(
         st.subheader("Readiness")
     else:
         st.markdown("### Readiness")
+    _render_summary_facts_section(vm)
     with st.expander("Recruiting Brief (auto-aktualisiert)", expanded=False):
         if brief is None:
             st.info("Noch kein gültiger Recruiting Brief verfügbar.")
@@ -2470,73 +2467,6 @@ def _render_readiness_tab(
         st.markdown("---")
         _render_export_bar(has_brief=True)
         _render_summary_export_workspace(brief=brief)
-
-    with st.expander("ESCO-Coverage", expanded=False):
-        shared_esco = _read_esco_shared_fields()
-        coverage = _compute_esco_coverage_metrics(shared_esco)
-        occupation_explainability = _read_esco_match_explainability()
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric(
-            "Essential Coverage",
-            f"{coverage['essential_covered']}/{coverage['essential_total']}",
-            f"{coverage['essential_pct']}%",
-        )
-        c2.metric(
-            "Optional Coverage",
-            f"{coverage['optional_covered']}/{coverage['optional_total']}",
-            f"{coverage['optional_pct']}%",
-        )
-        c3.metric("Unmapped Gaps", str(len(shared_esco["unmapped_terms"])))
-        relation_traces = _count_skill_relation_traces(
-            shared_esco["essential_skills"] + shared_esco["optional_skills"]
-        )
-        c4.metric("Skill→Occupation traces", str(relation_traces))
-        confirmed_occupation = int(
-            str(occupation_explainability.get("confidence", "")).strip().lower()
-            == "high"
-        )
-        inferred_occupation = (
-            1 - confirmed_occupation if vm.meta.selected_occupation_title else 0
-        )
-        inferred_skill_count = sum(
-            1
-            for item in (
-                shared_esco["essential_skills"] + shared_esco["optional_skills"]
-            )
-            if str(item.get("relation") or "").strip().startswith("has")
-        )
-        confirmed_skill_count = (
-            len(shared_esco["essential_skills"]) + len(shared_esco["optional_skills"])
-        ) - inferred_skill_count
-        st.markdown("**Confirmed vs. Inferred ESCO Coverage**")
-        cc1, cc2 = st.columns(2)
-        cc1.metric(
-            "Confirmed",
-            str(max(confirmed_skill_count, 0) + confirmed_occupation),
-            "High-confidence / user-confirmed",
-        )
-        cc2.metric(
-            "Inferred",
-            str(max(inferred_skill_count, 0) + inferred_occupation),
-            "Relation-derived / weaker confidence",
-        )
-        render_esco_explainability(
-            labels=occupation_explainability.get("provenance_categories", []),
-            confidence=str(occupation_explainability.get("confidence", "low")),
-            reason=str(occupation_explainability.get("reason", "") or ""),
-            caption_prefix="Summary Occupation Explainability",
-        )
-        if shared_esco["unmapped_terms"]:
-            st.caption(
-                "Offene Begriffe: "
-                + ", ".join(shared_esco["unmapped_terms"][:8])
-                + (" …" if len(shared_esco["unmapped_terms"]) > 8 else "")
-            )
-        if shared_esco["unmapped_roles"]:
-            st.caption(
-                "Nicht normalisierte Rollenbegriffe: "
-                + ", ".join(shared_esco["unmapped_roles"][:4])
-            )
 
     st.markdown("**Kritische Lücken (Top 5)**")
     missing_items = _build_missing_critical_items(vm)
@@ -3013,7 +2943,7 @@ def _render_secondary_artifacts(
 
 
 def _render_summary_results_workspace(*, brief: VacancyBrief) -> None:
-    available_artifact_ids: list[str] = ["brief"]
+    available_artifact_ids: list[str] = []
     if isinstance(st.session_state.get(SSKey.JOB_AD_DRAFT_CUSTOM.value), dict):
         available_artifact_ids.append("job_ad")
     if isinstance(st.session_state.get(SSKey.INTERVIEW_PREP_HR.value), dict):
@@ -3024,6 +2954,9 @@ def _render_summary_results_workspace(*, brief: VacancyBrief) -> None:
         available_artifact_ids.append("boolean_search")
     if isinstance(st.session_state.get(SSKey.EMPLOYMENT_CONTRACT_DRAFT.value), dict):
         available_artifact_ids.append("employment_contract")
+    if not available_artifact_ids:
+        st.info("Noch keine Folgeartefakte vorhanden.")
+        return
 
     active_artifact_id = _resolve_active_artifact_id(
         available_artifact_ids=available_artifact_ids
@@ -3067,18 +3000,6 @@ def _render_summary_export_workspace(*, brief: VacancyBrief) -> None:
             data=docx_bytes,
             file_name="vacancy_brief.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        )
-    with st.expander("JSON-Vorschau & Debug (optional)", expanded=False):
-        snippet_limit = 380
-        snippet = export_json_text[:snippet_limit]
-        if len(export_json_text) > snippet_limit:
-            snippet = f"{snippet}…"
-        st.code(snippet, language="json")
-        st.text_area(
-            "Komplette JSON-Vorschau",
-            value=export_json_text,
-            height=240,
-            disabled=True,
         )
 
 
@@ -3516,38 +3437,6 @@ def render(ctx: WizardContext) -> None:
         except Exception:
             brief = None
 
-    supports_tabs = hasattr(st, "tabs")
-    if supports_tabs:
-        readiness_tab, facts_tab, artifacts_tab, export_tab, advanced_tab = (
-            _build_summary_tabs()
-        )
-
-        with readiness_tab:
-            _render_readiness_tab(
-                vm=vm,
-                action_registry=action_registry,
-                resolved_brief_model=resolved_brief_model,
-                brief=brief,
-            )
-
-        with facts_tab:
-            # SUMMARY_ZONE: FACTS
-            _render_summary_facts_section(vm)
-
-        with artifacts_tab:
-            # SUMMARY_ZONE: PROCESSING_HUB
-            _render_summary_processing_hub(
-                action_registry=action_registry,
-                resolved_brief_model=resolved_brief_model,
-                show_job_ad_configuration_panel=False,
-                show_export_bar=False,
-            )
-    else:
-        _render_summary_processing_hub(
-            action_registry=action_registry,
-            resolved_brief_model=resolved_brief_model,
-        )
-
     if brief is None:
         st.info(
             "Noch kein Recruiting Brief verfügbar. Prüfe die Eingaben und versuche es erneut."
@@ -3555,32 +3444,12 @@ def render(ctx: WizardContext) -> None:
         nav_buttons(ctx, disable_next=True)
         return
 
-    if supports_tabs:
-        with export_tab:
-            st.caption("Exporte sind im Readiness-Tab unterhalb der Outputs verfügbar.")
-
-        with advanced_tab:
-            if bool(st.session_state.get(SSKey.SUMMARY_CACHE_HIT.value, False)):
-                st.caption("📦 Zusammenfassung: aus dem Cache geladen.")
-            last_mode = st.session_state.get(SSKey.SUMMARY_LAST_MODE.value) or "unknown"
-            last_models = (
-                st.session_state.get(SSKey.SUMMARY_LAST_MODELS.value, {}) or {}
-            )
-            st.caption(
-                f"🧠 Modus: `{last_mode}` · Modelle: Draft=`{last_models.get('draft_model', resolved_brief_model)}`"
-            )
-            if not is_advanced_mode:
-                st.info(
-                    "Advanced Studio ist im aktuellen UI-Modus reduziert. "
-                    "Wechsle auf **Expert**, um Gehaltsprognose und Job-Ad-Editor zu öffnen."
-                )
-            else:
-                with st.container(border=True):
-                    st.markdown("### Gehaltsprognose")
-                    render_salary_forecast_panel(vm.job, vm.answers)
-                _render_job_ad_configuration_panel(action_registry=action_registry)
-    else:
-        _render_summary_results_workspace(brief=brief)
+    _render_readiness_tab(
+        vm=vm,
+        action_registry=action_registry,
+        resolved_brief_model=resolved_brief_model,
+        brief=brief,
+    )
 
     nav_buttons(ctx, disable_next=True)
 
