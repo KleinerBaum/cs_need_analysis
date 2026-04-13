@@ -34,7 +34,14 @@ def extract_text_from_uploaded_file(upload: Any) -> Tuple[str, Dict[str, Any]]:
         "size": getattr(upload, "size", None),
     }
 
+    try:
+        upload.seek(0)
+    except Exception:
+        pass
+
     raw = upload.read()
+    if not raw:
+        raise ValueError("Datei enthält keinen auslesbaren Inhalt.")
     name = (meta.get("name") or "").lower()
 
     if name.endswith(".docx"):
@@ -48,7 +55,11 @@ def extract_text_from_uploaded_file(upload: Any) -> Tuple[str, Dict[str, Any]]:
         except UnicodeDecodeError:
             text = raw.decode("latin-1", errors="replace")
 
-    return _normalize_text(text), meta
+    normalized = _normalize_text(text)
+    if not normalized:
+        raise ValueError("Datei enthält keinen auslesbaren Inhalt.")
+
+    return normalized, meta
 
 
 def extract_text_from_path(path: str | Path) -> str:

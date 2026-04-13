@@ -125,6 +125,11 @@ def _extract_upload_to_state(
 ) -> str | None:
     try:
         uploaded_text, source_meta = extract_text_from_uploaded_file(upload)
+        if not uploaded_text.strip():
+            raise ValueError("Datei enthält keinen auslesbaren Inhalt.")
+    except ValueError as exc:
+        set_error(str(exc) or "Datei enthält keinen auslesbaren Inhalt.")
+        return None
     except Exception as exc:
         error_type = type(exc).__name__
         handle_unexpected_exception(
