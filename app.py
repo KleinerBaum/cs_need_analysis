@@ -428,6 +428,7 @@ def main() -> None:
     _inject_theme_styles()
 
     init_session_state()
+    previous_step = st.session_state.get(SSKey.LAST_RENDERED_STEP.value)
 
     pages = load_pages()
     ctx = WizardContext(pages=pages)
@@ -448,6 +449,27 @@ def main() -> None:
         return
 
     current = sidebar_navigation(ctx)
+    step_changed = bool(previous_step and previous_step != current.key)
+    if step_changed:
+        st.components.v1.html(
+            """
+            <script>
+            const topOptions = { top: 0, behavior: "instant" };
+            try {
+                if (window.parent && typeof window.parent.scrollTo === "function") {
+                    window.parent.scrollTo(topOptions);
+                } else if (typeof window.scrollTo === "function") {
+                    window.scrollTo(topOptions);
+                }
+            } catch (error) {
+                if (typeof window.scrollTo === "function") {
+                    window.scrollTo(topOptions);
+                }
+            }
+            </script>
+            """,
+            height=0,
+        )
 
     # Guard: if page requires jobspec but it's missing, redirect to landing
     if current.requires_jobspec and not st.session_state.get(SSKey.JOB_EXTRACT.value):
