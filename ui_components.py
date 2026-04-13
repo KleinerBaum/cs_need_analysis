@@ -314,7 +314,12 @@ def _extract_esco_suggestions(
                 or node.get("label")
                 or node.get("name")
             )
-            type_raw = node.get("type") or concept_type
+            type_raw = (
+                node.get("type")
+                or node.get("conceptType")
+                or node.get("className")
+                or concept_type
+            )
             if isinstance(uri_raw, str) and isinstance(title_raw, str):
                 uri = uri_raw.strip()
                 title = title_raw.strip()
@@ -336,7 +341,33 @@ def _extract_esco_suggestions(
                 _walk(item)
 
     _walk(payload)
-    return [item for item in collected if item["type"] == concept_type]
+
+    unknown_types = {"", "unknown", "other"}
+
+    def _matches_concept(item: dict[str, str]) -> bool:
+        item_type = item.get("type", "").strip().lower()
+        uri = item.get("uri", "").strip().lower()
+        if item_type == concept_type:
+            return True
+        if concept_type == "occupation":
+            return item_type in unknown_types and "/occupation/" in uri
+        if concept_type == "skill":
+            return item_type in unknown_types and "/skill/" in uri
+        return False
+
+    normalized: list[dict[str, str]] = []
+    for item in collected:
+        entry = dict(item)
+        if not entry.get("type"):
+            entry["type"] = concept_type
+        if _matches_concept(entry):
+            if entry["type"] in unknown_types:
+                entry["type"] = concept_type
+            normalized.append(entry)
+        elif entry.get("type", "").strip().lower() in unknown_types:
+            entry["type"] = concept_type
+            normalized.append(entry)
+    return normalized
 
 
 def _normalize_esco_breadcrumb_nodes(
