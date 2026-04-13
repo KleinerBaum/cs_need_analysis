@@ -541,7 +541,7 @@ def render_esco_picker_card(
             )
             if not suggestions:
                 suggestions = _extract_esco_suggestions(
-                    client.terms(text=query_text, type=concept_type, limit=12),
+                    client.search(text=query_text, type=concept_type, limit=12),
                     concept_type=concept_type,
                     source="manual",
                 )
