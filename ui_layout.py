@@ -11,6 +11,7 @@ from question_dependencies import should_show_question
 from schemas import QuestionStep
 from step_status import StepStatusPayload, build_step_status_payload
 from state import get_answer_meta, get_answers
+from wizard_pages.base import render_active_ui_mode_caption
 
 
 def _status_badge_text(completion_state: str) -> str:
@@ -61,6 +62,7 @@ def render_step_shell(
     with header_col:
         st.header(title)
         st.caption(subtitle)
+        render_active_ui_mode_caption()
         if outcome_text:
             st.markdown(f"**Outcome:** {outcome_text}")
         if outcome_slot is not None:
