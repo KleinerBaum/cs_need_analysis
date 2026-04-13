@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import (
+    TYPE_CHECKING,
     Callable,
     List,
     Literal,
@@ -37,11 +38,12 @@ from question_progress import (
     build_step_scope_progress_labels,
     compute_question_progress,
 )
-from salary.engine import compute_salary_forecast
-from salary.types import SalaryForecastResult
 from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
 from step_status import StepStatusPayload, build_step_status_payload
 from wizard_pages.salary_forecast import render_sidebar_salary_forecast
+
+if TYPE_CHECKING:
+    from salary.types import SalaryForecastResult
 
 
 def _has_meaningful_value(value: object) -> bool:
@@ -101,13 +103,18 @@ def _compute_sidebar_salary_forecast(
     job: JobAdExtract | None,
     answers: dict[str, object],
     source_text: str,
-) -> SalaryForecastResult | None:
+) -> "SalaryForecastResult | None":
     forecast_job = job or _fallback_job_from_session(
         answers=answers, source_text=source_text
     )
     if forecast_job is None:
         return None
-    return compute_salary_forecast(job_extract=forecast_job, answers=answers)
+    try:
+        from salary.engine import compute_salary_forecast
+
+        return compute_salary_forecast(job_extract=forecast_job, answers=answers)
+    except Exception:
+        return None
 
 
 @dataclass(frozen=True)
