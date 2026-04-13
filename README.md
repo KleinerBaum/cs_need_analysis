@@ -13,9 +13,9 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 - Die vormals getrennte Ansicht **Identifizierte Informationen** ist in den Start-Schritt integriert (eine Wizard-Stufe weniger): Nach der Analyse erscheinen dort direkt die editierbare Übersicht, Gaps/Annahmen und der Übergang von Phase B zu Phase C bzw. in den nächsten Fachschritt; es gibt **keinen separaten sichtbaren Review-Wizard-Schritt** mehr.
 - Finaler **Recruiting Brief** mit Export als JSON, Markdown und DOCX.
 - **Summary-Workspace** mit klarer Tab-Struktur: `Readiness` (Startansicht), `Fakten`, `Artefakte`, `Export`, `Advanced`.
-- Der Tab **`Readiness`** zeigt modellbewusst die **„next best action“** an (inkl. kontextabhängiger Hinweise je nach aktuellem Bearbeitungsstand) sowie ESCO-Coverage-, Confirmed/Inferred- und Lückenindikatoren.
+- Der Tab **`Readiness`** aktualisiert den **Recruiting Brief** beim Betreten automatisch (falls veraltet/fehlend), zeigt ihn direkt unter dem Readiness-Header eingeklappt an und platziert darunter die **„next best action“**.
 - Die Verfügbarkeit von CTAs in der Summary folgt einer Kombination aus **fachlichen Voraussetzungen** (Prerequisites) und **kurzen Freshness-Checks** auf die zugrunde liegenden Inhalte.
-- **Artefakt-Generierung bleibt exklusiv im Tab `Artefakte`; Export bleibt exklusiv im Tab `Export`** (keine Vermischung der Verantwortlichkeiten zwischen den Tabs).
+- Unterhalb der Readiness-CTA stehen kompakt nebeneinander die **Generate-Buttons** für Stellenanzeige, HR-Sheet, Fachbereich-Sheet, Boolean String und Arbeitsvertrag; darunter folgen Ergebnisbereich (volle Breite) und Export-Buttons.
 - **Action Hub im Tab `Artefakte`** mit kanonischen Artefakt-IDs (`brief`, `job_ad`, `interview_hr`, `interview_fach`, `boolean_search`, `employment_contract`) und fokussiertem Primärpfad (Recruiting Brief → Folgeartefakte → Export).
 - Der Artefaktbereich wurde auf eine scannbare Einzeldarstellung konsolidiert (keine doppelten Ergebnisblöcke); weitere Ergebnisse werden sekundär umgeschaltet.
 - Beim Job-Ad-Generator liegen **Selection Matrix** und **Job-Ad-Editor** gebündelt im erweiterten Bereich (UI-Modus `expert`), inkl. optionalem Logo-Upload sowie Styleguide-/Change-Request-Bausteinen.

@@ -2371,11 +2371,18 @@ def _render_readiness_tab(
     vm: SummaryViewModel,
     action_registry: list[SummaryAction],
     resolved_brief_model: str,
+    brief: VacancyBrief | None = None,
 ) -> None:
     if hasattr(st, "subheader"):
         st.subheader("Readiness")
     else:
         st.markdown("### Readiness")
+    with st.expander("Recruiting Brief (auto-aktualisiert)", expanded=False):
+        if brief is None:
+            st.info("Noch kein gültiger Recruiting Brief verfügbar.")
+        else:
+            render_brief(brief)
+
     next_action = _resolve_next_best_action(
         action_registry, resolved_brief_model=resolved_brief_model
     )
@@ -2419,69 +2426,117 @@ def _render_readiness_tab(
                 next_action["generator_fn"]()
             st.rerun()
 
-    shared_esco = _read_esco_shared_fields()
-    coverage = _compute_esco_coverage_metrics(shared_esco)
-    occupation_explainability = _read_esco_match_explainability()
-    st.markdown("**ESCO-Coverage**")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric(
-        "Essential Coverage",
-        f"{coverage['essential_covered']}/{coverage['essential_total']}",
-        f"{coverage['essential_pct']}%",
+    st.markdown("**Generate**")
+    quick_action_ids = (
+        "job_ad",
+        "interview_hr",
+        "interview_fach",
+        "boolean_search",
+        "employment_contract",
     )
-    c2.metric(
-        "Optional Coverage",
-        f"{coverage['optional_covered']}/{coverage['optional_total']}",
-        f"{coverage['optional_pct']}%",
-    )
-    c3.metric("Unmapped Gaps", str(len(shared_esco["unmapped_terms"])))
-    relation_traces = _count_skill_relation_traces(
-        shared_esco["essential_skills"] + shared_esco["optional_skills"]
-    )
-    c4.metric("Skill→Occupation traces", str(relation_traces))
-    confirmed_occupation = int(
-        str(occupation_explainability.get("confidence", "")).strip().lower() == "high"
-    )
-    inferred_occupation = (
-        1 - confirmed_occupation if vm.meta.selected_occupation_title else 0
-    )
-    inferred_skill_count = sum(
-        1
-        for item in (shared_esco["essential_skills"] + shared_esco["optional_skills"])
-        if str(item.get("relation") or "").strip().startswith("has")
-    )
-    confirmed_skill_count = (
-        len(shared_esco["essential_skills"]) + len(shared_esco["optional_skills"])
-    ) - inferred_skill_count
-    st.markdown("**Confirmed vs. Inferred ESCO Coverage**")
-    cc1, cc2 = st.columns(2)
-    cc1.metric(
-        "Confirmed",
-        str(max(confirmed_skill_count, 0) + confirmed_occupation),
-        "High-confidence / user-confirmed",
-    )
-    cc2.metric(
-        "Inferred",
-        str(max(inferred_skill_count, 0) + inferred_occupation),
-        "Relation-derived / weaker confidence",
-    )
-    render_esco_explainability(
-        labels=occupation_explainability.get("provenance_categories", []),
-        confidence=str(occupation_explainability.get("confidence", "low")),
-        reason=str(occupation_explainability.get("reason", "") or ""),
-        caption_prefix="Summary Occupation Explainability",
-    )
-    if shared_esco["unmapped_terms"]:
-        st.caption(
-            "Offene Begriffe: "
-            + ", ".join(shared_esco["unmapped_terms"][:8])
-            + (" …" if len(shared_esco["unmapped_terms"]) > 8 else "")
+    quick_actions = [
+        action for action in action_registry if action["id"] in quick_action_ids
+    ]
+    action_columns = st.columns(len(quick_actions), gap="small")
+    for column, action in zip(action_columns, quick_actions):
+        requirements_ok = _has_required_state(action["requires"])
+        requirement_ok = True
+        requirement_check_fn = action.get("requirement_check_fn")
+        if requirement_check_fn is not None:
+            requirement_ok, _ = requirement_check_fn()
+        with column:
+            if st.button(
+                action["cta_label"],
+                width="stretch",
+                key=_widget_key(
+                    SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
+                    f"readiness.quick.{action['id']}",
+                ),
+                disabled=(
+                    not (requirements_ok and requirement_ok)
+                    or action["generator_fn"] is None
+                ),
+            ):
+                st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = (
+                    _to_canonical_artifact_id(action["id"])
+                )
+                if action["generator_fn"] is not None:
+                    action["generator_fn"]()
+                st.rerun()
+
+    if brief is not None:
+        st.markdown("---")
+        _render_summary_results_workspace(brief=brief)
+        st.markdown("---")
+        _render_export_bar(has_brief=True)
+        _render_summary_export_workspace(brief=brief)
+
+    with st.expander("ESCO-Coverage", expanded=False):
+        shared_esco = _read_esco_shared_fields()
+        coverage = _compute_esco_coverage_metrics(shared_esco)
+        occupation_explainability = _read_esco_match_explainability()
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric(
+            "Essential Coverage",
+            f"{coverage['essential_covered']}/{coverage['essential_total']}",
+            f"{coverage['essential_pct']}%",
         )
-    if shared_esco["unmapped_roles"]:
-        st.caption(
-            "Nicht normalisierte Rollenbegriffe: "
-            + ", ".join(shared_esco["unmapped_roles"][:4])
+        c2.metric(
+            "Optional Coverage",
+            f"{coverage['optional_covered']}/{coverage['optional_total']}",
+            f"{coverage['optional_pct']}%",
         )
+        c3.metric("Unmapped Gaps", str(len(shared_esco["unmapped_terms"])))
+        relation_traces = _count_skill_relation_traces(
+            shared_esco["essential_skills"] + shared_esco["optional_skills"]
+        )
+        c4.metric("Skill→Occupation traces", str(relation_traces))
+        confirmed_occupation = int(
+            str(occupation_explainability.get("confidence", "")).strip().lower()
+            == "high"
+        )
+        inferred_occupation = (
+            1 - confirmed_occupation if vm.meta.selected_occupation_title else 0
+        )
+        inferred_skill_count = sum(
+            1
+            for item in (
+                shared_esco["essential_skills"] + shared_esco["optional_skills"]
+            )
+            if str(item.get("relation") or "").strip().startswith("has")
+        )
+        confirmed_skill_count = (
+            len(shared_esco["essential_skills"]) + len(shared_esco["optional_skills"])
+        ) - inferred_skill_count
+        st.markdown("**Confirmed vs. Inferred ESCO Coverage**")
+        cc1, cc2 = st.columns(2)
+        cc1.metric(
+            "Confirmed",
+            str(max(confirmed_skill_count, 0) + confirmed_occupation),
+            "High-confidence / user-confirmed",
+        )
+        cc2.metric(
+            "Inferred",
+            str(max(inferred_skill_count, 0) + inferred_occupation),
+            "Relation-derived / weaker confidence",
+        )
+        render_esco_explainability(
+            labels=occupation_explainability.get("provenance_categories", []),
+            confidence=str(occupation_explainability.get("confidence", "low")),
+            reason=str(occupation_explainability.get("reason", "") or ""),
+            caption_prefix="Summary Occupation Explainability",
+        )
+        if shared_esco["unmapped_terms"]:
+            st.caption(
+                "Offene Begriffe: "
+                + ", ".join(shared_esco["unmapped_terms"][:8])
+                + (" …" if len(shared_esco["unmapped_terms"]) > 8 else "")
+            )
+        if shared_esco["unmapped_roles"]:
+            st.caption(
+                "Nicht normalisierte Rollenbegriffe: "
+                + ", ".join(shared_esco["unmapped_roles"][:4])
+            )
 
     st.markdown("**Kritische Lücken (Top 5)**")
     missing_items = _build_missing_critical_items(vm)
@@ -2491,19 +2546,19 @@ def _render_readiness_tab(
         for item in missing_items:
             st.write(f"- {item}")
 
-    st.markdown("**Artefakt-Status**")
-    status_rows = _build_artifact_status_rows(action_registry=action_registry)
-    if hasattr(st, "dataframe"):
-        st.dataframe(
-            status_rows,
-            hide_index=True,
-            width="stretch",
-        )
-    else:
-        for row in status_rows:
-            st.write(
-                f"- {row['Artefakt']}: {row['Status']} (Voraussetzungen: {row['Voraussetzungen']})"
+    with st.expander("Artefakt-Status", expanded=False):
+        status_rows = _build_artifact_status_rows(action_registry=action_registry)
+        if hasattr(st, "dataframe"):
+            st.dataframe(
+                status_rows,
+                hide_index=True,
+                width="stretch",
             )
+        else:
+            for row in status_rows:
+                st.write(
+                    f"- {row['Artefakt']}: {row['Status']} (Voraussetzungen: {row['Voraussetzungen']})"
+                )
 
 
 def _build_summary_tabs() -> SummaryTabs:
@@ -3433,6 +3488,34 @@ def render(ctx: WizardContext) -> None:
         generate_employment_contract=_generate_employment_contract,
     )
 
+    entered_summary_step = (
+        st.session_state.get(SSKey.LAST_RENDERED_STEP.value) != "summary"
+    )
+    brief_requirements_ready = _has_required_state(
+        (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN)
+    )
+    canonical_brief_status = _resolve_canonical_brief_status(
+        resolved_brief_model=resolved_brief_model
+    )
+    if (
+        entered_summary_step
+        and brief_requirements_ready
+        and not canonical_brief_status.ready_for_follow_ups
+    ):
+        _run_generate_recruiting_brief(
+            mode="auto_refresh",
+            spinner_text="Aktualisiere Recruiting Brief automatisch…",
+            error_step="summary.auto_generate_brief_on_enter",
+        )
+
+    brief_dict = st.session_state.get(SSKey.BRIEF.value)
+    brief: VacancyBrief | None = None
+    if isinstance(brief_dict, dict):
+        try:
+            brief = VacancyBrief.model_validate(brief_dict)
+        except Exception:
+            brief = None
+
     supports_tabs = hasattr(st, "tabs")
     if supports_tabs:
         readiness_tab, facts_tab, artifacts_tab, export_tab, advanced_tab = (
@@ -3444,6 +3527,7 @@ def render(ctx: WizardContext) -> None:
                 vm=vm,
                 action_registry=action_registry,
                 resolved_brief_model=resolved_brief_model,
+                brief=brief,
             )
 
         with facts_tab:
@@ -3464,31 +3548,16 @@ def render(ctx: WizardContext) -> None:
             resolved_brief_model=resolved_brief_model,
         )
 
-    brief_dict = st.session_state.get(SSKey.BRIEF.value)
-    if not brief_dict:
+    if brief is None:
         st.info(
             "Noch kein Recruiting Brief verfügbar. Prüfe die Eingaben und versuche es erneut."
         )
         nav_buttons(ctx, disable_next=True)
         return
 
-    try:
-        brief = VacancyBrief.model_validate(brief_dict)
-    except Exception:
-        st.warning(
-            "Recruiting Brief ist ungültig. Bitte über „Recruiting Brief generieren“ neu erstellen."
-        )
-        nav_buttons(ctx, disable_next=True)
-        return
-
     if supports_tabs:
-        with artifacts_tab:
-            # SUMMARY_ZONE: RESULTS
-            _render_summary_results_workspace(brief=brief)
-
         with export_tab:
-            _render_export_bar(has_brief=True)
-            _render_summary_export_workspace(brief=brief)
+            st.caption("Exporte sind im Readiness-Tab unterhalb der Outputs verfügbar.")
 
         with advanced_tab:
             if bool(st.session_state.get(SSKey.SUMMARY_CACHE_HIT.value, False)):
