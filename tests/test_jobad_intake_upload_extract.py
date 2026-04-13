@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from typing import Any
+
+from constants import SSKey
 import wizard_pages.jobad_intake as jobad_intake
 
 
@@ -36,3 +39,83 @@ def test_extract_upload_to_state_does_not_overwrite_with_empty_text(
         fake_st.session_state[jobad_intake.SOURCE_UPLOAD_TEXT_KEY]
         == "bestehender upload-text"
     )
+
+
+class _DummyContext:
+    def __enter__(self) -> "_DummyContext":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        return None
+
+
+class _FakeStreamlitPhaseA:
+    def __init__(self, session_state: dict[str, object]) -> None:
+        self.session_state = session_state
+        self.captions: list[str] = []
+        self.errors: list[str] = []
+        self.successes: list[str] = []
+        self.infos: list[str] = []
+
+    def container(self, **_kwargs: Any) -> _DummyContext:
+        return _DummyContext()
+
+    def markdown(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    def columns(self, spec, **_kwargs: Any):
+        count = spec if isinstance(spec, int) else len(spec)
+        return tuple(_DummyContext() for _ in range(count))
+
+    def file_uploader(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    def caption(self, text: str, *_args: Any, **_kwargs: Any) -> None:
+        self.captions.append(text)
+
+    def text_area(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    def metric(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    def button(self, *_args: Any, **_kwargs: Any) -> bool:
+        return False
+
+    def info(self, text: str, *_args: Any, **_kwargs: Any) -> None:
+        self.infos.append(text)
+
+    def success(self, text: str, *_args: Any, **_kwargs: Any) -> None:
+        self.successes.append(text)
+
+    def error(self, text: str, *_args: Any, **_kwargs: Any) -> None:
+        self.errors.append(text)
+
+
+def test_phase_a_shows_failed_extraction_status_without_no_file_caption(
+    monkeypatch,
+) -> None:
+    upload = type("Upload", (), {"name": "scan.pdf", "size": 128})()
+    fake_st = _FakeStreamlitPhaseA(
+        {
+            "cs.source_upload_file": upload,
+            jobad_intake.SOURCE_UPLOAD_TEXT_KEY: "",
+            jobad_intake.SOURCE_UPLOAD_SIG_KEY: ("scan.pdf", 128),
+            SSKey.LAST_ERROR.value: "Datei enthält keinen auslesbaren Inhalt.",
+            SSKey.SOURCE_TEXT.value: "",
+            jobad_intake.SOURCE_TEXT_INPUT_KEY: "",
+            SSKey.SOURCE_FILE_META.value: {"name": "scan.pdf"},
+        }
+    )
+
+    monkeypatch.setattr(jobad_intake, "st", fake_st)
+    monkeypatch.setattr(jobad_intake, "render_ui_mode_selector", lambda **_kwargs: None)
+
+    jobad_intake._render_phase_a_source_and_privacy_controls()
+
+    assert "Datei ausgewählt: scan.pdf" in fake_st.infos
+    assert (
+        "Extraktion fehlgeschlagen: Datei enthält keinen auslesbaren Inhalt."
+        in fake_st.errors
+    )
+    assert "Noch keine Datei hochgeladen." not in fake_st.captions
