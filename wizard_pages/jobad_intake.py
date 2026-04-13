@@ -254,7 +254,7 @@ def _render_phase_b_extraction_review(ctx: WizardContext) -> None:
 
 
 def _render_phase_c_esco_anchor() -> None:
-    with st.expander("Phase C · ESCO Semantic Anchor (optional)", expanded=False):
+    with st.expander("ESCO-Suche", expanded=False):
         job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
         plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
         if not isinstance(job_dict, dict) or not isinstance(plan_dict, dict):
