@@ -75,8 +75,47 @@ def extract_text_from_path(path: str | Path) -> str:
 
 def _extract_docx(raw: bytes) -> str:
     doc = docx.Document(io.BytesIO(raw))
-    paras = [p.text for p in doc.paragraphs if (p.text or "").strip()]
-    return "\n".join(paras)
+
+    def _normalize_fragment(fragment: str) -> str:
+        return re.sub(r"\s+", " ", fragment).strip()
+
+    def _merge_unique_fragments(fragments: list[str]) -> list[str]:
+        merged: list[str] = []
+        seen: set[str] = set()
+        for fragment in fragments:
+            normalized = _normalize_fragment(fragment)
+            if not normalized:
+                continue
+            key = normalized.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(normalized)
+        return merged
+
+    fragments = [p.text for p in doc.paragraphs if (p.text or "").strip()]
+
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for paragraph in cell.paragraphs:
+                    if (paragraph.text or "").strip():
+                        fragments.append(paragraph.text)
+
+    merged = _merge_unique_fragments(fragments)
+
+    if not merged:
+        header_footer_fragments: list[str] = []
+        for section in doc.sections:
+            for paragraph in section.header.paragraphs:
+                if (paragraph.text or "").strip():
+                    header_footer_fragments.append(paragraph.text)
+            for paragraph in section.footer.paragraphs:
+                if (paragraph.text or "").strip():
+                    header_footer_fragments.append(paragraph.text)
+        merged = _merge_unique_fragments(header_footer_fragments)
+
+    return _normalize_text("\n".join(merged))
 
 
 def _extract_pdf(raw: bytes) -> str:
