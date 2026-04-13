@@ -189,6 +189,10 @@ def _render_phase_a_source_and_privacy_controls() -> bool:
                 key="cs.source_upload_file",
                 on_change=_on_upload_change,
             )
+            st.caption(
+                "Verarbeitet werden PDF, DOCX und TXT mit auslesbarem Text. "
+                "Scan-PDFs ohne OCR können leer bleiben."
+            )
             upload = st.session_state.get("cs.source_upload_file")
             if upload is not None:
                 current_sig = (
@@ -214,13 +218,23 @@ def _render_phase_a_source_and_privacy_controls() -> bool:
 
         uploaded_text = str(st.session_state.get(SOURCE_UPLOAD_TEXT_KEY, ""))
         upload_meta = st.session_state.get(SSKey.SOURCE_FILE_META.value, {})
+        upload = st.session_state.get("cs.source_upload_file")
+        last_error = str(st.session_state.get(SSKey.LAST_ERROR.value, "") or "")
 
         status_col, chars_col, action_col = st.columns([2, 1, 1], gap="small")
         with status_col:
+            file_name = str(
+                upload_meta.get("name") or getattr(upload, "name", "") or ""
+            )
+            if upload is not None:
+                st.info(f"Datei ausgewählt: {file_name or 'Unbekannt'}")
+
             if uploaded_text:
-                st.success(f"Datei geladen: {upload_meta.get('name', 'Unbekannt')}")
+                st.success("Text extrahiert.")
+            elif upload is not None and last_error:
+                st.error(f"Extraktion fehlgeschlagen: {last_error}")
             else:
-                st.caption("Noch keine Datei hochgeladen.")
+                st.caption("Optional: Datei hochladen oder Text direkt einfügen.")
         with chars_col:
             active_source_text = str(st.session_state.get(SSKey.SOURCE_TEXT.value, ""))
             char_count = len(active_source_text.strip()) if active_source_text else 0
