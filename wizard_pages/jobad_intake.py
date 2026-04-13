@@ -72,9 +72,9 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
     job = JobAdExtract.model_validate(job_dict)
     plan = QuestionPlan.model_validate(plan_dict)
 
-    st.markdown("### Identifizierte Informationen")
-
-    render_job_extract_overview(job, plan=plan, show_question_limits=False)
+    render_job_extract_overview(
+        job, plan=plan, show_question_limits=False, show_heading=False
+    )
 
     plan_question_count = sum(len(step.questions) for step in plan.steps)
     selected_occupation = get_esco_occupation_selected() or {}
