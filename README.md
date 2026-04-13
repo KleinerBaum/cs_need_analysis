@@ -58,6 +58,12 @@ Hinweis: Der frühere Schritt `jobspec_review` ist nur noch als Legacy-Modul vor
 - Rechtstexte werden als eigene Seiten über Query-Parameter gerendert (`?legal=terms`, `?legal=privacy`) und enthalten DE/EN-Hinweise zu Content Sharing, Notice/Consent und ausgeschlossenen Datenkategorien (u. a. PHI, Daten von Kindern <13).
 - Debug-Hinweise werden in den jeweiligen Fachbereichen angezeigt (z. B. API-Usage-Expander in Intake/Summary), ohne Secrets preiszugeben.
 
+## Unterstützte Streamlit-Komponenten (Stand Runtime)
+
+- Breitensteuerung bei Medien nutzt die aktuelle API (`width="stretch"` / `width="content"`), nicht mehr `use_container_width=...`.
+- Für eingebettete externe Inhalte ist `st.iframe(...)` der bevorzugte Weg.
+- Aktuell gibt es eine gezielte technische Ausnahme mit `st.components.v1.html(...)` in `app.py`: ein sehr kurzes Inline-Script setzt beim Wizard-Step-Wechsel die Scroll-Position zuverlässig auf den Seitenanfang (Parent-Window-Scroll). Das ist kein URL-Embed und aktuell nicht gleichwertig durch `st.iframe(...)` ersetzbar.
+
 ## Installation
 
 ```bash
