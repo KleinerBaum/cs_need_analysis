@@ -7,7 +7,12 @@ import streamlit as st
 from pydantic import ValidationError
 
 from constants import SSKey
-from esco_client import EscoClient, EscoClientError
+from esco_client import (
+    EscoClient,
+    EscoClientError,
+    clear_esco_cache,
+    is_retryable_server_status,
+)
 from llm_client import generate_requirement_gap_suggestions
 from schemas import EscoMappingReport
 from schemas import EscoSkillDetail, JobAdExtract, QuestionStep
@@ -415,7 +420,16 @@ def _render_unmapped_term_workflow(flagged_terms: list[str]) -> None:
                     payload = EscoClient().suggest2(text=term, type="skill", limit=5)
                     options = _extract_skill_candidates(payload)
                 except EscoClientError as exc:
-                    st.warning(f"ESCO-Retry fehlgeschlagen: {exc}")
+                    if (
+                        is_retryable_server_status(exc.status_code)
+                        or exc.status_code is None
+                    ):
+                        st.warning(
+                            "Die ESCO-Suche ist gerade nicht verfügbar. "
+                            "Du kannst den Begriff manuell übernehmen oder später erneut versuchen."
+                        )
+                    else:
+                        st.warning(f"ESCO-Retry fehlgeschlagen: {exc}")
                 else:
                     if options:
                         picked = options[0]
@@ -632,8 +646,22 @@ def _render_main_slot(
 
             if load_error:
                 st.warning(
-                    f"ESCO-Vorschläge konnten nicht geladen werden ({load_error})."
+                    "ESCO-Vorschläge sind aktuell nicht verfügbar. "
+                    "Du kannst mit manueller Auswahl weiterarbeiten oder später erneut versuchen."
                 )
+                c_manual, c_retry = st.columns(2)
+                with c_manual:
+                    if st.button("Manuell weiterarbeiten", key="skills.esco.manual"):
+                        st.info(
+                            "Fortsetzung mit Jobspec/AI-Vorschlägen aktiv. "
+                            "ESCO-Vorschläge können später nachgeladen werden."
+                        )
+                with c_retry:
+                    if st.button("Später erneut versuchen", key="skills.esco.retry"):
+                        clear_esco_cache()
+                        st.info(
+                            "Bitte „Occupation-Skill-Vorschläge laden“ später erneut ausführen."
+                        )
             else:
                 st.success(
                     f"ESCO-Vorschläge für {occupation_title}: "

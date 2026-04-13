@@ -143,6 +143,53 @@ def test_cached_get_json_retries_retryable_http_errors(monkeypatch) -> None:
     assert sleeps == [0.25, 0.5]
 
 
+def test_cached_get_json_raises_controlled_error_after_last_retry_on_5xx(
+    monkeypatch, caplog
+) -> None:
+    attempts = {"count": 0}
+    sleeps: list[float] = []
+
+    def fake_urlopen(_request, timeout):
+        del timeout
+        attempts["count"] += 1
+        raise HTTPError(
+            url="https://example.test/esco/terms",
+            code=503,
+            msg="server error",
+            hdrs=None,
+            fp=BytesIO(b""),
+        )
+
+    monkeypatch.setattr(esco_client, "urlopen", fake_urlopen)
+    monkeypatch.setattr(
+        esco_client.time, "sleep", lambda seconds: sleeps.append(seconds)
+    )
+    esco_client.clear_esco_cache()
+
+    with pytest.raises(esco_client.EscoClientError) as exc_info:
+        esco_client._cached_get_json(
+            base_url="https://example.test/esco/",
+            endpoint="terms",
+            query_items=(("type", "occupation"),),
+            cache_selected_version="latest",
+            cache_language="de",
+            cache_view_obsolete=False,
+            timeout_seconds=1.0,
+        )
+
+    err = exc_info.value
+    assert err.status_code == 503
+    assert err.endpoint == "terms"
+    assert "vorübergehend nicht verfügbar" in str(err)
+    assert attempts["count"] == 3
+    assert sleeps == [0.25, 0.5]
+    assert any(
+        "event=external_provider_error provider=esco endpoint=terms status=503"
+        in record.message
+        for record in caplog.records
+    )
+
+
 def test_conversion_endpoint_must_not_be_empty() -> None:
     client = esco_client.EscoClient(session_state={SSKey.ESCO_CONFIG.value: {}})
 
