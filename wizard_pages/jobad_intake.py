@@ -121,7 +121,9 @@ def _on_manual_text_change() -> None:
     _set_active_source("text", manual_text)
 
 
-def _extract_upload_to_state(upload: object, *, step: str) -> str | None:
+def _extract_upload_to_state(
+    upload: object, *, step: str, update_text_widget: bool = True
+) -> str | None:
     try:
         uploaded_text, source_meta = extract_text_from_uploaded_file(upload)
     except Exception as exc:
@@ -141,7 +143,8 @@ def _extract_upload_to_state(upload: object, *, step: str) -> str | None:
         source_meta.get("name", ""),
         source_meta.get("size", 0),
     )
-    st.session_state[SOURCE_TEXT_INPUT_KEY] = uploaded_text
+    if update_text_widget:
+        st.session_state[SOURCE_TEXT_INPUT_KEY] = uploaded_text
     _set_active_source("upload", uploaded_text)
     return uploaded_text
 
@@ -282,6 +285,7 @@ def render_jobad_intake(
                 extracted_upload_text = _extract_upload_to_state(
                     upload,
                     step="jobad.extract_and_plan.extract_text_from_uploaded_file",
+                    update_text_widget=False,
                 )
                 if extracted_upload_text is not None:
                     raw = extracted_upload_text
