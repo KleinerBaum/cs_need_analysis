@@ -733,8 +733,10 @@ def render_job_extract_overview(
     job: JobAdExtract,
     plan: QuestionPlan | None = None,
     show_question_limits: bool = True,
+    show_heading: bool = True,
 ) -> None:
-    st.markdown("### Identifizierte Informationen")
+    if show_heading:
+        st.markdown("### Identifizierte Informationen")
     _render_editable_job_extract(job)
 
     st.markdown("### Fehlende oder unklare Punkte")
