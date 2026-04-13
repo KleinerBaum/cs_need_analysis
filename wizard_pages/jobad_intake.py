@@ -27,7 +27,11 @@ from state import (
 )
 from ui_components import render_error_banner, render_openai_error
 from usage_utils import usage_has_cache_hit
-from wizard_pages.base import WizardContext, render_ui_mode_selector
+from wizard_pages.base import (
+    WizardContext,
+    render_active_ui_mode_caption,
+    render_ui_mode_selector,
+)
 from wizard_pages.esco_occupation_ui import render_esco_occupation_confirmation
 
 
@@ -338,6 +342,7 @@ def render_jobad_intake(
     ctx: WizardContext, *, title: str = "Jobspezifikation einlesen"
 ) -> None:
     st.header(title)
+    render_active_ui_mode_caption()
     render_error_banner()
 
     st.caption(

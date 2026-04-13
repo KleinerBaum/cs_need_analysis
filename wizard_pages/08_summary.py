@@ -78,6 +78,7 @@ from wizard_pages.base import (
     WizardPage,
     get_current_ui_mode,
     nav_buttons,
+    render_active_ui_mode_caption,
 )
 from wizard_pages.salary_forecast_panel import render_salary_forecast_panel
 
@@ -3041,6 +3042,7 @@ def render(ctx: WizardContext) -> None:
 
     # SUMMARY_ZONE: HERO
     _render_summary_hero(vm=vm)
+    render_active_ui_mode_caption(ui_mode=ui_mode)
 
     current_summary_fingerprint = vm.artifacts.input_fingerprint
     st.session_state[SSKey.SUMMARY_INPUT_FINGERPRINT.value] = (

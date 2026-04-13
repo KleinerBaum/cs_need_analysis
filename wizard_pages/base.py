@@ -748,19 +748,58 @@ def get_current_ui_mode() -> str:
     return ui_mode
 
 
-def render_ui_mode_selector(*, sidebar: bool = False) -> str:
-    ui_mode_key = SSKey.UI_MODE.value
+def _sync_mode_change() -> None:
+    sync_adaptive_question_limits()
+
+
+def get_ui_mode_badge_text(ui_mode: str | None = None) -> str:
+    normalized_mode = (ui_mode or get_current_ui_mode()).strip().lower()
+    display_label = UI_MODE_DISPLAY_LABELS.get(normalized_mode, normalized_mode)
+    return f"Detailgrad aktiv: **{display_label.capitalize()}** (`{normalized_mode}`)"
+
+
+def render_active_ui_mode_caption(*, ui_mode: str | None = None) -> None:
+    st.caption(
+        f"{get_ui_mode_badge_text(ui_mode)} · "
+        "Der Modus steuert, wie viele Fragen im aktuellen Schritt sichtbar sind."
+    )
+
+
+def render_ui_mode_selector(
+    *, sidebar: bool = False, widget_key: str | None = None
+) -> str:
+    ui_mode_key = widget_key or SSKey.UI_MODE.value
     selectbox = st.sidebar.selectbox if sidebar else st.selectbox
+    current_mode = get_current_ui_mode()
+    if widget_key is None:
+        selected_mode = selectbox(
+            "Wie weit möchten Sie ins Detail gehen?",
+            options=list(UI_MODE_VALUES),
+            key=ui_mode_key,
+            format_func=lambda mode: UI_MODE_DISPLAY_LABELS.get(
+                mode, str(mode).capitalize()
+            ),
+            help=UI_MODE_HELP_TEXT,
+            on_change=_sync_mode_change,
+        )
+        return str(selected_mode).strip().lower()
+
     selected_mode = selectbox(
         "Wie weit möchten Sie ins Detail gehen?",
         options=list(UI_MODE_VALUES),
+        index=list(UI_MODE_VALUES).index(current_mode),
         key=ui_mode_key,
         format_func=lambda mode: UI_MODE_DISPLAY_LABELS.get(
             mode, str(mode).capitalize()
         ),
         help=UI_MODE_HELP_TEXT,
     )
-    return str(selected_mode).strip().lower()
+    normalized_mode = str(selected_mode).strip().lower()
+    if normalized_mode != current_mode:
+        st.session_state[SSKey.UI_MODE.value] = normalized_mode
+        sync_adaptive_question_limits()
+        st.rerun()
+    return normalized_mode
 
 
 def sidebar_navigation(ctx: WizardContext) -> WizardPage:
@@ -784,6 +823,14 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
     status_by_key = {entry["key"]: entry for entry in step_statuses}
     ui_preferences_key = SSKey.UI_PREFERENCES.value
     ui_mode = get_current_ui_mode()
+    with st.sidebar:
+        render_ui_mode_selector(
+            sidebar=True,
+            widget_key=f"{SSKey.UI_MODE.value}.sidebar",
+        )
+        ui_mode = get_current_ui_mode()
+        render_active_ui_mode_caption(ui_mode=ui_mode)
+
     raw_ui_preferences = st.session_state.get(ui_preferences_key, {})
     ui_preferences = raw_ui_preferences if isinstance(raw_ui_preferences, dict) else {}
     details_expanded_default = ui_preferences.get("details_expanded_default")
