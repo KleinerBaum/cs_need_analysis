@@ -33,7 +33,6 @@ from ui_components import (
 from usage_utils import usage_has_cache_hit
 from wizard_pages.base import (
     WizardContext,
-    render_active_ui_mode_caption,
     render_ui_mode_selector,
 )
 from wizard_pages.esco_occupation_ui import render_esco_occupation_confirmation
@@ -185,8 +184,7 @@ def _render_phase_a_source_and_privacy_controls() -> bool:
                 key="cs.source_upload_file",
                 on_change=_on_upload_change,
             )
-            st.markdown("**Wie weit möchten Sie ins Detail gehen?**")
-            render_ui_mode_selector()
+            render_ui_mode_selector(show_label=False)
         with text_col:
             manual_text = str(st.session_state.get(SOURCE_TEXT_INPUT_KEY, ""))
             st.text_area(
@@ -196,17 +194,6 @@ def _render_phase_a_source_and_privacy_controls() -> bool:
                 on_change=_on_manual_text_change,
                 placeholder="Füge hier die Stellenanzeige oder Jobspec ein …",
             )
-
-        st.checkbox(
-            "Einwilligung zur inhaltlichen Verarbeitung der Jobspec liegt vor",
-            key=SSKey.CONTENT_SHARING_CONSENT.value,
-            help="Steuert den dokumentierten Consent-Status dieser Session.",
-        )
-        st.checkbox(
-            "PII vor Analyse automatisch redigieren",
-            key=SSKey.SOURCE_REDACT_PII.value,
-            help="Bei Aktivierung wird der Quelltext vor dem LLM-Aufruf redigiert.",
-        )
 
         uploaded_text = str(st.session_state.get(SOURCE_UPLOAD_TEXT_KEY, ""))
         upload_meta = st.session_state.get(SSKey.SOURCE_FILE_META.value, {})
@@ -253,7 +240,6 @@ def render_jobad_intake(
     ctx: WizardContext, *, title: str = "Jobspezifikation einlesen"
 ) -> None:
     st.header(title)
-    render_active_ui_mode_caption()
     render_error_banner()
 
     st.caption(

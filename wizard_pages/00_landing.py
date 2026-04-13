@@ -38,31 +38,23 @@ LANDING_COPY: dict[str, object] = {
     "value_cards": (),
     "importance_title": "Warum dieser erste Schritt entscheidend ist",
     # Leitthese
-    "importance_intro": "Die Intake-Qualität steuert, wie präzise, schnell und sicher Sie im weiteren Recruiting entscheiden.",
+    "importance_intro": "Der Recruiting-Prozess wird nicht erst in der Jobanzeige gut — sondern im allerersten Intake-Schritt.",
     # Risiken ohne sauberen Intake
     "importance_risk_points": (
         (
-            "Schneller eskaliert Aufwand",
-            "Mehr Re-Briefings, mehr Suchschleifen, mehr Verzögerung.",
-        ),
-        (
-            "Klarer wird Vergleichbarkeit zum Risiko",
-            "Uneinheitliche Must-haves machen Kandidatinnen und Kandidaten schwer vergleichbar.",
-        ),
-        (
-            "Planbarer sinkt Interviewqualität",
-            "Unklare Kriterien führen zu mehr Rückfragen und inkonsistenten Interviewentscheidungen.",
+            "Unklare Anforderungen",
+            "a) Rollen werden zu breit formuliert. Must-haves und Nice-to-haves verschwimmen. Das führt zu unpräzisem Sourcing und Diskussionen über die falschen Profile. b) Job Ads, Interviewleitfäden und Suchstrings werden mehrfach neu gebaut, weil die Grundlagen nicht früh genug strukturiert wurden.",
         ),
     ),
     # Hebel mit präzisem Intake
     "importance_leverage_points": (
         (
             "Schneller in die Umsetzung",
-            "Weniger Rückfragen, konsistentere Interviews, belastbarere Shortlists.",
+            "a) Der Wizard leitet aus der Rolle nur die Fragen ab, die für den konkreten Fall relevant sind — nicht für jede Stelle denselben Standardbogen. b) Aufgaben, Skills, Benefits und Gehalt werden gegeneinander plausibilisiert. Dadurch sinkt das Risiko eines unrealistischen Wunschprofils.",
         ),
     ),
     # Outcome
-    "importance_closer": "Ein sauber definierter Start senkt Risiko, verkürzt Time-to-Hire und erhöht die Trefferquote über den gesamten Funnel.",
+    "importance_closer": "Die App macht aus einem unscharfen Startpunkt einen strukturierten, überprüfbaren und weiterverwendbaren Recruiting-Datensatz.",
     "flow_title": "So funktioniert der Ablauf",
     "flow_steps": (
         (
@@ -130,7 +122,7 @@ def render(ctx: WizardContext) -> None:
     with logo_col:
         _, centered_logo_col, _ = st.columns((1, 1, 1))
         with centered_logo_col:
-            st.image("images/white_logo_color1_background.png", width=128)
+            st.image("images/white_logo_color1_background.png", width=256)
     st.title(str(LANDING_COPY["hero_headline"]))
     hero_subheadline = str(LANDING_COPY["hero_subheadline"])
     if hero_subheadline:
@@ -139,11 +131,6 @@ def render(ctx: WizardContext) -> None:
 
     content_col, image_col = st.columns((1.35, 1), gap="large")
     with content_col:
-        render_output_section(
-            section_id=LANDING_SECTION_IDS["output"],
-            title=str(LANDING_COPY["output_title"]),
-            bullets=cast(tuple[str, ...], LANDING_COPY["output_bullets"]),
-        )
         render_importance_section(
             section_id=LANDING_SECTION_IDS["importance"],
             title=str(LANDING_COPY["importance_title"]),
@@ -157,6 +144,11 @@ def render(ctx: WizardContext) -> None:
                 LANDING_COPY["importance_leverage_points"],
             ),
             closer=str(LANDING_COPY["importance_closer"]),
+        )
+        render_output_section(
+            section_id=LANDING_SECTION_IDS["output"],
+            title=str(LANDING_COPY["output_title"]),
+            bullets=cast(tuple[str, ...], LANDING_COPY["output_bullets"]),
         )
     with image_col:
         st.image("images/iceberg v1.png", use_container_width=True)
