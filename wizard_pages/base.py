@@ -32,6 +32,11 @@ from esco_client import EscoClient, EscoClientError, clear_esco_cache
 from question_dependencies import should_show_question
 from question_limits import sync_adaptive_question_limits
 from question_progress import AnswerMetaMap
+from question_progress import (
+    build_answered_lookup,
+    build_step_scope_progress_labels,
+    compute_question_progress,
+)
 from salary.engine import compute_salary_forecast
 from salary.types import SalaryForecastResult
 from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
@@ -159,6 +164,10 @@ class SidebarStepProgress(TypedDict):
 class SidebarStepDetailStatus(TypedDict):
     answered: int
     total: int
+    visible_answered: int
+    visible_total: int
+    overall_answered: int
+    overall_total: int
     completion_state: StepStatus
     essentials_answered: int
     essentials_total: int
@@ -269,11 +278,26 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
         payload: SidebarStepDetailStatus = {
             "answered": int(step_status["answered"]),
             "total": int(step_status["total"]),
+            "visible_answered": int(step_status["answered"]),
+            "visible_total": int(step_status["total"]),
+            "overall_answered": 0,
+            "overall_total": len(questions),
             "completion_state": cast(StepStatus, step_status["completion_state"]),
             "essentials_answered": int(step_status["essentials_answered"]),
             "essentials_total": int(step_status["essentials_total"]),
             "missing_essentials": cast(list[str], step_status["missing_essentials"]),
         }
+        overall_lookup = build_answered_lookup(
+            questions, answers, cast(AnswerMetaMap, answer_meta)
+        )
+        overall_progress = compute_question_progress(
+            questions,
+            answers,
+            cast(AnswerMetaMap, answer_meta),
+            answered_lookup=overall_lookup,
+        )
+        payload["overall_answered"] = int(overall_progress["answered"])
+
         answered = payload["answered"]
         total = payload["total"]
 
@@ -332,6 +356,15 @@ def _render_sidebar_step_status_card(
         st.caption(
             f"{indicator} {page.title_de} · {status['answered']}/{status['total']}"
         )
+        scope_labels = build_step_scope_progress_labels(
+            visible_answered=status["visible_answered"],
+            visible_total=status["visible_total"],
+            overall_answered=status["overall_answered"],
+            overall_total=status["overall_total"],
+        )
+        st.caption(scope_labels["visible_label"])
+        if scope_labels["has_different_denominator"]:
+            st.caption(scope_labels["overall_label"])
         if missing:
             st.caption(f"Missing: {', '.join(missing)}")
 
