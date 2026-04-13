@@ -23,6 +23,14 @@ class _FakeUpload:
         return self._stream.read()
 
 
+def _docx_payload(build_fn) -> bytes:
+    document = docx.Document()
+    build_fn(document)
+    out = io.BytesIO()
+    document.save(out)
+    return out.getvalue()
+
+
 def test_extract_text_from_uploaded_file_is_stable_across_multiple_reads() -> None:
     upload = _FakeUpload(b"Senior Data Engineer\nPython")
 
