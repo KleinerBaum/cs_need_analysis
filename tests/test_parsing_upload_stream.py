@@ -5,6 +5,7 @@ import io
 import docx
 import pytest
 
+import parsing
 from parsing import extract_text_from_uploaded_file
 
 
@@ -48,36 +49,32 @@ def test_extract_text_from_uploaded_file_raises_on_empty_payload() -> None:
         extract_text_from_uploaded_file(upload)
 
 
-def test_extract_text_from_uploaded_file_reads_docx_table_only_content() -> None:
-    def _build(document) -> None:
-        table = document.add_table(rows=1, cols=1)
-        table.cell(0, 0).text = "Tabelleninhalt only"
+def test_extract_text_from_uploaded_file_reads_docx_tables() -> None:
+    buf = io.BytesIO()
+    doc = docx.Document()
+    table = doc.add_table(rows=1, cols=2)
+    table.rows[0].cells[0].text = "Nur"
+    table.rows[0].cells[1].text = "Tabelle"
+    doc.save(buf)
 
-    upload = _FakeUpload(_docx_payload(_build), name="jobspec.docx")
-
-    text, _meta = extract_text_from_uploaded_file(upload)
-
-    assert text == "Tabelleninhalt only"
-
-
-def test_extract_text_from_uploaded_file_reads_docx_paragraph_and_table_content() -> (
-    None
-):
-    def _build(document) -> None:
-        document.add_paragraph("Absatzinhalt")
-        table = document.add_table(rows=1, cols=1)
-        table.cell(0, 0).text = "Tabelleninhalt"
-
-    upload = _FakeUpload(_docx_payload(_build), name="jobspec.docx")
+    upload = _FakeUpload(
+        buf.getvalue(),
+        name="jobspec.docx",
+    )
 
     text, _meta = extract_text_from_uploaded_file(upload)
 
-    assert "Absatzinhalt" in text
-    assert "Tabelleninhalt" in text
+    assert text == "Nur\nTabelle"
 
 
-def test_extract_text_from_uploaded_file_rejects_empty_docx_content() -> None:
-    upload = _FakeUpload(_docx_payload(lambda _document: None), name="jobspec.docx")
+def test_extract_text_from_uploaded_file_pdf_without_ocr_has_specific_error(
+    monkeypatch,
+) -> None:
+    upload = _FakeUpload(b"%PDF-1.4", name="scan.pdf")
 
-    with pytest.raises(ValueError, match="Datei enthält keinen auslesbaren Inhalt"):
+    monkeypatch.setattr(parsing, "_extract_pdf", lambda _raw: ("", True))
+
+    with pytest.raises(
+        ValueError, match="PDF enthält keinen Textlayer \\(OCR fehlt\\)"
+    ):
         extract_text_from_uploaded_file(upload)
