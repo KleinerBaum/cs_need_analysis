@@ -562,6 +562,7 @@ def render_esco_picker_card(
     ).strip()
 
     suggestions: list[dict[str, str]] = []
+    used_fallback_path = False
     if len(query_text) >= 2:
         client = EscoClient()
         try:
@@ -571,6 +572,7 @@ def render_esco_picker_card(
                 source="auto",
             )
             if not suggestions:
+                used_fallback_path = True
                 suggestions = _extract_esco_suggestions(
                     client.search(text=query_text, type=concept_type, limit=12),
                     concept_type=concept_type,
@@ -582,6 +584,22 @@ def render_esco_picker_card(
     st.session_state[options_state_key] = suggestions
     options = st.session_state.get(options_state_key, [])
     options = options if isinstance(options, list) else []
+    if len(query_text) >= 2 and not options:
+        st.info(
+            "Der Begriff wurde gesucht, aber es wurde keine passende Occupation gefunden. "
+            "Bitte Sprache umschalten (DE/EN), eine kürzere Query ohne Klammer-Kontext testen "
+            "oder die gewählte ESCO-Version prüfen."
+        )
+        if ui_mode == "expert":
+            esco_config = st.session_state.get(SSKey.ESCO_CONFIG.value, {})
+            resolved_config = esco_config if isinstance(esco_config, dict) else {}
+            language = str(resolved_config.get("language") or "de")
+            selected_version = str(resolved_config.get("selected_version") or "latest")
+            st.caption(
+                "Diagnose: "
+                f"language={language} · selected_version={selected_version} · "
+                f"fallback_used={'ja' if used_fallback_path else 'nein'}"
+            )
 
     def _label_for_option(item: dict[str, str]) -> str:
         title = item.get("title", "—")
