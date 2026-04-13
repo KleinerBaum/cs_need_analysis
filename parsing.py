@@ -44,10 +44,14 @@ def extract_text_from_uploaded_file(upload: Any) -> Tuple[str, Dict[str, Any]]:
         raise ValueError("Datei enthält keinen auslesbaren Inhalt.")
     name = (meta.get("name") or "").lower()
 
+    pdf_missing_text_layer = False
     if name.endswith(".docx"):
-        text = _extract_docx(raw)
+        try:
+            text = _extract_docx(raw)
+        except Exception as exc:
+            raise ValueError("DOCX-Struktur nicht auslesbar.") from exc
     elif name.endswith(".pdf"):
-        text = _extract_pdf(raw)
+        text, pdf_missing_text_layer = _extract_pdf(raw)
     else:
         # Try decode as utf-8 text
         try:
@@ -57,6 +61,12 @@ def extract_text_from_uploaded_file(upload: Any) -> Tuple[str, Dict[str, Any]]:
 
     normalized = _normalize_text(text)
     if not normalized:
+        if name.endswith(".docx"):
+            raise ValueError("DOCX enthält keinen auslesbaren Text.")
+        if name.endswith(".pdf"):
+            if pdf_missing_text_layer:
+                raise ValueError("PDF enthält keinen Textlayer (OCR fehlt).")
+            raise ValueError("PDF enthält keinen auslesbaren Text.")
         raise ValueError("Datei enthält keinen auslesbaren Inhalt.")
 
     return normalized, meta
@@ -69,25 +79,35 @@ def extract_text_from_path(path: str | Path) -> str:
     if p.suffix.lower() == ".docx":
         return _normalize_text(_extract_docx(raw))
     if p.suffix.lower() == ".pdf":
-        return _normalize_text(_extract_pdf(raw))
+        text, _missing_text_layer = _extract_pdf(raw)
+        return _normalize_text(text)
     return _normalize_text(raw.decode("utf-8", errors="replace"))
 
 
 def _extract_docx(raw: bytes) -> str:
     doc = docx.Document(io.BytesIO(raw))
-    paras = [p.text for p in doc.paragraphs if (p.text or "").strip()]
-    return "\n".join(paras)
+    out_lines = [p.text for p in doc.paragraphs if (p.text or "").strip()]
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                out_lines.extend(
+                    p.text for p in cell.paragraphs if (p.text or "").strip()
+                )
+    return "\n".join(out_lines)
 
 
-def _extract_pdf(raw: bytes) -> str:
+def _extract_pdf(raw: bytes) -> tuple[str, bool]:
     out_lines = []
+    has_text_layer = False
     with pdfplumber.open(io.BytesIO(raw)) as pdf:
         for page in pdf.pages:
+            if getattr(page, "chars", None):
+                has_text_layer = True
             t = page.extract_text() or ""
             t = t.strip()
             if t:
                 out_lines.append(t)
-    return "\n\n".join(out_lines)
+    return "\n\n".join(out_lines), (not has_text_layer)
 
 
 _EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)

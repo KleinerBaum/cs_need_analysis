@@ -147,7 +147,7 @@ def _extract_upload_to_state(
         source_meta.get("name", ""),
         source_meta.get("size", 0),
     )
-    if update_text_widget:
+    if uploaded_text.strip():
         st.session_state[SOURCE_TEXT_INPUT_KEY] = uploaded_text
     _set_active_source("upload", uploaded_text)
     return uploaded_text
