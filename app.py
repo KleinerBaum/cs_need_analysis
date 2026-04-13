@@ -7,7 +7,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from constants import APP_TITLE, SSKey, STEP_KEY_LANDING
+from constants import APP_TITLE, SSKey
 from llm_client import (
     TASK_EXTRACT_JOB_AD,
     TASK_GENERATE_QUESTION_PLAN,
@@ -470,12 +470,6 @@ def main() -> None:
             """,
             height=0,
         )
-
-    # Guard: if page requires jobspec but it's missing, redirect to landing
-    if current.requires_jobspec and not st.session_state.get(SSKey.JOB_EXTRACT.value):
-        st.warning("Bitte zuerst ein Jobspec analysieren.")
-        set_current_step(STEP_KEY_LANDING)
-        st.rerun()
 
     current.render(ctx)
     _render_sidebar_actions()
