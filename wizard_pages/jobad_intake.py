@@ -184,6 +184,18 @@ def _render_phase_a_source_and_privacy_controls() -> bool:
                 key="cs.source_upload_file",
                 on_change=_on_upload_change,
             )
+            upload = st.session_state.get("cs.source_upload_file")
+            if upload is not None:
+                current_sig = (
+                    str(getattr(upload, "name", "") or ""),
+                    int(getattr(upload, "size", 0) or 0),
+                )
+                if st.session_state.get(SOURCE_UPLOAD_SIG_KEY) != current_sig:
+                    _extract_upload_to_state(
+                        upload,
+                        step="_render_phase_a_source_and_privacy_controls.sync_upload",
+                        update_text_widget=True,
+                    )
             render_ui_mode_selector(show_label=False)
         with text_col:
             manual_text = str(st.session_state.get(SOURCE_TEXT_INPUT_KEY, ""))
