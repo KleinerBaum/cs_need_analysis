@@ -25,7 +25,11 @@ from state import (
     handle_unexpected_exception,
     set_error,
 )
-from ui_components import render_error_banner, render_openai_error
+from ui_components import (
+    render_error_banner,
+    render_job_extract_overview,
+    render_openai_error,
+)
 from usage_utils import usage_has_cache_hit
 from wizard_pages.base import (
     WizardContext,
@@ -39,20 +43,6 @@ SOURCE_TEXT_INPUT_KEY: Final[str] = "cs.source_text_input"
 SOURCE_UPLOAD_SIG_KEY: Final[str] = "cs.source_upload_signature"
 SOURCE_UPLOAD_TEXT_KEY: Final[str] = "cs.source_uploaded_text"
 SOURCE_ACTIVE_KEY: Final[str] = "cs.source_active"
-EXTRACT_FIELD_LABELS: Final[dict[str, str]] = {
-    "job_title": "Stellenbezeichnung",
-    "company_name": "Unternehmen",
-    "brand_name": "Marke",
-    "language_guess": "Sprache",
-    "employment_type": "Beschäftigungsart",
-    "contract_type": "Vertragsart",
-    "seniority_level": "Karrierestufe",
-    "start_date": "Eintrittsdatum",
-    "application_deadline": "Bewerbungsfrist",
-    "job_ref_number": "Referenznummer",
-    "department_name": "Abteilung",
-    "reports_to": "Berichtet an",
-}
 
 
 def _preview_height_for_text(text: str) -> int:
@@ -74,29 +64,6 @@ def _manual_input_height_for_text(text: str) -> int:
     return max(min_height_px, min(_preview_height_for_text(text), max_height_px))
 
 
-def _render_upload_preview(uploaded_text: str) -> None:
-    lines = uploaded_text.splitlines()
-    first_lines = "\n".join(lines[:3]).strip() or "—"
-    st.text_area(
-        "Preview (Textauszug)",
-        value=first_lines,
-        height=112,
-        key="cs.source_upload_preview_first",
-        disabled=True,
-    )
-
-    if len(lines) > 3:
-        remaining = "\n".join(lines[3:]).strip()
-        with st.expander("Weitere Zeilen anzeigen", expanded=False):
-            st.text_area(
-                "Restlicher Text",
-                value=remaining,
-                height=min(260, _preview_height_for_text(remaining)),
-                key="cs.source_upload_preview_rest",
-                disabled=True,
-            )
-
-
 def _render_identified_information_block(ctx: WizardContext) -> None:
     job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
     plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
@@ -108,58 +75,7 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
 
     st.markdown("### Identifizierte Informationen")
 
-    values = job.model_dump()
-    rows = [
-        {
-            "anzeige_feld": label,
-            "machine_field": field,
-            "inhalt": values.get(field),
-        }
-        for field, label in EXTRACT_FIELD_LABELS.items()
-        if values.get(field) not in (None, "", [])
-    ]
-    st.caption(
-        "Extrahierte Werte können hier direkt angepasst werden. Änderungen werden sofort gespeichert."
-    )
-    edited = st.data_editor(
-        rows,
-        width="stretch",
-        hide_index=True,
-        num_rows="fixed",
-        key="cs.jobspec.ident_info.table",
-        column_config={
-            "anzeige_feld": st.column_config.TextColumn("Information", disabled=True),
-            "machine_field": None,
-            "inhalt": st.column_config.TextColumn("Aktueller Wert"),
-        },
-    )
-    updated_values = dict(values)
-    for row in edited:
-        machine_field = str(row.get("machine_field", "")).strip()
-        if not machine_field:
-            continue
-        value = row.get("inhalt")
-        normalized = str(value).strip() if value is not None else ""
-        updated_values[machine_field] = normalized or None
-    st.session_state[SSKey.JOB_EXTRACT.value] = JobAdExtract.model_validate(
-        updated_values
-    ).model_dump()
-
-    gap_col, assumptions_col = st.columns(2, gap="medium")
-    with gap_col:
-        st.markdown("#### Fehlende oder unklare Punkte")
-        if job.gaps:
-            for gap in job.gaps:
-                st.write(f"- {gap}")
-        else:
-            st.write("- Keine expliziten Gaps erkannt.")
-    with assumptions_col:
-        st.markdown("#### Annahmen")
-        if job.assumptions:
-            for assumption in job.assumptions:
-                st.write(f"- {assumption}")
-        else:
-            st.write("- Keine Annahmen dokumentiert.")
+    render_job_extract_overview(job, plan=plan, show_question_limits=False)
 
     plan_question_count = sum(len(step.questions) for step in plan.steps)
     selected_occupation = get_esco_occupation_selected() or {}
@@ -225,6 +141,7 @@ def _extract_upload_to_state(upload: object, *, step: str) -> str | None:
         source_meta.get("name", ""),
         source_meta.get("size", 0),
     )
+    st.session_state[SOURCE_TEXT_INPUT_KEY] = uploaded_text
     _set_active_source("upload", uploaded_text)
     return uploaded_text
 
@@ -240,12 +157,6 @@ def _on_upload_change() -> None:
 
 
 def _render_phase_a_source_and_privacy_controls() -> bool:
-    st.markdown("### Phase A · Quelle & Datenschutz")
-    st.caption(
-        "Quelle bereitstellen, Consent setzen und optional PII-Redaktion aktivieren, "
-        "bevor die Analyse gestartet wird."
-    )
-
     do_extract = False
 
     with st.container(border=True):
@@ -296,8 +207,6 @@ def _render_phase_a_source_and_privacy_controls() -> bool:
 
         uploaded_text = str(st.session_state.get(SOURCE_UPLOAD_TEXT_KEY, ""))
         upload_meta = st.session_state.get(SSKey.SOURCE_FILE_META.value, {})
-        if uploaded_text:
-            _render_upload_preview(uploaded_text)
 
         status_col, chars_col, action_col = st.columns([2, 1, 1], gap="small")
         with status_col:
@@ -320,7 +229,6 @@ def _render_phase_a_source_and_privacy_controls() -> bool:
 
 
 def _render_phase_b_extraction_review(ctx: WizardContext) -> None:
-    st.markdown("### Phase B · Extraktion prüfen")
     _render_identified_information_block(ctx)
 
 
