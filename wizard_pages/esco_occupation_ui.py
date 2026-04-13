@@ -6,7 +6,12 @@ from typing import TypedDict
 import streamlit as st
 
 from constants import SSKey
-from esco_client import EscoClient, EscoClientError
+from esco_client import (
+    EscoClient,
+    EscoClientError,
+    clear_esco_cache,
+    is_retryable_server_status,
+)
 from schemas import JobAdExtract
 from ui_components import render_esco_explainability, render_esco_picker_card
 
@@ -457,6 +462,13 @@ def render_esco_occupation_confirmation(job: JobAdExtract) -> None:
     st.session_state[SSKey.ESCO_OCCUPATION_CANDIDATES.value] = (
         options if isinstance(options, list) else []
     )
+    if (
+        len(query_text) >= 2
+        and not st.session_state[SSKey.ESCO_OCCUPATION_CANDIDATES.value]
+        and st.button("Später erneut versuchen", key="esco.occupation.retry_later")
+    ):
+        clear_esco_cache()
+        st.info("Verbindung neu initialisiert. Du kannst die Suche erneut starten.")
 
     selected_raw = st.session_state.get(SSKey.ESCO_OCCUPATION_SELECTED.value)
     selected = selected_raw if isinstance(selected_raw, dict) else {}
@@ -508,7 +520,28 @@ def render_esco_occupation_confirmation(job: JobAdExtract) -> None:
     try:
         occupation_payload = EscoClient().get_occupation_detail(uri=occupation_uri)
     except EscoClientError as exc:
-        st.warning(f"ESCO-Occupationsdetails konnten nicht geladen werden: {exc}")
+        if is_retryable_server_status(exc.status_code) or exc.status_code is None:
+            st.warning(
+                "ESCO ist gerade nicht stabil erreichbar. "
+                "Du kannst manuell fortfahren und später erneut laden."
+            )
+            c_manual, c_retry = st.columns(2)
+            with c_manual:
+                if st.button(
+                    "Manuell fortfahren",
+                    key="esco.occupation.manual_continue",
+                ):
+                    st.session_state[SSKey.ESCO_OCCUPATION_PAYLOAD.value] = None
+                    st.info(
+                        "Fortsetzung ohne ESCO-Details aktiviert. "
+                        "Die Auswahl kann später ergänzt werden."
+                    )
+            with c_retry:
+                if st.button("Später erneut versuchen", key="esco.occupation.retry"):
+                    clear_esco_cache()
+                    st.info("Bitte den Ladevorgang später erneut ausführen.")
+        else:
+            st.warning(f"ESCO-Occupationsdetails konnten nicht geladen werden: {exc}")
         st.session_state[SSKey.ESCO_OCCUPATION_PAYLOAD.value] = None
     else:
         st.session_state[SSKey.ESCO_OCCUPATION_PAYLOAD.value] = occupation_payload

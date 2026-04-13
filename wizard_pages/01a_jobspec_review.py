@@ -117,6 +117,17 @@ def render(ctx: WizardContext) -> None:
     st.markdown(f"**Jobtitel:** {job.job_title or '—'}")
     _render_extraction_quality_summary(job)
     render_esco_occupation_confirmation(job)
+    unmapped_roles_raw = st.session_state.get(SSKey.ESCO_UNMAPPED_ROLE_TERMS.value, [])
+    unmapped_roles = (
+        [str(item).strip() for item in unmapped_roles_raw if str(item).strip()]
+        if isinstance(unmapped_roles_raw, list)
+        else []
+    )
+    if unmapped_roles:
+        st.info(
+            "Falls ESCO gerade nicht verfügbar ist, kannst du mit den vorhandenen "
+            "Jobspec-Informationen manuell fortfahren und später erneut versuchen."
+        )
 
     with st.sidebar:
         if get_current_ui_mode() == "standard":

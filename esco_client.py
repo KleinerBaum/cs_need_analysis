@@ -16,6 +16,7 @@ import streamlit as st
 from constants import DEFAULT_ESCO_SELECTED_VERSION, SSKey
 
 LOGGER = logging.getLogger(__name__)
+EXTERNAL_PROVIDER_ERROR_EVENT = "external_provider_error"
 
 ESCO_CACHE_TTL_SECONDS = 600
 DEFAULT_TIMEOUT_SECONDS = 10.0
@@ -24,6 +25,10 @@ RETRYABLE_HTTP_STATUS_CODES = frozenset({500, 502, 503, 504})
 MAX_RETRIES = 2
 RETRY_BACKOFF_SECONDS = 0.25
 SUPPORTED_API_MODES = frozenset({"hosted", "local"})
+
+
+def is_retryable_server_status(status_code: int | None) -> bool:
+    return status_code in RETRYABLE_HTTP_STATUS_CODES
 
 
 def clear_esco_cache() -> None:
@@ -108,10 +113,23 @@ def _cached_get_json(
             if should_retry:
                 time.sleep(RETRY_BACKOFF_SECONDS * attempt)
                 continue
+            LOGGER.error(
+                "event=%s provider=esco endpoint=%s status=%s latency_ms=%s attempt=%s/%s",
+                EXTERNAL_PROVIDER_ERROR_EVENT,
+                endpoint,
+                exc.code,
+                elapsed_ms,
+                attempt,
+                max_attempts,
+            )
             raise EscoClientError(
                 status_code=exc.code,
                 endpoint=endpoint,
-                message="ESCO service returned an error response.",
+                message=(
+                    "Der ESCO-Dienst ist aktuell vorübergehend nicht verfügbar."
+                    if is_retryable_server_status(exc.code)
+                    else "ESCO service returned an error response."
+                ),
             ) from exc
         except URLError as exc:
             elapsed_ms = int((time.perf_counter() - started) * 1000)
@@ -127,6 +145,14 @@ def _cached_get_json(
             if should_retry:
                 time.sleep(RETRY_BACKOFF_SECONDS * attempt)
                 continue
+            LOGGER.error(
+                "event=%s provider=esco endpoint=%s status=network_error latency_ms=%s attempt=%s/%s",
+                EXTERNAL_PROVIDER_ERROR_EVENT,
+                endpoint,
+                elapsed_ms,
+                attempt,
+                max_attempts,
+            )
             raise EscoClientError(
                 status_code=None,
                 endpoint=endpoint,
