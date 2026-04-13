@@ -137,14 +137,13 @@ def render(ctx: WizardContext) -> None:
         st.subheader(hero_subheadline)
     st.markdown(str(LANDING_COPY["hero_supporting_paragraph"]))
 
-    output_col, importance_col = st.columns(2, gap="medium")
-    with output_col:
+    content_col, image_col = st.columns((1.35, 1), gap="large")
+    with content_col:
         render_output_section(
             section_id=LANDING_SECTION_IDS["output"],
             title=str(LANDING_COPY["output_title"]),
             bullets=cast(tuple[str, ...], LANDING_COPY["output_bullets"]),
         )
-    with importance_col:
         render_importance_section(
             section_id=LANDING_SECTION_IDS["importance"],
             title=str(LANDING_COPY["importance_title"]),
@@ -159,6 +158,8 @@ def render(ctx: WizardContext) -> None:
             ),
             closer=str(LANDING_COPY["importance_closer"]),
         )
+    with image_col:
+        st.image("images/iceberg v1.png", use_container_width=True)
 
     st.divider()
     render_jobad_intake(ctx, title=str(LANDING_COPY["primary_cta"]))
