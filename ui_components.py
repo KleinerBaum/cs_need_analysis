@@ -734,26 +734,23 @@ def render_job_extract_overview(
     plan: QuestionPlan | None = None,
     show_question_limits: bool = True,
 ) -> None:
-    with st.expander(
-        "Aus dem Jobspec extrahiert (strukturierte Übersicht)", expanded=False
-    ):
-        _render_compact_extract_lists(job)
-        _render_editable_job_extract(job)
+    st.markdown("### Identifizierte Informationen")
+    _render_editable_job_extract(job)
 
-    with st.expander("Fehlende oder unklare Punkte", expanded=False):
-        if job.gaps:
-            st.write("\n".join([f"- {g}" for g in job.gaps]))
-        else:
-            st.info("Keine expliziten Gaps erkannt.")
+    st.markdown("### Fehlende oder unklare Punkte")
+    if job.gaps:
+        st.write("\n".join([f"- {g}" for g in job.gaps]))
+    else:
+        st.info("Keine expliziten Gaps erkannt.")
 
     if show_question_limits:
         _render_question_limits_editor(plan)
 
-    with st.expander("Annahmen", expanded=False):
-        if job.assumptions:
-            st.write("\n".join([f"- {a}" for a in job.assumptions]))
-        else:
-            st.info("Keine Annahmen dokumentiert.")
+    st.markdown("### Annahmen")
+    if job.assumptions:
+        st.write("\n".join([f"- {a}" for a in job.assumptions]))
+    else:
+        st.info("Keine Annahmen dokumentiert.")
 
 
 def _render_compact_extract_lists(job: JobAdExtract) -> None:
