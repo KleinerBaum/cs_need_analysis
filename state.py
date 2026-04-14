@@ -17,6 +17,15 @@ from constants import (
     DEFAULT_ESCO_SELECTED_VERSION,
     DEFAULT_LANGUAGE,
     SSKey,
+    UI_PREFERENCE_ANSWER_MODE,
+    UI_PREFERENCE_CONFIDENCE_THRESHOLD,
+    UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT,
+    UI_PREFERENCE_ESCO_MATCHING_STRICTNESS,
+    UI_PREFERENCE_INFORMATION_DEPTH,
+    UI_PREFERENCE_PII_REDUCTION,
+    UI_PREFERENCE_REGIONAL_FOCUS,
+    UI_PREFERENCE_SHOW_SOURCES_DEFAULT,
+    UI_PREFERENCE_STEP_COMPACT,
     STALE_REDESIGN_SESSION_KEY_PREFIXES,
     STEPS,
     SUMMARY_SESSION_KEY_LEGACY_ALIASES,
@@ -97,6 +106,45 @@ def get_model_override() -> str | None:
     return None
 
 
+def _default_ui_preferences() -> dict[str, Any]:
+    return {
+        UI_PREFERENCE_ANSWER_MODE: "balanced",
+        UI_PREFERENCE_INFORMATION_DEPTH: "standard",
+        UI_PREFERENCE_ESCO_MATCHING_STRICTNESS: "ausgewogen",
+        UI_PREFERENCE_REGIONAL_FOCUS: "DACH",
+        UI_PREFERENCE_SHOW_SOURCES_DEFAULT: True,
+        UI_PREFERENCE_CONFIDENCE_THRESHOLD: 0.6,
+        UI_PREFERENCE_PII_REDUCTION: True,
+        UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT: False,
+        UI_PREFERENCE_STEP_COMPACT: {},
+    }
+
+
+def normalize_ui_preferences(raw_preferences: Any) -> dict[str, Any]:
+    defaults = _default_ui_preferences()
+    normalized = dict(defaults)
+    if isinstance(raw_preferences, dict):
+        normalized.update(raw_preferences)
+    if not isinstance(normalized.get(UI_PREFERENCE_STEP_COMPACT), dict):
+        normalized[UI_PREFERENCE_STEP_COMPACT] = {}
+    confidence = normalized.get(UI_PREFERENCE_CONFIDENCE_THRESHOLD)
+    try:
+        normalized[UI_PREFERENCE_CONFIDENCE_THRESHOLD] = min(
+            0.95, max(0.05, float(confidence))
+        )
+    except (TypeError, ValueError):
+        normalized[UI_PREFERENCE_CONFIDENCE_THRESHOLD] = defaults[
+            UI_PREFERENCE_CONFIDENCE_THRESHOLD
+        ]
+    for key in (
+        UI_PREFERENCE_SHOW_SOURCES_DEFAULT,
+        UI_PREFERENCE_PII_REDUCTION,
+        UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT,
+    ):
+        normalized[key] = bool(normalized.get(key, defaults[key]))
+    return normalized
+
+
 def get_active_model() -> str:
     """Return UI override model or OpenAI settings fallback model."""
 
@@ -138,10 +186,7 @@ def init_session_state() -> None:
         SSKey.ANSWERS.value: {},
         SSKey.ANSWER_META.value: {},
         SSKey.UI_MODE.value: "standard",
-        SSKey.UI_PREFERENCES.value: {
-            "details_expanded_default": False,
-            "step_compact": {},
-        },
+        SSKey.UI_PREFERENCES.value: _default_ui_preferences(),
         SSKey.OPEN_GROUPS.value: {},
         SSKey.BRIEF.value: None,
         SSKey.LAST_ERROR.value: None,
@@ -256,6 +301,9 @@ def init_session_state() -> None:
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
+    st.session_state[SSKey.UI_PREFERENCES.value] = normalize_ui_preferences(
+        st.session_state.get(SSKey.UI_PREFERENCES.value)
+    )
 
 
 def reset_vacancy() -> None:
@@ -269,10 +317,11 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.ANSWER_META.value] = {}
     st.session_state[SSKey.UI_MODE.value] = "standard"
     if SSKey.UI_PREFERENCES.value not in st.session_state:
-        st.session_state[SSKey.UI_PREFERENCES.value] = {
-            "details_expanded_default": False,
-            "step_compact": {},
-        }
+        st.session_state[SSKey.UI_PREFERENCES.value] = _default_ui_preferences()
+    else:
+        st.session_state[SSKey.UI_PREFERENCES.value] = normalize_ui_preferences(
+            st.session_state.get(SSKey.UI_PREFERENCES.value)
+        )
     st.session_state[SSKey.OPEN_GROUPS.value] = {}
     st.session_state[SSKey.BRIEF.value] = None
     st.session_state[SSKey.JOBAD_CACHE_HIT.value] = {}

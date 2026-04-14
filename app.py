@@ -7,7 +7,17 @@ from pathlib import Path
 
 import streamlit as st
 
-from constants import APP_TITLE, SSKey
+from constants import (
+    APP_TITLE,
+    SSKey,
+    UI_PREFERENCE_ANSWER_MODE,
+    UI_PREFERENCE_CONFIDENCE_THRESHOLD,
+    UI_PREFERENCE_ESCO_MATCHING_STRICTNESS,
+    UI_PREFERENCE_INFORMATION_DEPTH,
+    UI_PREFERENCE_PII_REDUCTION,
+    UI_PREFERENCE_REGIONAL_FOCUS,
+    UI_PREFERENCE_SHOW_SOURCES_DEFAULT,
+)
 from llm_client import (
     TASK_EXTRACT_JOB_AD,
     TASK_GENERATE_QUESTION_PLAN,
@@ -15,7 +25,7 @@ from llm_client import (
     resolve_model_for_task,
 )
 from settings_openai import load_openai_settings
-from state import init_session_state, reset_vacancy
+from state import init_session_state, normalize_ui_preferences, reset_vacancy
 from wizard_pages import load_pages
 from wizard_pages.base import WizardContext, set_current_step, sidebar_navigation
 
@@ -38,13 +48,8 @@ def _inject_theme_styles() -> None:
         f"""
         <style>
             .stApp {{
-                background:
-                    linear-gradient(
-                        rgba(8, 18, 39, 0.82),
-                        rgba(12, 27, 54, 0.72)
-                    ),
-                    url("{bg_uri}") center center / cover no-repeat fixed;
-                color: #f5f7fb;
+                background: #0A0A0A url("{bg_uri}") center center / cover no-repeat fixed;
+                color: #F5F5F5;
             }}
 
             [data-testid="stHeader"] {{
@@ -52,8 +57,8 @@ def _inject_theme_styles() -> None:
             }}
 
             [data-testid="stSidebar"] {{
-                background: rgba(10, 24, 48, 0.85);
-                border-right: 1px solid rgba(255, 255, 255, 0.1);
+                background: #050505;
+                border-right: 1px solid #232323;
             }}
 
             [data-testid="stSidebarContent"]::before {{
@@ -61,7 +66,7 @@ def _inject_theme_styles() -> None:
                 display: block;
                 width: 220px;
                 height: 64px;
-                margin: 0 auto 1rem auto;
+                margin: 0 auto 0.75rem auto;
                 background: url("{logo_uri}") center / contain no-repeat;
             }}
 
@@ -70,22 +75,45 @@ def _inject_theme_styles() -> None:
             [data-testid="stMarkdownContainer"] span,
             h1, h2, h3, h4, h5, h6,
             label {{
-                color: #f5f7fb !important;
+                color: #F5F5F5 !important;
             }}
 
             [data-testid="stAlert"] {{
-                background: rgba(0, 0, 0, 0.35);
-                border: 1px solid rgba(255, 255, 255, 0.15);
-                color: #f5f7fb;
+                background: #121212;
+                border: 1px solid #232323;
+                color: #F5F5F5;
             }}
 
             [data-testid="stForm"],
             [data-testid="stExpander"] details,
             [data-testid="stVerticalBlockBorderWrapper"] {{
-                background: rgba(8, 18, 39, 0.52);
-                border: 1px solid rgba(255, 255, 255, 0.12);
-                border-radius: 12px;
-                backdrop-filter: blur(4px);
+                background: #121212;
+                border: 1px solid #232323;
+                border-radius: 14px;
+            }}
+            .block-container {{
+                max-width: 960px;
+                padding-top: 1rem;
+            }}
+            [data-testid="stSidebarContent"] [data-testid="stVerticalBlock"] > div {{
+                row-gap: 8px;
+            }}
+            .cs-sidebar-link-list {{
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                margin: 2px 0 0 0;
+            }}
+            .cs-sidebar-link-list a {{
+                color: #F5F5F5;
+                text-decoration: none;
+            }}
+            .cs-sidebar-link-list a:hover {{
+                color: #B8B8B8;
+                text-decoration: underline;
+            }}
+            .cs-sidebar-nav-gap {{
+                height: 22px;
             }}
 
             .stButton > button {{
@@ -209,7 +237,14 @@ def _get_info_page_key() -> str | None:
     info_param = query_params.get("info")
     if isinstance(info_param, list):
         info_param = info_param[0] if info_param else None
-    if isinstance(info_param, str) and info_param in {"esco", "about"}:
+    if isinstance(info_param, str) and info_param in {
+        "competencies",
+        "about",
+        "imprint",
+        "cookie",
+        "accessibility",
+        "contact",
+    }:
         return info_param
     return None
 
@@ -236,43 +271,16 @@ def _render_info_page_sidebar_navigation(ctx: WizardContext) -> None:
 
 
 def _render_info_page(info_page_key: str) -> None:
-    if info_page_key == "esco":
-        st.title("ESCO-API-Integration für cs_need_analysis")
+    if info_page_key == "competencies":
+        st.title("Unsere Kompetenzen")
         st.markdown(
             """
-            ESCO (European Skills, Competences, Qualifications and Occupations) ist eine
-            europäische, mehrsprachige Klassifikation, die **Berufe (Occupations)** und
-            **Skills** beschreibt und miteinander verknüpft.
-
-            ### Warum das für diese App wertvoll ist
-            - **Kanonische Skill-Begriffe statt Dubletten:** Intake-Eingaben wie
-              "Python", "Python 3" oder "Programming in Python" können auf ein
-              gemeinsames ESCO-Konzept gemappt werden.
-            - **Stabilere Jobtitel und Rollenprofile:** Statt freier, uneinheitlicher
-              Titel nutzt du standardisierte Occupation-Profile.
-            - **Bessere Mehrsprachigkeit:** Labels und alternative Begriffe helfen bei
-              konsistenten Ausgaben, Sourcing und Übersetzungen über viele Sprachen hinweg.
-
-            ### API-first statt Portal-first
-            Für Produktqualität ist die **ESCO-API** oft robuster als ein reines
-            Portal-Screen-Scraping:
-            - zentrale Versionierung und Caching
-            - kontrollierte Fehlerbehandlung
-            - weniger Abhängigkeit von Portal-UI/Seitenzuständen
-
-            ### Relevantes Datenmodell (vereinfacht)
-            - **Occupations:** Hierarchien, Metadaten, Mappings (u. a. Richtung ISCO)
-            - **Skills/Knowledge:** Typisierung, Beschreibungen, Scope Notes, Beziehungen
-              untereinander und zu Occupations
-
-            ### Produktchancen im Wizard
-            - Vorschläge für kanonische Skills direkt im Intake
-            - Qualitätschecks auf Vollständigkeit und Konsistenz
-            - sauberere Übergabe an Job-Ad-Generierung, Interviewdesign und Matching
+            Wir kombinieren strukturierte Intake-Prozesse, ESCO-gestützte Normalisierung,
+            modellgestützte Vorschläge und nachvollziehbare Export-Artefakte für Recruiting.
             """
         )
     elif info_page_key == "about":
-        st.title("Was passiert da und ist das sicher?")
+        st.title("Über Cognitive Staffing")
         st.markdown(
             """
             Diese App führt dich strukturiert durch die Erstellung eines Vacancy Briefs – von
@@ -326,7 +334,24 @@ def _render_info_page(info_page_key: str) -> None:
               unnötig anzuzeigen oder in Debug-Ansichten offenzulegen.
                 """
             )
-    if st.button("← Zurück zum Wizard"):
+    elif info_page_key == "imprint":
+        st.title("Impressum")
+        st.info("Inhaltliche Pflege erfolgt organisationseitig.")
+    elif info_page_key == "cookie":
+        st.title("Cookie Policy/Settings")
+        st.info(
+            "Vorbereitetes Informationsmodul: Cookie-Präferenzen folgen in einem separaten Release."
+        )
+    elif info_page_key == "accessibility":
+        st.title("Erklärung zur Barrierefreiheit")
+        st.info(
+            "Vorbereitete Seite: Barrierefreiheits-Statement wird zentral gepflegt."
+        )
+    elif info_page_key == "contact":
+        st.title("Kontakt")
+        st.info("Kontaktinformationen werden zentral bereitgestellt.")
+
+    if st.button("← Zurück zum Wizard", key=f"back.info.{info_page_key}"):
         st.query_params.clear()
         st.rerun()
 
@@ -412,15 +437,139 @@ def _render_legal_page(legal_page_key: str) -> None:
             """
         )
 
-    if st.button("← Zurück zum Wizard"):
+    if st.button("← Zurück zum Wizard", key=f"back.legal.{legal_page_key}"):
+        st.query_params.clear()
+        st.rerun()
+
+
+def _render_preference_center_sidebar(
+    *, key_prefix: str = "sidebar", show_reset_button: bool = True
+) -> None:
+    raw_preferences = st.session_state.get(SSKey.UI_PREFERENCES.value)
+    preferences = normalize_ui_preferences(raw_preferences)
+    st.session_state[SSKey.UI_PREFERENCES.value] = preferences
+
+    answer_mode_options = ["compact", "balanced", "advisory"]
+    answer_mode_value = str(preferences.get(UI_PREFERENCE_ANSWER_MODE, "balanced"))
+    if answer_mode_value not in answer_mode_options:
+        answer_mode_value = "balanced"
+    answer_mode = st.selectbox(
+        "Antwortmodus",
+        options=answer_mode_options,
+        index=answer_mode_options.index(answer_mode_value),
+        key=f"{key_prefix}.answer_mode",
+    )
+    information_depth_options = ["niedrig", "standard", "hoch"]
+    information_depth_value = str(
+        preferences.get(UI_PREFERENCE_INFORMATION_DEPTH, "standard")
+    )
+    if information_depth_value not in information_depth_options:
+        information_depth_value = "standard"
+    information_depth = st.selectbox(
+        "Informationstiefe",
+        options=information_depth_options,
+        index=information_depth_options.index(information_depth_value),
+        key=f"{key_prefix}.information_depth",
+    )
+    strictness_options = ["locker", "ausgewogen", "streng"]
+    strictness_value = str(
+        preferences.get(UI_PREFERENCE_ESCO_MATCHING_STRICTNESS, "ausgewogen")
+    )
+    if strictness_value not in strictness_options:
+        strictness_value = "ausgewogen"
+    esco_matching_strictness = st.selectbox(
+        "ESCO-Matching-Strenge",
+        options=strictness_options,
+        index=strictness_options.index(strictness_value),
+        key=f"{key_prefix}.esco_matching_strictness",
+        help="Vorbereitetes Steuerfeld: End-to-end verdrahtet, finale Wirkung wird schrittweise ausgebaut.",
+    )
+    regional_focus = st.text_input(
+        "Regionaler Fokus",
+        value=str(preferences.get(UI_PREFERENCE_REGIONAL_FOCUS, "DACH")),
+        key=f"{key_prefix}.regional_focus",
+    )
+    show_sources_default = st.toggle(
+        "Quellen standardmäßig einblenden",
+        value=bool(preferences.get(UI_PREFERENCE_SHOW_SOURCES_DEFAULT, True)),
+        key=f"{key_prefix}.show_sources_default",
+    )
+    confidence_threshold = st.slider(
+        "Confidence-Schwelle für Treffer",
+        min_value=0.05,
+        max_value=0.95,
+        value=float(preferences.get(UI_PREFERENCE_CONFIDENCE_THRESHOLD, 0.6)),
+        step=0.05,
+        help="Vorbereitete globale Schwelle für Match-/Trefferdarstellung.",
+        key=f"{key_prefix}.confidence_threshold",
+    )
+    pii_reduction = st.toggle(
+        "PII-Reduktion",
+        value=bool(preferences.get(UI_PREFERENCE_PII_REDUCTION, True)),
+        help="Reduziert sensible personenbezogene Angaben in der Verarbeitung, wo möglich.",
+        key=f"{key_prefix}.pii_reduction",
+    )
+
+    preferences.update(
+        {
+            UI_PREFERENCE_ANSWER_MODE: answer_mode,
+            UI_PREFERENCE_INFORMATION_DEPTH: information_depth,
+            UI_PREFERENCE_ESCO_MATCHING_STRICTNESS: esco_matching_strictness,
+            UI_PREFERENCE_REGIONAL_FOCUS: regional_focus.strip() or "DACH",
+            UI_PREFERENCE_SHOW_SOURCES_DEFAULT: show_sources_default,
+            UI_PREFERENCE_CONFIDENCE_THRESHOLD: confidence_threshold,
+            UI_PREFERENCE_PII_REDUCTION: pii_reduction,
+        }
+    )
+    st.session_state[SSKey.UI_PREFERENCES.value] = normalize_ui_preferences(preferences)
+    mode_map = {"compact": "quick", "balanced": "standard", "advisory": "expert"}
+    st.session_state[SSKey.UI_MODE.value] = mode_map.get(answer_mode, "standard")
+    st.session_state[SSKey.SOURCE_REDACT_PII.value] = pii_reduction
+    st.markdown("[⚙️ Präferenz-Center (volle Ansicht)](?page=preferences)")
+    if show_reset_button:
+        st.button("Reset Vacancy", on_click=reset_vacancy, key=f"{key_prefix}.reset")
+
+
+def _render_preferences_page() -> None:
+    st.title("Präferenz-Center")
+    st.caption("Globale Einstellungen gelten wizard-weit.")
+    _render_preference_center_sidebar(key_prefix="page", show_reset_button=False)
+    with st.expander("Advanced / Bestehende Detail-Einstellungen", expanded=False):
+        raw_preferences = st.session_state.get(SSKey.UI_PREFERENCES.value)
+        preferences = normalize_ui_preferences(raw_preferences)
+        preferences["details_expanded_default"] = st.toggle(
+            "Details standardmäßig öffnen",
+            value=bool(preferences.get("details_expanded_default", False)),
+        )
+        st.session_state[SSKey.UI_PREFERENCES.value] = normalize_ui_preferences(
+            preferences
+        )
+    if st.button("← Zurück zum Wizard", key="back.preferences"):
         st.query_params.clear()
         st.rerun()
 
 
 def _render_sidebar_actions() -> None:
-    """Render the global actions section as the last sidebar block."""
+    """Render legal/info links and the global preference center as last sidebar block."""
     with st.sidebar:
-        st.button("Reset Vacancy", on_click=reset_vacancy)
+        st.markdown(
+            """
+            <div class="cs-sidebar-link-list">
+              <a href="?info=competencies">Unsere Kompetenzen</a>
+              <a href="?info=about">Über Cognitive Staffing</a>
+              <a href="?info=imprint">Impressum</a>
+              <a href="?legal=privacy">Datenschutzrichtlinie</a>
+              <a href="?legal=terms">Nutzungsbedingungen</a>
+              <a href="?info=cookie">Cookie Policy/Settings</a>
+              <a href="?info=accessibility">Erklärung zur Barrierefreiheit</a>
+              <a href="?info=contact">Kontakt</a>
+            </div>
+            <div class="cs-sidebar-nav-gap"></div>
+            """,
+            unsafe_allow_html=True,
+        )
+        with st.expander("Präferenz-Center", expanded=False):
+            _render_preference_center_sidebar()
 
 
 def main() -> None:
@@ -444,6 +593,15 @@ def main() -> None:
     legal_page_key = _get_legal_page_key()
     if legal_page_key is not None:
         _render_legal_page(legal_page_key)
+        _render_sidebar_actions()
+        st.session_state[SSKey.LAST_RENDERED_STEP.value] = None
+        return
+    page_param = st.query_params.get("page")
+    if isinstance(page_param, list):
+        page_param = page_param[0] if page_param else None
+    if page_param == "preferences":
+        _render_info_page_sidebar_navigation(ctx)
+        _render_preferences_page()
         _render_sidebar_actions()
         st.session_state[SSKey.LAST_RENDERED_STEP.value] = None
         return

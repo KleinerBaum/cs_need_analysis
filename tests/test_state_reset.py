@@ -15,7 +15,17 @@ RESET_EXPECTATIONS: dict[SSKey, object] = {
     SSKey.ANSWERS: {},
     SSKey.ANSWER_META: {},
     SSKey.UI_MODE: "standard",
-    SSKey.UI_PREFERENCES: {"details_expanded_default": False, "step_compact": {}},
+    SSKey.UI_PREFERENCES: {
+        "answer_mode": "balanced",
+        "information_depth": "standard",
+        "esco_matching_strictness": "ausgewogen",
+        "regional_focus": "DACH",
+        "show_sources_default": True,
+        "confidence_threshold": 0.6,
+        "pii_reduction": True,
+        "details_expanded_default": False,
+        "step_compact": {},
+    },
     SSKey.OPEN_GROUPS: {},
     SSKey.BRIEF: None,
     SSKey.JOBAD_CACHE_HIT: {},
@@ -173,7 +183,11 @@ def test_reset_vacancy_preserves_existing_ui_preferences(monkeypatch) -> None:
     state.reset_vacancy()
 
     assert fake_session_state[SSKey.UI_MODE.value] == "standard"
-    assert fake_session_state[SSKey.UI_PREFERENCES.value] == preserved_preferences
+    resolved_preferences = fake_session_state[SSKey.UI_PREFERENCES.value]
+    assert resolved_preferences["details_expanded_default"] is True
+    assert resolved_preferences["step_compact"] == {"company": False}
+    assert resolved_preferences["confidence_threshold"] == 0.6
+    assert resolved_preferences["pii_reduction"] is True
 
 
 def test_init_session_state_uses_env_esco_api_base_url(monkeypatch) -> None:
