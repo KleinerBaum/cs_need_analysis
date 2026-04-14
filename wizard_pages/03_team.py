@@ -50,38 +50,44 @@ def _build_role_context_themes(
         (
             "collaboration",
             "Collaboration",
+            "Zusammenarbeit",
             ("team", "cross-functional", "cross functional", "collaborat", "cooperat"),
         ),
         (
             "communication",
             "Communication",
+            "Zusammenarbeit",
             ("communicat", "present", "explain", "report", "facilitat"),
         ),
         (
             "stakeholder",
             "Stakeholder interaction",
+            "Stakeholder",
             ("stakeholder", "client", "customer", "partner", "supplier", "interface"),
         ),
         (
             "leadership",
             "Leadership / coordination",
+            "Leadership",
             ("lead", "mentor", "coordinate", "supervis", "manage", "organis"),
         ),
         (
             "language",
             "Language-related requirements",
+            "Rahmenbedingungen",
             ("language", "multilingual", "bilingual", "translation", "lingu"),
         ),
         (
             "digital_collaboration",
             "Digital collaboration signals",
+            "Rahmenbedingungen",
             ("digital", "remote", "virtual", "online", "platform", "software", "tool"),
         ),
     ]
 
     themes: list[dict[str, Any]] = []
     snippets = list(_walk_text_values(occupation_payload))[:120]
-    for key, label, keywords in theme_rules:
+    for key, label, group, keywords in theme_rules:
         if not any(keyword in corpus for keyword in keywords):
             continue
         matched = [
@@ -89,7 +95,7 @@ def _build_role_context_themes(
             for snippet in snippets
             if any(keyword in snippet.casefold() for keyword in keywords)
         ][:2]
-        themes.append({"key": key, "label": label, "evidence": matched})
+        themes.append({"key": key, "label": label, "group": group, "evidence": matched})
     return themes
 
 
@@ -130,10 +136,6 @@ def _read_confirmed_team_notes(step: QuestionStep | None) -> str:
     return str(answers.get(target_question.id) or "").strip()
 
 
-def _suggestion_state_key(theme_key: str) -> str:
-    return f"team.esco.suggestion.selected.{theme_key}"
-
-
 def _render_role_context_enrichment(
     *, step: QuestionStep | None, ctx: WizardContext
 ) -> None:
@@ -171,93 +173,114 @@ def _render_role_context_enrichment(
         st.info("Keine belastbaren transversal themes aus ESCO ableitbar.")
         return
 
-    inferred_col, confirmed_col = st.columns(2, gap="medium")
-
-    with inferred_col:
-        st.write("**Zone 1 · Vorschläge (inferred)**")
-        match_confidence = str(
-            st.session_state.get(SSKey.ESCO_MATCH_CONFIDENCE.value) or ""
-        ).strip()
-        match_reason = st.session_state.get(SSKey.ESCO_MATCH_REASON.value)
-        match_provenance_raw = st.session_state.get(SSKey.ESCO_MATCH_PROVENANCE.value)
-        match_provenance = (
-            [str(item) for item in match_provenance_raw if str(item).strip()]
-            if isinstance(match_provenance_raw, list)
-            else []
+    st.write("**Zone 1 · Vorschläge (inferred)**")
+    match_confidence = str(
+        st.session_state.get(SSKey.ESCO_MATCH_CONFIDENCE.value) or ""
+    ).strip()
+    match_reason = st.session_state.get(SSKey.ESCO_MATCH_REASON.value)
+    match_provenance_raw = st.session_state.get(SSKey.ESCO_MATCH_PROVENANCE.value)
+    match_provenance = (
+        [str(item) for item in match_provenance_raw if str(item).strip()]
+        if isinstance(match_provenance_raw, list)
+        else []
+    )
+    if match_confidence or match_reason or match_provenance:
+        render_esco_explainability(
+            labels=match_provenance,
+            confidence=match_confidence,
+            reason=str(match_reason).strip() if match_reason else None,
+            caption_prefix="ESCO Occupation match",
         )
-        if match_confidence or match_reason or match_provenance:
-            render_esco_explainability(
-                labels=match_provenance,
-                confidence=match_confidence,
-                reason=str(match_reason).strip() if match_reason else None,
-                caption_prefix="ESCO Occupation match",
+
+    st.caption("Markierte Pillen gelten als ausgewählt.")
+    grouped_themes: dict[str, list[dict[str, Any]]] = {}
+    for theme in themes:
+        group = str(theme.get("group") or "Allgemein").strip() or "Allgemein"
+        grouped_themes.setdefault(group, []).append(theme)
+
+    selected_theme_labels: list[str] = []
+    selected_theme_details: list[str] = []
+    for group_name, group_themes in grouped_themes.items():
+        st.markdown(f"**{group_name}**")
+        labels = [
+            str(theme.get("label") or "").strip()
+            for theme in group_themes
+            if has_meaningful_value(str(theme.get("label") or ""))
+        ]
+        if hasattr(st, "pills"):
+            selected_labels = (
+                st.pills(
+                    f"Pillen · {group_name}",
+                    options=labels,
+                    selection_mode="multi",
+                    key=f"team.esco.pills.{group_name.casefold().replace(' ', '_')}",
+                )
+                or []
             )
-
-        st.caption(
-            "Diese Hinweise sind abgeleitet und gelten nicht als bestätigte Fakten."
-        )
-
-        selected_theme_labels: list[str] = []
-        for theme in themes:
-            theme_key = str(theme.get("key") or "").strip()
+        else:
+            selected_labels = st.multiselect(
+                f"Auswahl · {group_name}",
+                options=labels,
+                key=f"team.esco.multiselect.{group_name.casefold().replace(' ', '_')}",
+            )
+        selected_theme_labels.extend(selected_labels)
+        for theme in group_themes:
             label = str(theme.get("label") or "").strip()
+            if label not in selected_labels:
+                continue
             evidence = (
                 theme.get("evidence") if isinstance(theme.get("evidence"), list) else []
             )
-            if not theme_key or not label:
-                continue
-            st.markdown(f"- **{label}**")
             if evidence:
-                st.caption(f"Signal: {evidence[0]}")
-            selected = st.checkbox(
-                f"Für Übernahme markieren · {label}",
-                key=_suggestion_state_key(theme_key),
-            )
-            if selected:
-                selected_theme_labels.append(label)
+                selected_theme_details.append(f"{label} · Signal: {evidence[0]}")
 
-        if st.button(
-            "Ausgewählte Vorschläge als confirmed selection übernehmen",
-            key="team.esco.adopt.selected",
-            type="primary",
-        ):
-            if not selected_theme_labels:
-                st.info("Bitte zuerst mindestens einen Vorschlag markieren.")
-            else:
-                adopted_count = 0
-                for label in selected_theme_labels:
-                    adopted = _append_context_to_team_notes(
-                        step=step,
-                        context_line=f"Confirmed selection (ESCO suggestion): {label}",
-                    )
-                    if adopted:
-                        adopted_count += 1
-                if adopted_count:
-                    st.success(
-                        f"{adopted_count} Vorschlag/Vorschläge als confirmed selection übernommen."
-                    )
-                else:
-                    st.info("Keine geeignete Team-Notizfrage zum Übernehmen gefunden.")
-
-    with confirmed_col:
-        st.write("**Zone 2 · Confirmed input**")
-        current_notes = _read_confirmed_team_notes(step)
-        if current_notes:
-            st.caption(
-                "Bestätigte Inhalte in der kanonischen Team-Antwort (Downstream für Summary/Export)."
-            )
-            st.text_area(
-                "Bestätigte Team-Notiz",
-                value=current_notes,
-                height=220,
-                disabled=True,
-                key="team.esco.confirmed.preview",
-            )
+    if st.button(
+        "Ausgewählte Vorschläge als confirmed selection übernehmen",
+        key="team.esco.adopt.selected",
+        type="primary",
+        width="stretch",
+    ):
+        if not selected_theme_labels:
+            st.info("Bitte zuerst mindestens eine Pille markieren.")
         else:
-            st.info(
-                "Noch keine bestätigte Team-Notiz vorhanden. Übernommene Vorschläge "
-                "werden hier sichtbar."
-            )
+            adopted_count = 0
+            for label in selected_theme_labels:
+                adopted = _append_context_to_team_notes(
+                    step=step,
+                    context_line=f"Confirmed selection (ESCO suggestion): {label}",
+                )
+                if adopted:
+                    adopted_count += 1
+            if adopted_count:
+                st.success(
+                    f"{adopted_count} Vorschlag/Vorschläge als confirmed selection übernommen."
+                )
+            else:
+                st.info("Keine geeignete Team-Notizfrage zum Übernehmen gefunden.")
+
+    if selected_theme_details:
+        st.caption("Ausgewählte Evidenz-Signale:")
+        for detail in selected_theme_details:
+            st.write(f"- {detail}")
+
+    st.write("**Zone 2 · Confirmed input**")
+    current_notes = _read_confirmed_team_notes(step)
+    if current_notes:
+        st.caption(
+            "Bestätigte Inhalte in der kanonischen Team-Antwort (Downstream für Summary/Export)."
+        )
+        st.text_area(
+            "Bestätigte Team-Notiz",
+            value=current_notes,
+            height=180,
+            disabled=True,
+            key="team.esco.confirmed.preview",
+        )
+    else:
+        st.info(
+            "Noch keine bestätigte Team-Notiz vorhanden. Übernommene Vorschläge "
+            "werden hier sichtbar."
+        )
 
 
 def render(ctx: WizardContext) -> None:
@@ -296,11 +319,8 @@ def render(ctx: WizardContext) -> None:
         if not show_esco_context:
             render_question_step(step)
             return
-        question_col, context_col = st.columns([2, 1], gap="large")
-        with question_col:
-            render_question_step(step)
-        with context_col:
-            _render_role_context_enrichment(step=step, ctx=ctx)
+        render_question_step(step)
+        _render_role_context_enrichment(step=step, ctx=ctx)
 
     render_step_shell(
         title="Team",

@@ -273,6 +273,12 @@ def init_session_state() -> None:
         SSKey.ROLE_TASKS_LLM_SUGGESTED.value: [],
         SSKey.ROLE_TASKS_SELECTED.value: [],
         SSKey.ROLE_TASKS_SUGGEST_COUNT.value: 5,
+        SSKey.INTERVIEW_INTERNAL_FLOW.value: {
+            "contacts": [],
+            "info_loop_items": [],
+            "earliest_start_date": None,
+            "latest_start_date": None,
+        },
         SSKey.SKILLS_JOBSPEC_SUGGESTED.value: [],
         SSKey.SKILLS_LLM_SUGGESTED.value: [],
         SSKey.SKILLS_SELECTED.value: [],
@@ -389,6 +395,12 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.ROLE_TASKS_LLM_SUGGESTED.value] = []
     st.session_state[SSKey.ROLE_TASKS_SELECTED.value] = []
     st.session_state[SSKey.ROLE_TASKS_SUGGEST_COUNT.value] = 5
+    st.session_state[SSKey.INTERVIEW_INTERNAL_FLOW.value] = {
+        "contacts": [],
+        "info_loop_items": [],
+        "earliest_start_date": None,
+        "latest_start_date": None,
+    }
     st.session_state[SSKey.SKILLS_JOBSPEC_SUGGESTED.value] = []
     st.session_state[SSKey.SKILLS_LLM_SUGGESTED.value] = []
     st.session_state[SSKey.SKILLS_SELECTED.value] = []
