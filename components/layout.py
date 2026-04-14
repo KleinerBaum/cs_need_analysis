@@ -2,17 +2,57 @@
 
 from __future__ import annotations
 
+from typing import Iterable, Mapping
 from collections.abc import Sequence
 from dataclasses import dataclass
 
 import streamlit as st
 
+from config.constants import APP_NAME, APP_TAGLINE
 
 @dataclass(frozen=True)
 class SectionBlock:
     heading: str
     body: Sequence[str]
 
+def load_css(path: str = "styles/theme.css") -> None:
+    with open(path, "r", encoding="utf-8") as css_file:
+        st.markdown(f"<style>{css_file.read()}</style>", unsafe_allow_html=True)
+
+
+def render_page_header(title: str, intro: str, eyebrow: str | None = None) -> None:
+    eyebrow_html = f'<div class="cs-eyebrow">{eyebrow}</div>' if eyebrow else ""
+    st.markdown(
+        f"""
+        <section class="cs-hero">
+            {eyebrow_html}
+            <h1>{title}</h1>
+            <p>{intro}</p>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_sections(sections: Iterable[Mapping[str, str]]) -> None:
+    for section in sections:
+        st.markdown(
+            f"""
+            <section class="cs-section">
+                <h2>{section['title']}</h2>
+                <p>{section['body']}</p>
+            </section>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+def render_legal_note(note: str) -> None:
+    st.info(note)
+
+
+def render_page_footer() -> None:
+    st.caption(f"{APP_NAME} · {APP_TAGLINE}")
 
 def render_hero(*, eyebrow: str, title: str, intro: Sequence[str]) -> None:
     st.caption(eyebrow)
