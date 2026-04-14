@@ -10,10 +10,11 @@ from constants import SSKey
 from esco_client import (
     EscoClient,
     EscoClientError,
-    clear_esco_cache,
-    is_retryable_server_status,
 )
-from llm_client import generate_requirement_gap_suggestions
+from llm_client import (
+    generate_requirement_gap_suggestions,
+    generate_role_tasks_salary_forecast,
+)
 from schemas import EscoMappingReport
 from schemas import EscoSkillDetail, JobAdExtract, QuestionStep
 from state import (
@@ -27,16 +28,11 @@ from state import (
 from ui_layout import render_step_shell
 from ui_components import (
     has_meaningful_value,
-    render_compact_requirement_board,
-    render_compare_adopt_intro,
-    render_esco_explainability,
     render_error_banner,
-    render_esco_picker_card,
     render_question_step,
     render_standard_step_review,
 )
 from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
-from wizard_pages.salary_forecast_panel import render_salary_forecast_panel
 
 
 def _normalize_term(term: str) -> str:
@@ -219,18 +215,15 @@ def _save_selected_skill_suggestions(labels: list[str]) -> int:
     return added_count
 
 
-def _source_badge(label: str) -> str:
-    return (
-        f"<span style='display:inline-block;padding:0.15rem 0.45rem;border-radius:0.6rem;"
-        "border:1px solid #d1d5db;font-size:0.78rem;'>"
-        f"{label}</span>"
-    )
+def _safe_int(value: Any, *, default: int = 0) -> int:
+    try:
+        return int(round(float(value)))
+    except (TypeError, ValueError):
+        return default
 
 
-def _render_badge_line(labels: list[str]) -> None:
-    rendered = " ".join(_source_badge(label) for label in labels if label.strip())
-    if rendered:
-        st.markdown(rendered, unsafe_allow_html=True)
+def _format_eur(value: int) -> str:
+    return f"{value:,} €".replace(",", ".")
 
 
 def _render_skills_source_columns(
@@ -240,7 +233,6 @@ def _render_skills_source_columns(
     llm_suggested: list[dict[str, Any]],
 ) -> None:
     st.markdown("#### Quellenvergleich")
-    _render_badge_line(["Jobspec", "ESCO essential", "ESCO optional", "AI suggestion"])
     selected_labels_raw = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
     selected_labels = (
         [
@@ -251,25 +243,76 @@ def _render_skills_source_columns(
         if isinstance(selected_labels_raw, list)
         else []
     )
+    selected_set = {_normalize_term(item) for item in selected_labels}
 
-    bulk_buffer = render_compact_requirement_board(
-        title_jobspec="Aus Jobspec extrahiert",
-        jobspec_items=jobspec_suggested,
-        title_esco="ESCO",
-        esco_items=esco_suggested,
-        title_llm="AI-Vorschläge",
-        llm_items=llm_suggested,
-        selected_labels=selected_labels,
-        selection_state_key=f"{SSKey.SKILLS_SELECTED.value}.bulk_buffer",
-        key_prefix="skills.board",
-    )
+    def _render_group_editor(
+        title: str,
+        items: list[dict[str, Any]],
+        source_label: str,
+        key: str,
+    ) -> list[str]:
+        st.markdown(f"**{title}**")
+        group_labels = _dedupe_terms(
+            [str(item.get("label") or "").strip() for item in items]
+        )
+        rows = [
+            {"Auswahl": _normalize_term(label) in selected_set, "Skill": label}
+            for label in group_labels
+        ]
+        edited = st.data_editor(
+            rows,
+            hide_index=True,
+            width="stretch",
+            key=key,
+            disabled=["Skill"],
+            column_config={
+                "Auswahl": st.column_config.CheckboxColumn("Auswahl", width="small"),
+                "Skill": st.column_config.TextColumn(
+                    f"Bezeichnung ({source_label})", width="large"
+                ),
+            },
+        )
+        records = (
+            edited.to_dict("records")
+            if hasattr(edited, "to_dict")
+            else (edited if isinstance(edited, list) else [])
+        )
+        return [
+            str(row.get("Skill") or "").strip()
+            for row in records
+            if bool(row.get("Auswahl"))
+            and has_meaningful_value(str(row.get("Skill") or ""))
+        ]
 
-    if st.button("Ausgewählte Skills übernehmen", width="stretch"):
-        added_count = _save_selected_skill_suggestions(bulk_buffer)
-        if added_count > 0:
-            st.success(f"{added_count} Skill(s) übernommen.")
-        else:
-            st.info("Keine neuen Skills übernommen.")
+    group_col_a, group_col_b, group_col_c = st.columns((1, 1, 1), gap="large")
+    with group_col_a:
+        selected_jobspec = _render_group_editor(
+            "a) Extrahierte Skills aus dem Jobspec",
+            jobspec_suggested,
+            "Jobspec",
+            key=f"{SSKey.SKILLS_SELECTED.value}.source.jobspec",
+        )
+    with group_col_b:
+        selected_esco = _render_group_editor(
+            "b) ESCO-Skills",
+            esco_suggested,
+            "ESCO",
+            key=f"{SSKey.SKILLS_SELECTED.value}.source.esco",
+        )
+    with group_col_c:
+        selected_ai = _render_group_editor(
+            "c) AI-Skills",
+            llm_suggested,
+            "AI",
+            key=f"{SSKey.SKILLS_SELECTED.value}.source.ai",
+        )
+
+    if st.button("Auswahl aus Quellenvergleich speichern", width="stretch"):
+        merged_selection = _dedupe_terms(
+            [*selected_jobspec, *selected_esco, *selected_ai]
+        )
+        st.session_state[SSKey.SKILLS_SELECTED.value] = merged_selection
+        st.success(f"{len(merged_selection)} Skill(s) gespeichert.")
 
 
 def _safe_text(value: str | None) -> str:
@@ -396,72 +439,11 @@ def _load_related_skills_from_selected_occupation(
 
 def _render_unmapped_term_workflow(flagged_terms: list[str]) -> None:
     st.markdown("### 4) Not normalized yet")
-    st.caption(
-        "Offene Begriffe bleiben sichtbar: als Freitext, nach Retry-Suche oder "
-        "als Anhang an ein nahegelegenes ESCO-Konzept."
-    )
-    actions_raw = st.session_state.get(SSKey.ESCO_UNMAPPED_TERM_ACTIONS.value, {})
-    actions = actions_raw if isinstance(actions_raw, dict) else {}
-    selected_occupation = get_esco_occupation_selected() or {}
-    selected_occupation_uri = str(selected_occupation.get("uri") or "").strip()
-
-    for index, term in enumerate(flagged_terms):
-        normalized = _normalize_term(term)
-        action_payload = actions.get(normalized, {})
-        st.write(f"- **{term}**")
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            if st.button("Keep free text", key=f"skills.unmapped.keep.{index}"):
-                _save_selected_skill_suggestions([term])
-                actions[normalized] = {"status": "free_text", "term": term}
-        with c2:
-            if st.button("Retry ESCO search", key=f"skills.unmapped.retry.{index}"):
-                try:
-                    payload = EscoClient().suggest2(text=term, type="skill", limit=5)
-                    options = _extract_skill_candidates(payload)
-                except EscoClientError as exc:
-                    if (
-                        is_retryable_server_status(exc.status_code)
-                        or exc.status_code is None
-                    ):
-                        st.warning(
-                            "Die ESCO-Suche ist gerade nicht verfügbar. "
-                            "Du kannst den Begriff manuell übernehmen oder später erneut versuchen."
-                        )
-                    else:
-                        st.warning(f"ESCO-Retry fehlgeschlagen: {exc}")
-                else:
-                    if options:
-                        picked = options[0]
-                        _save_selected_skill_suggestions(
-                            [str(picked.get("title") or term)]
-                        )
-                        actions[normalized] = {
-                            "status": "retry_matched",
-                            "term": term,
-                            "attached_uri": str(picked.get("uri") or "").strip(),
-                            "attached_title": str(picked.get("title") or "").strip(),
-                        }
-                    else:
-                        st.info("Kein robustes ESCO-Match im Retry gefunden.")
-        with c3:
-            if st.button("Attach to occupation", key=f"skills.unmapped.attach.{index}"):
-                actions[normalized] = {
-                    "status": "attached_to_occupation",
-                    "term": term,
-                    "attached_uri": selected_occupation_uri,
-                    "attached_title": str(
-                        selected_occupation.get("title") or ""
-                    ).strip(),
-                }
-
-        if isinstance(action_payload, dict) and action_payload:
-            st.caption(
-                f"Aktueller Status: {action_payload.get('status', 'open')} "
-                f"{action_payload.get('attached_title', '')}".strip()
-            )
-
-    st.session_state[SSKey.ESCO_UNMAPPED_TERM_ACTIONS.value] = actions
+    st.caption("Offene Begriffe aus dem Jobspec, verteilt auf drei Spalten.")
+    columns = st.columns(3, gap="large")
+    for idx, term in enumerate(flagged_terms):
+        with columns[idx % 3]:
+            st.write(f"- {term}")
 
 
 def _render_extracted_slot(job: JobAdExtract) -> None:
@@ -470,17 +452,16 @@ def _render_extracted_slot(job: JobAdExtract) -> None:
         x for x in job.nice_to_have_skills if has_meaningful_value(x)
     ]
     tech_stack = [x for x in job.tech_stack if has_meaningful_value(x)]
-    if must_have_skills:
+    col_must, col_nice, col_stack = st.columns(3, gap="large")
+    with col_must:
         st.write("**Must-have (Auszug):**")
         for value in must_have_skills[:12]:
             st.write(f"- {value}")
-
-    if nice_to_have_skills:
+    with col_nice:
         st.write("**Nice-to-have (Auszug):**")
         for value in nice_to_have_skills[:12]:
             st.write(f"- {value}")
-
-    if tech_stack:
+    with col_stack:
         st.write("**Tech Stack (Auszug):**")
         for value in tech_stack[:15]:
             st.write(f"- {value}")
@@ -496,6 +477,10 @@ def _render_main_slot(
     coverage_snapshot: EscoCoverageSnapshot,
     show_esco_sections: bool,
 ) -> None:
+    if step is not None and step.questions:
+        st.markdown("### Minimalprofil")
+        render_question_step(step)
+
     must_have_skills = [x for x in job.must_have_skills if has_meaningful_value(x)]
     nice_to_have_skills = [
         x for x in job.nice_to_have_skills if has_meaningful_value(x)
@@ -543,27 +528,7 @@ def _render_main_slot(
         else []
     )
 
-    st.markdown("### 1) Vergleichen & übernehmen (working set)")
-    render_compare_adopt_intro(
-        adopt_target="Skills",
-        canonical_target="SSKey.SKILLS_SELECTED",
-        include_inferred_confirmed_note=True,
-        source_labels=("Jobspec", "AI")
-        if not show_esco_sections
-        else ("Jobspec", "ESCO", "AI"),
-    )
-    _render_skills_source_columns(
-        jobspec_suggested=jobspec_suggestions,
-        esco_suggested=esco_suggestions,
-        llm_suggested=llm_suggested,
-    )
-
-    if show_esco_sections:
-        st.markdown("### 2) ESCO normalisieren / confirmen (confirmed set)")
-        st.caption(
-            "ESCO hilft, freie Begriffe auf standardisierte Skills abzubilden. "
-            "So werden Dubletten reduziert und Exporte konsistent."
-        )
+    st.markdown("### 1) Skill-Generierung")
     normalized_must_terms = _dedupe_terms(must_have_skills)
     normalized_nice_terms = _dedupe_terms(nice_to_have_skills)
 
@@ -579,138 +544,94 @@ def _render_main_slot(
         if show_esco_sections
         else ""
     )
-    if show_esco_sections:
-        with st.expander("Essential-Skills normalisieren", expanded=True):
-            _render_badge_line(["ESCO essential"])
-            st.caption(
-                "Wähle Skills, die zwingend erforderlich sind. "
-                "Das ist zunächst Inferred suggestion/context; bestätige danach als confirmed selection (essential)."
-            )
-            render_esco_picker_card(
-                concept_type="skill",
-                target_state_key=SSKey.ESCO_SKILLS_SELECTED_MUST,
-                allow_multi=True,
-                enable_preview=True,
-                apply_label="Confirm essential as confirmed selection",
-                preview_label="Vorschau essential",
-                selection_label="Inferred suggestion/context for essential",
-                confirmation_helper_text=(
-                    "Confirm stores the current inferred suggestion/context as confirmed selection (essential ESCO skills)."
-                ),
-            )
+    col_esco_generate, col_ai_generate = st.columns(2, gap="large")
+    with col_esco_generate:
+        st.markdown("### ESCO-Skills")
+        st.caption(
+            "Lädt ESCO Occupation-Details und relationale Skills "
+            "(hasEssentialSkill/hasOptionalSkill)."
+        )
+        load_esco_clicked = st.button(
+            "Occupation-Skill-Vorschläge laden", key="skills.esco.load"
+        )
 
-        with st.expander("Optional-Skills normalisieren", expanded=True):
-            _render_badge_line(["ESCO optional"])
-            st.caption(
-                "Wähle Skills, die hilfreich sind, aber nicht zwingend. "
-                "Das ist zunächst Inferred suggestion/context; bestätige danach als confirmed selection (optional)."
-            )
-            render_esco_picker_card(
-                concept_type="skill",
-                target_state_key=SSKey.ESCO_SKILLS_SELECTED_NICE,
-                allow_multi=True,
-                enable_preview=True,
-                apply_label="Confirm optional as confirmed selection",
-                preview_label="Vorschau optional",
-                selection_label="Inferred suggestion/context for optional",
-                confirmation_helper_text=(
-                    "Confirm stores the current inferred suggestion/context as confirmed selection (optional ESCO skills)."
-                ),
-            )
+    with col_ai_generate:
+        st.markdown("### AI Skill-Vorschläge")
+        st.number_input(
+            "Anzahl AI-Skill-Vorschläge",
+            key=SSKey.SKILLS_SUGGEST_COUNT.value,
+            min_value=1,
+            max_value=12,
+            step=1,
+        )
+        generate_ai_clicked = st.button(
+            "Skills-Vorschläge generieren", key="skills.ai.generate"
+        )
 
-        st.markdown("### ESCO-Vorschläge aus Occupation")
-    if show_esco_sections and occupation_uri:
+    if show_esco_sections and occupation_uri and load_esco_clicked:
         occupation_title = (
             str(selected_occupation.get("title") or "—").strip()
             if isinstance(selected_occupation, dict)
             else "—"
         )
-        st.caption(
-            "Lädt ESCO Occupation-Details und relationale Skills "
-            "(hasEssentialSkill/hasOptionalSkill)."
-        )
-        render_esco_explainability(
-            labels=["derived from occupation relation"],
-            confidence="medium",
-            reason=(
-                "Diese Skills stammen aus ESCO-Relationspfaden der gewählten Occupation "
-                "und sind starke, aber kontextabhängige Vorschläge."
-            ),
-            caption_prefix="Occupation Relation Explainability",
-        )
-        if st.button("Occupation-Skill-Vorschläge laden"):
-            with st.spinner("Lade relationale Skills aus ESCO …"):
-                suggested_must, suggested_nice, load_error = (
-                    _load_related_skills_from_selected_occupation(occupation_uri)
-                )
+        with st.spinner("Lade relationale Skills aus ESCO …"):
+            suggested_must, suggested_nice, load_error = (
+                _load_related_skills_from_selected_occupation(occupation_uri)
+            )
 
-            if load_error:
-                st.warning(
-                    "ESCO-Vorschläge sind aktuell nicht verfügbar. "
-                    "Du kannst mit manueller Auswahl weiterarbeiten oder später erneut versuchen."
-                )
-                c_manual, c_retry = st.columns(2)
-                with c_manual:
-                    if st.button("Manuell weiterarbeiten", key="skills.esco.manual"):
-                        st.info(
-                            "Fortsetzung mit Jobspec/AI-Vorschlägen aktiv. "
-                            "ESCO-Vorschläge können später nachgeladen werden."
-                        )
-                with c_retry:
-                    if st.button("Später erneut versuchen", key="skills.esco.retry"):
-                        clear_esco_cache()
-                        st.info(
-                            "Bitte „Occupation-Skill-Vorschläge laden“ später erneut ausführen."
-                        )
-            else:
-                st.success(
-                    f"ESCO-Vorschläge für {occupation_title}: "
-                    f"{len(suggested_must)} essential, {len(suggested_nice)} optional."
-                )
+        if load_error:
+            st.warning(
+                "ESCO-Vorschläge sind aktuell nicht verfügbar. "
+                "Du kannst mit manueller Auswahl weiterarbeiten oder später erneut versuchen."
+            )
+        else:
+            st.success(
+                f"ESCO-Vorschläge für {occupation_title}: "
+                f"{len(suggested_must)} essential, {len(suggested_nice)} optional."
+            )
+            selected_must_raw = st.session_state.get(
+                SSKey.ESCO_SKILLS_SELECTED_MUST.value, []
+            )
+            selected_nice_raw = st.session_state.get(
+                SSKey.ESCO_SKILLS_SELECTED_NICE.value, []
+            )
+            selected_must = (
+                selected_must_raw if isinstance(selected_must_raw, list) else []
+            )
+            selected_nice = (
+                selected_nice_raw if isinstance(selected_nice_raw, list) else []
+            )
 
-                selected_must_raw = st.session_state.get(
-                    SSKey.ESCO_SKILLS_SELECTED_MUST.value, []
-                )
-                selected_nice_raw = st.session_state.get(
-                    SSKey.ESCO_SKILLS_SELECTED_NICE.value, []
-                )
-                selected_must = (
-                    selected_must_raw if isinstance(selected_must_raw, list) else []
-                )
-                selected_nice = (
-                    selected_nice_raw if isinstance(selected_nice_raw, list) else []
-                )
-
-                merged_must, added_must = _merge_suggested_skills_by_uri(
-                    suggested_skills=[
-                        {
-                            **item,
-                            "relation": "hasEssentialSkill",
-                            "related_occupation_uri": occupation_uri,
-                        }
-                        for item in suggested_must
-                    ],
-                    must_selected=selected_must,
-                    nice_selected=selected_nice,
-                )
-                merged_nice, added_nice = _merge_suggested_skills_by_uri(
-                    suggested_skills=[
-                        {
-                            **item,
-                            "relation": "hasOptionalSkill",
-                            "related_occupation_uri": occupation_uri,
-                        }
-                        for item in suggested_nice
-                    ],
-                    must_selected=merged_must,
-                    nice_selected=selected_nice,
-                )
-                st.session_state[SSKey.ESCO_SKILLS_SELECTED_MUST.value] = merged_must
-                st.session_state[SSKey.ESCO_SKILLS_SELECTED_NICE.value] = merged_nice
-                st.info(
-                    f"Übernommen: {added_must} Must, {added_nice} Nice "
-                    "(dedupliziert anhand ESCO-URI)."
-                )
+            merged_must, added_must = _merge_suggested_skills_by_uri(
+                suggested_skills=[
+                    {
+                        **item,
+                        "relation": "hasEssentialSkill",
+                        "related_occupation_uri": occupation_uri,
+                    }
+                    for item in suggested_must
+                ],
+                must_selected=selected_must,
+                nice_selected=selected_nice,
+            )
+            merged_nice, added_nice = _merge_suggested_skills_by_uri(
+                suggested_skills=[
+                    {
+                        **item,
+                        "relation": "hasOptionalSkill",
+                        "related_occupation_uri": occupation_uri,
+                    }
+                    for item in suggested_nice
+                ],
+                must_selected=merged_must,
+                nice_selected=selected_nice,
+            )
+            st.session_state[SSKey.ESCO_SKILLS_SELECTED_MUST.value] = merged_must
+            st.session_state[SSKey.ESCO_SKILLS_SELECTED_NICE.value] = merged_nice
+            st.info(
+                f"Übernommen: {added_must} Must, {added_nice} Nice "
+                "(dedupliziert anhand ESCO-URI)."
+            )
     elif show_esco_sections:
         st.info("Keine ESCO Occupation ausgewählt.")
 
@@ -763,87 +684,12 @@ def _render_main_slot(
     )
     coverage_snapshot = sync_esco_shared_state()
 
-    if show_esco_sections:
-        st.markdown("### Confirmed selection (Essential / Optional)")
-        st.caption(
-            "Hier siehst du die confirmed selection. Essential = erforderlich, "
-            "Optional = zusätzlicher Mehrwert."
-        )
-        col_essential, col_optional = st.columns(2)
-        with col_essential:
-            _render_badge_line(["ESCO essential"])
-            st.caption(
-                "Confirmed selection (essential): "
-                f"{len(coverage_snapshot.confirmed_essential_skills)}"
-            )
-            render_esco_explainability(
-                labels=["manually selected by user"],
-                confidence="high",
-                reason="Bestätigte Must-Skills sind deterministisch durch die Nutzerentscheidung.",
-                caption_prefix="Confirmed selection · Essential skills",
-            )
-        with col_optional:
-            _render_badge_line(["ESCO optional"])
-            st.caption(
-                "Confirmed selection (optional): "
-                f"{len(coverage_snapshot.confirmed_optional_skills)}"
-            )
-            render_esco_explainability(
-                labels=["manually selected by user"],
-                confidence="high",
-                reason="Bestätigte Nice-to-have-Skills sind deterministisch durch die Nutzerentscheidung.",
-                caption_prefix="Confirmed selection · Optional skills",
-            )
-        _render_selected_skill_details(
-            title="Confirmed selection · essential skills",
-            selected_skills=deduped_must,
-            detail_cache=detail_cache,
-            is_expert_mode=is_expert_mode,
-            key_prefix="skills.must",
-        )
-        _render_selected_skill_details(
-            title="Confirmed selection · optional skills",
-            selected_skills=deduped_nice,
-            detail_cache=detail_cache,
-            is_expert_mode=is_expert_mode,
-            key_prefix="skills.nice",
-        )
-
-    st.markdown("### 3) Unmapped follow-up")
-    ambiguous_terms = sorted(
-        {
-            term
-            for term in normalized_must_terms
-            if _normalize_term(term)
-            in {_normalize_term(value) for value in normalized_nice_terms}
-        }
-    )
-    unmapped_terms = list(coverage_snapshot.unmapped_requirement_terms)
-    flagged_terms = _dedupe_terms([*ambiguous_terms, *unmapped_terms])
-    if show_esco_sections and flagged_terms:
-        _render_badge_line(["Jobspec"])
-        _render_unmapped_term_workflow(flagged_terms)
-    else:
-        st.caption(
-            "Keine offenen oder mehrdeutigen Skill-Begriffe vorhanden."
-            if show_esco_sections
-            else "ESCO-spezifische Normalisierung ist ohne bestätigten ESCO-Anker ausgeblendet."
-        )
-
     suggestion_context = _build_skill_suggestion_context(
         job=job,
         esco_must_selected=deduped_must,
         esco_nice_selected=deduped_nice,
     )
-    st.markdown("### AI Skill-Vorschläge")
-    st.number_input(
-        "Anzahl AI-Skill-Vorschläge",
-        key=SSKey.SKILLS_SUGGEST_COUNT.value,
-        min_value=1,
-        max_value=12,
-        step=1,
-    )
-    if st.button("Skills-Vorschläge generieren"):
+    if generate_ai_clicked:
         with st.spinner("Generiere Skill-Vorschläge …"):
             try:
                 suggestion_pack, _usage = generate_requirement_gap_suggestions(
@@ -879,21 +725,201 @@ def _render_main_slot(
                     ],
                 )
                 st.session_state[SSKey.SKILLS_LLM_SUGGESTED.value] = merged_llm
+                llm_suggested = merged_llm
                 if merged_llm:
                     st.success(f"{len(merged_llm)} AI-Skill(s) übernommen.")
                 else:
                     st.info("Keine zusätzlichen AI-Skills gefunden.")
 
-    with st.expander("Salary Forecast", expanded=True):
-        render_salary_forecast_panel(job, get_answers())
-
-    if step is None or not step.questions:
-        st.info(
-            "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
+    st.markdown("### 2) Confirmed selection")
+    cc1, cc2, cc3 = st.columns(3, gap="large")
+    with cc1:
+        _render_selected_skill_details(
+            title="ESCO · Essential",
+            selected_skills=deduped_must,
+            detail_cache=detail_cache,
+            is_expert_mode=is_expert_mode,
+            key_prefix="skills.must",
         )
-        return
+    with cc2:
+        _render_selected_skill_details(
+            title="ESCO · Optional",
+            selected_skills=deduped_nice,
+            detail_cache=detail_cache,
+            is_expert_mode=is_expert_mode,
+            key_prefix="skills.nice",
+        )
+    with cc3:
+        st.markdown("#### AI · Vorschläge")
+        if llm_suggested:
+            for item in llm_suggested:
+                label = str(item.get("label") or "").strip()
+                if label:
+                    st.write(f"- {label}")
+        else:
+            st.caption("Noch keine AI-Skills vorhanden.")
 
-    render_question_step(step)
+    st.markdown("### 3) Unmapped follow-up")
+    ambiguous_terms = sorted(
+        {
+            term
+            for term in normalized_must_terms
+            if _normalize_term(term)
+            in {_normalize_term(value) for value in normalized_nice_terms}
+        }
+    )
+    unmapped_terms = list(coverage_snapshot.unmapped_requirement_terms)
+    flagged_terms = _dedupe_terms([*ambiguous_terms, *unmapped_terms])
+    if show_esco_sections and flagged_terms:
+        _render_unmapped_term_workflow(flagged_terms)
+    else:
+        st.caption(
+            "Keine offenen oder mehrdeutigen Skill-Begriffe vorhanden."
+            if show_esco_sections
+            else "ESCO-spezifische Normalisierung ist ohne bestätigten ESCO-Anker ausgeblendet."
+        )
+
+    _render_skills_source_columns(
+        jobspec_suggested=jobspec_suggestions,
+        esco_suggested=esco_suggestions,
+        llm_suggested=llm_suggested,
+    )
+
+    st.markdown("### Salary Forecast")
+    salary_left, salary_right = st.columns((3, 2), gap="large")
+    selected_skills_raw = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
+    selected_skills = (
+        _dedupe_terms([str(item) for item in selected_skills_raw])
+        if isinstance(selected_skills_raw, list)
+        else []
+    )
+    with salary_left:
+        st.markdown("#### Priorisierung Skills & Anforderungen")
+        default_priority_rows = [
+            {"Skill": skill, "Priorität": "must-have"} for skill in selected_skills
+        ]
+        edited_priority = st.data_editor(
+            default_priority_rows,
+            hide_index=True,
+            width="stretch",
+            key=f"{SSKey.SKILLS_SELECTED.value}.priority.editor",
+            column_config={
+                "Skill": st.column_config.TextColumn(
+                    "Skill", disabled=True, width="large"
+                ),
+                "Priorität": st.column_config.SelectboxColumn(
+                    "Priorität",
+                    options=["must-have", "nice-to-have"],
+                    width="small",
+                ),
+            },
+        )
+        priority_records = (
+            edited_priority.to_dict("records")
+            if hasattr(edited_priority, "to_dict")
+            else (edited_priority if isinstance(edited_priority, list) else [])
+        )
+        must_priority = [
+            str(row.get("Skill") or "").strip()
+            for row in priority_records
+            if str(row.get("Priorität") or "").strip() == "must-have"
+            and has_meaningful_value(str(row.get("Skill") or ""))
+        ]
+        nice_priority = [
+            str(row.get("Skill") or "").strip()
+            for row in priority_records
+            if str(row.get("Priorität") or "").strip() == "nice-to-have"
+            and has_meaningful_value(str(row.get("Skill") or ""))
+        ]
+
+    with salary_right:
+        st.markdown("#### Gehaltsprognose (€)")
+        st.slider(
+            "Suchradius (km)",
+            min_value=0,
+            max_value=500,
+            step=5,
+            key=SSKey.SALARY_SCENARIO_RADIUS_KM.value,
+        )
+        st.slider(
+            "Remote Share (%)",
+            min_value=0,
+            max_value=100,
+            step=5,
+            key=SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value,
+        )
+        st.selectbox(
+            "Erfahrung",
+            options=["", "junior", "mid", "senior", "lead"],
+            format_func=lambda value: "(keine)" if not value else value,
+            key=SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value,
+        )
+        if st.button("Gehaltsprognose für Skills berechnen", width="stretch"):
+            role_tasks_raw = st.session_state.get(SSKey.ROLE_TASKS_SELECTED.value, [])
+            role_tasks = (
+                _dedupe_terms([str(item) for item in role_tasks_raw])
+                if isinstance(role_tasks_raw, list)
+                else []
+            )
+            selected_inputs = [
+                *(f"Must-have: {skill}" for skill in must_priority),
+                *(f"Nice-to-have: {skill}" for skill in nice_priority),
+                *role_tasks,
+            ]
+            with st.spinner("Berechne Gehaltsprognose …"):
+                forecast, usage = generate_role_tasks_salary_forecast(
+                    job_title=str(job.job_title or "").strip(),
+                    location_city=str(job.location_city or "").strip(),
+                    location_country=str(job.location_country or "").strip(),
+                    seniority=str(
+                        st.session_state.get(
+                            SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value,
+                            job.seniority_level or "",
+                        )
+                    ).strip(),
+                    selected_tasks=selected_inputs,
+                    search_radius_km=_safe_int(
+                        st.session_state.get(SSKey.SALARY_SCENARIO_RADIUS_KM.value, 50),
+                        default=50,
+                    ),
+                    remote_share_percent=_safe_int(
+                        st.session_state.get(
+                            SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value, 0
+                        ),
+                        default=0,
+                    ),
+                    model=get_active_model(),
+                    language=str(st.session_state.get(SSKey.LANGUAGE.value, "de")),
+                    store=bool(
+                        st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)
+                    ),
+                )
+            st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {
+                "forecast": {"p50": forecast.yearly_salary_eur},
+                "currency": "EUR",
+                "period": "year",
+                "confidence_note": forecast.confidence_note,
+                "inputs": {
+                    "must_have_skills": must_priority,
+                    "nice_to_have_skills": nice_priority,
+                    "selected_role_tasks": role_tasks,
+                },
+                "usage": usage or {},
+            }
+        salary_result = st.session_state.get(
+            SSKey.SALARY_FORECAST_LAST_RESULT.value, {}
+        )
+        salary_forecast_payload = (
+            salary_result.get("forecast", {}) if isinstance(salary_result, dict) else {}
+        )
+        p50 = _safe_int(salary_forecast_payload.get("p50"))
+        if p50 > 0:
+            st.metric("Erwartetes Jahresgehalt", _format_eur(p50))
+            note = str(salary_result.get("confidence_note") or "").strip()
+            if note:
+                st.caption(note)
+        else:
+            st.info("Noch keine Gehaltsprognose vorhanden.")
 
 
 def render(ctx: WizardContext) -> None:
