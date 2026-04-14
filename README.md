@@ -24,6 +24,7 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 - Degradiertes Verhalten bei ESCO-Ausfall: Bei temporären ESCO-Fehlern (z. B. 5xx/Netzwerk) bleibt der Wizard bedienbar, zeigt verständliche Hinweise und bietet „manuell fortfahren“ sowie „später erneut versuchen“ statt eines harten Abbruchs.
 - Skills-Mapping als geführter 4-Schritt-Flow: (1) extrahierte Jobspec-Phrasen, (2) ESCO-Normalisierung über Occupation-Relationen, (3) sichtbare Essential/Optional-Bestätigung, (4) dedizierter Bereich „Not normalized yet“ mit Optionen „Keep free text“, Retry-Suche und Attach an Occupation.
 - Optionales NACE/EURES-Mapping im Unternehmensschritt als Grundlage für spätere Country-/Occupation-Kontexte; die Summary-Readiness bewertet den bestätigten semantischen Anker (ESCO) und NACE separat.
+- Unternehmensschritt mit Homepage-Enrichment (Beta): Die aus dem Jobspec extrahierte Arbeitgeber-URL kann per Buttons für **Über uns**, **Impressum** und **Vision/Mission** analysiert werden; essenzielle Textausschnitte werden rechts angezeigt, mit offenen Wizard-Fragen abgeglichen, im Session-State gespeichert und in die Brief-Generierung im Summary-Schritt eingespeist.
 - Der Team-Schritt enthält ein zweizoniges **Role-context enrichment (ESCO)**-Muster: links klar als **Inferred suggestion/context** markierte Hinweise (inkl. Match-Provenance/-Confidence, falls vorhanden), rechts der Bereich **Confirmed input** aus der kanonischen Team-Notiz. Die Übernahme erfolgt gesammelt über eine eindeutige Aktion „Ausgewählte Vorschläge als confirmed selection übernehmen“.
 - Primäre Fakten-Tabelle in der Summary (Bereich/Feld/Wert/Quelle/Status) inkl. Such-/Statusfilter, plus sekundärer Kompaktüberblick und ESCO Mapping Report (JSON/CSV-Export).
 - In den Schritten **Rolle & Aufgaben** sowie **Skills & Anforderungen** läuft die Übernahme über „**Vergleichen & übernehmen**“-Tabellen: Vorschläge aus Jobspec, ESCO und AI werden nebeneinander gestellt und selektiv übernommen; im Skills-Schritt zusätzlich mit Quellen-Badges (`Jobspec`, `ESCO essential`, `ESCO optional`, `AI suggestion`) und kanonischer Semantik mit **Inferred suggestion/context** und **confirmed selection** (`Confirm essential as confirmed selection`, `Confirm optional as confirmed selection`).
@@ -35,7 +36,7 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
    - Phase A: Quelle, Consent, optionale PII-Redaktion, UI-Modus (auch global in der Sidebar verfügbar)
    - Phase B: editierbare „Identifizierte Informationen“ + Gaps/Assumptions
    - Phase C: ESCO-Suche (verpflichtende Bestätigung vor „Weiter“)
-2. **Unternehmen** (optionaler NACE-Code, falls Mapping geladen ist)
+2. **Unternehmen** (optionaler NACE-Code, falls Mapping geladen ist, plus Homepage-Enrichment für Über-uns/Impressum/Vision-Mission)
 3. **Team**
 4. **Rolle & Aufgaben**
 5. **Skills & Anforderungen**

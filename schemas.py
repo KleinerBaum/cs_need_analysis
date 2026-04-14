@@ -144,6 +144,10 @@ class JobAdExtract(StrictSchemaModel):
     job_title: Optional[str] = None
     company_name: Optional[str] = None
     brand_name: Optional[str] = None
+    company_website: Optional[str] = Field(
+        default=None,
+        description="Primary public employer homepage URL if identifiable.",
+    )
 
     location_city: Optional[str] = None
     location_country: Optional[str] = None
@@ -424,6 +428,10 @@ class VacancyStructuredData(StrictSchemaModel):
     selected_skills: Optional[List[str]] = Field(
         default=None,
         description="Optional skill labels explicitly selected in the wizard.",
+    )
+    company_website_research: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Optional homepage research findings captured in the company step.",
     )
     esco_occupations: Optional[List[EscoExportConcept]] = Field(
         default=None,

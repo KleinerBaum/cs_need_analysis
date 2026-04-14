@@ -3075,6 +3075,9 @@ def render(ctx: WizardContext) -> None:
                     model=resolved_brief_model,
                     selected_role_tasks=vm.artifacts.selected_role_tasks,
                     selected_skills=vm.artifacts.selected_skills,
+                    company_website_research=(
+                        st.session_state.get(SSKey.COMPANY_WEBSITE_RESEARCH.value, {})
+                    ),
                     store=store,
                 )
             st.session_state[SSKey.BRIEF.value] = brief.model_dump()

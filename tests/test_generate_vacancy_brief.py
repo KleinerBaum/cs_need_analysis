@@ -83,6 +83,7 @@ def test_generate_vacancy_brief_uses_llm_parse_model_and_injects_structured_data
         "answers": answers,
         "selected_role_tasks": None,
         "selected_skills": None,
+        "company_website_research": None,
         "esco_occupations": None,
         "esco_skills_must": None,
         "esco_skills_nice": None,
