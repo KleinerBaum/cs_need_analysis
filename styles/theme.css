@@ -1,0 +1,89 @@
+:root {
+  --cs-bg: #0A0A0A;
+  --cs-surface: #121212;
+  --cs-surface-2: #171717;
+  --cs-text: #F5F5F5;
+  --cs-text-muted: #B8B8B8;
+  --cs-border: #232323;
+  --cs-radius: 14px;
+  --cs-space-1: 0.25rem;
+  --cs-space-2: 0.5rem;
+  --cs-space-3: 0.75rem;
+  --cs-space-4: 1rem;
+  --cs-space-5: 1.5rem;
+  --cs-space-6: 2rem;
+  --cs-space-7: 3rem;
+  --cs-content-width: 960px;
+}
+
+html, body, [data-testid="stAppViewContainer"] {
+  background: var(--cs-bg);
+}
+
+section[data-testid="stSidebar"] {
+  background: #050505;
+  border-right: 1px solid var(--cs-border);
+}
+
+.block-container {
+  max-width: var(--cs-content-width);
+  padding-top: 2rem;
+  padding-bottom: 3rem;
+}
+
+.cs-hero,
+.cs-section {
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border: 1px solid var(--cs-border);
+  border-radius: var(--cs-radius);
+  padding: 1.25rem 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.cs-hero h1,
+.cs-section h2 {
+  letter-spacing: -0.02em;
+}
+
+.cs-hero p,
+.cs-section p,
+.cs-copy,
+[data-testid="stMarkdownContainer"] p {
+  color: var(--cs-text-muted);
+  line-height: 1.65;
+}
+
+.cs-eyebrow {
+  color: var(--cs-text-muted);
+  font-size: 0.9rem;
+  margin-bottom: 0.35rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.cs-sidebar-title,
+.cs-sidebar-subnav {
+  color: var(--cs-text-muted);
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+
+.cs-sidebar-gap {
+  height: 1.25rem;
+}
+
+[data-testid="stSidebar"] [data-testid="stPageLink"] {
+  border-radius: 10px;
+}
+
+[data-testid="stSidebar"] [data-testid="stPageLink"] a {
+  padding-top: 0.2rem;
+  padding-bottom: 0.2rem;
+}
+
+[data-testid="stExpander"] {
+  border: 1px solid var(--cs-border);
+  border-radius: 12px;
+}
