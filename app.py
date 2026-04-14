@@ -558,24 +558,8 @@ def _render_preferences_page() -> None:
 
 
 def _render_sidebar_actions() -> None:
-    """Render legal/info links and the global preference center as last sidebar block."""
+    """Render only the global preference center as last sidebar block."""
     with st.sidebar:
-        st.markdown(
-            """
-            <div class="cs-sidebar-link-list">
-              <a href="?info=competencies">Unsere Kompetenzen</a>
-              <a href="?info=about">Über Cognitive Staffing</a>
-              <a href="?info=imprint">Impressum</a>
-              <a href="?legal=privacy">Datenschutzrichtlinie</a>
-              <a href="?legal=terms">Nutzungsbedingungen</a>
-              <a href="?info=cookie">Cookie Policy/Settings</a>
-              <a href="?info=accessibility">Erklärung zur Barrierefreiheit</a>
-              <a href="?info=contact">Kontakt</a>
-            </div>
-            <div class="cs-sidebar-nav-gap"></div>
-            """,
-            unsafe_allow_html=True,
-        )
         with st.expander("Präferenz-Center", expanded=False):
             _render_preference_center_sidebar()
 
