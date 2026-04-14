@@ -62,6 +62,7 @@ from schemas import (
     QuestionDependency,
     QuestionPlan,
     RequirementSuggestionPack,
+    RoleTaskSalaryForecast,
     VacancyBrief,
     VacancyBriefLLM,
 )
@@ -89,6 +90,7 @@ TASK_GENERATE_INTERVIEW_SHEET_HM = "generate_interview_sheet_hm"
 TASK_GENERATE_BOOLEAN_SEARCH = "generate_boolean_search"
 TASK_GENERATE_EMPLOYMENT_CONTRACT = "generate_employment_contract"
 TASK_GENERATE_REQUIREMENT_GAP_SUGGESTIONS = "generate_requirement_gap_suggestions"
+TASK_GENERATE_ROLE_TASKS_SALARY_FORECAST = "generate_role_tasks_salary_forecast"
 
 _OTHER_OPTION = "Sonstiges"
 _CATEGORY_QUESTION_RULES: tuple[dict[str, Any], ...] = (
@@ -858,6 +860,7 @@ def resolve_model_for_task(
         TASK_GENERATE_BOOLEAN_SEARCH: resolved_settings.medium_reasoning_model,
         TASK_GENERATE_EMPLOYMENT_CONTRACT: resolved_settings.high_reasoning_model,
         TASK_GENERATE_REQUIREMENT_GAP_SUGGESTIONS: resolved_settings.medium_reasoning_model,
+        TASK_GENERATE_ROLE_TASKS_SALARY_FORECAST: resolved_settings.medium_reasoning_model,
     }
     routed_model = model_by_task.get(task_kind, "").strip()
     if routed_model:
@@ -2150,5 +2153,119 @@ def generate_requirement_gap_suggestions(
     result = cast(RequirementSuggestionPack, parsed)
     result.skills = result.skills[:capped_skill_count]
     result.tasks = result.tasks[:capped_task_count]
+    cache[cache_key] = {"result": result.model_dump(mode="json")}
+    return result, usage
+
+
+def generate_role_tasks_salary_forecast(
+    *,
+    job_title: str,
+    location_city: str,
+    location_country: str,
+    seniority: str,
+    selected_tasks: list[str],
+    search_radius_km: int,
+    remote_share_percent: int,
+    model: str,
+    language: str = DEFAULT_LANGUAGE,
+    store: bool = False,
+    temperature: float | None = None,
+) -> tuple[RoleTaskSalaryForecast, dict[str, Any]]:
+    """Generate a concise EUR salary forecast for the Role & Tasks step."""
+
+    runtime_config = _resolve_runtime_config(
+        task_kind=TASK_GENERATE_ROLE_TASKS_SALARY_FORECAST,
+        session_override=model,
+    )
+    task_limits_suffix = build_task_prompt_limits_suffix(
+        max_bullets_per_field=runtime_config.task_max_bullets_per_field,
+        max_sentences_per_field=runtime_config.task_max_sentences_per_field,
+        max_output_tokens=runtime_config.task_max_output_tokens,
+    )
+    normalized_tasks = [task.strip() for task in selected_tasks if task.strip()]
+    capped_tasks = normalized_tasks[:20]
+    system = (
+        "Du bist ein Recruiting Compensation Analyst. "
+        "Erstelle eine schlichte, indikative Gehaltsprognose als Jahresbrutto in EUR. "
+        "Berücksichtige Jobtitel, Seniorität/Erfahrung, Standort, Suchradius, Remote-Anteil "
+        "und die ausgewählten Aufgaben. "
+        "Liefere ausschließlich strukturierte Ausgabe gemäß Schema. "
+        "Keine Währungsumrechnung in andere Währungen und keine rechtliche Beratung. "
+        f"Sprache: {language}. "
+        f"{task_limits_suffix}"
+    )
+    user = (
+        "Erzeuge ein RoleTaskSalaryForecast-Objekt.\n\n"
+        "Kontext:\n"
+        f"- Jobtitel: {job_title or 'Nicht angegeben'}\n"
+        f"- Seniorität/Erfahrung: {seniority or 'Nicht angegeben'}\n"
+        f"- Standort (Stadt): {location_city or 'Nicht angegeben'}\n"
+        f"- Standort (Land): {location_country or 'Nicht angegeben'}\n"
+        f"- Suchradius (km): {max(0, search_radius_km)}\n"
+        f"- Remote Share (%): {min(max(remote_share_percent, 0), 100)}\n"
+        "- Ausgewählte Rollen/Aufgaben (JSON-Liste):\n"
+        f"{json.dumps(capped_tasks, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
+        "Regeln:\n"
+        "- yearly_salary_eur muss ein ganzzahliger EUR-Jahreswert sein.\n"
+        "- confidence_note kurz halten (1-2 Sätze) und wichtigste Annahmen nennen."
+    )
+    normalized_content = _canonicalize_for_cache(
+        {
+            "job_title": job_title,
+            "location_city": location_city,
+            "location_country": location_country,
+            "seniority": seniority,
+            "selected_tasks": capped_tasks,
+            "search_radius_km": max(0, search_radius_km),
+            "remote_share_percent": min(max(remote_share_percent, 0), 100),
+        }
+    )
+    cache_key = _build_llm_cache_key(
+        task_kind=TASK_GENERATE_ROLE_TASKS_SALARY_FORECAST,
+        resolved_model=runtime_config.resolved_model,
+        language=language,
+        reasoning_effort=runtime_config.reasoning_effort,
+        verbosity=runtime_config.verbosity,
+        store=store,
+        normalized_content=normalized_content,
+        schema_version=VACANCY_SCHEMA_VERSION,
+    )
+    cache = _get_session_response_cache()
+    cached_entry = cache.get(cache_key)
+    if isinstance(cached_entry, dict):
+        cached_result = cached_entry.get("result")
+        if isinstance(cached_result, dict):
+            try:
+                parsed_cached = RoleTaskSalaryForecast.model_validate(cached_result)
+            except ValidationError:
+                _invalidate_cache_entry_for_validation_error(
+                    cache=cache,
+                    cache_key=cache_key,
+                    task_kind=TASK_GENERATE_ROLE_TASKS_SALARY_FORECAST,
+                    model_name=runtime_config.resolved_model,
+                )
+            else:
+                return parsed_cached, _cached_usage(cache_key=cache_key)
+
+    fallback_payload = {
+        "yearly_salary_eur": 70_000,
+        "confidence_note": (
+            "Indikative Schätzung mit begrenzter Datengrundlage. "
+            "Bitte lokale Marktbenchmarks und Benefits ergänzend prüfen."
+        ),
+    }
+    parsed, usage = _generate_structured_with_fallback(
+        task_kind=TASK_GENERATE_ROLE_TASKS_SALARY_FORECAST,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        out_model=RoleTaskSalaryForecast,
+        fallback_payload=fallback_payload,
+        model=model,
+        store=store,
+        temperature=temperature,
+    )
+    result = cast(RoleTaskSalaryForecast, parsed)
     cache[cache_key] = {"result": result.model_dump(mode="json")}
     return result, usage

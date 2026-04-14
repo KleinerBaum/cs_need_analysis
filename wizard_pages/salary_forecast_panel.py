@@ -6,6 +6,7 @@ import plotly.graph_objects as go  # type: ignore[import-untyped]
 import streamlit as st
 
 from constants import SSKey
+from llm_client import generate_role_tasks_salary_forecast
 from salary.engine import compute_salary_forecast
 from salary.scenario_lab_builders import (
     SENIORITY_SWEEP_VALUES,
@@ -554,3 +555,105 @@ def render_salary_forecast_panel(job: JobAdExtract, answers: dict[str, Any]) -> 
             scenario_overrides=scenario_overrides,
         )
     )
+
+
+def _format_eur(value: int) -> str:
+    return f"{value:,} €".replace(",", ".")
+
+
+def render_role_tasks_salary_forecast_panel(
+    *,
+    job: JobAdExtract,
+    selected_tasks: list[str],
+    model: str,
+    language: str,
+    store: bool,
+) -> None:
+    """Render a compact Role & Tasks salary forecast with explicit update trigger."""
+
+    st.markdown("#### Gehaltsprognose (€)")
+    st.slider(
+        "Suchradius (km)",
+        min_value=0,
+        max_value=500,
+        step=5,
+        key=SSKey.SALARY_SCENARIO_RADIUS_KM.value,
+    )
+    st.slider(
+        "Remote Share (%)",
+        min_value=0,
+        max_value=100,
+        step=5,
+        key=SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value,
+    )
+    st.selectbox(
+        "Erfahrung",
+        options=["", *SENIORITY_SWEEP_VALUES],
+        format_func=lambda value: "(keine)" if not value else value,
+        key=SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value,
+    )
+
+    selected_count = len([item for item in selected_tasks if str(item).strip()])
+    st.caption(f"Ausgewählte Rollen/Aufgaben: {selected_count}")
+
+    if st.button("Prognose aktualisieren", width="stretch"):
+        with st.spinner("Berechne Gehaltsprognose …"):
+            forecast, usage = generate_role_tasks_salary_forecast(
+                job_title=str(job.job_title or "").strip(),
+                location_city=str(job.location_city or "").strip(),
+                location_country=str(job.location_country or "").strip(),
+                seniority=str(
+                    st.session_state.get(
+                        SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value,
+                        job.seniority_level or "",
+                    )
+                ).strip(),
+                selected_tasks=selected_tasks,
+                search_radius_km=_safe_int(
+                    st.session_state.get(SSKey.SALARY_SCENARIO_RADIUS_KM.value, 50)
+                ),
+                remote_share_percent=_safe_int(
+                    st.session_state.get(
+                        SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value, 0
+                    )
+                ),
+                model=model,
+                language=language,
+                store=store,
+            )
+        st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {
+            "forecast": {"p50": forecast.yearly_salary_eur},
+            "currency": "EUR",
+            "period": "year",
+            "confidence_note": forecast.confidence_note,
+            "inputs": {
+                "selected_tasks": selected_tasks,
+                "radius_km": _safe_int(
+                    st.session_state.get(SSKey.SALARY_SCENARIO_RADIUS_KM.value, 50)
+                ),
+                "remote_share_percent": _safe_int(
+                    st.session_state.get(
+                        SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value, 0
+                    )
+                ),
+                "seniority_override": str(
+                    st.session_state.get(
+                        SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value, ""
+                    )
+                ).strip(),
+            },
+            "usage": usage or {},
+        }
+
+    last_result = st.session_state.get(SSKey.SALARY_FORECAST_LAST_RESULT.value, {})
+    forecast_payload = (
+        last_result.get("forecast", {}) if isinstance(last_result, dict) else {}
+    )
+    p50_value = _safe_int(forecast_payload.get("p50"))
+    if p50_value > 0:
+        st.metric("Gehaltsprognose (Jahr)", _format_eur(p50_value))
+        note = str(last_result.get("confidence_note") or "").strip()
+        if note:
+            st.caption(note)
+    else:
+        st.info("Noch keine Gehaltsprognose vorhanden. Bitte Prognose aktualisieren.")

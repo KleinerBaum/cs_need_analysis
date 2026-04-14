@@ -216,6 +216,16 @@ class RequirementSuggestionPack(StrictSchemaModel):
     tasks: list[RequirementSuggestionItem] = Field(default_factory=list)
 
 
+class RoleTaskSalaryForecast(StrictSchemaModel):
+    yearly_salary_eur: int = Field(
+        ge=0,
+        description="Indicative yearly gross salary forecast in EUR.",
+    )
+    confidence_note: str = Field(
+        description="Short confidence note with key assumptions.",
+    )
+
+
 class QuestionOption(StrictSchemaModel):
     value: str = Field(description="Canonical machine-readable option value.")
     label: Optional[str] = Field(
