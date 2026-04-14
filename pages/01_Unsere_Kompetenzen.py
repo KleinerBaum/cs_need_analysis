@@ -17,7 +17,7 @@ render_standard_page(
         SectionBlock(
             "Wie wir es tun",
             [
-                "1. Intake statt Rätselraten
+                "Umfassende Datensammlung einer Vakanz statt Rätselraten
 Die App startet direkt dort, wo Recruiting über Erfolg oder Reibung entscheidet: beim ersten Briefing. Jobspecs können als Text oder Datei eingebracht und zunächst strukturiert analysiert werden. So entsteht schon vor der eigentlichen Bearbeitung ein belastbarer Ausgangspunkt.
 
 2. Dynamische Fragen statt Formular-Overkill
