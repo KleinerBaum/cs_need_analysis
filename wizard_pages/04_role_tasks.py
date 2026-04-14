@@ -267,18 +267,22 @@ def render(ctx: WizardContext) -> None:
     st.session_state[SSKey.ROLE_TASKS_JOBSPEC_SUGGESTED.value] = jobspec_suggestions
 
     def _render_extracted_slot() -> None:
+        col_resp, col_deliv, col_metrics = st.columns(3, gap="large")
         if responsibilities:
-            st.write("**Responsibilities (Auszug):**")
-            for r in responsibilities[:10]:
-                st.write(f"- {r}")
+            with col_resp:
+                st.write("**Responsibilities (Auszug):**")
+                for r in responsibilities[:10]:
+                    st.write(f"- {r}")
         if deliverables:
-            st.write("**Deliverables (Auszug):**")
-            for d in deliverables[:10]:
-                st.write(f"- {d}")
+            with col_deliv:
+                st.write("**Deliverables (Auszug):**")
+                for d in deliverables[:10]:
+                    st.write(f"- {d}")
         if success_metrics:
-            st.write("**Success Metrics (Auszug):**")
-            for r in success_metrics[:10]:
-                st.write(f"- {r}")
+            with col_metrics:
+                st.write("**Success Metrics (Auszug):**")
+                for r in success_metrics[:10]:
+                    st.write(f"- {r}")
         if not responsibilities and not deliverables and not success_metrics:
             st.info(
                 "Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions."
@@ -406,7 +410,8 @@ def render(ctx: WizardContext) -> None:
         ),
         step=step,
         extracted_from_jobspec_slot=_render_extracted_slot,
-        extracted_from_jobspec_label="Aus Jobspec extrahiert (Responsibilities & Metrics)",
+        extracted_from_jobspec_label="Aus der Anzeige extrahierte Rollen & Aufgaben",
+        extracted_from_jobspec_use_expander=False,
         main_content_slot=_render_main_slot,
         review_slot=lambda: render_standard_step_review(step),
         footer_slot=lambda: nav_buttons(ctx),
