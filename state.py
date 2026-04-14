@@ -186,6 +186,8 @@ def init_session_state() -> None:
         SSKey.ANSWERS.value: {},
         SSKey.ANSWER_META.value: {},
         SSKey.UI_MODE.value: "standard",
+        SSKey.UI_MODE_WIDGET_ACTIVE.value: False,
+        SSKey.UI_MODE_SYNC_PENDING.value: False,
         SSKey.UI_PREFERENCES.value: _default_ui_preferences(),
         SSKey.OPEN_GROUPS.value: {},
         SSKey.BRIEF.value: None,
@@ -316,6 +318,8 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.ANSWERS.value] = {}
     st.session_state[SSKey.ANSWER_META.value] = {}
     st.session_state[SSKey.UI_MODE.value] = "standard"
+    st.session_state[SSKey.UI_MODE_WIDGET_ACTIVE.value] = False
+    st.session_state[SSKey.UI_MODE_SYNC_PENDING.value] = False
     if SSKey.UI_PREFERENCES.value not in st.session_state:
         st.session_state[SSKey.UI_PREFERENCES.value] = _default_ui_preferences()
     else:
