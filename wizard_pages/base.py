@@ -779,12 +779,27 @@ def _render_esco_warnings_and_migration_cta() -> None:
 
 def get_current_ui_mode() -> str:
     """Return normalized UI mode from session state."""
-    allowed_ui_modes = set(UI_MODE_VALUES)
     ui_mode_raw = st.session_state.get(SSKey.UI_MODE.value, "standard")
-    ui_mode = str(ui_mode_raw).strip().lower()
-    if ui_mode not in allowed_ui_modes:
+    return normalize_ui_mode(ui_mode_raw)
+
+
+def normalize_ui_mode(raw_mode: object) -> str:
+    """Normalize any raw mode value to the canonical UI mode domain."""
+    ui_mode = str(raw_mode).strip().lower()
+    if ui_mode not in set(UI_MODE_VALUES):
         return "standard"
     return ui_mode
+
+
+def map_answer_mode_to_ui_mode(raw_answer_mode: object) -> str:
+    """Map preference-center answer modes to canonical UI modes."""
+    normalized_answer_mode = str(raw_answer_mode).strip().lower()
+    answer_to_ui_mode = {
+        "compact": "quick",
+        "balanced": "standard",
+        "advisory": "expert",
+    }
+    return normalize_ui_mode(answer_to_ui_mode.get(normalized_answer_mode, "standard"))
 
 
 def _sync_mode_change() -> None:
@@ -810,6 +825,7 @@ def render_ui_mode_selector(
     widget_key: str | None = None,
     show_label: bool = True,
 ) -> str:
+    st.session_state[SSKey.UI_MODE_WIDGET_ACTIVE.value] = True
     ui_mode_key = widget_key or SSKey.UI_MODE.value
     selectbox = st.sidebar.selectbox if sidebar else st.selectbox
     current_mode = get_current_ui_mode()
