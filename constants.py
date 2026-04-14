@@ -209,6 +209,8 @@ class SSKey(str, Enum):
     EURES_NACE_TO_ESCO = "cs.eures_nace_to_esco"
     EURES_NACE_SOURCE = "cs.eures_nace_source"
     COMPANY_NACE_CODE = "cs.company_nace_code"
+    COMPANY_WEBSITE_RESEARCH = "cs.company_website_research"
+    COMPANY_WEBSITE_LAST_ERROR = "cs.company_website_last_error"
     ROLE_TASKS_JOBSPEC_SUGGESTED = "cs.role_tasks.jobspec_suggested"
     ROLE_TASKS_ESCO_SUGGESTED = "cs.role_tasks.esco_suggested"
     ROLE_TASKS_LLM_SUGGESTED = "cs.role_tasks.llm_suggested"
@@ -256,7 +258,7 @@ class AnswerType(str, Enum):
 
 
 QUESTION_SCHEMA_VERSION: Final[str] = "2026-04-09"
-VACANCY_SCHEMA_VERSION: Final[str] = "2026-04-07"
+VACANCY_SCHEMA_VERSION: Final[str] = "2026-04-14"
 JOB_AD_SCHEMA_VERSION: Final[str] = "2026-04-07"
 SUMMARY_ARTIFACT_IDS: Final[tuple[str, ...]] = (
     "brief",

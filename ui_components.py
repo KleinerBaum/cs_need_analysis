@@ -858,6 +858,7 @@ def _render_editable_job_extract(job: JobAdExtract) -> None:
         "job_title",
         "company_name",
         "brand_name",
+        "company_website",
         "language_guess",
         "employment_type",
         "contract_type",
