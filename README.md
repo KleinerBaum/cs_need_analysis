@@ -9,7 +9,7 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 - Entkoppeltes Quellenhandling im Intake: Upload-Text und manuelle Eingabe überschreiben sich nicht; die aktive Quelle wird zur Analyse genutzt.
 - LLM-gestützte **Extraktion** der Jobspec in ein strukturiertes Schema (Structured Outputs) und automatische Erzeugung eines dynamischen Frageplans.
 - Wizard mit Fortschrittsanzeige und drei Ansichtsmodi (`quick`, `standard`, `expert`) für die sichtbaren Navigationsschritte: Start, Unternehmen, Team, Rolle & Aufgaben, Skills, Benefits, Interviewprozess und Summary.
-- Der Ansichtsmodus (gespeicherte Werte: `quick`, `standard`, `expert`; Anzeige: `schnell`, `ausführlich`, `vollumfänglich`) ist global in der Sidebar verfügbar und zusätzlich im Start-Schritt direkt unter dem Jobspec-Upload. Beim Wechsel greift sofort die adaptive Fragenbegrenzung (Neuberechnung der sichtbaren Fragen pro Step). In jedem Schritt wird der aktive Modus als sichtbare Caption angezeigt, damit reduzierte Frageanzahl nachvollziehbar bleibt. `schnell`/`ausführlich`: Detailgruppen standardmäßig kompakt. `vollumfänglich`: Detailgruppen standardmäßig geöffnet.
+- Der Ansichtsmodus (gespeicherte Werte: `quick`, `standard`, `expert`; Anzeige: `schnell`, `ausführlich`, `vollumfänglich`) ist global über das Sidebar-**Präferenz-Center** steuerbar und zusätzlich im Start-Schritt direkt unter dem Jobspec-Upload. Beim Wechsel greift sofort die adaptive Fragenbegrenzung (Neuberechnung der sichtbaren Fragen pro Step). In jedem Schritt wird der aktive Modus als sichtbare Caption angezeigt, damit reduzierte Frageanzahl nachvollziehbar bleibt. `schnell`/`ausführlich`: Detailgruppen standardmäßig kompakt. `vollumfänglich`: Detailgruppen standardmäßig geöffnet.
 - Die vormals getrennte Ansicht **Identifizierte Informationen** ist in den Start-Schritt integriert (eine Wizard-Stufe weniger): Nach der Analyse erscheinen dort direkt die editierbare Übersicht, Gaps/Annahmen und der Übergang von Phase B zu Phase C bzw. in den nächsten Fachschritt; es gibt **keinen separaten sichtbaren Review-Wizard-Schritt** mehr.
 - Finaler **Recruiting Brief** mit Export als JSON, Markdown und DOCX.
 - **Summary-Workspace** als einheitliche Readiness-Ansicht ohne separate Tabs.
@@ -34,7 +34,7 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 ## Wizard-Flow (implementiert)
 
 1. **Start**
-   - Phase A: Quelle, Consent, optionale PII-Redaktion, UI-Modus (auch global in der Sidebar verfügbar)
+   - Phase A: Quelle, Consent, optionale PII-Redaktion, UI-Modus (global zusätzlich über Sidebar-Präferenz-Center steuerbar)
    - Phase B: editierbare „Identifizierte Informationen“ + Gaps/Assumptions
    - Phase C: ESCO-Suche (verpflichtende Bestätigung vor „Weiter“)
 2. **Unternehmen** (optionaler NACE-Code, falls Mapping geladen ist, plus Homepage-Enrichment für Über-uns/Impressum/Vision-Mission)
@@ -58,7 +58,7 @@ Hinweis: Der frühere Schritt `jobspec_review` ist nur noch als Legacy-Modul vor
 - Im Sidebar-Header wird das animierte GIF `images/animation_pulse_SingleColorHex1_7kigl22lw.gif` dargestellt.
 - Im Start-Schritt wird `images/white_logo_color1_background.png` als Hero-Logo angezeigt.
 - Für Lesbarkeit auf hellen und dunklen Bildbereichen nutzt die Oberfläche einen dunklen Overlay-Layer, kontrastreiche Textfarben sowie angepasste Button-/Formularfarben.
-- Rechtstexte werden als eigene Seiten über Query-Parameter gerendert (`?legal=terms`, `?legal=privacy`) und enthalten DE/EN-Hinweise zu Content Sharing, Notice/Consent und ausgeschlossenen Datenkategorien (u. a. PHI, Daten von Kindern <13).
+- Rechtstexte/Info-Seiten werden als eigene Views über Query-Parameter gerendert (z. B. `?legal=terms`, `?legal=privacy`, `?info=about`, `?page=preferences`).
 - Debug-Hinweise werden in den jeweiligen Fachbereichen angezeigt (z. B. API-Usage-Expander in Intake/Summary), ohne Secrets preiszugeben.
 
 ## Unterstützte Streamlit-Komponenten (Stand Runtime)

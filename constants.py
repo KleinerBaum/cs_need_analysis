@@ -43,6 +43,16 @@ UI_STEP_COMPACT_TOGGLE_HELP: Final[str] = (
     "Schritt-spezifische Anzeige: Aktiv hält Detailgruppen standardmäßig geschlossen. "
     "Deaktiviert öffnet Detailgruppen standardmäßig."
 )
+UI_PREFERENCE_ANSWER_MODE: Final[str] = "answer_mode"
+UI_PREFERENCE_INFORMATION_DEPTH: Final[str] = "information_depth"
+UI_PREFERENCE_ESCO_MATCHING_STRICTNESS: Final[str] = "esco_matching_strictness"
+UI_PREFERENCE_REGIONAL_FOCUS: Final[str] = "regional_focus"
+UI_PREFERENCE_SHOW_SOURCES_DEFAULT: Final[str] = "show_sources_default"
+UI_PREFERENCE_CONFIDENCE_THRESHOLD: Final[str] = "confidence_threshold"
+UI_PREFERENCE_PII_REDUCTION: Final[str] = "pii_reduction"
+UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT: Final[str] = "details_expanded_default"
+UI_PREFERENCE_STEP_COMPACT: Final[str] = "step_compact"
+
 COMPLETION_STATE_COMPLETE: Final[str] = "complete"
 COMPLETION_STATE_PARTIAL: Final[str] = "partial"
 COMPLETION_STATE_NOT_STARTED: Final[str] = "not_started"

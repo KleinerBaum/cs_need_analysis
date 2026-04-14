@@ -23,8 +23,6 @@ from constants import (
     COMPLETION_STATE_PREFIX_TOKENS,
     SSKey,
     STEPS,
-    UI_GLOBAL_DETAILS_TOGGLE_HELP,
-    UI_GLOBAL_DETAILS_TOGGLE_LABEL,
     UI_MODE_DISPLAY_LABELS,
     UI_MODE_HELP_TEXT,
     UI_MODE_VALUES,
@@ -40,6 +38,7 @@ from question_progress import (
 )
 from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
 from step_status import StepStatusPayload, build_step_status_payload
+from state import normalize_ui_preferences
 from wizard_pages.salary_forecast import render_sidebar_salary_forecast
 
 if TYPE_CHECKING:
@@ -868,30 +867,9 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
     status_by_key = {entry["key"]: entry for entry in step_statuses}
     ui_preferences_key = SSKey.UI_PREFERENCES.value
     ui_mode = get_current_ui_mode()
-    with st.sidebar:
-        render_ui_mode_selector(
-            sidebar=True,
-            widget_key=f"{SSKey.UI_MODE.value}.sidebar",
-        )
-        ui_mode = get_current_ui_mode()
-        render_active_ui_mode_caption(ui_mode=ui_mode)
-
-    raw_ui_preferences = st.session_state.get(ui_preferences_key, {})
-    ui_preferences = raw_ui_preferences if isinstance(raw_ui_preferences, dict) else {}
-    details_expanded_default = ui_preferences.get("details_expanded_default")
-    if not isinstance(details_expanded_default, bool):
-        details_expanded_default = ui_mode == "expert"
-    details_expanded_default = st.sidebar.toggle(
-        UI_GLOBAL_DETAILS_TOGGLE_LABEL,
-        value=details_expanded_default,
-        help=UI_GLOBAL_DETAILS_TOGGLE_HELP,
+    st.session_state[ui_preferences_key] = normalize_ui_preferences(
+        st.session_state.get(ui_preferences_key)
     )
-    normalized_preferences = dict(ui_preferences)
-    normalized_preferences["details_expanded_default"] = details_expanded_default
-    if not isinstance(normalized_preferences.get("step_compact"), dict):
-        normalized_preferences["step_compact"] = {}
-    st.session_state[ui_preferences_key] = normalized_preferences
-    _render_esco_sidebar_status_block(ui_mode=ui_mode)
     format_map: dict[str, str] = {}
     for page in pages:
         step_status = status_by_key.get(page.key)
