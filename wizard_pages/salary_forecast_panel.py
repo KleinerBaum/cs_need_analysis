@@ -657,3 +657,113 @@ def render_role_tasks_salary_forecast_panel(
             st.caption(note)
     else:
         st.info("Noch keine Gehaltsprognose vorhanden. Bitte Prognose aktualisieren.")
+
+
+def render_benefits_salary_forecast_panel(
+    *,
+    job: JobAdExtract,
+    selected_benefits: list[str],
+    answers: dict[str, Any],
+    model: str,
+    language: str,
+    store: bool,
+) -> None:
+    """Render a compact salary forecast for the Benefits step without charts."""
+
+    st.markdown("#### Gehaltsprognose (€)")
+    st.slider(
+        "Suchradius (km)",
+        min_value=0,
+        max_value=500,
+        step=5,
+        key=SSKey.SALARY_SCENARIO_RADIUS_KM.value,
+    )
+    st.slider(
+        "Remote Share (%)",
+        min_value=0,
+        max_value=100,
+        step=5,
+        key=SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value,
+    )
+    st.selectbox(
+        "Erfahrung",
+        options=["", *SENIORITY_SWEEP_VALUES],
+        format_func=lambda value: "(keine)" if not value else value,
+        key=SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value,
+    )
+
+    factor_candidates = [
+        str(job.job_title or "").strip(),
+        str(job.location_city or "").strip(),
+        str(job.location_country or "").strip(),
+        str(job.seniority_level or "").strip(),
+        *(item for item in selected_benefits if str(item).strip()),
+    ]
+    selected_factor_count = len([item for item in factor_candidates if item])
+    st.caption(f"Einbezogene Faktoren (inkl. Benefits): {selected_factor_count}")
+
+    if st.button(
+        "Prognose aktualisieren", width="stretch", key="benefits.salary.update"
+    ):
+        with st.spinner("Berechne Gehaltsprognose …"):
+            forecast, usage = generate_role_tasks_salary_forecast(
+                job_title=str(job.job_title or "").strip(),
+                location_city=str(job.location_city or "").strip(),
+                location_country=str(job.location_country or "").strip(),
+                seniority=str(
+                    st.session_state.get(
+                        SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value,
+                        job.seniority_level or "",
+                    )
+                ).strip(),
+                selected_tasks=[item for item in factor_candidates if item],
+                search_radius_km=_safe_int(
+                    st.session_state.get(SSKey.SALARY_SCENARIO_RADIUS_KM.value, 50)
+                ),
+                remote_share_percent=_safe_int(
+                    st.session_state.get(
+                        SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value, 0
+                    )
+                ),
+                model=model,
+                language=language,
+                store=store,
+            )
+        st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {
+            "forecast": {"p50": forecast.yearly_salary_eur},
+            "currency": "EUR",
+            "period": "year",
+            "confidence_note": forecast.confidence_note,
+            "inputs": {
+                "benefits_selected": selected_benefits,
+                "factors": [item for item in factor_candidates if item],
+                "answers_count": len(answers),
+                "radius_km": _safe_int(
+                    st.session_state.get(SSKey.SALARY_SCENARIO_RADIUS_KM.value, 50)
+                ),
+                "remote_share_percent": _safe_int(
+                    st.session_state.get(
+                        SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value, 0
+                    )
+                ),
+                "seniority_override": str(
+                    st.session_state.get(
+                        SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value, ""
+                    )
+                ).strip(),
+            },
+            "usage": usage or {},
+        }
+
+    last_result = st.session_state.get(SSKey.SALARY_FORECAST_LAST_RESULT.value, {})
+    forecast_payload = (
+        last_result.get("forecast", {}) if isinstance(last_result, dict) else {}
+    )
+    p50_value = _safe_int(forecast_payload.get("p50"))
+    if p50_value > 0:
+        st.metric("Erwartetes Jahresgehalt", _format_eur(p50_value))
+        note = str(last_result.get("confidence_note") or "").strip()
+        if note:
+            st.caption(note)
+    else:
+        st.info("Noch keine Gehaltsprognose vorhanden. Bitte Prognose aktualisieren.")

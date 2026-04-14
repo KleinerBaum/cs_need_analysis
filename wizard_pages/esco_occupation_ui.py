@@ -385,7 +385,6 @@ def _infer_esco_match_explainability(
 
 
 def render_esco_occupation_confirmation(job: JobAdExtract) -> None:
-    st.markdown("### ESCO Occupation")
     query_text = _build_esco_query(job)
     if not query_text:
         st.info("Kein Jobtitel vorhanden. ESCO-Zuordnung aktuell nicht möglich.")
@@ -403,9 +402,9 @@ def render_esco_occupation_confirmation(job: JobAdExtract) -> None:
     render_esco_picker_card(
         concept_type="occupation",
         target_state_key=SSKey.ESCO_OCCUPATION_SELECTED,
-        enable_preview=True,
-        apply_label="Use as semantic anchor",
-        confirmation_helper_text="Confirm occupation for downstream suggestions",
+        enable_preview=False,
+        apply_label="Speichern",
+        confirmation_helper_text="Beruf für nachgelagerte Vorschläge bestätigen",
     )
     options_state_key = f"{SSKey.ESCO_OCCUPATION_SELECTED.value}.esco_picker.options"
     options = st.session_state.get(options_state_key, [])

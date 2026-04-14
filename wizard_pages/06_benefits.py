@@ -2,7 +2,10 @@
 from __future__ import annotations
 import streamlit as st
 
+from constants import SSKey
+from llm_client import TASK_GENERATE_ROLE_TASKS_SALARY_FORECAST, resolve_model_for_task
 from schemas import JobAdExtract, QuestionStep
+from settings_openai import load_openai_settings
 from state import get_answers
 from ui_layout import render_step_shell
 from ui_components import (
@@ -15,7 +18,7 @@ from ui_components import (
     render_standard_step_review,
 )
 from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
-from wizard_pages.salary_forecast_panel import render_salary_forecast_panel
+from wizard_pages.salary_forecast_panel import render_benefits_salary_forecast_panel
 
 
 def _render_benefits_consistency_checklist(
@@ -181,8 +184,21 @@ def render(ctx: WizardContext) -> None:
             )
 
         st.caption(f"Ausgewählte Benefits: {len(selected_benefits)}")
-        forecast_job = job.model_copy(update={"benefits": selected_benefits})
-        render_salary_forecast_panel(forecast_job, get_answers())
+        answers = get_answers()
+        settings = load_openai_settings()
+        resolved_model = resolve_model_for_task(
+            task_kind=TASK_GENERATE_ROLE_TASKS_SALARY_FORECAST,
+            session_override=None,
+            settings=settings,
+        )
+        render_benefits_salary_forecast_panel(
+            job=job.model_copy(update={"benefits": selected_benefits}),
+            selected_benefits=selected_benefits,
+            answers=answers,
+            model=resolved_model,
+            language="de",
+            store=bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)),
+        )
 
     def _render_review_slot() -> None:
         render_standard_step_review(step)

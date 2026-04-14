@@ -914,12 +914,6 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
         st.rerun()
 
     current_page = next(p for p in pages if p.key == selected)
-    current_status = status_by_key.get(current_page.key)
-    if current_status is not None:
-        _render_sidebar_step_status_card(
-            page=current_page,
-            status=current_status["payload"],
-        )
 
     job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
     answers_raw = st.session_state.get(SSKey.ANSWERS.value, {})
@@ -947,13 +941,11 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
 def nav_buttons(
     ctx: WizardContext, *, disable_next: bool = False, disable_prev: bool = False
 ) -> None:
-    c1, c2, c3 = st.columns([1, 1, 3])
+    c1, c2 = st.columns([1, 1])
     with c1:
         back_clicked = st.button("← Zurück", disabled=disable_prev)
     with c2:
         next_clicked = st.button("Weiter →", disabled=disable_next)
-    with c3:
-        st.caption("Fortschritt wird automatisch in dieser Session gespeichert.")
     # rerun only in normal render flow; callbacks may be within disallowed rerun contexts
     if back_clicked:
         ctx.prev()

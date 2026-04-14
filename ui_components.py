@@ -633,6 +633,14 @@ def render_esco_picker_card(
         )
         if selected_index is not None and selected_index < len(options):
             selected_payload = [options[selected_index]]
+        if options:
+            st.caption("Trefferübersicht")
+            preview_columns = st.columns(3, gap="small")
+            for idx, concept in enumerate(options[:3]):
+                with preview_columns[idx]:
+                    concept_title = str(concept.get("title") or "—").strip() or "—"
+                    marker = "✅" if idx == selected_index else "•"
+                    st.write(f"{marker} {concept_title}")
 
     enter_submit = bool(st.session_state.get(submit_flag_key, False))
     if enter_submit:

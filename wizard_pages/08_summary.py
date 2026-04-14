@@ -2059,20 +2059,28 @@ def _build_summary_fact_rows(
 
 
 def _render_summary_facts_table(rows: list[dict[str, str]]) -> None:
-    search_query = (
-        st.text_input(
-            "Suche in Fakten",
-            key=SSKey.SUMMARY_FACTS_SEARCH.value,
-            placeholder="Bereich, Feld, Wert oder Quelle filtern …",
+    table_col, filter_col = st.columns([2, 1], gap="large")
+    with filter_col:
+        search_query = (
+            st.text_input(
+                "Suche in Fakten",
+                key=SSKey.SUMMARY_FACTS_SEARCH.value,
+                placeholder="Bereich, Feld, Wert oder Quelle filtern …",
+            )
+            .strip()
+            .lower()
         )
-        .strip()
-        .lower()
-    )
-    status_filter = st.selectbox(
-        "Statusfilter",
-        options=["Alle", "Vollständig", "Teilweise", "Fehlend", "Automatisch erkannt"],
-        key=SSKey.SUMMARY_FACTS_STATUS_FILTER.value,
-    )
+        status_filter = st.selectbox(
+            "Statusfilter",
+            options=[
+                "Alle",
+                "Vollständig",
+                "Teilweise",
+                "Fehlend",
+                "Automatisch erkannt",
+            ],
+            key=SSKey.SUMMARY_FACTS_STATUS_FILTER.value,
+        )
 
     filtered_rows = rows
     if search_query:
@@ -2090,12 +2098,13 @@ def _render_summary_facts_table(rows: list[dict[str, str]]) -> None:
             row for row in filtered_rows if row.get("Status", "") == status_filter
         ]
 
-    st.dataframe(
-        filtered_rows,
-        width="stretch",
-        hide_index=True,
-        column_order=["Bereich", "Feld", "Wert", "Quelle", "Status"],
-    )
+    with table_col:
+        st.dataframe(
+            filtered_rows,
+            width="stretch",
+            hide_index=True,
+            column_order=["Bereich", "Feld", "Wert", "Quelle", "Status"],
+        )
 
 
 def _has_required_state(requirements: tuple[SSKey, ...]) -> bool:
@@ -2373,12 +2382,11 @@ def _render_readiness_tab(
         st.subheader("Readiness")
     else:
         st.markdown("### Readiness")
+    if brief is None:
+        st.info("Noch kein gültiger Recruiting Brief verfügbar.")
+    else:
+        render_brief(brief)
     _render_summary_facts_section(vm)
-    with st.expander("Recruiting Brief (auto-aktualisiert)", expanded=False):
-        if brief is None:
-            st.info("Noch kein gültiger Recruiting Brief verfügbar.")
-        else:
-            render_brief(brief)
 
     next_action = _resolve_next_best_action(
         action_registry, resolved_brief_model=resolved_brief_model
@@ -2464,9 +2472,6 @@ def _render_readiness_tab(
     if brief is not None:
         st.markdown("---")
         _render_summary_results_workspace(brief=brief)
-        st.markdown("---")
-        _render_export_bar(has_brief=True)
-        _render_summary_export_workspace(brief=brief)
 
     st.markdown("**Kritische Lücken (Top 5)**")
     missing_items = _build_missing_critical_items(vm)
@@ -2475,20 +2480,6 @@ def _render_readiness_tab(
     else:
         for item in missing_items:
             st.write(f"- {item}")
-
-    with st.expander("Artefakt-Status", expanded=False):
-        status_rows = _build_artifact_status_rows(action_registry=action_registry)
-        if hasattr(st, "dataframe"):
-            st.dataframe(
-                status_rows,
-                hide_index=True,
-                width="stretch",
-            )
-        else:
-            for row in status_rows:
-                st.write(
-                    f"- {row['Artefakt']}: {row['Status']} (Voraussetzungen: {row['Voraussetzungen']})"
-                )
 
 
 def _build_summary_tabs() -> SummaryTabs:

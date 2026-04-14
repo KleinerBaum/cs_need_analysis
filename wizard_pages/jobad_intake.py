@@ -72,25 +72,24 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
     job = JobAdExtract.model_validate(job_dict)
     plan = QuestionPlan.model_validate(plan_dict)
 
-    render_job_extract_overview(
-        job, plan=plan, show_question_limits=False, show_heading=False
-    )
-
     plan_question_count = sum(len(step.questions) for step in plan.steps)
     selected_occupation = get_esco_occupation_selected() or {}
     has_confirmed_anchor = has_confirmed_esco_anchor()
     selected_occupation_title = str(selected_occupation.get("title") or "").strip()
 
-    nav_col_back, nav_col_plan, nav_col_next = st.columns([1, 3, 1], gap="small")
+    st.info(
+        f'QuestionPlan geladen: "{plan_question_count}" Fragen in {len(plan.steps)} Steps.'
+    )
+    render_job_extract_overview(
+        job, plan=plan, show_question_limits=False, show_heading=False
+    )
+
+    nav_col_back, nav_col_anchor, nav_col_next = st.columns([1, 2, 1], gap="small")
     with nav_col_back:
         if st.button("← Zurück", key="cs.jobspec.ident_info.back"):
             ctx.prev()
             st.rerun()
-    with nav_col_plan:
-        st.info(
-            f'QuestionPlan geladen: "{plan_question_count}" Fragen in {len(plan.steps)} Steps.'
-        )
-    with nav_col_next:
+    with nav_col_anchor:
         if has_confirmed_anchor:
             title = selected_occupation_title or "ESCO-Beruf"
             st.success(f"ESCO-Anker bestätigt: {title}")
@@ -98,7 +97,7 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
             st.caption(
                 "Optional: In Phase C können Sie einen semantischen ESCO-Anker bestätigen."
             )
-
+    with nav_col_next:
         if st.button("Weiter →", key="cs.jobspec.ident_info.next"):
             ctx.next()
             st.rerun()
@@ -254,17 +253,17 @@ def _render_phase_b_extraction_review(ctx: WizardContext) -> None:
 
 
 def _render_phase_c_esco_anchor() -> None:
-    with st.expander("ESCO-Suche", expanded=False):
-        job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
-        plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
-        if not isinstance(job_dict, dict) or not isinstance(plan_dict, dict):
-            st.info(
-                "Phase C wird nach erfolgreicher Analyse (Extraktion + QuestionPlan) aktiviert."
-            )
-            return
+    st.markdown("### ESCO-Suche")
+    job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
+    plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
+    if not isinstance(job_dict, dict) or not isinstance(plan_dict, dict):
+        st.info(
+            "Phase C wird nach erfolgreicher Analyse (Extraktion + QuestionPlan) aktiviert."
+        )
+        return
 
-        job = JobAdExtract.model_validate(job_dict)
-        render_esco_occupation_confirmation(job)
+    job = JobAdExtract.model_validate(job_dict)
+    render_esco_occupation_confirmation(job)
 
 
 def render_jobad_intake(
