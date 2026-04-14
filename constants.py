@@ -226,6 +226,7 @@ class SSKey(str, Enum):
     ROLE_TASKS_LLM_SUGGESTED = "cs.role_tasks.llm_suggested"
     ROLE_TASKS_SELECTED = "cs.role_tasks.selected"
     ROLE_TASKS_SUGGEST_COUNT = "cs.role_tasks.suggest_count"
+    INTERVIEW_INTERNAL_FLOW = "cs.interview.internal_flow"
     SKILLS_JOBSPEC_SUGGESTED = "cs.skills.jobspec_suggested"
     SKILLS_LLM_SUGGESTED = "cs.skills.llm_suggested"
     SKILLS_SELECTED = "cs.skills.selected"
