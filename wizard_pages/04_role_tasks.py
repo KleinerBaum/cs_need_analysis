@@ -28,7 +28,7 @@ from ui_components import (
 )
 from ui_layout import render_step_shell
 from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
-from wizard_pages.salary_forecast_panel import render_salary_forecast_panel
+from wizard_pages.salary_forecast_panel import render_role_tasks_salary_forecast_panel
 
 
 def _normalize_task_term(term: str) -> str:
@@ -202,6 +202,7 @@ def _render_role_task_source_columns(
     jobspec_suggested: list[dict[str, str]],
     esco_suggested: list[dict[str, str]],
     llm_suggested: list[dict[str, str]],
+    job: JobAdExtract,
 ) -> None:
     st.markdown("### Aufgaben vergleichen & übernehmen")
 
@@ -212,27 +213,38 @@ def _render_role_task_source_columns(
         else []
     )
 
-    bulk_buffer = render_compact_requirement_board(
-        title_jobspec="Aus Jobspec extrahiert",
-        jobspec_items=jobspec_suggested,
-        title_esco="ESCO",
-        esco_items=esco_suggested,
-        title_llm="AI-Vorschläge",
-        llm_items=llm_suggested,
-        selected_labels=selected_labels,
-        selection_state_key=f"{SSKey.ROLE_TASKS_SELECTED.value}.bulk_buffer",
-        key_prefix="role_tasks.board",
-        empty_messages={
-            "ESCO": "Keine zuverlässig ableitbaren Aufgaben aus Occupation-Details."
-        },
-    )
+    table_col, salary_col = st.columns((4, 2))
+    with table_col:
+        bulk_buffer = render_compact_requirement_board(
+            title_jobspec="Aus Jobspec extrahiert",
+            jobspec_items=jobspec_suggested,
+            title_esco="ESCO",
+            esco_items=esco_suggested,
+            title_llm="AI-Vorschläge",
+            llm_items=llm_suggested,
+            selected_labels=selected_labels,
+            selection_state_key=f"{SSKey.ROLE_TASKS_SELECTED.value}.bulk_buffer",
+            key_prefix="role_tasks.board",
+            empty_messages={
+                "ESCO": "Keine zuverlässig ableitbaren Aufgaben aus Occupation-Details."
+            },
+        )
 
-    if st.button("Ausgewählte Aufgaben übernehmen", width="stretch"):
-        added_count = _save_selected_task_suggestions(bulk_buffer)
-        if added_count > 0:
-            st.success(f"{added_count} Aufgabe(n) übernommen.")
-        else:
-            st.info("Keine neuen Aufgaben übernommen.")
+        if st.button("Ausgewählte Aufgaben übernehmen", width="stretch"):
+            added_count = _save_selected_task_suggestions(bulk_buffer)
+            if added_count > 0:
+                st.success(f"{added_count} Aufgabe(n) übernommen.")
+            else:
+                st.info("Keine neuen Aufgaben übernommen.")
+
+    with salary_col:
+        render_role_tasks_salary_forecast_panel(
+            job=job,
+            selected_tasks=bulk_buffer,
+            model=get_active_model(),
+            language=str(st.session_state.get(SSKey.LANGUAGE.value, "de")),
+            store=bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)),
+        )
 
 
 def render(ctx: WizardContext) -> None:
@@ -374,10 +386,8 @@ def render(ctx: WizardContext) -> None:
             jobspec_suggested=jobspec_suggestions,
             esco_suggested=esco_suggestions,
             llm_suggested=llm_suggested,
+            job=job,
         )
-
-        with st.expander("Salary Forecast", expanded=True):
-            render_salary_forecast_panel(job, get_answers())
 
         if step is None or not step.questions:
             st.info(
