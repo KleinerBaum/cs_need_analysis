@@ -1,135 +1,265 @@
-from components.layout import SectionBlock, render_standard_page
+# pages/01_Unsere_Kompetenzen.py
+from __future__ import annotations
 
-render_standard_page(
-    eyebrow="Leistungsprofil",
+import streamlit as st
+
+from _site_ui import PROFILE, inject_site_styles, render_callout, render_cards, render_cta, render_hero, render_meta_line
+
+
+st.set_page_config(page_title="Unsere Kompetenzen", page_icon="🧠", layout="wide")
+inject_site_styles()
+
+render_hero(
     title="Unsere Kompetenzen",
-    intro=[
-        "Wir professionalisieren den ersten Schritt jedes Recruiting-Prozesses: den Vacancy Intake. Aus unstrukturierten Eingangsinformationen entsteht ein klarer, belastbarer und weiterverwendbarer Datensatz, der Suche, Auswahl und interne Abstimmung von Beginn an verbessert.",
-        "Der Fokus liegt auf nachvollziehbaren Entscheidungen statt auf generischen Claims.",
+    lead=(
+        "Wir professionalisieren den ersten Schritt jedes Recruiting-Prozesses: den Vacancy Intake. "
+        "Aus unstrukturierten Eingangsinformationen entsteht ein klarer, belastbarer und weiterverwendbarer "
+        "Datensatz, der Suche, Auswahl und interne Abstimmung von Beginn an verbessert."
+    ),
+    eyebrow="Vacancy Intake · ESCO · KI · Struktur",
+)
+render_meta_line("Fokus: strukturierter Intake, semantische Qualität, kontrollierte KI-Nutzung, Sicherheit und Weiterverarbeitung")
+
+render_cards(
+    [
+        {
+            "title": "Strukturierter Vacancy Intake",
+            "body": (
+                "Wir setzen nicht erst bei der Jobanzeige an, sondern bei der Bedarfsklärung. "
+                "So werden Missverständnisse, spätere Korrekturschleifen und überladene Wunschprofile früh reduziert."
+            ),
+        },
+        {
+            "title": "Dynamischer Fragenfluss",
+            "body": (
+                "Die App arbeitet nicht mit einem starren Standardformular. "
+                "Sie leitet aus Jobspec, Rolle, Kontext und bisherigen Antworten genau die Fragen ab, die wirklich relevant sind."
+            ),
+        },
+        {
+            "title": "ESCO-gestützte Semantik",
+            "body": (
+                "Berufe und Skills werden nicht nur sprachlich erfasst, sondern semantisch verankert. "
+                "Das verbessert Vergleichbarkeit, Klarheit und Anschlussfähigkeit in internationalen Recruiting-Kontexten."
+            ),
+        },
+        {
+            "title": "Kontrollierte KI-Unterstützung",
+            "body": (
+                "KI wird dort eingesetzt, wo sie Struktur schafft und Inhalte verdichtet. "
+                "Nicht als Selbstzweck, sondern innerhalb eines klaren, nachvollziehbaren Workflows."
+            ),
+        },
+        {
+            "title": "Salary Estimation",
+            "body": (
+                "Eine indikative Gehaltsprognose macht sichtbar, wie einzelne Parameter die Vergütung beeinflussen. "
+                "Dadurch werden Stellen realistischer und marktnäher formuliert."
+            ),
+        },
+        {
+            "title": "Weiterverarbeitung & Exporte",
+            "body": (
+                "Aus derselben Datengrundlage lassen sich Recruiting Brief, Job Ad, Interview Sheets, "
+                "Boolean Search Strings und weitere Artefakte direkt ableiten."
+            ),
+        },
     ],
-    sections=[
-        SectionBlock(
-            "Was wir tun",
-            [
-                "Jede Stelle ist anders. Genau deshalb arbeitet Cognitive Staffing nicht mit einem starren Standardformular, sondern mit einem dynamischen, rollenabhängigen Fragenfluss. Unsere App führt Nutzerinnen und Nutzer mit minimalem Aufwand zu einer umfassenden, strukturierten Datengrundlage – präzise genug für Recruiting, Fachbereich und Management."
-            ],
-        ),
-        SectionBlock(
-            "Wie wir es tun",
-            [
-                "Umfassende Datensammlung einer Vakanz statt Rätselraten
-Die App startet direkt dort, wo Recruiting über Erfolg oder Reibung entscheidet: beim ersten Briefing. Jobspecs können als Text oder Datei eingebracht und zunächst strukturiert analysiert werden. So entsteht schon vor der eigentlichen Bearbeitung ein belastbarer Ausgangspunkt.
+    columns=3,
+)
 
-2. Dynamische Fragen statt Formular-Overkill
-Auf Basis der vorhandenen Informationen erzeugt die App einen dynamischen Frageplan. Sichtbar werden genau die Fragen, die für die konkrete Stelle relevant sind. Dadurch bleibt der Prozess schlank, nachvollziehbar und deutlich nutzerfreundlicher als starre Formulare.
+st.markdown("## Wie die App arbeitet")
+st.markdown(
+    """
+Die App beginnt mit einer Jobspec, einem Upload oder Freitext. Diese Ausgangsbasis wird zuerst analysiert und in eine belastbare Struktur überführt. 
+Darauf aufbauend entsteht ein rollenabhängiger Frageplan, der Nutzerinnen und Nutzer Schritt für Schritt durch die weitere Präzisierung führt.
 
-3. Schärfung statt Wunschprofil
-Aufgaben, Anforderungen, Skills, Benefits und Gehaltslogik werden nicht nur gesammelt, sondern gegeneinander kalibriert. Das reduziert das Risiko, unrealistische Anforderungsprofile zu formulieren und verbessert die Qualität der späteren Suche.
+Das Ziel ist kein längerer Prozess, sondern ein besserer: weniger unnötige Fragen, weniger Interpretationsspielraum und eine deutlich höhere Wiederverwendbarkeit der Ergebnisse.
+"""
+)
 
-4. Weiterverarbeitung statt Medienbruch
-Am Ende steht kein isoliertes Formularergebnis, sondern eine wiederverwendbare Datensammlung. Daraus lassen sich direkt Folgeartefakte und Exporte für Recruiting und interne Prozesse erzeugen.
+with st.expander("1. Intake statt Rätselraten", expanded=True):
+    st.markdown(
+        """
+Zu Beginn werden vorhandene Stelleninformationen aufgenommen und strukturiert analysiert. Die App trennt dabei bewusst zwischen Quelle, Interpretation und Bestätigung.  
+So entsteht früh ein belastbarer Startpunkt für den weiteren Recruiting-Prozess.
 
-ESCO als semantischer Anker
+**Mehrwert**
+- weniger unklare Ausgangslagen,
+- weniger Rückfragen zwischen Fachbereich und Recruiting,
+- frühere Qualitätssicherung im Prozess.
+"""
+    )
 
-Mit ESCO integrieren wir eine europaweit etablierte, maschinenlesbare Klassifikation für Berufe und Skills. ESCO beschreibt 3.039 Occupations und 13.939 Skills in 28 Sprachen und stellt diese auch über APIs bereit. Für Cognitive Staffing bedeutet das: Begriffe werden nicht nur sprachlich erfasst, sondern semantisch verankert. So entstehen konsistentere Rollenprofile, klarere Skill-Cluster und besser vergleichbare Anforderungen.
+with st.expander("2. Dynamischer Fragenfluss statt Formular-Overkill", expanded=True):
+    st.markdown(
+        """
+Auf Basis der bereits bekannten Informationen erzeugt die App einen **dynamischen Fragenfluss**.  
+Sichtbar werden zuerst die wichtigsten Themen; zusätzliche Tiefe wird nur dort geöffnet, wo Informationslücken bestehen oder Präzisierungen sinnvoll sind.
 
-Was ESCO in der App konkret bringt
+**Das bedeutet konkret**
+- minimale Reibung für Fachbereiche,
+- höhere Eingabequalität,
+- bessere Akzeptanz im Alltag,
+- klare Trennung zwischen Kerninformationen und Details.
+"""
+    )
 
-Occupation-Mapping
-Stellen werden nicht nur frei beschrieben, sondern an bestätigte Occupations angebunden. Das schafft einen semantischen Anker für die gesamte weitere Bearbeitung.
+with st.expander("3. Schärfung statt eierlegender Wollmilchsau", expanded=True):
+    st.markdown(
+        """
+Aufgaben, Anforderungen, Skills, Benefits und Gehaltslogik werden nicht nur gesammelt, sondern gegeneinander kalibriert.  
+Dadurch sinkt das Risiko, unrealistische Stellenprofile zu formulieren, die am Markt kaum besetzbar sind.
 
-Skill-Normalisierung
-Extrahierte Anforderungsbegriffe werden mit ESCO-Skills abgeglichen. Dadurch lassen sich Muss-Kriterien, optionale Skills und offene Freitext-Begriffe sauber trennen.
+**Ergebnis**
+- realistischere Zielprofile,
+- sauberere Trennung von Must-have und Nice-to-have,
+- bessere Grundlage für spätere Suche und Interviews.
+"""
+    )
 
-Explainability
-Die semantische Zuordnung bleibt nachvollziehbar. Begriffe werden nicht einfach „irgendwie“ übernommen, sondern mit nachvollziehbarer Herkunft und Bestätigung in den Workflow integriert.
+st.markdown("## ESCO als semantischer Anker")
+st.markdown(
+    """
+Mit ESCO integriert Cognitive Staffing eine europaweit etablierte, mehrsprachige Klassifikation für Skills, Competences, Qualifications und Occupations.  
+ESCO funktioniert dabei wie ein gemeinsames semantisches Vokabular, das Begriffe nicht nur beschreibt, sondern auch in ihren Beziehungen maschinenlesbar macht.
+"""
+)
 
-Mehrsprachigkeit und Anschlussfähigkeit
-Gerade in internationalen oder standortübergreifenden Recruiting-Setups ist es wertvoll, wenn Rollen und Skills nicht an einer einzigen Schreibweise hängen, sondern in ein sprachübergreifendes Kompetenzmodell eingebettet werden.
+render_callout(
+    "Warum ESCO in dieser App so wertvoll ist",
+    (
+        "Statt nur freie Rollen- und Skillbezeichnungen zu sammeln, kann die App Occupations und Skills semantisch verankern. "
+        "Das erhöht Konsistenz, Vergleichbarkeit und die Qualität späterer Ableitungen."
+    ),
+)
 
-Verwendete KI und Modelllogik
+col_a, col_b = st.columns(2)
 
-Die App ist modellkonfigurierbar. Im aktuellen Setup wird die OpenAI-Integration aufgabenbezogen geroutet: je nach Task können unterschiedliche Modelle genutzt werden; laut aktuellem Repo reichen die Pfade bis in die GPT-5-Familie, mit einem finalen Fallback auf gpt-4o-mini. Entscheidend ist dabei nicht nur das Modell selbst, sondern die kontrollierte Erzeugung strukturierter Ergebnisse.
+with col_a:
+    st.markdown(
+        """
+### Was ESCO mitbringt
+- standardisierte Occupations und Skills,
+- mehrsprachige Begriffe,
+- API-Zugriff für technische Einbindung,
+- Beziehungen zwischen Berufen, Skills und Wissensbereichen,
+- maschinenlesbare Konzepte statt bloßer Stichwörter.
+"""
+    )
 
-Warum Structured Outputs wichtig sind
+with col_b:
+    st.markdown(
+        """
+### Mehrwert für Cognitive Staffing
+- saubereres Occupation-Mapping,
+- normalisierte Skill-Vorschläge,
+- nachvollziehbare Herkunft von Empfehlungen,
+- bessere Anschlussfähigkeit für Suche, Matching und Reporting,
+- stabilere Begriffslogik über Teams und Standorte hinweg.
+"""
+    )
 
-Für Cognitive Staffing reicht „guter Fließtext“ nicht aus. Die App arbeitet deshalb mit strukturierten Ausgaben, die an definierte Schemata gebunden sind. Das erhöht Zuverlässigkeit, verringert Parsing-Fehler und macht Folgeprozesse robuster. Statt bloßer KI-Texte entstehen Datenobjekte, mit denen der Wizard sicher weiterarbeiten kann.
+st.markdown(
+    """
+Gerade weil ESCO Occupations und Skills nicht nur als Wörter, sondern als verknüpfte Konzepte beschreibt, eignet sich die Klassifikation sehr gut für ein strukturiertes Vacancy Intake.
+"""
+)
 
-Dynamischer Fragenfluss
+st.markdown("## Verwendetes ChatGPT-Modell und KI-Architektur")
+st.markdown(
+    """
+Die App nutzt die OpenAI API **aufgabenbezogen**. Das bedeutet: Nicht jede Funktion wird zwangsläufig mit demselben Modell ausgeführt.  
+Je nach Task – etwa Extraktion, Frageplanung oder Artefaktgenerierung – kann unterschiedlich geroutet werden.
 
-Der Wizard passt sich an:
+Wichtig ist deshalb nicht nur das Modell selbst, sondern die **kontrollierte Form der Ausgabe**:
+- strukturierte Ergebnisse statt bloßer Fließtexte,
+- klare Schemata statt freier Halluzinationsflächen,
+- bessere Weiterverarbeitung innerhalb des Wizards.
+"""
+)
 
-die eingebrachte Jobspec,
-bereits vorhandene Informationen,
-den gewählten Detailgrad,
-und frühere Antworten im Verlauf.
+render_callout(
+    "Wichtige Einordnung",
+    (
+        "Die produktive Konfiguration ist modellabhängig und deploymentabhängig. "
+        "Damit bleibt die Architektur flexibel, ohne die Qualität des Workflows an ein einziges festes Modell zu ketten."
+    ),
+)
 
-So sehen Nutzerinnen und Nutzer zuerst das Wesentliche und nur bei Bedarf zusätzliche Tiefe. Das spart Zeit, hält die Eingabequalität hoch und verhindert unnötige Komplexität. Genau dadurch bleibt der Prozess auch bei anspruchsvollen Rollen handhabbar.
+st.markdown("## Dynamischer Fragenfluss")
+st.markdown(
+    """
+Der Fragenfluss passt sich an:
+- die eingebrachte Jobspec,
+- bereits identifizierte Informationen,
+- den gewählten Detailgrad,
+- frühere Antworten im Verlauf,
+- und die bestätigte semantische Einordnung der Stelle.
 
-Weiterverarbeitungsoptionen
+So entsteht ein Prozess, der **adaptiv** statt starr arbeitet.  
+Nutzerinnen und Nutzer sehen zuerst das Wesentliche – und nur dort mehr Tiefe, wo sie für die konkrete Vakanz tatsächlich Mehrwert schafft.
+"""
+)
 
-Aus der finalen Datensammlung können unter anderem folgende Ergebnisse erzeugt werden:
-
-Recruiting Brief
-Job Ad
-Interview Sheets für HR und Fachbereich
-Boolean Search Strings
-Employment Contract Draft
-strukturierte Exporte in Formaten wie JSON, Markdown, DOCX, PDF sowie ESCO-Mapping-Reports
-
-Das reduziert Medienbrüche und sorgt dafür, dass dieselbe fachliche Grundlage mehrfach genutzt werden kann.
-
-Sicherheit
-
-Gerade im HR-Kontext ist Datensensibilität kein Nebenthema. Deshalb ist Sicherheit für uns kein Add-on, sondern Teil der Architektur.
-
-In einem cloudbasierten Setup unterstützen strukturierte Verarbeitung, bewusste Datenminimierung, kontrollierte Modellaufrufe und klare Exportpfade einen verantwortungsvollen Umgang mit Informationen. Besonders sensible Inhalte sollten jedoch immer nur dann verarbeitet werden, wenn hierfür eine tragfähige rechtliche und organisatorische Grundlage besteht. Die DSGVO verlangt unter anderem Datenminimierung und ein dem Risiko angemessenes Sicherheitsniveau.
-
-Lokales LLM als Sicherheitsoption
-
-Für besonders sensible HR-Themen kann ein lokal betriebenes LLM oder ein isoliertes On-Prem-/VPC-Setup erhebliche Vorteile bieten:
-
-Daten verbleiben in der eigenen Infrastruktur.
-Zugriffe, Logs und Speicherorte lassen sich enger kontrollieren.
-Drittlandtransfers und externe API-Abhängigkeiten können reduziert werden.
-Sicherheitsmaßnahmen wie Netzwerksegmentierung, Rollenrechte, interne Freigaben und eigene Aufbewahrungsregeln lassen sich konsequenter umsetzen.
-
-Wichtig ist dabei: Ein lokales LLM ist nicht automatisch sicher. Es verschiebt Verantwortung vom externen Provider in die eigene Betriebsumgebung. Richtig umgesetzt kann es bei sensiblen HR-Prozessen aber mehr Kontrolle, mehr Nachvollziehbarkeit und oft auch mehr Akzeptanz im Unternehmen schaffen."
-            ],
-        ),
-        SectionBlock(
-            "Für wen",
-            [
-                "Für Recruiting-, Hiring- und Fachbereiche, die Rollenanforderungen gemeinsam und revisionsfähig abstimmen müssen."
-            ],
-        ),
-        SectionBlock(
-            "Sie möchten sehen, wie aus einem unklaren Stellenbedarf in wenigen Schritten ein belastbares Recruiting-Setup wird?",
-            [
-                "Dann testen Sie Cognitive Staffing und erleben Sie, wie strukturierter Vacancy Intake Recruiting von Anfang an besser macht.
-
-Die Produktmerkmale in diesem Abschnitt stützen sich auf den aktuellen Research-Report und das Repo: Intake ab Landingpage, dynamischer Frageplan, Quick/Standard/Expert-Modi, ESCO-Mapping, Salary Forecast, Summary-Workspace und Exportpfade."
-            ],
-        ),
-        SectionBlock(
-            "Governance / Compliance",
-            [
-                "Verarbeitungspfade bleiben transparent; sensible Inhalte sollen minimiert und nicht in Debug-Ansichten repliziert werden."
-            ],
-        ),
+st.markdown("## Weiterverarbeitungsoptionen")
+render_cards(
+    [
+        {
+            "title": "Recruiting Brief",
+            "body": "Die konsolidierte Entscheidungsgrundlage für Recruiting, Fachbereich und Management.",
+        },
+        {
+            "title": "Job Ad Generation",
+            "body": "Aus der strukturierten Datensammlung entsteht eine konsistente, zielgruppengerechte Stellenanzeige.",
+        },
+        {
+            "title": "Interview Sheets",
+            "body": "Vorbereitungen für HR und Fachbereich mit klaren Themen, Prüfpunkten und Leitfragen.",
+        },
+        {
+            "title": "Boolean Search Strings",
+            "body": "Ableitungen für LinkedIn, Xing oder Google, damit Suchstrategien präziser und reproduzierbarer werden.",
+        },
+        {
+            "title": "Contract Draft",
+            "body": "Vorlagennahe Vertragsentwürfe auf Basis derselben strukturierten Rolle.",
+        },
+        {
+            "title": "Exports",
+            "body": "Je nach Artefakt als JSON, Markdown, DOCX, PDF oder Mapping-Report weiterverwendbar.",
+        },
     ],
-    placeholders=[
-        (
-            "Fehlende Business-Inputs",
-            [
-                "Verbindliche KPI-Schwellen (z. B. Time-to-Shortlist, Akzeptanzquote)",
-                "Freigegebene Branchen-/Rollensegmente mit Priorisierung",
-            ],
-        )
-    ],
-    trust_heading="Vertrauen & Nachvollziehbarkeit",
-    trust_details=[
-        "Die Seite wird als fachliche Orientierung gepflegt und bei Prozessänderungen versioniert."
-    ],
-    footer_classification="Produktinformation",
+    columns=3,
+)
+
+st.markdown("## Sicherheit")
+st.markdown(
+    """
+Im HR-Kontext ist Datensensibilität kein Randthema. Deshalb ist Sicherheit für uns Teil der Produktlogik – nicht bloß ein Nachgedanke.
+
+Schon in einem cloudbasierten Setup helfen strukturierte Verarbeitung, klare Exportpfade, kontrollierte Modellaufrufe und Datenminimierung dabei, sensible Inhalte bewusster zu behandeln.
+"""
+)
+
+with st.expander("Lokales LLM als Sicherheitsoption", expanded=True):
+    st.markdown(
+        """
+Für besonders sensible HR-Themen kann ein **lokal laufendes LLM** oder ein streng isoliertes On-Prem-/VPC-Setup erhebliche Vorteile bringen:
+
+- Daten verbleiben in der eigenen Infrastruktur,
+- Zugriffe und Speicherorte sind enger kontrollierbar,
+- Drittlandtransfers und externe Abhängigkeiten können reduziert werden,
+- Sicherheitsregeln lassen sich unternehmensspezifisch erzwingen,
+- Akzeptanz für sensible HR-Prozesse steigt oft deutlich.
+
+**Wichtige Einordnung**  
+Ein lokales LLM ist nicht automatisch sicher. Es verschiebt Verantwortung vom externen Anbieter in die eigene Umgebung.  
+Richtig umgesetzt bietet es jedoch bei sensiblen Recruiting- und HR-Themen oft mehr Kontrolle, mehr Transparenz und mehr Governance.
+"""
+    )
+
+render_cta(
+    "Sie möchten sehen, wie aus einem unklaren Stellenbedarf ein belastbarer Recruiting-Startpunkt wird?",
+    f"Testen Sie {PROFILE.brand_name} und erleben Sie, wie strukturierter Vacancy Intake Recruiting von Anfang an besser macht.",
 )
