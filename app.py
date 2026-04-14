@@ -34,7 +34,33 @@ from wizard_pages.base import (
     set_current_step,
     sidebar_navigation,
 )
+from components.layout import load_css, render_page_footer, render_page_header, render_sections
+from components.sidebar import render_sidebar
 
+st.set_page_config(page_title="Cognitive Staffing", layout="wide")
+load_css()
+render_sidebar("home")
+
+render_page_header(
+    title="Cognitive Staffing – Standardseiten Scaffold",
+    intro="Startpunkt für Sidebar-Navigation, Standardseiten und Präferenz-Center. Passe Labels, Rechtsinhalte und Integrationspunkte an dein Produkt an.",
+    eyebrow="Starter",
+)
+
+render_sections(
+    [
+        {
+            "title": "Was enthalten ist",
+            "body": "Multipage-Templates für Kompetenzen, About, Impressum, Datenschutz, Terms, Cookies, Accessibility und Kontakt sowie ein zentrales Präferenz-Center mit wizardweiter Runtime-Logik.",
+        },
+        {
+            "title": "Wie du es integrierst",
+            "body": "Übernimm die Canonical Constants aus `config/constants.py`, binde `build_runtime_context()` in Prompt Builder und ESCO Retrieval ein und ersetze die Platzhaltertexte der Rechtstexte durch juristisch geprüfte Inhalte.",
+        },
+    ]
+)
+
+render_page_footer()
 
 def _image_as_data_uri(image_path: Path, mime_type: str) -> str:
     image_bytes = image_path.read_bytes()
