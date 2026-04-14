@@ -54,6 +54,7 @@ def render_step_shell(
     step: QuestionStep | None = None,
     extracted_from_jobspec_slot: Callable[[], None] | None = None,
     extracted_from_jobspec_label: str = "Aus Jobspec extrahiert",
+    extracted_from_jobspec_use_expander: bool = True,
     main_content_slot: Callable[[], None],
     review_slot: Callable[[], None] | None = None,
     footer_slot: Callable[[], None] | None = None,
@@ -80,7 +81,11 @@ def render_step_shell(
         _render_step_status(status)
 
     if extracted_from_jobspec_slot is not None:
-        with st.expander(extracted_from_jobspec_label, expanded=True):
+        if extracted_from_jobspec_use_expander:
+            with st.expander(extracted_from_jobspec_label, expanded=True):
+                extracted_from_jobspec_slot()
+        else:
+            st.markdown(f"### {extracted_from_jobspec_label}")
             extracted_from_jobspec_slot()
 
     main_content_slot()

@@ -1,6 +1,5 @@
 # wizard_pages/06_benefits.py
 from __future__ import annotations
-
 import streamlit as st
 
 from schemas import JobAdExtract, QuestionStep
@@ -90,44 +89,100 @@ def render(ctx: WizardContext) -> None:
 
     def _render_extracted_slot() -> None:
         shown = False
-        if job.salary_range:
-            min_salary = job.salary_range.min
-            max_salary = job.salary_range.max
-            if has_meaningful_value(min_salary) or has_meaningful_value(max_salary):
-                st.write(
-                    f"**Salary:** {min_salary} – {max_salary} {job.salary_range.currency or ''} ({job.salary_range.period or ''})"
-                )
-                shown = True
-            if has_meaningful_value(job.salary_range.notes):
-                st.write(f"**Notes:** {job.salary_range.notes}")
+        col_salary, col_benefits, col_remote = st.columns(3, gap="large")
+        with col_salary:
+            if job.salary_range:
+                min_salary = job.salary_range.min
+                max_salary = job.salary_range.max
+                if has_meaningful_value(min_salary) or has_meaningful_value(max_salary):
+                    st.write(
+                        f"**Salary:** {min_salary} – {max_salary} {job.salary_range.currency or ''} ({job.salary_range.period or ''})"
+                    )
+                    shown = True
+                if has_meaningful_value(job.salary_range.notes):
+                    st.write(f"**Notes:** {job.salary_range.notes}")
+                    shown = True
+
+        with col_benefits:
+            benefits = [b for b in job.benefits if has_meaningful_value(b)]
+            if benefits:
+                st.write("**Benefits (Auszug):**")
+                for b in benefits[:12]:
+                    st.write(f"- {b}")
                 shown = True
 
-        benefits = [b for b in job.benefits if has_meaningful_value(b)]
-        if benefits:
-            st.write("**Benefits (Auszug):**")
-            for b in benefits[:12]:
-                st.write(f"- {b}")
-            shown = True
-
-        if has_meaningful_value(job.remote_policy):
-            st.write(f"**Remote Policy:** {job.remote_policy}")
-            shown = True
+        with col_remote:
+            if has_meaningful_value(job.remote_policy):
+                st.write("**Arbeitsmodell (Auszug):**")
+                st.write(f"- {job.remote_policy}")
+                shown = True
         if not shown:
             st.info(
                 "Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions."
             )
 
     def _render_main_slot() -> None:
-        with st.expander("Salary Forecast", expanded=True):
-            render_salary_forecast_panel(job, get_answers())
-
         if step is None or not step.questions:
             st.info(
                 "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
             )
-            return
+        else:
+            st.markdown("### Minimalprofil")
+            render_question_step(step)
 
-        render_question_step(step)
+        st.markdown("### Salary Forecast")
+        benefits_for_forecast = [
+            value.strip() for value in job.benefits if has_meaningful_value(value)
+        ]
+        selected_benefits = benefits_for_forecast
+        if benefits_for_forecast:
+            st.caption(
+                "Benefits für die Kalkulation auswählen. Nur ausgewählte Zeilen fließen in die Prognose ein."
+            )
+            source_rows = {
+                "Einbeziehen": [True for _ in benefits_for_forecast],
+                "Benefit": benefits_for_forecast,
+            }
+            edited_rows = st.data_editor(
+                source_rows,
+                hide_index=True,
+                width="stretch",
+                column_config={
+                    "Einbeziehen": st.column_config.CheckboxColumn(
+                        "Einbeziehen", help="Auswahl für Salary Forecast"
+                    ),
+                    "Benefit": st.column_config.TextColumn(
+                        "Benefit", disabled=True, width="large"
+                    ),
+                },
+                disabled=["Benefit"],
+            )
+            if isinstance(edited_rows, dict):
+                selected_benefits = []
+                include_values = edited_rows.get("Einbeziehen", [])
+                benefit_values = edited_rows.get("Benefit", [])
+                if isinstance(include_values, list) and isinstance(
+                    benefit_values, list
+                ):
+                    for include, raw_value in zip(include_values, benefit_values):
+                        value = str(raw_value or "").strip()
+                        if include and has_meaningful_value(value):
+                            selected_benefits.append(value)
+            elif hasattr(edited_rows, "to_dict"):
+                selected_benefits = []
+                for row in edited_rows.to_dict("records"):
+                    include = bool(row.get("Einbeziehen"))
+                    value = str(row.get("Benefit") or "").strip()
+                    if include and has_meaningful_value(value):
+                        selected_benefits.append(value)
+        else:
+            st.caption(
+                "Keine Benefits aus der Anzeige erkannt – Prognose wird ohne Benefit-Filter berechnet."
+            )
+
+        st.caption(f"Ausgewählte Benefits: {len(selected_benefits)}")
+        forecast_job = job.model_copy(update={"benefits": selected_benefits})
+        render_salary_forecast_panel(forecast_job, get_answers())
 
     def _render_review_slot() -> None:
         render_standard_step_review(step)
@@ -146,7 +201,8 @@ def render(ctx: WizardContext) -> None:
         ),
         step=step,
         extracted_from_jobspec_slot=_render_extracted_slot,
-        extracted_from_jobspec_label="Aus Jobspec extrahiert (Benefits/Comp)",
+        extracted_from_jobspec_label="Aus der Anzeige extrahierte Benefits & Rahmenbedingungen",
+        extracted_from_jobspec_use_expander=False,
         main_content_slot=_render_main_slot,
         review_slot=_render_review_slot,
         footer_slot=lambda: nav_buttons(ctx),

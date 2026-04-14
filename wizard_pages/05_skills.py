@@ -953,7 +953,8 @@ def render(ctx: WizardContext) -> None:
         ),
         step=step,
         extracted_from_jobspec_slot=lambda: _render_extracted_slot(job),
-        extracted_from_jobspec_label="1) Extrahierte Skill-Phrasen aus dem Jobspec",
+        extracted_from_jobspec_label="Aus der Anzeige extrahierte Skills",
+        extracted_from_jobspec_use_expander=False,
         main_content_slot=lambda: _render_main_slot(
             job=job,
             step=step,
