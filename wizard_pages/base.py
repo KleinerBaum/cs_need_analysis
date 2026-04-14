@@ -23,6 +23,7 @@ from constants import (
     COMPLETION_STATE_PREFIX_TOKENS,
     SSKey,
     STEPS,
+    UI_PREFERENCE_ANSWER_MODE,
     UI_MODE_DISPLAY_LABELS,
     UI_MODE_HELP_TEXT,
     UI_MODE_VALUES,
@@ -802,7 +803,29 @@ def map_answer_mode_to_ui_mode(raw_answer_mode: object) -> str:
     return normalize_ui_mode(answer_to_ui_mode.get(normalized_answer_mode, "standard"))
 
 
+def map_ui_mode_to_answer_mode(raw_ui_mode: object) -> str:
+    """Map canonical UI mode to persisted answer-mode preference metadata."""
+    normalized_ui_mode = normalize_ui_mode(raw_ui_mode)
+    ui_to_answer_mode = {
+        "quick": "compact",
+        "standard": "balanced",
+        "expert": "advisory",
+    }
+    return str(ui_to_answer_mode.get(normalized_ui_mode, "balanced"))
+
+
+def sync_ui_mode_preference_metadata() -> None:
+    """Persist answer-mode metadata from canonical runtime UI mode."""
+    ui_mode = get_current_ui_mode()
+    preferences = normalize_ui_preferences(
+        st.session_state.get(SSKey.UI_PREFERENCES.value)
+    )
+    preferences[UI_PREFERENCE_ANSWER_MODE] = map_ui_mode_to_answer_mode(ui_mode)
+    st.session_state[SSKey.UI_PREFERENCES.value] = preferences
+
+
 def _sync_mode_change() -> None:
+    sync_ui_mode_preference_metadata()
     sync_adaptive_question_limits()
 
 
@@ -825,41 +848,23 @@ def render_ui_mode_selector(
     widget_key: str | None = None,
     show_label: bool = True,
 ) -> str:
-    st.session_state[SSKey.UI_MODE_WIDGET_ACTIVE.value] = True
     ui_mode_key = widget_key or SSKey.UI_MODE.value
     selectbox = st.sidebar.selectbox if sidebar else st.selectbox
     current_mode = get_current_ui_mode()
-    if widget_key is None:
-        selected_mode = selectbox(
-            "Wie weit möchten Sie ins Detail gehen?",
-            options=list(UI_MODE_VALUES),
-            key=ui_mode_key,
-            format_func=lambda mode: UI_MODE_DISPLAY_LABELS.get(
-                mode, str(mode).capitalize()
-            ),
-            help=UI_MODE_HELP_TEXT,
-            on_change=_sync_mode_change,
-            label_visibility="visible" if show_label else "collapsed",
-        )
-        return str(selected_mode).strip().lower()
-
     selected_mode = selectbox(
         "Wie weit möchten Sie ins Detail gehen?",
         options=list(UI_MODE_VALUES),
-        index=list(UI_MODE_VALUES).index(current_mode),
         key=ui_mode_key,
+        index=list(UI_MODE_VALUES).index(current_mode),
         format_func=lambda mode: UI_MODE_DISPLAY_LABELS.get(
             mode, str(mode).capitalize()
         ),
         help=UI_MODE_HELP_TEXT,
+        on_change=_sync_mode_change,
         label_visibility="visible" if show_label else "collapsed",
     )
-    normalized_mode = str(selected_mode).strip().lower()
-    if normalized_mode != current_mode:
-        st.session_state[SSKey.UI_MODE.value] = normalized_mode
-        sync_adaptive_question_limits()
-        st.rerun()
-    return normalized_mode
+    sync_ui_mode_preference_metadata()
+    return normalize_ui_mode(selected_mode)
 
 
 def sidebar_navigation(ctx: WizardContext) -> WizardPage:

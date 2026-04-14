@@ -29,7 +29,7 @@ from state import init_session_state, normalize_ui_preferences, reset_vacancy
 from wizard_pages import load_pages
 from wizard_pages.base import (
     WizardContext,
-    map_answer_mode_to_ui_mode,
+    map_ui_mode_to_answer_mode,
     normalize_ui_mode,
     set_current_step,
     sidebar_navigation,
@@ -456,14 +456,18 @@ def _render_preference_center_sidebar(
     st.session_state[SSKey.UI_PREFERENCES.value] = preferences
 
     answer_mode_options = ["compact", "balanced", "advisory"]
-    answer_mode_value = str(preferences.get(UI_PREFERENCE_ANSWER_MODE, "balanced"))
-    if answer_mode_value not in answer_mode_options:
-        answer_mode_value = "balanced"
-    answer_mode = st.selectbox(
+    current_ui_mode = normalize_ui_mode(st.session_state.get(SSKey.UI_MODE.value))
+    answer_mode = map_ui_mode_to_answer_mode(current_ui_mode)
+    st.selectbox(
         "Antwortmodus",
         options=answer_mode_options,
-        index=answer_mode_options.index(answer_mode_value),
+        index=answer_mode_options.index(answer_mode),
         key=f"{key_prefix}.answer_mode",
+        disabled=True,
+        help=(
+            "Wird aus dem kanonischen Laufzeitmodus synchronisiert "
+            "(Detailgrad-Auswahl im Wizard)."
+        ),
     )
     information_depth_options = ["niedrig", "standard", "hoch"]
     information_depth_value = str(
@@ -528,20 +532,6 @@ def _render_preference_center_sidebar(
         }
     )
     st.session_state[SSKey.UI_PREFERENCES.value] = normalize_ui_preferences(preferences)
-    mapped_ui_mode = map_answer_mode_to_ui_mode(answer_mode)
-    ui_mode_widget_active = bool(
-        st.session_state.get(SSKey.UI_MODE_WIDGET_ACTIVE.value, False)
-    )
-    if not ui_mode_widget_active:
-        st.session_state[SSKey.UI_MODE.value] = mapped_ui_mode
-    else:
-        current_mode = normalize_ui_mode(st.session_state.get(SSKey.UI_MODE.value))
-        sync_pending = bool(
-            st.session_state.get(SSKey.UI_MODE_SYNC_PENDING.value, False)
-        )
-        if mapped_ui_mode != current_mode and not sync_pending:
-            st.session_state[SSKey.UI_MODE_SYNC_PENDING.value] = True
-            st.rerun()
     st.session_state[SSKey.SOURCE_REDACT_PII.value] = pii_reduction
     st.markdown("[⚙️ Präferenz-Center (volle Ansicht)](?page=preferences)")
     if show_reset_button:
@@ -595,15 +585,6 @@ def main() -> None:
     _inject_theme_styles()
 
     init_session_state()
-    st.session_state[SSKey.UI_MODE_WIDGET_ACTIVE.value] = False
-    if bool(st.session_state.get(SSKey.UI_MODE_SYNC_PENDING.value, False)):
-        preferences = normalize_ui_preferences(
-            st.session_state.get(SSKey.UI_PREFERENCES.value)
-        )
-        st.session_state[SSKey.UI_MODE.value] = map_answer_mode_to_ui_mode(
-            preferences.get(UI_PREFERENCE_ANSWER_MODE, "balanced")
-        )
-        st.session_state[SSKey.UI_MODE_SYNC_PENDING.value] = False
     previous_step = st.session_state.get(SSKey.LAST_RENDERED_STEP.value)
 
     pages = load_pages()
