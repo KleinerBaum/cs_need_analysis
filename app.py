@@ -16,7 +16,6 @@ from constants import (
     UI_PREFERENCE_INFORMATION_DEPTH,
     UI_PREFERENCE_PII_REDUCTION,
     UI_PREFERENCE_REGIONAL_FOCUS,
-    UI_PREFERENCE_SHOW_SOURCES_DEFAULT,
 )
 from llm_client import (
     TASK_EXTRACT_JOB_AD,
@@ -250,6 +249,8 @@ def _get_info_page_key() -> str | None:
         "cookie",
         "accessibility",
         "contact",
+        "privacy",
+        "terms",
     }:
         return info_param
     return None
@@ -356,6 +357,12 @@ def _render_info_page(info_page_key: str) -> None:
     elif info_page_key == "contact":
         st.title("Kontakt")
         st.info("Kontaktinformationen werden zentral bereitgestellt.")
+    elif info_page_key == "terms":
+        _render_legal_page("terms")
+        return
+    elif info_page_key == "privacy":
+        _render_legal_page("privacy")
+        return
 
     if st.button("← Zurück zum Wizard", key=f"back.info.{info_page_key}"):
         st.query_params.clear()
@@ -499,11 +506,6 @@ def _render_preference_center_sidebar(
         value=str(preferences.get(UI_PREFERENCE_REGIONAL_FOCUS, "DACH")),
         key=f"{key_prefix}.regional_focus",
     )
-    show_sources_default = st.toggle(
-        "Quellen standardmäßig einblenden",
-        value=bool(preferences.get(UI_PREFERENCE_SHOW_SOURCES_DEFAULT, True)),
-        key=f"{key_prefix}.show_sources_default",
-    )
     confidence_threshold = st.slider(
         "Confidence-Schwelle für Treffer",
         min_value=0.05,
@@ -526,7 +528,6 @@ def _render_preference_center_sidebar(
             UI_PREFERENCE_INFORMATION_DEPTH: information_depth,
             UI_PREFERENCE_ESCO_MATCHING_STRICTNESS: esco_matching_strictness,
             UI_PREFERENCE_REGIONAL_FOCUS: regional_focus.strip() or "DACH",
-            UI_PREFERENCE_SHOW_SOURCES_DEFAULT: show_sources_default,
             UI_PREFERENCE_CONFIDENCE_THRESHOLD: confidence_threshold,
             UI_PREFERENCE_PII_REDUCTION: pii_reduction,
         }
