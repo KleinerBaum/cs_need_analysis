@@ -354,18 +354,7 @@ def render_jobad_intake(
             }
             st.success("Fertig: Jobspec extrahiert und Fragebogen erzeugt.")
             if extract_cached or plan_cached:
-                st.info("Mindestens ein Ergebnis wurde aus dem Cache geladen.")
-
-            with st.expander("API Usage (Debug)", expanded=False):
-                st.write(
-                    {
-                        "resolved_models": {
-                            "extract_job_ad": resolved_extract_model,
-                            "generate_question_plan": resolved_plan_model,
-                        },
-                        "extract_usage": usage1,
-                        "plan_usage": usage2,
-                    }
+                st.info("Mindestens ein Ergebnis wurde aus dem Cache geladen.")        
                 )
         except OpenAICallError as e:
             render_openai_error(e)
