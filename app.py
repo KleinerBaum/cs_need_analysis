@@ -597,7 +597,11 @@ def _render_sidebar_actions() -> None:
             
 
 def main() -> None:
-    st.set_page_config(page_title=APP_TITLE, layout="wide")
+    st.set_page_config(
+        page_title=APP_TITLE,
+        layout="wide",
+        initial_sidebar_state="auto",
+    )
     _inject_theme_styles()
 
     init_session_state()
