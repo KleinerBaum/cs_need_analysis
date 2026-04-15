@@ -557,7 +557,7 @@ def _render_preferences_page() -> None:
         st.rerun()
 
 
-def _render_sidebar_actions() -> None:
+ def _render_sidebar_actions() -> None:
      """Render only the global preference center as last sidebar block."""
      with st.sidebar:
         st.markdown("### Need-Analysis-Tool")
