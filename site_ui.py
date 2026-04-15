@@ -41,19 +41,23 @@ def inject_site_styles() -> None:
         <style>
             .cs-hero {
                 padding: 1.35rem 1.4rem;
-                border: 1px solid rgba(255,255,255,0.10);
+                border: 1px solid color-mix(in srgb, var(--text-color, #111111) 18%, transparent);
                 border-radius: 20px;
                 background:
-                    linear-gradient(135deg, rgba(21,101,192,0.16), rgba(17,17,17,0.82)),
-                    linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+                    linear-gradient(
+                        135deg,
+                        color-mix(in srgb, var(--primary-color, #1565c0) 14%, transparent),
+                        color-mix(in srgb, var(--secondary-background-color, #f3f4f6) 70%, transparent)
+                    ),
+                    linear-gradient(180deg, color-mix(in srgb, var(--background-color, #ffffff) 93%, transparent), transparent);
                 margin-bottom: 1rem;
             }
             .cs-eyebrow {
                 display: inline-block;
                 padding: 0.22rem 0.60rem;
                 border-radius: 999px;
-                background: rgba(21,101,192,0.18);
-                color: #B8D5FF;
+                background: color-mix(in srgb, var(--primary-color, #1565c0) 18%, transparent);
+                color: var(--primary-color, #1565c0);
                 font-size: 0.78rem;
                 font-weight: 700;
                 letter-spacing: 0.04em;
@@ -64,72 +68,90 @@ def inject_site_styles() -> None:
                 font-size: 2.0rem;
                 line-height: 1.15;
                 font-weight: 800;
-                color: #F7F9FC;
+                color: var(--text-color, inherit);
                 margin: 0 0 0.45rem 0;
             }
             .cs-lead {
-                color: #D7E0EC;
+                color: color-mix(in srgb, var(--text-color, #111111) 86%, transparent);
                 font-size: 1.05rem;
                 line-height: 1.6;
                 margin: 0;
             }
             .cs-card {
-                border: 1px solid rgba(255,255,255,0.10);
+                border: 1px solid color-mix(in srgb, var(--text-color, #111111) 12%, transparent);
                 border-radius: 18px;
-                background: rgba(255,255,255,0.03);
+                background: color-mix(in srgb, var(--secondary-background-color, #f3f4f6) 72%, transparent);
                 padding: 1rem 1rem 0.9rem 1rem;
                 height: 100%;
                 min-height: 170px;
             }
             .cs-card h4 {
                 margin: 0 0 0.45rem 0;
-                color: #F7F9FC;
+                color: var(--text-color, inherit);
                 font-size: 1.02rem;
                 line-height: 1.3;
             }
             .cs-card p {
                 margin: 0;
-                color: #D7E0EC;
+                color: color-mix(in srgb, var(--text-color, #111111) 86%, transparent);
                 font-size: 0.96rem;
                 line-height: 1.55;
             }
             .cs-callout {
-                border-left: 5px solid #1E88E5;
-                background: rgba(30,136,229,0.10);
+                border-left: 5px solid var(--primary-color, #1e88e5);
+                background: color-mix(in srgb, var(--primary-color, #1e88e5) 12%, transparent);
                 border-radius: 14px;
                 padding: 0.95rem 1rem;
                 margin: 0.75rem 0 1rem 0;
             }
             .cs-callout-warning {
-                border-left-color: #F9A825;
-                background: rgba(249,168,37,0.12);
+                border-left-color: #f9a825;
+                background: color-mix(in srgb, #f9a825 16%, transparent);
             }
             .cs-callout-success {
-                border-left-color: #2E7D32;
-                background: rgba(46,125,50,0.12);
+                border-left-color: #2e7d32;
+                background: color-mix(in srgb, #2e7d32 16%, transparent);
             }
             .cs-meta {
-                color: #9FB0C5;
+                color: color-mix(in srgb, var(--text-color, #111111) 70%, transparent);
                 font-size: 0.9rem;
                 margin-top: -0.15rem;
                 margin-bottom: 1.2rem;
             }
             .cs-cta {
-                border: 1px solid rgba(255,255,255,0.12);
+                border: 1px solid color-mix(in srgb, var(--text-color, #111111) 12%, transparent);
                 border-radius: 18px;
                 padding: 1.1rem 1.1rem 1rem 1.1rem;
-                background: linear-gradient(135deg, rgba(25,118,210,0.12), rgba(255,255,255,0.03));
+                background: linear-gradient(
+                    135deg,
+                    color-mix(in srgb, var(--primary-color, #1976d2) 12%, transparent),
+                    color-mix(in srgb, var(--secondary-background-color, #f3f4f6) 72%, transparent)
+                );
                 margin-top: 1rem;
             }
             .cs-small {
-                color: #9FB0C5;
+                color: color-mix(in srgb, var(--text-color, #111111) 70%, transparent);
                 font-size: 0.88rem;
                 line-height: 1.5;
             }
             .block-container {
-                max-width: 1060px;
-                padding-top: 1.1rem;
+                max-width: none;
+                padding-top: 1rem;
                 padding-bottom: 2rem;
+                padding-left: clamp(1rem, 2vw, 2rem);
+                padding-right: clamp(1rem, 2vw, 2rem);
+            }
+            @media (max-width: 900px) {
+                .block-container {
+                    padding-left: 0.9rem;
+                    padding-right: 0.9rem;
+                }
+                .cs-title {
+                    line-height: 1.2;
+                }
+                .cs-hero {
+                    padding: 1rem;
+                }
             }
         </style>
         """,
