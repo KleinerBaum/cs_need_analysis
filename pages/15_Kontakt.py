@@ -3,15 +3,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from pages._site_ui import (
-    PROFILE,
-    inject_site_styles,
-    render_cards,
-    render_callout,
-    render_cta,
-    render_hero,
-    render_meta_line,
-)
+from _site_ui import PROFILE, inject_site_styles, render_cards, render_callout, render_cta, render_hero, render_meta_line
 
 
 st.set_page_config(page_title="Kontakt", page_icon="✉️", layout="wide")
@@ -106,9 +98,7 @@ with col_right:
         submitted = st.form_submit_button("Anfrage vorbereiten")
 
     if submitted:
-        st.success(
-            "Vielen Dank. Bitte binden Sie nun den gewünschten Versandweg an, z. B. E-Mail, CRM oder Helpdesk."
-        )
+        st.success("Vielen Dank. Bitte binden Sie nun den gewünschten Versandweg an, z. B. E-Mail, CRM oder Helpdesk.")
         st.code(
             f"Name: {name}\nUnternehmen: {company}\nE-Mail: {email}\nAnliegen: {topic}\n\nNachricht:\n{message}",
             language="text",
