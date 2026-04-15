@@ -1,4 +1,4 @@
-# pages/_site_ui.py
+# site_ui.py
 from __future__ import annotations
 
 from dataclasses import dataclass
