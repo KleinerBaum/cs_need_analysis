@@ -100,7 +100,7 @@ LANDING_COPY: dict[str, object] = {
 
 def render(ctx: WizardContext) -> None:
     render_landing_css(LANDING_STYLE_TOKENS)
-    title_col, language_col, links_col = st.columns((1.45, 0.7, 1.45), gap="small")
+    title_col, language_col = st.columns((1.7, 0.3), gap="small")
     with title_col:
         st.markdown(
             f'<span class="landing-app-title">{APP_TITLE}</span>',
