@@ -796,19 +796,19 @@ def render_job_extract_overview(
         st.markdown("### Identifizierte Informationen")
     _render_editable_job_extract(job)
 
-     c_gaps, c_assumptions = st.columns(2, gap="large")
-     with c_gaps:
-         st.markdown("### Fehlende oder unklare Punkte")
-         if job.gaps:
-             st.write("\n".join([f"- {g}" for g in job.gaps]))
-         else:
-             st.info("Keine expliziten Gaps erkannt.")
-     with c_assumptions:
-         st.markdown("### Annahmen")
-         if job.assumptions:
-             st.write("\n".join([f"- {a}" for a in job.assumptions]))
-         else:
-             st.info("Keine Annahmen erkannt.")
+    c_gaps, c_assumptions = st.columns(2, gap="large")
+    with c_gaps:
+        st.markdown("### Fehlende oder unklare Punkte")
+        if job.gaps:
+            st.write("\n".join([f"- {g}" for g in job.gaps]))
+        else:
+            st.info("Keine expliziten Gaps erkannt.")
+    with c_assumptions:
+        st.markdown("### Annahmen")
+        if job.assumptions:
+            st.write("\n".join([f"- {a}" for a in job.assumptions]))
+        else:
+            st.info("Keine Annahmen erkannt.")
 
 
 def _render_compact_extract_lists(job: JobAdExtract) -> None:
