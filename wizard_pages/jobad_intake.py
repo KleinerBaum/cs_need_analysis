@@ -253,7 +253,7 @@ def _render_phase_b_extraction_review(ctx: WizardContext) -> None:
 
 
 def _render_phase_c_esco_anchor() -> None:
-    st.markdown("### ESCO-Suche")
+
     job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
     plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
     if not isinstance(job_dict, dict) or not isinstance(plan_dict, dict):
@@ -261,6 +261,7 @@ def _render_phase_c_esco_anchor() -> None:
             "Phase C wird nach erfolgreicher Analyse (Extraktion + QuestionPlan) aktiviert."
         )
         return
+    st.markdown("### ESCO-Suche")
 
     job = JobAdExtract.model_validate(job_dict)
     render_esco_occupation_confirmation(job)
