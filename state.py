@@ -114,7 +114,7 @@ def _default_ui_preferences() -> dict[str, Any]:
         UI_PREFERENCE_REGIONAL_FOCUS: "DACH",
         UI_PREFERENCE_SHOW_SOURCES_DEFAULT: True,
         UI_PREFERENCE_CONFIDENCE_THRESHOLD: 0.6,
-        UI_PREFERENCE_PII_REDUCTION: True,
+        UI_PREFERENCE_PII_REDUCTION: False,
         UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT: False,
         UI_PREFERENCE_STEP_COMPACT: {},
     }
@@ -179,7 +179,7 @@ def init_session_state() -> None:
         SSKey.STORE_API_OUTPUT.value: False,
         SSKey.SOURCE_TEXT.value: "",
         SSKey.SOURCE_FILE_META.value: {},
-        SSKey.SOURCE_REDACT_PII.value: True,
+        SSKey.SOURCE_REDACT_PII.value: False,
         SSKey.JOB_EXTRACT.value: None,
         SSKey.QUESTION_PLAN.value: None,
         SSKey.QUESTION_LIMITS.value: {},
