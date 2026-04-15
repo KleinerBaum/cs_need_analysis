@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from _site_ui import PROFILE, inject_site_styles, render_callout, render_cards, render_cta, render_hero, render_meta_line
+from site_ui import PROFILE, inject_site_styles, render_callout, render_cards, render_cta, render_hero, render_meta_line
 
 
 st.set_page_config(page_title="Cookie Policy Settings", page_icon="🍪", layout="wide")
