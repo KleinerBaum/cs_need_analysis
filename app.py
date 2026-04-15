@@ -557,43 +557,42 @@ def _render_preferences_page() -> None:
         st.rerun()
 
 
- def _render_sidebar_actions() -> None:
+def _render_sidebar_actions() -> None:
      """Render only the global preference center as last sidebar block."""
      with st.sidebar:
-        st.markdown("### Need-Analysis-Tool")
-        st.markdown('<div class="cs-sidebar-nav-gap"></div>', unsafe_allow_html=True)
-
-        st.markdown("**Über Cognitive Staffing**")
-        st.markdown(
-            """
-            <div class="cs-sidebar-link-list">
-              <a href="?info=competencies">Unsere Kompetenzen</a>
-              <a href="?info=about">Über Cognitive Staffing</a>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        st.markdown('<div class="cs-sidebar-nav-gap"></div>', unsafe_allow_html=True)
-
-        st.markdown("**Rechtliches**")
-        st.markdown(
-            """
-            <div class="cs-sidebar-link-list">
-              <a href="?info=contact">Kontakt</a>
-              <a href="?info=accessibility">Erklärung zur Barrierefreiheit</a>
-              <a href="?info=cookie">Cookies</a>
-              <a href="?info=terms">Nutzungsbedingungen</a>
-              <a href="?info=privacy">Datenschutzrichtlinie</a>
-              <a href="?info=imprint">Impressum</a>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        st.markdown('<div class="cs-sidebar-nav-gap"></div>', unsafe_allow_html=True)
+         st.markdown("### Need-Analysis-Tool")
+         st.markdown('<div class="cs-sidebar-nav-gap"></div>', unsafe_allow_html=True)
+ 
+         st.markdown("**Über Cognitive Staffing**")
+         st.markdown(
+             """
+             <div class="cs-sidebar-link-list">
+               <a href="?info=competencies">Unsere Kompetenzen</a>
+               <a href="?info=about">Über Cognitive Staffing</a>
+             </div>
+             """,
+             unsafe_allow_html=True,
+         )
+         st.markdown('<div class="cs-sidebar-nav-gap"></div>', unsafe_allow_html=True)
+ 
+         st.markdown("**Rechtliches**")
+         st.markdown(
+             """
+             <div class="cs-sidebar-link-list">
+               <a href="?info=contact">Kontakt</a>
+               <a href="?info=accessibility">Erklärung zur Barrierefreiheit</a>
+               <a href="?info=cookie">Cookies</a>
+               <a href="?info=terms">Nutzungsbedingungen</a>
+               <a href="?info=privacy">Datenschutzrichtlinie</a>
+               <a href="?info=imprint">Impressum</a>
+             </div>
+             """,
+             unsafe_allow_html=True,
+         )
+ 
+         st.markdown('<div class="cs-sidebar-nav-gap"></div>', unsafe_allow_html=True)
          with st.expander("Präferenz-Center", expanded=False):
              _render_preference_center_sidebar()
-
 
 def main() -> None:
     st.set_page_config(page_title=APP_TITLE, layout="wide")
