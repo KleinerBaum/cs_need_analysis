@@ -54,11 +54,10 @@ Hinweis: Der frühere Schritt `jobspec_review` ist nur noch als Legacy-Modul vor
 
 ## UI-Branding
 
-- Die App nutzt `images/AdobeStock_506577005.jpeg` als vollflächiges Hintergrundbild.
 - Im Sidebar-Header wird das animierte GIF `images/animation_pulse_SingleColorHex1_7kigl22lw.gif` dargestellt.
 - Im Start-Schritt wird `images/white_logo_color1_background.png` als Hero-Logo angezeigt.
-- Für Lesbarkeit auf hellen und dunklen Bildbereichen nutzt die Oberfläche einen dunklen Overlay-Layer, kontrastreiche Textfarben sowie angepasste Button-/Formularfarben.
-- Rechtstexte/Info-Seiten werden als eigene Views über Query-Parameter gerendert (z. B. `?legal=terms`, `?legal=privacy`, `?info=about`, `?page=preferences`).
+- Die Theme-Farbgebung (Light/Dark) kommt aus der Streamlit-Theme-Konfiguration (`.streamlit/config.toml`); app-/site-spezifische CSS-Regeln steuern nur Layout/Struktur und keine globalen Farb-Overrides.
+- Rechtstexte/Info-Seiten laufen als eigenständige Streamlit-Seiten unter `pages/`; im Wizard verbleibt nur das Präferenz-Center als Query-Parameter-View (`?page=preferences`).
 - Debug-Hinweise werden in den jeweiligen Fachbereichen angezeigt (z. B. API-Usage-Expander in Intake/Summary), ohne Secrets preiszugeben.
 
 ## Unterstützte Streamlit-Komponenten (Stand Runtime)

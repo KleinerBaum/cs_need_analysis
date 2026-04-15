@@ -30,7 +30,6 @@ from wizard_pages.base import (
     WizardContext,
     map_ui_mode_to_answer_mode,
     normalize_ui_mode,
-    set_current_step,
     sidebar_navigation,
 )
 
@@ -44,26 +43,14 @@ def _image_as_data_uri(image_path: Path, mime_type: str) -> str:
 def _inject_theme_styles() -> None:
     root_dir = Path(__file__).resolve().parent
     logo_path = root_dir / "images" / "animation_pulse_SingleColorHex1_7kigl22lw.gif"
-    bg_path = root_dir / "images" / "AdobeStock_506577005.jpeg"
 
     logo_uri = _image_as_data_uri(logo_path, "image/gif")
-    bg_uri = _image_as_data_uri(bg_path, "image/jpeg")
 
     st.markdown(
         f"""
         <style>
-            .stApp {{
-                background: #0A0A0A url("{bg_uri}") center center / cover no-repeat fixed;
-                color: #F5F5F5;
-            }}
-
             [data-testid="stHeader"] {{
                 background: transparent;
-            }}
-
-            [data-testid="stSidebar"] {{
-                background: #050505;
-                border-right: 1px solid #232323;
             }}
 
             [data-testid="stSidebarContent"]::before {{
@@ -74,91 +61,36 @@ def _inject_theme_styles() -> None:
                 margin: 0 auto 0.75rem auto;
                 background: url("{logo_uri}") center / contain no-repeat;
             }}
-
-            [data-testid="stMarkdownContainer"] p,
-            [data-testid="stMarkdownContainer"] li,
-            [data-testid="stMarkdownContainer"] span,
-            h1, h2, h3, h4, h5, h6,
-            label {{
-                color: #F5F5F5 !important;
-            }}
-
-            [data-testid="stAlert"] {{
-                background: #121212;
-                border: 1px solid #232323;
-                color: #F5F5F5;
-            }}
-
-            [data-testid="stForm"],
-            [data-testid="stExpander"] details,
-            [data-testid="stVerticalBlockBorderWrapper"] {{
-                background: #121212;
-                border: 1px solid #232323;
-                border-radius: 14px;
-            }}
             .block-container {{
-                max-width: 960px;
+                max-width: none;
                 padding-top: 1rem;
+                padding-left: clamp(1rem, 2vw, 2rem);
+                padding-right: clamp(1rem, 2vw, 2rem);
             }}
             [data-testid="stSidebarContent"] [data-testid="stVerticalBlock"] > div {{
                 row-gap: 8px;
-            }}
-            .cs-sidebar-link-list {{
-                display: flex;
-                flex-direction: column;
-                gap: 8px;
-                margin: 2px 0 0 0;
-            }}
-            .cs-sidebar-link-list a {{
-                color: #F5F5F5;
-                text-decoration: none;
-            }}
-            .cs-sidebar-link-list a:hover {{
-                color: #B8B8B8;
-                text-decoration: underline;
             }}
             .cs-sidebar-nav-gap {{
                 height: 22px;
             }}
 
-            .stButton > button {{
-                background-color: #1565c0;
-                color: #ffffff;
-                border: 1px solid rgba(255, 255, 255, 0.2);
-            }}
+            @media (max-width: 900px) {{
+                .block-container {{
+                    padding-left: 0.9rem;
+                    padding-right: 0.9rem;
+                }}
 
-            .stButton > button:hover {{
-                background-color: #0d47a1;
-                color: #ffffff;
-                border: 1px solid rgba(255, 255, 255, 0.35);
-            }}
+                h1 {{
+                    line-height: 1.2;
+                }}
 
-            .stDownloadButton > button {{
-                background-color: #1e7f5e;
-                color: #ffffff;
-                border: 1px solid rgba(255, 255, 255, 0.2);
-            }}
+                h2 {{
+                    line-height: 1.25;
+                }}
 
-            .stTextInput input,
-            .stTextArea textarea,
-            .stSelectbox [data-baseweb="select"] > div,
-            .stMultiSelect [data-baseweb="select"] > div {{
-                background-color: rgba(255, 255, 255, 0.96);
-                color: #10213f;
-            }}
-
-            /* Improve readability for preview-only textareas (e.g. upload excerpt). */
-            .stTextArea textarea:disabled {{
-                background:
-                    linear-gradient(
-                        140deg,
-                        rgba(17, 44, 82, 0.88),
-                        rgba(12, 32, 64, 0.92)
-                    ) !important;
-                color: #eaf2ff !important;
-                border: 1px solid rgba(126, 173, 255, 0.45) !important;
-                box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-                -webkit-text-fill-color: #eaf2ff !important;
+                [data-testid="stButton"] button {{
+                    min-height: 44px;
+                }}
             }}
         </style>
         """,
@@ -235,224 +167,6 @@ def _render_openai_debug_panel() -> None:
         if isinstance(structured_output_path, dict):
             debug_payload["structured_output_final_path"] = structured_output_path
         st.json(debug_payload, expanded=False)
-
-
-def _get_info_page_key() -> str | None:
-    query_params = st.query_params
-    info_param = query_params.get("info")
-    if isinstance(info_param, list):
-        info_param = info_param[0] if info_param else None
-    if isinstance(info_param, str) and info_param in {
-        "competencies",
-        "about",
-        "imprint",
-        "cookie",
-        "accessibility",
-        "contact",
-        "privacy",
-        "terms",
-    }:
-        return info_param
-    return None
-
-
-def _render_info_page_sidebar_navigation(ctx: WizardContext) -> None:
-    current_step = st.session_state.get(SSKey.CURRENT_STEP.value, ctx.pages[0].key)
-    wizard_keys = [page.key for page in ctx.pages]
-    current_index = (
-        wizard_keys.index(current_step) if current_step in wizard_keys else 0
-    )
-
-    selected_label = st.sidebar.radio(
-        "Prozess",
-        options=[page.label for page in ctx.pages],
-        index=current_index,
-        key="info_page.wizard_nav",
-    )
-
-    selected_page = next(page for page in ctx.pages if page.label == selected_label)
-    if selected_page.key != current_step:
-        set_current_step(selected_page.key)
-        st.query_params.clear()
-        st.rerun()
-
-
-def _render_info_page(info_page_key: str) -> None:
-    if info_page_key == "competencies":
-        st.title("Unsere Kompetenzen")
-        st.markdown(
-            """
-            Wir kombinieren strukturierte Intake-Prozesse, ESCO-gestützte Normalisierung,
-            modellgestützte Vorschläge und nachvollziehbare Export-Artefakte für Recruiting.
-            """
-        )
-    elif info_page_key == "about":
-        st.title("Über Cognitive Staffing")
-        st.markdown(
-            """
-            Diese App führt dich strukturiert durch die Erstellung eines Vacancy Briefs – von
-            den Basisdaten bis zur konsistenten Zusammenfassung für Recruiting und Hiring.
-            """
-        )
-        col_expert, col_guided = st.columns(2)
-        with col_expert:
-            show_expert_view = st.checkbox(
-                "Für fachlich-technische Einordnung",
-                key="about_view_technical_expert",
-            )
-        with col_guided:
-            show_guided_view = st.checkbox(
-                "Für praxisnahe, allgemeinverständliche Einordnung",
-                key="about_view_general_user",
-            )
-
-        if show_expert_view and show_guided_view:
-            st.info(
-                "Bitte wähle eine Perspektive aus, damit die Inhalte gezielt angezeigt werden."
-            )
-        elif show_expert_view:
-            st.markdown(
-                """
-            ### Gehen wir ins Detail
-            - **Wizard-Architektur mit Session-State:** Jeder Schritt schreibt in klar benannte
-              Session-Keys; so bleiben Eingaben und Ableitungen reproduzierbar.
-            - **Validierte Datenmodelle:** Eingaben und LLM-Antworten werden über Schema-/Model-
-              Validierung abgesichert, damit Folgeschritte mit stabilen Daten arbeiten.
-            - **Strukturierte LLM-Nutzung:** Die App nutzt strukturierte Outputs für Funktionen wie
-              Job-Ad-Extraktion, Aufgaben-Planung und Brief-Generierung.
-            - **Deterministische Fallbacks:** Bei fehlenden Keys/Antworten bleibt der Flow nutzbar
-              und zeigt sichere, nachvollziehbare Hinweise statt „stiller“ Fehler.
-            - **API-gestützte Erweiterbarkeit:** Externe Datenquellen (z. B. ESCO) werden als
-              Ergänzung in den Wizard eingebunden, um Begriffe zu normalisieren und Vorschläge
-              zu verbessern.
-                """
-            )
-        elif show_guided_view:
-            st.markdown(
-                """
-            ### Kurz und klar
-            - **Schritt-für-Schritt-Assistent:** Du beantwortest nacheinander verständliche Fragen.
-            - **Weniger Tipparbeit:** Die App schlägt Inhalte vor, die du übernehmen oder anpassen kannst.
-            - **Mehr Konsistenz:** Angaben aus frühen Schritten werden später wiederverwendet, damit
-              am Ende ein stimmiges Gesamtbild entsteht.
-            - **Klare Zusammenfassung:** Im letzten Schritt siehst du alle wichtigen Punkte gebündelt
-              und kannst sie direkt für weitere Prozesse verwenden.
-            - **Sicherer Umgang mit Daten:** Die App ist darauf ausgelegt, sensible Informationen nicht
-              unnötig anzuzeigen oder in Debug-Ansichten offenzulegen.
-                """
-            )
-    elif info_page_key == "imprint":
-        st.title("Impressum")
-        st.info("Inhaltliche Pflege erfolgt organisationseitig.")
-    elif info_page_key == "cookie":
-        st.title("Cookie Policy/Settings")
-        st.info(
-            "Vorbereitetes Informationsmodul: Cookie-Präferenzen folgen in einem separaten Release."
-        )
-    elif info_page_key == "accessibility":
-        st.title("Erklärung zur Barrierefreiheit")
-        st.info(
-            "Vorbereitete Seite: Barrierefreiheits-Statement wird zentral gepflegt."
-        )
-    elif info_page_key == "contact":
-        st.title("Kontakt")
-        st.info("Kontaktinformationen werden zentral bereitgestellt.")
-    elif info_page_key == "terms":
-        _render_legal_page("terms")
-        return
-    elif info_page_key == "privacy":
-        _render_legal_page("privacy")
-        return
-
-    if st.button("← Zurück zum Wizard", key=f"back.info.{info_page_key}"):
-        st.query_params.clear()
-        st.rerun()
-
-
-def _get_legal_page_key() -> str | None:
-    query_params = st.query_params
-    legal_param = query_params.get("legal")
-    if isinstance(legal_param, list):
-        legal_param = legal_param[0] if legal_param else None
-    if isinstance(legal_param, str) and legal_param in {"terms", "privacy"}:
-        return legal_param
-    return None
-
-
-def _render_legal_page(legal_page_key: str) -> None:
-    if legal_page_key == "terms":
-        st.title("Nutzungsbedingungen")
-        st.markdown(
-            """
-            ### EN
-            By using this application, you agree to use it only for lawful business purposes.
-            You are responsible for all data you provide and for checking generated results
-            before operational use. This tool is provided “as is”, without warranties of
-            merchantability, fitness for a particular purpose, or uninterrupted availability.
-
-            **Content Sharing Agreement (OpenAI):**
-            If your organization enables designated content sharing with OpenAI, designated
-            content may be used by OpenAI for service improvement and model development
-            (including training, evaluation, and testing). You confirm that your organization
-            has all required rights and that End Users were informed and, where required,
-            consent was obtained before data is shared for these purposes.
-
-            You and your End Users must not submit:
-            - sensitive/confidential/proprietary information that must not be used for development,
-            - HIPAA Protected Health Information (PHI),
-            - personal data of children under 13 (or below the local digital consent age).
-
-            ### DE
-            Mit der Nutzung dieser Anwendung stimmen Sie zu, sie ausschließlich für rechtmäßige
-            geschäftliche Zwecke zu verwenden. Sie sind für alle eingegebenen Daten verantwortlich
-            und müssen generierte Ergebnisse vor dem produktiven Einsatz prüfen. Das Tool wird
-            „wie besehen“ bereitgestellt, ohne Gewähr für Marktgängigkeit, Eignung für einen
-            bestimmten Zweck oder unterbrechungsfreie Verfügbarkeit.
-
-            **Content Sharing Agreement (OpenAI):**
-            Falls Ihre Organisation die Freigabe von Designated Content an OpenAI aktiviert,
-            kann dieser zur Verbesserung der Services und zur Modellentwicklung (u. a. Training,
-            Evaluierung und Tests) verwendet werden. Sie bestätigen, dass Ihre Organisation über
-            alle erforderlichen Rechte verfügt und Endnutzende informiert wurden und – sofern
-            erforderlich – eine Einwilligung eingeholt wurde.
-
-            Sie und Ihre Endnutzenden dürfen insbesondere **nicht** übermitteln:
-            - sensible/vertrauliche/proprietäre Informationen, die nicht für Entwicklungszwecke genutzt werden sollen,
-            - HIPAA-geschützte Gesundheitsdaten (PHI),
-            - personenbezogene Daten von Kindern unter 13 Jahren (bzw. unter dem lokal geltenden Mindestalter).
-            """
-        )
-    elif legal_page_key == "privacy":
-        st.title("Datenschutzerklärung")
-        st.markdown(
-            """
-            ### EN
-            This app processes user-provided content to generate hiring-related outputs.
-            Do not enter sensitive personal data unless you are authorized to process it.
-            Access credentials are loaded from secure environment variables or secrets and
-            should never be exposed in logs.
-
-            If content sharing for development purposes is enabled by your organization owner,
-            designated content may be processed by OpenAI as an independent Data Controller for
-            model and service improvement. The organization is responsible for end-user notice
-            and consent collection where required.
-
-            ### DE
-            Diese App verarbeitet von Nutzenden bereitgestellte Inhalte, um Recruiting-bezogene
-            Ausgaben zu erzeugen. Geben Sie keine sensiblen personenbezogenen Daten ein, sofern
-            dafür keine Berechtigung vorliegt. Zugangsdaten werden aus sicheren Umgebungsvariablen
-            oder Secrets geladen und dürfen niemals in Logs erscheinen.
-
-            Falls Content Sharing für Entwicklungszwecke durch den Organisations-Owner aktiviert
-            ist, kann Designated Content durch OpenAI als eigenständiger Data Controller zur
-            Modell- und Serviceverbesserung verarbeitet werden. Die Organisation ist für
-            Endnutzerhinweise und ggf. erforderliche Einwilligungen verantwortlich.
-            """
-        )
-
-    if st.button("← Zurück zum Wizard", key=f"back.legal.{legal_page_key}"):
-        st.query_params.clear()
-        st.rerun()
 
 
 def _render_preference_center_sidebar(
@@ -559,42 +273,12 @@ def _render_preferences_page() -> None:
 
 
 def _render_sidebar_actions() -> None:
-    """Render only the global preference center as last sidebar block."""
+    """Render non-wizard global sidebar controls."""
     with st.sidebar:
-        st.markdown("### Need-Analysis-Tool")
-        st.markdown('<div class="cs-sidebar-nav-gap"></div>', unsafe_allow_html=True)
-
-        st.markdown("**Über Cognitive Staffing**")
-        st.markdown(
-            """
-            <div class="cs-sidebar-link-list">
-              <a href="?info=competencies">Unsere Kompetenzen</a>
-              <a href="?info=about">Über Cognitive Staffing</a>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        st.markdown('<div class="cs-sidebar-nav-gap"></div>', unsafe_allow_html=True)
-
-        st.markdown("**Rechtliches**")
-        st.markdown(
-            """
-            <div class="cs-sidebar-link-list">
-              <a href="?info=contact">Kontakt</a>
-              <a href="?info=accessibility">Erklärung zur Barrierefreiheit</a>
-              <a href="?info=cookie">Cookies</a>
-              <a href="?info=terms">Nutzungsbedingungen</a>
-              <a href="?info=privacy">Datenschutzrichtlinie</a>
-              <a href="?info=imprint">Impressum</a>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        st.markdown('<div class="cs-sidebar-nav-gap"></div>', unsafe_allow_html=True)
+        st.caption("Globale Steuerung für den aktuellen Wizard-Kontext.")
         with st.expander("Präferenz-Center", expanded=False):
             _render_preference_center_sidebar()
-            
+
 
 def main() -> None:
     st.set_page_config(
@@ -610,25 +294,11 @@ def main() -> None:
     pages = load_pages()
     ctx = WizardContext(pages=pages)
 
-    info_page_key = _get_info_page_key()
-    if info_page_key is not None:
-        _render_info_page_sidebar_navigation(ctx)
-        _render_info_page(info_page_key)
-        _render_sidebar_actions()
-        st.session_state[SSKey.LAST_RENDERED_STEP.value] = None
-        return
-
-    legal_page_key = _get_legal_page_key()
-    if legal_page_key is not None:
-        _render_legal_page(legal_page_key)
-        _render_sidebar_actions()
-        st.session_state[SSKey.LAST_RENDERED_STEP.value] = None
-        return
     page_param = st.query_params.get("page")
     if isinstance(page_param, list):
         page_param = page_param[0] if page_param else None
     if page_param == "preferences":
-        _render_info_page_sidebar_navigation(ctx)
+        sidebar_navigation(ctx)
         _render_preferences_page()
         _render_sidebar_actions()
         st.session_state[SSKey.LAST_RENDERED_STEP.value] = None
