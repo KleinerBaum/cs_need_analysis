@@ -7,7 +7,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from config.constants import (
+from constants import (
     APP_TITLE,
     SSKey,
     UI_PREFERENCE_ANSWER_MODE,
