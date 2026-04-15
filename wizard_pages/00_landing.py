@@ -108,16 +108,6 @@ def render(ctx: WizardContext) -> None:
         )
     with language_col:
         render_esco_language_toggle()
-    with links_col:
-        st.markdown(
-            """
-            <span class="landing-app-links">
-                <a class="landing-app-link-pill" href="?info=esco">Über ESCO</a>
-                <a class="landing-app-link-pill" href="?info=about">Was passiert da und ist das sicher?</a>
-            </span>
-            """,
-            unsafe_allow_html=True,
-        )
     _, logo_col, _ = st.columns((1, 2, 1))
     with logo_col:
         _, centered_logo_col, _ = st.columns((1, 1, 1))
