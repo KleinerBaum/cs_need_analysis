@@ -307,7 +307,8 @@ def render_jobad_intake(
             set_error("Bitte zuerst ein Jobspec hochladen oder Text einfügen.")
             st.rerun()
 
-        redact = bool(st.session_state.get(SSKey.SOURCE_REDACT_PII.value, False))        submitted = redact_pii(raw) if redact else raw
+        redact = bool(st.session_state.get(SSKey.SOURCE_REDACT_PII.value, False))        
+        submitted = redact_pii(raw) if redact else raw
         session_override = get_model_override()
         store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
         settings = load_openai_settings()
