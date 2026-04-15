@@ -349,7 +349,6 @@ def render_jobad_intake(
             st.success("Fertig: Jobspec extrahiert und Fragebogen erzeugt.")
             if extract_cached or plan_cached:
                 st.info("Mindestens ein Ergebnis wurde aus dem Cache geladen.")        
-                )
         except OpenAICallError as e:
             render_openai_error(e)
         except Exception as exc:
