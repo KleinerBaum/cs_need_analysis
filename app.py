@@ -515,7 +515,7 @@ def _render_preference_center_sidebar(
     )
     pii_reduction = st.toggle(
         "PII-Reduktion",
-        value=bool(preferences.get(UI_PREFERENCE_PII_REDUCTION, True)),
+        value=bool(preferences.get(UI_PREFERENCE_PII_REDUCTION, False)),
         help="Reduziert sensible personenbezogene Angaben in der Verarbeitung, wo möglich.",
         key=f"{key_prefix}.pii_reduction",
     )
