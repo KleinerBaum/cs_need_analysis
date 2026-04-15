@@ -1,0 +1,67 @@
+model = "gpt-5.4-mini"
+review_model = "gpt-5.4"
+model_provider = "openai"
+personality = "pragmatic"
+service_tier = "flex"
+model_reasoning_effort = "medium"
+plan_mode_reasoning_effort = "high"
+model_reasoning_summary = "concise"
+model_verbosity = "low"
+approval_policy = "on-request"
+allow_login_shell = true
+sandbox_mode = "read-only"
+project_doc_max_bytes = 32768
+project_doc_fallback_filenames = []
+file_opener = "vscode"
+web_search = "cached"
+hide_agent_reasoning = false
+show_raw_agent_reasoning = false
+check_for_update_on_startup = true
+
+# Cross-repo defaults. Keep repo-specific rules in each repo's AGENTS.md / .codex/config.toml.
+developer_instructions = "Be surgical. State assumptions briefly, reference exact files/functions, prefer existing abstractions, and run targeted verification before broader checks. Do not add dependencies or widen permissions/scopes unless explicitly requested."
+
+[history]
+persistence = "save-all"
+
+[tui]
+notifications = false
+animations = true
+show_tooltips = true
+
+# Optional CLI-only profiles. IDE support for profiles is limited, so core defaults stay top-level.
+[profiles.deep-review]
+model = "gpt-5.4"
+review_model = "gpt-5.4"
+service_tier = "flex"
+model_reasoning_effort = "high"
+plan_mode_reasoning_effort = "high"
+model_reasoning_summary = "concise"
+model_verbosity = "low"
+approval_policy = "on-request"
+sandbox_mode = "read-only"
+web_search = "cached"
+
+[profiles.quick-iterate]
+model = "gpt-5.4-mini"
+review_model = "gpt-5.4"
+service_tier = "flex"
+model_reasoning_effort = "minimal"
+plan_mode_reasoning_effort = "medium"
+model_reasoning_summary = "concise"
+model_verbosity = "low"
+approval_policy = "on-request"
+sandbox_mode = "read-only"
+web_search = "cached"
+
+[profiles.live-research]
+model = "gpt-5.4-mini"
+review_model = "gpt-5.4"
+service_tier = "flex"
+model_reasoning_effort = "medium"
+plan_mode_reasoning_effort = "high"
+model_reasoning_summary = "concise"
+model_verbosity = "low"
+approval_policy = "on-request"
+sandbox_mode = "read-only"
+web_search = "live"

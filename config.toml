@@ -1,0 +1,37 @@
+model = "gpt-5.4-mini"
+review_model = "gpt-5.4"
+model_provider = "openai"
+personality = "pragmatic"
+service_tier = "flex"
+model_reasoning_effort = "medium"
+plan_mode_reasoning_effort = "high"
+model_reasoning_summary = "concise"
+model_verbosity = "low"
+approval_policy = "on-request"
+allow_login_shell = true
+sandbox_mode = "workspace-write"
+project_doc_max_bytes = 32768
+project_doc_fallback_filenames = []
+project_root_markers = [".git", ".devcontainer", "requirements.txt", "app.py"]
+file_opener = "vscode"
+web_search = "cached"
+hide_agent_reasoning = false
+show_raw_agent_reasoning = false
+check_for_update_on_startup = true
+
+# Repo-local guidance should live primarily in AGENTS.md. Keep this concise.
+developer_instructions = "Prefer minimal diffs. Use canonical constants and SSKey values. Run targeted pytest first, then broader checks only if needed. Do not add dependencies or widen OAuth scopes unless explicitly requested."
+
+[sandbox_workspace_write]
+writable_roots = []
+network_access = false
+exclude_tmpdir_env_var = false
+exclude_slash_tmp = false
+
+[history]
+persistence = "save-all"
+
+[tui]
+notifications = false
+animations = true
+show_tooltips = true
