@@ -122,7 +122,7 @@ def render(ctx: WizardContext) -> None:
     with logo_col:
         _, centered_logo_col, _ = st.columns((1, 1, 1))
         with centered_logo_col:
-            st.image("images/white_logo_color1_background.png", width=256)
+            st.image("images/white_logo_color1_background.png", width=320)
     st.title(str(LANDING_COPY["hero_headline"]))
     hero_subheadline = str(LANDING_COPY["hero_subheadline"])
     if hero_subheadline:
