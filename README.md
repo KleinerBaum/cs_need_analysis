@@ -8,7 +8,7 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 - Upload von Jobspec/Job Ad als **PDF**, **DOCX** oder **TXT** (alternativ: Text einfügen).
 - Entkoppeltes Quellenhandling im Intake: Upload-Text und manuelle Eingabe überschreiben sich nicht; die aktive Quelle wird zur Analyse genutzt.
 - LLM-gestützte **Extraktion** der Jobspec in ein strukturiertes Schema (Structured Outputs) und automatische Erzeugung eines dynamischen Frageplans.
-- Wizard mit Fortschrittsanzeige und drei Ansichtsmodi (`quick`, `standard`, `expert`) für die sichtbaren Navigationsschritte: Start, Unternehmen, Team, Rolle & Aufgaben, Skills, Benefits, Interviewprozess und Summary.
+- Wizard mit Fortschrittsanzeige und drei Ansichtsmodi (`quick`, `standard`, `expert`) für die sichtbaren Navigationsschritte: Start, Unternehmen, Rolle & Aufgaben, Skills, Benefits, Interviewprozess und Summary.
 - Der Ansichtsmodus (gespeicherte Werte: `quick`, `standard`, `expert`; Anzeige: `schnell`, `ausführlich`, `vollumfänglich`) ist global über das Sidebar-**Präferenz-Center** steuerbar und zusätzlich im Start-Schritt direkt unter dem Jobspec-Upload. Beim Wechsel greift sofort die adaptive Fragenbegrenzung (Neuberechnung der sichtbaren Fragen pro Step). In jedem Schritt wird der aktive Modus als sichtbare Caption angezeigt, damit reduzierte Frageanzahl nachvollziehbar bleibt. `schnell`/`ausführlich`: Detailgruppen standardmäßig kompakt. `vollumfänglich`: Detailgruppen standardmäßig geöffnet.
 - Die vormals getrennte Ansicht **Identifizierte Informationen** ist in den Start-Schritt integriert (eine Wizard-Stufe weniger): Nach der Analyse erscheinen dort direkt die editierbare Übersicht, Gaps/Annahmen und der Übergang von Phase B zu Phase C bzw. in den nächsten Fachschritt; es gibt **keinen separaten sichtbaren Review-Wizard-Schritt** mehr.
 - Finaler **Recruiting Brief** mit Export als JSON, Markdown und DOCX.
@@ -21,12 +21,12 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 - Beim Job-Ad-Generator liegen **Selection Matrix** und **Job-Ad-Editor** gebündelt im erweiterten Bereich (UI-Modus `expert`), inkl. optionalem Logo-Upload sowie Styleguide-/Change-Request-Bausteinen.
 - Der Salary Forecast ist in **Rolle & Aufgaben** als kompakte Seitenleiste rechts neben der Vergleichstabelle umgesetzt: Dort können **Suchradius (km)**, **Remote Share (%)** und **Erfahrung** gesetzt werden; per **„Prognose aktualisieren“** wird eine schlichte LLM-basierte EUR-Gehaltsprognose auf Basis von Jobtitel, Seniorität, Standort und aktuell ausgewählten Rollen/Aufgaben erzeugt.
 - In **Benefits & Rahmenbedingungen** wird der Salary-Forecast direkt im Schritt (ohne zusätzliche Grafiken) unter dem **Minimalprofil** angezeigt; erkannte Benefits können ein-/abgewählt werden. Zusammen mit Suchradius, Remote-Anteil und Erfahrung fließen sie per **„Prognose aktualisieren“** in die Gehaltsprognose ein.
-- ESCO-Integration in **Start · Phase C (ESCO-Suche)** ohne Expander mit Occupation-Picker, direkter Bestätigung via **„Speichern“** und 3-spaltiger Trefferübersicht; diese Bestätigung erfolgt vor der Weiterarbeit in Team/Skills und dient dort als Downstream-Grundlage. Zusätzlich gibt es einen expandierbaren Occupation-Detailbereich (u. a. Preferred/Alternative Labels, Description, Scope Note, ISCO-08, Regulated Profession sowie Skill-/Knowledge-Relationen) sowie optionales Laden von Occupation-Titelvarianten in mehreren Sprachen.
+- ESCO-Integration in **Start · Phase C (ESCO-Suche)** ohne Expander mit Occupation-Picker, direkter Bestätigung via **„Speichern“** und 3-spaltiger Trefferübersicht; diese Bestätigung erfolgt vor der Weiterarbeit im integrierten Unternehmens-/Teamkontext sowie im Skills-Schritt und dient dort als Downstream-Grundlage. Zusätzlich gibt es einen expandierbaren Occupation-Detailbereich (u. a. Preferred/Alternative Labels, Description, Scope Note, ISCO-08, Regulated Profession sowie Skill-/Knowledge-Relationen) sowie optionales Laden von Occupation-Titelvarianten in mehreren Sprachen.
 - Degradiertes Verhalten bei ESCO-Ausfall: Bei temporären ESCO-Fehlern (z. B. 5xx/Netzwerk) bleibt der Wizard bedienbar, zeigt verständliche Hinweise und bietet „manuell fortfahren“ sowie „später erneut versuchen“ statt eines harten Abbruchs.
 - Skills-Mapping als geführter 4-Schritt-Flow: (1) extrahierte Jobspec-Phrasen, (2) ESCO-Normalisierung über Occupation-Relationen, (3) sichtbare Essential/Optional-Bestätigung, (4) dedizierter Bereich „Not normalized yet“ mit Optionen „Keep free text“, Retry-Suche und Attach an Occupation.
 - Optionales NACE/EURES-Mapping im Unternehmensschritt als Grundlage für spätere Country-/Occupation-Kontexte; die Summary-Readiness bewertet den bestätigten semantischen Anker (ESCO) und NACE separat.
 - Unternehmensschritt mit Homepage-Enrichment (Beta): Die aus dem Jobspec extrahierte Arbeitgeber-URL kann per Buttons für **Über uns**, **Impressum** und **Vision/Mission** analysiert werden; essenzielle Textausschnitte werden rechts angezeigt, mit offenen Wizard-Fragen abgeglichen, im Session-State gespeichert und in die Brief-Generierung im Summary-Schritt eingespeist.
-- Der Team-Schritt enthält ein zweizoniges **Role-context enrichment (ESCO)**-Muster: links klar als **Inferred suggestion/context** markierte Hinweise (inkl. Match-Provenance/-Confidence, falls vorhanden), rechts der Bereich **Confirmed input** aus der kanonischen Team-Notiz. Die Übernahme erfolgt gesammelt über eine eindeutige Aktion „Ausgewählte Vorschläge als confirmed selection übernehmen“.
+- Der Unternehmensschritt umfasst neben dem Unternehmenskontext auch den Teamkontext inkl. Team-Fragen und enthält dafür ein zweizoniges **Role-context enrichment (ESCO)**-Muster: links klar als **Inferred suggestion/context** markierte Hinweise (inkl. Match-Provenance/-Confidence, falls vorhanden), rechts der Bereich **Confirmed input** aus der kanonischen Team-Notiz. Die Übernahme erfolgt gesammelt über eine eindeutige Aktion „Ausgewählte Vorschläge als confirmed selection übernehmen“.
 - Primäre Fakten-Tabelle in der Summary (Bereich/Feld/Wert/Quelle/Status) unterhalb des Recruiting Briefs mit 2/3-Tabellenbereich und 1/3 Filterspalte (Suche/Status), plus sekundärer Kompaktüberblick und ESCO Mapping Report (JSON/CSV-Export).
 - In den Schritten **Rolle & Aufgaben** sowie **Skills & Anforderungen** läuft die Übernahme über „**Vergleichen & übernehmen**“-Tabellen: Vorschläge aus Jobspec, ESCO und AI werden nebeneinander gestellt und selektiv übernommen; im Skills-Schritt zusätzlich mit Quellen-Badges (`Jobspec`, `ESCO essential`, `ESCO optional`, `AI suggestion`) und kanonischer Semantik mit **Inferred suggestion/context** und **confirmed selection** (`Confirm essential as confirmed selection`, `Confirm optional as confirmed selection`).
 - Session-basiertes LLM-Response-Caching mit Cache-Hinweisen in Intake/Summary (DE/EN), inkl. Cache-Status für Folgeartefakte.
@@ -37,13 +37,12 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
    - Phase A: Quelle, Consent, optionale PII-Redaktion, UI-Modus (global zusätzlich über Sidebar-Präferenz-Center steuerbar)
    - Phase B: editierbare „Identifizierte Informationen“ + Gaps/Assumptions
    - Phase C: ESCO-Suche (verpflichtende Bestätigung vor „Weiter“)
-2. **Unternehmen** (optionaler NACE-Code, falls Mapping geladen ist, plus Homepage-Enrichment für Über-uns/Impressum/Vision-Mission)
-3. **Team**
-4. **Rolle & Aufgaben**
-5. **Skills & Anforderungen**
-6. **Benefits & Rahmenbedingungen**
-7. **Interviewprozess**
-8. **Zusammenfassung** (integrierte Readiness-Ansicht mit Fakten, Aktionen, Ergebnissen und Export)
+2. **Unternehmen** (Unternehmenskontext plus integrierter Teamkontext/Team-Fragen inkl. ESCO-Teamkontext-Anreicherung; optionaler NACE-Code, falls Mapping geladen ist; plus Homepage-Enrichment für Über-uns/Impressum/Vision-Mission)
+3. **Rolle & Aufgaben**
+4. **Skills & Anforderungen**
+5. **Benefits & Rahmenbedingungen**
+6. **Interviewprozess**
+7. **Zusammenfassung** (integrierte Readiness-Ansicht mit Fakten, Aktionen, Ergebnissen und Export)
 
 Hinweis: Der frühere Schritt `jobspec_review` ist nur noch als Legacy-Modul vorhanden und nicht routbar.
 
