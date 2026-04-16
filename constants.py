@@ -79,6 +79,9 @@ STEP_KEY_LANDING: Final[str] = "landing"
 # Start phases B/C, so this key must stay out of active runtime step contracts.
 STEP_KEY_JOBSPEC_REVIEW: Final[str] = "jobspec_review"
 STEP_KEY_COMPANY: Final[str] = "company"
+# Legacy-only key: Team is no longer part of the visible canonical wizard
+# navigation, but this step key remains for backward compatibility with
+# historical question plans/answers and legacy artifacts.
 STEP_KEY_TEAM: Final[str] = "team"
 STEP_KEY_ROLE_TASKS: Final[str] = "role_tasks"
 STEP_KEY_SKILLS: Final[str] = "skills"
@@ -244,7 +247,6 @@ class WizardStepDef:
 STEPS: Final[List[WizardStepDef]] = [
     WizardStepDef(key=STEP_KEY_LANDING, title_de="Start", icon="🏁"),
     WizardStepDef(key=STEP_KEY_COMPANY, title_de="Unternehmen", icon="🏢"),
-    WizardStepDef(key=STEP_KEY_TEAM, title_de="Team", icon="👥"),
     WizardStepDef(key=STEP_KEY_ROLE_TASKS, title_de="Rolle & Aufgaben", icon="🧭"),
     WizardStepDef(key=STEP_KEY_SKILLS, title_de="Skills & Anforderungen", icon="🧠"),
     WizardStepDef(
