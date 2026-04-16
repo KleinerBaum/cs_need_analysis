@@ -472,15 +472,10 @@ def _render_extracted_slot(job: JobAdExtract) -> None:
 def _render_main_slot(
     *,
     job: JobAdExtract,
-    step: QuestionStep | None,
     selected_occupation: dict[str, Any] | None,
     coverage_snapshot: EscoCoverageSnapshot,
     show_esco_sections: bool,
 ) -> None:
-    if step is not None and step.questions:
-        st.markdown("### Minimalprofil")
-        render_question_step(step)
-
     must_have_skills = [x for x in job.must_have_skills if has_meaningful_value(x)]
     nice_to_have_skills = [
         x for x in job.nice_to_have_skills if has_meaningful_value(x)
@@ -785,6 +780,7 @@ def _render_main_slot(
         llm_suggested=llm_suggested,
     )
 
+def _render_salary_forecast_slot(job: JobAdExtract) -> None:
     st.markdown("### Salary Forecast")
     salary_left, salary_right = st.columns((3, 2), gap="large")
     selected_skills_raw = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
@@ -922,6 +918,12 @@ def _render_main_slot(
             st.info("Noch keine Gehaltsprognose vorhanden.")
 
 
+def _render_open_questions_slot(step: QuestionStep | None) -> None:
+    if step is not None and step.questions:
+        st.markdown("### Minimalprofil")
+        render_question_step(step)
+
+
 def render(ctx: WizardContext) -> None:
     render_error_banner()
 
@@ -955,13 +957,14 @@ def render(ctx: WizardContext) -> None:
         extracted_from_jobspec_slot=lambda: _render_extracted_slot(job),
         extracted_from_jobspec_label="Aus der Anzeige extrahierte Skills",
         extracted_from_jobspec_use_expander=False,
-        main_content_slot=lambda: _render_main_slot(
+        source_comparison_slot=lambda: _render_main_slot(
             job=job,
-            step=step,
             selected_occupation=selected_occupation,
             coverage_snapshot=coverage_snapshot,
             show_esco_sections=show_esco_sections,
         ),
+        salary_forecast_slot=lambda: _render_salary_forecast_slot(job),
+        open_questions_slot=lambda: _render_open_questions_slot(step),
         review_slot=lambda: render_standard_step_review(step),
         footer_slot=lambda: nav_buttons(ctx),
     )

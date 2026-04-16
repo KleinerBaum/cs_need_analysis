@@ -55,7 +55,10 @@ def render_step_shell(
     extracted_from_jobspec_slot: Callable[[], None] | None = None,
     extracted_from_jobspec_label: str = "Aus Jobspec extrahiert",
     extracted_from_jobspec_use_expander: bool = True,
-    main_content_slot: Callable[[], None],
+    source_comparison_slot: Callable[[], None] | None = None,
+    salary_forecast_slot: Callable[[], None] | None = None,
+    open_questions_slot: Callable[[], None] | None = None,
+    main_content_slot: Callable[[], None] | None = None,
     review_slot: Callable[[], None] | None = None,
     footer_slot: Callable[[], None] | None = None,
 ) -> None:
@@ -88,7 +91,23 @@ def render_step_shell(
             st.markdown(f"### {extracted_from_jobspec_label}")
             extracted_from_jobspec_slot()
 
-    main_content_slot()
+    uses_new_slots = any(
+        slot is not None
+        for slot in (
+            source_comparison_slot,
+            salary_forecast_slot,
+            open_questions_slot,
+        )
+    )
+    if uses_new_slots:
+        if source_comparison_slot is not None:
+            source_comparison_slot()
+        if salary_forecast_slot is not None:
+            salary_forecast_slot()
+        if open_questions_slot is not None:
+            open_questions_slot()
+    elif main_content_slot is not None:
+        main_content_slot()
     if review_slot is not None:
         review_slot()
 

@@ -374,7 +374,7 @@ def render(ctx: WizardContext) -> None:
         extracted_from_jobspec_slot=_render_extracted_slot,
         extracted_from_jobspec_label="Details",
         extracted_from_jobspec_use_expander=False,
-        main_content_slot=_render_main_slot,
+        open_questions_slot=_render_main_slot,
         review_slot=_render_review_slot,
         footer_slot=lambda: nav_buttons(ctx),
     )
