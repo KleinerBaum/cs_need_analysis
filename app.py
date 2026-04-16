@@ -280,6 +280,30 @@ def _render_sidebar_actions() -> None:
             _render_preference_center_sidebar()
 
 
+def _reset_scroll_on_step_change() -> None:
+    """Reset scroll position on step changes using native Streamlit HTML rendering."""
+    if not hasattr(st, "html"):
+        return
+    st.html(
+        """
+        <script>
+        const topOptions = { top: 0, behavior: "instant" };
+        try {
+            if (window.parent && typeof window.parent.scrollTo === "function") {
+                window.parent.scrollTo(topOptions);
+            } else if (typeof window.scrollTo === "function") {
+                window.scrollTo(topOptions);
+            }
+        } catch (error) {
+            if (typeof window.scrollTo === "function") {
+                window.scrollTo(topOptions);
+            }
+        }
+        </script>
+        """
+    )
+
+
 def main() -> None:
     st.set_page_config(
         page_title=APP_TITLE,
@@ -307,27 +331,7 @@ def main() -> None:
     current = sidebar_navigation(ctx)
     step_changed = bool(previous_step and previous_step != current.key)
     if step_changed:
-        # Keep inline HTML script until Streamlit offers an equivalent native API
-        # for parent-window scroll reset on wizard step changes.
-        st.components.v1.html(
-            """
-            <script>
-            const topOptions = { top: 0, behavior: "instant" };
-            try {
-                if (window.parent && typeof window.parent.scrollTo === "function") {
-                    window.parent.scrollTo(topOptions);
-                } else if (typeof window.scrollTo === "function") {
-                    window.scrollTo(topOptions);
-                }
-            } catch (error) {
-                if (typeof window.scrollTo === "function") {
-                    window.scrollTo(topOptions);
-                }
-            }
-            </script>
-            """,
-            height=0,
-        )
+        _reset_scroll_on_step_change()
 
     current.render(ctx)
     _render_sidebar_actions()

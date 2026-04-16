@@ -64,7 +64,7 @@ Hinweis: Der frühere Schritt `jobspec_review` ist nur noch als Legacy-Modul vor
 
 - Breitensteuerung bei Medien nutzt die aktuelle API (`width="stretch"` / `width="content"`), nicht mehr `use_container_width=...`.
 - Für eingebettete externe Inhalte ist `st.iframe(...)` der bevorzugte Weg.
-- Aktuell gibt es eine gezielte technische Ausnahme mit `st.components.v1.html(...)` in `app.py`: ein sehr kurzes Inline-Script setzt beim Wizard-Step-Wechsel die Scroll-Position zuverlässig auf den Seitenanfang (Parent-Window-Scroll). Das ist kein URL-Embed und aktuell nicht gleichwertig durch `st.iframe(...)` ersetzbar.
+- Beim Wizard-Step-Wechsel nutzt `app.py` für den Scroll-Reset die native API `st.html(...)` (ohne `st.components.v1.html(...)`). Falls die API in einer älteren Runtime nicht vorhanden ist, bleibt das Verhalten ohne zusätzlichen Fallback-Script bei normaler Streamlit-Navigation.
 
 ## Installation
 
