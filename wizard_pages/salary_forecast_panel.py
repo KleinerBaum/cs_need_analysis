@@ -716,41 +716,23 @@ def render_benefits_salary_forecast_panel(
         nonlocal selected_benefits
         if benefit_candidates:
             st.caption(
-                "Benefits für die Kalkulation auswählen. Nur ausgewählte Zeilen fließen in die Prognose ein."
+                "Gewählte Benefits als Einflussfaktoren für die Prognose (Review-Ansicht)."
             )
-            source_rows = {
-                "Einbeziehen": [True for _ in benefit_candidates],
-                "Benefit": benefit_candidates,
-            }
-            edited_rows = st.data_editor(
-                source_rows,
-                hide_index=True,
-                width="stretch",
-                column_config={
-                    "Einbeziehen": st.column_config.CheckboxColumn(
-                        "Einbeziehen", help="Auswahl für Salary Forecast"
+            column_count = min(3, max(2, len(benefit_candidates) // 5 + 1))
+            review_columns = st.columns(column_count, gap="small")
+            for index, benefit in enumerate(benefit_candidates):
+                with review_columns[index % column_count]:
+                    st.markdown(f"- {benefit}")
+            with st.expander("Auswahl anpassen (optional)"):
+                selected_benefits = st.multiselect(
+                    "Einflussfaktoren: Benefits",
+                    options=benefit_candidates,
+                    default=benefit_candidates,
+                    help=(
+                        "Nur bei Bedarf anpassen. Standardmäßig fließen alle gewählten "
+                        "Benefits als Einflussfaktoren ein."
                     ),
-                    "Benefit": st.column_config.TextColumn(
-                        "Benefit", disabled=True, width="large"
-                    ),
-                },
-                disabled=["Benefit"],
-            )
-            selected_benefits = []
-            if isinstance(edited_rows, dict):
-                include_values = edited_rows.get("Einbeziehen", [])
-                benefit_values = edited_rows.get("Benefit", [])
-                if isinstance(include_values, list) and isinstance(benefit_values, list):
-                    for include, raw_value in zip(include_values, benefit_values):
-                        value = str(raw_value or "").strip()
-                        if include and value:
-                            selected_benefits.append(value)
-            elif hasattr(edited_rows, "to_dict"):
-                for row in edited_rows.to_dict("records"):
-                    include = bool(row.get("Einbeziehen"))
-                    value = str(row.get("Benefit") or "").strip()
-                    if include and value:
-                        selected_benefits.append(value)
+                )
         selected_factor_count = len([item for item in _factor_candidates() if item])
         st.caption(f"Einbezogene Faktoren (inkl. Benefits): {selected_factor_count}")
 
