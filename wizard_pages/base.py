@@ -850,12 +850,14 @@ def render_ui_mode_selector(
 ) -> str:
     ui_mode_key = widget_key or SSKey.UI_MODE.value
     selectbox = st.sidebar.selectbox if sidebar else st.selectbox
-    current_mode = get_current_ui_mode()
+    normalized_mode = normalize_ui_mode(
+        st.session_state.get(ui_mode_key, get_current_ui_mode())
+    )
+    st.session_state[ui_mode_key] = normalized_mode
     selected_mode = selectbox(
         "Wie weit möchten Sie ins Detail gehen?",
         options=list(UI_MODE_VALUES),
         key=ui_mode_key,
-        index=list(UI_MODE_VALUES).index(current_mode),
         format_func=lambda mode: UI_MODE_DISPLAY_LABELS.get(
             mode, str(mode).capitalize()
         ),

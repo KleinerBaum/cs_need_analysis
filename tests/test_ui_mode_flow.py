@@ -32,16 +32,17 @@ class _FakeStreamlit:
         *,
         options: list[str],
         key: str,
-        index: int,
+        index: int | None = None,
         on_change: Any | None = None,
         **_kwargs: Any,
     ) -> str:
         if key not in self.session_state:
-            self.session_state[key] = options[index]
+            fallback_index = index if index is not None else 0
+            self.session_state[key] = options[fallback_index]
         self.session_state.locked_keys.add(key)
         if on_change is not None:
             on_change()
-        return options[index]
+        return str(self.session_state[key])
 
 
 def test_render_ui_mode_selector_does_not_mutate_widget_bound_mode_key(
