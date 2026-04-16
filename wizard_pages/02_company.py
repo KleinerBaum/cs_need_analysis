@@ -20,6 +20,7 @@ from ui_components import (
 )
 from ui_layout import render_step_shell
 from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
+from wizard_pages.team_section import render_team_questions_with_optional_esco_context
 
 _PAGE_KEYWORDS: dict[str, tuple[str, ...]] = {
     "about": ("über uns", "ueber uns", "about", "unternehmen", "company"),
@@ -345,7 +346,8 @@ def render(ctx: WizardContext) -> None:
     if preflight is None:
         return
     job, plan = preflight
-    step = next((s for s in plan.steps if s.step_key == "company"), None)
+    step_company = next((s for s in plan.steps if s.step_key == "company"), None)
+    step_team = next((s for s in plan.steps if s.step_key == "team"), None)
 
     def _render_extracted_slot() -> None:
         extracted_rows = [
@@ -369,12 +371,20 @@ def render(ctx: WizardContext) -> None:
         render_error_banner()
         _render_website_enrichment(job, plan)
         _render_optional_nace_section()
-        if step is None or not step.questions:
+        if step_company is None or not step_company.questions:
             st.info(
                 "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
             )
-            return
-        render_question_step(step)
+        else:
+            render_question_step(step_company)
+
+        st.divider()
+        st.markdown("### Team")
+        render_team_questions_with_optional_esco_context(
+            step=step_team,
+            ctx=ctx,
+            show_error_banner=False,
+        )
 
     render_step_shell(
         title=_format_company_header(job),
@@ -383,11 +393,11 @@ def render(ctx: WizardContext) -> None:
             "Ein klarer Company-Kontext (Mission, Markt, Brand, Rahmenbedingungen), "
             "den Recruiting und Kandidat:innen einheitlich nutzen."
         ),
-        step=step,
+        step=step_company,
         extracted_from_jobspec_slot=_render_extracted_slot,
         extracted_from_jobspec_label="Aus Jobspec extrahiert (Company & Location)",
         main_content_slot=_render_main_slot,
-        review_slot=lambda: render_standard_step_review(step),
+        review_slot=lambda: render_standard_step_review(step_company),
         footer_slot=lambda: nav_buttons(ctx),
     )
 
