@@ -562,6 +562,99 @@ def _format_eur(value: int) -> str:
     return f"{value:,} €".replace(",", ".")
 
 
+def _render_influence_factor_header(
+    *,
+    title: str,
+    items: list[str],
+    empty_caption: str,
+    intro_caption: str | None = None,
+) -> None:
+    st.markdown(f"##### {title}")
+    if intro_caption:
+        st.caption(intro_caption)
+    if not items:
+        st.caption(empty_caption)
+        return
+    column_count = min(3, max(2, len(items) // 5 + 1))
+    columns = st.columns(column_count, gap="small")
+    for index, item in enumerate(items):
+        with columns[index % column_count]:
+            st.markdown(f"- {item}")
+
+
+def _render_common_scenario_inputs() -> None:
+    st.slider(
+        "Suchradius (km)",
+        min_value=0,
+        max_value=500,
+        step=5,
+        key=SSKey.SALARY_SCENARIO_RADIUS_KM.value,
+    )
+    st.slider(
+        "Remote Share (%)",
+        min_value=0,
+        max_value=100,
+        step=5,
+        key=SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value,
+    )
+    st.selectbox(
+        "Erfahrung",
+        options=["", *SENIORITY_SWEEP_VALUES],
+        format_func=lambda value: "(keine)" if not value else value,
+        key=SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value,
+    )
+
+
+def _run_step_salary_forecast_generation(
+    *,
+    job: JobAdExtract,
+    selected_inputs: list[str],
+    model: str,
+    language: str,
+    store: bool,
+) -> tuple[int, str, dict[str, Any]]:
+    forecast, usage = generate_role_tasks_salary_forecast(
+        job_title=str(job.job_title or "").strip(),
+        location_city=str(job.location_city or "").strip(),
+        location_country=str(job.location_country or "").strip(),
+        seniority=str(
+            st.session_state.get(
+                SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value,
+                job.seniority_level or "",
+            )
+        ).strip(),
+        selected_tasks=selected_inputs,
+        search_radius_km=_safe_int(
+            st.session_state.get(SSKey.SALARY_SCENARIO_RADIUS_KM.value, 50)
+        ),
+        remote_share_percent=_safe_int(
+            st.session_state.get(SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value, 0)
+        ),
+        model=model,
+        language=language,
+        store=store,
+    )
+    return (
+        forecast.yearly_salary_eur,
+        forecast.confidence_note,
+        usage or {},
+    )
+
+
+def _read_last_forecast_payload() -> tuple[dict[str, Any], int, str]:
+    last_result = st.session_state.get(SSKey.SALARY_FORECAST_LAST_RESULT.value, {})
+    forecast_payload = (
+        last_result.get("forecast", {}) if isinstance(last_result, dict) else {}
+    )
+    p50_value = _safe_int(forecast_payload.get("p50"))
+    note = (
+        str(last_result.get("confidence_note") or "").strip()
+        if isinstance(last_result, dict)
+        else ""
+    )
+    return forecast_payload, p50_value, note
+
+
 def render_salary_forecast_step_sections(
     *,
     influence_factors_slot: Callable[[], None],
@@ -599,56 +692,21 @@ def render_role_tasks_salary_forecast_panel(
         st.caption(f"Ausgewählte Rollen/Aufgaben: {selected_count}")
 
     def _render_scenario_controls() -> None:
-        st.slider(
-            "Suchradius (km)",
-            min_value=0,
-            max_value=500,
-            step=5,
-            key=SSKey.SALARY_SCENARIO_RADIUS_KM.value,
-        )
-        st.slider(
-            "Remote Share (%)",
-            min_value=0,
-            max_value=100,
-            step=5,
-            key=SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value,
-        )
-        st.selectbox(
-            "Erfahrung",
-            options=["", *SENIORITY_SWEEP_VALUES],
-            format_func=lambda value: "(keine)" if not value else value,
-            key=SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value,
-        )
+        _render_common_scenario_inputs()
         if st.button("Prognose aktualisieren", width="stretch"):
             with st.spinner("Berechne Gehaltsprognose …"):
-                forecast, usage = generate_role_tasks_salary_forecast(
-                    job_title=str(job.job_title or "").strip(),
-                    location_city=str(job.location_city or "").strip(),
-                    location_country=str(job.location_country or "").strip(),
-                    seniority=str(
-                        st.session_state.get(
-                            SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value,
-                            job.seniority_level or "",
-                        )
-                    ).strip(),
-                    selected_tasks=selected_tasks,
-                    search_radius_km=_safe_int(
-                        st.session_state.get(SSKey.SALARY_SCENARIO_RADIUS_KM.value, 50)
-                    ),
-                    remote_share_percent=_safe_int(
-                        st.session_state.get(
-                            SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value, 0
-                        )
-                    ),
+                p50, confidence_note, usage = _run_step_salary_forecast_generation(
+                    job=job,
+                    selected_inputs=selected_tasks,
                     model=model,
                     language=language,
                     store=store,
                 )
             st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {
-                "forecast": {"p50": forecast.yearly_salary_eur},
+                "forecast": {"p50": p50},
                 "currency": "EUR",
                 "period": "year",
-                "confidence_note": forecast.confidence_note,
+                "confidence_note": confidence_note,
                 "inputs": {
                     "selected_tasks": selected_tasks,
                     "radius_km": _safe_int(
@@ -669,14 +727,9 @@ def render_role_tasks_salary_forecast_panel(
             }
 
     def _render_forecast_result() -> None:
-        last_result = st.session_state.get(SSKey.SALARY_FORECAST_LAST_RESULT.value, {})
-        forecast_payload = (
-            last_result.get("forecast", {}) if isinstance(last_result, dict) else {}
-        )
-        p50_value = _safe_int(forecast_payload.get("p50"))
+        _, p50_value, note = _read_last_forecast_payload()
         if p50_value > 0:
             st.metric("Gehaltsprognose (Jahr)", _format_eur(p50_value))
-            note = str(last_result.get("confidence_note") or "").strip()
             if note:
                 st.caption(note)
         else:
@@ -714,81 +767,42 @@ def render_benefits_salary_forecast_panel(
 
     def _render_influence_factors() -> None:
         nonlocal selected_benefits
-        if benefit_candidates:
-            st.caption(
-                "Gewählte Benefits als Einflussfaktoren für die Prognose (Review-Ansicht)."
-            )
-            column_count = min(3, max(2, len(benefit_candidates) // 5 + 1))
-            review_columns = st.columns(column_count, gap="small")
-            for index, benefit in enumerate(benefit_candidates):
-                with review_columns[index % column_count]:
-                    st.markdown(f"- {benefit}")
-            with st.expander("Auswahl anpassen (optional)"):
-                selected_benefits = st.multiselect(
-                    "Einflussfaktoren: Benefits",
-                    options=benefit_candidates,
-                    default=benefit_candidates,
-                    help=(
-                        "Nur bei Bedarf anpassen. Standardmäßig fließen alle gewählten "
-                        "Benefits als Einflussfaktoren ein."
-                    ),
-                )
+        _render_influence_factor_header(
+            title="Einflussfaktoren: Gewählte Benefits",
+            items=benefit_candidates,
+            empty_caption="Keine Benefits ausgewählt – Prognose wird ohne Benefit-Einflussfaktoren berechnet.",
+            intro_caption="Gewählte Benefits werden als Einflussfaktoren für die Prognose verwendet.",
+        )
+        selected_benefits = st.multiselect(
+            "Einflussfaktoren: Benefits",
+            options=benefit_candidates,
+            default=benefit_candidates,
+            help=(
+                "Nur bei Bedarf anpassen. Standardmäßig fließen alle gewählten "
+                "Benefits als Einflussfaktoren ein."
+            ),
+        )
         selected_factor_count = len([item for item in _factor_candidates() if item])
         st.caption(f"Einbezogene Faktoren (inkl. Benefits): {selected_factor_count}")
 
     def _render_scenario_controls() -> None:
-        st.slider(
-            "Suchradius (km)",
-            min_value=0,
-            max_value=500,
-            step=5,
-            key=SSKey.SALARY_SCENARIO_RADIUS_KM.value,
-        )
-        st.slider(
-            "Remote Share (%)",
-            min_value=0,
-            max_value=100,
-            step=5,
-            key=SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value,
-        )
-        st.selectbox(
-            "Erfahrung",
-            options=["", *SENIORITY_SWEEP_VALUES],
-            format_func=lambda value: "(keine)" if not value else value,
-            key=SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value,
-        )
+        _render_common_scenario_inputs()
         if st.button(
             "Prognose aktualisieren", width="stretch", key="benefits.salary.update"
         ):
             with st.spinner("Berechne Gehaltsprognose …"):
-                forecast, usage = generate_role_tasks_salary_forecast(
-                    job_title=str(job.job_title or "").strip(),
-                    location_city=str(job.location_city or "").strip(),
-                    location_country=str(job.location_country or "").strip(),
-                    seniority=str(
-                        st.session_state.get(
-                            SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value,
-                            job.seniority_level or "",
-                        )
-                    ).strip(),
-                    selected_tasks=[item for item in _factor_candidates() if item],
-                    search_radius_km=_safe_int(
-                        st.session_state.get(SSKey.SALARY_SCENARIO_RADIUS_KM.value, 50)
-                    ),
-                    remote_share_percent=_safe_int(
-                        st.session_state.get(
-                            SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value, 0
-                        )
-                    ),
+                p50, confidence_note, usage = _run_step_salary_forecast_generation(
+                    job=job,
+                    selected_inputs=[item for item in _factor_candidates() if item],
                     model=model,
                     language=language,
                     store=store,
                 )
             st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {
-                "forecast": {"p50": forecast.yearly_salary_eur},
+                "forecast": {"p50": p50},
                 "currency": "EUR",
                 "period": "year",
-                "confidence_note": forecast.confidence_note,
+                "confidence_note": confidence_note,
                 "inputs": {
                     "benefits_selected": selected_benefits,
                     "factors": [item for item in _factor_candidates() if item],
@@ -811,14 +825,9 @@ def render_benefits_salary_forecast_panel(
             }
 
     def _render_forecast_result() -> None:
-        last_result = st.session_state.get(SSKey.SALARY_FORECAST_LAST_RESULT.value, {})
-        forecast_payload = (
-            last_result.get("forecast", {}) if isinstance(last_result, dict) else {}
-        )
-        p50_value = _safe_int(forecast_payload.get("p50"))
+        _, p50_value, note = _read_last_forecast_payload()
         if p50_value > 0:
             st.metric("Erwartetes Jahresgehalt", _format_eur(p50_value))
-            note = str(last_result.get("confidence_note") or "").strip()
             if note:
                 st.caption(note)
         else:
@@ -869,60 +878,43 @@ def render_skills_salary_forecast_panel(
         return must_priority, nice_priority
 
     def _render_influence_factors() -> None:
-        with st.container(border=True):
-            st.caption("Skill-Priorisierung")
-            default_must = st.session_state.get(priority_must_key, unique_selected_skills)
-            must_default = [
-                skill
-                for skill in (default_must if isinstance(default_must, list) else [])
-                if skill in unique_selected_skills
-            ] or unique_selected_skills
-            chosen_must = st.multiselect(
-                "Must-have",
-                options=unique_selected_skills,
-                default=must_default,
-                key=priority_must_key,
-            )
-            remaining_options = [
-                skill for skill in unique_selected_skills if skill not in chosen_must
-            ]
-            default_nice = st.session_state.get(priority_nice_key, [])
-            nice_default = [
-                skill
-                for skill in (default_nice if isinstance(default_nice, list) else [])
-                if skill in remaining_options
-            ]
-            chosen_nice = st.multiselect(
-                "Nice-to-have",
-                options=remaining_options,
-                default=nice_default,
-                key=priority_nice_key,
-            )
-            st.caption(f"Must-have: {len(chosen_must)} · Nice-to-have: {len(chosen_nice)}")
+        _render_influence_factor_header(
+            title="Einflussfaktoren: Ausgewählte Skills",
+            items=unique_selected_skills,
+            empty_caption="Keine Skills ausgewählt.",
+        )
+        default_must = st.session_state.get(priority_must_key, unique_selected_skills)
+        must_default = [
+            skill
+            for skill in (default_must if isinstance(default_must, list) else [])
+            if skill in unique_selected_skills
+        ] or unique_selected_skills
+        chosen_must = st.multiselect(
+            "Must-have",
+            options=unique_selected_skills,
+            default=must_default,
+            key=priority_must_key,
+        )
+        remaining_options = [
+            skill for skill in unique_selected_skills if skill not in chosen_must
+        ]
+        default_nice = st.session_state.get(priority_nice_key, [])
+        nice_default = [
+            skill
+            for skill in (default_nice if isinstance(default_nice, list) else [])
+            if skill in remaining_options
+        ]
+        chosen_nice = st.multiselect(
+            "Nice-to-have",
+            options=remaining_options,
+            default=nice_default,
+            key=priority_nice_key,
+        )
+        st.caption(f"Must-have: {len(chosen_must)} · Nice-to-have: {len(chosen_nice)}")
 
     def _render_scenario_controls() -> None:
-        with st.container(border=True):
-            st.caption("Szenario-Parameter")
-            st.slider(
-                "Suchradius (km)",
-                min_value=0,
-                max_value=500,
-                step=5,
-                key=SSKey.SALARY_SCENARIO_RADIUS_KM.value,
-            )
-            st.slider(
-                "Remote Share (%)",
-                min_value=0,
-                max_value=100,
-                step=5,
-                key=SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value,
-            )
-            st.selectbox(
-                "Erfahrung",
-                options=["", *SENIORITY_SWEEP_VALUES],
-                format_func=lambda value: "(keine)" if not value else value,
-                key=SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value,
-            )
+        st.caption("Szenario-Parameter")
+        _render_common_scenario_inputs()
         if st.button("Gehaltsprognose für Skills berechnen", width="stretch", type="primary"):
             must_priority, nice_priority = _read_priority_selection()
             selected_inputs = [
@@ -931,34 +923,18 @@ def render_skills_salary_forecast_panel(
                 *selected_role_tasks,
             ]
             with st.spinner("Berechne Gehaltsprognose …"):
-                forecast, usage = generate_role_tasks_salary_forecast(
-                    job_title=str(job.job_title or "").strip(),
-                    location_city=str(job.location_city or "").strip(),
-                    location_country=str(job.location_country or "").strip(),
-                    seniority=str(
-                        st.session_state.get(
-                            SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value,
-                            job.seniority_level or "",
-                        )
-                    ).strip(),
-                    selected_tasks=selected_inputs,
-                    search_radius_km=_safe_int(
-                        st.session_state.get(SSKey.SALARY_SCENARIO_RADIUS_KM.value, 50)
-                    ),
-                    remote_share_percent=_safe_int(
-                        st.session_state.get(
-                            SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value, 0
-                        )
-                    ),
+                p50, confidence_note, usage = _run_step_salary_forecast_generation(
+                    job=job,
+                    selected_inputs=selected_inputs,
                     model=model,
                     language=language,
                     store=store,
                 )
             st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {
-                "forecast": {"p50": forecast.yearly_salary_eur},
+                "forecast": {"p50": p50},
                 "currency": "EUR",
                 "period": "year",
-                "confidence_note": forecast.confidence_note,
+                "confidence_note": confidence_note,
                 "inputs": {
                     "must_have_skills": must_priority,
                     "nice_to_have_skills": nice_priority,
