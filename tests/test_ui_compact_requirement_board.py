@@ -20,6 +20,7 @@ class _FakeStreamlit:
         self.captions: list[str] = []
         self.editor_rows_by_key: dict[str, list[dict[str, Any]]] = {}
         self.tab_titles: list[str] = []
+        self.toggle_labels: list[str] = []
         self.text_input_values: dict[str, str] = {}
         self.toggle_values: dict[str, bool] = {}
 
@@ -45,7 +46,8 @@ class _FakeStreamlit:
     def columns(self, count: int, **_: Any) -> list[_NoopContext]:
         return [_NoopContext() for _ in range(count)]
 
-    def toggle(self, _: str, *, key: str, value: bool = False, **__: Any) -> bool:
+    def toggle(self, label: str, *, key: str, value: bool = False, **__: Any) -> bool:
+        self.toggle_labels.append(label)
         return self.toggle_values.get(key, value)
 
     def data_editor(
@@ -110,6 +112,30 @@ def test_render_compact_requirement_board_collects_selected_labels(monkeypatch) 
 
     assert selected == ["SQL"]
     assert fake_st.session_state["skills.bulk"] == ["SQL"]
+    assert fake_st.tab_titles == []
+
+
+def test_render_compact_requirement_board_does_not_request_long_item_toggle(
+    monkeypatch,
+) -> None:
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(ui_components, "st", fake_st)
+
+    selected = ui_components.render_compact_requirement_board(
+        title_jobspec="Aus Jobspec extrahiert",
+        jobspec_items=[{"label": "SQL"}],
+        title_esco="ESCO",
+        esco_items=[{"label": "Python"}],
+        title_llm="AI-Vorschläge",
+        llm_items=[{"label": "Teamfähigkeit"}],
+        selected_labels=["Python"],
+        selection_state_key="skills.bulk",
+        key_prefix="skills.board",
+    )
+
+    assert selected == []
+    assert fake_st.session_state["skills.bulk"] == []
+    assert "Nur lange Items" not in fake_st.toggle_labels
     assert fake_st.tab_titles == []
 
 
