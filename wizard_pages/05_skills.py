@@ -287,21 +287,21 @@ def _render_skills_source_columns(
     group_col_a, group_col_b, group_col_c = st.columns((1, 1, 1), gap="large")
     with group_col_a:
         selected_jobspec = _render_group_editor(
-            "a) Extrahierte Skills aus dem Jobspec",
+            "Aus Jobspec extrahiert",
             jobspec_suggested,
             "Jobspec",
             key=f"{SSKey.SKILLS_SELECTED.value}.source.jobspec",
         )
     with group_col_b:
         selected_esco = _render_group_editor(
-            "b) ESCO-Skills",
+            "ESCO-Skills",
             esco_suggested,
             "ESCO",
             key=f"{SSKey.SKILLS_SELECTED.value}.source.esco",
         )
     with group_col_c:
         selected_ai = _render_group_editor(
-            "c) AI-Skills",
+            "AI-Skills",
             llm_suggested,
             "AI",
             key=f"{SSKey.SKILLS_SELECTED.value}.source.ai",
@@ -438,7 +438,7 @@ def _load_related_skills_from_selected_occupation(
 
 
 def _render_unmapped_term_workflow(flagged_terms: list[str]) -> None:
-    st.markdown("### 4) Not normalized yet")
+    st.markdown("#### Offene Begriffe")
     st.caption("Offene Begriffe aus dem Jobspec, verteilt auf drei Spalten.")
     columns = st.columns(3, gap="large")
     for idx, term in enumerate(flagged_terms):
@@ -469,7 +469,44 @@ def _render_extracted_slot(job: JobAdExtract) -> None:
         st.info("Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions.")
 
 
-def _render_main_slot(
+def _render_confirmed_selection_block(
+    *,
+    deduped_must: list[dict[str, Any]],
+    deduped_nice: list[dict[str, Any]],
+    detail_cache: dict[str, dict[str, Any]],
+    llm_suggested: list[dict[str, Any]],
+    is_expert_mode: bool,
+) -> None:
+    st.markdown("#### Bestätigte Auswahl")
+    cc1, cc2, cc3 = st.columns(3, gap="large")
+    with cc1:
+        _render_selected_skill_details(
+            title="ESCO · Essential",
+            selected_skills=deduped_must,
+            detail_cache=detail_cache,
+            is_expert_mode=is_expert_mode,
+            key_prefix="skills.must",
+        )
+    with cc2:
+        _render_selected_skill_details(
+            title="ESCO · Optional",
+            selected_skills=deduped_nice,
+            detail_cache=detail_cache,
+            is_expert_mode=is_expert_mode,
+            key_prefix="skills.nice",
+        )
+    with cc3:
+        st.markdown("#### AI · Vorschläge")
+        if llm_suggested:
+            for item in llm_suggested:
+                label = str(item.get("label") or "").strip()
+                if label:
+                    st.write(f"- {label}")
+        else:
+            st.caption("Noch keine AI-Skills vorhanden.")
+
+
+def _render_skills_source_comparison_block(
     *,
     job: JobAdExtract,
     selected_occupation: dict[str, Any] | None,
@@ -523,7 +560,8 @@ def _render_main_slot(
         else []
     )
 
-    st.markdown("### 1) Skill-Generierung")
+    st.markdown("### Quellenvergleich")
+    st.markdown("#### Skill-Generierung")
     normalized_must_terms = _dedupe_terms(must_have_skills)
     normalized_nice_terms = _dedupe_terms(nice_to_have_skills)
 
@@ -726,35 +764,14 @@ def _render_main_slot(
                 else:
                     st.info("Keine zusätzlichen AI-Skills gefunden.")
 
-    st.markdown("### 2) Confirmed selection")
-    cc1, cc2, cc3 = st.columns(3, gap="large")
-    with cc1:
-        _render_selected_skill_details(
-            title="ESCO · Essential",
-            selected_skills=deduped_must,
-            detail_cache=detail_cache,
-            is_expert_mode=is_expert_mode,
-            key_prefix="skills.must",
-        )
-    with cc2:
-        _render_selected_skill_details(
-            title="ESCO · Optional",
-            selected_skills=deduped_nice,
-            detail_cache=detail_cache,
-            is_expert_mode=is_expert_mode,
-            key_prefix="skills.nice",
-        )
-    with cc3:
-        st.markdown("#### AI · Vorschläge")
-        if llm_suggested:
-            for item in llm_suggested:
-                label = str(item.get("label") or "").strip()
-                if label:
-                    st.write(f"- {label}")
-        else:
-            st.caption("Noch keine AI-Skills vorhanden.")
+    _render_confirmed_selection_block(
+        deduped_must=deduped_must,
+        deduped_nice=deduped_nice,
+        detail_cache=detail_cache,
+        llm_suggested=llm_suggested,
+        is_expert_mode=is_expert_mode,
+    )
 
-    st.markdown("### 3) Unmapped follow-up")
     ambiguous_terms = sorted(
         {
             term
@@ -765,6 +782,11 @@ def _render_main_slot(
     )
     unmapped_terms = list(coverage_snapshot.unmapped_requirement_terms)
     flagged_terms = _dedupe_terms([*ambiguous_terms, *unmapped_terms])
+    _render_skills_source_columns(
+        jobspec_suggested=jobspec_suggestions,
+        esco_suggested=esco_suggestions,
+        llm_suggested=llm_suggested,
+    )
     if show_esco_sections and flagged_terms:
         _render_unmapped_term_workflow(flagged_terms)
     else:
@@ -774,14 +796,8 @@ def _render_main_slot(
             else "ESCO-spezifische Normalisierung ist ohne bestätigten ESCO-Anker ausgeblendet."
         )
 
-    _render_skills_source_columns(
-        jobspec_suggested=jobspec_suggestions,
-        esco_suggested=esco_suggestions,
-        llm_suggested=llm_suggested,
-    )
-
 def _render_salary_forecast_slot(job: JobAdExtract) -> None:
-    st.markdown("### Salary Forecast")
+    st.markdown("### Gehaltsprognose")
     salary_left, salary_right = st.columns((3, 2), gap="large")
     selected_skills_raw = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
     selected_skills = (
@@ -920,7 +936,6 @@ def _render_salary_forecast_slot(job: JobAdExtract) -> None:
 
 def _render_open_questions_slot(step: QuestionStep | None) -> None:
     if step is not None and step.questions:
-        st.markdown("### Minimalprofil")
         render_question_step(step)
 
 
@@ -957,7 +972,7 @@ def render(ctx: WizardContext) -> None:
         extracted_from_jobspec_slot=lambda: _render_extracted_slot(job),
         extracted_from_jobspec_label="Aus der Anzeige extrahierte Skills",
         extracted_from_jobspec_use_expander=False,
-        source_comparison_slot=lambda: _render_main_slot(
+        source_comparison_slot=lambda: _render_skills_source_comparison_block(
             job=job,
             selected_occupation=selected_occupation,
             coverage_snapshot=coverage_snapshot,
