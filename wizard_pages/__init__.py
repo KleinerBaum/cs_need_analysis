@@ -37,6 +37,9 @@ def load_pages() -> List[WizardPage]:
         # Legacy hidden-step module: Start phases B/C now contain this flow.
         # Intentionally non-routable in the canonical wizard.
         "01a_jobspec_review.py",
+        # Legacy hidden-step module: Team was removed from the visible canonical
+        # intake wizard navigation and must not be routed.
+        "03_team.py",
     }
     page_pattern = re.compile(r"^\d+[a-z]?_")
     py_files = sorted(
