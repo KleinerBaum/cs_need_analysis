@@ -5,7 +5,7 @@ from typing import Any
 from streamlit.errors import StreamlitAPIException
 
 import wizard_pages.base as base
-from constants import SSKey, UI_PREFERENCE_ANSWER_MODE
+from constants import SSKey, STEPS, STEP_KEY_TEAM, UI_PREFERENCE_ANSWER_MODE
 
 
 class _LockedSessionState(dict[str, Any]):
@@ -66,3 +66,18 @@ def test_render_ui_mode_selector_does_not_mutate_widget_bound_mode_key(
         session_state[SSKey.UI_PREFERENCES.value][UI_PREFERENCE_ANSWER_MODE]
         == "balanced"
     )
+
+
+def test_visible_step_set_for_ui_mode_navigation_excludes_team_step() -> None:
+    visible_step_keys = [step.key for step in STEPS]
+
+    assert STEP_KEY_TEAM not in visible_step_keys
+    assert visible_step_keys == [
+        "landing",
+        "company",
+        "role_tasks",
+        "skills",
+        "benefits",
+        "interview",
+        "summary",
+    ]
