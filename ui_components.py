@@ -1817,41 +1817,17 @@ def _render_requirement_selection_table(
         placeholder="Begriff eingeben…",
         help="Filtert Vorschläge direkt nach Bezeichnung und Hinweisen.",
     ).strip()
-    filter_col_new, filter_col_long, filter_col_high = st.columns(3)
-    with filter_col_new:
-        only_new = st.toggle(
-            "Nur neue Vorschläge",
-            key=f"{filter_key_prefix}.only_new",
-            value=bool(st.session_state.get(default_only_new_key, True)),
-        )
+    only_new = st.toggle(
+        "Nur neue Vorschläge",
+        key=f"{filter_key_prefix}.only_new",
+        value=bool(st.session_state.get(default_only_new_key, True)),
+    )
     st.session_state[default_only_new_key] = False
-    with filter_col_long:
-        only_long_items = st.toggle(
-            "Nur lange Items",
-            key=f"{filter_key_prefix}.only_long",
-            value=False,
-        )
-    with filter_col_high:
-        only_ai_high = st.toggle(
-            "Nur AI high-importance",
-            key=f"{filter_key_prefix}.only_ai_high",
-            value=False,
-        )
 
     filtered_rows: list[dict[str, Any]] = []
     normalized_search = _normalize_requirement_label(search_term)
     for row in table_rows:
         if only_new and bool(row.get("select")):
-            continue
-        if only_long_items and len(str(row.get("_full_label") or "").strip()) < 48:
-            continue
-        if (
-            only_ai_high
-            and source_key.casefold() == "ai"
-            and not _is_high_importance(str(row.get("_importance") or ""))
-        ):
-            continue
-        if only_ai_high and source_key.casefold() != "ai":
             continue
         if normalized_search:
             haystack = _normalize_requirement_label(
