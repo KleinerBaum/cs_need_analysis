@@ -153,16 +153,6 @@ def render(ctx: WizardContext) -> None:
                 "Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions."
             )
 
-    selected_benefits_for_forecast = _dedupe_benefit_terms(
-        [
-            str(item)
-            for item in st.session_state.get(_BENEFITS_SELECTED_COMPARE_KEY, [])
-            if has_meaningful_value(item)
-        ]
-        if isinstance(st.session_state.get(_BENEFITS_SELECTED_COMPARE_KEY, []), list)
-        else []
-    )
-
     def _render_source_comparison_slot() -> None:
         review_payload = build_step_review_payload(step)
         visible_questions = review_payload["visible_questions"]
@@ -269,57 +259,22 @@ def render(ctx: WizardContext) -> None:
                     st.caption("—")
 
     def _render_salary_forecast_slot() -> None:
-        st.markdown("### Salary Forecast")
+        selected_benefits_for_forecast = _dedupe_benefit_terms(
+            [
+                str(item)
+                for item in st.session_state.get(_BENEFITS_SELECTED_COMPARE_KEY, [])
+                if has_meaningful_value(item)
+            ]
+            if isinstance(st.session_state.get(_BENEFITS_SELECTED_COMPARE_KEY, []), list)
+            else []
+        )
         benefits_for_forecast = selected_benefits_for_forecast or [
             value.strip() for value in job.benefits if has_meaningful_value(value)
         ]
-        selected_benefits = benefits_for_forecast
-        if benefits_for_forecast:
-            st.caption(
-                "Benefits für die Kalkulation auswählen. Nur ausgewählte Zeilen fließen in die Prognose ein."
-            )
-            source_rows = {
-                "Einbeziehen": [True for _ in benefits_for_forecast],
-                "Benefit": benefits_for_forecast,
-            }
-            edited_rows = st.data_editor(
-                source_rows,
-                hide_index=True,
-                width="stretch",
-                column_config={
-                    "Einbeziehen": st.column_config.CheckboxColumn(
-                        "Einbeziehen", help="Auswahl für Salary Forecast"
-                    ),
-                    "Benefit": st.column_config.TextColumn(
-                        "Benefit", disabled=True, width="large"
-                    ),
-                },
-                disabled=["Benefit"],
-            )
-            if isinstance(edited_rows, dict):
-                selected_benefits = []
-                include_values = edited_rows.get("Einbeziehen", [])
-                benefit_values = edited_rows.get("Benefit", [])
-                if isinstance(include_values, list) and isinstance(
-                    benefit_values, list
-                ):
-                    for include, raw_value in zip(include_values, benefit_values):
-                        value = str(raw_value or "").strip()
-                        if include and has_meaningful_value(value):
-                            selected_benefits.append(value)
-            elif hasattr(edited_rows, "to_dict"):
-                selected_benefits = []
-                for row in edited_rows.to_dict("records"):
-                    include = bool(row.get("Einbeziehen"))
-                    value = str(row.get("Benefit") or "").strip()
-                    if include and has_meaningful_value(value):
-                        selected_benefits.append(value)
-        else:
+        if not benefits_for_forecast:
             st.caption(
                 "Keine Benefits aus der Anzeige erkannt – Prognose wird ohne Benefit-Filter berechnet."
             )
-
-        st.caption(f"Ausgewählte Benefits: {len(selected_benefits)}")
         answers = get_answers()
         settings = load_openai_settings()
         resolved_model = resolve_model_for_task(
@@ -328,8 +283,8 @@ def render(ctx: WizardContext) -> None:
             settings=settings,
         )
         render_benefits_salary_forecast_panel(
-            job=job.model_copy(update={"benefits": selected_benefits}),
-            selected_benefits=selected_benefits,
+            job=job.model_copy(update={"benefits": benefits_for_forecast}),
+            benefit_candidates=benefits_for_forecast,
             answers=answers,
             model=resolved_model,
             language="de",

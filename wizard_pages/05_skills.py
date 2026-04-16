@@ -13,7 +13,6 @@ from esco_client import (
 )
 from llm_client import (
     generate_requirement_gap_suggestions,
-    generate_role_tasks_salary_forecast,
 )
 from schemas import EscoMappingReport
 from schemas import EscoSkillDetail, JobAdExtract, QuestionStep
@@ -35,6 +34,7 @@ from ui_components import (
     render_standard_step_review,
 )
 from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
+from wizard_pages.salary_forecast_panel import render_skills_salary_forecast_panel
 
 
 def _normalize_term(term: str) -> str:
@@ -215,17 +215,6 @@ def _save_selected_skill_suggestions(labels: list[str]) -> int:
         added_count += 1
     st.session_state[SSKey.SKILLS_SELECTED.value] = merged
     return added_count
-
-
-def _safe_int(value: Any, *, default: int = 0) -> int:
-    try:
-        return int(round(float(value)))
-    except (TypeError, ValueError):
-        return default
-
-
-def _format_eur(value: int) -> str:
-    return f"{value:,} €".replace(",", ".")
 
 
 def _render_skills_source_columns(
@@ -748,141 +737,26 @@ def _render_skills_source_comparison_block(
         )
 
 def _render_salary_forecast_slot(job: JobAdExtract) -> None:
-    st.markdown("### Gehaltsprognose")
-    salary_left, salary_right = st.columns((3, 2), gap="large")
     selected_skills_raw = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
     selected_skills = (
         _dedupe_terms([str(item) for item in selected_skills_raw])
         if isinstance(selected_skills_raw, list)
         else []
     )
-    with salary_left:
-        st.markdown("#### Priorisierung Skills & Anforderungen")
-        default_priority_rows = [
-            {"Skill": skill, "Priorität": "must-have"} for skill in selected_skills
-        ]
-        edited_priority = st.data_editor(
-            default_priority_rows,
-            hide_index=True,
-            width="stretch",
-            key=f"{SSKey.SKILLS_SELECTED.value}.priority.editor",
-            column_config={
-                "Skill": st.column_config.TextColumn(
-                    "Skill", disabled=True, width="large"
-                ),
-                "Priorität": st.column_config.SelectboxColumn(
-                    "Priorität",
-                    options=["must-have", "nice-to-have"],
-                    width="small",
-                ),
-            },
-        )
-        priority_records = (
-            edited_priority.to_dict("records")
-            if hasattr(edited_priority, "to_dict")
-            else (edited_priority if isinstance(edited_priority, list) else [])
-        )
-        must_priority = [
-            str(row.get("Skill") or "").strip()
-            for row in priority_records
-            if str(row.get("Priorität") or "").strip() == "must-have"
-            and has_meaningful_value(str(row.get("Skill") or ""))
-        ]
-        nice_priority = [
-            str(row.get("Skill") or "").strip()
-            for row in priority_records
-            if str(row.get("Priorität") or "").strip() == "nice-to-have"
-            and has_meaningful_value(str(row.get("Skill") or ""))
-        ]
-
-    with salary_right:
-        st.markdown("#### Gehaltsprognose (€)")
-        st.slider(
-            "Suchradius (km)",
-            min_value=0,
-            max_value=500,
-            step=5,
-            key=SSKey.SALARY_SCENARIO_RADIUS_KM.value,
-        )
-        st.slider(
-            "Remote Share (%)",
-            min_value=0,
-            max_value=100,
-            step=5,
-            key=SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value,
-        )
-        st.selectbox(
-            "Erfahrung",
-            options=["", "junior", "mid", "senior", "lead"],
-            format_func=lambda value: "(keine)" if not value else value,
-            key=SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value,
-        )
-        if st.button("Gehaltsprognose für Skills berechnen", width="stretch"):
-            role_tasks_raw = st.session_state.get(SSKey.ROLE_TASKS_SELECTED.value, [])
-            role_tasks = (
-                _dedupe_terms([str(item) for item in role_tasks_raw])
-                if isinstance(role_tasks_raw, list)
-                else []
-            )
-            selected_inputs = [
-                *(f"Must-have: {skill}" for skill in must_priority),
-                *(f"Nice-to-have: {skill}" for skill in nice_priority),
-                *role_tasks,
-            ]
-            with st.spinner("Berechne Gehaltsprognose …"):
-                forecast, usage = generate_role_tasks_salary_forecast(
-                    job_title=str(job.job_title or "").strip(),
-                    location_city=str(job.location_city or "").strip(),
-                    location_country=str(job.location_country or "").strip(),
-                    seniority=str(
-                        st.session_state.get(
-                            SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value,
-                            job.seniority_level or "",
-                        )
-                    ).strip(),
-                    selected_tasks=selected_inputs,
-                    search_radius_km=_safe_int(
-                        st.session_state.get(SSKey.SALARY_SCENARIO_RADIUS_KM.value, 50),
-                        default=50,
-                    ),
-                    remote_share_percent=_safe_int(
-                        st.session_state.get(
-                            SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value, 0
-                        ),
-                        default=0,
-                    ),
-                    model=get_active_model(),
-                    language=str(st.session_state.get(SSKey.LANGUAGE.value, "de")),
-                    store=bool(
-                        st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)
-                    ),
-                )
-            st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {
-                "forecast": {"p50": forecast.yearly_salary_eur},
-                "currency": "EUR",
-                "period": "year",
-                "confidence_note": forecast.confidence_note,
-                "inputs": {
-                    "must_have_skills": must_priority,
-                    "nice_to_have_skills": nice_priority,
-                    "selected_role_tasks": role_tasks,
-                },
-                "usage": usage or {},
-            }
-        salary_result = st.session_state.get(
-            SSKey.SALARY_FORECAST_LAST_RESULT.value, {}
-        )
-        salary_forecast_payload = (
-            salary_result.get("forecast", {}) if isinstance(salary_result, dict) else {}
-        )
-        p50 = _safe_int(salary_forecast_payload.get("p50"))
-        if p50 > 0:
-            st.metric("Erwartetes Jahresgehalt", _format_eur(p50))
-            note = str(salary_result.get("confidence_note") or "").strip()
-            if note:
-                st.caption(note)
-        else:
-            st.info("Noch keine Gehaltsprognose vorhanden.")
+    role_tasks_raw = st.session_state.get(SSKey.ROLE_TASKS_SELECTED.value, [])
+    role_tasks = (
+        _dedupe_terms([str(item) for item in role_tasks_raw])
+        if isinstance(role_tasks_raw, list)
+        else []
+    )
+    render_skills_salary_forecast_panel(
+        job=job,
+        selected_skills=selected_skills,
+        selected_role_tasks=role_tasks,
+        model=get_active_model(),
+        language=str(st.session_state.get(SSKey.LANGUAGE.value, "de")),
+        store=bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)),
+    )
 
 
 def _render_open_questions_slot(step: QuestionStep | None) -> None:
