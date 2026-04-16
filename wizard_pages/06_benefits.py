@@ -108,6 +108,20 @@ def _dedupe_benefit_terms(values: list[str]) -> list[str]:
     return deduped
 
 
+def _render_benefits_influence_overview(benefits: list[str]) -> None:
+    st.markdown("#### Einflussfaktoren: Gewählte Benefits")
+    if not benefits:
+        st.caption("Keine Benefits ausgewählt – Prognose wird ohne Benefit-Einflussfaktoren berechnet.")
+        return
+
+    st.caption("Diese Benefits werden als Einflussfaktoren in den Salary Forecast übernommen.")
+    column_count = min(3, max(2, len(benefits) // 5 + 1))
+    columns = st.columns(column_count, gap="small")
+    for index, benefit in enumerate(benefits):
+        with columns[index % column_count]:
+            st.markdown(f"- {benefit}")
+
+
 def render(ctx: WizardContext) -> None:
     render_error_banner()
 
@@ -275,6 +289,7 @@ def render(ctx: WizardContext) -> None:
             st.caption(
                 "Keine Benefits aus der Anzeige erkannt – Prognose wird ohne Benefit-Filter berechnet."
             )
+        _render_benefits_influence_overview(benefits_for_forecast)
         answers = get_answers()
         settings = load_openai_settings()
         resolved_model = resolve_model_for_task(
