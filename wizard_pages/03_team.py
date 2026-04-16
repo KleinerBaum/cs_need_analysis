@@ -5,7 +5,7 @@ import streamlit as st
 from schemas import QuestionStep
 from ui_components import has_meaningful_value, render_standard_step_review
 from ui_layout import render_step_shell
-from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
+from wizard_pages.base import WizardContext, guard_job_and_plan, nav_buttons
 from wizard_pages.team_section import render_team_questions_with_optional_esco_context
 
 
@@ -54,11 +54,7 @@ def render(ctx: WizardContext) -> None:
         footer_slot=lambda: nav_buttons(ctx),
     )
 
-
-PAGE = WizardPage(
-    key="team",
-    title_de="Team",
-    icon="👥",
-    render=render,
-    requires_jobspec=True,
-)
+# Legacy helper module: The standalone Team wizard page was retired.
+# Team questions are rendered inside `wizard_pages/02_company.py` via
+# `render_team_questions_with_optional_esco_context(...)`.
+# Intentionally no `PAGE` export so this module cannot be routed directly.
