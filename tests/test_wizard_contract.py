@@ -34,6 +34,11 @@ def test_loaded_wizard_pages_match_canonical_steps() -> None:
 
     assert visible_page_keys == [step.key for step in STEPS]
     assert visible_page_keys == expected_visible_step_order
+    assert visible_page_keys[2:5] == [
+        STEP_KEY_ROLE_TASKS,
+        STEP_KEY_SKILLS,
+        STEP_KEY_BENEFITS,
+    ]
     assert STEP_KEY_JOBSPEC_REVIEW not in visible_page_keys
     assert STEP_KEY_TEAM not in visible_page_keys
 
@@ -45,7 +50,9 @@ def test_non_intake_step_keys_follow_active_step_contract() -> None:
     assert all(step_key in rendered_step_keys for step_key in NON_INTAKE_STEP_KEYS)
 
 
-def test_team_questions_still_progress_via_plan_and_answers_without_routed_step() -> None:
+def test_team_questions_still_progress_via_plan_and_answers_without_routed_step() -> (
+    None
+):
     team_step = QuestionStep(
         step_key=STEP_KEY_TEAM,
         title_de="Team",
