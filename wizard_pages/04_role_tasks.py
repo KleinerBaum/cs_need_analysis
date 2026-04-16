@@ -331,8 +331,26 @@ def render(ctx: WizardContext) -> None:
                         "und sollten vor Übernahme kurz geprüft werden."
                     ),
                     caption_prefix="Task Suggestion Explainability",
-                )
+        )
         st.session_state[SSKey.ROLE_TASKS_ESCO_SUGGESTED.value] = esco_suggestions
+
+        llm_suggested_raw = st.session_state.get(
+            SSKey.ROLE_TASKS_LLM_SUGGESTED.value, []
+        )
+        llm_suggested = llm_suggested_raw if isinstance(llm_suggested_raw, list) else []
+
+        render_compare_adopt_intro(
+            adopt_target="Aufgaben",
+            canonical_target="SSKey.ROLE_TASKS_SELECTED",
+            source_labels=("Jobspec", "AI")
+            if not show_esco_sections
+            else ("Jobspec", "ESCO", "AI"),
+        )
+        bulk_buffer_for_salary = _render_role_task_source_columns(
+            jobspec_suggested=jobspec_suggestions,
+            esco_suggested=esco_suggestions,
+            llm_suggested=llm_suggested,
+        )
 
         st.markdown("### AI-Vorschläge ergänzen")
         st.number_input(
@@ -380,24 +398,6 @@ def render(ctx: WizardContext) -> None:
             )
             st.session_state[SSKey.ROLE_TASKS_LLM_SUGGESTED.value] = merged_llm
             st.success(f"{len(merged_llm)} neue AI-Aufgabe(n) vorgeschlagen.")
-
-        llm_suggested_raw = st.session_state.get(
-            SSKey.ROLE_TASKS_LLM_SUGGESTED.value, []
-        )
-        llm_suggested = llm_suggested_raw if isinstance(llm_suggested_raw, list) else []
-
-        render_compare_adopt_intro(
-            adopt_target="Aufgaben",
-            canonical_target="SSKey.ROLE_TASKS_SELECTED",
-            source_labels=("Jobspec", "AI")
-            if not show_esco_sections
-            else ("Jobspec", "ESCO", "AI"),
-        )
-        bulk_buffer_for_salary = _render_role_task_source_columns(
-            jobspec_suggested=jobspec_suggestions,
-            esco_suggested=esco_suggestions,
-            llm_suggested=llm_suggested,
-        )
 
     def _render_salary_forecast_slot() -> None:
         _render_role_tasks_salary_block(

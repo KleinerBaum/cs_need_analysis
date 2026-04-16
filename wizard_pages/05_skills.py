@@ -28,6 +28,8 @@ from state import (
 from ui_layout import render_step_shell
 from ui_components import (
     has_meaningful_value,
+    render_compare_adopt_intro,
+    render_compact_requirement_board,
     render_error_banner,
     render_question_step,
     render_standard_step_review,
@@ -232,87 +234,30 @@ def _render_skills_source_columns(
     esco_suggested: list[dict[str, Any]],
     llm_suggested: list[dict[str, Any]],
 ) -> None:
-    st.markdown("#### Quellenvergleich")
     selected_labels_raw = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
     selected_labels = (
-        [
-            str(item).strip()
-            for item in selected_labels_raw
-            if has_meaningful_value(item)
-        ]
+        [str(item).strip() for item in selected_labels_raw if has_meaningful_value(item)]
         if isinstance(selected_labels_raw, list)
         else []
     )
-    selected_set = {_normalize_term(item) for item in selected_labels}
 
-    def _render_group_editor(
-        title: str,
-        items: list[dict[str, Any]],
-        source_label: str,
-        key: str,
-    ) -> list[str]:
-        st.markdown(f"**{title}**")
-        group_labels = _dedupe_terms(
-            [str(item.get("label") or "").strip() for item in items]
-        )
-        rows = [
-            {"Auswahl": _normalize_term(label) in selected_set, "Skill": label}
-            for label in group_labels
-        ]
-        edited = st.data_editor(
-            rows,
-            hide_index=True,
-            width="stretch",
-            key=key,
-            disabled=["Skill"],
-            column_config={
-                "Auswahl": st.column_config.CheckboxColumn("Auswahl", width="small"),
-                "Skill": st.column_config.TextColumn(
-                    f"Bezeichnung ({source_label})", width="large"
-                ),
-            },
-        )
-        records = (
-            edited.to_dict("records")
-            if hasattr(edited, "to_dict")
-            else (edited if isinstance(edited, list) else [])
-        )
-        return [
-            str(row.get("Skill") or "").strip()
-            for row in records
-            if bool(row.get("Auswahl"))
-            and has_meaningful_value(str(row.get("Skill") or ""))
-        ]
-
-    group_col_a, group_col_b, group_col_c = st.columns((1, 1, 1), gap="large")
-    with group_col_a:
-        selected_jobspec = _render_group_editor(
-            "Aus Jobspec extrahiert",
-            jobspec_suggested,
-            "Jobspec",
-            key=f"{SSKey.SKILLS_SELECTED.value}.source.jobspec",
-        )
-    with group_col_b:
-        selected_esco = _render_group_editor(
-            "ESCO-Skills",
-            esco_suggested,
-            "ESCO",
-            key=f"{SSKey.SKILLS_SELECTED.value}.source.esco",
-        )
-    with group_col_c:
-        selected_ai = _render_group_editor(
-            "AI-Skills",
-            llm_suggested,
-            "AI",
-            key=f"{SSKey.SKILLS_SELECTED.value}.source.ai",
-        )
-
-    if st.button("Auswahl aus Quellenvergleich speichern", width="stretch"):
-        merged_selection = _dedupe_terms(
-            [*selected_jobspec, *selected_esco, *selected_ai]
-        )
-        st.session_state[SSKey.SKILLS_SELECTED.value] = merged_selection
-        st.success(f"{len(merged_selection)} Skill(s) gespeichert.")
+    bulk_buffer = render_compact_requirement_board(
+        title_jobspec="Aus Jobspec extrahiert",
+        jobspec_items=jobspec_suggested,
+        title_esco="ESCO-Skills",
+        esco_items=esco_suggested,
+        title_llm="AI-Skills",
+        llm_items=llm_suggested,
+        selected_labels=selected_labels,
+        selection_state_key=f"{SSKey.SKILLS_SELECTED.value}.bulk_buffer",
+        key_prefix="skills.board",
+    )
+    if st.button("Ausgewählte Skills übernehmen", width="stretch"):
+        added_count = _save_selected_skill_suggestions(bulk_buffer)
+        if added_count > 0:
+            st.success(f"{added_count} Skill(s) übernommen.")
+        else:
+            st.info("Keine neuen Skills übernommen.")
 
 
 def _safe_text(value: str | None) -> str:
@@ -560,7 +505,18 @@ def _render_skills_source_comparison_block(
         else []
     )
 
-    st.markdown("### Quellenvergleich")
+    render_compare_adopt_intro(
+        adopt_target="Skills",
+        canonical_target="SSKey.SKILLS_SELECTED",
+        source_labels=("Jobspec", "AI")
+        if not show_esco_sections
+        else ("Jobspec", "ESCO", "AI"),
+    )
+    _render_skills_source_columns(
+        jobspec_suggested=jobspec_suggestions,
+        esco_suggested=esco_suggestions,
+        llm_suggested=llm_suggested,
+    )
     st.markdown("#### Skill-Generierung")
     normalized_must_terms = _dedupe_terms(must_have_skills)
     normalized_nice_terms = _dedupe_terms(nice_to_have_skills)
@@ -782,11 +738,6 @@ def _render_skills_source_comparison_block(
     )
     unmapped_terms = list(coverage_snapshot.unmapped_requirement_terms)
     flagged_terms = _dedupe_terms([*ambiguous_terms, *unmapped_terms])
-    _render_skills_source_columns(
-        jobspec_suggested=jobspec_suggestions,
-        esco_suggested=esco_suggestions,
-        llm_suggested=llm_suggested,
-    )
     if show_esco_sections and flagged_terms:
         _render_unmapped_term_workflow(flagged_terms)
     else:
