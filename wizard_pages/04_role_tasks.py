@@ -202,8 +202,7 @@ def _render_role_task_source_columns(
     jobspec_suggested: list[dict[str, str]],
     esco_suggested: list[dict[str, str]],
     llm_suggested: list[dict[str, str]],
-    job: JobAdExtract,
-) -> None:
+) -> list[str]:
     st.markdown("### Aufgaben vergleichen & übernehmen")
 
     selected_raw = st.session_state.get(SSKey.ROLE_TASKS_SELECTED.value, [])
@@ -213,38 +212,29 @@ def _render_role_task_source_columns(
         else []
     )
 
-    table_col, salary_col = st.columns((4, 2))
-    with table_col:
-        bulk_buffer = render_compact_requirement_board(
-            title_jobspec="Aus Jobspec extrahiert",
-            jobspec_items=jobspec_suggested,
-            title_esco="ESCO",
-            esco_items=esco_suggested,
-            title_llm="AI-Vorschläge",
-            llm_items=llm_suggested,
-            selected_labels=selected_labels,
-            selection_state_key=f"{SSKey.ROLE_TASKS_SELECTED.value}.bulk_buffer",
-            key_prefix="role_tasks.board",
-            empty_messages={
-                "ESCO": "Keine zuverlässig ableitbaren Aufgaben aus Occupation-Details."
-            },
-        )
+    bulk_buffer = render_compact_requirement_board(
+        title_jobspec="Aus Jobspec extrahiert",
+        jobspec_items=jobspec_suggested,
+        title_esco="ESCO",
+        esco_items=esco_suggested,
+        title_llm="AI-Vorschläge",
+        llm_items=llm_suggested,
+        selected_labels=selected_labels,
+        selection_state_key=f"{SSKey.ROLE_TASKS_SELECTED.value}.bulk_buffer",
+        key_prefix="role_tasks.board",
+        empty_messages={
+            "ESCO": "Keine zuverlässig ableitbaren Aufgaben aus Occupation-Details."
+        },
+    )
 
-        if st.button("Ausgewählte Aufgaben übernehmen", width="stretch"):
-            added_count = _save_selected_task_suggestions(bulk_buffer)
-            if added_count > 0:
-                st.success(f"{added_count} Aufgabe(n) übernommen.")
-            else:
-                st.info("Keine neuen Aufgaben übernommen.")
+    if st.button("Ausgewählte Aufgaben übernehmen", width="stretch"):
+        added_count = _save_selected_task_suggestions(bulk_buffer)
+        if added_count > 0:
+            st.success(f"{added_count} Aufgabe(n) übernommen.")
+        else:
+            st.info("Keine neuen Aufgaben übernommen.")
 
-    with salary_col:
-        render_role_tasks_salary_forecast_panel(
-            job=job,
-            selected_tasks=bulk_buffer,
-            model=get_active_model(),
-            language=str(st.session_state.get(SSKey.LANGUAGE.value, "de")),
-            store=bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)),
-        )
+    return bulk_buffer
 
 
 def render(ctx: WizardContext) -> None:
@@ -288,7 +278,10 @@ def render(ctx: WizardContext) -> None:
                 "Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions."
             )
 
-    def _render_main_slot() -> None:
+    bulk_buffer_for_salary: list[str] = []
+
+    def _render_source_comparison_slot() -> None:
+        nonlocal bulk_buffer_for_salary
         coverage = sync_esco_shared_state()
         show_esco_sections = has_confirmed_esco_anchor()
         render_error_banner()
@@ -386,13 +379,22 @@ def render(ctx: WizardContext) -> None:
             if not show_esco_sections
             else ("Jobspec", "ESCO", "AI"),
         )
-        _render_role_task_source_columns(
+        bulk_buffer_for_salary = _render_role_task_source_columns(
             jobspec_suggested=jobspec_suggestions,
             esco_suggested=esco_suggestions,
             llm_suggested=llm_suggested,
-            job=job,
         )
 
+    def _render_salary_forecast_slot() -> None:
+        render_role_tasks_salary_forecast_panel(
+            job=job,
+            selected_tasks=bulk_buffer_for_salary,
+            model=get_active_model(),
+            language=str(st.session_state.get(SSKey.LANGUAGE.value, "de")),
+            store=bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)),
+        )
+
+    def _render_open_questions_slot() -> None:
         if step is None or not step.questions:
             st.info(
                 "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
@@ -412,7 +414,9 @@ def render(ctx: WizardContext) -> None:
         extracted_from_jobspec_slot=_render_extracted_slot,
         extracted_from_jobspec_label="Aus der Anzeige extrahierte Rollen & Aufgaben",
         extracted_from_jobspec_use_expander=False,
-        main_content_slot=_render_main_slot,
+        source_comparison_slot=_render_source_comparison_slot,
+        salary_forecast_slot=_render_salary_forecast_slot,
+        open_questions_slot=_render_open_questions_slot,
         review_slot=lambda: render_standard_step_review(step),
         footer_slot=lambda: nav_buttons(ctx),
     )
