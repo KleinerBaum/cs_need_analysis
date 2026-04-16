@@ -862,92 +862,86 @@ def render_skills_salary_forecast_panel(
 ) -> None:
     """Render salary forecast for Skills step using shared section layout."""
 
-    priority_editor_key = f"{SSKey.SKILLS_SELECTED.value}.priority.editor"
-    default_priority_rows = [
-        {"Skill": skill, "Priorität": "must-have"}
-        for skill in selected_skills
-        if str(skill).strip()
+    priority_must_key = f"{SSKey.SKILLS_SELECTED.value}.priority.must"
+    priority_nice_key = f"{SSKey.SKILLS_SELECTED.value}.priority.nice"
+    unique_selected_skills = [
+        str(skill).strip() for skill in selected_skills if str(skill).strip()
     ]
+    unique_selected_skills = list(dict.fromkeys(unique_selected_skills))
 
     def _read_priority_selection() -> tuple[list[str], list[str]]:
-        editor_payload = st.session_state.get(priority_editor_key, default_priority_rows)
-        records = (
-            editor_payload.to_dict("records")
-            if hasattr(editor_payload, "to_dict")
-            else (editor_payload if isinstance(editor_payload, list) else [])
-        )
+        must_payload = st.session_state.get(priority_must_key, unique_selected_skills)
+        nice_payload = st.session_state.get(priority_nice_key, [])
         must_priority = [
-            str(row.get("Skill") or "").strip()
-            for row in records
-            if str(row.get("Priorität") or "").strip() == "must-have"
-            and str(row.get("Skill") or "").strip()
+            str(skill).strip()
+            for skill in (must_payload if isinstance(must_payload, list) else [])
+            if str(skill).strip() in unique_selected_skills
         ]
         nice_priority = [
-            str(row.get("Skill") or "").strip()
-            for row in records
-            if str(row.get("Priorität") or "").strip() == "nice-to-have"
-            and str(row.get("Skill") or "").strip()
+            str(skill).strip()
+            for skill in (nice_payload if isinstance(nice_payload, list) else [])
+            if str(skill).strip() in unique_selected_skills
         ]
+        nice_set = set(nice_priority)
+        must_priority = [skill for skill in must_priority if skill not in nice_set]
         return must_priority, nice_priority
 
     def _render_influence_factors() -> None:
-        edited_priority = st.data_editor(
-            default_priority_rows,
-            hide_index=True,
-            width="stretch",
-            key=priority_editor_key,
-            column_config={
-                "Skill": st.column_config.TextColumn(
-                    "Skill", disabled=True, width="large"
-                ),
-                "Priorität": st.column_config.SelectboxColumn(
-                    "Priorität",
-                    options=["must-have", "nice-to-have"],
-                    width="small",
-                ),
-            },
-        )
-        records = (
-            edited_priority.to_dict("records")
-            if hasattr(edited_priority, "to_dict")
-            else (edited_priority if isinstance(edited_priority, list) else [])
-        )
-        must_priority = [
-            row
-            for row in records
-            if str(row.get("Priorität") or "").strip() == "must-have"
-        ]
-        nice_priority = [
-            row
-            for row in records
-            if str(row.get("Priorität") or "").strip() == "nice-to-have"
-        ]
-        st.caption(
-            f"Must-have: {len(must_priority)} · Nice-to-have: {len(nice_priority)}"
-        )
+        with st.container(border=True):
+            st.caption("Skill-Priorisierung")
+            default_must = st.session_state.get(priority_must_key, unique_selected_skills)
+            must_default = [
+                skill
+                for skill in (default_must if isinstance(default_must, list) else [])
+                if skill in unique_selected_skills
+            ] or unique_selected_skills
+            chosen_must = st.multiselect(
+                "Must-have",
+                options=unique_selected_skills,
+                default=must_default,
+                key=priority_must_key,
+            )
+            remaining_options = [
+                skill for skill in unique_selected_skills if skill not in chosen_must
+            ]
+            default_nice = st.session_state.get(priority_nice_key, [])
+            nice_default = [
+                skill
+                for skill in (default_nice if isinstance(default_nice, list) else [])
+                if skill in remaining_options
+            ]
+            chosen_nice = st.multiselect(
+                "Nice-to-have",
+                options=remaining_options,
+                default=nice_default,
+                key=priority_nice_key,
+            )
+            st.caption(f"Must-have: {len(chosen_must)} · Nice-to-have: {len(chosen_nice)}")
 
     def _render_scenario_controls() -> None:
-        st.slider(
-            "Suchradius (km)",
-            min_value=0,
-            max_value=500,
-            step=5,
-            key=SSKey.SALARY_SCENARIO_RADIUS_KM.value,
-        )
-        st.slider(
-            "Remote Share (%)",
-            min_value=0,
-            max_value=100,
-            step=5,
-            key=SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value,
-        )
-        st.selectbox(
-            "Erfahrung",
-            options=["", *SENIORITY_SWEEP_VALUES],
-            format_func=lambda value: "(keine)" if not value else value,
-            key=SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value,
-        )
-        if st.button("Gehaltsprognose für Skills berechnen", width="stretch"):
+        with st.container(border=True):
+            st.caption("Szenario-Parameter")
+            st.slider(
+                "Suchradius (km)",
+                min_value=0,
+                max_value=500,
+                step=5,
+                key=SSKey.SALARY_SCENARIO_RADIUS_KM.value,
+            )
+            st.slider(
+                "Remote Share (%)",
+                min_value=0,
+                max_value=100,
+                step=5,
+                key=SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value,
+            )
+            st.selectbox(
+                "Erfahrung",
+                options=["", *SENIORITY_SWEEP_VALUES],
+                format_func=lambda value: "(keine)" if not value else value,
+                key=SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value,
+            )
+        if st.button("Gehaltsprognose für Skills berechnen", width="stretch", type="primary"):
             must_priority, nice_priority = _read_priority_selection()
             selected_inputs = [
                 *(f"Must-have: {skill}" for skill in must_priority),
@@ -998,7 +992,15 @@ def render_skills_salary_forecast_panel(
         )
         p50 = _safe_int(salary_forecast_payload.get("p50"))
         if p50 > 0:
-            st.metric("Erwartetes Jahresgehalt", _format_eur(p50))
+            p10 = _safe_int(salary_forecast_payload.get("p10"))
+            p90 = _safe_int(salary_forecast_payload.get("p90"))
+            metric_col_main, metric_col_low, metric_col_high = st.columns((2, 1, 1))
+            with metric_col_main:
+                st.metric("Erwartetes Jahresgehalt (p50)", _format_eur(p50))
+            with metric_col_low:
+                st.metric("p10", _format_eur(p10) if p10 > 0 else "—")
+            with metric_col_high:
+                st.metric("p90", _format_eur(p90) if p90 > 0 else "—")
             note = str(salary_result.get("confidence_note") or "").strip()
             if note:
                 st.caption(note)
