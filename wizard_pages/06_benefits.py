@@ -12,6 +12,8 @@ from ui_components import (
     build_step_review_payload,
     has_answered_question_with_keywords,
     has_meaningful_value,
+    render_compare_adopt_intro,
+    render_compact_requirement_board,
     render_error_banner,
     render_question_step,
     render_recruiting_consistency_checklist,
@@ -19,6 +21,9 @@ from ui_components import (
 )
 from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
 from wizard_pages.salary_forecast_panel import render_benefits_salary_forecast_panel
+
+_BENEFITS_SELECTED_COMPARE_KEY = "benefits.compare.selected"
+_BENEFITS_AI_SUGGESTED_KEY = "benefits.ai_suggested"
 
 
 def _render_benefits_consistency_checklist(
@@ -86,6 +91,23 @@ def _normalize_answer_value(value: object) -> str:
     return str(value or "").strip()
 
 
+def _normalize_benefit_term(term: str) -> str:
+    return " ".join(str(term or "").strip().casefold().split())
+
+
+def _dedupe_benefit_terms(values: list[str]) -> list[str]:
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        cleaned = str(value or "").strip()
+        normalized = _normalize_benefit_term(cleaned)
+        if not normalized or normalized in seen:
+            continue
+        deduped.append(cleaned)
+        seen.add(normalized)
+    return deduped
+
+
 def render(ctx: WizardContext) -> None:
     render_error_banner()
 
@@ -131,8 +153,17 @@ def render(ctx: WizardContext) -> None:
                 "Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions."
             )
 
+    selected_benefits_for_forecast = _dedupe_benefit_terms(
+        [
+            str(item)
+            for item in st.session_state.get(_BENEFITS_SELECTED_COMPARE_KEY, [])
+            if has_meaningful_value(item)
+        ]
+        if isinstance(st.session_state.get(_BENEFITS_SELECTED_COMPARE_KEY, []), list)
+        else []
+    )
+
     def _render_source_comparison_slot() -> None:
-        st.markdown("### Quellenvergleich")
         review_payload = build_step_review_payload(step)
         visible_questions = review_payload["visible_questions"]
         answers = review_payload["answers"]
@@ -151,25 +182,66 @@ def render(ctx: WizardContext) -> None:
                     values.append(f"{question.label}: {formatted}")
             return values
 
-        extracted_salary: list[str] = []
-        if job.salary_range:
-            min_salary = job.salary_range.min
-            max_salary = job.salary_range.max
-            if has_meaningful_value(min_salary) or has_meaningful_value(max_salary):
-                extracted_salary.append(
-                    f"{min_salary} – {max_salary} {job.salary_range.currency or ''} ({job.salary_range.period or ''})".strip()
-                )
-            if has_meaningful_value(job.salary_range.notes):
-                extracted_salary.append(f"Hinweis: {job.salary_range.notes}")
-
-        extracted_benefits = [
-            value.strip() for value in job.benefits if has_meaningful_value(value)
+        jobspec_suggested = [
+            {"label": value, "source": "Jobspec"}
+            for value in _dedupe_benefit_terms(
+                [value.strip() for value in job.benefits if has_meaningful_value(value)]
+            )
         ]
-        extracted_remote = (
-            [str(job.remote_policy).strip()]
-            if has_meaningful_value(job.remote_policy)
+
+        contextual_suggested = [
+            {"label": value, "source": "Kontext"}
+            for value in _dedupe_benefit_terms(
+                [
+                    *_confirmed_values_for_keywords(
+                        ("benefit", "perk", "zusatz", "budget")
+                    ),
+                    *_confirmed_values_for_keywords(
+                        ("remote", "hybrid", "onsite", "homeoffice", "arbeitsmodell")
+                    ),
+                ]
+            )
+        ]
+        ai_suggested_raw = st.session_state.get(_BENEFITS_AI_SUGGESTED_KEY, [])
+        ai_suggested = (
+            [
+                {"label": str(item.get("label") or "").strip(), "source": "AI"}
+                for item in ai_suggested_raw
+                if isinstance(item, dict)
+                and has_meaningful_value(str(item.get("label") or ""))
+            ]
+            if isinstance(ai_suggested_raw, list)
             else []
         )
+        selected_raw = st.session_state.get(_BENEFITS_SELECTED_COMPARE_KEY, [])
+        selected_labels = (
+            [str(item).strip() for item in selected_raw if has_meaningful_value(item)]
+            if isinstance(selected_raw, list)
+            else []
+        )
+
+        render_compare_adopt_intro(
+            adopt_target="Benefits",
+            canonical_target=_BENEFITS_SELECTED_COMPARE_KEY,
+            source_labels=("Jobspec", "Kontext", "AI")
+            if ai_suggested
+            else ("Jobspec", "Kontext"),
+        )
+        bulk_buffer = render_compact_requirement_board(
+            title_jobspec="Aus Jobspec extrahiert",
+            jobspec_items=jobspec_suggested,
+            title_esco="Bereits bestätigt / Kontext",
+            esco_items=contextual_suggested,
+            title_llm="AI-Vorschläge",
+            llm_items=ai_suggested,
+            selected_labels=selected_labels,
+            selection_state_key=f"{_BENEFITS_SELECTED_COMPARE_KEY}.bulk_buffer",
+            key_prefix="benefits.board",
+        )
+        if st.button("Ausgewählte Benefits übernehmen", width="stretch"):
+            merged = _dedupe_benefit_terms([*selected_labels, *bulk_buffer])
+            st.session_state[_BENEFITS_SELECTED_COMPARE_KEY] = merged
+            st.success(f"{len(merged)} Benefit(s) gespeichert.")
 
         confirmed_salary = _confirmed_values_for_keywords(
             ("gehalt", "salary", "vergütung", "compensation")
@@ -182,19 +254,13 @@ def render(ctx: WizardContext) -> None:
         )
 
         salary_col, benefits_col, remote_col = st.columns(3, gap="large")
-        for column, title, extracted, confirmed in (
-            (salary_col, "Vergütung", extracted_salary, confirmed_salary),
-            (benefits_col, "Benefits", extracted_benefits, confirmed_benefits),
-            (remote_col, "Arbeitsmodell", extracted_remote, confirmed_remote),
+        for column, title, confirmed in (
+            (salary_col, "Vergütung", confirmed_salary),
+            (benefits_col, "Benefits", confirmed_benefits),
+            (remote_col, "Arbeitsmodell", confirmed_remote),
         ):
             with column:
                 st.markdown(f"**{title}**")
-                st.caption("Aus Jobspec extrahiert")
-                if extracted:
-                    for item in extracted[:12]:
-                        st.write(f"- {item}")
-                else:
-                    st.caption("—")
                 st.caption("Bereits bestätigt")
                 if confirmed:
                     for item in confirmed[:8]:
@@ -204,7 +270,7 @@ def render(ctx: WizardContext) -> None:
 
     def _render_salary_forecast_slot() -> None:
         st.markdown("### Salary Forecast")
-        benefits_for_forecast = [
+        benefits_for_forecast = selected_benefits_for_forecast or [
             value.strip() for value in job.benefits if has_meaningful_value(value)
         ]
         selected_benefits = benefits_for_forecast

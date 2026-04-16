@@ -1968,38 +1968,22 @@ def render_compact_requirement_board(
         return []
 
     bulk_labels: list[str] = []
-    if len(board_items) == 1:
-        title, entries, source_badge = board_items[0]
-        bulk_labels.extend(
-            _render_requirement_selection_table(
-                title=title,
-                source_key=source_badge,
-                entries=entries,
-                selected_set=selected_set,
-                selection_state_key=selection_state_key,
-                key_prefix=key_prefix,
-            )
-        )
-    else:
-        tab_titles = [item[2] for item in board_items]
-        tabs = st.tabs(tab_titles)
-        for tab, (title, entries, source_badge) in zip(tabs, board_items):
-            with tab:
-                if entries:
-                    bulk_labels.extend(
-                        _render_requirement_selection_table(
-                            title=title,
-                            source_key=source_badge,
-                            entries=entries,
-                            selected_set=selected_set,
-                            selection_state_key=selection_state_key,
-                            key_prefix=key_prefix,
-                        )
+    columns = st.columns(len(board_items), gap="large")
+    for column, (title, entries, source_badge) in zip(columns, board_items):
+        with column:
+            if entries:
+                bulk_labels.extend(
+                    _render_requirement_selection_table(
+                        title=title,
+                        source_key=source_badge,
+                        entries=entries,
+                        selected_set=selected_set,
+                        selection_state_key=selection_state_key,
+                        key_prefix=key_prefix,
                     )
-                else:
-                    st.caption(
-                        (empty_messages or {}).get(source_badge, "Keine Vorschläge.")
-                    )
+                )
+            else:
+                st.caption((empty_messages or {}).get(source_badge, "Keine Vorschläge."))
 
     deduped_labels: list[str] = []
     seen: set[str] = set()
