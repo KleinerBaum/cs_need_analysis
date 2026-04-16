@@ -237,6 +237,20 @@ def _render_role_task_source_columns(
     return bulk_buffer
 
 
+def _render_role_tasks_salary_block(
+    *,
+    job: JobAdExtract,
+    selected_tasks: list[str],
+) -> None:
+    render_role_tasks_salary_forecast_panel(
+        job=job,
+        selected_tasks=selected_tasks,
+        model=get_active_model(),
+        language=str(st.session_state.get(SSKey.LANGUAGE.value, "de")),
+        store=bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)),
+    )
+
+
 def render(ctx: WizardContext) -> None:
     preflight = guard_job_and_plan(ctx)
     if preflight is None:
@@ -386,12 +400,9 @@ def render(ctx: WizardContext) -> None:
         )
 
     def _render_salary_forecast_slot() -> None:
-        render_role_tasks_salary_forecast_panel(
+        _render_role_tasks_salary_block(
             job=job,
             selected_tasks=bulk_buffer_for_salary,
-            model=get_active_model(),
-            language=str(st.session_state.get(SSKey.LANGUAGE.value, "de")),
-            store=bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)),
         )
 
     def _render_open_questions_slot() -> None:
