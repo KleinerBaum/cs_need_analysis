@@ -1849,11 +1849,10 @@ def _render_requirement_selection_table(
         height=320,
         hide_index=True,
         num_rows="fixed",
-        column_order=["select", "label", "source", "notes"],
+        column_order=["select", "label", "notes"],
         column_config={
             "select": st.column_config.CheckboxColumn("Auswahl"),
             "label": st.column_config.TextColumn("Bezeichnung", disabled=True),
-            "source": st.column_config.TextColumn("Quelle", disabled=True),
             "notes": st.column_config.TextColumn("Hinweise", disabled=True),
         },
     )
