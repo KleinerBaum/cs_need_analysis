@@ -26,6 +26,7 @@ class StepStatusPayload(TypedDict):
     essentials_answered: int
     essentials_total: int
     missing_essentials: list[str]
+    missing_essential_ids: list[str]
 
 
 def _is_essential_question(question: Question) -> bool:
@@ -52,6 +53,7 @@ def build_step_status_payload(
             "essentials_answered": 0,
             "essentials_total": 0,
             "missing_essentials": [],
+            "missing_essential_ids": [],
         }
 
     visible_questions = [
@@ -86,11 +88,13 @@ def build_step_status_payload(
         elif progress["answered"] > 0:
             completion_state = "partial"
 
-    missing_essentials = [
-        question.label
+    missing_essential_questions = [
+        question
         for question in essential_questions
         if not answered_lookup.get(question.id, False)
     ][:missing_essentials_max]
+    missing_essential_ids = [question.id for question in missing_essential_questions]
+    missing_essentials = [question.label for question in missing_essential_questions]
 
     return {
         "answered": progress["answered"],
@@ -99,4 +103,5 @@ def build_step_status_payload(
         "essentials_answered": essentials_progress["answered"],
         "essentials_total": essentials_progress["total"],
         "missing_essentials": missing_essentials,
+        "missing_essential_ids": missing_essential_ids,
     }

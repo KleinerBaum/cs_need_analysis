@@ -179,6 +179,7 @@ class SidebarStepDetailStatus(TypedDict):
     essentials_answered: int
     essentials_total: int
     missing_essentials: list[str]
+    missing_essential_ids: list[str]
 
 
 class EscoMigrationPendingPayload(TypedDict):
@@ -293,6 +294,9 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
             "essentials_answered": int(step_status["essentials_answered"]),
             "essentials_total": int(step_status["essentials_total"]),
             "missing_essentials": cast(list[str], step_status["missing_essentials"]),
+            "missing_essential_ids": cast(
+                list[str], step_status.get("missing_essential_ids", [])
+            ),
         }
         overall_lookup = build_answered_lookup(
             questions, answers, cast(AnswerMetaMap, answer_meta)
