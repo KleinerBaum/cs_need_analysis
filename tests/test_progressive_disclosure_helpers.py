@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from constants import AnswerType
 from question_progress import build_answered_lookup, compute_question_progress
-from schemas import Question, QuestionDependency
+from schemas import Question, QuestionDependency, QuestionStep
 from ui_components import (
     _collect_incomplete_group_titles,
     _extract_esco_suggestions,
+    _group_questions,
     _split_core_and_detail_questions,
 )
 
@@ -176,6 +177,45 @@ def test_extract_esco_suggestions_keeps_unknown_type_with_matching_uri_hint() ->
             "type": "skill",
             "source": "manual",
         }
+    ]
+
+
+def test_group_questions_uses_new_role_step_section_labels() -> None:
+    step = QuestionStep(
+        step_key="role_tasks",
+        title_de="Rolle & Aufgaben",
+        questions=[
+            Question(
+                id="role_scope",
+                label="Rollenfokus",
+                answer_type=AnswerType.SHORT_TEXT,
+            ),
+            Question(
+                id="deliverables",
+                label="Aufgabenbeschreibung",
+                answer_type=AnswerType.SHORT_TEXT,
+            ),
+            Question(
+                id="kpi_outcome",
+                label="Erfolgskriterien",
+                answer_type=AnswerType.SHORT_TEXT,
+            ),
+            Question(
+                id="stakeholder_sync",
+                label="Zusammenarbeit mit Stakeholdern",
+                answer_type=AnswerType.SHORT_TEXT,
+            ),
+        ],
+    )
+
+    grouped = _group_questions(step, step.questions)
+    group_titles = [title for title, _ in grouped]
+
+    assert group_titles == [
+        "Rollen-Detailfragen",
+        "Verantwortung & Scope",
+        "Erfolgskriterien",
+        "Zusammenarbeit",
     ]
 
 

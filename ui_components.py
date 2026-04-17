@@ -1288,7 +1288,17 @@ def _get_step_group_rules(step_key: str) -> list[tuple[str, tuple[str, ...]]]:
         ],
         "role_tasks": [
             (
-                "Scope, Aufgaben & Deliverables",
+                "Rollen-Detailfragen",
+                (
+                    "rolle",
+                    "role",
+                    "scope",
+                    "position",
+                    "mission",
+                ),
+            ),
+            (
+                "Verantwortung & Scope",
                 (
                     "aufgabe",
                     "scope",
@@ -1299,32 +1309,42 @@ def _get_step_group_rules(step_key: str) -> list[tuple[str, tuple[str, ...]]]:
                 ),
             ),
             (
-                "Erfolgskriterien & Stakeholder",
+                "Erfolgskriterien",
                 (
                     "erfolg",
                     "kpi",
                     "ziel",
+                    "ok",
+                    "outcome",
+                    "messbar",
+                    "impact",
+                ),
+            ),
+            (
+                "Zusammenarbeit",
+                (
                     "stakeholder",
+                    "zusammenarbeit",
+                    "schnittstelle",
                     "entscheidung",
                     "prior",
+                    "kommunikation",
                 ),
             ),
         ],
         "skills": [
             (
-                "Must-have & Fachkompetenz",
+                "Muss-Kriterien",
                 (
                     "must",
                     "pflicht",
                     "skill",
-                    "tech",
-                    "tool",
-                    "erfahrung",
-                    "expertise",
+                    "kompetenz",
+                    "anforder",
                 ),
             ),
             (
-                "Nice-to-have & Entwicklungsfelder",
+                "Nice-to-have",
                 (
                     "nice",
                     "optional",
@@ -1335,10 +1355,31 @@ def _get_step_group_rules(step_key: str) -> list[tuple[str, tuple[str, ...]]]:
                     "soft",
                 ),
             ),
+            (
+                "Tech-Stack & Tools",
+                (
+                    "tech",
+                    "tool",
+                    "stack",
+                    "framework",
+                    "programmiersprache",
+                    "software",
+                ),
+            ),
+            (
+                "Sprachen & Zertifikate",
+                (
+                    "sprache",
+                    "language",
+                    "zert",
+                    "cert",
+                    "erfahrung",
+                ),
+            ),
         ],
         "benefits": [
             (
-                "Kompensation & Vertragsrahmen",
+                "Arbeitsmodell & Vergütung",
                 (
                     "gehalt",
                     "salary",
@@ -1350,7 +1391,7 @@ def _get_step_group_rules(step_key: str) -> list[tuple[str, tuple[str, ...]]]:
                 ),
             ),
             (
-                "Benefits, Flexibilität & Entwicklung",
+                "Benefits-Präferenzen",
                 (
                     "benefit",
                     "remote",
@@ -1359,6 +1400,18 @@ def _get_step_group_rules(step_key: str) -> list[tuple[str, tuple[str, ...]]]:
                     "learning",
                     "relocation",
                     "flex",
+                ),
+            ),
+            (
+                "Rahmenbedingungen",
+                (
+                    "rahmen",
+                    "beding",
+                    "reise",
+                    "onsite",
+                    "arbeitsort",
+                    "start",
+                    "verfügbarkeit",
                 ),
             ),
         ],
@@ -1524,16 +1577,7 @@ def render_question_step(step: QuestionStep) -> None:
     ]
     hidden_questions_count = len(questions) - len(visible_questions)
 
-    core_questions, detail_questions = _split_core_and_detail_questions(
-        visible_questions
-    )
     answered_lookup = build_answered_lookup(visible_questions, answers, answer_meta)
-    core_progress = compute_question_progress(
-        core_questions, answers, answer_meta, answered_lookup=answered_lookup
-    )
-    detail_progress = compute_question_progress(
-        detail_questions, answers, answer_meta, answered_lookup=answered_lookup
-    )
     visible_progress = compute_question_progress(
         visible_questions, answers, answer_meta, answered_lookup=answered_lookup
     )
@@ -1552,27 +1596,11 @@ def render_question_step(step: QuestionStep) -> None:
     )
 
     st.caption(
-        "Minimalprofil "
-        f"{core_progress['answered']}/{core_progress['total']} beantwortet"
-        " · Details "
-        f"{detail_progress['answered']}/{detail_progress['total']} beantwortet"
+        f"Beantwortet: {visible_progress['answered']}/{visible_progress['total']}"
     )
     st.caption(scope_labels["visible_label"])
     if scope_labels["has_different_denominator"]:
         st.caption(scope_labels["overall_label"])
-
-    st.markdown("#### Minimalprofil")
-    st.caption(
-        "Starte mit den wichtigsten Fragen. Weitere Details kannst du unten ergänzen."
-    )
-    if ui_mode == "expert" and hidden_questions_count > 0:
-        st.caption("Weitere Detailfragen erscheinen nach relevanten Antworten.")
-    core_layout_columns = 2 if len(core_questions) > 1 else 1
-    if core_layout_columns == 2:
-        _render_questions_two_columns(core_questions, answers)
-    else:
-        for question in core_questions:
-            _render_question(question, answers)
 
     if not visible_questions:
         st.info(
@@ -1582,32 +1610,9 @@ def render_question_step(step: QuestionStep) -> None:
             st.caption(
                 f"{hidden_questions_count} Detailfragen sind aktuell durch Abhängigkeiten ausgeblendet."
             )
-    elif not detail_questions:
         return
 
-    grouped_questions = _group_questions(step, detail_questions)
-    global_details_expanded_default = _get_global_details_expanded_default(
-        ui_mode=ui_mode
-    )
-    details_compact = _get_step_compact_preference(
-        step_key=step.step_key,
-        fallback_compact=not global_details_expanded_default,
-    )
-    details_expanded_default = not details_compact
-    _ensure_step_group_state(
-        step.step_key,
-        grouped_questions,
-        default_open=details_expanded_default,
-    )
-    details_compact = st.toggle(
-        UI_STEP_COMPACT_TOGGLE_LABEL,
-        value=details_compact,
-        key=f"cs.details_compact.{step.step_key}",
-        help=UI_STEP_COMPACT_TOGGLE_HELP,
-    )
-    _set_step_compact_preference(step_key=step.step_key, compact=details_compact)
-    details_expanded_default = not details_compact
-
+    grouped_questions = _group_questions(step, visible_questions)
     incomplete_groups = _collect_incomplete_group_titles(
         grouped_questions, answers, answer_meta, answered_lookup
     )
@@ -1616,7 +1621,6 @@ def render_question_step(step: QuestionStep) -> None:
             "Pflichtfragen offen in: " + ", ".join(dict.fromkeys(incomplete_groups))
         )
 
-    st.markdown("#### Details")
     for group_title, group_questions in grouped_questions:
         progress = compute_question_progress(
             group_questions,
@@ -1624,15 +1628,10 @@ def render_question_step(step: QuestionStep) -> None:
             answer_meta,
             answered_lookup=answered_lookup,
         )
-        header = (
-            f"{group_title} · {progress['answered']}/{progress['total']} beantwortet"
-        )
-        expanded = _is_group_open(
-            step_key=step.step_key,
-            group_title=group_title,
-            default_open=details_expanded_default,
-        )
-        with st.expander(header, expanded=expanded):
+        with st.container(border=True):
+            st.markdown(
+                f"**{group_title}** · {progress['answered']}/{progress['total']} beantwortet"
+            )
             if progress["required_unanswered"] > 0:
                 st.caption(f"{progress['required_unanswered']} Pflichtfragen offen")
             _render_questions_two_columns(group_questions, answers)
