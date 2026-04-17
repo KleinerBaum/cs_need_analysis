@@ -1680,12 +1680,16 @@ def render_step_review_card(
     resolved_lookup = answered_lookup or build_answered_lookup(
         visible_questions, answers, answer_meta
     )
+    total_groups = len(grouped_questions)
+    complete_groups = 0
 
     for group_title, group_questions in grouped_questions:
         answered_items: list[tuple[str, str]] = []
         group_missing_essential = False
+        group_complete = bool(group_questions)
         for question in group_questions:
             if not resolved_lookup.get(question.id, False):
+                group_complete = False
                 if question.label in missing_essential_labels:
                     group_missing_essential = True
                 continue
@@ -1693,6 +1697,8 @@ def render_step_review_card(
             formatted = _format_answer_for_review(question, value)
             if formatted:
                 answered_items.append((question.label, formatted))
+        if group_complete:
+            complete_groups += 1
 
         if answered_items:
             group_payload.append((group_title, answered_items))
@@ -1701,6 +1707,28 @@ def render_step_review_card(
 
     with st.container(border=True):
         st.markdown("#### ✅ Check answers")
+        if step_status is not None:
+            answered = int(step_status.get("answered", 0))
+            total = int(step_status.get("total", 0))
+            essentials_answered = int(step_status.get("essentials_answered", 0))
+            essentials_total = int(step_status.get("essentials_total", 0))
+            badges = [
+                f"{'✅' if answered == total and total > 0 else '•'} Beantwortet {answered}/{total}",
+                (
+                    f"{'✅' if essentials_answered == essentials_total and essentials_total > 0 else '⚠️'} "
+                    f"Essentials {essentials_answered}/{essentials_total}"
+                ),
+                (
+                    f"{'✅' if complete_groups == total_groups and total_groups > 0 else '⚠️'} "
+                    f"Gruppen vollständig {complete_groups}/{total_groups}"
+                ),
+            ]
+            st.caption("  |  ".join(badges))
+        else:
+            answered = sum(1 for is_answered in resolved_lookup.values() if is_answered)
+            total = len(visible_questions)
+            st.caption(f"• Beantwortet {answered}/{total}")
+
         if not group_payload and not missing_essential_labels:
             st.caption("Noch keine sichtbaren Antworten vorhanden.")
             return
