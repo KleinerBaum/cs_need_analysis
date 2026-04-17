@@ -1661,6 +1661,7 @@ def render_step_review_card(
     answered_lookup: dict[str, bool] | None = None,
     step_status: StepStatusPayload | None = None,
 ) -> None:
+    missing_essentials_display_max = 4
     if not visible_questions:
         with st.container(border=True):
             st.markdown("#### ✅ Check answers")
@@ -1672,10 +1673,28 @@ def render_step_review_card(
 
     grouped_questions = _group_questions(step, visible_questions)
     group_payload: list[tuple[str, list[tuple[str, str]]]] = []
+    missing_essential_ids = (
+        list(step_status.get("missing_essential_ids", [])) if step_status else []
+    )
     missing_essential_labels = (
-        list(step_status["missing_essentials"]) if step_status else []
+        list(step_status.get("missing_essentials", [])) if step_status else []
+    )
+    label_by_question_id = {question.id: question.label for question in visible_questions}
+    fallback_labels = [
+        label_by_question_id[question_id]
+        for question_id in missing_essential_ids
+        if question_id in label_by_question_id
+    ]
+    if not missing_essential_labels:
+        missing_essential_labels = fallback_labels
+    missing_essential_labels_display = (
+        missing_essential_labels or fallback_labels
+    )[:missing_essentials_display_max]
+    additional_missing_essentials = max(
+        len(missing_essential_ids) - len(missing_essential_labels_display), 0
     )
     incomplete_group_titles: list[str] = []
+    missing_essential_id_set = set(missing_essential_ids)
 
     resolved_lookup = answered_lookup or build_answered_lookup(
         visible_questions, answers, answer_meta
@@ -1690,7 +1709,7 @@ def render_step_review_card(
         for question in group_questions:
             if not resolved_lookup.get(question.id, False):
                 group_complete = False
-                if question.label in missing_essential_labels:
+                if question.id in missing_essential_id_set:
                     group_missing_essential = True
                 continue
             value = answers.get(question.id)
@@ -1729,21 +1748,21 @@ def render_step_review_card(
             total = len(visible_questions)
             st.caption(f"• Beantwortet {answered}/{total}")
 
-        if not group_payload and not missing_essential_labels:
+        if missing_essential_id_set:
+            with st.container(border=True):
+                st.markdown("##### ⚠️ Essentials offen")
+                for label in missing_essential_labels_display:
+                    st.markdown(f"- {label}")
+                if additional_missing_essentials > 0:
+                    st.caption(f"+{additional_missing_essentials} weitere")
+                missing_groups = ", ".join(dict.fromkeys(incomplete_group_titles))
+                st.caption(
+                    f"Betroffene Gruppen: {missing_groups or 'Keine Gruppenzuordnung'}"
+                )
+
+        if not group_payload and not missing_essential_id_set:
             st.caption("Noch keine sichtbaren Antworten vorhanden.")
             return
-
-        if missing_essential_labels:
-            missing_groups = ", ".join(dict.fromkeys(incomplete_group_titles))
-            st.warning(
-                f"Essentials offen ({len(missing_essential_labels)}): "
-                f"Bitte in diesen Bereichen ergänzen: {missing_groups}."
-            )
-            if grouped_questions and incomplete_group_titles:
-                st.caption(
-                    "Hinweis: Bitte prüfe zuerst die Bereiche "
-                    f"{', '.join(dict.fromkeys(incomplete_group_titles))}."
-                )
 
         for group_title, answered_items in group_payload:
             st.caption(group_title)
