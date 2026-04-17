@@ -1672,7 +1672,15 @@ def render_step_review_card(
         return
 
     grouped_questions = _group_questions(step, visible_questions)
-    group_payload: list[tuple[str, list[tuple[str, str]]]] = []
+    group_payload: list[
+        tuple[
+            int,
+            str,
+            dict[str, int],
+            list[tuple[str, str]],
+            bool,
+        ]
+    ] = []
     missing_essential_ids = (
         list(step_status.get("missing_essential_ids", [])) if step_status else []
     )
@@ -1705,10 +1713,15 @@ def render_step_review_card(
     for group_title, group_questions in grouped_questions:
         answered_items: list[tuple[str, str]] = []
         group_missing_essential = False
-        group_complete = bool(group_questions)
+        progress = compute_question_progress(
+            group_questions,
+            answers,
+            answer_meta,
+            answered_lookup=resolved_lookup,
+        )
+        group_complete = progress["total"] > 0 and progress["answered"] == progress["total"]
         for question in group_questions:
             if not resolved_lookup.get(question.id, False):
-                group_complete = False
                 if question.id in missing_essential_id_set:
                     group_missing_essential = True
                 continue
@@ -1719,8 +1732,19 @@ def render_step_review_card(
         if group_complete:
             complete_groups += 1
 
-        if answered_items:
-            group_payload.append((group_title, answered_items))
+        if progress["required_unanswered"] > 0:
+            group_missing_essential = True
+
+        sort_bucket = 0 if group_missing_essential else (2 if group_complete else 1)
+        group_payload.append(
+            (
+                sort_bucket,
+                group_title,
+                progress,
+                answered_items,
+                group_complete,
+            )
+        )
         if group_missing_essential:
             incomplete_group_titles.append(group_title)
 
@@ -1764,10 +1788,24 @@ def render_step_review_card(
             st.caption("Noch keine sichtbaren Antworten vorhanden.")
             return
 
-        for group_title, answered_items in group_payload:
-            st.caption(group_title)
-            for label, formatted_value in answered_items:
-                st.markdown(f"- **{label}:** {formatted_value}")
+        for _, group_title, progress, answered_items, group_complete in sorted(
+            group_payload, key=lambda item: (item[0], item[1].casefold())
+        ):
+            status_chip = "✅ vollständig" if group_complete else "⚠️ offen"
+            with st.container(border=True):
+                col_title, col_chip, col_ratio = st.columns([5, 2, 2], gap="small")
+                with col_title:
+                    st.markdown(f"**{group_title}**")
+                with col_chip:
+                    st.caption(status_chip)
+                with col_ratio:
+                    st.caption(f"{progress['answered']}/{progress['total']}")
+
+                if answered_items:
+                    for label, formatted_value in answered_items:
+                        st.caption(f"{label}: {formatted_value}")
+                elif not group_complete:
+                    st.caption("Noch keine bestätigten Antworten in dieser Gruppe.")
 
 
 def _normalize_requirement_label(value: str) -> str:
