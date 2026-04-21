@@ -22,6 +22,13 @@ _OCCUPATION_RELATED_RELATIONS: tuple[str, ...] = (
     "hasOptionalKnowledge",
 )
 
+_FIELD_STATE_NOT_DELIVERED = "Nicht von ESCO geliefert"
+_FIELD_STATE_FALLBACK_LANGUAGE = (
+    "In gewählter Sprache nicht verfügbar (Fallback EN/DE genutzt)"
+)
+_FIELD_STATE_NOT_LOADED = "Noch nicht geladen"
+_FIELD_STATE_AVAILABLE = "verfügbar"
+
 
 def _build_esco_query(job: JobAdExtract) -> str:
     title = (job.job_title or "").strip()
@@ -264,6 +271,71 @@ def _extract_first_text(
     return ""
 
 
+def _collect_text_for_language(value: object, language: str) -> list[str]:
+    collected: list[str] = []
+    seen: set[str] = set()
+
+    def _append(raw: object) -> None:
+        if not isinstance(raw, str):
+            return
+        normalized = raw.strip()
+        if not normalized:
+            return
+        dedupe_key = normalized.casefold()
+        if dedupe_key in seen:
+            return
+        seen.add(dedupe_key)
+        collected.append(normalized)
+
+    def _walk(node: object) -> None:
+        if isinstance(node, str):
+            _append(node)
+            return
+        if isinstance(node, list):
+            for item in node:
+                _walk(item)
+            return
+        if not isinstance(node, dict):
+            return
+        _walk(node.get(language))
+
+    _walk(value)
+    return collected
+
+
+def _extract_text_field_with_state(
+    payload: object,
+    *,
+    keys: tuple[str, ...],
+    preferred_language: str,
+    fallback_language: str,
+) -> tuple[str, str]:
+    if not isinstance(payload, dict):
+        return "", _FIELD_STATE_NOT_LOADED
+
+    key_present = False
+    for key in keys:
+        if key not in payload:
+            continue
+        key_present = True
+        value = payload.get(key)
+        preferred = _collect_text_for_language(value, preferred_language)
+        if preferred:
+            return preferred[0], _FIELD_STATE_AVAILABLE
+
+        fallback = _collect_text_for_language(value, fallback_language)
+        if fallback:
+            return fallback[0], _FIELD_STATE_FALLBACK_LANGUAGE
+
+        generic = _collect_text_candidates(value)
+        if generic:
+            return generic[0], _FIELD_STATE_AVAILABLE
+
+    if key_present:
+        return "", _FIELD_STATE_NOT_DELIVERED
+    return "", _FIELD_STATE_NOT_DELIVERED
+
+
 def _extract_related_resource_count(payload: object, relation_key: str) -> int:
     if not isinstance(payload, dict):
         return 0
@@ -321,8 +393,7 @@ def _render_selected_occupation_detail(
     payload: object, related_counts: object | None = None
 ) -> None:
     if not isinstance(payload, dict):
-        st.caption("Noch keine Occupation-Details gespeichert.")
-        return
+        st.caption(_FIELD_STATE_NOT_LOADED)
 
     configured_language = (
         str(
@@ -335,10 +406,9 @@ def _render_selected_occupation_detail(
     preferred_language = configured_language if configured_language in {"de", "en"} else "de"
     fallback_language = "en" if preferred_language == "de" else "de"
 
-    preferred_label = _extract_first_text(
+    preferred_label, preferred_label_state = _extract_text_field_with_state(
         payload,
-        "preferredLabel",
-        "title",
+        keys=("preferredLabel", "title"),
         preferred_language=preferred_language,
         fallback_language=fallback_language,
     )
@@ -347,80 +417,131 @@ def _render_selected_occupation_detail(
         or payload.get("altLabel")
         or payload.get("altLabels")
     )
-    description = _extract_first_text(
+    description, description_state = _extract_text_field_with_state(
         payload,
-        "description",
+        keys=("description",),
         preferred_language=preferred_language,
         fallback_language=fallback_language,
     )
-    scope_note = _extract_first_text(
+    scope_note, scope_note_state = _extract_text_field_with_state(
         payload,
-        "scopeNote",
+        keys=("scopeNote",),
         preferred_language=preferred_language,
         fallback_language=fallback_language,
     )
-    isco_mapping = _extract_first_text(
+    isco_mapping, isco_mapping_state = _extract_text_field_with_state(
         payload,
-        "iscoGroup",
-        "isco08",
-        "isco08Code",
-        "isco_code",
+        keys=("iscoGroup", "isco08", "isco08Code", "isco_code"),
         preferred_language=preferred_language,
         fallback_language=fallback_language,
     )
-    regulated_text = _extract_first_text(
+    regulated_text, regulated_text_state = _extract_text_field_with_state(
         payload,
-        "regulatedProfessionNote",
-        "regulatedProfessionDescription",
+        keys=("regulatedProfessionNote", "regulatedProfessionDescription"),
         preferred_language=preferred_language,
         fallback_language=fallback_language,
     )
     regulated_flag = payload.get("regulatedProfession")
-    regulated_value = (
-        "Ja" if regulated_flag is True else "Nein" if regulated_flag is False else "—"
-    )
+    if not isinstance(payload, dict):
+        regulated_value = ""
+        regulated_state = _FIELD_STATE_NOT_LOADED
+    elif regulated_flag is True:
+        regulated_value = "Ja"
+        regulated_state = _FIELD_STATE_AVAILABLE
+    elif regulated_flag is False:
+        regulated_value = "Nein"
+        regulated_state = _FIELD_STATE_AVAILABLE
+    elif "regulatedProfession" in payload:
+        regulated_value = ""
+        regulated_state = _FIELD_STATE_NOT_DELIVERED
+    else:
+        regulated_value = ""
+        regulated_state = _FIELD_STATE_NOT_DELIVERED
     counts = _resolve_related_counts(payload, related_counts)
     essential_skill_count = counts.get("hasEssentialSkill", 0)
     optional_skill_count = counts.get("hasOptionalSkill", 0)
     essential_knowledge_count = counts.get("hasEssentialKnowledge", 0)
     optional_knowledge_count = counts.get("hasOptionalKnowledge", 0)
 
+    def _is_available(state: str, value: str) -> bool:
+        return bool(value) and state in {_FIELD_STATE_AVAILABLE, _FIELD_STATE_FALLBACK_LANGUAGE}
+
+    has_relation_counts = isinstance(related_counts, dict) and bool(related_counts)
+    relation_state = _FIELD_STATE_AVAILABLE if has_relation_counts else _FIELD_STATE_NOT_LOADED
+    alternative_label_state = (
+        _FIELD_STATE_AVAILABLE if alternative_labels else _FIELD_STATE_NOT_DELIVERED
+    )
+
+    detail_fields = [
+        ("Preferred Label", preferred_label, preferred_label_state),
+        (
+            "Alternative Labels",
+            ", ".join(alternative_labels),
+            alternative_label_state,
+        ),
+        ("Description", description, description_state),
+        ("Scope Note", scope_note, scope_note_state),
+        ("ISCO-08 Mapping", isco_mapping, isco_mapping_state),
+        ("Regulated Profession", regulated_value, regulated_state),
+        ("Regulated Profession Note", regulated_text, regulated_text_state),
+        ("Essential skills", str(essential_skill_count), relation_state),
+        ("Optional skills", str(optional_skill_count), relation_state),
+        ("Essential knowledge", str(essential_knowledge_count), relation_state),
+        ("Optional knowledge", str(optional_knowledge_count), relation_state),
+    ]
+    available_fields = sum(1 for _, value, state in detail_fields if _is_available(state, value))
+
     with st.expander("ESCO Occupation-Details", expanded=False):
-        st.markdown("**Preferred Label**")
-        st.write(preferred_label or "—")
+        st.caption(f"{available_fields}/{len(detail_fields)} Felder verfügbar")
+        show_only_available = st.toggle("Nur verfügbare Felder anzeigen", value=False)
 
-        st.markdown("**Alternative Labels**")
-        if alternative_labels:
-            st.write(", ".join(alternative_labels))
-        else:
-            st.caption("Keine alternativen Labels verfügbar.")
+        def _render_field(label: str, value: str, state: str) -> None:
+            if show_only_available and not _is_available(state, value):
+                return
+            st.markdown(f"**{label}**")
+            if _is_available(state, value):
+                st.write(value)
+                if state == _FIELD_STATE_FALLBACK_LANGUAGE:
+                    st.caption(_FIELD_STATE_FALLBACK_LANGUAGE)
+            else:
+                st.caption(state)
 
-        st.markdown("**Description**")
-        st.write(description or "—")
+        st.markdown("##### Basisdaten")
+        _render_field("Preferred Label", preferred_label, preferred_label_state)
+        _render_field(
+            "Alternative Labels",
+            ", ".join(alternative_labels),
+            alternative_label_state,
+        )
+        _render_field("Regulated Profession", regulated_value, regulated_state)
 
-        st.markdown("**Scope Note**")
-        st.write(scope_note or "—")
+        st.markdown("##### Beschreibung")
+        _render_field("Description", description, description_state)
+        _render_field("Scope Note", scope_note, scope_note_state)
+        _render_field("Regulated Profession Note", regulated_text, regulated_text_state)
 
-        st.markdown("**ISCO-08 Mapping**")
-        st.write(isco_mapping or "—")
+        st.markdown("##### Klassifikation")
+        _render_field("ISCO-08 Mapping", isco_mapping, isco_mapping_state)
 
-        st.markdown("**Regulated Profession**")
-        st.write(regulated_value)
-        if regulated_text:
-            st.caption(regulated_text)
+        st.markdown("##### Relationen")
+        _render_field("Essential skills", str(essential_skill_count), relation_state)
+        _render_field("Optional skills", str(optional_skill_count), relation_state)
+        _render_field(
+            "Essential knowledge",
+            str(essential_knowledge_count),
+            relation_state,
+        )
+        _render_field("Optional knowledge", str(optional_knowledge_count), relation_state)
 
-        st.markdown("**Related Skills & Knowledge (Counts)**")
-        st.write(f"- Essential skills: {essential_skill_count}")
-        st.write(f"- Optional skills: {optional_skill_count}")
-        st.write(f"- Essential knowledge: {essential_knowledge_count}")
-        st.write(f"- Optional knowledge: {optional_knowledge_count}")
-
-        links: list[str] = []
-        uri = str(payload.get("uri") or "").strip()
+        uri = str(payload.get("uri") or "").strip() if isinstance(payload, dict) else ""
+        version = str(payload.get("version") or "").strip() if isinstance(payload, dict) else ""
+        source = "ESCO API"
+        meta_items: list[str] = [f"Quelle: {source}"]
+        if version:
+            meta_items.append(f"Version: {version}")
         if uri:
-            links.append(f"[ESCO Occupation URI]({uri})")
-        if links:
-            st.markdown(" · ".join(links))
+            meta_items.append(f"URI: {uri}")
+        st.caption(" · ".join(meta_items))
 
 
 def _normalize_intent_title(query_text: str) -> str:
