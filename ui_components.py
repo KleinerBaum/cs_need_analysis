@@ -6,7 +6,7 @@ from __future__ import annotations
 import re
 import hashlib
 from datetime import date
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any, Dict, Literal, Optional, TypedDict
 
 import streamlit as st
@@ -534,6 +534,10 @@ def render_esco_picker_card(
     preview_label: str | None = None,
     selection_label: str | None = None,
     confirmation_helper_text: str | None = None,
+    secondary_action_label: str | None = None,
+    secondary_action_key: str | None = None,
+    secondary_action_disabled: bool = False,
+    secondary_action_on_click: Callable[[], None] | None = None,
 ) -> None:
     session_key = _normalize_target_state_key(target_state_key)
     if not session_key:
@@ -674,9 +678,21 @@ def render_esco_picker_card(
         st.caption(confirmation_helper_text)
 
     resolved_apply_label = apply_label or "Apply"
-    if st.button(resolved_apply_label, key=apply_button_key) or (
-        enter_submit and bool(options)
-    ):
+    secondary_clicked = False
+    if secondary_action_label:
+        apply_col, secondary_col = st.columns([1, 1], gap="small")
+        with apply_col:
+            apply_clicked = st.button(resolved_apply_label, key=apply_button_key)
+        with secondary_col:
+            secondary_clicked = st.button(
+                secondary_action_label,
+                key=secondary_action_key or f"{base_key}.secondary_action",
+                disabled=secondary_action_disabled,
+            )
+    else:
+        apply_clicked = st.button(resolved_apply_label, key=apply_button_key)
+
+    if apply_clicked or (enter_submit and bool(options)):
         try:
             validated = [
                 EscoConceptRef.model_validate(
@@ -717,6 +733,9 @@ def render_esco_picker_card(
                 allow_multi=allow_multi,
             ),
         }
+
+    if secondary_clicked and secondary_action_on_click is not None:
+        secondary_action_on_click()
 
     stored = st.session_state.get(session_key)
     current_entries: list[dict[str, Any]] = []

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from difflib import SequenceMatcher
-from typing import TypedDict
+from typing import Callable, TypedDict
 
 import streamlit as st
 
@@ -384,7 +384,9 @@ def _infer_esco_match_explainability(
     }
 
 
-def render_esco_occupation_confirmation(job: JobAdExtract) -> None:
+def render_esco_occupation_confirmation(
+    job: JobAdExtract, *, on_next: Callable[[], None] | None = None
+) -> None:
     query_text = _build_esco_query(job)
     if not query_text:
         st.info("Kein Jobtitel vorhanden. ESCO-Zuordnung aktuell nicht möglich.")
@@ -405,6 +407,9 @@ def render_esco_occupation_confirmation(job: JobAdExtract) -> None:
         enable_preview=False,
         apply_label="Speichern",
         confirmation_helper_text="Beruf für nachgelagerte Vorschläge bestätigen",
+        secondary_action_label="Weiter →" if on_next is not None else None,
+        secondary_action_key="cs.start.esco.next",
+        secondary_action_on_click=on_next,
     )
     options_state_key = f"{SSKey.ESCO_OCCUPATION_SELECTED.value}.esco_picker.options"
     options = st.session_state.get(options_state_key, [])
