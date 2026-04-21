@@ -193,13 +193,67 @@ def _normalize_text_list(value: object) -> list[str]:
     return entries
 
 
-def _extract_first_text(payload: object, *keys: str) -> str:
+def _collect_text_candidates(
+    value: object,
+    *,
+    preferred_language: str | None = None,
+    fallback_language: str | None = None,
+) -> list[str]:
+    collected: list[str] = []
+    seen: set[str] = set()
+
+    def _append_text(raw: object) -> None:
+        if not isinstance(raw, str):
+            return
+        normalized = raw.strip()
+        if not normalized:
+            return
+        dedupe_key = normalized.casefold()
+        if dedupe_key in seen:
+            return
+        seen.add(dedupe_key)
+        collected.append(normalized)
+
+    def _walk(node: object) -> None:
+        if isinstance(node, str):
+            _append_text(node)
+            return
+        if isinstance(node, list):
+            for item in node:
+                _walk(item)
+            return
+        if not isinstance(node, dict):
+            return
+
+        preferred_value = node.get(preferred_language) if preferred_language else None
+        fallback_value = node.get(fallback_language) if fallback_language else None
+        _walk(preferred_value)
+        _walk(fallback_value)
+
+        for nested in node.values():
+            _walk(nested)
+
+    _walk(value)
+    return collected
+
+
+def _extract_first_text(
+    payload: object,
+    *keys: str,
+    preferred_language: str | None = None,
+    fallback_language: str | None = None,
+) -> str:
     if not isinstance(payload, dict):
         return ""
     for key in keys:
         value = payload.get(key)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
+        text_candidates = _collect_text_candidates(
+            value,
+            preferred_language=preferred_language,
+            fallback_language=fallback_language,
+        )
+        if text_candidates:
+            return text_candidates[0]
     return ""
 
 
@@ -223,21 +277,56 @@ def _render_selected_occupation_detail(payload: object) -> None:
         st.caption("Noch keine Occupation-Details gespeichert.")
         return
 
-    preferred_label = _extract_first_text(payload, "preferredLabel", "title")
+    configured_language = (
+        str(
+            (st.session_state.get(SSKey.ESCO_CONFIG.value, {}) or {}).get("language")
+            or "de"
+        )
+        .strip()
+        .lower()
+    )
+    preferred_language = configured_language if configured_language in {"de", "en"} else "de"
+    fallback_language = "en" if preferred_language == "de" else "de"
+
+    preferred_label = _extract_first_text(
+        payload,
+        "preferredLabel",
+        "title",
+        preferred_language=preferred_language,
+        fallback_language=fallback_language,
+    )
     alternative_labels = _normalize_text_list(
         payload.get("alternativeLabel")
         or payload.get("altLabel")
         or payload.get("altLabels")
     )
-    description = _extract_first_text(payload, "description")
-    scope_note = _extract_first_text(payload, "scopeNote")
+    description = _extract_first_text(
+        payload,
+        "description",
+        preferred_language=preferred_language,
+        fallback_language=fallback_language,
+    )
+    scope_note = _extract_first_text(
+        payload,
+        "scopeNote",
+        preferred_language=preferred_language,
+        fallback_language=fallback_language,
+    )
     isco_mapping = _extract_first_text(
-        payload, "iscoGroup", "isco08", "isco08Code", "isco_code"
+        payload,
+        "iscoGroup",
+        "isco08",
+        "isco08Code",
+        "isco_code",
+        preferred_language=preferred_language,
+        fallback_language=fallback_language,
     )
     regulated_text = _extract_first_text(
         payload,
         "regulatedProfessionNote",
         "regulatedProfessionDescription",
+        preferred_language=preferred_language,
+        fallback_language=fallback_language,
     )
     regulated_flag = payload.get("regulatedProfession")
     regulated_value = (
