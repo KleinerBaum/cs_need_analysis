@@ -2435,6 +2435,10 @@ def _render_number_question(
     current_value: Any,
 ) -> tuple[float | int, str | None]:
     min_value, max_value, step_value = _resolve_number_constraints(question)
+    force_slider = False
+    if _is_percentage_number_question(question):
+        min_value, max_value, step_value = 0.0, 100.0, 5.0
+        force_slider = True
     if min_value > max_value:
         fallback_value = min_value
         return fallback_value, (
@@ -2467,7 +2471,7 @@ def _render_number_question(
         max_int = int(max_value)
         step_int = max(1, int(step_value))
         current_int = int(round(bounded_value))
-        if max_int - min_int <= 200 and step_int == 1:
+        if force_slider or (max_int - min_int <= 200 and step_int == 1):
             return (
                 st.slider(
                     label,
@@ -2538,6 +2542,21 @@ def _resolve_number_constraints(question: Question) -> tuple[float, float, float
     if step_value <= 0:
         step_value = 1.0
     return min_value, max_value, step_value
+
+
+def _is_percentage_number_question(question: Question) -> bool:
+    if question.answer_type != AnswerType.NUMBER:
+        return False
+    haystack = " ".join(
+        (
+            question.id or "",
+            question.label or "",
+            question.help or "",
+            question.target_path or "",
+            question.rationale or "",
+        )
+    ).lower()
+    return "%" in haystack or "prozent" in haystack or "percent" in haystack
 
 
 def _infer_default_value(q: Question) -> Any:
