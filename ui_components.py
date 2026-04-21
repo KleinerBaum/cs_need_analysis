@@ -62,6 +62,7 @@ ESCO_EXPLAINABILITY_LABELS: tuple[str, ...] = (
     "manually selected by user",
 )
 ESCO_CONFIDENCE_BUCKETS: tuple[str, ...] = ("high", "medium", "low")
+REVIEW_WIDGET_KEY_PREFIX = f"{WIDGET_KEY_PREFIX}review."
 
 
 class StepReviewPayload(TypedDict):
@@ -1521,13 +1522,20 @@ def _group_questions(
 
 
 def _render_questions_two_columns(
-    questions: list[Question], answers: Dict[str, Any]
+    questions: list[Question],
+    answers: Dict[str, Any],
+    *,
+    widget_key_prefix: str = WIDGET_KEY_PREFIX,
 ) -> None:
     col_left, col_right = st.columns(2, gap="large")
     for index, question in enumerate(questions):
         target_col = col_left if index % 2 == 0 else col_right
         with target_col:
-            _render_question(question, answers)
+            _render_question(
+                question,
+                answers,
+                widget_key_prefix=widget_key_prefix,
+            )
 
 
 def _split_core_and_detail_questions(
@@ -1730,6 +1738,7 @@ def render_step_review_card(
 
     for group_title, group_questions in grouped_questions:
         answered_items: list[tuple[str, str]] = []
+        unanswered_questions: list[Question] = []
         group_missing_essential = False
         progress = compute_question_progress(
             group_questions,
@@ -1740,6 +1749,7 @@ def render_step_review_card(
         group_complete = progress["total"] > 0 and progress["answered"] == progress["total"]
         for question in group_questions:
             if not resolved_lookup.get(question.id, False):
+                unanswered_questions.append(question)
                 if question.id in missing_essential_id_set:
                     group_missing_essential = True
                 continue
@@ -1824,6 +1834,36 @@ def render_step_review_card(
                         st.caption(f"{label}: {formatted_value}")
                 elif not group_complete:
                     st.caption("Noch keine bestätigten Antworten in dieser Gruppe.")
+
+                if unanswered_questions:
+                    if _can_render_inline_answer_inputs():
+                        st.markdown("**Offene Fragen direkt beantworten**")
+                        _render_questions_two_columns(
+                            unanswered_questions,
+                            answers,
+                            widget_key_prefix=REVIEW_WIDGET_KEY_PREFIX,
+                        )
+                    else:
+                        st.caption(
+                            f"{len(unanswered_questions)} offene Frage(n) in dieser Gruppe."
+                        )
+
+
+def _can_render_inline_answer_inputs() -> bool:
+    required_methods = (
+        "columns",
+        "container",
+        "date_input",
+        "multiselect",
+        "number_input",
+        "radio",
+        "selectbox",
+        "slider",
+        "text_area",
+        "text_input",
+        "toggle",
+    )
+    return all(callable(getattr(st, method, None)) for method in required_methods)
 
 
 def _normalize_requirement_label(value: str) -> str:
@@ -2223,8 +2263,13 @@ def _set_step_group_open_state(
     st.session_state[SSKey.OPEN_GROUPS.value] = open_groups
 
 
-def _render_question(q: Question, answers: Dict[str, Any]) -> None:
-    key = WIDGET_KEY_PREFIX + q.id
+def _render_question(
+    q: Question,
+    answers: Dict[str, Any],
+    *,
+    widget_key_prefix: str = WIDGET_KEY_PREFIX,
+) -> None:
+    key = widget_key_prefix + q.id
     inferred_default = _infer_default_value(q)
     previous_value = answers.get(q.id, inferred_default)
     current_value = previous_value
