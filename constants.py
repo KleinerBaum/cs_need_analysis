@@ -203,6 +203,7 @@ class SSKey(str, Enum):
     ESCO_OCCUPATION_SELECTED = "cs.esco_occupation_selected"
     ESCO_SELECTED_OCCUPATION_URI = "cs.esco_selected_occupation_uri"
     ESCO_OCCUPATION_PAYLOAD = "cs.esco_occupation_payload"
+    ESCO_OCCUPATION_RELATED_COUNTS = "cs.esco_occupation_related_counts"
     ESCO_OCCUPATION_CANDIDATES = "cs.esco_occupation_candidates"
     ESCO_MATCH_REASON = "cs.esco_match_reason"
     ESCO_MATCH_CONFIDENCE = "cs.esco_match_confidence"
