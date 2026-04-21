@@ -15,6 +15,13 @@ from esco_client import (
 from schemas import JobAdExtract
 from ui_components import render_esco_explainability, render_esco_picker_card
 
+_OCCUPATION_RELATED_RELATIONS: tuple[str, ...] = (
+    "hasEssentialSkill",
+    "hasOptionalSkill",
+    "hasEssentialKnowledge",
+    "hasOptionalKnowledge",
+)
+
 
 def _build_esco_query(job: JobAdExtract) -> str:
     title = (job.job_title or "").strip()
@@ -269,10 +276,50 @@ def _extract_related_resource_count(payload: object, relation_key: str) -> int:
             for value in embedded.values():
                 if isinstance(value, list):
                     return len(value)
+    embedded_root = payload.get("_embedded")
+    if isinstance(embedded_root, dict):
+        relation_embedded = embedded_root.get(relation_key)
+        if isinstance(relation_embedded, list):
+            return len(relation_embedded)
+        for value in embedded_root.values():
+            if isinstance(value, list):
+                return len(value)
     return 0
 
 
-def _render_selected_occupation_detail(payload: object) -> None:
+def _load_occupation_related_counts(
+    *,
+    client: EscoClient,
+    occupation_uri: str,
+) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for relation in _OCCUPATION_RELATED_RELATIONS:
+        relation_payload = client.resource_related(uri=occupation_uri, relation=relation)
+        counts[relation] = _extract_related_resource_count(relation_payload, relation)
+    return counts
+
+
+def _resolve_related_counts(
+    payload: object, related_counts: object | None = None
+) -> dict[str, int]:
+    if isinstance(related_counts, dict):
+        resolved: dict[str, int] = {}
+        for relation in _OCCUPATION_RELATED_RELATIONS:
+            raw_value = related_counts.get(relation)
+            if isinstance(raw_value, int):
+                resolved[relation] = raw_value
+        if resolved:
+            return resolved
+
+    return {
+        relation: _extract_related_resource_count(payload, relation)
+        for relation in _OCCUPATION_RELATED_RELATIONS
+    }
+
+
+def _render_selected_occupation_detail(
+    payload: object, related_counts: object | None = None
+) -> None:
     if not isinstance(payload, dict):
         st.caption("Noch keine Occupation-Details gespeichert.")
         return
@@ -332,16 +379,11 @@ def _render_selected_occupation_detail(payload: object) -> None:
     regulated_value = (
         "Ja" if regulated_flag is True else "Nein" if regulated_flag is False else "—"
     )
-    essential_skill_count = _extract_related_resource_count(
-        payload, "hasEssentialSkill"
-    )
-    optional_skill_count = _extract_related_resource_count(payload, "hasOptionalSkill")
-    essential_knowledge_count = _extract_related_resource_count(
-        payload, "hasEssentialKnowledge"
-    )
-    optional_knowledge_count = _extract_related_resource_count(
-        payload, "hasOptionalKnowledge"
-    )
+    counts = _resolve_related_counts(payload, related_counts)
+    essential_skill_count = counts.get("hasEssentialSkill", 0)
+    optional_skill_count = counts.get("hasOptionalSkill", 0)
+    essential_knowledge_count = counts.get("hasEssentialKnowledge", 0)
+    optional_knowledge_count = counts.get("hasOptionalKnowledge", 0)
 
     with st.expander("ESCO Occupation-Details", expanded=False):
         st.markdown("**Preferred Label**")
@@ -522,6 +564,7 @@ def render_esco_occupation_confirmation(
         st.session_state[SSKey.ESCO_MATCH_CONFIDENCE.value] = None
         st.session_state[SSKey.ESCO_MATCH_PROVENANCE.value] = []
         st.session_state[SSKey.ESCO_OCCUPATION_PAYLOAD.value] = None
+        st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = {}
         st.session_state[SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value] = {}
         st.session_state[SSKey.ESCO_UNMAPPED_ROLE_TERMS.value] = [query_text]
         return
@@ -560,8 +603,9 @@ def render_esco_occupation_confirmation(
         reason=str(explainability["reason"]),
         caption_prefix="Occupation Explainability",
     )
+    client = EscoClient()
     try:
-        occupation_payload = EscoClient().get_occupation_detail(uri=occupation_uri)
+        occupation_payload = client.get_occupation_detail(uri=occupation_uri)
     except EscoClientError as exc:
         if is_retryable_server_status(exc.status_code) or exc.status_code is None:
             st.warning(
@@ -586,10 +630,31 @@ def render_esco_occupation_confirmation(
         else:
             st.warning(f"ESCO-Occupationsdetails konnten nicht geladen werden: {exc}")
         st.session_state[SSKey.ESCO_OCCUPATION_PAYLOAD.value] = None
+        st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = {}
     else:
         st.session_state[SSKey.ESCO_OCCUPATION_PAYLOAD.value] = occupation_payload
+        try:
+            st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = (
+                _load_occupation_related_counts(
+                    client=client,
+                    occupation_uri=occupation_uri,
+                )
+            )
+        except EscoClientError as exc:
+            if is_retryable_server_status(exc.status_code) or exc.status_code is None:
+                st.warning(
+                    "ESCO-Relationsdaten sind gerade nicht stabil erreichbar. "
+                    "Du kannst manuell fortfahren und später erneut laden."
+                )
+            else:
+                st.warning(
+                    "ESCO-Relationsdaten konnten nicht vollständig geladen werden: "
+                    f"{exc}"
+                )
+            st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = {}
     _render_selected_occupation_detail(
-        st.session_state.get(SSKey.ESCO_OCCUPATION_PAYLOAD.value)
+        st.session_state.get(SSKey.ESCO_OCCUPATION_PAYLOAD.value),
+        st.session_state.get(SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value),
     )
 
     configured_language = (
