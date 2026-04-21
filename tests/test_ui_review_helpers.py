@@ -221,3 +221,28 @@ def test_render_step_review_card_maps_missing_essentials_by_id_with_duplicate_la
     )
     assert "Group B" in affected_group_caption
     assert "Group A" not in affected_group_caption
+
+
+def test_render_step_review_card_shows_open_question_count_without_input_widgets(
+    monkeypatch,
+) -> None:
+    fake_st = _FakeStreamlitRecorder()
+    monkeypatch.setattr(ui_components, "st", fake_st)
+
+    unanswered_question = _question(
+        question_id="group_open_q1",
+        label="Noch offen",
+        group_key="group_open",
+    )
+    step = _step_with_questions([unanswered_question])
+
+    ui_components.render_step_review_card(
+        step=step,
+        visible_questions=step.questions,
+        answers={},
+        answer_meta={},
+        answered_lookup={"group_open_q1": False},
+        step_status=None,
+    )
+
+    assert "1 offene Frage(n) in dieser Gruppe." in fake_st.captions
