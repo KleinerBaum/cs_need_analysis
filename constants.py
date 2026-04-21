@@ -224,6 +224,7 @@ class SSKey(str, Enum):
     COMPANY_NACE_CODE = "cs.company_nace_code"
     COMPANY_WEBSITE_RESEARCH = "cs.company_website_research"
     COMPANY_WEBSITE_LAST_ERROR = "cs.company_website_last_error"
+    COMPANY_WEBSITE_MANUAL_URL = "cs.company_website_manual_url"
     ROLE_TASKS_JOBSPEC_SUGGESTED = "cs.role_tasks.jobspec_suggested"
     ROLE_TASKS_ESCO_SUGGESTED = "cs.role_tasks.esco_suggested"
     ROLE_TASKS_LLM_SUGGESTED = "cs.role_tasks.llm_suggested"
