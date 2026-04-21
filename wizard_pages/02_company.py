@@ -189,14 +189,26 @@ def _run_website_research(
 
 def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
     st.markdown("### Firmen-Homepage Analyse (Beta)")
-    homepage = _normalize_url(job.company_website or "")
+    extracted_homepage = _normalize_url(job.company_website or "")
+    manual_homepage_raw = str(
+        st.session_state.get(SSKey.COMPANY_WEBSITE_MANUAL_URL.value, "")
+    ).strip()
+    manual_homepage = _normalize_url(manual_homepage_raw)
+    homepage = extracted_homepage or manual_homepage
     left_col, right_col = st.columns([1, 1], gap="large")
     with left_col:
         st.write("**Extrahierte URL**")
-        if homepage:
-            st.code(homepage, language="text")
+        if extracted_homepage:
+            st.code(extracted_homepage, language="text")
         else:
             st.info("Keine Homepage im Jobad erkannt.")
+            st.text_input(
+                "Homepage manuell eingeben",
+                key=SSKey.COMPANY_WEBSITE_MANUAL_URL.value,
+                placeholder="https://www.beispiel.de",
+            )
+            if manual_homepage:
+                st.caption("Manuell erfasste URL wird für die Analyse verwendet.")
 
         button_col_1, button_col_2, button_col_3 = st.columns(3)
         with button_col_1:
