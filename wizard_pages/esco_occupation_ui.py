@@ -506,6 +506,11 @@ def _render_selected_occupation_detail(
             else:
                 st.caption(state)
 
+        st.markdown("##### Beschreibung")
+        _render_field("Description", description, description_state)
+        _render_field("Scope Note", scope_note, scope_note_state)
+        _render_field("Regulated Profession Note", regulated_text, regulated_text_state)
+
         st.markdown("##### Basisdaten")
         _render_field("Preferred Label", preferred_label, preferred_label_state)
         _render_field(
@@ -514,11 +519,6 @@ def _render_selected_occupation_detail(
             alternative_label_state,
         )
         _render_field("Regulated Profession", regulated_value, regulated_state)
-
-        st.markdown("##### Beschreibung")
-        _render_field("Description", description, description_state)
-        _render_field("Scope Note", scope_note, scope_note_state)
-        _render_field("Regulated Profession Note", regulated_text, regulated_text_state)
 
         st.markdown("##### Klassifikation")
         _render_field("ISCO-08 Mapping", isco_mapping, isco_mapping_state)
@@ -539,9 +539,13 @@ def _render_selected_occupation_detail(
         meta_items: list[str] = [f"Quelle: {source}"]
         if version:
             meta_items.append(f"Version: {version}")
-        if uri:
-            meta_items.append(f"URI: {uri}")
         st.caption(" · ".join(meta_items))
+        if uri:
+            uri_suffix = uri.rstrip("/").rsplit("/", 1)[-1] or uri
+            st.markdown(f"[ESCO URI: …{uri_suffix}]({uri})")
+            if st.button("URI kopieren", key="esco.occupation.details.uri.copy"):
+                st.code(uri, language="text")
+                st.caption("URI zum Kopieren eingeblendet.")
 
 
 def _normalize_intent_title(query_text: str) -> str:
@@ -639,6 +643,10 @@ def _infer_esco_match_explainability(
 def render_esco_occupation_confirmation(
     job: JobAdExtract, *, on_next: Callable[[], None] | None = None
 ) -> None:
+    # Mobile Verhalten (Smartphone-Breakpoints):
+    # - Titel, Match-Badge und Confidence immer in separaten Zeilen/Containern rendern.
+    # - ESCO-URI als kurzen Linktext darstellen; Voll-URI nur bei expliziter "Kopieren"-Aktion zeigen.
+    # - Explainability-Chips kompakt halten; Zusatzinfos in "Mehr Infos" auslagern.
     query_text = _build_esco_query(job)
     if not query_text:
         st.info("Kein Jobtitel vorhanden. ESCO-Zuordnung aktuell nicht möglich.")
@@ -710,14 +718,23 @@ def render_esco_occupation_confirmation(
     ]
 
     selected_title = str(selected.get("title") or "—").strip() or "—"
-    st.markdown(
-        (
-            f"**Ausgewählte Occupation:** {selected_title} "
-            f"<span style='display:inline-block;padding:0.1rem 0.5rem;border:1px solid #999;border-radius:0.75rem;font-size:0.8rem;'>"
-            f"{explainability['badge_label']}</span>"
-        ),
-        unsafe_allow_html=True,
-    )
+    with st.container():
+        st.markdown("**Ausgewählte Occupation**")
+        st.write(selected_title)
+        st.markdown(
+            (
+                "<span style='display:inline-block;padding:0.1rem 0.5rem;"
+                "border:1px solid #999;border-radius:0.75rem;font-size:0.8rem;'>"
+                f"{explainability['badge_label']}</span>"
+            ),
+            unsafe_allow_html=True,
+        )
+        st.caption(f"Confidence: {str(explainability['confidence']).title()}")
+        uri_suffix = occupation_uri.rstrip("/").rsplit("/", 1)[-1] or occupation_uri
+        st.markdown(f"[ESCO URI: …{uri_suffix}]({occupation_uri})")
+        if st.button("URI kopieren", key="esco.occupation.selected.uri.copy"):
+            st.code(occupation_uri, language="text")
+            st.caption("URI zum Kopieren eingeblendet.")
     render_esco_explainability(
         labels=explainability["provenance_categories"],
         confidence=str(explainability["confidence"]),
