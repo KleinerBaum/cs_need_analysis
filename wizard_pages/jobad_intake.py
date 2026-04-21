@@ -84,7 +84,7 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
         job, plan=plan, show_question_limits=False, show_heading=False
     )
 
-    nav_col_back, nav_col_anchor, nav_col_next = st.columns([1, 2, 1], gap="small")
+    nav_col_back, nav_col_anchor = st.columns([1, 2], gap="small")
     with nav_col_back:
         if st.button("← Zurück", key="cs.jobspec.ident_info.back"):
             ctx.prev()
@@ -97,10 +97,6 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
             st.caption(
                 "Optional: In Phase C können Sie einen semantischen ESCO-Anker bestätigen."
             )
-    with nav_col_next:
-        if st.button("Weiter →", key="cs.jobspec.ident_info.next"):
-            ctx.next()
-            st.rerun()
 
 
 def _set_active_source(source: str, text: str) -> None:
@@ -252,15 +248,22 @@ def _render_phase_b_extraction_review(ctx: WizardContext) -> None:
     _render_identified_information_block(ctx)
 
 
-def _render_phase_c_esco_anchor() -> None:
+def _render_phase_c_esco_anchor(ctx: WizardContext) -> None:
     job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
     plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
     if not isinstance(job_dict, dict) or not isinstance(plan_dict, dict):
         return
 
+    def _go_to_next_step() -> None:
+        ctx.next()
+        st.rerun()
+
     st.markdown("### ESCO-Suche")
     job = JobAdExtract.model_validate(job_dict)
-    render_esco_occupation_confirmation(job)
+    render_esco_occupation_confirmation(
+        job,
+        on_next=_go_to_next_step,
+    )
 
 
 def render_jobad_intake(
@@ -364,4 +367,4 @@ def render_jobad_intake(
         st.rerun()
 
     _render_phase_b_extraction_review(ctx)
-    _render_phase_c_esco_anchor()
+    _render_phase_c_esco_anchor(ctx)
