@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from difflib import SequenceMatcher
-from typing import Callable, TypedDict
+from typing import Any, Callable, TypedDict
 
 import streamlit as st
 
@@ -28,6 +28,11 @@ _FIELD_STATE_FALLBACK_LANGUAGE = (
 )
 _FIELD_STATE_NOT_LOADED = "Noch nicht geladen"
 _FIELD_STATE_AVAILABLE = "verfügbar"
+
+
+class _SkillGroupShareRow(TypedDict):
+    label: str
+    share_percent: float
 
 
 def _build_esco_query(job: JobAdExtract) -> str:
@@ -205,6 +210,66 @@ def _normalize_text_list(value: object) -> list[str]:
         seen.add(dedupe_key)
         entries.append(normalized)
     return entries
+
+
+def _extract_skill_group_share_rows(payload: object) -> list[_SkillGroupShareRow]:
+    if not isinstance(payload, dict):
+        return []
+
+    raw_items: list[object] = []
+    embedded = payload.get("_embedded")
+    if isinstance(embedded, dict):
+        for key in ("results", "items", "occupationSkillsGroupShare"):
+            value = embedded.get(key)
+            if isinstance(value, list):
+                raw_items = value
+                break
+        if not raw_items:
+            for value in embedded.values():
+                if isinstance(value, list):
+                    raw_items = value
+                    break
+    if not raw_items:
+        for key in ("results", "items", "occupationSkillsGroupShare"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                raw_items = value
+                break
+    if not raw_items:
+        return []
+
+    rows: list[_SkillGroupShareRow] = []
+    for item in raw_items:
+        if not isinstance(item, dict):
+            continue
+        label = str(
+            item.get("skillGroupLabel")
+            or item.get("skillGroup")
+            or item.get("preferredLabel")
+            or item.get("title")
+            or item.get("label")
+            or item.get("name")
+            or ""
+        ).strip()
+        raw_share = item.get("share")
+        if raw_share is None:
+            raw_share = item.get("sharePercent")
+        if raw_share is None:
+            raw_share = item.get("percentage")
+        if raw_share is None:
+            raw_share = item.get("value")
+        if not label or raw_share is None:
+            continue
+        try:
+            share = float(raw_share)
+        except (TypeError, ValueError):
+            continue
+        if share <= 1.0:
+            share *= 100.0
+        rows.append({"label": label, "share_percent": round(max(0.0, share), 2)})
+
+    rows.sort(key=lambda row: row["share_percent"], reverse=True)
+    return rows
 
 
 def _collect_text_candidates(
@@ -477,6 +542,7 @@ def _render_selected_occupation_detail(
     payload: object,
     related_counts: object | None = None,
     related_labels: object | None = None,
+    skill_group_share_payload: object | None = None,
 ) -> None:
     if not isinstance(payload, dict):
         st.caption(_FIELD_STATE_NOT_LOADED)
@@ -720,6 +786,44 @@ def _render_selected_occupation_detail(
     else:
         st.caption(f"{optional_knowledge_count} Treffer")
 
+    share_rows = _extract_skill_group_share_rows(skill_group_share_payload)
+    left_column, center_column, right_column = st.columns([1, 2, 1])
+    del left_column, right_column
+    with center_column:
+        if share_rows:
+            st.markdown("##### Skills Group Share")
+            st.vega_lite_chart(
+                {
+                    "mark": {"type": "bar", "cornerRadiusEnd": 4},
+                    "encoding": {
+                        "x": {
+                            "field": "share_percent",
+                            "type": "quantitative",
+                            "title": "Anteil (%)",
+                        },
+                        "y": {
+                            "field": "label",
+                            "type": "nominal",
+                            "sort": "-x",
+                            "title": "",
+                        },
+                        "tooltip": [
+                            {"field": "label", "type": "nominal", "title": "Gruppe"},
+                            {
+                                "field": "share_percent",
+                                "type": "quantitative",
+                                "title": "Anteil (%)",
+                            },
+                        ],
+                    },
+                    "data": {"values": share_rows},
+                    "height": max(180, len(share_rows) * 34),
+                },
+                use_container_width=True,
+            )
+        else:
+            st.caption("Keine Skills-Group-Share-Daten verfügbar.")
+
 
 def _normalize_intent_title(query_text: str) -> str:
     normalized_query = query_text.strip()
@@ -872,6 +976,7 @@ def render_esco_occupation_confirmation(
         st.session_state[SSKey.ESCO_MATCH_PROVENANCE.value] = []
         st.session_state[SSKey.ESCO_OCCUPATION_PAYLOAD.value] = None
         st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = {}
+        st.session_state[SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value] = []
         st.session_state[SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value] = {}
         st.session_state[SSKey.ESCO_UNMAPPED_ROLE_TERMS.value] = [query_text]
         return
@@ -949,6 +1054,7 @@ def render_esco_occupation_confirmation(
             st.warning(f"ESCO-Occupationsdetails konnten nicht geladen werden: {exc}")
         st.session_state[SSKey.ESCO_OCCUPATION_PAYLOAD.value] = None
         st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = {}
+        st.session_state[SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value] = []
     else:
         st.session_state[SSKey.ESCO_OCCUPATION_PAYLOAD.value] = occupation_payload
         try:
@@ -970,11 +1076,31 @@ def render_esco_occupation_confirmation(
                 )
             st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = {}
             related_labels = {}
+        try:
+            skill_group_share_payload = client.get_occupation_skill_group_share(
+                occupation_uri=occupation_uri
+            )
+            st.session_state[SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value] = (
+                skill_group_share_payload
+            )
+        except EscoClientError as exc:
+            if is_retryable_server_status(exc.status_code) or exc.status_code is None:
+                st.warning(
+                    "ESCO-Skillgruppen-Daten sind gerade nicht stabil erreichbar. "
+                    "Du kannst manuell fortfahren und später erneut laden."
+                )
+            else:
+                st.warning(
+                    "ESCO-Skillgruppen-Daten konnten nicht vollständig geladen werden: "
+                    f"{exc}"
+                )
+            st.session_state[SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value] = []
     if show_start_context_panels:
         _render_selected_occupation_detail(
             st.session_state.get(SSKey.ESCO_OCCUPATION_PAYLOAD.value),
             st.session_state.get(SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value),
             related_labels,
+            st.session_state.get(SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value),
         )
 
     if show_start_context_panels:

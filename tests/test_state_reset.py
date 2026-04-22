@@ -22,7 +22,7 @@ RESET_EXPECTATIONS: dict[SSKey, object] = {
         "regional_focus": "DACH",
         "show_sources_default": True,
         "confidence_threshold": 0.6,
-        "pii_reduction": True,
+        "pii_reduction": False,
         "details_expanded_default": False,
         "step_compact": {},
     },
@@ -72,6 +72,7 @@ RESET_EXPECTATIONS: dict[SSKey, object] = {
     SSKey.ESCO_SELECTED_OCCUPATION_URI: "",
     SSKey.ESCO_OCCUPATION_PAYLOAD: None,
     SSKey.ESCO_OCCUPATION_RELATED_COUNTS: {},
+    SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE: [],
     SSKey.ESCO_OCCUPATION_CANDIDATES: [],
     SSKey.ESCO_SKILLS_SELECTED_MUST: [],
     SSKey.ESCO_SKILLS_SELECTED_NICE: [],
@@ -189,7 +190,7 @@ def test_reset_vacancy_preserves_existing_ui_preferences(monkeypatch) -> None:
     assert resolved_preferences["details_expanded_default"] is True
     assert resolved_preferences["step_compact"] == {"company": False}
     assert resolved_preferences["confidence_threshold"] == 0.6
-    assert resolved_preferences["pii_reduction"] is True
+    assert resolved_preferences["pii_reduction"] is False
 
 
 def test_init_session_state_uses_env_esco_api_base_url(monkeypatch) -> None:

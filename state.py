@@ -249,6 +249,7 @@ def init_session_state() -> None:
         SSKey.ESCO_SELECTED_OCCUPATION_URI.value: "",
         SSKey.ESCO_OCCUPATION_PAYLOAD.value: None,
         SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value: {},
+        SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value: [],
         SSKey.ESCO_OCCUPATION_CANDIDATES.value: [],
         SSKey.ESCO_MATCH_REASON.value: None,
         SSKey.ESCO_MATCH_CONFIDENCE.value: None,
@@ -375,6 +376,7 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] = ""
     st.session_state[SSKey.ESCO_OCCUPATION_PAYLOAD.value] = None
     st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = {}
+    st.session_state[SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value] = []
     st.session_state[SSKey.ESCO_OCCUPATION_CANDIDATES.value] = []
     st.session_state[SSKey.ESCO_MATCH_REASON.value] = None
     st.session_state[SSKey.ESCO_MATCH_CONFIDENCE.value] = None

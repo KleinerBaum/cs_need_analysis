@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import cast
 
+from constants import SSKey
 from esco_client import EscoClient, EscoClientError
 from wizard_pages import esco_occupation_ui
 
@@ -158,3 +160,131 @@ def test_load_occupation_related_counts_skips_unsupported_relations_with_400() -
         "hasOptionalSkill": 2,
         "hasEssentialKnowledge": 1,
     }
+
+
+def test_extract_skill_group_share_rows_normalizes_common_payload_shapes() -> None:
+    payload = {
+        "_embedded": {
+            "results": [
+                {"skillGroupLabel": "Group A", "share": 0.2},
+                {"label": "Group B", "percentage": 40},
+                {"name": "Group C", "value": "15.5"},
+            ]
+        }
+    }
+
+    rows = esco_occupation_ui._extract_skill_group_share_rows(payload)
+
+    assert rows == [
+        {"label": "Group B", "share_percent": 40.0},
+        {"label": "Group A", "share_percent": 20.0},
+        {"label": "Group C", "share_percent": 15.5},
+    ]
+
+
+def test_render_esco_occupation_confirmation_keeps_chart_before_title_variants(
+    monkeypatch,
+) -> None:
+    class _DummyContext:
+        def __enter__(self) -> "_DummyContext":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> bool:
+            del exc_type, exc, tb
+            return False
+
+    class _FakeStreamlit:
+        def __init__(self) -> None:
+            self.events: list[str] = []
+            self.session_state = {
+                f"{SSKey.ESCO_OCCUPATION_SELECTED.value}.esco_picker.options": [],
+                SSKey.ESCO_OCCUPATION_SELECTED.value: {
+                    "uri": "http://data.europa.eu/esco/occupation/123",
+                    "title": "Data Engineer",
+                },
+                SSKey.ESCO_CONFIG.value: {"language": "de"},
+            }
+
+        def caption(self, _message: str) -> None:
+            return None
+
+        def info(self, _message: str) -> None:
+            return None
+
+        def warning(self, _message: str) -> None:
+            return None
+
+        def write(self, _message: object) -> None:
+            return None
+
+        def code(self, _value: str, *, language: str) -> None:
+            del language
+            return None
+
+        def markdown(self, message: str, **_kwargs: object) -> None:
+            self.events.append(f"markdown::{message}")
+
+        def button(self, label: str, **_kwargs: object) -> bool:
+            self.events.append(f"button::{label}")
+            return False
+
+        def toggle(self, _label: str, *, value: bool = False, **_kwargs: object) -> bool:
+            return value
+
+        def columns(self, _spec: list[int] | tuple[int, ...]) -> list[_DummyContext]:
+            return [_DummyContext(), _DummyContext(), _DummyContext()]
+
+        def container(self) -> _DummyContext:
+            return _DummyContext()
+
+        def expander(self, _label: str, **_kwargs: object) -> _DummyContext:
+            return _DummyContext()
+
+        def multiselect(self, _label: str, **_kwargs: object) -> list[str]:
+            return ["de"]
+
+        def vega_lite_chart(self, _spec: object, **_kwargs: object) -> None:
+            self.events.append("chart::vega_lite")
+
+    class _FakeClient:
+        def get_occupation_detail(self, *, uri: str) -> dict[str, object]:
+            del uri
+            return {"description": {"de": "Beschreibung"}, "uri": "uri:occ:1"}
+
+        def resource_related(self, *, uri: str, relation: str) -> dict[str, object]:
+            del uri, relation
+            return {"_embedded": {}}
+
+        def get_occupation_skill_group_share(
+            self, *, occupation_uri: str
+        ) -> dict[str, object]:
+            del occupation_uri
+            return {
+                "results": [
+                    {"label": "Core Skills", "sharePercent": 60},
+                    {"label": "Domain Skills", "sharePercent": 40},
+                ]
+            }
+
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(esco_occupation_ui, "st", fake_st)
+    monkeypatch.setattr(esco_occupation_ui, "EscoClient", _FakeClient)
+    monkeypatch.setattr(esco_occupation_ui, "render_esco_picker_card", lambda **_kwargs: None)
+    monkeypatch.setattr(esco_occupation_ui, "render_esco_explainability", lambda **_kwargs: None)
+
+    job = SimpleNamespace(
+        job_title="Data Engineer",
+        seniority_level="Senior",
+        department_name="Data",
+        location_city="Berlin",
+    )
+    esco_occupation_ui.render_esco_occupation_confirmation(
+        cast(object, job),
+        show_start_context_panels=True,
+    )
+
+    skills_index = fake_st.events.index("markdown::#### Skills & Competences")
+    chart_index = fake_st.events.index("chart::vega_lite")
+    title_variant_index = fake_st.events.index("button::Titel-Varianten laden")
+
+    assert skills_index < chart_index < title_variant_index
