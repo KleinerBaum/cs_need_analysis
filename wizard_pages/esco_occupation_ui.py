@@ -814,7 +814,10 @@ def _infer_esco_match_explainability(
 
 
 def render_esco_occupation_confirmation(
-    job: JobAdExtract, *, on_next: Callable[[], None] | None = None
+    job: JobAdExtract,
+    *,
+    on_next: Callable[[], None] | None = None,
+    show_start_context_panels: bool = True,
 ) -> None:
     # Mobile Verhalten (Smartphone-Breakpoints):
     # - Titel, Match-Badge und Confidence immer in separaten Zeilen/Containern rendern.
@@ -829,20 +832,21 @@ def render_esco_occupation_confirmation(
         st.session_state[SSKey.ESCO_UNMAPPED_ROLE_TERMS.value] = []
         return
 
-    st.caption(f"Suche mit: `{query_text}`")
+    if show_start_context_panels:
+        st.caption(f"Suche mit: `{query_text}`")
     query_state_key = f"{SSKey.ESCO_OCCUPATION_SELECTED.value}.esco_picker.query"
     if not st.session_state.get(query_state_key):
         st.session_state[query_state_key] = query_text
-    _render_esco_why_this_matters()
+    if show_start_context_panels:
+        _render_esco_why_this_matters()
     render_esco_picker_card(
         concept_type="occupation",
         target_state_key=SSKey.ESCO_OCCUPATION_SELECTED,
         enable_preview=False,
-        apply_label="Speichern",
+        apply_label=None,
         confirmation_helper_text="Beruf für nachgelagerte Vorschläge bestätigen",
-        secondary_action_label="Weiter →" if on_next is not None else None,
-        secondary_action_key="cs.start.esco.next",
-        secondary_action_on_click=on_next,
+        auto_apply_single_select=True,
+        show_apply_button=False,
         show_results_overview=False,
     )
     options_state_key = f"{SSKey.ESCO_OCCUPATION_SELECTED.value}.esco_picker.options"
@@ -891,30 +895,31 @@ def render_esco_occupation_confirmation(
         "provenance_categories"
     ]
 
-    selected_title = str(selected.get("title") or "—").strip() or "—"
-    with st.container():
-        st.markdown("**Ausgewählte Occupation**")
-        st.write(selected_title)
-        st.markdown(
-            (
-                "<span style='display:inline-block;padding:0.1rem 0.5rem;"
-                "border:1px solid #999;border-radius:0.75rem;font-size:0.8rem;'>"
-                f"{explainability['badge_label']}</span>"
-            ),
-            unsafe_allow_html=True,
+    if show_start_context_panels:
+        selected_title = str(selected.get("title") or "—").strip() or "—"
+        with st.container():
+            st.markdown("**Ausgewählte Occupation**")
+            st.write(selected_title)
+            st.markdown(
+                (
+                    "<span style='display:inline-block;padding:0.1rem 0.5rem;"
+                    "border:1px solid #999;border-radius:0.75rem;font-size:0.8rem;'>"
+                    f"{explainability['badge_label']}</span>"
+                ),
+                unsafe_allow_html=True,
+            )
+            st.caption(f"Confidence: {str(explainability['confidence']).title()}")
+            uri_suffix = occupation_uri.rstrip("/").rsplit("/", 1)[-1] or occupation_uri
+            st.markdown(f"[ESCO URI: …{uri_suffix}]({occupation_uri})")
+            if st.button("URI kopieren", key="esco.occupation.selected.uri.copy"):
+                st.code(occupation_uri, language="text")
+                st.caption("URI zum Kopieren eingeblendet.")
+        render_esco_explainability(
+            labels=explainability["provenance_categories"],
+            confidence=str(explainability["confidence"]),
+            reason=str(explainability["reason"]),
+            caption_prefix="Occupation Explainability",
         )
-        st.caption(f"Confidence: {str(explainability['confidence']).title()}")
-        uri_suffix = occupation_uri.rstrip("/").rsplit("/", 1)[-1] or occupation_uri
-        st.markdown(f"[ESCO URI: …{uri_suffix}]({occupation_uri})")
-        if st.button("URI kopieren", key="esco.occupation.selected.uri.copy"):
-            st.code(occupation_uri, language="text")
-            st.caption("URI zum Kopieren eingeblendet.")
-    render_esco_explainability(
-        labels=explainability["provenance_categories"],
-        confidence=str(explainability["confidence"]),
-        reason=str(explainability["reason"]),
-        caption_prefix="Occupation Explainability",
-    )
     client = EscoClient()
     related_labels: dict[str, list[str]] = {}
     try:
@@ -965,82 +970,86 @@ def render_esco_occupation_confirmation(
                 )
             st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = {}
             related_labels = {}
-    _render_selected_occupation_detail(
-        st.session_state.get(SSKey.ESCO_OCCUPATION_PAYLOAD.value),
-        st.session_state.get(SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value),
-        related_labels,
-    )
-
-    configured_language = (
-        str(
-            (st.session_state.get(SSKey.ESCO_CONFIG.value, {}) or {}).get("language")
-            or "de"
+    if show_start_context_panels:
+        _render_selected_occupation_detail(
+            st.session_state.get(SSKey.ESCO_OCCUPATION_PAYLOAD.value),
+            st.session_state.get(SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value),
+            related_labels,
         )
-        .strip()
-        .lower()
-    )
-    language_options = {"de": "Deutsch (DE)", "en": "English (EN)"}
-    default_languages = (
-        [configured_language] if configured_language in language_options else ["de"]
-    )
-    selected_languages = st.multiselect(
-        "Bevorzugte Occupation-Titelsprachen",
-        options=list(language_options.keys()),
-        default=default_languages,
-        format_func=lambda value: language_options[value],
-        key=f"{SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value}.languages",
-    )
-    languages = selected_languages or default_languages
 
-    if st.button(
-        "Titel-Varianten laden",
-        key=f"{SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value}.load",
-    ):
-        try:
-            variants, warning_languages = _load_occupation_title_variants(
-                occupation_uri=occupation_uri,
-                languages=languages,
+    if show_start_context_panels:
+        configured_language = (
+            str(
+                (st.session_state.get(SSKey.ESCO_CONFIG.value, {}) or {}).get(
+                    "language"
+                )
+                or "de"
             )
-        except EscoClientError as exc:
-            st.warning(f"ESCO-Titelvarianten konnten nicht geladen werden: {exc}")
-        else:
-            st.session_state[SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value] = {
-                "uri": occupation_uri,
-                "recommended_titles": variants,
-                "warnings": warning_languages,
-            }
+            .strip()
+            .lower()
+        )
+        language_options = {"de": "Deutsch (DE)", "en": "English (EN)"}
+        default_languages = (
+            [configured_language] if configured_language in language_options else ["de"]
+        )
+        selected_languages = st.multiselect(
+            "Bevorzugte Occupation-Titelsprachen",
+            options=list(language_options.keys()),
+            default=default_languages,
+            format_func=lambda value: language_options[value],
+            key=f"{SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value}.languages",
+        )
+        languages = selected_languages or default_languages
 
-    title_variants_raw = st.session_state.get(
-        SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value
-    )
-    if isinstance(title_variants_raw, dict):
-        variant_uri = str(title_variants_raw.get("uri") or "").strip()
-        variants_by_language = title_variants_raw.get("recommended_titles", {})
-        if variant_uri == occupation_uri and isinstance(variants_by_language, dict):
-            warnings_raw = title_variants_raw.get("warnings", [])
-            warning_languages = (
-                [str(item).strip() for item in warnings_raw if str(item).strip()]
-                if isinstance(warnings_raw, list)
-                else []
-            )
-            if warning_languages:
-                joined_languages = ", ".join(
-                    f"{item.upper()}" for item in warning_languages
+        if st.button(
+            "Titel-Varianten laden",
+            key=f"{SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value}.load",
+        ):
+            try:
+                variants, warning_languages = _load_occupation_title_variants(
+                    occupation_uri=occupation_uri,
+                    languages=languages,
                 )
-                st.warning(
-                    "Titelvarianten konnten nicht in allen Sprachen geladen werden "
-                    f"({joined_languages}). Bitte später erneut versuchen."
+            except EscoClientError as exc:
+                st.warning(f"ESCO-Titelvarianten konnten nicht geladen werden: {exc}")
+            else:
+                st.session_state[SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value] = {
+                    "uri": occupation_uri,
+                    "recommended_titles": variants,
+                    "warnings": warning_languages,
+                }
+
+        title_variants_raw = st.session_state.get(
+            SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value
+        )
+        if isinstance(title_variants_raw, dict):
+            variant_uri = str(title_variants_raw.get("uri") or "").strip()
+            variants_by_language = title_variants_raw.get("recommended_titles", {})
+            if variant_uri == occupation_uri and isinstance(variants_by_language, dict):
+                warnings_raw = title_variants_raw.get("warnings", [])
+                warning_languages = (
+                    [str(item).strip() for item in warnings_raw if str(item).strip()]
+                    if isinstance(warnings_raw, list)
+                    else []
                 )
-            with st.expander("Geladene Occupation-Titelvarianten", expanded=False):
-                for language in languages:
-                    labels_raw = variants_by_language.get(language, [])
-                    labels = labels_raw if isinstance(labels_raw, list) else []
-                    if not labels:
-                        st.caption(f"{language.upper()}: keine Titel gefunden.")
-                        continue
-                    st.markdown(f"**{language.upper()}**")
-                    for label in labels:
-                        st.write(f"- {label}")
+                if warning_languages:
+                    joined_languages = ", ".join(
+                        f"{item.upper()}" for item in warning_languages
+                    )
+                    st.warning(
+                        "Titelvarianten konnten nicht in allen Sprachen geladen werden "
+                        f"({joined_languages}). Bitte später erneut versuchen."
+                    )
+                with st.expander("Geladene Occupation-Titelvarianten", expanded=False):
+                    for language in languages:
+                        labels_raw = variants_by_language.get(language, [])
+                        labels = labels_raw if isinstance(labels_raw, list) else []
+                        if not labels:
+                            st.caption(f"{language.upper()}: keine Titel gefunden.")
+                            continue
+                        st.markdown(f"**{language.upper()}**")
+                        for label in labels:
+                            st.write(f"- {label}")
 
     unmapped_roles_raw = st.session_state.get(SSKey.ESCO_UNMAPPED_ROLE_TERMS.value, [])
     unmapped_roles = (

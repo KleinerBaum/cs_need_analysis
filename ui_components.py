@@ -547,6 +547,8 @@ def render_esco_picker_card(
     secondary_action_disabled: bool = False,
     secondary_action_on_click: Callable[[], None] | None = None,
     show_results_overview: bool = True,
+    auto_apply_single_select: bool = False,
+    show_apply_button: bool = True,
 ) -> None:
     session_key = _normalize_target_state_key(target_state_key)
     if not session_key:
@@ -561,6 +563,7 @@ def render_esco_picker_card(
     preview_key = f"{base_key}.preview"
     applied_meta_key = f"{base_key}.applied_meta"
     apply_button_key = f"{base_key}.apply"
+    auto_apply_value_key = f"{base_key}.auto_apply_value"
 
     ui_mode = str(st.session_state.get(SSKey.UI_MODE.value, "standard")).strip().lower()
     if ui_mode not in {"quick", "standard", "expert"}:
@@ -688,18 +691,30 @@ def render_esco_picker_card(
 
     resolved_apply_label = apply_label or "Apply"
     secondary_clicked = False
-    if secondary_action_label:
-        apply_col, secondary_col = st.columns([1, 1], gap="small")
-        with apply_col:
-            apply_clicked = st.button(resolved_apply_label, key=apply_button_key)
-        with secondary_col:
-            secondary_clicked = st.button(
-                secondary_action_label,
-                key=secondary_action_key or f"{base_key}.secondary_action",
-                disabled=secondary_action_disabled,
-            )
-    else:
-        apply_clicked = st.button(resolved_apply_label, key=apply_button_key)
+    apply_clicked = False
+    if auto_apply_single_select and not allow_multi:
+        previous_auto_value = st.session_state.get(auto_apply_value_key)
+        current_auto_value = ""
+        if selected_payload:
+            current_auto_value = str(selected_payload[0].get("uri") or "").strip()
+        if current_auto_value and current_auto_value != previous_auto_value:
+            apply_clicked = True
+            st.session_state[auto_apply_value_key] = current_auto_value
+    if show_apply_button:
+        if secondary_action_label:
+            apply_col, secondary_col = st.columns([1, 1], gap="small")
+            with apply_col:
+                if st.button(resolved_apply_label, key=apply_button_key):
+                    apply_clicked = True
+            with secondary_col:
+                secondary_clicked = st.button(
+                    secondary_action_label,
+                    key=secondary_action_key or f"{base_key}.secondary_action",
+                    disabled=secondary_action_disabled,
+                )
+        else:
+            if st.button(resolved_apply_label, key=apply_button_key):
+                apply_clicked = True
 
     if apply_clicked or (enter_submit and bool(options)):
         try:

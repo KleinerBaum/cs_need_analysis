@@ -254,16 +254,18 @@ def _render_phase_c_esco_anchor(ctx: WizardContext) -> None:
     if not isinstance(job_dict, dict) or not isinstance(plan_dict, dict):
         return
 
-    def _go_to_next_step() -> None:
-        ctx.next()
-        st.rerun()
-
     st.markdown("### ESCO-Suche")
     job = JobAdExtract.model_validate(job_dict)
     render_esco_occupation_confirmation(
         job,
-        on_next=_go_to_next_step,
+        show_start_context_panels=False,
     )
+
+    _, _, next_col = st.columns([1, 1, 1], gap="small")
+    with next_col:
+        if st.button("Weiter →", key="cs.start.next_step", width="stretch"):
+            ctx.next()
+            st.rerun()
 
 
 def render_jobad_intake(
