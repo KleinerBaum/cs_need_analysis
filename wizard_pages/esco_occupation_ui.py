@@ -473,8 +473,17 @@ def _render_selected_occupation_detail(
     def _is_available(state: str, value: str) -> bool:
         return bool(value) and state in {_FIELD_STATE_AVAILABLE, _FIELD_STATE_FALLBACK_LANGUAGE}
 
-    has_relation_counts = isinstance(related_counts, dict) and bool(related_counts)
-    relation_state = _FIELD_STATE_AVAILABLE if has_relation_counts else _FIELD_STATE_NOT_LOADED
+    def _resolve_relation_state(relation_key: str) -> str:
+        if not isinstance(related_counts, dict):
+            return _FIELD_STATE_NOT_LOADED
+        if relation_key in related_counts:
+            return _FIELD_STATE_AVAILABLE
+        return _FIELD_STATE_NOT_DELIVERED
+
+    essential_skill_state = _resolve_relation_state("hasEssentialSkill")
+    optional_skill_state = _resolve_relation_state("hasOptionalSkill")
+    essential_knowledge_state = _resolve_relation_state("hasEssentialKnowledge")
+    optional_knowledge_state = _resolve_relation_state("hasOptionalKnowledge")
     alternative_label_state = (
         _FIELD_STATE_AVAILABLE if alternative_labels else _FIELD_STATE_NOT_DELIVERED
     )
@@ -491,10 +500,14 @@ def _render_selected_occupation_detail(
         ("ISCO-08 Mapping", isco_mapping, isco_mapping_state),
         ("Regulated Profession", regulated_value, regulated_state),
         ("Regulated Profession Note", regulated_text, regulated_text_state),
-        ("Essential skills", str(essential_skill_count), relation_state),
-        ("Optional skills", str(optional_skill_count), relation_state),
-        ("Essential knowledge", str(essential_knowledge_count), relation_state),
-        ("Optional knowledge", str(optional_knowledge_count), relation_state),
+        ("Essential skills", str(essential_skill_count), essential_skill_state),
+        ("Optional skills", str(optional_skill_count), optional_skill_state),
+        (
+            "Essential knowledge",
+            str(essential_knowledge_count),
+            essential_knowledge_state,
+        ),
+        ("Optional knowledge", str(optional_knowledge_count), optional_knowledge_state),
     ]
     available_fields = sum(1 for _, value, state in detail_fields if _is_available(state, value))
 
@@ -531,14 +544,18 @@ def _render_selected_occupation_detail(
         _render_field("ISCO-08 Mapping", isco_mapping, isco_mapping_state)
 
         st.markdown("##### Relationen")
-        _render_field("Essential skills", str(essential_skill_count), relation_state)
-        _render_field("Optional skills", str(optional_skill_count), relation_state)
+        _render_field("Essential skills", str(essential_skill_count), essential_skill_state)
+        _render_field("Optional skills", str(optional_skill_count), optional_skill_state)
         _render_field(
             "Essential knowledge",
             str(essential_knowledge_count),
-            relation_state,
+            essential_knowledge_state,
         )
-        _render_field("Optional knowledge", str(optional_knowledge_count), relation_state)
+        _render_field(
+            "Optional knowledge",
+            str(optional_knowledge_count),
+            optional_knowledge_state,
+        )
 
         uri = str(payload.get("uri") or "").strip() if isinstance(payload, dict) else ""
         version = str(payload.get("version") or "").strip() if isinstance(payload, dict) else ""
