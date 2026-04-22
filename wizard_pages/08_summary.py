@@ -3007,10 +3007,6 @@ def render(ctx: WizardContext) -> None:
         nav_buttons(ctx, disable_next=True)
         return
 
-    # SUMMARY_ZONE: HERO
-    _render_summary_hero(vm=vm)
-    render_active_ui_mode_caption(ui_mode=ui_mode)
-
     current_summary_fingerprint = vm.artifacts.input_fingerprint
     st.session_state[SSKey.SUMMARY_INPUT_FINGERPRINT.value] = (
         current_summary_fingerprint
