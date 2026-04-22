@@ -1711,6 +1711,7 @@ def render_step_review_card(
             str,
             dict[str, int],
             list[tuple[str, str]],
+            list[Question],
             bool,
         ]
     ] = []
@@ -1777,6 +1778,7 @@ def render_step_review_card(
                 group_title,
                 progress,
                 answered_items,
+                unanswered_questions,
                 group_complete,
             )
         )
@@ -1823,7 +1825,14 @@ def render_step_review_card(
             st.caption("Noch keine sichtbaren Antworten vorhanden.")
             return
 
-        for _, group_title, progress, answered_items, group_complete in sorted(
+        for (
+            _,
+            group_title,
+            progress,
+            answered_items,
+            unanswered_questions,
+            group_complete,
+        ) in sorted(
             group_payload, key=lambda item: (item[0], item[1].casefold())
         ):
             status_chip = "✅ vollständig" if group_complete else "⚠️ offen"
