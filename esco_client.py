@@ -243,6 +243,12 @@ class EscoClient:
             uri=occupation_uri, relation="hasOptionalSkill", **query
         )
 
+    def get_occupation_skill_group_share(
+        self, *, occupation_uri: str, **query: object
+    ) -> dict[str, Any]:
+        merged_query = {"uri": occupation_uri, **query}
+        return self._get("resource/occupationSkillsGroupShare", merged_query)
+
     def get_skill_related_occupations(
         self, *, skill_uri: str, **query: object
     ) -> dict[str, Any]:

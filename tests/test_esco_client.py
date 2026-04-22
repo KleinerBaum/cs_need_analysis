@@ -259,6 +259,43 @@ def test_esco_config_prefers_session_base_url_over_env(monkeypatch) -> None:
     assert client._esco_config()["base_url"] == "https://session/esco/"
 
 
+def test_get_occupation_skill_group_share_uses_dedicated_endpoint(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_cached_get_json(**kwargs):
+        captured.update(kwargs)
+        return {"_embedded": {"results": []}}
+
+    monkeypatch.setattr(esco_client, "_cached_get_json", fake_cached_get_json)
+    client = esco_client.EscoClient(session_state={SSKey.ESCO_CONFIG.value: {}})
+
+    payload = client.get_occupation_skill_group_share(occupation_uri="uri:occupation:1")
+
+    assert payload == {"_embedded": {"results": []}}
+    assert captured["endpoint"] == "resource/occupationSkillsGroupShare"
+    query_items = cast(tuple[tuple[str, str], ...], captured["query_items"])
+    assert ("uri", "uri:occupation:1") in query_items
+
+
+def test_get_occupation_skill_group_share_propagates_client_errors(monkeypatch) -> None:
+    expected_error = esco_client.EscoClientError(
+        status_code=503,
+        endpoint="resource/occupationSkillsGroupShare",
+        message="Der ESCO-Dienst ist aktuell vorübergehend nicht verfügbar.",
+    )
+
+    def fake_cached_get_json(**_kwargs):
+        raise expected_error
+
+    monkeypatch.setattr(esco_client, "_cached_get_json", fake_cached_get_json)
+    client = esco_client.EscoClient(session_state={SSKey.ESCO_CONFIG.value: {}})
+
+    with pytest.raises(esco_client.EscoClientError) as exc_info:
+        client.get_occupation_skill_group_share(occupation_uri="uri:occupation:1")
+
+    assert exc_info.value is expected_error
+
+
 @pytest.mark.parametrize(
     ("raw_value", "expected"),
     [
