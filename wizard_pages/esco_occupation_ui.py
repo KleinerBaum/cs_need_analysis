@@ -611,7 +611,7 @@ def _render_selected_occupation_detail(
     st.markdown("### ESCO Occupation-Details")
     with st.expander("Mehr Infos", expanded=False):
         st.caption(f"{available_fields}/{len(detail_fields)} Felder verfügbar")
-        show_only_available = st.toggle("Nur verfügbare Felder anzeigen", value=False)
+        show_only_available = st.toggle("Nur verfügbare Felder anzeigen", value=True)
 
         def _render_field(label: str, value: str, state: str) -> None:
             if show_only_available and not _is_available(state, value):
