@@ -359,6 +359,60 @@ def _extract_related_resource_count(payload: object, relation_key: str) -> int:
     return 0
 
 
+def _extract_related_resource_labels(
+    payload: object,
+    relation_key: str,
+) -> list[str]:
+    if not isinstance(payload, dict):
+        return []
+
+    candidates: list[object] = []
+    relation_data = payload.get(relation_key)
+    if isinstance(relation_data, list):
+        candidates.extend(relation_data)
+    if isinstance(relation_data, dict):
+        embedded = relation_data.get("_embedded")
+        if isinstance(embedded, dict):
+            relation_embedded = embedded.get(relation_key)
+            if isinstance(relation_embedded, list):
+                candidates.extend(relation_embedded)
+            for value in embedded.values():
+                if isinstance(value, list):
+                    candidates.extend(value)
+
+    embedded_root = payload.get("_embedded")
+    if isinstance(embedded_root, dict):
+        relation_embedded = embedded_root.get(relation_key)
+        if isinstance(relation_embedded, list):
+            candidates.extend(relation_embedded)
+        for value in embedded_root.values():
+            if isinstance(value, list):
+                candidates.extend(value)
+
+    labels: list[str] = []
+    seen: set[str] = set()
+    for item in candidates:
+        if not isinstance(item, dict):
+            continue
+        raw_label = (
+            item.get("title")
+            or item.get("preferredLabel")
+            or item.get("preferredTerm")
+            or item.get("description")
+        )
+        if not isinstance(raw_label, str):
+            continue
+        label = raw_label.strip()
+        if not label:
+            continue
+        dedupe_key = label.casefold()
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        labels.append(label)
+    return labels
+
+
 def _load_occupation_related_counts(
     *,
     client: EscoClient,
@@ -376,6 +430,29 @@ def _load_occupation_related_counts(
             raise
         counts[relation] = _extract_related_resource_count(relation_payload, relation)
     return counts
+
+
+def _load_occupation_related_data(
+    *,
+    client: EscoClient,
+    occupation_uri: str,
+) -> tuple[dict[str, int], dict[str, list[str]]]:
+    counts: dict[str, int] = {}
+    labels: dict[str, list[str]] = {}
+    for relation in _OCCUPATION_RELATED_RELATIONS:
+        try:
+            relation_payload = client.resource_related(
+                uri=occupation_uri, relation=relation
+            )
+        except EscoClientError as exc:
+            if exc.status_code == 400:
+                continue
+            raise
+        counts[relation] = _extract_related_resource_count(relation_payload, relation)
+        relation_labels = _extract_related_resource_labels(relation_payload, relation)
+        if relation_labels:
+            labels[relation] = relation_labels
+    return counts, labels
 
 
 def _resolve_related_counts(
@@ -397,7 +474,9 @@ def _resolve_related_counts(
 
 
 def _render_selected_occupation_detail(
-    payload: object, related_counts: object | None = None
+    payload: object,
+    related_counts: object | None = None,
+    related_labels: object | None = None,
 ) -> None:
     if not isinstance(payload, dict):
         st.caption(_FIELD_STATE_NOT_LOADED)
@@ -487,6 +566,24 @@ def _render_selected_occupation_detail(
     alternative_label_state = (
         _FIELD_STATE_AVAILABLE if alternative_labels else _FIELD_STATE_NOT_DELIVERED
     )
+    resolved_related_labels = (
+        related_labels if isinstance(related_labels, dict) else {}
+    )
+    essential_skill_labels = _normalize_text_list(
+        resolved_related_labels.get("hasEssentialSkill", [])
+    )
+    optional_skill_labels = _normalize_text_list(
+        resolved_related_labels.get("hasOptionalSkill", [])
+    )
+    essential_knowledge_labels = _normalize_text_list(
+        resolved_related_labels.get("hasEssentialKnowledge", [])
+    )
+    optional_knowledge_labels = _normalize_text_list(
+        resolved_related_labels.get("hasOptionalKnowledge", [])
+    )
+
+    esco_code = str(payload.get("code") or "").strip() if isinstance(payload, dict) else ""
+    nace_codes = _normalize_text_list(payload.get("naceCodes") if isinstance(payload, dict) else [])
 
     detail_fields = [
         ("Preferred Label", preferred_label, preferred_label_state),
@@ -511,7 +608,8 @@ def _render_selected_occupation_detail(
     ]
     available_fields = sum(1 for _, value, state in detail_fields if _is_available(state, value))
 
-    with st.expander("ESCO Occupation-Details", expanded=False):
+    st.markdown("### ESCO Occupation-Details")
+    with st.expander("Mehr Infos", expanded=False):
         st.caption(f"{available_fields}/{len(detail_fields)} Felder verfügbar")
         show_only_available = st.toggle("Nur verfügbare Felder anzeigen", value=False)
 
@@ -570,6 +668,57 @@ def _render_selected_occupation_detail(
             if st.button("URI kopieren", key="esco.occupation.details.uri.copy"):
                 st.code(uri, language="text")
                 st.caption("URI zum Kopieren eingeblendet.")
+
+    st.markdown("#### Concept overview")
+    st.markdown("**Description**")
+    if description:
+        st.write(description)
+    else:
+        st.caption(description_state)
+    if scope_note:
+        st.markdown("**Scope note**")
+        st.write(scope_note)
+
+    st.markdown("**ESCO Code**")
+    st.write(esco_code or "—")
+    st.markdown("**NACE Code**")
+    if nace_codes:
+        for code in nace_codes:
+            st.write(f"- {code}")
+    else:
+        st.caption("Nicht von ESCO geliefert")
+
+    st.markdown("**Alternative Labels**")
+    if alternative_labels:
+        for label in alternative_labels:
+            st.write(f"- {label}")
+    else:
+        st.caption(_FIELD_STATE_NOT_DELIVERED)
+
+    st.markdown("#### Skills & Competences")
+    st.markdown("**Essential Skills and Competences**")
+    if essential_skill_labels:
+        st.write(" · ".join(essential_skill_labels))
+    else:
+        st.caption(f"{essential_skill_count} Treffer")
+
+    st.markdown("**Essential Knowledge**")
+    if essential_knowledge_labels:
+        st.write(" · ".join(essential_knowledge_labels))
+    else:
+        st.caption(f"{essential_knowledge_count} Treffer")
+
+    st.markdown("**Optional Skills and Competences**")
+    if optional_skill_labels:
+        st.write(" · ".join(optional_skill_labels))
+    else:
+        st.caption(f"{optional_skill_count} Treffer")
+
+    st.markdown("**Optional Knowledge**")
+    if optional_knowledge_labels:
+        st.write(" · ".join(optional_knowledge_labels))
+    else:
+        st.caption(f"{optional_knowledge_count} Treffer")
 
 
 def _normalize_intent_title(query_text: str) -> str:
@@ -694,6 +843,7 @@ def render_esco_occupation_confirmation(
         secondary_action_label="Weiter →" if on_next is not None else None,
         secondary_action_key="cs.start.esco.next",
         secondary_action_on_click=on_next,
+        show_results_overview=False,
     )
     options_state_key = f"{SSKey.ESCO_OCCUPATION_SELECTED.value}.esco_picker.options"
     options = st.session_state.get(options_state_key, [])
@@ -766,6 +916,7 @@ def render_esco_occupation_confirmation(
         caption_prefix="Occupation Explainability",
     )
     client = EscoClient()
+    related_labels: dict[str, list[str]] = {}
     try:
         occupation_payload = client.get_occupation_detail(uri=occupation_uri)
     except EscoClientError as exc:
@@ -796,12 +947,11 @@ def render_esco_occupation_confirmation(
     else:
         st.session_state[SSKey.ESCO_OCCUPATION_PAYLOAD.value] = occupation_payload
         try:
-            st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = (
-                _load_occupation_related_counts(
-                    client=client,
-                    occupation_uri=occupation_uri,
-                )
+            related_counts, related_labels = _load_occupation_related_data(
+                client=client,
+                occupation_uri=occupation_uri,
             )
+            st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = related_counts
         except EscoClientError as exc:
             if is_retryable_server_status(exc.status_code) or exc.status_code is None:
                 st.warning(
@@ -814,9 +964,11 @@ def render_esco_occupation_confirmation(
                     f"{exc}"
                 )
             st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = {}
+            related_labels = {}
     _render_selected_occupation_detail(
         st.session_state.get(SSKey.ESCO_OCCUPATION_PAYLOAD.value),
         st.session_state.get(SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value),
+        related_labels,
     )
 
     configured_language = (

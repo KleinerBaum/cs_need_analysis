@@ -546,6 +546,7 @@ def render_esco_picker_card(
     secondary_action_key: str | None = None,
     secondary_action_disabled: bool = False,
     secondary_action_on_click: Callable[[], None] | None = None,
+    show_results_overview: bool = True,
 ) -> None:
     session_key = _normalize_target_state_key(target_state_key)
     if not session_key:
@@ -645,7 +646,7 @@ def render_esco_picker_card(
         )
         if selected_index is not None and selected_index < len(options):
             selected_payload = [options[selected_index]]
-        if options:
+        if options and show_results_overview:
             st.caption("Trefferübersicht")
             preview_columns = st.columns(3, gap="small")
             for idx, concept in enumerate(options[:3]):
