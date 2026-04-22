@@ -366,7 +366,14 @@ def _load_occupation_related_counts(
 ) -> dict[str, int]:
     counts: dict[str, int] = {}
     for relation in _OCCUPATION_RELATED_RELATIONS:
-        relation_payload = client.resource_related(uri=occupation_uri, relation=relation)
+        try:
+            relation_payload = client.resource_related(
+                uri=occupation_uri, relation=relation
+            )
+        except EscoClientError as exc:
+            if exc.status_code == 400:
+                continue
+            raise
         counts[relation] = _extract_related_resource_count(relation_payload, relation)
     return counts
 
