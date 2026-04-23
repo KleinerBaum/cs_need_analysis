@@ -263,6 +263,7 @@ def init_session_state() -> None:
         SSKey.ESCO_UNMAPPED_TERM_ACTIONS.value: {},
         SSKey.ESCO_SKILLS_MAPPING_REPORT.value: None,
         SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value: {},
+        SSKey.ESCO_NEGATIVE_CACHE.value: {},
         SSKey.ESCO_MIGRATION_LOG.value: [],
         SSKey.ESCO_MIGRATION_PENDING.value: None,
         SSKey.EURES_NACE_TO_ESCO.value: eures_nace_lookup,
@@ -390,6 +391,7 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.ESCO_UNMAPPED_TERM_ACTIONS.value] = {}
     st.session_state[SSKey.ESCO_SKILLS_MAPPING_REPORT.value] = None
     st.session_state[SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value] = {}
+    st.session_state[SSKey.ESCO_NEGATIVE_CACHE.value] = {}
     st.session_state[SSKey.ESCO_MIGRATION_LOG.value] = []
     st.session_state[SSKey.ESCO_MIGRATION_PENDING.value] = None
     st.session_state[SSKey.COMPANY_NACE_CODE.value] = ""

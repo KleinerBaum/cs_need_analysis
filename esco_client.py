@@ -21,6 +21,7 @@ EXTERNAL_PROVIDER_REQUEST_ERROR_EVENT = "external_provider_request_error"
 
 ESCO_CACHE_TTL_SECONDS = 600
 ESCO_CAPABILITY_CACHE_TTL_SECONDS = 120
+ESCO_NEGATIVE_CACHE_TTL_SECONDS = 600
 DEFAULT_TIMEOUT_SECONDS = 10.0
 DEFAULT_ESCO_API_BASE_URL = "https://ec.europa.eu/esco/api/"
 RETRYABLE_HTTP_STATUS_CODES = frozenset({500, 502, 503, 504})
@@ -113,6 +114,8 @@ class EscoClientError(Exception):
     status_code: int | None
     endpoint: str
     message: str
+    suppressed_repeat_count: int = 0
+    from_negative_cache: bool = False
 
     def __str__(self) -> str:
         return self.message
@@ -405,16 +408,37 @@ class EscoClient:
         selected_version = str(config["selected_version"])
         language = str(config["language"])
         view_obsolete = bool(config["view_obsolete"])
-
-        return _cached_get_json(
+        signature = self._build_request_signature(
             base_url=base_url,
             endpoint=resolved_endpoint,
-            query_items=query_items,
-            cache_selected_version=selected_version,
-            cache_language=language,
-            cache_view_obsolete=view_obsolete,
-            timeout_seconds=self._timeout_seconds,
+            selected_version=selected_version,
+            language=language,
+            query=injected_query,
         )
+        self._raise_if_negative_cached(
+            signature=signature,
+            endpoint=resolved_endpoint,
+        )
+
+        try:
+            return _cached_get_json(
+                base_url=base_url,
+                endpoint=resolved_endpoint,
+                query_items=query_items,
+                cache_selected_version=selected_version,
+                cache_language=language,
+                cache_view_obsolete=view_obsolete,
+                timeout_seconds=self._timeout_seconds,
+            )
+        except EscoClientError as exc:
+            if exc.status_code is not None and 400 <= exc.status_code < 500:
+                self._store_negative_cache(
+                    signature=signature,
+                    endpoint=resolved_endpoint,
+                    status_code=exc.status_code,
+                    message=exc.message,
+                )
+            raise
 
     def _esco_config(self) -> dict[str, object]:
         raw = self._session_state.get(SSKey.ESCO_CONFIG.value, {})
@@ -488,3 +512,106 @@ class EscoClient:
                 continue
             items.append((str(key), str(value)))
         return tuple(items)
+
+    @staticmethod
+    def _signature_key_params(query: Mapping[str, object]) -> tuple[tuple[str, str], ...]:
+        key_params = ("uri", "relation", "type", "text")
+        normalized: list[tuple[str, str]] = []
+        for key in key_params:
+            value = query.get(key)
+            if value is None:
+                continue
+            normalized.append((key, str(value).strip()))
+        return tuple(normalized)
+
+    def _build_request_signature(
+        self,
+        *,
+        base_url: str,
+        endpoint: str,
+        selected_version: str,
+        language: str,
+        query: Mapping[str, object],
+    ) -> str:
+        key_params = self._signature_key_params(query)
+        payload = {
+            "base_url": base_url.rstrip("/"),
+            "endpoint": endpoint.strip().strip("/"),
+            "selectedVersion": selected_version.strip(),
+            "language": language.strip(),
+            "key_params": key_params,
+        }
+        return json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+    def _negative_cache_store(self) -> dict[str, dict[str, object]]:
+        raw = self._session_state.get(SSKey.ESCO_NEGATIVE_CACHE.value, {})
+        if isinstance(raw, dict):
+            return raw
+        store: dict[str, dict[str, object]] = {}
+        self._session_state[SSKey.ESCO_NEGATIVE_CACHE.value] = store
+        return store
+
+    def _raise_if_negative_cached(self, *, signature: str, endpoint: str) -> None:
+        store = self._negative_cache_store()
+        cached_entry = store.get(signature)
+        if not isinstance(cached_entry, dict):
+            return
+        expires_at = cached_entry.get("expires_at")
+        try:
+            expires_at_seconds = float(expires_at)
+        except (TypeError, ValueError):
+            store.pop(signature, None)
+            return
+        now = time.time()
+        if expires_at_seconds <= now:
+            store.pop(signature, None)
+            return
+
+        suppressed_count = int(cached_entry.get("suppressed_count") or 0) + 1
+        cached_entry["suppressed_count"] = suppressed_count
+        log_emitted = bool(cached_entry.get("suppression_log_emitted"))
+        if not log_emitted:
+            cached_entry["suppression_log_emitted"] = True
+            LOGGER.info(
+                "ESCO negative-cache suppress endpoint=%s suppressed_count=%s",
+                endpoint,
+                suppressed_count,
+            )
+
+        status_code_raw = cached_entry.get("status_code")
+        status_code = int(status_code_raw) if isinstance(status_code_raw, int) else None
+        cached_message = str(
+            cached_entry.get("message")
+            or "ESCO request parameters are temporarily suppressed due to recent 4xx response."
+        )
+        raise EscoClientError(
+            status_code=status_code,
+            endpoint=endpoint,
+            message=cached_message,
+            suppressed_repeat_count=suppressed_count,
+            from_negative_cache=True,
+        )
+
+    def _store_negative_cache(
+        self,
+        *,
+        signature: str,
+        endpoint: str,
+        status_code: int,
+        message: str,
+    ) -> None:
+        store = self._negative_cache_store()
+        store[signature] = {
+            "status_code": status_code,
+            "message": message,
+            "cached_at": time.time(),
+            "expires_at": time.time() + ESCO_NEGATIVE_CACHE_TTL_SECONDS,
+            "suppressed_count": 0,
+            "suppression_log_emitted": False,
+        }
+        LOGGER.debug(
+            "ESCO negative-cache stored endpoint=%s status=%s ttl_seconds=%s",
+            endpoint,
+            status_code,
+            ESCO_NEGATIVE_CACHE_TTL_SECONDS,
+        )
