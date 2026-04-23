@@ -190,6 +190,55 @@ def test_cached_get_json_raises_controlled_error_after_last_retry_on_5xx(
     )
 
 
+def test_cached_get_json_handles_400_as_request_error_without_retries(
+    monkeypatch, caplog
+) -> None:
+    attempts = {"count": 0}
+    sleeps: list[float] = []
+
+    def fake_urlopen(_request, timeout):
+        del timeout
+        attempts["count"] += 1
+        raise HTTPError(
+            url="https://example.test/esco/terms",
+            code=400,
+            msg="bad request",
+            hdrs=None,
+            fp=BytesIO(b'{"message":"Invalid selectedVersion for endpoint"}'),
+        )
+
+    monkeypatch.setattr(esco_client, "urlopen", fake_urlopen)
+    monkeypatch.setattr(
+        esco_client.time, "sleep", lambda seconds: sleeps.append(seconds)
+    )
+    esco_client.clear_esco_cache()
+
+    with pytest.raises(esco_client.EscoClientError) as exc_info:
+        esco_client._cached_get_json(
+            base_url="https://example.test/esco/",
+            endpoint="terms",
+            query_items=(("type", "occupation"), ("selectedVersion", "v9")),
+            cache_selected_version="latest",
+            cache_language="de",
+            cache_view_obsolete=False,
+            timeout_seconds=1.0,
+        )
+
+    err = exc_info.value
+    assert err.status_code == 400
+    assert (
+        str(err)
+        == "ESCO request parameters are not supported for this endpoint/version."
+    )
+    assert attempts["count"] == 1
+    assert sleeps == []
+    assert any(
+        "event=external_provider_request_error provider=esco endpoint=terms status=400"
+        in record.message
+        for record in caplog.records
+    )
+
+
 def test_conversion_endpoint_must_not_be_empty() -> None:
     client = esco_client.EscoClient(session_state={SSKey.ESCO_CONFIG.value: {}})
 
