@@ -17,6 +17,7 @@ from constants import DEFAULT_ESCO_SELECTED_VERSION, SSKey
 
 LOGGER = logging.getLogger(__name__)
 EXTERNAL_PROVIDER_ERROR_EVENT = "external_provider_error"
+EXTERNAL_PROVIDER_REQUEST_ERROR_EVENT = "external_provider_request_error"
 
 ESCO_CACHE_TTL_SECONDS = 600
 DEFAULT_TIMEOUT_SECONDS = 10.0
@@ -25,6 +26,11 @@ RETRYABLE_HTTP_STATUS_CODES = frozenset({500, 502, 503, 504})
 MAX_RETRIES = 2
 RETRY_BACKOFF_SECONDS = 0.25
 SUPPORTED_API_MODES = frozenset({"hosted", "local"})
+SAFE_HTTP_ERROR_HINT_KEYS = ("message", "error", "detail", "title", "reason")
+SAFE_LOG_QUERY_KEYS = frozenset(
+    {"language", "selectedVersion", "type", "viewObsolete", "limit", "offset", "page"}
+)
+SENSITIVE_HINT_MARKERS = ("secret", "token", "password", "api_key", "authorization")
 
 
 def is_retryable_server_status(status_code: int | None) -> bool:
@@ -47,6 +53,55 @@ def _coerce_bool(value: object, *, default: bool) -> bool:
         if normalized in {"false", "0", "no", "off"}:
             return False
     return default
+
+
+def _extract_safe_http_error_hint(exc: HTTPError) -> str | None:
+    if not hasattr(exc, "read"):
+        return None
+    try:
+        raw_body = exc.read()
+    except Exception:  # pragma: no cover - defensive read fallback
+        return None
+    if not raw_body:
+        return None
+    decoded = raw_body.decode("utf-8", errors="replace").strip()
+    if not decoded:
+        return None
+
+    hint: str | None = None
+    try:
+        parsed = json.loads(decoded)
+    except json.JSONDecodeError:
+        hint = decoded
+    else:
+        if isinstance(parsed, dict):
+            for key in SAFE_HTTP_ERROR_HINT_KEYS:
+                value = parsed.get(key)
+                if isinstance(value, str) and value.strip():
+                    hint = value.strip()
+                    break
+    if not hint:
+        return None
+
+    compact_hint = " ".join(hint.split())
+    if any(marker in compact_hint.lower() for marker in SENSITIVE_HINT_MARKERS):
+        return None
+    return compact_hint[:160]
+
+
+def _safe_request_context(
+    endpoint: str, query_items: tuple[tuple[str, str], ...]
+) -> dict[str, object]:
+    query_keys = sorted({key for key, _ in query_items})
+    selected_query: dict[str, str] = {}
+    for key, value in query_items:
+        if key in SAFE_LOG_QUERY_KEYS and key not in selected_query:
+            selected_query[key] = value
+    return {
+        "endpoint": endpoint,
+        "query_keys": query_keys,
+        "selected_query": selected_query,
+    }
 
 
 @dataclass(slots=True)
@@ -98,6 +153,30 @@ def _cached_get_json(
             break
         except HTTPError as exc:
             elapsed_ms = int((time.perf_counter() - started) * 1000)
+            safe_hint = _extract_safe_http_error_hint(exc)
+            if 400 <= exc.code < 500:
+                safe_context = _safe_request_context(endpoint, query_items)
+                LOGGER.warning(
+                    "event=%s provider=esco endpoint=%s status=%s latency_ms=%s query_keys=%s selected_query=%s%s",
+                    EXTERNAL_PROVIDER_REQUEST_ERROR_EVENT,
+                    endpoint,
+                    exc.code,
+                    elapsed_ms,
+                    safe_context["query_keys"],
+                    safe_context["selected_query"],
+                    (
+                        f" provider_error_hint={safe_hint}"
+                        if safe_hint is not None
+                        else ""
+                    ),
+                )
+                raise EscoClientError(
+                    status_code=exc.code,
+                    endpoint=endpoint,
+                    message=(
+                        "ESCO request parameters are not supported for this endpoint/version."
+                    ),
+                ) from exc
             should_retry = (
                 exc.code in RETRYABLE_HTTP_STATUS_CODES and attempt < max_attempts
             )
