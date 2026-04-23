@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from difflib import SequenceMatcher
-from typing import Any, Callable, TypedDict
+from typing import Callable, TypedDict
 
 import streamlit as st
 
@@ -1076,25 +1076,31 @@ def render_esco_occupation_confirmation(
                 )
             st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = {}
             related_labels = {}
-        try:
-            skill_group_share_payload = client.get_occupation_skill_group_share(
-                occupation_uri=occupation_uri
-            )
-            st.session_state[SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value] = (
-                skill_group_share_payload
-            )
-        except EscoClientError as exc:
-            if is_retryable_server_status(exc.status_code) or exc.status_code is None:
-                st.warning(
-                    "ESCO-Skillgruppen-Daten sind gerade nicht stabil erreichbar. "
-                    "Du kannst manuell fortfahren und später erneut laden."
+        if client.supports_endpoint("resource/occupationSkillsGroupShare"):
+            try:
+                skill_group_share_payload = client.get_occupation_skill_group_share(
+                    occupation_uri=occupation_uri
                 )
-            else:
-                st.warning(
-                    "ESCO-Skillgruppen-Daten konnten nicht vollständig geladen werden: "
-                    f"{exc}"
+                st.session_state[SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value] = (
+                    skill_group_share_payload
                 )
+            except EscoClientError as exc:
+                if is_retryable_server_status(exc.status_code) or exc.status_code is None:
+                    st.warning(
+                        "ESCO-Skillgruppen-Daten sind gerade nicht stabil erreichbar. "
+                        "Du kannst manuell fortfahren und später erneut laden."
+                    )
+                else:
+                    st.warning(
+                        "ESCO-Skillgruppen-Daten konnten nicht vollständig geladen werden: "
+                        f"{exc}"
+                    )
+                st.session_state[SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value] = []
+        else:
             st.session_state[SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value] = []
+            st.caption(
+                "Skillgruppen-Anteil ist für die aktuelle ESCO-Version/den Modus nicht verfügbar."
+            )
     if show_start_context_panels:
         _render_selected_occupation_detail(
             st.session_state.get(SSKey.ESCO_OCCUPATION_PAYLOAD.value),
