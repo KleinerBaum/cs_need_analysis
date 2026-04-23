@@ -20,6 +20,7 @@ EXTERNAL_PROVIDER_ERROR_EVENT = "external_provider_error"
 EXTERNAL_PROVIDER_REQUEST_ERROR_EVENT = "external_provider_request_error"
 
 ESCO_CACHE_TTL_SECONDS = 600
+ESCO_CAPABILITY_CACHE_TTL_SECONDS = 120
 DEFAULT_TIMEOUT_SECONDS = 10.0
 DEFAULT_ESCO_API_BASE_URL = "https://ec.europa.eu/esco/api/"
 RETRYABLE_HTTP_STATUS_CODES = frozenset({500, 502, 503, 504})
@@ -41,6 +42,7 @@ def clear_esco_cache() -> None:
     """Clear cached ESCO GET responses."""
 
     _cached_get_json.clear()
+    _cached_endpoint_support.clear()
 
 
 def _coerce_bool(value: object, *, default: bool) -> bool:
@@ -265,6 +267,44 @@ def _cached_get_json(
     return payload
 
 
+@st.cache_data(ttl=ESCO_CAPABILITY_CACHE_TTL_SECONDS, show_spinner=False)
+def _cached_endpoint_support(
+    *,
+    base_url: str,
+    endpoint: str,
+    selected_version: str,
+    api_mode: str,
+    timeout_seconds: float,
+) -> bool:
+    """Best-effort endpoint capability probe per base URL + version + mode.
+
+    The probe is conservative: network/temporary errors are treated as supported
+    so feature paths remain available and can degrade gracefully during fetch.
+    """
+
+    del api_mode
+
+    probe_query_items: tuple[tuple[str, str], ...] = (
+        ("selectedVersion", selected_version),
+        ("limit", "1"),
+    )
+    url = f"{base_url.rstrip('/')}/{endpoint.lstrip('/')}?{urlencode(probe_query_items)}"
+    request = Request(url, headers={"Accept": "application/json"}, method="GET")
+
+    try:
+        with urlopen(request, timeout=timeout_seconds) as response:  # nosec B310
+            status_code = int(getattr(response, "status", 200))
+            return status_code < 400
+    except HTTPError as exc:
+        if exc.code in {400, 401, 403}:
+            return True
+        if exc.code == 404:
+            return False
+        return True
+    except URLError:
+        return True
+
+
 class EscoClient:
     """Small ESCO API client with centralized config + query injection."""
 
@@ -333,6 +373,19 @@ class EscoClient:
     ) -> dict[str, Any]:
         return self.resource_related(
             uri=skill_uri, relation="isEssentialForOccupation", **query
+        )
+
+    def supports_endpoint(self, endpoint: str) -> bool:
+        config = self._esco_config()
+        resolved_endpoint = self._resolve_endpoint(
+            endpoint=endpoint, api_mode=str(config["api_mode"])
+        )
+        return _cached_endpoint_support(
+            base_url=str(config["base_url"]),
+            endpoint=resolved_endpoint,
+            selected_version=str(config["selected_version"]),
+            api_mode=str(config["api_mode"]),
+            timeout_seconds=self._timeout_seconds,
         )
 
     def conversion(self, conversion_endpoint: str, **query: object) -> dict[str, Any]:

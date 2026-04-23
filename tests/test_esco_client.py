@@ -345,6 +345,59 @@ def test_get_occupation_skill_group_share_propagates_client_errors(monkeypatch) 
     assert exc_info.value is expected_error
 
 
+def test_supports_endpoint_returns_false_for_404(monkeypatch) -> None:
+    def fake_urlopen(_request, timeout):
+        del timeout
+        raise HTTPError(
+            url="https://example.test/esco/resource/occupationSkillsGroupShare",
+            code=404,
+            msg="not found",
+            hdrs=None,
+            fp=BytesIO(b""),
+        )
+
+    monkeypatch.setattr(esco_client, "urlopen", fake_urlopen)
+    esco_client.clear_esco_cache()
+    client = esco_client.EscoClient(session_state={SSKey.ESCO_CONFIG.value: {}})
+
+    assert client.supports_endpoint("resource/occupationSkillsGroupShare") is False
+
+
+def test_supports_endpoint_uses_capability_cache_per_version(monkeypatch) -> None:
+    calls: list[float] = []
+
+    class _Response:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> Literal[False]:
+            del exc_type, exc, tb
+            return False
+
+        def read(self) -> bytes:
+            return b"{}"
+
+    def fake_urlopen(_request, timeout):
+        calls.append(timeout)
+        return _Response()
+
+    monkeypatch.setattr(esco_client, "urlopen", fake_urlopen)
+    esco_client.clear_esco_cache()
+    client_v1 = esco_client.EscoClient(
+        session_state={SSKey.ESCO_CONFIG.value: {"selected_version": "v1.2.0"}}
+    )
+    client_v2 = esco_client.EscoClient(
+        session_state={SSKey.ESCO_CONFIG.value: {"selected_version": "v1.3.0"}}
+    )
+
+    assert client_v1.supports_endpoint("resource/occupationSkillsGroupShare") is True
+    assert client_v1.supports_endpoint("resource/occupationSkillsGroupShare") is True
+    assert client_v2.supports_endpoint("resource/occupationSkillsGroupShare") is True
+    assert len(calls) == 2
+
+
 @pytest.mark.parametrize(
     ("raw_value", "expected"),
     [
