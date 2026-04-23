@@ -353,7 +353,7 @@ def _render_selected_skill_details(
 
 def _load_related_skills_from_selected_occupation(
     occupation_uri: str,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str | None]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], EscoClientError | None]:
     client = EscoClient()
     try:
         client.get_occupation_detail(uri=occupation_uri)
@@ -364,7 +364,7 @@ def _load_related_skills_from_selected_occupation(
             occupation_uri=occupation_uri
         )
     except EscoClientError as exc:
-        return [], [], str(exc)
+        return [], [], exc
 
     must_suggestions = _extract_skill_candidates(must_payload)
     nice_suggestions = _extract_skill_candidates(nice_payload)
@@ -558,10 +558,16 @@ def _render_skills_source_comparison_block(
             )
 
         if load_error:
-            st.warning(
-                "ESCO-Vorschläge sind aktuell nicht verfügbar. "
-                "Du kannst mit manueller Auswahl weiterarbeiten oder später erneut versuchen."
-            )
+            if load_error.from_negative_cache:
+                st.caption(
+                    "ESCO-Anfragen kurzzeitig gedrosselt (wiederholter 4xx-Fehler). "
+                    f"Unterdrückte Wiederholungen: {load_error.suppressed_repeat_count}."
+                )
+            else:
+                st.warning(
+                    "ESCO-Vorschläge sind aktuell nicht verfügbar. "
+                    "Du kannst mit manueller Auswahl weiterarbeiten oder später erneut versuchen."
+                )
         else:
             st.success(
                 f"ESCO-Vorschläge für {occupation_title}: "

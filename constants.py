@@ -219,6 +219,7 @@ class SSKey(str, Enum):
     ESCO_SKILLS_MAPPING_REPORT = "cs.esco_skills_mapping_report"
     ESCO_SKILL_DETAIL_CACHE = "cs.esco_skill_detail_cache"
     ESCO_OCCUPATION_TITLE_VARIANTS = "cs.esco_occupation_title_variants"
+    ESCO_NEGATIVE_CACHE = "cs.esco_negative_cache"
     ESCO_MIGRATION_LOG = "cs.esco_migration_log"
     ESCO_MIGRATION_PENDING = "cs.esco_migration_pending"
     EURES_NACE_TO_ESCO = "cs.eures_nace_to_esco"

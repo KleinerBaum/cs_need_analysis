@@ -151,6 +151,16 @@ def _render_esco_why_this_matters() -> None:
     )
 
 
+def _render_suppressed_repeat_notice(exc: EscoClientError) -> bool:
+    if not exc.from_negative_cache:
+        return False
+    st.caption(
+        "ESCO-Anfrage kurzzeitig gedrosselt (wiederholter 4xx-Fehler). "
+        f"Unterdrückte Wiederholungen: {exc.suppressed_repeat_count}."
+    )
+    return True
+
+
 def _extract_esco_scope_note(payload: object) -> str:
     if not isinstance(payload, dict):
         return ""
@@ -1030,6 +1040,11 @@ def render_esco_occupation_confirmation(
     try:
         occupation_payload = client.get_occupation_detail(uri=occupation_uri)
     except EscoClientError as exc:
+        if _render_suppressed_repeat_notice(exc):
+            st.session_state[SSKey.ESCO_OCCUPATION_PAYLOAD.value] = None
+            st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = {}
+            st.session_state[SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value] = []
+            return
         if is_retryable_server_status(exc.status_code) or exc.status_code is None:
             st.warning(
                 "ESCO ist gerade nicht stabil erreichbar. "
@@ -1064,18 +1079,22 @@ def render_esco_occupation_confirmation(
             )
             st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = related_counts
         except EscoClientError as exc:
-            if is_retryable_server_status(exc.status_code) or exc.status_code is None:
-                st.warning(
-                    "ESCO-Relationsdaten sind gerade nicht stabil erreichbar. "
-                    "Du kannst manuell fortfahren und später erneut laden."
-                )
+            if _render_suppressed_repeat_notice(exc):
+                st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = {}
+                related_labels = {}
             else:
-                st.warning(
-                    "ESCO-Relationsdaten konnten nicht vollständig geladen werden: "
-                    f"{exc}"
-                )
-            st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = {}
-            related_labels = {}
+                if is_retryable_server_status(exc.status_code) or exc.status_code is None:
+                    st.warning(
+                        "ESCO-Relationsdaten sind gerade nicht stabil erreichbar. "
+                        "Du kannst manuell fortfahren und später erneut laden."
+                    )
+                else:
+                    st.warning(
+                        "ESCO-Relationsdaten konnten nicht vollständig geladen werden: "
+                        f"{exc}"
+                    )
+                st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = {}
+                related_labels = {}
         if client.supports_endpoint("resource/occupationSkillsGroupShare"):
             try:
                 skill_group_share_payload = client.get_occupation_skill_group_share(
@@ -1085,17 +1104,23 @@ def render_esco_occupation_confirmation(
                     skill_group_share_payload
                 )
             except EscoClientError as exc:
-                if is_retryable_server_status(exc.status_code) or exc.status_code is None:
-                    st.warning(
-                        "ESCO-Skillgruppen-Daten sind gerade nicht stabil erreichbar. "
-                        "Du kannst manuell fortfahren und später erneut laden."
-                    )
+                if _render_suppressed_repeat_notice(exc):
+                    st.session_state[SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value] = []
                 else:
-                    st.warning(
-                        "ESCO-Skillgruppen-Daten konnten nicht vollständig geladen werden: "
-                        f"{exc}"
-                    )
-                st.session_state[SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value] = []
+                    if (
+                        is_retryable_server_status(exc.status_code)
+                        or exc.status_code is None
+                    ):
+                        st.warning(
+                            "ESCO-Skillgruppen-Daten sind gerade nicht stabil erreichbar. "
+                            "Du kannst manuell fortfahren und später erneut laden."
+                        )
+                    else:
+                        st.warning(
+                            "ESCO-Skillgruppen-Daten konnten nicht vollständig geladen werden: "
+                            f"{exc}"
+                        )
+                    st.session_state[SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value] = []
         else:
             st.session_state[SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value] = []
             st.caption(

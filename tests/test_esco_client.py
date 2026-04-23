@@ -417,3 +417,79 @@ def test_view_obsolete_string_values_are_coerced(
     config = client._esco_config()
 
     assert config["view_obsolete"] is expected
+
+
+def test_negative_cache_stores_non_retryable_4xx_and_suppresses_followups(
+    monkeypatch,
+) -> None:
+    call_counter = {"count": 0}
+
+    def fake_cached_get_json(**_kwargs):
+        call_counter["count"] += 1
+        raise esco_client.EscoClientError(
+            status_code=404,
+            endpoint="resource/related",
+            message="Not found",
+        )
+
+    monkeypatch.setattr(esco_client, "_cached_get_json", fake_cached_get_json)
+    now = {"value": 1_000.0}
+    monkeypatch.setattr(esco_client.time, "time", lambda: now["value"])
+    session_state = {
+        SSKey.ESCO_CONFIG.value: {
+            "base_url": "https://example.test/esco/",
+            "selected_version": "v1.2.0",
+            "language": "de",
+            "view_obsolete": False,
+        },
+        SSKey.ESCO_NEGATIVE_CACHE.value: {},
+    }
+    client = esco_client.EscoClient(session_state=session_state)
+
+    with pytest.raises(esco_client.EscoClientError) as first_exc:
+        client.resource_related(uri="occupation:test", relation="hasEssentialSkill")
+    assert first_exc.value.from_negative_cache is False
+    assert call_counter["count"] == 1
+    assert len(session_state[SSKey.ESCO_NEGATIVE_CACHE.value]) == 1
+
+    with pytest.raises(esco_client.EscoClientError) as second_exc:
+        client.resource_related(uri="occupation:test", relation="hasEssentialSkill")
+    assert second_exc.value.from_negative_cache is True
+    assert second_exc.value.suppressed_repeat_count == 1
+    assert call_counter["count"] == 1
+
+
+def test_negative_cache_expires_and_allows_network_calls_again(monkeypatch) -> None:
+    call_counter = {"count": 0}
+
+    def fake_cached_get_json(**_kwargs):
+        call_counter["count"] += 1
+        raise esco_client.EscoClientError(
+            status_code=400,
+            endpoint="terms",
+            message="Bad request",
+        )
+
+    monkeypatch.setattr(esco_client, "_cached_get_json", fake_cached_get_json)
+    now = {"value": 2_000.0}
+    monkeypatch.setattr(esco_client.time, "time", lambda: now["value"])
+    session_state = {
+        SSKey.ESCO_CONFIG.value: {
+            "base_url": "https://example.test/esco/",
+            "selected_version": "v1.2.0",
+            "language": "de",
+            "view_obsolete": False,
+        },
+        SSKey.ESCO_NEGATIVE_CACHE.value: {},
+    }
+    client = esco_client.EscoClient(session_state=session_state)
+
+    with pytest.raises(esco_client.EscoClientError):
+        client.terms(uri="occupation:test", type="occupation")
+    assert call_counter["count"] == 1
+
+    now["value"] += esco_client.ESCO_NEGATIVE_CACHE_TTL_SECONDS + 1
+    with pytest.raises(esco_client.EscoClientError) as exc_info:
+        client.terms(uri="occupation:test", type="occupation")
+    assert exc_info.value.from_negative_cache is False
+    assert call_counter["count"] == 2
