@@ -36,6 +36,11 @@ from ui_components import (
 from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
 from wizard_pages.salary_forecast_panel import render_skills_salary_forecast_panel
 
+ESCO_RELATED_ENDPOINT_UNSUPPORTED_MESSAGE = (
+    "Dieser ESCO-Endpunkt wird in der aktuell gewählten API-Variante "
+    "nicht unterstützt. Occupation-Skill-Vorschläge sind daher hier nicht verfügbar."
+)
+
 
 def _normalize_term(term: str) -> str:
     return " ".join(term.strip().casefold().split())
@@ -357,6 +362,16 @@ def _load_related_skills_from_selected_occupation(
     client = EscoClient()
     try:
         client.get_occupation_detail(uri=occupation_uri)
+        if not client.supports_endpoint("resource/related"):
+            return (
+                [],
+                [],
+                EscoClientError(
+                    status_code=None,
+                    endpoint="resource/related",
+                    message=ESCO_RELATED_ENDPOINT_UNSUPPORTED_MESSAGE,
+                ),
+            )
         must_payload = client.get_occupation_essential_skills(
             occupation_uri=occupation_uri
         )
@@ -563,6 +578,11 @@ def _render_skills_source_comparison_block(
                     "ESCO-Anfragen kurzzeitig gedrosselt (wiederholter 4xx-Fehler). "
                     f"Unterdrückte Wiederholungen: {load_error.suppressed_repeat_count}."
                 )
+            elif (
+                load_error.endpoint == "resource/related"
+                and load_error.status_code is None
+            ):
+                st.info(load_error.message)
             else:
                 st.warning(
                     "ESCO-Vorschläge sind aktuell nicht verfügbar. "
