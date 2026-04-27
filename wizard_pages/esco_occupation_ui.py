@@ -556,6 +556,7 @@ def _render_selected_occupation_detail(
 ) -> None:
     if not isinstance(payload, dict):
         st.caption(_FIELD_STATE_NOT_LOADED)
+        return
 
     configured_language = (
         str(
