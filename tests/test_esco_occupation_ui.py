@@ -398,3 +398,98 @@ def test_render_esco_occupation_confirmation_skips_skill_group_request_when_unsu
         in message
         for message in fake_st.caption_messages
     )
+
+
+def test_render_esco_occupation_confirmation_tolerates_missing_detail_payload(
+    monkeypatch,
+) -> None:
+    class _DummyContext:
+        def __enter__(self) -> "_DummyContext":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> bool:
+            del exc_type, exc, tb
+            return False
+
+    class _FakeStreamlit:
+        def __init__(self) -> None:
+            self.caption_messages: list[str] = []
+            self.session_state = {
+                f"{SSKey.ESCO_OCCUPATION_SELECTED.value}.esco_picker.options": [],
+                SSKey.ESCO_OCCUPATION_SELECTED.value: {
+                    "uri": "http://data.europa.eu/esco/occupation/123",
+                    "title": "Data Engineer",
+                },
+                SSKey.ESCO_CONFIG.value: {"language": "de"},
+            }
+
+        def caption(self, message: str) -> None:
+            self.caption_messages.append(message)
+
+        def info(self, _message: str) -> None:
+            return None
+
+        def warning(self, _message: str) -> None:
+            return None
+
+        def write(self, _message: object) -> None:
+            return None
+
+        def code(self, _value: str, *, language: str) -> None:
+            del language
+            return None
+
+        def markdown(self, _message: str, **_kwargs: object) -> None:
+            return None
+
+        def button(self, _label: str, **_kwargs: object) -> bool:
+            return False
+
+        def toggle(self, _label: str, *, value: bool = False, **_kwargs: object) -> bool:
+            return value
+
+        def columns(self, _spec: list[int] | tuple[int, ...]) -> list[_DummyContext]:
+            return [_DummyContext(), _DummyContext(), _DummyContext()]
+
+        def container(self) -> _DummyContext:
+            return _DummyContext()
+
+        def expander(self, _label: str, **_kwargs: object) -> _DummyContext:
+            return _DummyContext()
+
+        def multiselect(self, _label: str, **_kwargs: object) -> list[str]:
+            return ["de"]
+
+        def vega_lite_chart(self, _spec: object, **_kwargs: object) -> None:
+            return None
+
+    class _FakeClient:
+        def supports_endpoint(self, endpoint: str) -> bool:
+            return endpoint != "resource/occupationSkillsGroupShare"
+
+        def get_occupation_detail(self, *, uri: str) -> None:
+            del uri
+            return None
+
+        def resource_related(self, *, uri: str, relation: str) -> dict[str, object]:
+            del uri, relation
+            return {"_embedded": {}}
+
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(esco_occupation_ui, "st", fake_st)
+    monkeypatch.setattr(esco_occupation_ui, "EscoClient", _FakeClient)
+    monkeypatch.setattr(esco_occupation_ui, "render_esco_picker_card", lambda **_kwargs: None)
+    monkeypatch.setattr(esco_occupation_ui, "render_esco_explainability", lambda **_kwargs: None)
+
+    job = SimpleNamespace(
+        job_title="Data Engineer",
+        seniority_level="Senior",
+        department_name="Data",
+        location_city="Berlin",
+    )
+    esco_occupation_ui.render_esco_occupation_confirmation(
+        cast(object, job),
+        show_start_context_panels=True,
+    )
+
+    assert "Noch nicht geladen" in fake_st.caption_messages
