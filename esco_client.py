@@ -33,6 +33,7 @@ SAFE_LOG_QUERY_KEYS = frozenset(
     {"language", "selectedVersion", "type", "viewObsolete", "limit", "offset", "page"}
 )
 SENSITIVE_HINT_MARKERS = ("secret", "token", "password", "api_key", "authorization")
+HOSTED_UNSUPPORTED_ENDPOINTS = frozenset({"resource/occupationSkillsGroupShare"})
 
 
 def is_retryable_server_status(status_code: int | None) -> bool:
@@ -383,6 +384,11 @@ class EscoClient:
         resolved_endpoint = self._resolve_endpoint(
             endpoint=endpoint, api_mode=str(config["api_mode"])
         )
+        if (
+            str(config["api_mode"]) == "hosted"
+            and resolved_endpoint in HOSTED_UNSUPPORTED_ENDPOINTS
+        ):
+            return False
         return _cached_endpoint_support(
             base_url=str(config["base_url"]),
             endpoint=resolved_endpoint,
