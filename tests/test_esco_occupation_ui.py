@@ -78,18 +78,6 @@ def test_load_occupation_related_counts_uses_related_endpoint_payloads() -> None
                         "hasOptionalSkill": [{"uri": "skill:2"}, {"uri": "skill:3"}]
                     }
                 },
-                "hasEssentialKnowledge": {
-                    "_embedded": {"hasEssentialKnowledge": [{"uri": "knowledge:1"}]}
-                },
-                "hasOptionalKnowledge": {
-                    "_embedded": {
-                        "hasOptionalKnowledge": [
-                            {"uri": "knowledge:2"},
-                            {"uri": "knowledge:3"},
-                            {"uri": "knowledge:4"},
-                        ]
-                    }
-                },
             }
             return payloads[relation]
 
@@ -101,8 +89,6 @@ def test_load_occupation_related_counts_uses_related_endpoint_payloads() -> None
     assert counts == {
         "hasEssentialSkill": 1,
         "hasOptionalSkill": 2,
-        "hasEssentialKnowledge": 1,
-        "hasOptionalKnowledge": 3,
     }
 
 
@@ -114,27 +100,17 @@ def test_resolve_related_counts_prefers_related_counts_over_payload_defaults() -
         {
             "hasEssentialSkill": 4,
             "hasOptionalSkill": 5,
-            "hasEssentialKnowledge": 2,
-            "hasOptionalKnowledge": 1,
         },
     )
 
     assert counts["hasEssentialSkill"] == 4
     assert counts["hasOptionalSkill"] == 5
-    assert counts["hasEssentialKnowledge"] == 2
-    assert counts["hasOptionalKnowledge"] == 1
 
 
 def test_load_occupation_related_counts_skips_unsupported_relations_with_400() -> None:
     class _FakeClient:
         def resource_related(self, *, uri: str, relation: str) -> dict[str, object]:
             assert uri == "http://data.europa.eu/esco/occupation/123"
-            if relation == "hasOptionalKnowledge":
-                raise EscoClientError(
-                    400,
-                    f"/resource/{relation}",
-                    "unsupported relation",
-                )
             payloads = {
                 "hasEssentialSkill": {
                     "_embedded": {"hasEssentialSkill": [{"uri": "skill:1"}]}
@@ -143,9 +119,6 @@ def test_load_occupation_related_counts_skips_unsupported_relations_with_400() -
                     "_embedded": {
                         "hasOptionalSkill": [{"uri": "skill:2"}, {"uri": "skill:3"}]
                     }
-                },
-                "hasEssentialKnowledge": {
-                    "_embedded": {"hasEssentialKnowledge": [{"uri": "knowledge:1"}]}
                 },
             }
             return payloads[relation]
@@ -158,7 +131,6 @@ def test_load_occupation_related_counts_skips_unsupported_relations_with_400() -
     assert counts == {
         "hasEssentialSkill": 1,
         "hasOptionalSkill": 2,
-        "hasEssentialKnowledge": 1,
     }
 
 
@@ -191,7 +163,7 @@ def test_load_occupation_related_data_skips_policy_blocked_relations_without_cal
     monkeypatch.setattr(
         esco_occupation_ui,
         "_OCCUPATION_RELATED_RELATION_SKIPLIST",
-        {("v-test", "hosted"): ("hasOptionalKnowledge",)},
+        {("v-test", "hosted"): ("hasOptionalSkill",)},
     )
 
     counts, labels, availability = esco_occupation_ui._load_occupation_related_data(
@@ -201,16 +173,12 @@ def test_load_occupation_related_data_skips_policy_blocked_relations_without_cal
 
     assert call_relations == [
         "hasEssentialSkill",
-        "hasOptionalSkill",
-        "hasEssentialKnowledge",
     ]
     assert counts == {
         "hasEssentialSkill": 1,
-        "hasOptionalSkill": 1,
-        "hasEssentialKnowledge": 1,
     }
-    assert "hasOptionalKnowledge" not in labels
-    assert availability["hasOptionalKnowledge"] == "not_available"
+    assert "hasOptionalSkill" not in labels
+    assert availability["hasOptionalSkill"] == "not_available"
 
 
 def test_extract_skill_group_share_rows_normalizes_common_payload_shapes() -> None:
@@ -528,8 +496,6 @@ def test_render_esco_occupation_confirmation_tolerates_single_relation_400_witho
         def resource_related(self, *, uri: str, relation: str) -> dict[str, object]:
             del uri
             self.related_calls += 1
-            if relation == "hasOptionalKnowledge":
-                raise EscoClientError(400, f"resource/related?relation={relation}", "unsupported")
             return {"_embedded": {relation: [{"uri": f"{relation}:1"}]}}
 
     fake_st = _FakeStreamlit()
@@ -551,11 +517,10 @@ def test_render_esco_occupation_confirmation_tolerates_single_relation_400_witho
     )
 
     assert fake_st.warning_messages == []
-    assert fake_client.related_calls == 4
+    assert fake_client.related_calls == 2
     assert fake_st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] == {
         "hasEssentialSkill": 1,
         "hasOptionalSkill": 1,
-        "hasEssentialKnowledge": 1,
     }
 
 

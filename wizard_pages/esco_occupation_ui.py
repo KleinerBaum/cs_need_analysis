@@ -18,10 +18,10 @@ from ui_components import render_esco_explainability, render_esco_picker_card
 _OCCUPATION_RELATED_RELATIONS: tuple[str, ...] = (
     "hasEssentialSkill",
     "hasOptionalSkill",
-    "hasEssentialKnowledge",
-    "hasOptionalKnowledge",
 )
-_OCCUPATION_RELATED_RELATION_PRIORITY: tuple[str, ...] = _OCCUPATION_RELATED_RELATIONS
+_OCCUPATION_RELATED_RELATION_PRIORITY: tuple[str, ...] = tuple(
+    relation for relation in _OCCUPATION_RELATED_RELATIONS
+)
 _OCCUPATION_RELATED_RELATION_SKIPLIST: dict[tuple[str, str], tuple[str, ...]] = {}
 
 _FIELD_STATE_NOT_DELIVERED = "Nicht von ESCO geliefert"
@@ -687,8 +687,6 @@ def _render_selected_occupation_detail(
     counts = _resolve_related_counts(payload, related_counts)
     essential_skill_count = counts.get("hasEssentialSkill", 0)
     optional_skill_count = counts.get("hasOptionalSkill", 0)
-    essential_knowledge_count = counts.get("hasEssentialKnowledge", 0)
-    optional_knowledge_count = counts.get("hasOptionalKnowledge", 0)
 
     def _is_available(state: str, value: str) -> bool:
         return bool(value) and state in {_FIELD_STATE_AVAILABLE, _FIELD_STATE_FALLBACK_LANGUAGE}
@@ -709,8 +707,6 @@ def _render_selected_occupation_detail(
 
     essential_skill_state = _resolve_relation_state("hasEssentialSkill")
     optional_skill_state = _resolve_relation_state("hasOptionalSkill")
-    essential_knowledge_state = _resolve_relation_state("hasEssentialKnowledge")
-    optional_knowledge_state = _resolve_relation_state("hasOptionalKnowledge")
     alternative_label_state = (
         _FIELD_STATE_AVAILABLE if alternative_labels else _FIELD_STATE_NOT_DELIVERED
     )
@@ -722,12 +718,6 @@ def _render_selected_occupation_detail(
     )
     optional_skill_labels = _normalize_text_list(
         resolved_related_labels.get("hasOptionalSkill", [])
-    )
-    essential_knowledge_labels = _normalize_text_list(
-        resolved_related_labels.get("hasEssentialKnowledge", [])
-    )
-    optional_knowledge_labels = _normalize_text_list(
-        resolved_related_labels.get("hasOptionalKnowledge", [])
     )
 
     esco_code = str(payload.get("code") or "").strip() if isinstance(payload, dict) else ""
@@ -747,12 +737,6 @@ def _render_selected_occupation_detail(
         ("Regulated Profession Note", regulated_text, regulated_text_state),
         ("Essential skills", str(essential_skill_count), essential_skill_state),
         ("Optional skills", str(optional_skill_count), optional_skill_state),
-        (
-            "Essential knowledge",
-            str(essential_knowledge_count),
-            essential_knowledge_state,
-        ),
-        ("Optional knowledge", str(optional_knowledge_count), optional_knowledge_state),
     ]
     available_fields = sum(1 for _, value, state in detail_fields if _is_available(state, value))
 
@@ -792,16 +776,6 @@ def _render_selected_occupation_detail(
         st.markdown("##### Relationen")
         _render_field("Essential skills", str(essential_skill_count), essential_skill_state)
         _render_field("Optional skills", str(optional_skill_count), optional_skill_state)
-        _render_field(
-            "Essential knowledge",
-            str(essential_knowledge_count),
-            essential_knowledge_state,
-        )
-        _render_field(
-            "Optional knowledge",
-            str(optional_knowledge_count),
-            optional_knowledge_state,
-        )
 
         uri = str(payload.get("uri") or "").strip() if isinstance(payload, dict) else ""
         version = str(payload.get("version") or "").strip() if isinstance(payload, dict) else ""
@@ -850,23 +824,11 @@ def _render_selected_occupation_detail(
     else:
         st.caption(f"{essential_skill_count} Treffer")
 
-    st.markdown("**Essential Knowledge**")
-    if essential_knowledge_labels:
-        st.write(" · ".join(essential_knowledge_labels))
-    else:
-        st.caption(f"{essential_knowledge_count} Treffer")
-
     st.markdown("**Optional Skills and Competences**")
     if optional_skill_labels:
         st.write(" · ".join(optional_skill_labels))
     else:
         st.caption(f"{optional_skill_count} Treffer")
-
-    st.markdown("**Optional Knowledge**")
-    if optional_knowledge_labels:
-        st.write(" · ".join(optional_knowledge_labels))
-    else:
-        st.caption(f"{optional_knowledge_count} Treffer")
 
     share_rows = _extract_skill_group_share_rows(skill_group_share_payload)
     left_column, center_column, right_column = st.columns([1, 2, 1])
