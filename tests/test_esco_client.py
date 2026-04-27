@@ -363,6 +363,39 @@ def test_supports_endpoint_returns_false_for_404(monkeypatch) -> None:
     assert client.supports_endpoint("resource/occupationSkillsGroupShare") is False
 
 
+def test_supports_endpoint_returns_false_for_hosted_blocklist_without_probe(
+    monkeypatch,
+) -> None:
+    def fail_if_called(**_kwargs):
+        raise AssertionError("_cached_endpoint_support should not be called")
+
+    monkeypatch.setattr(esco_client, "_cached_endpoint_support", fail_if_called)
+    client = esco_client.EscoClient(
+        session_state={SSKey.ESCO_CONFIG.value: {"api_mode": "hosted"}}
+    )
+
+    assert client.supports_endpoint("resource/occupationSkillsGroupShare") is False
+
+
+def test_supports_endpoint_still_probes_blocklisted_endpoint_for_local_mode(
+    monkeypatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_cached_endpoint_support(**kwargs):
+        captured.update(kwargs)
+        return True
+
+    monkeypatch.setattr(esco_client, "_cached_endpoint_support", fake_cached_endpoint_support)
+    client = esco_client.EscoClient(
+        session_state={SSKey.ESCO_CONFIG.value: {"api_mode": "local"}}
+    )
+
+    assert client.supports_endpoint("resource/occupationSkillsGroupShare") is True
+    assert captured["endpoint"] == "resource/occupationSkillsGroupShare"
+    assert captured["api_mode"] == "local"
+
+
 def test_supports_endpoint_uses_capability_cache_per_version(monkeypatch) -> None:
     calls: list[float] = []
 
@@ -386,10 +419,20 @@ def test_supports_endpoint_uses_capability_cache_per_version(monkeypatch) -> Non
     monkeypatch.setattr(esco_client, "urlopen", fake_urlopen)
     esco_client.clear_esco_cache()
     client_v1 = esco_client.EscoClient(
-        session_state={SSKey.ESCO_CONFIG.value: {"selected_version": "v1.2.0"}}
+        session_state={
+            SSKey.ESCO_CONFIG.value: {
+                "selected_version": "v1.2.0",
+                "api_mode": "local",
+            }
+        }
     )
     client_v2 = esco_client.EscoClient(
-        session_state={SSKey.ESCO_CONFIG.value: {"selected_version": "v1.3.0"}}
+        session_state={
+            SSKey.ESCO_CONFIG.value: {
+                "selected_version": "v1.3.0",
+                "api_mode": "local",
+            }
+        }
     )
 
     assert client_v1.supports_endpoint("resource/occupationSkillsGroupShare") is True
