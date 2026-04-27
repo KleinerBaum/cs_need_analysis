@@ -21,6 +21,8 @@ _OCCUPATION_RELATED_RELATIONS: tuple[str, ...] = (
     "hasEssentialKnowledge",
     "hasOptionalKnowledge",
 )
+_OCCUPATION_RELATED_RELATION_PRIORITY: tuple[str, ...] = _OCCUPATION_RELATED_RELATIONS
+_OCCUPATION_RELATED_RELATION_SKIPLIST: dict[tuple[str, str], tuple[str, ...]] = {}
 
 _FIELD_STATE_NOT_DELIVERED = "Nicht von ESCO geliefert"
 _FIELD_STATE_FALLBACK_LANGUAGE = (
@@ -28,11 +30,22 @@ _FIELD_STATE_FALLBACK_LANGUAGE = (
 )
 _FIELD_STATE_NOT_LOADED = "Noch nicht geladen"
 _FIELD_STATE_AVAILABLE = "verfügbar"
+_FIELD_STATE_NOT_AVAILABLE = "Für aktuelle ESCO-Version/Modus nicht verfügbar"
+
+_RELATION_AVAILABILITY_AVAILABLE = "available"
+_RELATION_AVAILABILITY_NOT_AVAILABLE = "not_available"
 
 
 class _SkillGroupShareRow(TypedDict):
     label: str
     share_percent: float
+
+
+class _OccupationRelationPolicy(TypedDict):
+    prioritized_relations: tuple[str, ...]
+    allowed_relations: tuple[str, ...]
+    skipped_relations: tuple[str, ...]
+    related_endpoint_supported: bool
 
 
 def _build_esco_query(job: JobAdExtract) -> str:
@@ -488,22 +501,84 @@ def _extract_related_resource_labels(
     return labels
 
 
+def _build_occupation_relation_policy(client: EscoClient) -> _OccupationRelationPolicy:
+    config_raw = st.session_state.get(SSKey.ESCO_CONFIG.value, {})
+    config = config_raw if isinstance(config_raw, dict) else {}
+    selected_version = str(config.get("selected_version") or "").strip()
+    api_mode = str(config.get("api_mode") or "hosted").strip().lower() or "hosted"
+    skipped_relations = _OCCUPATION_RELATED_RELATION_SKIPLIST.get(
+        (selected_version, api_mode),
+        (),
+    )
+    supports_endpoint = getattr(client, "supports_endpoint", None)
+    supported = (
+        bool(supports_endpoint("resource/related"))
+        if callable(supports_endpoint)
+        else True
+    )
+    allowed_relations = (
+        tuple(
+            relation
+            for relation in _OCCUPATION_RELATED_RELATION_PRIORITY
+            if relation not in skipped_relations
+        )
+        if supported
+        else ()
+    )
+    return {
+        "prioritized_relations": _OCCUPATION_RELATED_RELATION_PRIORITY,
+        "allowed_relations": allowed_relations,
+        "skipped_relations": skipped_relations,
+        "related_endpoint_supported": supported,
+    }
+
+
+def _load_occupation_related_with_policy(
+    *,
+    client: EscoClient,
+    occupation_uri: str,
+    relation_policy: _OccupationRelationPolicy | None = None,
+) -> tuple[dict[str, int], dict[str, list[str]], dict[str, str]]:
+    policy = relation_policy or _build_occupation_relation_policy(client)
+    counts: dict[str, int] = {}
+    labels: dict[str, list[str]] = {}
+    availability: dict[str, str] = {
+        relation: _RELATION_AVAILABILITY_NOT_AVAILABLE
+        for relation in _OCCUPATION_RELATED_RELATIONS
+        if relation not in policy["allowed_relations"]
+    }
+    if not policy["allowed_relations"]:
+        return counts, labels, availability
+
+    for relation in policy["allowed_relations"]:
+        try:
+            relation_payload = client.resource_related(
+                uri=occupation_uri,
+                relation=relation,
+            )
+        except EscoClientError as exc:
+            if exc.status_code == 400:
+                availability[relation] = _RELATION_AVAILABILITY_NOT_AVAILABLE
+                continue
+            raise
+
+        counts[relation] = _extract_related_resource_count(relation_payload, relation)
+        relation_labels = _extract_related_resource_labels(relation_payload, relation)
+        if relation_labels:
+            labels[relation] = relation_labels
+        availability[relation] = _RELATION_AVAILABILITY_AVAILABLE
+    return counts, labels, availability
+
+
 def _load_occupation_related_counts(
     *,
     client: EscoClient,
     occupation_uri: str,
 ) -> dict[str, int]:
-    counts: dict[str, int] = {}
-    for relation in _OCCUPATION_RELATED_RELATIONS:
-        try:
-            relation_payload = client.resource_related(
-                uri=occupation_uri, relation=relation
-            )
-        except EscoClientError as exc:
-            if exc.status_code == 400:
-                continue
-            raise
-        counts[relation] = _extract_related_resource_count(relation_payload, relation)
+    counts, _, _ = _load_occupation_related_with_policy(
+        client=client,
+        occupation_uri=occupation_uri,
+    )
     return counts
 
 
@@ -511,23 +586,11 @@ def _load_occupation_related_data(
     *,
     client: EscoClient,
     occupation_uri: str,
-) -> tuple[dict[str, int], dict[str, list[str]]]:
-    counts: dict[str, int] = {}
-    labels: dict[str, list[str]] = {}
-    for relation in _OCCUPATION_RELATED_RELATIONS:
-        try:
-            relation_payload = client.resource_related(
-                uri=occupation_uri, relation=relation
-            )
-        except EscoClientError as exc:
-            if exc.status_code == 400:
-                continue
-            raise
-        counts[relation] = _extract_related_resource_count(relation_payload, relation)
-        relation_labels = _extract_related_resource_labels(relation_payload, relation)
-        if relation_labels:
-            labels[relation] = relation_labels
-    return counts, labels
+) -> tuple[dict[str, int], dict[str, list[str]], dict[str, str]]:
+    return _load_occupation_related_with_policy(
+        client=client,
+        occupation_uri=occupation_uri,
+    )
 
 
 def _resolve_related_counts(
@@ -552,6 +615,7 @@ def _render_selected_occupation_detail(
     payload: object,
     related_counts: object | None = None,
     related_labels: object | None = None,
+    related_availability: object | None = None,
     skill_group_share_payload: object | None = None,
 ) -> None:
     if not isinstance(payload, dict):
@@ -630,6 +694,13 @@ def _render_selected_occupation_detail(
         return bool(value) and state in {_FIELD_STATE_AVAILABLE, _FIELD_STATE_FALLBACK_LANGUAGE}
 
     def _resolve_relation_state(relation_key: str) -> str:
+        availability = (
+            related_availability.get(relation_key)
+            if isinstance(related_availability, dict)
+            else None
+        )
+        if availability == _RELATION_AVAILABILITY_NOT_AVAILABLE:
+            return _FIELD_STATE_NOT_AVAILABLE
         if not isinstance(related_counts, dict):
             return _FIELD_STATE_NOT_LOADED
         if relation_key in related_counts:
@@ -1038,6 +1109,7 @@ def render_esco_occupation_confirmation(
         )
     client = EscoClient()
     related_labels: dict[str, list[str]] = {}
+    related_availability: dict[str, str] = {}
     try:
         occupation_payload = client.get_occupation_detail(uri=occupation_uri)
     except EscoClientError as exc:
@@ -1074,7 +1146,7 @@ def render_esco_occupation_confirmation(
     else:
         st.session_state[SSKey.ESCO_OCCUPATION_PAYLOAD.value] = occupation_payload
         try:
-            related_counts, related_labels = _load_occupation_related_data(
+            related_counts, related_labels, related_availability = _load_occupation_related_data(
                 client=client,
                 occupation_uri=occupation_uri,
             )
@@ -1083,6 +1155,7 @@ def render_esco_occupation_confirmation(
             if _render_suppressed_repeat_notice(exc):
                 st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = {}
                 related_labels = {}
+                related_availability = {}
             else:
                 if is_retryable_server_status(exc.status_code) or exc.status_code is None:
                     st.warning(
@@ -1096,6 +1169,7 @@ def render_esco_occupation_confirmation(
                     )
                 st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = {}
                 related_labels = {}
+                related_availability = {}
         if client.supports_endpoint("resource/occupationSkillsGroupShare"):
             try:
                 skill_group_share_payload = client.get_occupation_skill_group_share(
@@ -1132,6 +1206,7 @@ def render_esco_occupation_confirmation(
             st.session_state.get(SSKey.ESCO_OCCUPATION_PAYLOAD.value),
             st.session_state.get(SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value),
             related_labels,
+            related_availability,
             st.session_state.get(SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value),
         )
 

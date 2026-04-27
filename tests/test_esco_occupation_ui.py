@@ -162,6 +162,57 @@ def test_load_occupation_related_counts_skips_unsupported_relations_with_400() -
     }
 
 
+def test_load_occupation_related_data_skips_policy_blocked_relations_without_calls(
+    monkeypatch,
+) -> None:
+    call_relations: list[str] = []
+
+    class _FakeClient:
+        def supports_endpoint(self, endpoint: str) -> bool:
+            return endpoint == "resource/related"
+
+        def resource_related(self, *, uri: str, relation: str) -> dict[str, object]:
+            assert uri == "http://data.europa.eu/esco/occupation/123"
+            call_relations.append(relation)
+            return {"_embedded": {relation: [{"uri": f"{relation}:1"}]}}
+
+    monkeypatch.setattr(
+        esco_occupation_ui,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.ESCO_CONFIG.value: {
+                    "selected_version": "v-test",
+                    "api_mode": "hosted",
+                }
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        esco_occupation_ui,
+        "_OCCUPATION_RELATED_RELATION_SKIPLIST",
+        {("v-test", "hosted"): ("hasOptionalKnowledge",)},
+    )
+
+    counts, labels, availability = esco_occupation_ui._load_occupation_related_data(
+        client=cast(EscoClient, _FakeClient()),
+        occupation_uri="http://data.europa.eu/esco/occupation/123",
+    )
+
+    assert call_relations == [
+        "hasEssentialSkill",
+        "hasOptionalSkill",
+        "hasEssentialKnowledge",
+    ]
+    assert counts == {
+        "hasEssentialSkill": 1,
+        "hasOptionalSkill": 1,
+        "hasEssentialKnowledge": 1,
+    }
+    assert "hasOptionalKnowledge" not in labels
+    assert availability["hasOptionalKnowledge"] == "not_available"
+
+
 def test_extract_skill_group_share_rows_normalizes_common_payload_shapes() -> None:
     payload = {
         "_embedded": {
@@ -398,6 +449,114 @@ def test_render_esco_occupation_confirmation_skips_skill_group_request_when_unsu
         in message
         for message in fake_st.caption_messages
     )
+
+
+def test_render_esco_occupation_confirmation_tolerates_single_relation_400_without_repeat_calls(
+    monkeypatch,
+) -> None:
+    class _DummyContext:
+        def __enter__(self) -> "_DummyContext":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> bool:
+            del exc_type, exc, tb
+            return False
+
+    class _FakeStreamlit:
+        def __init__(self) -> None:
+            self.warning_messages: list[str] = []
+            self.session_state = {
+                f"{SSKey.ESCO_OCCUPATION_SELECTED.value}.esco_picker.options": [],
+                SSKey.ESCO_OCCUPATION_SELECTED.value: {
+                    "uri": "http://data.europa.eu/esco/occupation/123",
+                    "title": "Data Engineer",
+                },
+                SSKey.ESCO_CONFIG.value: {"language": "de"},
+            }
+
+        def caption(self, _message: str) -> None:
+            return None
+
+        def info(self, _message: str) -> None:
+            return None
+
+        def warning(self, message: str) -> None:
+            self.warning_messages.append(message)
+
+        def write(self, _message: object) -> None:
+            return None
+
+        def code(self, _value: str, *, language: str) -> None:
+            del language
+            return None
+
+        def markdown(self, _message: str, **_kwargs: object) -> None:
+            return None
+
+        def button(self, _label: str, **_kwargs: object) -> bool:
+            return False
+
+        def toggle(self, _label: str, *, value: bool = False, **_kwargs: object) -> bool:
+            return value
+
+        def columns(self, _spec: list[int] | tuple[int, ...]) -> list[_DummyContext]:
+            return [_DummyContext(), _DummyContext(), _DummyContext()]
+
+        def container(self) -> _DummyContext:
+            return _DummyContext()
+
+        def expander(self, _label: str, **_kwargs: object) -> _DummyContext:
+            return _DummyContext()
+
+        def multiselect(self, _label: str, **_kwargs: object) -> list[str]:
+            return ["de"]
+
+        def vega_lite_chart(self, _spec: object, **_kwargs: object) -> None:
+            return None
+
+    class _FakeClient:
+        def __init__(self) -> None:
+            self.related_calls = 0
+
+        def supports_endpoint(self, endpoint: str) -> bool:
+            return endpoint == "resource/related"
+
+        def get_occupation_detail(self, *, uri: str) -> dict[str, object]:
+            del uri
+            return {"description": {"de": "Beschreibung"}, "uri": "uri:occ:1"}
+
+        def resource_related(self, *, uri: str, relation: str) -> dict[str, object]:
+            del uri
+            self.related_calls += 1
+            if relation == "hasOptionalKnowledge":
+                raise EscoClientError(400, f"resource/related?relation={relation}", "unsupported")
+            return {"_embedded": {relation: [{"uri": f"{relation}:1"}]}}
+
+    fake_st = _FakeStreamlit()
+    fake_client = _FakeClient()
+    monkeypatch.setattr(esco_occupation_ui, "st", fake_st)
+    monkeypatch.setattr(esco_occupation_ui, "EscoClient", lambda: fake_client)
+    monkeypatch.setattr(esco_occupation_ui, "render_esco_picker_card", lambda **_kwargs: None)
+    monkeypatch.setattr(esco_occupation_ui, "render_esco_explainability", lambda **_kwargs: None)
+
+    job = SimpleNamespace(
+        job_title="Data Engineer",
+        seniority_level="Senior",
+        department_name="Data",
+        location_city="Berlin",
+    )
+    esco_occupation_ui.render_esco_occupation_confirmation(
+        cast(object, job),
+        show_start_context_panels=True,
+    )
+
+    assert fake_st.warning_messages == []
+    assert fake_client.related_calls == 4
+    assert fake_st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] == {
+        "hasEssentialSkill": 1,
+        "hasOptionalSkill": 1,
+        "hasEssentialKnowledge": 1,
+    }
 
 
 def test_render_esco_occupation_confirmation_tolerates_missing_detail_payload(
