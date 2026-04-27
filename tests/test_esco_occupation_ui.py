@@ -66,9 +66,12 @@ def test_extract_first_text_handles_empty_and_mixed_structures() -> None:
 
 
 def test_load_occupation_related_counts_uses_related_endpoint_payloads() -> None:
+    call_relations: list[str] = []
+
     class _FakeClient:
         def resource_related(self, *, uri: str, relation: str) -> dict[str, object]:
             assert uri == "http://data.europa.eu/esco/occupation/123"
+            call_relations.append(relation)
             payloads = {
                 "hasEssentialSkill": {
                     "_embedded": {"hasEssentialSkill": [{"uri": "skill:1"}]}
@@ -90,6 +93,7 @@ def test_load_occupation_related_counts_uses_related_endpoint_payloads() -> None
         "hasEssentialSkill": 1,
         "hasOptionalSkill": 2,
     }
+    assert sorted(call_relations) == ["hasEssentialSkill", "hasOptionalSkill"]
 
 
 def test_resolve_related_counts_prefers_related_counts_over_payload_defaults() -> None:
@@ -107,10 +111,13 @@ def test_resolve_related_counts_prefers_related_counts_over_payload_defaults() -
     assert counts["hasOptionalSkill"] == 5
 
 
-def test_load_occupation_related_counts_skips_unsupported_relations_with_400() -> None:
+def test_load_occupation_related_counts_requests_only_the_two_skill_relations() -> None:
+    call_relations: list[str] = []
+
     class _FakeClient:
         def resource_related(self, *, uri: str, relation: str) -> dict[str, object]:
             assert uri == "http://data.europa.eu/esco/occupation/123"
+            call_relations.append(relation)
             payloads = {
                 "hasEssentialSkill": {
                     "_embedded": {"hasEssentialSkill": [{"uri": "skill:1"}]}
@@ -132,6 +139,7 @@ def test_load_occupation_related_counts_skips_unsupported_relations_with_400() -
         "hasEssentialSkill": 1,
         "hasOptionalSkill": 2,
     }
+    assert call_relations == ["hasEssentialSkill", "hasOptionalSkill"]
 
 
 def test_load_occupation_related_data_skips_policy_blocked_relations_without_calls(
@@ -310,6 +318,7 @@ def test_render_esco_occupation_confirmation_keeps_chart_before_title_variants(
     title_variant_index = fake_st.events.index("button::Titel-Varianten laden")
 
     assert skills_index < chart_index < title_variant_index
+    assert not any("Knowledge" in event for event in fake_st.events)
 
 
 def test_render_esco_occupation_confirmation_skips_skill_group_request_when_unsupported(

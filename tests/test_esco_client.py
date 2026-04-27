@@ -441,6 +441,29 @@ def test_supports_endpoint_uses_capability_cache_per_version(monkeypatch) -> Non
     assert len(calls) == 2
 
 
+def test_supports_endpoint_hosted_blocklist_does_not_depend_on_probe_status(
+    monkeypatch,
+) -> None:
+    calls: list[str] = []
+
+    def fake_cached_endpoint_support(**kwargs):
+        calls.append(str(kwargs["endpoint"]))
+        return True
+
+    monkeypatch.setattr(esco_client, "_cached_endpoint_support", fake_cached_endpoint_support)
+    client = esco_client.EscoClient(
+        session_state={
+            SSKey.ESCO_CONFIG.value: {
+                "selected_version": "v1.2.0",
+                "api_mode": "hosted",
+            }
+        }
+    )
+
+    assert client.supports_endpoint("resource/occupationSkillsGroupShare") is False
+    assert calls == []
+
+
 @pytest.mark.parametrize(
     ("raw_value", "expected"),
     [
