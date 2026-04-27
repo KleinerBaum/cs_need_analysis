@@ -4,6 +4,8 @@ from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from schemas import JobAdExtract
 
 SKILLS_PATH = Path(__file__).resolve().parents[1] / "wizard_pages" / "05_skills.py"
@@ -89,3 +91,44 @@ def test_build_skill_suggestion_context_normalizes_jobspec_and_esco_titles() -> 
     assert context["jobspec_terms"] == ["Python", "SQL", "Kommunikation", "Airflow"]
     assert context["esco_titles"] == ["Data Modeling", "Stakeholder Mgmt"]
     assert context["selected_labels"] == ["Python"]
+
+
+def test_load_related_skills_returns_friendly_error_when_related_endpoint_unsupported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class DummyClient:
+        def __init__(self) -> None:
+            self.resource_related_calls = 0
+
+        def get_occupation_detail(self, *, uri: str) -> dict[str, str]:
+            return {"uri": uri}
+
+        def supports_endpoint(self, endpoint: str) -> bool:
+            assert endpoint == "resource/related"
+            return False
+
+        def get_occupation_essential_skills(
+            self, *, occupation_uri: str
+        ) -> dict[str, str]:
+            self.resource_related_calls += 1
+            return {"uri": occupation_uri}
+
+        def get_occupation_optional_skills(
+            self, *, occupation_uri: str
+        ) -> dict[str, str]:
+            self.resource_related_calls += 1
+            return {"uri": occupation_uri}
+
+    dummy_client = DummyClient()
+    monkeypatch.setattr(SKILLS_MODULE, "EscoClient", lambda: dummy_client)
+
+    must, nice, error = SKILLS_MODULE._load_related_skills_from_selected_occupation(
+        "uri:occupation:test"
+    )
+
+    assert must == []
+    assert nice == []
+    assert dummy_client.resource_related_calls == 0
+    assert error is not None
+    assert error.endpoint == "resource/related"
+    assert error.message == SKILLS_MODULE.ESCO_RELATED_ENDPOINT_UNSUPPORTED_MESSAGE
