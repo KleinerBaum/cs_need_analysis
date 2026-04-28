@@ -496,13 +496,13 @@ def _extract_related_resource_labels(
     return labels
 
 
-def _resolve_supported_occupation_relations(client: EscoClient) -> tuple[str, ...]:
+def _supported_occupation_relations(client: EscoClient) -> tuple[str, ...]:
     supported_relations = getattr(client, "supported_occupation_relations", None)
-    if not callable(supported_relations):
+    if not isinstance(supported_relations, (tuple, list)):
         return _DEFAULT_SUPPORTED_OCCUPATION_RELATIONS
     resolved = tuple(
         relation.strip()
-        for relation in supported_relations()
+        for relation in supported_relations
         if isinstance(relation, str) and relation.strip()
     )
     if not resolved:
@@ -515,7 +515,7 @@ def _load_occupation_related_with_policy(
     client: EscoClient,
     occupation_uri: str,
 ) -> tuple[dict[str, int], dict[str, list[str]], dict[str, str]]:
-    supported_relations = _resolve_supported_occupation_relations(client)
+    supported_relations = _supported_occupation_relations(client)
     counts: dict[str, int] = {}
     labels: dict[str, list[str]] = {}
     availability: dict[str, str] = {
@@ -572,8 +572,8 @@ def _load_occupation_related_data(
 def _resolve_related_counts(
     payload: object, related_counts: object | None = None
 ) -> dict[str, int]:
+    resolved: dict[str, int] = {}
     if isinstance(related_counts, dict):
-        resolved: dict[str, int] = {}
         for relation in _OCCUPATION_DETAIL_RELATIONS:
             raw_value = related_counts.get(relation)
             if isinstance(raw_value, int):
@@ -581,10 +581,11 @@ def _resolve_related_counts(
         if resolved:
             return resolved
 
-    return {
-        relation: _extract_related_resource_count(payload, relation)
-        for relation in _OCCUPATION_DETAIL_RELATIONS
-    }
+    for relation in _OCCUPATION_DETAIL_RELATIONS:
+        inferred_value = _extract_related_resource_count(payload, relation)
+        if isinstance(inferred_value, int):
+            resolved[relation] = inferred_value
+    return resolved
 
 
 def _render_selected_occupation_detail(
