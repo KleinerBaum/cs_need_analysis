@@ -85,17 +85,16 @@ def test_role_skills_benefits_use_identical_step_shell_block_order() -> None:
 
     expected_order = [
         "extracted_from_jobspec_slot",
-        "source_comparison_slot",
-        "salary_forecast_slot",
         "open_questions_slot",
         "review_slot",
+        "post_review_slot",
     ]
 
     assert role_slots == expected_order
     assert skills_slots == expected_order
     assert benefits_slots == expected_order
 
-    assert callable(role_kwargs["salary_forecast_slot"])
+    assert callable(role_kwargs["post_review_slot"])
     assert callable(skills_kwargs["salary_forecast_slot"])
     assert callable(benefits_kwargs["salary_forecast_slot"])
 
@@ -139,7 +138,7 @@ def test_salary_forecast_slots_keep_canonical_result_key_wiring() -> None:
     benefits.load_openai_settings = lambda: object()
     benefits.resolve_model_for_task = lambda **_kwargs: "test-model"
 
-    role_kwargs["salary_forecast_slot"]()
+    role_kwargs["post_review_slot"]()
     skills_kwargs["salary_forecast_slot"]()
     benefits_kwargs["salary_forecast_slot"]()
 

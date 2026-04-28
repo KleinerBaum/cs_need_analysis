@@ -99,3 +99,10 @@ def test_save_selected_task_suggestions_merges_without_duplicates() -> None:
         "Ownership",
         "Incident Management",
     ]
+
+
+def test_dedupe_is_stable_across_jobspec_ai_esco_inputs() -> None:
+    merged = ROLE_TASKS_MODULE._dedupe_task_terms(
+        ["Ownership", " ownership ", "Incident Management", "incident management"]
+    )
+    assert merged == ["Ownership", "Incident Management"]
