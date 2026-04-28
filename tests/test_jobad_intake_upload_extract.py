@@ -233,7 +233,7 @@ def test_render_jobad_intake_uses_manual_text_when_upload_empty(monkeypatch) -> 
     monkeypatch.setattr(
         jobad_intake, "_render_phase_b_extraction_review", lambda _ctx: None
     )
-    monkeypatch.setattr(jobad_intake, "_render_phase_c_esco_anchor", lambda: None)
+    monkeypatch.setattr(jobad_intake, "_render_phase_c_esco_anchor", lambda _ctx: None)
     monkeypatch.setattr(jobad_intake, "render_error_banner", lambda: None)
     monkeypatch.setattr(jobad_intake, "clear_error", lambda: None)
     monkeypatch.setattr(jobad_intake, "load_openai_settings", lambda: object())
