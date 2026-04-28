@@ -258,7 +258,7 @@ def _render_phase_c_esco_anchor(ctx: WizardContext) -> None:
     job = JobAdExtract.model_validate(job_dict)
     render_esco_occupation_confirmation(
         job,
-        show_start_context_panels=False,
+        show_start_context_panels=True,
     )
 
     _, _, next_col = st.columns([1, 1, 1], gap="small")

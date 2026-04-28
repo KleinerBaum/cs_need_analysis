@@ -424,6 +424,7 @@ def test_render_esco_occupation_confirmation_skips_skill_group_request_when_unsu
         def __init__(self) -> None:
             self.warning_messages: list[str] = []
             self.caption_messages: list[str] = []
+            self.markdown_messages: list[str] = []
             self.session_state = {
                 f"{SSKey.ESCO_OCCUPATION_SELECTED.value}.esco_picker.options": [],
                 SSKey.ESCO_OCCUPATION_SELECTED.value: {
@@ -450,6 +451,7 @@ def test_render_esco_occupation_confirmation_skips_skill_group_request_when_unsu
             return None
 
         def markdown(self, _message: str, **_kwargs: object) -> None:
+            self.markdown_messages.append(_message)
             return None
 
         def button(self, _label: str, **_kwargs: object) -> bool:
@@ -510,10 +512,11 @@ def test_render_esco_occupation_confirmation_skips_skill_group_request_when_unsu
     assert fake_st.session_state[SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value] == []
     assert fake_st.warning_messages == []
     assert any(
-        "Skillgruppen-Anteil ist für die aktuelle ESCO-Version/den Modus nicht verfügbar."
+        "Das ESCO-Portal zeigt diesen Anteil, der aktuell über den genutzten ESCO-Webservice nicht abrufbar ist."
         in message
         for message in fake_st.caption_messages
     )
+    assert any("Portal öffnen" in message for message in fake_st.markdown_messages)
     assert any(
         "Capabilities: Skills ✅ · Knowledge 🚫 · Skill Groups 🚫" in message
         for message in fake_st.caption_messages
