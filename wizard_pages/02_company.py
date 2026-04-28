@@ -27,6 +27,11 @@ _PAGE_KEYWORDS: dict[str, tuple[str, ...]] = {
     "imprint": ("impressum", "imprint", "legal", "rechtliche", "kontakt"),
     "vision_mission": ("vision", "mission", "leitbild", "werte", "purpose"),
 }
+_TOPIC_LABELS: dict[str, str] = {
+    "about": "Über uns",
+    "imprint": "Impressum",
+    "vision_mission": "Vision und Mission",
+}
 _USER_AGENT = "cs-need-analysis/1.0 (+https://example.invalid)"
 _NOISE_PATTERNS: tuple[str, ...] = (
     "window.adobedatalayer",
@@ -279,11 +284,15 @@ def _collect_open_questions(plan: QuestionPlan) -> list[dict[str, str]]:
 def _derive_insights_from_open_questions(
     open_questions: list[dict[str, str]], research_sections: dict[str, dict[str, Any]]
 ) -> list[dict[str, str]]:
-    corpus = " ".join(
-        " ".join(section.get("summary", []) or [])
-        for section in research_sections.values()
-        if isinstance(section, dict)
-    ).casefold()
+    section_corpus: dict[str, str] = {}
+    for topic_key, section in research_sections.items():
+        if not isinstance(section, dict):
+            continue
+        summary = section.get("summary", [])
+        if not isinstance(summary, list):
+            continue
+        section_corpus[topic_key] = " ".join(str(line) for line in summary).casefold()
+    corpus = " ".join(section_corpus.values())
     insights: list[dict[str, str]] = []
     for question in open_questions:
         tokens = [
@@ -295,15 +304,55 @@ def _derive_insights_from_open_questions(
         matched_tokens = [token for token in tokens if token in corpus]
         if not matched_tokens:
             continue
+        source_topic = ""
+        for topic_key in ("about", "imprint", "vision_mission"):
+            topic_text = section_corpus.get(topic_key, "")
+            if any(token in topic_text for token in matched_tokens):
+                source_topic = topic_key
+                break
         insights.append(
             {
                 "question_id": question["id"],
                 "step": question["step"],
                 "question_label": question["label"],
+                "source_topic": source_topic,
                 "match_tokens": ", ".join(matched_tokens[:4]),
             }
         )
     return insights[:8]
+
+
+def _build_open_question_match_options(
+    matches: list[dict[str, str]],
+) -> list[dict[str, str]]:
+    options: list[dict[str, str]] = []
+    seen_labels: dict[str, int] = {}
+    for match in matches:
+        question_id = str(match.get("question_id") or "").strip()
+        question_label = str(match.get("question_label") or "").strip()
+        if not question_id or not question_label:
+            continue
+        source_topic = str(match.get("source_topic") or "").strip()
+        source_label = _TOPIC_LABELS.get(source_topic, "Website")
+        base_label = f"{question_label} · Quelle: {source_label}"
+        label_count = seen_labels.get(base_label, 0) + 1
+        seen_labels[base_label] = label_count
+        display_label = (
+            base_label if label_count == 1 else f"{base_label} ({label_count})"
+        )
+        option_id = f"{question_id}::{source_topic or 'website'}::{label_count}"
+        options.append(
+            {
+                "option_id": option_id,
+                "question_id": question_id,
+                "question_label": question_label,
+                "source_topic": source_topic,
+                "source_label": source_label,
+                "display_label": display_label,
+                "match_tokens": str(match.get("match_tokens") or "").strip(),
+            }
+        )
+    return options
 
 
 def _run_website_research(
@@ -422,14 +471,9 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
         research = research_raw if isinstance(research_raw, dict) else {}
         sections = research.get("sections", {})
         section_payload = sections if isinstance(sections, dict) else {}
-        topic_labels = {
-            "about": "Über uns",
-            "imprint": "Impressum",
-            "vision_mission": "Vision und Mission",
-        }
         if not section_payload:
             st.caption("Noch keine Analyse durchgeführt.")
-        for topic_key, topic_label in topic_labels.items():
+        for topic_key, topic_label in _TOPIC_LABELS.items():
             payload_raw = section_payload.get(topic_key, {})
             payload = payload_raw if isinstance(payload_raw, dict) else {}
             summary = payload.get("summary", [])
@@ -448,18 +492,81 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
                     st.write(f"- {str(line).strip()}")
 
         matches_raw = research.get("open_question_matches", [])
-        matches = matches_raw if isinstance(matches_raw, list) else []
-        if matches:
-            st.markdown("**Abgleich mit offenen Fragen (puristisch)**")
-            for match in matches:
-                if not isinstance(match, dict):
-                    continue
-                st.write(
-                    "- "
-                    f"[{str(match.get('step') or '').strip()}] "
-                    f"{str(match.get('question_label') or '').strip()} "
-                    f"(Treffer: {str(match.get('match_tokens') or '').strip()})"
+        matches = [
+            match for match in (matches_raw if isinstance(matches_raw, list) else [])
+            if isinstance(match, dict)
+        ]
+        match_options = _build_open_question_match_options(matches)
+        if match_options:
+            st.markdown("### Hinweise aus der Website-Analyse")
+            st.caption(
+                "Diese Hinweise können für aktuell unbeantwortete Fragen im weiteren Prozess wiederverwendet werden."
+            )
+            selected_matches_raw = st.session_state.get(
+                SSKey.COMPANY_WEBSITE_SELECTED_MATCHES.value, []
+            )
+            selected_matches = (
+                selected_matches_raw if isinstance(selected_matches_raw, list) else []
+            )
+            selected_option_ids = [
+                str(item.get("option_id") or "").strip()
+                for item in selected_matches
+                if isinstance(item, dict)
+            ]
+            valid_option_ids = {item["option_id"] for item in match_options}
+            default_selected_ids = [
+                option_id
+                for option_id in selected_option_ids
+                if option_id in valid_option_ids
+            ]
+            options_map = {item["option_id"]: item for item in match_options}
+            option_ids = [item["option_id"] for item in match_options]
+            option_labels = {item["option_id"]: item["display_label"] for item in match_options}
+            if hasattr(st, "pills"):
+                selected_ids = st.pills(
+                    "Hinweise auswählen",
+                    options=option_ids,
+                    default=default_selected_ids,
+                    selection_mode="multi",
+                    format_func=lambda value: option_labels.get(value, value),
+                    key="company.website.match_selection.pills",
                 )
+            else:
+                selected_ids = st.multiselect(
+                    "Hinweise auswählen",
+                    options=option_ids,
+                    default=default_selected_ids,
+                    format_func=lambda value: option_labels.get(value, value),
+                    key="company.website.match_selection.multiselect",
+                )
+            selected_ids = selected_ids if isinstance(selected_ids, list) else []
+            resolved_selection = [
+                {
+                    "option_id": option_id,
+                    "question_id": options_map[option_id]["question_id"],
+                    "question_label": options_map[option_id]["question_label"],
+                    "source_topic": options_map[option_id]["source_topic"],
+                    "source_label": options_map[option_id]["source_label"],
+                    "match_tokens": options_map[option_id]["match_tokens"],
+                    "display_label": options_map[option_id]["display_label"],
+                }
+                for option_id in selected_ids
+                if option_id in options_map
+            ]
+            st.session_state[SSKey.COMPANY_WEBSITE_SELECTED_MATCHES.value] = (
+                resolved_selection
+            )
+            st.caption(
+                f"Ausgewählt: {len(resolved_selection)}/{len(match_options)} Hinweise"
+            )
+            if resolved_selection:
+                with st.expander("Ausgewählte Hinweise (Details)", expanded=False):
+                    for item in resolved_selection:
+                        tokens = str(item.get("match_tokens") or "").strip()
+                        if tokens:
+                            st.caption(
+                                f"{str(item.get('display_label') or '').strip()} · Treffer: {tokens}"
+                            )
 
 
 def _format_company_header(job: JobAdExtract) -> str:

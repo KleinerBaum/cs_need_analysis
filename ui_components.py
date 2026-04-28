@@ -1645,13 +1645,6 @@ def render_question_step(step: QuestionStep) -> None:
         overall_total=overall_progress["total"],
     )
 
-    st.caption(
-        f"Beantwortet: {visible_progress['answered']}/{visible_progress['total']}"
-    )
-    st.caption(scope_labels["visible_label"])
-    if scope_labels["has_different_denominator"]:
-        st.caption(scope_labels["overall_label"])
-
     if not visible_questions:
         st.info(
             "Aktuell sind keine Fragen sichtbar. Prüfe vorherige Antworten oder fahre mit dem nächsten Schritt fort."
@@ -1663,14 +1656,6 @@ def render_question_step(step: QuestionStep) -> None:
         return
 
     grouped_questions = _group_questions(step, visible_questions)
-    incomplete_groups = _collect_incomplete_group_titles(
-        grouped_questions, answers, answer_meta, answered_lookup
-    )
-    if incomplete_groups:
-        st.caption(
-            "Pflichtfragen offen in: " + ", ".join(dict.fromkeys(incomplete_groups))
-        )
-
     for group_title, group_questions in grouped_questions:
         progress = compute_question_progress(
             group_questions,

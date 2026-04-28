@@ -246,3 +246,69 @@ def test_render_step_review_card_shows_open_question_count_without_input_widgets
     )
 
     assert "1 offene Frage(n) in dieser Gruppe." in fake_st.captions
+
+
+def test_render_question_step_hides_verbose_progress_captions(monkeypatch) -> None:
+    class _FakeStepStreamlit:
+        def __init__(self) -> None:
+            self.session_state: dict[str, Any] = {
+                "cs.ui_mode": "standard",
+                "cs.question_limits": {},
+            }
+            self.captions: list[str] = []
+            self.markdowns: list[str] = []
+
+        def caption(self, message: str, *_: Any, **__: Any) -> None:
+            self.captions.append(message)
+
+        def markdown(self, message: str, *_: Any, **__: Any) -> None:
+            self.markdowns.append(message)
+
+        def info(self, *_: Any, **__: Any) -> None:
+            return None
+
+        def container(self, *, border: bool = False) -> _NoopContext:
+            del border
+            return _NoopContext()
+
+        def columns(self, spec: int | list[int], **_: Any) -> list[_NoopContext]:
+            count = spec if isinstance(spec, int) else len(spec)
+            return [_NoopContext() for _ in range(count)]
+
+    fake_st = _FakeStepStreamlit()
+    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_components, "get_answers", lambda: {})
+    monkeypatch.setattr(ui_components, "get_answer_meta", lambda: {})
+    monkeypatch.setattr(
+        ui_components,
+        "_render_questions_two_columns",
+        lambda _questions, _answers: None,
+    )
+    step = QuestionStep(
+        step_key="company",
+        title_de="Company",
+        questions=[
+            Question(
+                id="company_q_1",
+                label="Unternehmensgröße",
+                answer_type=AnswerType.SHORT_TEXT,
+                required=True,
+                group_key="company",
+            )
+        ],
+    )
+
+    ui_components.render_question_step(step)
+
+    assert not any(caption.startswith("Beantwortet:") for caption in fake_st.captions)
+    assert not any(
+        caption.startswith("Sichtbar im aktuellen Umfang:")
+        for caption in fake_st.captions
+    )
+    assert not any(
+        caption.startswith("Gesamt im Step (inkl. derzeit ausgeblendeter Details):")
+        for caption in fake_st.captions
+    )
+    assert not any(
+        caption.startswith("Pflichtfragen offen in:") for caption in fake_st.captions
+    )

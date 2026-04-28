@@ -12,10 +12,29 @@ from state import get_answers, has_confirmed_esco_anchor, mark_answer_touched, s
 from ui_components import (
     has_meaningful_value,
     render_error_banner,
-    render_esco_explainability,
     render_question_step,
 )
 from wizard_pages.base import WizardContext
+
+ROLE_CONTEXT_TITLE = "#### Rollenprofil mit ESCO-Hinweisen ergänzen"
+ROLE_CONTEXT_HELP = (
+    "Wählen Sie nur Hinweise aus, die für diese konkrete Stelle relevant sind. "
+    "Übernommene Hinweise werden in der Team-Notiz gespeichert."
+)
+ROLE_CONTEXT_BUTTON_LABEL = "Ausgewählte Hinweise übernehmen"
+ROLE_CONTEXT_EMPTY_SELECTION = "Bitte zuerst mindestens einen Hinweis auswählen."
+ROLE_CONTEXT_NO_THEMES = "Keine belastbaren ESCO-Hinweise für diese Rolle gefunden."
+ROLE_CONTEXT_QUALITY_PREFIX = "Trefferqualität: "
+ROLE_CONTEXT_REASON_PREFIX = "Warum vorgeschlagen: "
+ROLE_CONTEXT_UI_TEXTS: tuple[str, ...] = (
+    ROLE_CONTEXT_TITLE,
+    ROLE_CONTEXT_HELP,
+    ROLE_CONTEXT_BUTTON_LABEL,
+    ROLE_CONTEXT_EMPTY_SELECTION,
+    ROLE_CONTEXT_NO_THEMES,
+    ROLE_CONTEXT_QUALITY_PREFIX,
+    ROLE_CONTEXT_REASON_PREFIX,
+)
 
 
 def _walk_text_values(value: Any) -> Iterable[str]:
@@ -41,43 +60,44 @@ def _build_role_context_themes(
     theme_rules = [
         (
             "collaboration",
-            "Collaboration",
-            "Zusammenarbeit",
+            "Zusammenarbeit / Kommunikation",
+            "Zusammenarbeit & Kommunikation",
             ("team", "cross-functional", "cross functional", "collaborat", "cooperat"),
         ),
         (
             "communication",
-            "Communication",
-            "Zusammenarbeit",
+            "Austausch mit Stakeholdern",
+            "Zusammenarbeit & Kommunikation",
             ("communicat", "present", "explain", "report", "facilitat"),
         ),
         (
             "stakeholder",
-            "Stakeholder interaction",
-            "Stakeholder",
+            "Abstimmung mit Kunden / Stakeholdern",
+            "Zusammenarbeit & Kommunikation",
             ("stakeholder", "client", "customer", "partner", "supplier", "interface"),
         ),
         (
             "leadership",
-            "Leadership / coordination",
-            "Leadership",
+            "Führung / Koordination",
+            "Führung & Koordination",
             ("lead", "mentor", "coordinate", "supervis", "manage", "organis"),
         ),
         (
             "language",
-            "Language-related requirements",
-            "Rahmenbedingungen",
+            "Sprachanforderungen",
+            "Arbeitsumfeld & Rahmenbedingungen",
             ("language", "multilingual", "bilingual", "translation", "lingu"),
         ),
         (
             "digital_collaboration",
-            "Digital collaboration signals",
-            "Rahmenbedingungen",
+            "Digitales / hybrides Arbeiten",
+            "Arbeitsumfeld & Rahmenbedingungen",
             ("digital", "remote", "virtual", "online", "platform", "software", "tool"),
         ),
     ]
 
     themes: list[dict[str, Any]] = []
+    seen_labels: set[tuple[str, str]] = set()
     snippets = list(_walk_text_values(occupation_payload))[:120]
     for key, label, group, keywords in theme_rules:
         if not any(keyword in corpus for keyword in keywords):
@@ -87,6 +107,10 @@ def _build_role_context_themes(
             for snippet in snippets
             if any(keyword in snippet.casefold() for keyword in keywords)
         ][:2]
+        dedupe_key = (group.casefold(), label.casefold())
+        if dedupe_key in seen_labels:
+            continue
+        seen_labels.add(dedupe_key)
         themes.append({"key": key, "label": label, "group": group, "evidence": matched})
     return themes
 
@@ -128,15 +152,34 @@ def _read_confirmed_team_notes(step: QuestionStep | None) -> str:
     return str(answers.get(target_question.id) or "").strip()
 
 
+def _esco_quality_label(raw_confidence: object) -> str:
+    normalized = str(raw_confidence or "").strip().lower()
+    mapping = {"low": "niedrig", "medium": "mittel", "high": "hoch"}
+    return mapping.get(normalized, "nicht geladen")
+
+
+def _esco_reason_labels(provenance: object) -> list[str]:
+    if not isinstance(provenance, list):
+        return []
+    mapping = {
+        "synonym/hidden-term match": "ähnlicher Begriff",
+        "manually selected by user": "manuell gewählt",
+        "exact label match": "exakte Bezeichnung",
+    }
+    resolved: list[str] = []
+    for item in provenance:
+        key = str(item or "").strip().lower()
+        label = mapping.get(key)
+        if label and label not in resolved:
+            resolved.append(label)
+    return resolved
+
+
 def render_role_context_enrichment(
     *, step: QuestionStep | None, ctx: WizardContext
 ) -> None:
-    st.markdown("#### Role-context enrichment (ESCO)")
-    st.caption(
-        "Die linke Zone enthält ausschließlich inferred suggestion/context (nicht "
-        "nutzungsbestätigt). Erst nach Übernahme landet Inhalt als confirmed selection "
-        "in der Team-Notiz."
-    )
+    st.markdown(ROLE_CONTEXT_TITLE)
+    st.caption(ROLE_CONTEXT_HELP)
 
     occupation = st.session_state.get(SSKey.ESCO_OCCUPATION_SELECTED.value)
     occupation_uri = (
@@ -162,47 +205,45 @@ def render_role_context_enrichment(
 
     themes = _build_role_context_themes(payload)
     if not themes:
-        st.info("Keine belastbaren transversal themes aus ESCO ableitbar.")
+        st.info(ROLE_CONTEXT_NO_THEMES)
         return
 
-    st.write("**Zone 1 · Vorschläge (inferred)**")
     match_confidence = str(
         st.session_state.get(SSKey.ESCO_MATCH_CONFIDENCE.value) or ""
     ).strip()
-    match_reason = st.session_state.get(SSKey.ESCO_MATCH_REASON.value)
     match_provenance_raw = st.session_state.get(SSKey.ESCO_MATCH_PROVENANCE.value)
-    match_provenance = (
-        [str(item) for item in match_provenance_raw if str(item).strip()]
-        if isinstance(match_provenance_raw, list)
-        else []
-    )
-    if match_confidence or match_reason or match_provenance:
-        render_esco_explainability(
-            labels=match_provenance,
-            confidence=match_confidence,
-            reason=str(match_reason).strip() if match_reason else None,
-            caption_prefix="ESCO Occupation match",
-        )
+    st.caption(f"{ROLE_CONTEXT_QUALITY_PREFIX}{_esco_quality_label(match_confidence)}")
+    reason_labels = _esco_reason_labels(match_provenance_raw)
+    if reason_labels:
+        st.caption(f"{ROLE_CONTEXT_REASON_PREFIX}{' / '.join(reason_labels)}")
 
-    st.caption("Markierte Pillen gelten als ausgewählt.")
     grouped_themes: dict[str, list[dict[str, Any]]] = {}
     for theme in themes:
         group = str(theme.get("group") or "Allgemein").strip() or "Allgemein"
         grouped_themes.setdefault(group, []).append(theme)
 
     selected_theme_labels: list[str] = []
-    selected_theme_details: list[str] = []
-    for group_name, group_themes in grouped_themes.items():
+    ordered_groups = [
+        "Zusammenarbeit & Kommunikation",
+        "Führung & Koordination",
+        "Arbeitsumfeld & Rahmenbedingungen",
+    ]
+    for group_name in ordered_groups:
+        group_themes = grouped_themes.get(group_name, [])
+        if not group_themes:
+            continue
         st.markdown(f"**{group_name}**")
-        labels = [
-            str(theme.get("label") or "").strip()
-            for theme in group_themes
-            if has_meaningful_value(str(theme.get("label") or ""))
-        ]
+        labels = []
+        for theme in group_themes:
+            label = str(theme.get("label") or "").strip()
+            if has_meaningful_value(label) and label not in labels:
+                labels.append(label)
+        if not labels:
+            continue
         if hasattr(st, "pills"):
             selected_labels = (
                 st.pills(
-                    f"Pillen · {group_name}",
+                    f"Hinweise · {group_name}",
                     options=labels,
                     selection_mode="multi",
                     key=f"team.esco.pills.{group_name.casefold().replace(' ', '_')}",
@@ -211,68 +252,39 @@ def render_role_context_enrichment(
             )
         else:
             selected_labels = st.multiselect(
-                f"Auswahl · {group_name}",
+                f"Hinweise · {group_name}",
                 options=labels,
                 key=f"team.esco.multiselect.{group_name.casefold().replace(' ', '_')}",
             )
-        selected_theme_labels.extend(selected_labels)
-        for theme in group_themes:
-            label = str(theme.get("label") or "").strip()
-            if label not in selected_labels:
-                continue
-            evidence = (
-                theme.get("evidence") if isinstance(theme.get("evidence"), list) else []
-            )
-            if evidence:
-                selected_theme_details.append(f"{label} · Signal: {evidence[0]}")
+        selected_theme_labels.extend(
+            label for label in selected_labels if label not in selected_theme_labels
+        )
 
     if st.button(
-        "Ausgewählte Vorschläge als confirmed selection übernehmen",
+        ROLE_CONTEXT_BUTTON_LABEL,
         key="team.esco.adopt.selected",
         type="primary",
         width="stretch",
     ):
         if not selected_theme_labels:
-            st.info("Bitte zuerst mindestens eine Pille markieren.")
+            st.info(ROLE_CONTEXT_EMPTY_SELECTION)
         else:
             adopted_count = 0
             for label in selected_theme_labels:
                 adopted = _append_context_to_team_notes(
                     step=step,
-                    context_line=f"Confirmed selection (ESCO suggestion): {label}",
+                    context_line=f"ESCO-Hinweis: {label}",
                 )
                 if adopted:
                     adopted_count += 1
             if adopted_count:
-                st.success(
-                    f"{adopted_count} Vorschlag/Vorschläge als confirmed selection übernommen."
-                )
+                st.success(f"{adopted_count} Hinweis(e) übernommen.")
             else:
                 st.info("Keine geeignete Team-Notizfrage zum Übernehmen gefunden.")
 
-    if selected_theme_details:
-        st.caption("Ausgewählte Evidenz-Signale:")
-        for detail in selected_theme_details:
-            st.write(f"- {detail}")
-
-    st.write("**Zone 2 · Confirmed input**")
     current_notes = _read_confirmed_team_notes(step)
     if current_notes:
-        st.caption(
-            "Bestätigte Inhalte in der kanonischen Team-Antwort (Downstream für Summary/Export)."
-        )
-        st.text_area(
-            "Bestätigte Team-Notiz",
-            value=current_notes,
-            height=180,
-            disabled=True,
-            key="team.esco.confirmed.preview",
-        )
-    else:
-        st.info(
-            "Noch keine bestätigte Team-Notiz vorhanden. Übernommene Vorschläge "
-            "werden hier sichtbar."
-        )
+        st.caption("Übernommene Hinweise sind in der Team-Notiz gespeichert.")
 
 
 def render_team_questions_with_optional_esco_context(

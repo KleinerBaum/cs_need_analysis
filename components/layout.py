@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 import streamlit as st
 
-from config.constants import APP_NAME, APP_TAGLINE
+from constants import APP_NAME, APP_TAGLINE
 
 @dataclass(frozen=True)
 class SectionBlock:

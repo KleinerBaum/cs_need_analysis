@@ -56,3 +56,52 @@ def test_derive_topic_facts_about_extracts_headcount_and_founding() -> None:
 
     assert any("Gegründet" in fact and "2001" in fact for fact in facts)
     assert any("Mitarbeitende" in fact and "745000" in fact for fact in facts)
+
+
+def test_derive_insights_from_open_questions_retains_ids_and_labels() -> None:
+    open_questions = [
+        {
+            "id": "company_q_1",
+            "step": "company",
+            "label": "Welche Vision verfolgt das Unternehmen?",
+        }
+    ]
+    sections = {
+        "vision_mission": {
+            "summary": [
+                "Unsere Vision ist nachhaltiges Wachstum mit klarer Mission für Kundenprojekte."
+            ]
+        }
+    }
+
+    insights = COMPANY_MODULE._derive_insights_from_open_questions(open_questions, sections)
+
+    assert len(insights) == 1
+    assert insights[0]["question_id"] == "company_q_1"
+    assert insights[0]["question_label"] == "Welche Vision verfolgt das Unternehmen?"
+    assert insights[0]["source_topic"] == "vision_mission"
+
+
+def test_build_open_question_match_options_uses_human_labels_without_step_keys() -> None:
+    options = COMPANY_MODULE._build_open_question_match_options(
+        [
+            {
+                "question_id": "company_q_2",
+                "step": "company",
+                "question_label": "Welche Rechtsform hat das Unternehmen?",
+                "source_topic": "imprint",
+                "match_tokens": "rechtsform, unternehmen",
+            }
+        ]
+    )
+
+    assert len(options) == 1
+    assert options[0]["display_label"] == (
+        "Welche Rechtsform hat das Unternehmen? · Quelle: Impressum"
+    )
+    assert "[company]" not in options[0]["display_label"]
+    assert "Treffer:" not in options[0]["display_label"]
+
+
+def test_build_open_question_match_options_returns_empty_for_no_matches() -> None:
+    assert COMPANY_MODULE._build_open_question_match_options([]) == []

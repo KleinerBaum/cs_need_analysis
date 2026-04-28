@@ -6,6 +6,16 @@ import streamlit as st
 from site_ui import PROFILE, inject_site_styles, render_cards, render_callout, render_cta, render_hero, render_meta_line
 
 
+def _legal_policy_links() -> tuple[tuple[str, str], ...]:
+    return (
+        ("pages/03_Impressum.py", "Impressum"),
+        ("pages/11_Datenschutzrichtlinie.py", "Datenschutzrichtlinie"),
+        ("pages/12_Nutzungsbedingungen.py", "Nutzungsbedingungen"),
+        ("pages/13_Cookie_Policy_Settings.py", "Cookie Policy Settings"),
+        ("pages/14_Erklaerung_zur_Barrierefreiheit.py", "Erklärung zur Barrierefreiheit"),
+    )
+
+
 st.set_page_config(page_title="Kontakt", page_icon="✉️", layout="wide")
 inject_site_styles()
 
@@ -108,3 +118,7 @@ render_cta(
     "Direkter Draht",
     f"Für schnelle Rückfragen erreichen Sie uns direkt unter **{PROFILE.email}**.",
 )
+
+st.markdown("## Rechtliches & Richtlinien")
+for page_path, label in _legal_policy_links():
+    st.page_link(page_path, label=label)

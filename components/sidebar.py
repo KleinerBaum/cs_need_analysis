@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from config.constants import COOKIE_CATEGORIES, PAGE_DEFS, PREFERENCE_KEYS
+from constants import COOKIE_CATEGORIES, PAGE_DEFS, PREFERENCE_KEYS
 from config.preferences import (
     build_runtime_context,
     ensure_preference_state,
