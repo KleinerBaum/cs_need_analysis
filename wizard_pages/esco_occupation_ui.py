@@ -1,14 +1,20 @@
 from __future__ import annotations
 
 from difflib import SequenceMatcher
-from typing import Callable, TypedDict
+from typing import Callable, Mapping, TypedDict
 
 import streamlit as st
 
 from constants import SSKey
 from esco_client import (
     EscoClient,
+    EscoApiCapabilities,
     EscoClientError,
+    ENDPOINT_OCCUPATION_SKILL_GROUP_SHARE,
+    OCCUPATION_RELATION_ESSENTIAL_KNOWLEDGE,
+    OCCUPATION_RELATION_ESSENTIAL_SKILL,
+    OCCUPATION_RELATION_OPTIONAL_KNOWLEDGE,
+    OCCUPATION_RELATION_OPTIONAL_SKILL,
     clear_esco_cache,
     is_retryable_server_status,
 )
@@ -16,14 +22,14 @@ from schemas import JobAdExtract
 from ui_components import render_esco_explainability, render_esco_picker_card
 
 _OCCUPATION_DETAIL_RELATIONS: tuple[str, ...] = (
-    "hasEssentialSkill",
-    "hasOptionalSkill",
-    "hasEssentialKnowledge",
-    "hasOptionalKnowledge",
+    OCCUPATION_RELATION_ESSENTIAL_SKILL,
+    OCCUPATION_RELATION_OPTIONAL_SKILL,
+    OCCUPATION_RELATION_ESSENTIAL_KNOWLEDGE,
+    OCCUPATION_RELATION_OPTIONAL_KNOWLEDGE,
 )
 _DEFAULT_SUPPORTED_OCCUPATION_RELATIONS: tuple[str, ...] = (
-    "hasEssentialSkill",
-    "hasOptionalSkill",
+    OCCUPATION_RELATION_ESSENTIAL_SKILL,
+    OCCUPATION_RELATION_OPTIONAL_SKILL,
 )
 
 _FIELD_STATE_NOT_DELIVERED = "nicht geliefert"
@@ -33,11 +39,20 @@ _FIELD_STATE_FALLBACK_LANGUAGE = (
 _FIELD_STATE_NOT_LOADED = "noch nicht geladen"
 _FIELD_STATE_AVAILABLE = "verfügbar"
 _FIELD_STATE_UNSUPPORTED = "nicht unterstützt"
+_CAPABILITY_STATE_SUPPORTED = "supported"
+_CAPABILITY_STATE_UNSUPPORTED = "unsupported"
+_CAPABILITY_STATE_NOT_LOADED = "not loaded"
 
 
 class _SkillGroupShareRow(TypedDict):
     label: str
     share_percent: float
+
+
+class _CapabilityStatusRow(TypedDict):
+    label: str
+    state: str
+    value: str
 
 
 def _build_esco_query(job: JobAdExtract) -> str:
@@ -495,6 +510,8 @@ def _extract_related_resource_labels(
 
 def _supported_occupation_relations(client: EscoClient) -> tuple[str, ...]:
     supported_relations = getattr(client, "supported_occupation_relations", None)
+    if callable(supported_relations):
+        supported_relations = supported_relations()
     if not isinstance(supported_relations, (tuple, list)):
         return _DEFAULT_SUPPORTED_OCCUPATION_RELATIONS
     resolved = tuple(
@@ -505,6 +522,213 @@ def _supported_occupation_relations(client: EscoClient) -> tuple[str, ...]:
     if not resolved:
         return _DEFAULT_SUPPORTED_OCCUPATION_RELATIONS
     return resolved
+
+
+def _occupation_capabilities(
+    client: EscoClient,
+    supported_relations: tuple[str, ...],
+) -> EscoApiCapabilities:
+    get_capabilities = getattr(client, "get_capabilities", None)
+    if callable(get_capabilities):
+        try:
+            capabilities = get_capabilities()
+        except Exception:
+            capabilities = None
+        if isinstance(capabilities, EscoApiCapabilities):
+            return capabilities
+
+    supported_relation_set = set(supported_relations)
+    supports_knowledge = {
+        OCCUPATION_RELATION_ESSENTIAL_KNOWLEDGE,
+        OCCUPATION_RELATION_OPTIONAL_KNOWLEDGE,
+    }.issubset(supported_relation_set)
+    supports_endpoint = getattr(client, "supports_endpoint", None)
+    supports_skill_group_share = False
+    if callable(supports_endpoint):
+        try:
+            supports_skill_group_share = bool(
+                supports_endpoint(ENDPOINT_OCCUPATION_SKILL_GROUP_SHARE)
+            )
+        except Exception:
+            supports_skill_group_share = False
+    unsupported_relations = tuple(
+        relation
+        for relation in _OCCUPATION_DETAIL_RELATIONS
+        if relation not in supported_relation_set
+    )
+    unsupported_endpoints = (
+        frozenset()
+        if supports_skill_group_share
+        else frozenset({ENDPOINT_OCCUPATION_SKILL_GROUP_SHARE})
+    )
+    return EscoApiCapabilities(
+        supported_occupation_relations=supported_relations,
+        unsupported_occupation_relations=unsupported_relations,
+        unsupported_endpoints=unsupported_endpoints,
+        supports_occupation_knowledge_relations=supports_knowledge,
+        supports_occupation_skill_group_share=supports_skill_group_share,
+    )
+
+
+def _capabilities_badge_text(
+    *,
+    capabilities: EscoApiCapabilities,
+) -> str:
+    supported_relation_set = set(capabilities.supported_occupation_relations)
+    supports_skills = {
+        OCCUPATION_RELATION_ESSENTIAL_SKILL,
+        OCCUPATION_RELATION_OPTIONAL_SKILL,
+    }.issubset(supported_relation_set)
+    skill_groups_symbol = (
+        "✅"
+        if capabilities.supports_occupation_skill_group_share
+        else "🚫"
+    )
+    skills_symbol = "✅" if supports_skills else "🚫"
+    knowledge_symbol = (
+        "✅" if capabilities.supports_occupation_knowledge_relations else "🚫"
+    )
+    return (
+        "Capabilities: "
+        f"Skills {skills_symbol} · "
+        f"Knowledge {knowledge_symbol} · "
+        f"Skill Groups {skill_groups_symbol}"
+    )
+
+
+def _capability_state(value: bool | None) -> str:
+    if value is True:
+        return _CAPABILITY_STATE_SUPPORTED
+    if value is False:
+        return _CAPABILITY_STATE_UNSUPPORTED
+    return _CAPABILITY_STATE_NOT_LOADED
+
+
+def _safe_esco_config(client: EscoClient) -> Mapping[str, object]:
+    get_config = getattr(client, "_esco_config", None)
+    if not callable(get_config):
+        return {}
+    try:
+        config = get_config()
+    except Exception:
+        return {}
+    return config if isinstance(config, Mapping) else {}
+
+
+def _build_capability_status_rows(
+    *,
+    api_mode: str | None,
+    selected_version: str | None,
+    capabilities: EscoApiCapabilities | None,
+) -> list[_CapabilityStatusRow]:
+    supported_relations = (
+        capabilities.supported_occupation_relations if capabilities is not None else ()
+    )
+    unsupported_relations = (
+        capabilities.unsupported_occupation_relations if capabilities is not None else ()
+    )
+    supported_relations_text = (
+        ", ".join(supported_relations) if supported_relations else "—"
+    )
+    unsupported_relations_text = (
+        ", ".join(unsupported_relations) if unsupported_relations else "—"
+    )
+    return [
+        {
+            "label": "API mode",
+            "state": (
+                _CAPABILITY_STATE_SUPPORTED
+                if api_mode and api_mode.strip()
+                else _CAPABILITY_STATE_NOT_LOADED
+            ),
+            "value": api_mode.strip() if isinstance(api_mode, str) and api_mode.strip() else "—",
+        },
+        {
+            "label": "selectedVersion",
+            "state": (
+                _CAPABILITY_STATE_SUPPORTED
+                if selected_version and selected_version.strip()
+                else _CAPABILITY_STATE_NOT_LOADED
+            ),
+            "value": (
+                selected_version.strip()
+                if isinstance(selected_version, str) and selected_version.strip()
+                else "—"
+            ),
+        },
+        {
+            "label": "Supported occupation relations",
+            "state": (
+                _CAPABILITY_STATE_SUPPORTED
+                if supported_relations
+                else _CAPABILITY_STATE_NOT_LOADED
+            ),
+            "value": supported_relations_text,
+        },
+        {
+            "label": "Unsupported occupation relations",
+            "state": (
+                _CAPABILITY_STATE_UNSUPPORTED
+                if unsupported_relations
+                else _CAPABILITY_STATE_NOT_LOADED
+            ),
+            "value": unsupported_relations_text,
+        },
+        {
+            "label": "Skill group share support",
+            "state": (
+                _capability_state(capabilities.supports_occupation_skill_group_share)
+                if capabilities is not None
+                else _CAPABILITY_STATE_NOT_LOADED
+            ),
+            "value": (
+                "available"
+                if capabilities is not None
+                and capabilities.supports_occupation_skill_group_share
+                else (
+                    "not supported"
+                    if capabilities is not None
+                    else "—"
+                )
+            ),
+        },
+        {
+            "label": "Knowledge relation support",
+            "state": (
+                _capability_state(capabilities.supports_occupation_knowledge_relations)
+                if capabilities is not None
+                else _CAPABILITY_STATE_NOT_LOADED
+            ),
+            "value": (
+                "available"
+                if capabilities is not None
+                and capabilities.supports_occupation_knowledge_relations
+                else (
+                    "expected unsupported behavior"
+                    if capabilities is not None
+                    else "—"
+                )
+            ),
+        },
+    ]
+
+
+def _render_capability_status_panel(
+    *,
+    client: EscoClient,
+    capabilities: EscoApiCapabilities | None,
+) -> None:
+    config = _safe_esco_config(client)
+    api_mode = str(config.get("api_mode") or "").strip() if config else ""
+    selected_version = str(config.get("selected_version") or "").strip() if config else ""
+    rows = _build_capability_status_rows(
+        api_mode=api_mode,
+        selected_version=selected_version,
+        capabilities=capabilities,
+    )
+    with st.expander("ESCO Capability Status", expanded=False):
+        for row in rows:
+            st.caption(f"{row['label']}: {row['state']} · {row['value']}")
 
 
 def _load_occupation_related_with_policy(
@@ -583,6 +807,7 @@ def _render_selected_occupation_detail(
     related_counts: object | None = None,
     related_labels: object | None = None,
     supported_relations: tuple[str, ...] | None = None,
+    capabilities: EscoApiCapabilities | None = None,
     skill_group_share_payload: object | None = None,
 ) -> None:
     if not isinstance(payload, dict):
@@ -655,6 +880,20 @@ def _render_selected_occupation_detail(
     essential_skill_count = counts.get("hasEssentialSkill", 0)
     optional_skill_count = counts.get("hasOptionalSkill", 0)
     supported_relation_set = set(supported_relations or ())
+    resolved_capabilities = capabilities or EscoApiCapabilities(
+        supported_occupation_relations=tuple(supported_relation_set),
+        unsupported_occupation_relations=tuple(
+            relation
+            for relation in _OCCUPATION_DETAIL_RELATIONS
+            if relation not in supported_relation_set
+        ),
+        unsupported_endpoints=frozenset(),
+        supports_occupation_knowledge_relations={
+            OCCUPATION_RELATION_ESSENTIAL_KNOWLEDGE,
+            OCCUPATION_RELATION_OPTIONAL_KNOWLEDGE,
+        }.issubset(supported_relation_set),
+        supports_occupation_skill_group_share=True,
+    )
 
     def _is_available(state: str, value: str) -> bool:
         return bool(value) and state in {_FIELD_STATE_AVAILABLE, _FIELD_STATE_FALLBACK_LANGUAGE}
@@ -803,6 +1042,19 @@ def _render_selected_occupation_detail(
         st.caption(_FIELD_STATE_NOT_DELIVERED)
 
     st.markdown("#### Skills & Competences")
+    skills_supported = {
+        OCCUPATION_RELATION_ESSENTIAL_SKILL,
+        OCCUPATION_RELATION_OPTIONAL_SKILL,
+    }.issubset(supported_relation_set)
+    knowledge_supported = resolved_capabilities.supports_occupation_knowledge_relations
+    st.caption(
+        "Skills: ✅ verfügbar" if skills_supported else "Skills: 🚫 nicht unterstützt"
+    )
+    if knowledge_supported:
+        st.caption("Knowledge: ✅ verfügbar")
+    else:
+        st.caption("Knowledge: 🚫 nicht unterstützt")
+
     st.markdown("**Essential Skills and Competences**")
     if essential_skill_labels:
         st.write(" · ".join(essential_skill_labels))
@@ -1041,11 +1293,20 @@ def render_esco_occupation_confirmation(
         "provenance_categories"
     ]
 
+    client = EscoClient()
+    supported_relations = _supported_occupation_relations(client)
+    capabilities = _occupation_capabilities(client, supported_relations)
+    capabilities_badge = _capabilities_badge_text(
+        capabilities=capabilities,
+    )
+
     if show_start_context_panels:
         selected_title = str(selected.get("title") or "—").strip() or "—"
         with st.container():
             st.markdown("**Ausgewählte Occupation**")
             st.write(selected_title)
+            st.caption(capabilities_badge)
+            _render_capability_status_panel(client=client, capabilities=capabilities)
             st.markdown(
                 (
                     "<span style='display:inline-block;padding:0.1rem 0.5rem;"
@@ -1066,8 +1327,6 @@ def render_esco_occupation_confirmation(
             reason=str(explainability["reason"]),
             caption_prefix="Occupation Explainability",
         )
-    client = EscoClient()
-    supported_relations = _supported_occupation_relations(client)
     related_labels: dict[str, list[str]] = {}
     try:
         occupation_payload = client.get_occupation_detail(uri=occupation_uri)
@@ -1127,7 +1386,7 @@ def render_esco_occupation_confirmation(
                 )
                 st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = {}
                 related_labels = {}
-        if client.supports_endpoint("resource/occupationSkillsGroupShare"):
+        if capabilities.supports_occupation_skill_group_share:
             try:
                 skill_group_share_payload = client.get_occupation_skill_group_share(
                     occupation_uri=occupation_uri
@@ -1164,6 +1423,7 @@ def render_esco_occupation_confirmation(
             st.session_state.get(SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value),
             related_labels,
             supported_relations=supported_relations,
+            capabilities=capabilities,
             skill_group_share_payload=st.session_state.get(
                 SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value
             ),

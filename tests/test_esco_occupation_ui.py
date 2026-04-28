@@ -4,8 +4,64 @@ from types import SimpleNamespace
 from typing import cast
 
 from constants import SSKey
-from esco_client import EscoClient, EscoClientError
+from esco_client import EscoApiCapabilities, EscoClient, EscoClientError
 from wizard_pages import esco_occupation_ui
+
+
+def test_build_capability_status_rows_with_capabilities() -> None:
+    capabilities = EscoApiCapabilities(
+        supported_occupation_relations=("hasEssentialSkill", "hasOptionalSkill"),
+        unsupported_occupation_relations=("hasEssentialKnowledge", "hasOptionalKnowledge"),
+        unsupported_endpoints=frozenset({"resource/occupationSkillsGroupShare"}),
+        supports_occupation_knowledge_relations=False,
+        supports_occupation_skill_group_share=False,
+    )
+
+    rows = esco_occupation_ui._build_capability_status_rows(
+        api_mode="hosted",
+        selected_version="v1.2.0",
+        capabilities=capabilities,
+    )
+
+    assert rows[0] == {
+        "label": "API mode",
+        "state": "supported",
+        "value": "hosted",
+    }
+    assert rows[1] == {
+        "label": "selectedVersion",
+        "state": "supported",
+        "value": "v1.2.0",
+    }
+    assert rows[2]["state"] == "supported"
+    assert "hasEssentialSkill" in rows[2]["value"]
+    assert rows[3]["state"] == "unsupported"
+    assert "hasEssentialKnowledge" in rows[3]["value"]
+    assert rows[4] == {
+        "label": "Skill group share support",
+        "state": "unsupported",
+        "value": "not supported",
+    }
+    assert rows[5] == {
+        "label": "Knowledge relation support",
+        "state": "unsupported",
+        "value": "expected unsupported behavior",
+    }
+
+
+def test_build_capability_status_rows_not_loaded_without_capabilities() -> None:
+    rows = esco_occupation_ui._build_capability_status_rows(
+        api_mode="",
+        selected_version="",
+        capabilities=None,
+    )
+
+    assert rows[0]["state"] == "not loaded"
+    assert rows[1]["state"] == "not loaded"
+    assert rows[2]["state"] == "not loaded"
+    assert rows[3]["state"] == "not loaded"
+    assert rows[4]["state"] == "not loaded"
+    assert rows[5]["state"] == "not loaded"
 
 
 def test_extract_first_text_supports_plain_string() -> None:
@@ -156,7 +212,7 @@ def test_load_occupation_related_data_respects_client_supported_relations() -> N
             call_relations.append(relation)
             return {"_embedded": {relation: [{"uri": f"{relation}:1"}]}}
 
-    counts, labels, availability = esco_occupation_ui._load_occupation_related_data(
+    counts, labels = esco_occupation_ui._load_occupation_related_data(
         client=cast(EscoClient, _FakeClient()),
         occupation_uri="http://data.europa.eu/esco/occupation/123",
     )
@@ -171,8 +227,6 @@ def test_load_occupation_related_data_respects_client_supported_relations() -> N
     }
     assert "hasOptionalSkill" not in labels
     assert "hasOptionalKnowledge" not in labels
-    assert availability["hasOptionalSkill"] == "not_available"
-    assert availability["hasOptionalKnowledge"] == "not_available"
 
 
 def test_load_occupation_related_data_skips_unsupported_relation_status_400() -> None:
@@ -189,15 +243,37 @@ def test_load_occupation_related_data_skips_unsupported_relation_status_400() ->
                 )
             return {"_embedded": {relation: [{"uri": "skill:1"}]}}
 
-    counts, labels, availability = esco_occupation_ui._load_occupation_related_data(
+    counts, labels = esco_occupation_ui._load_occupation_related_data(
         client=cast(EscoClient, _FakeClient()),
         occupation_uri="http://data.europa.eu/esco/occupation/123",
     )
 
     assert counts == {"hasEssentialSkill": 1}
     assert "hasEssentialSkill" not in labels
-    assert availability["hasEssentialSkill"] == "available"
-    assert availability["hasOptionalSkill"] == "not_available"
+
+
+def test_load_occupation_related_data_uses_client_supported_relations_callable() -> None:
+    call_relations: list[str] = []
+
+    class _FakeClient:
+        def supported_occupation_relations(self) -> tuple[str, ...]:
+            return ("hasEssentialSkill", "hasOptionalSkill")
+
+        def resource_related(self, *, uri: str, relation: str) -> dict[str, object]:
+            assert uri == "http://data.europa.eu/esco/occupation/123"
+            call_relations.append(relation)
+            return {"_embedded": {relation: [{"uri": f"{relation}:1"}]}}
+
+    counts, _ = esco_occupation_ui._load_occupation_related_data(
+        client=cast(EscoClient, _FakeClient()),
+        occupation_uri="http://data.europa.eu/esco/occupation/123",
+    )
+
+    assert call_relations == ["hasEssentialSkill", "hasOptionalSkill"]
+    assert counts == {
+        "hasEssentialSkill": 1,
+        "hasOptionalSkill": 1,
+    }
 
 
 def test_extract_skill_group_share_rows_normalizes_common_payload_shapes() -> None:
@@ -436,6 +512,15 @@ def test_render_esco_occupation_confirmation_skips_skill_group_request_when_unsu
     assert any(
         "Skillgruppen-Anteil ist für die aktuelle ESCO-Version/den Modus nicht verfügbar."
         in message
+        for message in fake_st.caption_messages
+    )
+    assert any(
+        "Capabilities: Skills ✅ · Knowledge 🚫 · Skill Groups 🚫" in message
+        for message in fake_st.caption_messages
+    )
+    assert any("Skills: ✅ verfügbar" in message for message in fake_st.caption_messages)
+    assert any(
+        "Knowledge: 🚫 nicht unterstützt" in message
         for message in fake_st.caption_messages
     )
 

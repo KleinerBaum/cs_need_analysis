@@ -33,13 +33,61 @@ SAFE_LOG_QUERY_KEYS = frozenset(
     {"language", "selectedVersion", "type", "viewObsolete", "limit", "offset", "page"}
 )
 SENSITIVE_HINT_MARKERS = ("secret", "token", "password", "api_key", "authorization")
-SUPPORTED_OCCUPATION_RELATIONS_BY_API_MODE: dict[str, tuple[str, ...]] = {
-    "hosted": ("hasEssentialSkill", "hasOptionalSkill"),
-    "local": ("hasEssentialSkill", "hasOptionalSkill"),
-}
-UNSUPPORTED_ENDPOINTS_BY_API_MODE: dict[str, frozenset[str]] = {
-    "hosted": frozenset({"resource/occupationSkillsGroupShare"}),
-    "local": frozenset(),
+OCCUPATION_RELATION_ESSENTIAL_SKILL = "hasEssentialSkill"
+OCCUPATION_RELATION_OPTIONAL_SKILL = "hasOptionalSkill"
+OCCUPATION_RELATION_ESSENTIAL_KNOWLEDGE = "hasEssentialKnowledge"
+OCCUPATION_RELATION_OPTIONAL_KNOWLEDGE = "hasOptionalKnowledge"
+
+ENDPOINT_OCCUPATION_SKILL_GROUP_SHARE = "resource/occupationSkillsGroupShare"
+
+_ALL_OCCUPATION_RELATIONS: tuple[str, ...] = (
+    OCCUPATION_RELATION_ESSENTIAL_SKILL,
+    OCCUPATION_RELATION_OPTIONAL_SKILL,
+    OCCUPATION_RELATION_ESSENTIAL_KNOWLEDGE,
+    OCCUPATION_RELATION_OPTIONAL_KNOWLEDGE,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class EscoApiCapabilities:
+    supported_occupation_relations: tuple[str, ...]
+    unsupported_occupation_relations: tuple[str, ...]
+    unsupported_endpoints: frozenset[str]
+    supports_occupation_knowledge_relations: bool
+    supports_occupation_skill_group_share: bool
+
+
+_CAPABILITY_DEFAULT_RELATIONS: tuple[str, ...] = (
+    OCCUPATION_RELATION_ESSENTIAL_SKILL,
+    OCCUPATION_RELATION_OPTIONAL_SKILL,
+)
+ESCO_CAPABILITIES_BY_API_MODE: dict[str, EscoApiCapabilities] = {
+    "hosted": EscoApiCapabilities(
+        supported_occupation_relations=(
+            OCCUPATION_RELATION_ESSENTIAL_SKILL,
+            OCCUPATION_RELATION_OPTIONAL_SKILL,
+        ),
+        unsupported_occupation_relations=(
+            OCCUPATION_RELATION_ESSENTIAL_KNOWLEDGE,
+            OCCUPATION_RELATION_OPTIONAL_KNOWLEDGE,
+        ),
+        unsupported_endpoints=frozenset({ENDPOINT_OCCUPATION_SKILL_GROUP_SHARE}),
+        supports_occupation_knowledge_relations=False,
+        supports_occupation_skill_group_share=False,
+    ),
+    "local": EscoApiCapabilities(
+        supported_occupation_relations=(
+            OCCUPATION_RELATION_ESSENTIAL_SKILL,
+            OCCUPATION_RELATION_OPTIONAL_SKILL,
+        ),
+        unsupported_occupation_relations=(
+            OCCUPATION_RELATION_ESSENTIAL_KNOWLEDGE,
+            OCCUPATION_RELATION_OPTIONAL_KNOWLEDGE,
+        ),
+        unsupported_endpoints=frozenset({ENDPOINT_OCCUPATION_SKILL_GROUP_SHARE}),
+        supports_occupation_knowledge_relations=False,
+        supports_occupation_skill_group_share=False,
+    ),
 }
 
 
@@ -363,21 +411,21 @@ class EscoClient:
         self, *, occupation_uri: str, **query: object
     ) -> dict[str, Any]:
         return self.resource_related(
-            uri=occupation_uri, relation="hasEssentialSkill", **query
+            uri=occupation_uri, relation=OCCUPATION_RELATION_ESSENTIAL_SKILL, **query
         )
 
     def get_occupation_optional_skills(
         self, *, occupation_uri: str, **query: object
     ) -> dict[str, Any]:
         return self.resource_related(
-            uri=occupation_uri, relation="hasOptionalSkill", **query
+            uri=occupation_uri, relation=OCCUPATION_RELATION_OPTIONAL_SKILL, **query
         )
 
     def get_occupation_skill_group_share(
         self, *, occupation_uri: str, **query: object
     ) -> dict[str, Any]:
         merged_query = {"uri": occupation_uri, **query}
-        return self._get("resource/occupationSkillsGroupShare", merged_query)
+        return self._get(ENDPOINT_OCCUPATION_SKILL_GROUP_SHARE, merged_query)
 
     def get_skill_related_occupations(
         self, *, skill_uri: str, **query: object
@@ -386,17 +434,66 @@ class EscoClient:
             uri=skill_uri, relation="isEssentialForOccupation", **query
         )
 
-    def supported_occupation_relations(self) -> tuple[str, ...]:
+    def get_capabilities(self) -> EscoApiCapabilities:
         config = self._esco_config()
         api_mode = str(config["api_mode"])
-        return SUPPORTED_OCCUPATION_RELATIONS_BY_API_MODE.get(api_mode, ())
+        capabilities = ESCO_CAPABILITIES_BY_API_MODE.get(
+            api_mode,
+            ESCO_CAPABILITIES_BY_API_MODE["hosted"],
+        )
+        normalized_supported = tuple(
+            relation
+            for relation in capabilities.supported_occupation_relations
+            if relation in _ALL_OCCUPATION_RELATIONS
+        )
+        normalized_unsupported = tuple(
+            relation
+            for relation in capabilities.unsupported_occupation_relations
+            if relation in _ALL_OCCUPATION_RELATIONS
+            and relation not in normalized_supported
+        )
+        if not normalized_supported:
+            normalized_supported = _CAPABILITY_DEFAULT_RELATIONS
+            normalized_unsupported = tuple(
+                relation
+                for relation in _ALL_OCCUPATION_RELATIONS
+                if relation not in normalized_supported
+            )
+        normalized_unsupported_endpoints = frozenset(
+            endpoint.strip().strip("/")
+            for endpoint in capabilities.unsupported_endpoints
+            if endpoint and endpoint.strip()
+        )
+        return EscoApiCapabilities(
+            supported_occupation_relations=normalized_supported,
+            unsupported_occupation_relations=normalized_unsupported,
+            unsupported_endpoints=normalized_unsupported_endpoints,
+            supports_occupation_knowledge_relations=(
+                capabilities.supports_occupation_knowledge_relations
+            ),
+            supports_occupation_skill_group_share=(
+                capabilities.supports_occupation_skill_group_share
+            ),
+        )
+
+    def occupation_capabilities(self) -> EscoApiCapabilities:
+        return self.get_capabilities()
+
+    def supported_occupation_relations(self) -> tuple[str, ...]:
+        return self.get_capabilities().supported_occupation_relations
+
+    def unsupported_occupation_relations(self) -> tuple[str, ...]:
+        return self.get_capabilities().unsupported_occupation_relations
 
     def supports_relation(self, *, resource_type: str, relation: str) -> bool:
         normalized_resource_type = resource_type.strip().lower()
         normalized_relation = relation.strip()
         if normalized_resource_type != "occupation":
             return True
-        return normalized_relation in self.supported_occupation_relations()
+        return (
+            normalized_relation
+            in self.get_capabilities().supported_occupation_relations
+        )
 
     def supports_endpoint(self, endpoint: str) -> bool:
         config = self._esco_config()
@@ -404,11 +501,13 @@ class EscoClient:
         resolved_endpoint = self._resolve_endpoint(
             endpoint=endpoint, api_mode=api_mode
         )
-        unsupported_endpoints = UNSUPPORTED_ENDPOINTS_BY_API_MODE.get(
-            api_mode,
-            frozenset(),
-        )
-        if resolved_endpoint in unsupported_endpoints:
+        capabilities = self.get_capabilities()
+        if (
+            resolved_endpoint == ENDPOINT_OCCUPATION_SKILL_GROUP_SHARE
+            and not capabilities.supports_occupation_skill_group_share
+        ):
+            return False
+        if resolved_endpoint in capabilities.unsupported_endpoints:
             return False
         return _cached_endpoint_support(
             base_url=str(config["base_url"]),

@@ -321,7 +321,7 @@ def test_get_occupation_skill_group_share_uses_dedicated_endpoint(monkeypatch) -
     payload = client.get_occupation_skill_group_share(occupation_uri="uri:occupation:1")
 
     assert payload == {"_embedded": {"results": []}}
-    assert captured["endpoint"] == "resource/occupationSkillsGroupShare"
+    assert captured["endpoint"] == esco_client.ENDPOINT_OCCUPATION_SKILL_GROUP_SHARE
     query_items = cast(tuple[tuple[str, str], ...], captured["query_items"])
     assert ("uri", "uri:occupation:1") in query_items
 
@@ -329,7 +329,7 @@ def test_get_occupation_skill_group_share_uses_dedicated_endpoint(monkeypatch) -
 def test_get_occupation_skill_group_share_propagates_client_errors(monkeypatch) -> None:
     expected_error = esco_client.EscoClientError(
         status_code=503,
-        endpoint="resource/occupationSkillsGroupShare",
+        endpoint=esco_client.ENDPOINT_OCCUPATION_SKILL_GROUP_SHARE,
         message="Der ESCO-Dienst ist aktuell vorübergehend nicht verfügbar.",
     )
 
@@ -377,23 +377,18 @@ def test_supports_endpoint_returns_false_for_hosted_blocklist_without_probe(
     assert client.supports_endpoint("resource/occupationSkillsGroupShare") is False
 
 
-def test_supports_endpoint_still_probes_blocklisted_endpoint_for_local_mode(
+def test_supports_endpoint_returns_false_for_local_when_capability_disables_skill_group_share(
     monkeypatch,
 ) -> None:
-    captured: dict[str, object] = {}
+    def fail_if_called(**_kwargs):
+        raise AssertionError("_cached_endpoint_support should not be called")
 
-    def fake_cached_endpoint_support(**kwargs):
-        captured.update(kwargs)
-        return True
-
-    monkeypatch.setattr(esco_client, "_cached_endpoint_support", fake_cached_endpoint_support)
+    monkeypatch.setattr(esco_client, "_cached_endpoint_support", fail_if_called)
     client = esco_client.EscoClient(
         session_state={SSKey.ESCO_CONFIG.value: {"api_mode": "local"}}
     )
 
-    assert client.supports_endpoint("resource/occupationSkillsGroupShare") is True
-    assert captured["endpoint"] == "resource/occupationSkillsGroupShare"
-    assert captured["api_mode"] == "local"
+    assert client.supports_endpoint("resource/occupationSkillsGroupShare") is False
 
 
 def test_supports_endpoint_uses_capability_cache_per_version(monkeypatch) -> None:
@@ -435,10 +430,10 @@ def test_supports_endpoint_uses_capability_cache_per_version(monkeypatch) -> Non
         }
     )
 
-    assert client_v1.supports_endpoint("resource/occupationSkillsGroupShare") is True
-    assert client_v1.supports_endpoint("resource/occupationSkillsGroupShare") is True
-    assert client_v2.supports_endpoint("resource/occupationSkillsGroupShare") is True
-    assert len(calls) == 2
+    assert client_v1.supports_endpoint("resource/occupationSkillsGroupShare") is False
+    assert client_v1.supports_endpoint("resource/occupationSkillsGroupShare") is False
+    assert client_v2.supports_endpoint("resource/occupationSkillsGroupShare") is False
+    assert len(calls) == 0
 
 
 def test_supports_endpoint_hosted_blocklist_does_not_depend_on_probe_status(
@@ -474,12 +469,52 @@ def test_supported_occupation_relations_resolve_by_api_mode() -> None:
 
     assert (
         hosted_client.supported_occupation_relations()
-        == esco_client.SUPPORTED_OCCUPATION_RELATIONS_BY_API_MODE["hosted"]
+        == esco_client.ESCO_CAPABILITIES_BY_API_MODE["hosted"].supported_occupation_relations
     )
     assert (
         local_client.supported_occupation_relations()
-        == esco_client.SUPPORTED_OCCUPATION_RELATIONS_BY_API_MODE["local"]
+        == esco_client.ESCO_CAPABILITIES_BY_API_MODE["local"].supported_occupation_relations
     )
+
+
+def test_get_capabilities_resolve_by_api_mode() -> None:
+    hosted_client = esco_client.EscoClient(
+        session_state={SSKey.ESCO_CONFIG.value: {"api_mode": "hosted"}}
+    )
+    local_client = esco_client.EscoClient(
+        session_state={SSKey.ESCO_CONFIG.value: {"api_mode": "local"}}
+    )
+
+    hosted_capabilities = hosted_client.get_capabilities()
+    local_capabilities = local_client.get_capabilities()
+
+    assert hosted_capabilities.supported_occupation_relations == (
+        "hasEssentialSkill",
+        "hasOptionalSkill",
+    )
+    assert hosted_capabilities.unsupported_occupation_relations == (
+        "hasEssentialKnowledge",
+        "hasOptionalKnowledge",
+    )
+    assert hosted_capabilities.unsupported_endpoints == frozenset(
+        {esco_client.ENDPOINT_OCCUPATION_SKILL_GROUP_SHARE}
+    )
+    assert hosted_capabilities.supports_occupation_knowledge_relations is False
+    assert hosted_capabilities.supports_occupation_skill_group_share is False
+
+    assert local_capabilities.supported_occupation_relations == (
+        "hasEssentialSkill",
+        "hasOptionalSkill",
+    )
+    assert local_capabilities.unsupported_occupation_relations == (
+        "hasEssentialKnowledge",
+        "hasOptionalKnowledge",
+    )
+    assert local_capabilities.unsupported_endpoints == frozenset(
+        {esco_client.ENDPOINT_OCCUPATION_SKILL_GROUP_SHARE}
+    )
+    assert local_capabilities.supports_occupation_knowledge_relations is False
+    assert local_capabilities.supports_occupation_skill_group_share is False
 
 
 def test_supports_relation_checks_occupation_relation_support() -> None:
@@ -497,6 +532,24 @@ def test_supports_relation_checks_occupation_relation_support() -> None:
     assert (
         client.supports_relation(resource_type="occupation", relation="unknownRelation")
         is False
+    )
+    assert (
+        client.supports_relation(
+            resource_type="occupation",
+            relation="hasEssentialKnowledge",
+        )
+        is False
+    )
+
+
+def test_unsupported_occupation_relations_expose_capability_gaps() -> None:
+    client = esco_client.EscoClient(
+        session_state={SSKey.ESCO_CONFIG.value: {"api_mode": "hosted"}}
+    )
+
+    assert client.unsupported_occupation_relations() == (
+        "hasEssentialKnowledge",
+        "hasOptionalKnowledge",
     )
 
 
