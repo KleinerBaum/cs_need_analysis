@@ -28,6 +28,12 @@ _PAGE_KEYWORDS: dict[str, tuple[str, ...]] = {
     "vision_mission": ("vision", "mission", "leitbild", "werte", "purpose"),
 }
 _USER_AGENT = "cs-need-analysis/1.0 (+https://example.invalid)"
+_NOISE_PATTERNS: tuple[str, ...] = (
+    "window.adobedatalayer",
+    "adobedatalayer.push",
+    "cq_analytics",
+    "json.parse(",
+)
 
 
 def _normalize_url(raw_url: str) -> str:
@@ -52,7 +58,7 @@ def _fetch_url_text(url: str, timeout_sec: float = 8.0) -> tuple[str, str]:
 
 
 def _strip_html(raw_html: str) -> str:
-    text = re.sub(r"<(script|style)[^>]*>.*?</\\1>", " ", raw_html, flags=re.I | re.S)
+    text = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", raw_html, flags=re.I | re.S)
     text = re.sub(r"<[^>]+>", " ", text)
     text = html.unescape(text)
     text = re.sub(r"\s+", " ", text).strip()
@@ -86,19 +92,174 @@ def _find_candidate_url(
     return None
 
 
+def _find_candidate_urls(
+    links: list[tuple[str, str]], topic_keywords: tuple[str, ...], *, limit: int = 6
+) -> list[str]:
+    ranked: list[tuple[int, str]] = []
+    seen: set[str] = set()
+    for text, target_url in links:
+        if target_url in seen:
+            continue
+        seen.add(target_url)
+        haystack = f"{text} {target_url}".casefold()
+        score = sum(1 for keyword in topic_keywords if keyword in haystack)
+        if score > 0:
+            ranked.append((score, target_url))
+    ranked.sort(key=lambda item: item[0], reverse=True)
+    return [target_url for _, target_url in ranked[:limit]]
+
+
+def _contains_noise(text: str) -> bool:
+    lowered = text.casefold()
+    return any(pattern in lowered for pattern in _NOISE_PATTERNS)
+
+
+def _is_useful_sentence(sentence: str) -> bool:
+    cleaned = sentence.strip()
+    if len(cleaned) < 35:
+        return False
+    lowered = cleaned.casefold()
+    if _contains_noise(lowered):
+        return False
+    has_words = len(re.findall(r"[a-zäöüß]{3,}", lowered)) >= 6
+    return has_words
+
+
+def _sentence_score(sentence: str) -> int:
+    lowered = sentence.casefold()
+    score = 0
+    for token in (
+        "mitarbeit",
+        "standort",
+        "umsatz",
+        "kunden",
+        "projekt",
+        "technolog",
+        "beratung",
+        "mission",
+        "vision",
+        "werte",
+        "nachhaltig",
+        "fokus",
+        "industrie",
+    ):
+        if token in lowered:
+            score += 2
+    if re.search(r"\b(19|20)\d{2}\b", sentence):
+        score += 1
+    if re.search(r"\b\d{2,}\b", sentence):
+        score += 1
+    return score
+
+
 def _extract_essential_sentences(text: str, *, limit: int = 4) -> list[str]:
     if not text:
         return []
     candidates = re.split(r"(?<=[.!?])\s+", text)
-    picked: list[str] = []
+    scored: list[tuple[int, str]] = []
     for candidate in candidates:
-        cleaned = candidate.strip()
-        if len(cleaned) < 35:
+        cleaned = candidate.strip().replace("•", " ").replace("·", " ")
+        if not _is_useful_sentence(cleaned):
             continue
-        picked.append(cleaned[:260])
+        scored.append((_sentence_score(cleaned), cleaned[:260]))
+    scored.sort(key=lambda item: item[0], reverse=True)
+    picked: list[str] = []
+    seen: set[str] = set()
+    for _, sentence in scored:
+        normalized = sentence.casefold()
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        picked.append(sentence)
         if len(picked) >= limit:
             break
     return picked
+
+
+def _extract_imprint_facts(raw_html: str, text: str) -> dict[str, str]:
+    facts: dict[str, str] = {}
+    compact = re.sub(r"\s+", " ", text)
+    email_match = re.search(r"\b[\w.+-]+@[\w.-]+\.[a-z]{2,}\b", compact, flags=re.I)
+    if email_match:
+        facts["E-Mail"] = email_match.group(0)
+
+    hr_match = re.search(
+        r"(handelsregister(?:nummer)?|hrb|hra)\s*[:#]?\s*([a-z0-9 -]{4,})",
+        compact,
+        flags=re.I,
+    )
+    if hr_match:
+        facts["Handelsregister"] = hr_match.group(0).strip(" .,;")
+
+    management_match = re.search(
+        r"(geschäftsführer(?:in)?|vorstand|vertretungsberechtigt)[^.:]{0,60}[:.]?\s*([A-ZÄÖÜ][^.;]{3,80})",
+        compact,
+        flags=re.I,
+    )
+    if management_match:
+        facts["Geschäftsführung/Vorstand"] = management_match.group(0).strip(" .,;")
+
+    address_match = re.search(
+        r"([A-ZÄÖÜ][\wÄÖÜäöüß .-]{3,60}\s\d{1,4}[a-zA-Z]?,\s*\d{4,5}\s*[A-ZÄÖÜ][\wÄÖÜäöüß .-]{2,40})"
+        r"|(\d{4,5}\s*[A-ZÄÖÜ][\wÄÖÜäöüß .-]{2,40},\s*[A-ZÄÖÜ][\wÄÖÜäöüß .-]{3,60}\s\d{1,4}[a-zA-Z]?)",
+        compact,
+    )
+    if address_match:
+        facts["Anschrift"] = address_match.group(0).strip(" .,;")
+
+    company_match = re.search(
+        r"(?:firma|unternehmen|gesellschaft)\s*[:.]?\s*([A-ZÄÖÜ][^.;]{3,80})",
+        compact,
+        flags=re.I,
+    )
+    if company_match:
+        facts["Firma"] = company_match.group(1).strip(" .,;")
+
+    link_emails = re.findall(r"mailto:([^\"'>\\s]+)", raw_html, flags=re.I)
+    if "E-Mail" not in facts and link_emails:
+        facts["E-Mail"] = str(link_emails[0]).strip()
+    return facts
+
+
+def _derive_topic_facts(topic_key: str, text: str, raw_html: str) -> list[str]:
+    facts: list[str] = []
+    compact = re.sub(r"\s+", " ", text)
+    if topic_key == "imprint":
+        imprint_facts = _extract_imprint_facts(raw_html, compact)
+        for label in (
+            "Firma",
+            "Anschrift",
+            "E-Mail",
+            "Handelsregister",
+            "Geschäftsführung/Vorstand",
+        ):
+            value = imprint_facts.get(label)
+            if value:
+                facts.append(f"{label}: {value}")
+        return facts
+
+    headcount_match = re.search(
+        r"(\d{2,3}(?:[.,]\d{3})+|\d{3,6})\s+(?:mitarbeitende|mitarbeiter|employees)",
+        compact,
+        flags=re.I,
+    )
+    if headcount_match:
+        facts.append(f"Mitarbeitende (Hinweis): {headcount_match.group(1)}")
+
+    for pattern, label in (
+        (
+            r"(?:(?:gegründet|founded)\s*(?:im|in)?\s*((?:19|20)\d{2})|"
+            r"(?:im|in)\s*(?:jahr\s*)?((?:19|20)\d{2})\s*(?:gegründet|founded))",
+            "Gegründet",
+        ),
+        (r"(?:standorte|locations)\s*[:.]?\s*([^.;]{4,80})", "Standorte"),
+        (r"(?:branchen|industr(?:y|ies)|fokus)\s*[:.]?\s*([^.;]{4,80})", "Fokus"),
+    ):
+        match = re.search(pattern, compact, flags=re.I)
+        if match:
+            matched_value = next((group for group in match.groups() if group), "")
+            facts.append(f"{label}: {matched_value.strip()}")
+    return facts[:4]
 
 
 def _collect_open_questions(plan: QuestionPlan) -> list[dict[str, str]]:
@@ -161,9 +322,28 @@ def _run_website_research(
         resolved_homepage, homepage_html = _fetch_url_text(normalized_homepage)
         links = _extract_links(resolved_homepage, homepage_html)
         keywords = _PAGE_KEYWORDS.get(topic_key, ())
-        candidate_url = _find_candidate_url(links, keywords) or resolved_homepage
-        resolved_topic_url, topic_html = _fetch_url_text(candidate_url)
-        summary = _extract_essential_sentences(_strip_html(topic_html))
+        candidate_urls = _find_candidate_urls(links, keywords)
+        if not candidate_urls:
+            fallback = _find_candidate_url(links, keywords) or resolved_homepage
+            candidate_urls = [fallback]
+        if resolved_homepage not in candidate_urls:
+            candidate_urls.append(resolved_homepage)
+
+        best_payload: tuple[str, str, list[str], list[str]] | None = None
+        for candidate_url in candidate_urls[:5]:
+            resolved_topic_url, topic_html = _fetch_url_text(candidate_url)
+            text = _strip_html(topic_html)
+            summary = _extract_essential_sentences(text)
+            facts = _derive_topic_facts(topic_key, text, topic_html)
+            payload_score = len(summary) * 2 + len(facts)
+            if best_payload is None or payload_score > (
+                len(best_payload[2]) * 2 + len(best_payload[3])
+            ):
+                best_payload = (resolved_topic_url, topic_html, summary, facts)
+        if best_payload is None:
+            raise RuntimeError("Keine verwertbaren Inhalte auf der Firmenhomepage gefunden.")
+
+        resolved_topic_url, _, summary, facts = best_payload
         research_raw = st.session_state.get(SSKey.COMPANY_WEBSITE_RESEARCH.value, {})
         research = research_raw if isinstance(research_raw, dict) else {}
         sections_raw = research.get("sections", {})
@@ -171,6 +351,7 @@ def _run_website_research(
         sections[topic_key] = {
             "source_url": resolved_topic_url,
             "summary": summary,
+            "facts": facts,
             "fetched_at": datetime.now(UTC).isoformat(),
         }
         research["homepage_url"] = resolved_homepage
@@ -252,6 +433,7 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
             payload_raw = section_payload.get(topic_key, {})
             payload = payload_raw if isinstance(payload_raw, dict) else {}
             summary = payload.get("summary", [])
+            facts = payload.get("facts", [])
             if not isinstance(summary, list) or not summary:
                 continue
             with st.container(border=True):
@@ -259,6 +441,9 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
                 source_url = str(payload.get("source_url") or "").strip()
                 if source_url:
                     st.caption(f"Quelle: {source_url}")
+                if isinstance(facts, list) and facts:
+                    for fact in facts:
+                        st.write(f"- **{str(fact).strip()}**")
                 for line in summary:
                     st.write(f"- {str(line).strip()}")
 
