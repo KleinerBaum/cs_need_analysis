@@ -1114,8 +1114,6 @@ def _render_selected_occupation_detail(
                 },
                 use_container_width=True,
             )
-        else:
-            st.caption("Keine Skills-Group-Share-Daten verfügbar.")
 
 
 def _normalize_intent_title(query_text: str) -> str:
@@ -1415,8 +1413,9 @@ def render_esco_occupation_confirmation(
         else:
             st.session_state[SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value] = []
             st.caption(
-                "Skillgruppen-Anteil ist für die aktuelle ESCO-Version/den Modus nicht verfügbar."
+                "Das ESCO-Portal zeigt diesen Anteil, der aktuell über den genutzten ESCO-Webservice nicht abrufbar ist."
             )
+            st.markdown(f"[Portal öffnen]({occupation_uri})")
     if show_start_context_panels:
         _render_selected_occupation_detail(
             st.session_state.get(SSKey.ESCO_OCCUPATION_PAYLOAD.value),
