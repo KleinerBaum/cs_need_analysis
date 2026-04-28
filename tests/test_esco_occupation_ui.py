@@ -146,8 +146,10 @@ def test_load_occupation_related_data_respects_client_supported_relations() -> N
     call_relations: list[str] = []
 
     class _FakeClient:
-        def supported_occupation_relations(self) -> tuple[str, ...]:
-            return ("hasEssentialSkill", "hasEssentialKnowledge")
+        supported_occupation_relations = [
+            "hasEssentialSkill",
+            "hasEssentialKnowledge",
+        ]
 
         def resource_related(self, *, uri: str, relation: str) -> dict[str, object]:
             assert uri == "http://data.europa.eu/esco/occupation/123"
@@ -171,6 +173,31 @@ def test_load_occupation_related_data_respects_client_supported_relations() -> N
     assert "hasOptionalKnowledge" not in labels
     assert availability["hasOptionalSkill"] == "not_available"
     assert availability["hasOptionalKnowledge"] == "not_available"
+
+
+def test_load_occupation_related_data_skips_unsupported_relation_status_400() -> None:
+    class _FakeClient:
+        supported_occupation_relations = ["hasEssentialSkill", "hasOptionalSkill"]
+
+        def resource_related(self, *, uri: str, relation: str) -> dict[str, object]:
+            assert uri == "http://data.europa.eu/esco/occupation/123"
+            if relation == "hasOptionalSkill":
+                raise EscoClientError(
+                    status_code=400,
+                    endpoint="/resource/related",
+                    message="bad relation",
+                )
+            return {"_embedded": {relation: [{"uri": "skill:1"}]}}
+
+    counts, labels, availability = esco_occupation_ui._load_occupation_related_data(
+        client=cast(EscoClient, _FakeClient()),
+        occupation_uri="http://data.europa.eu/esco/occupation/123",
+    )
+
+    assert counts == {"hasEssentialSkill": 1}
+    assert "hasEssentialSkill" not in labels
+    assert availability["hasEssentialSkill"] == "available"
+    assert availability["hasOptionalSkill"] == "not_available"
 
 
 def test_extract_skill_group_share_rows_normalizes_common_payload_shapes() -> None:
