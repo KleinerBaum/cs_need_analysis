@@ -142,37 +142,17 @@ def test_load_occupation_related_counts_requests_only_the_two_skill_relations() 
     assert call_relations == ["hasEssentialSkill", "hasOptionalSkill"]
 
 
-def test_load_occupation_related_data_skips_policy_blocked_relations_without_calls(
-    monkeypatch,
-) -> None:
+def test_load_occupation_related_data_respects_client_supported_relations() -> None:
     call_relations: list[str] = []
 
     class _FakeClient:
-        def supports_endpoint(self, endpoint: str) -> bool:
-            return endpoint == "resource/related"
+        def supported_occupation_relations(self) -> tuple[str, ...]:
+            return ("hasEssentialSkill", "hasEssentialKnowledge")
 
         def resource_related(self, *, uri: str, relation: str) -> dict[str, object]:
             assert uri == "http://data.europa.eu/esco/occupation/123"
             call_relations.append(relation)
             return {"_embedded": {relation: [{"uri": f"{relation}:1"}]}}
-
-    monkeypatch.setattr(
-        esco_occupation_ui,
-        "st",
-        SimpleNamespace(
-            session_state={
-                SSKey.ESCO_CONFIG.value: {
-                    "selected_version": "v-test",
-                    "api_mode": "hosted",
-                }
-            }
-        ),
-    )
-    monkeypatch.setattr(
-        esco_occupation_ui,
-        "_OCCUPATION_RELATED_RELATION_SKIPLIST",
-        {("v-test", "hosted"): ("hasOptionalSkill",)},
-    )
 
     counts, labels, availability = esco_occupation_ui._load_occupation_related_data(
         client=cast(EscoClient, _FakeClient()),
@@ -181,12 +161,16 @@ def test_load_occupation_related_data_skips_policy_blocked_relations_without_cal
 
     assert call_relations == [
         "hasEssentialSkill",
+        "hasEssentialKnowledge",
     ]
     assert counts == {
         "hasEssentialSkill": 1,
+        "hasEssentialKnowledge": 1,
     }
     assert "hasOptionalSkill" not in labels
+    assert "hasOptionalKnowledge" not in labels
     assert availability["hasOptionalSkill"] == "not_available"
+    assert availability["hasOptionalKnowledge"] == "not_available"
 
 
 def test_extract_skill_group_share_rows_normalizes_common_payload_shapes() -> None:
@@ -318,7 +302,8 @@ def test_render_esco_occupation_confirmation_keeps_chart_before_title_variants(
     title_variant_index = fake_st.events.index("button::Titel-Varianten laden")
 
     assert skills_index < chart_index < title_variant_index
-    assert not any("Knowledge" in event for event in fake_st.events)
+    assert any("Essential Knowledge" in event for event in fake_st.events)
+    assert any("Optional Knowledge" in event for event in fake_st.events)
 
 
 def test_render_esco_occupation_confirmation_skips_skill_group_request_when_unsupported(
@@ -625,4 +610,4 @@ def test_render_esco_occupation_confirmation_tolerates_missing_detail_payload(
         show_start_context_panels=True,
     )
 
-    assert "Noch nicht geladen" in fake_st.caption_messages
+    assert "noch nicht geladen" in fake_st.caption_messages

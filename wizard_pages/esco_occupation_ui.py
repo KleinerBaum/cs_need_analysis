@@ -15,22 +15,24 @@ from esco_client import (
 from schemas import JobAdExtract
 from ui_components import render_esco_explainability, render_esco_picker_card
 
-_OCCUPATION_RELATED_RELATIONS: tuple[str, ...] = (
+_OCCUPATION_DETAIL_RELATIONS: tuple[str, ...] = (
+    "hasEssentialSkill",
+    "hasOptionalSkill",
+    "hasEssentialKnowledge",
+    "hasOptionalKnowledge",
+)
+_DEFAULT_SUPPORTED_OCCUPATION_RELATIONS: tuple[str, ...] = (
     "hasEssentialSkill",
     "hasOptionalSkill",
 )
-_OCCUPATION_RELATED_RELATION_PRIORITY: tuple[str, ...] = tuple(
-    relation for relation in _OCCUPATION_RELATED_RELATIONS
-)
-_OCCUPATION_RELATED_RELATION_SKIPLIST: dict[tuple[str, str], tuple[str, ...]] = {}
 
-_FIELD_STATE_NOT_DELIVERED = "Nicht von ESCO geliefert"
+_FIELD_STATE_NOT_DELIVERED = "nicht geliefert"
 _FIELD_STATE_FALLBACK_LANGUAGE = (
     "In gewählter Sprache nicht verfügbar (Fallback EN/DE genutzt)"
 )
-_FIELD_STATE_NOT_LOADED = "Noch nicht geladen"
+_FIELD_STATE_NOT_LOADED = "noch nicht geladen"
 _FIELD_STATE_AVAILABLE = "verfügbar"
-_FIELD_STATE_NOT_AVAILABLE = "Für aktuelle ESCO-Version/Modus nicht verfügbar"
+_FIELD_STATE_UNSUPPORTED = "nicht unterstützt"
 
 _RELATION_AVAILABILITY_AVAILABLE = "available"
 _RELATION_AVAILABILITY_NOT_AVAILABLE = "not_available"
@@ -39,13 +41,6 @@ _RELATION_AVAILABILITY_NOT_AVAILABLE = "not_available"
 class _SkillGroupShareRow(TypedDict):
     label: str
     share_percent: float
-
-
-class _OccupationRelationPolicy(TypedDict):
-    prioritized_relations: tuple[str, ...]
-    allowed_relations: tuple[str, ...]
-    skipped_relations: tuple[str, ...]
-    related_endpoint_supported: bool
 
 
 def _build_esco_query(job: JobAdExtract) -> str:
@@ -501,56 +496,37 @@ def _extract_related_resource_labels(
     return labels
 
 
-def _build_occupation_relation_policy(client: EscoClient) -> _OccupationRelationPolicy:
-    config_raw = st.session_state.get(SSKey.ESCO_CONFIG.value, {})
-    config = config_raw if isinstance(config_raw, dict) else {}
-    selected_version = str(config.get("selected_version") or "").strip()
-    api_mode = str(config.get("api_mode") or "hosted").strip().lower() or "hosted"
-    skipped_relations = _OCCUPATION_RELATED_RELATION_SKIPLIST.get(
-        (selected_version, api_mode),
-        (),
+def _resolve_supported_occupation_relations(client: EscoClient) -> tuple[str, ...]:
+    supported_relations = getattr(client, "supported_occupation_relations", None)
+    if not callable(supported_relations):
+        return _DEFAULT_SUPPORTED_OCCUPATION_RELATIONS
+    resolved = tuple(
+        relation.strip()
+        for relation in supported_relations()
+        if isinstance(relation, str) and relation.strip()
     )
-    supports_endpoint = getattr(client, "supports_endpoint", None)
-    supported = (
-        bool(supports_endpoint("resource/related"))
-        if callable(supports_endpoint)
-        else True
-    )
-    allowed_relations = (
-        tuple(
-            relation
-            for relation in _OCCUPATION_RELATED_RELATION_PRIORITY
-            if relation not in skipped_relations
-        )
-        if supported
-        else ()
-    )
-    return {
-        "prioritized_relations": _OCCUPATION_RELATED_RELATION_PRIORITY,
-        "allowed_relations": allowed_relations,
-        "skipped_relations": skipped_relations,
-        "related_endpoint_supported": supported,
-    }
+    if not resolved:
+        return _DEFAULT_SUPPORTED_OCCUPATION_RELATIONS
+    return resolved
 
 
 def _load_occupation_related_with_policy(
     *,
     client: EscoClient,
     occupation_uri: str,
-    relation_policy: _OccupationRelationPolicy | None = None,
 ) -> tuple[dict[str, int], dict[str, list[str]], dict[str, str]]:
-    policy = relation_policy or _build_occupation_relation_policy(client)
+    supported_relations = _resolve_supported_occupation_relations(client)
     counts: dict[str, int] = {}
     labels: dict[str, list[str]] = {}
     availability: dict[str, str] = {
         relation: _RELATION_AVAILABILITY_NOT_AVAILABLE
-        for relation in _OCCUPATION_RELATED_RELATIONS
-        if relation not in policy["allowed_relations"]
+        for relation in _OCCUPATION_DETAIL_RELATIONS
+        if relation not in supported_relations
     }
-    if not policy["allowed_relations"]:
+    if not supported_relations:
         return counts, labels, availability
 
-    for relation in policy["allowed_relations"]:
+    for relation in supported_relations:
         try:
             relation_payload = client.resource_related(
                 uri=occupation_uri,
@@ -598,7 +574,7 @@ def _resolve_related_counts(
 ) -> dict[str, int]:
     if isinstance(related_counts, dict):
         resolved: dict[str, int] = {}
-        for relation in _OCCUPATION_RELATED_RELATIONS:
+        for relation in _OCCUPATION_DETAIL_RELATIONS:
             raw_value = related_counts.get(relation)
             if isinstance(raw_value, int):
                 resolved[relation] = raw_value
@@ -607,7 +583,7 @@ def _resolve_related_counts(
 
     return {
         relation: _extract_related_resource_count(payload, relation)
-        for relation in _OCCUPATION_RELATED_RELATIONS
+        for relation in _OCCUPATION_DETAIL_RELATIONS
     }
 
 
@@ -698,7 +674,7 @@ def _render_selected_occupation_detail(
             else None
         )
         if availability == _RELATION_AVAILABILITY_NOT_AVAILABLE:
-            return _FIELD_STATE_NOT_AVAILABLE
+            return _FIELD_STATE_UNSUPPORTED
         if not isinstance(related_counts, dict):
             return _FIELD_STATE_NOT_LOADED
         if relation_key in related_counts:
@@ -707,6 +683,10 @@ def _render_selected_occupation_detail(
 
     essential_skill_state = _resolve_relation_state("hasEssentialSkill")
     optional_skill_state = _resolve_relation_state("hasOptionalSkill")
+    essential_knowledge_count = counts.get("hasEssentialKnowledge", 0)
+    optional_knowledge_count = counts.get("hasOptionalKnowledge", 0)
+    essential_knowledge_state = _resolve_relation_state("hasEssentialKnowledge")
+    optional_knowledge_state = _resolve_relation_state("hasOptionalKnowledge")
     alternative_label_state = (
         _FIELD_STATE_AVAILABLE if alternative_labels else _FIELD_STATE_NOT_DELIVERED
     )
@@ -718,6 +698,12 @@ def _render_selected_occupation_detail(
     )
     optional_skill_labels = _normalize_text_list(
         resolved_related_labels.get("hasOptionalSkill", [])
+    )
+    essential_knowledge_labels = _normalize_text_list(
+        resolved_related_labels.get("hasEssentialKnowledge", [])
+    )
+    optional_knowledge_labels = _normalize_text_list(
+        resolved_related_labels.get("hasOptionalKnowledge", [])
     )
 
     esco_code = str(payload.get("code") or "").strip() if isinstance(payload, dict) else ""
@@ -737,6 +723,8 @@ def _render_selected_occupation_detail(
         ("Regulated Profession Note", regulated_text, regulated_text_state),
         ("Essential skills", str(essential_skill_count), essential_skill_state),
         ("Optional skills", str(optional_skill_count), optional_skill_state),
+        ("Essential knowledge", str(essential_knowledge_count), essential_knowledge_state),
+        ("Optional knowledge", str(optional_knowledge_count), optional_knowledge_state),
     ]
     available_fields = sum(1 for _, value, state in detail_fields if _is_available(state, value))
 
@@ -776,6 +764,16 @@ def _render_selected_occupation_detail(
         st.markdown("##### Relationen")
         _render_field("Essential skills", str(essential_skill_count), essential_skill_state)
         _render_field("Optional skills", str(optional_skill_count), optional_skill_state)
+        _render_field(
+            "Essential knowledge",
+            str(essential_knowledge_count),
+            essential_knowledge_state,
+        )
+        _render_field(
+            "Optional knowledge",
+            str(optional_knowledge_count),
+            optional_knowledge_state,
+        )
 
         uri = str(payload.get("uri") or "").strip() if isinstance(payload, dict) else ""
         version = str(payload.get("version") or "").strip() if isinstance(payload, dict) else ""
@@ -829,6 +827,18 @@ def _render_selected_occupation_detail(
         st.write(" · ".join(optional_skill_labels))
     else:
         st.caption(f"{optional_skill_count} Treffer")
+
+    st.markdown("**Essential Knowledge**")
+    if essential_knowledge_labels:
+        st.write(" · ".join(essential_knowledge_labels))
+    else:
+        st.caption(f"{essential_knowledge_count} Treffer")
+
+    st.markdown("**Optional Knowledge**")
+    if optional_knowledge_labels:
+        st.write(" · ".join(optional_knowledge_labels))
+    else:
+        st.caption(f"{optional_knowledge_count} Treffer")
 
     share_rows = _extract_skill_group_share_rows(skill_group_share_payload)
     left_column, center_column, right_column = st.columns([1, 2, 1])
