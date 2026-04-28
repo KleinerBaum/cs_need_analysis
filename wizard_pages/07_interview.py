@@ -1,6 +1,7 @@
 # wizard_pages/07_interview.py
 from __future__ import annotations
 
+import inspect
 from datetime import date, datetime, time
 from typing import Any
 
@@ -447,26 +448,28 @@ def render(ctx: WizardContext) -> None:
         render_standard_step_review(step)
         _render_interview_consistency_checklist(job=job, step=step)
 
-    render_step_shell(
-        title="Interviewprozess",
-        subtitle=(
+    shell_kwargs: dict[str, Any] = {
+        "title": "Interviewprozess",
+        "subtitle": (
             "Ziel: Einen klaren, fairen Prozess definieren (Stages, Stakeholder, "
             "Assessments, Timeline) und gleichzeitig das Candidate Experience sicherstellen."
         ),
-        outcome_slot=lambda: st.markdown(
+        "outcome_slot": lambda: st.markdown(
             "**Vorteile:** Bilden Sie zu Beginn die internen Prozesse sauber ab und "
             "profitieren so von schnellen Prozessen bei minimalem Aufwand für alle "
             "im Prozess involvierten Parteien."
         ),
-        step=step,
-        extracted_from_jobspec_slot=_render_extracted_slot,
-        extracted_from_jobspec_label="Details",
-        extracted_from_jobspec_use_expander=False,
-        open_questions_slot=_render_main_slot,
-        review_slot=_render_review_slot,
-        footer_slot=lambda: nav_buttons(ctx),
-        status_position="before_footer",
-    )
+        "step": step,
+        "extracted_from_jobspec_slot": _render_extracted_slot,
+        "extracted_from_jobspec_label": "Details",
+        "extracted_from_jobspec_use_expander": False,
+        "open_questions_slot": _render_main_slot,
+        "review_slot": _render_review_slot,
+        "footer_slot": lambda: nav_buttons(ctx),
+    }
+    if "status_position" in inspect.signature(render_step_shell).parameters:
+        shell_kwargs["status_position"] = "before_footer"
+    render_step_shell(**shell_kwargs)
 
 
 PAGE = WizardPage(
