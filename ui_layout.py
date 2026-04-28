@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Literal
 
 import streamlit as st
 
@@ -11,9 +12,6 @@ from question_dependencies import should_show_question
 from schemas import QuestionStep
 from step_status import StepStatusPayload, build_step_status_payload
 from state import get_answer_meta, get_answers
-from wizard_pages.base import render_active_ui_mode_caption
-
-
 def _status_badge_text(completion_state: str) -> str:
     return COMPLETION_STATE_BADGE_TEXT.get(
         completion_state, COMPLETION_STATE_BADGE_TEXT[COMPLETION_STATE_NOT_STARTED]
@@ -61,27 +59,28 @@ def render_step_shell(
     main_content_slot: Callable[[], None] | None = None,
     review_slot: Callable[[], None] | None = None,
     footer_slot: Callable[[], None] | None = None,
+    status_position: Literal["header", "before_footer"] = "header",
 ) -> None:
     header_col, status_col = st.columns([4, 2])
     with header_col:
         st.header(title)
         st.caption(subtitle)
-        render_active_ui_mode_caption()
         if outcome_text:
             st.markdown(f"**Outcome:** {outcome_text}")
         if outcome_slot is not None:
             outcome_slot()
+    answers = get_answers()
+    answer_meta = get_answer_meta()
+    status = build_step_status_payload(
+        step=step,
+        answers=answers,
+        answer_meta=answer_meta,
+        should_show_question=should_show_question,
+        step_key=step.step_key if step is not None else None,
+    )
     with status_col:
-        answers = get_answers()
-        answer_meta = get_answer_meta()
-        status = build_step_status_payload(
-            step=step,
-            answers=answers,
-            answer_meta=answer_meta,
-            should_show_question=should_show_question,
-            step_key=step.step_key if step is not None else None,
-        )
-        _render_step_status(status)
+        if status_position == "header":
+            _render_step_status(status)
 
     if extracted_from_jobspec_slot is not None:
         if extracted_from_jobspec_use_expander:
@@ -110,6 +109,9 @@ def render_step_shell(
         main_content_slot()
     if review_slot is not None:
         review_slot()
+
+    if status_position == "before_footer":
+        _render_step_status(status)
 
     if footer_slot is not None:
         st.divider()

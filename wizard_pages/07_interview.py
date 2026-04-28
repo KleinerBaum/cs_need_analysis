@@ -64,12 +64,11 @@ def _extract_internal_process_pills(
     recruitment_steps: list[RecruitmentStep],
 ) -> list[str]:
     default_pills = [
-        "Teilnahme Interviewrunde festlegen",
-        "Betriebsrat-Freigabe einholen",
-        "Hiring Manager im Feedbackloop",
-        "HR informiert Fachbereich",
-        "Entscheidungsgremium dokumentiert",
-        "Kandidat:innen-Update terminieren",
+        "Bewerbungseingang bestätigen",
+        "Interviewtag abstimmen",
+        "Interview-Feedback bündeln",
+        "Entscheidung intern freigeben",
+        "Kandidat:in über Ergebnis informieren",
     ]
     extracted = [
         str(step.details or "").strip()
@@ -103,125 +102,213 @@ def _render_internal_process_container(job: JobAdExtract) -> None:
     ]
     merged_names = _normalize_values([*extracted_names, *existing_names])
 
-    with st.container(border=True):
-        col1, col2, col3 = st.columns((1, 1, 1), gap="large")
-        with col1:
-            st.write("**Ansprechpartner**")
-            contacts_text = st.text_area(
-                "Namen (eine Zeile pro Person)",
-                value="\n".join(merged_names),
-                key="interview.internal.contacts_text",
-                height=220,
-            )
-            contact_names = _normalize_values(contacts_text.splitlines())
-            for name in contact_names:
-                st.write(f"- {name}")
+    known_domain = ""
+    for contact in existing_contacts:
+        if not isinstance(contact, dict):
+            continue
+        email_raw = str(contact.get("email") or "").strip()
+        if "@" not in email_raw:
+            continue
+        domain = email_raw[email_raw.index("@") :].strip()
+        if domain and domain != "@":
+            known_domain = domain
+            break
 
-        updated_contacts: list[dict[str, str]] = []
-        with col2:
-            st.write("**Kontakt & Interviewtage**")
+    role_labels = ("Money", "Authority", "Need")
+    existing_by_role = {
+        str(contact.get("role") or "").strip().casefold(): contact
+        for contact in existing_contacts
+        if isinstance(contact, dict)
+    }
+    fallback_by_index = [
+        contact for contact in existing_contacts if isinstance(contact, dict)
+    ]
+    earliest_default = date.today()
+    earliest_raw = str(internal_flow.get("earliest_start_date") or "").strip()
+    if earliest_raw:
+        try:
+            earliest_default = date.fromisoformat(earliest_raw)
+        except ValueError:
             earliest_default = date.today()
-            earliest_raw = str(internal_flow.get("earliest_start_date") or "").strip()
-            if earliest_raw:
-                try:
-                    earliest_default = date.fromisoformat(earliest_raw)
-                except ValueError:
-                    earliest_default = date.today()
+    latest_default = earliest_default
+    latest_raw = str(internal_flow.get("latest_start_date") or "").strip()
+    if latest_raw:
+        try:
+            latest_default = date.fromisoformat(latest_raw)
+        except ValueError:
             latest_default = earliest_default
-            latest_raw = str(internal_flow.get("latest_start_date") or "").strip()
-            if latest_raw:
-                try:
-                    latest_default = date.fromisoformat(latest_raw)
-                except ValueError:
-                    latest_default = earliest_default
+
+    with st.container(border=True):
+        header_col1, header_col2, header_col3 = st.columns(3, gap="large")
+        with header_col1:
             earliest_start = st.date_input(
                 "Frühestmöglicher Startzeitpunkt",
                 value=earliest_default,
                 key="interview.internal.earliest_start_date",
             )
+        with header_col2:
             latest_start = st.date_input(
                 "Spätester Startzeitpunkt",
                 value=latest_default,
                 key="interview.internal.latest_start_date",
             )
-            for idx, name in enumerate(contact_names):
-                st.markdown(f"**{name}**")
-                existing_contact: dict[str, Any] = next(
-                    (
-                        contact
-                        for contact in existing_contacts
-                        if str(contact.get("name") or "").strip().casefold()
-                        == name.casefold()
-                    ),
-                    {},
+        with header_col3:
+            st.caption(
+                "MAN-Rollen strukturiert erfassen. Bei kleinen Teams kann eine Person mehrere Rollen übernehmen."
+            )
+
+        if merged_names:
+            st.caption("Erkannte Ansprechpartner (Jobspec): " + ", ".join(merged_names))
+        cols = st.columns(3, gap="large")
+        updated_contacts: list[dict[str, Any]] = []
+        interview_participants: list[str] = []
+        money_seed: dict[str, Any] = {}
+        for idx, role in enumerate(role_labels):
+            existing_contact: dict[str, Any] = existing_by_role.get(
+                role.casefold(), {}
+            )
+            if not existing_contact and idx < len(fallback_by_index):
+                existing_contact = fallback_by_index[idx]
+            with cols[idx]:
+                st.write(f"**{role}**")
+                if role != "Money":
+                    if st.checkbox(
+                        "Daten aus Money übernehmen",
+                        key=f"interview.internal.copy_from_money.{idx}",
+                    ):
+                        existing_contact = money_seed
+                name = st.text_input(
+                    "Ansprechpartner",
+                    value=str(existing_contact.get("name") or ""),
+                    key=f"interview.internal.name.{idx}",
                 )
                 phone = st.text_input(
                     "Telefonnummer",
                     value=str(existing_contact.get("phone") or ""),
                     key=f"interview.internal.phone.{idx}",
                 )
+                email_default = str(existing_contact.get("email") or "")
+                if not email_default and known_domain:
+                    email_default = known_domain
                 email = st.text_input(
                     "E-Mail-Adresse",
-                    value=str(existing_contact.get("email") or ""),
+                    value=email_default,
                     key=f"interview.internal.email.{idx}",
                 )
-                interview_default = datetime.now().replace(
-                    hour=time(9, 0).hour,
-                    minute=0,
-                    second=0,
-                    microsecond=0,
+                takes_part = st.checkbox(
+                    "Nimmt an Interviews teil",
+                    value=bool(existing_contact.get("participates_in_interview", True)),
+                    key=f"interview.internal.participates.{idx}",
                 )
-                existing_datetime = str(
-                    existing_contact.get("interview_datetime") or ""
-                )
-                if has_meaningful_value(existing_datetime):
-                    try:
-                        interview_default = datetime.fromisoformat(existing_datetime)
-                    except ValueError:
-                        interview_default = interview_default
-                interview_dt = _render_interview_datetime_input(
-                    key=f"interview.internal.datetime.{idx}",
-                    default=interview_default,
-                )
-                updated_contacts.append(
-                    {
-                        "name": name,
-                        "phone": phone.strip(),
-                        "email": email.strip(),
-                        "interview_datetime": interview_dt.isoformat(),
-                    }
-                )
-
-        with col3:
-            st.write("**Interner Recruiting-Infoloop (Pills)**")
-            pill_options = _extract_internal_process_pills(job.recruitment_steps)
-            default_pills = internal_flow.get("info_loop_items", [])
-            if hasattr(st, "pills"):
-                selected_pills = (
-                    st.pills(
-                        "Wer wird wann informiert?",
-                        options=pill_options,
-                        default=[
-                            str(item)
-                            for item in default_pills
-                            if str(item) in pill_options
-                        ],
-                        selection_mode="multi",
-                        key="interview.internal.info_loop_pills",
+                interview_iso = ""
+                if takes_part:
+                    interview_default = datetime.now().replace(
+                        hour=time(9, 0).hour,
+                        minute=0,
+                        second=0,
+                        microsecond=0,
                     )
-                    or []
+                    existing_datetime = str(
+                        existing_contact.get("interview_datetime") or ""
+                    )
+                    if has_meaningful_value(existing_datetime):
+                        try:
+                            interview_default = datetime.fromisoformat(existing_datetime)
+                        except ValueError:
+                            interview_default = interview_default
+                    interview_dt = _render_interview_datetime_input(
+                        key=f"interview.internal.datetime.{idx}",
+                        default=interview_default,
+                    )
+                    interview_iso = interview_dt.isoformat()
+                if takes_part and name.strip():
+                    interview_participants.append(name.strip())
+
+                contact_payload = {
+                    "role": role,
+                    "name": name.strip(),
+                    "phone": phone.strip(),
+                    "email": email.strip(),
+                    "participates_in_interview": takes_part,
+                    "interview_datetime": interview_iso,
+                }
+                updated_contacts.append(contact_payload)
+                if role == "Money":
+                    money_seed = contact_payload
+
+        st.write("**Interner Recruiting-Infoloop (Pills)**")
+        info_loop_catalog = [
+            (
+                "Bewerbungseingang bestätigen",
+                "Schnelle Eingangsbestätigung an Kandidat:in.",
+            ),
+            (
+                "Interviewtag abstimmen",
+                "Termin mit allen Interview-Teilnehmenden koordinieren.",
+            ),
+            (
+                "Interview-Feedback bündeln",
+                "Feedback gesammelt und konsistent dokumentieren.",
+            ),
+            (
+                "Entscheidung intern freigeben",
+                "Freigabe durch zuständige Entscheidungsträger.",
+            ),
+            (
+                "Kandidat:in über Ergebnis informieren",
+                "Zeitnahes Update zur Candidate Experience.",
+            ),
+        ]
+        if interview_participants:
+            info_loop_catalog.insert(
+                2,
+                (
+                    "Interviewtag",
+                    "Konkreter Interviewtag für teilnehmende Ansprechpartner.",
+                ),
+            )
+
+        extracted_options = _extract_internal_process_pills(job.recruitment_steps)
+        existing_default_pills = internal_flow.get("info_loop_items", [])
+        selected_pills = [
+            str(item)
+            for item in existing_default_pills
+            if isinstance(item, str) and str(item).strip()
+        ]
+        for option in extracted_options:
+            if option not in {label for label, _ in info_loop_catalog}:
+                info_loop_catalog.append((option, "Aus Jobspec/Interviewdetails erkannt."))
+
+        option_labels = [label for label, _ in info_loop_catalog]
+        option_display_map = {
+            label: f"{label} — {description}" for label, description in info_loop_catalog
+        }
+        selected_option = st.selectbox(
+            "Wer wird wann informiert?",
+            options=option_labels,
+            key="interview.internal.info_loop_selectbox",
+            format_func=lambda item: option_display_map.get(item, item),
+        )
+        add_col, clear_col = st.columns(2, gap="small")
+        with add_col:
+            if st.button("Auswahl zum Infoloop hinzufügen", key="interview.internal.info_loop_add"):
+                if selected_option not in selected_pills:
+                    selected_pills.append(selected_option)
+        with clear_col:
+            if st.button("Infoloop leeren", key="interview.internal.info_loop_clear"):
+                selected_pills = []
+
+        if selected_pills:
+            if hasattr(st, "pills"):
+                st.pills(
+                    "Aktive Recruiting-Pills",
+                    options=selected_pills,
+                    default=selected_pills,
+                    selection_mode="single",
+                    key="interview.internal.info_loop_selected_view",
                 )
             else:
-                selected_pills = st.multiselect(
-                    "Wer wird wann informiert?",
-                    options=pill_options,
-                    default=[
-                        str(item) for item in default_pills if str(item) in pill_options
-                    ],
-                    key="interview.internal.info_loop_multiselect",
-                )
-            for item in selected_pills:
-                st.write(f"- {item}")
+                st.caption(", ".join(selected_pills))
 
     st.session_state[SSKey.INTERVIEW_INTERNAL_FLOW.value] = {
         "contacts": updated_contacts,
@@ -366,9 +453,10 @@ def render(ctx: WizardContext) -> None:
             "Ziel: Einen klaren, fairen Prozess definieren (Stages, Stakeholder, "
             "Assessments, Timeline) und gleichzeitig das Candidate Experience sicherstellen."
         ),
-        outcome_text=(
-            "Ein klarer, fairer Interviewablauf mit Verantwortlichkeiten und Timeline "
-            "für eine verlässliche Candidate Experience."
+        outcome_slot=lambda: st.markdown(
+            "**Vorteile:** Bilden Sie zu Beginn die internen Prozesse sauber ab und "
+            "profitieren so von schnellen Prozessen bei minimalem Aufwand für alle "
+            "im Prozess involvierten Parteien."
         ),
         step=step,
         extracted_from_jobspec_slot=_render_extracted_slot,
@@ -377,6 +465,7 @@ def render(ctx: WizardContext) -> None:
         open_questions_slot=_render_main_slot,
         review_slot=_render_review_slot,
         footer_slot=lambda: nav_buttons(ctx),
+        status_position="before_footer",
     )
 
 
