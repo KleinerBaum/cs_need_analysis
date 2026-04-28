@@ -1808,18 +1808,22 @@ def render_step_review_card(
             total = int(step_status.get("total", 0))
             essentials_answered = int(step_status.get("essentials_answered", 0))
             essentials_total = int(step_status.get("essentials_total", 0))
-            badges = [
-                f"{'✅' if answered == total and total > 0 else '•'} Beantwortet {answered}/{total}",
-                (
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.caption(
+                    f"{'✅' if answered == total and total > 0 else '•'} "
+                    f"Beantwortet {answered}/{total}"
+                )
+            with col2:
+                st.caption(
                     f"{'✅' if essentials_answered == essentials_total and essentials_total > 0 else '⚠️'} "
                     f"Essentials {essentials_answered}/{essentials_total}"
-                ),
-                (
+                )
+            with col3:
+                st.caption(
                     f"{'✅' if complete_groups == total_groups and total_groups > 0 else '⚠️'} "
                     f"Gruppen vollständig {complete_groups}/{total_groups}"
-                ),
-            ]
-            st.caption("  |  ".join(badges))
+                )
         else:
             answered = sum(1 for is_answered in resolved_lookup.values() if is_answered)
             total = len(visible_questions)
