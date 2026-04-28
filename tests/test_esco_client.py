@@ -464,6 +464,56 @@ def test_supports_endpoint_hosted_blocklist_does_not_depend_on_probe_status(
     assert calls == []
 
 
+def test_supported_occupation_relations_resolve_by_api_mode() -> None:
+    hosted_client = esco_client.EscoClient(
+        session_state={SSKey.ESCO_CONFIG.value: {"api_mode": "hosted"}}
+    )
+    local_client = esco_client.EscoClient(
+        session_state={SSKey.ESCO_CONFIG.value: {"api_mode": "local"}}
+    )
+
+    assert (
+        hosted_client.supported_occupation_relations()
+        == esco_client.SUPPORTED_OCCUPATION_RELATIONS_BY_API_MODE["hosted"]
+    )
+    assert (
+        local_client.supported_occupation_relations()
+        == esco_client.SUPPORTED_OCCUPATION_RELATIONS_BY_API_MODE["local"]
+    )
+
+
+def test_supports_relation_checks_occupation_relation_support() -> None:
+    client = esco_client.EscoClient(
+        session_state={SSKey.ESCO_CONFIG.value: {"api_mode": "hosted"}}
+    )
+
+    assert (
+        client.supports_relation(
+            resource_type="occupation",
+            relation="hasEssentialSkill",
+        )
+        is True
+    )
+    assert (
+        client.supports_relation(resource_type="occupation", relation="unknownRelation")
+        is False
+    )
+
+
+def test_supports_relation_allows_non_occupation_resource_types() -> None:
+    client = esco_client.EscoClient(
+        session_state={SSKey.ESCO_CONFIG.value: {"api_mode": "hosted"}}
+    )
+
+    assert (
+        client.supports_relation(
+            resource_type="skill",
+            relation="isEssentialForOccupation",
+        )
+        is True
+    )
+
+
 @pytest.mark.parametrize(
     ("raw_value", "expected"),
     [
