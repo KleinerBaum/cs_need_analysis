@@ -519,7 +519,6 @@ def _resolve_matrix_occupation_group(
         "isco08",
         "isco08Code",
         "isco_code",
-        "code",
     )
     for source in sources:
         for key in group_keys:

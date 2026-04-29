@@ -209,16 +209,29 @@ def test_load_matrix_priors_passes_occupation_group_when_provided(
     assert nice[0]["uri"] == "uri:skill:nice"
 
 
-def test_resolve_matrix_occupation_group_uses_selected_then_payload() -> None:
+def test_resolve_matrix_occupation_group_ignores_generic_selected_code() -> None:
     state = {
         "cs.esco_occupation_payload": {"iscoGroup": "351"},
     }
     setattr(SKILLS_MODULE, "st", SimpleNamespace(session_state=state))
 
     selected_group = SKILLS_MODULE._resolve_matrix_occupation_group(
-        {"uri": "uri:occ:1", "code": "251"}
+        {"uri": "uri:occ:1", "code": "some-esco-code"}
     )
     payload_group = SKILLS_MODULE._resolve_matrix_occupation_group({"uri": "uri:occ:1"})
 
-    assert selected_group == "251"
+    assert selected_group == "351"
     assert payload_group == "351"
+
+
+def test_resolve_matrix_occupation_group_prefers_selected_explicit_group() -> None:
+    state = {
+        "cs.esco_occupation_payload": {"iscoGroup": "351"},
+    }
+    setattr(SKILLS_MODULE, "st", SimpleNamespace(session_state=state))
+
+    selected_group = SKILLS_MODULE._resolve_matrix_occupation_group(
+        {"uri": "uri:occ:1", "occupation_group": "251"}
+    )
+
+    assert selected_group == "251"
