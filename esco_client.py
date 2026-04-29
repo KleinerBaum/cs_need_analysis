@@ -49,7 +49,7 @@ OCCUPATION_RELATION_OPTIONAL_KNOWLEDGE = "hasOptionalKnowledge"
 
 ENDPOINT_OCCUPATION_SKILL_GROUP_SHARE = "resource/occupationSkillsGroupShare"
 OFFLINE_INDEX_SUPPORTED_ENDPOINTS = frozenset(
-    {"search", "terms", "resource/occupation", "resource/related"}
+    {"search", "suggest2", "terms", "resource/occupation", "resource/skill", "resource/related"}
 )
 
 _ALL_OCCUPATION_RELATIONS: tuple[str, ...] = (
@@ -551,10 +551,14 @@ class EscoClient:
         language = str(query.get("language") or config.get("language") or "de")
         if endpoint == "search":
             payload = index.search(text=str(query.get("text") or ""), type_name=str(query.get("type") or "occupation"), language=language, limit=int(query.get("limit") or 20))
+        elif endpoint == "suggest2":
+            payload = index.suggest2(text=str(query.get("text") or ""), type_name=str(query.get("type") or "occupation"), language=language, limit=int(query.get("limit") or 20))
         elif endpoint == "terms":
             payload = index.terms(uri=str(query.get("uri") or ""), type_name=str(query.get("type") or "occupation"), language=language)
         elif endpoint == "resource/occupation":
             payload = index.resource_occupation(uri=str(query.get("uri") or ""), language=language)
+        elif endpoint == "resource/skill":
+            payload = index.resource_skill(uri=str(query.get("uri") or ""), language=language)
         elif endpoint == "resource/related":
             payload = index.resource_related(uri=str(query.get("uri") or ""), relation=str(query.get("relation") or ""), language=language)
         else:

@@ -43,6 +43,9 @@ class OfflineEscoIndex:
         )
         return {"_embedded": {"results": rows}, "total": len(rows)}
 
+    def suggest2(self, *, text: str, type_name: str, language: str, limit: int) -> dict[str, Any]:
+        return self.search(text=text, type_name=type_name, language=language, limit=limit)
+
     def terms(self, *, uri: str, type_name: str, language: str) -> dict[str, Any]:
         del type_name
         rows = self._query_json(
@@ -70,6 +73,26 @@ class OfflineEscoIndex:
             "code": concept_rows[0].get("code", ""),
             "title": title,
             "preferredLabel": {language: title},
+            "version": self.version,
+        }
+
+    def resource_skill(self, *, uri: str, language: str) -> dict[str, Any]:
+        concept_rows = self._query_json(
+            "SELECT uri, code, concept_type FROM concepts WHERE uri = ? AND concept_type = 'skill'",
+            (uri,),
+        )
+        if not concept_rows:
+            return {}
+        label_rows = self._query_json(
+            "SELECT label FROM labels WHERE uri = ? AND language = ? LIMIT 1",
+            (uri, language),
+        )
+        label = label_rows[0]["label"] if label_rows else ""
+        return {
+            "uri": uri,
+            "code": concept_rows[0].get("code", ""),
+            "title": label,
+            "preferredLabel": label,
             "version": self.version,
         }
 
