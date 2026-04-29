@@ -264,6 +264,35 @@ def _set_session_flag_true(flag_key: str) -> None:
     st.session_state[flag_key] = True
 
 
+def render_multi_select_pills(
+    label: str,
+    *,
+    options: Sequence[str],
+    default: Sequence[str] | None = None,
+    key: str,
+) -> list[str]:
+    normalized_options = [str(option).strip() for option in options if str(option).strip()]
+    normalized_default = (
+        [str(item).strip() for item in default if str(item).strip()]
+        if default is not None
+        else []
+    )
+    if hasattr(st, "pills"):
+        return (
+            st.pills(
+                label,
+                options=normalized_options,
+                default=normalized_default,
+                selection_mode="multi",
+                key=key,
+            )
+            or []
+        )
+    return st.multiselect(
+        label, options=normalized_options, default=normalized_default, key=key
+    )
+
+
 def _normalize_target_state_key(target_state_key: SSKey | str) -> str:
     if isinstance(target_state_key, SSKey):
         return target_state_key.value
