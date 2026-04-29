@@ -291,7 +291,15 @@ Der strukturierte Summary-Export enthält – sofern vorhanden – folgende ESCO
 
 ## ESCO Offline Index Build
 
-Use `scripts/build_esco_index.py` to create versioned offline ESCO artifacts under `data/esco_index/<version>/`.
+Status: **partially implemented** (local index exists, full official dataset ingestion pipeline still missing).
+
+### Current capability (implemented)
+
+The app can build and use a versioned local ESCO index for index-based lookup:
+
+- Build artifacts with `scripts/build_esco_index.py` (implemented in `esco_offline_index.py`).
+- Runtime offline/hybrid wiring via `esco_client.py` using mode/config keys from `constants.py` and session initialization in `state.py`.
+- Contract coverage in `tests/test_esco_offline_contract.py`.
 
 ```bash
 python scripts/build_esco_index.py --source-dir /path/to/esco_bulk --version v1.2.0
@@ -307,3 +315,7 @@ Runtime pinning/config:
 - `ESCO_INDEX_VERSION` (defaults to selected ESCO version)
 
 In `hybrid` mode, the app queries the live API first and falls back to the offline index when the API is unavailable.
+
+### Future scope (not yet fully implemented)
+
+A full official ESCO dataset ingestion pipeline is still out of scope and would need dedicated import flows for RDF/TTL/XML/JSON-LD plus a richer metadata model than the current lookup-focused local index.
