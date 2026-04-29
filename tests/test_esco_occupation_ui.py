@@ -121,6 +121,45 @@ def test_extract_first_text_handles_empty_and_mixed_structures() -> None:
     assert mixed_extracted == "Deutscher Hinweis"
 
 
+
+
+def test_extract_text_field_with_state_fallback_order_de_en_then_other_language() -> None:
+    payload = {
+        "description": {
+            "no": "Norsk beskrivelse",
+            "en": "English description",
+            "de": "Deutsche Beschreibung",
+        }
+    }
+    text, state = esco_occupation_ui._extract_text_field_with_state(
+        payload,
+        keys=("description",),
+        preferred_language="de",
+        fallback_language="en",
+    )
+    assert text == "Deutsche Beschreibung"
+    assert state == "verfügbar"
+
+    payload_no_de = {"description": {"no": "Norsk beskrivelse", "en": "English description"}}
+    text_no_de, state_no_de = esco_occupation_ui._extract_text_field_with_state(
+        payload_no_de,
+        keys=("description",),
+        preferred_language="de",
+        fallback_language="en",
+    )
+    assert text_no_de == "English description"
+    assert state_no_de == "In gewählter Sprache nicht verfügbar (Fallback EN genutzt)"
+
+    payload_only_no = {"description": {"no": "Norsk beskrivelse"}}
+    text_only_no, state_only_no = esco_occupation_ui._extract_text_field_with_state(
+        payload_only_no,
+        keys=("description",),
+        preferred_language="de",
+        fallback_language="en",
+    )
+    assert text_only_no == "Norsk beskrivelse"
+    assert state_only_no == "In gewählter Sprache nicht verfügbar (Fallback NO genutzt)"
+
 def test_load_occupation_related_counts_uses_related_endpoint_payloads() -> None:
     call_relations: list[str] = []
 

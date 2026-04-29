@@ -34,7 +34,7 @@ _DEFAULT_SUPPORTED_OCCUPATION_RELATIONS: tuple[str, ...] = (
 
 _FIELD_STATE_NOT_DELIVERED = "nicht geliefert"
 _FIELD_STATE_FALLBACK_LANGUAGE = (
-    "In gewählter Sprache nicht verfügbar (Fallback EN/DE genutzt)"
+    "In gewählter Sprache nicht verfügbar (Fallback {language} genutzt)"
 )
 _FIELD_STATE_NOT_LOADED = "noch nicht geladen"
 _FIELD_STATE_AVAILABLE = "verfügbar"
@@ -398,6 +398,47 @@ def _collect_text_for_language(value: object, language: str) -> list[str]:
     return collected
 
 
+
+
+def _collect_first_text_with_language(value: object) -> tuple[str, str] | None:
+    def _normalize(raw: object) -> str:
+        if not isinstance(raw, str):
+            return ""
+        normalized = raw.strip()
+        return normalized
+
+    def _walk(node: object) -> tuple[str, str] | None:
+        if isinstance(node, str):
+            normalized = _normalize(node)
+            if normalized:
+                return normalized, "unknown"
+            return None
+        if isinstance(node, list):
+            for item in node:
+                found = _walk(item)
+                if found:
+                    return found
+            return None
+        if not isinstance(node, dict):
+            return None
+
+        for key, nested in node.items():
+            if isinstance(nested, str):
+                normalized = _normalize(nested)
+                if normalized:
+                    language = key if isinstance(key, str) and key.strip() else "unknown"
+                    return normalized, language
+            found = _walk(nested)
+            if found:
+                return found
+        return None
+
+    return _walk(value)
+
+
+def _fallback_caption(language: str) -> str:
+    return _FIELD_STATE_FALLBACK_LANGUAGE.format(language=language.upper() if language else "UNKNOWN")
+
 def _extract_text_field_with_state(
     payload: object,
     *,
@@ -420,11 +461,12 @@ def _extract_text_field_with_state(
 
         fallback = _collect_text_for_language(value, fallback_language)
         if fallback:
-            return fallback[0], _FIELD_STATE_FALLBACK_LANGUAGE
+            return fallback[0], _fallback_caption(fallback_language)
 
-        generic = _collect_text_candidates(value)
+        generic = _collect_first_text_with_language(value)
         if generic:
-            return generic[0], _FIELD_STATE_AVAILABLE
+            text, language = generic
+            return text, _fallback_caption(language)
 
     if key_present:
         return "", _FIELD_STATE_NOT_DELIVERED
