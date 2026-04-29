@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import logging
 from typing import Any
 
@@ -99,3 +100,40 @@ def retrieve_esco_context(
     items = data.get("data") if isinstance(data, dict) else []
     hits = _extract_hits(items if isinstance(items, list) else [])
     return EscoRagResult(hits=hits, provenance="openai_vector_store", reason=None)
+
+
+def extract_skill_suggestions(result: EscoRagResult) -> list[dict[str, str]]:
+    suggestions: list[dict[str, str]] = []
+    for hit in result.hits:
+        snippet = hit.snippet.strip()
+        if not snippet:
+            continue
+        payload: dict[str, Any] | None = None
+        if snippet.startswith("{"):
+            try:
+                parsed = json.loads(snippet)
+                if isinstance(parsed, dict):
+                    payload = parsed
+            except Exception:
+                payload = None
+
+        if payload is not None:
+            label = _coerce_string(
+                payload.get("label") or payload.get("preferredLabel") or payload.get("title")
+            )
+            uri = _coerce_string(payload.get("uri"))
+        else:
+            label = snippet.split("|")[0].strip()
+            uri = None
+        if not label:
+            continue
+        suggestions.append(
+            {
+                "label": label,
+                "uri": uri or "",
+                "source": "ESCO RAG",
+                "rationale": f"RAG hit #{hit.rank}",
+                "evidence": snippet,
+            }
+        )
+    return suggestions
