@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import streamlit as st
-from typing import cast
-
 from constants import APP_TITLE
 from wizard_pages.jobad_intake import render_jobad_intake
 from wizard_pages.base import (
@@ -12,9 +10,7 @@ from wizard_pages.base import (
     WizardContext,
     WizardPage,
     render_esco_language_toggle,
-    render_importance_section,
     render_landing_css,
-    render_output_section,
 )
 
 LANDING_COPY: dict[str, object] = {
@@ -36,25 +32,7 @@ LANDING_COPY: dict[str, object] = {
     "cta_helper": "",
     "cta_microcopy": "",
     "value_cards": (),
-    "importance_title": "Warum dieser erste Schritt entscheidend ist",
-    # Leitthese
-    "importance_intro": "Der Recruiting-Prozess wird nicht erst in der Jobanzeige gut — sondern im allerersten Intake-Schritt.",
-    # Risiken ohne sauberen Intake
-    "importance_risk_points": (
-        (
-            "Unklare Anforderungen",
-            "a) Rollen werden zu breit formuliert. Must-haves und Nice-to-haves verschwimmen. Das führt zu unpräzisem Sourcing und Diskussionen über die falschen Profile. b) Job Ads, Interviewleitfäden und Suchstrings werden mehrfach neu gebaut, weil die Grundlagen nicht früh genug strukturiert wurden.",
-        ),
-    ),
-    # Hebel mit präzisem Intake
-    "importance_leverage_points": (
-        (
-            "Schneller in die Umsetzung",
-            "a) Der Wizard leitet aus der Rolle nur die Fragen ab, die für den konkreten Fall relevant sind — nicht für jede Stelle denselben Standardbogen. b) Aufgaben, Skills, Benefits und Gehalt werden gegeneinander plausibilisiert. Dadurch sinkt das Risiko eines unrealistischen Wunschprofils.",
-        ),
-    ),
-    # Outcome
-    "importance_closer": "Die App macht aus einem unscharfen Startpunkt einen strukturierten, überprüfbaren und weiterverwendbaren Recruiting-Datensatz.",
+    "importance_title": "Der optimale Recruiting-Prozess wird nicht erst in der Jobanzeige gut, sondern startet mit der umfassenden Aufnahme aller jobspezifischen Anforderungen.",
     "flow_title": "So funktioniert der Ablauf",
     "flow_steps": (
         (
@@ -73,13 +51,6 @@ LANDING_COPY: dict[str, object] = {
             "4. Briefing erzeugen",
             "Sie erhalten ein konsistentes Recruiting-Briefing für HR und Fachbereich.",
         ),
-    ),
-    "output_title": "Was Sie am Ende erhalten",
-    "output_bullets": (
-        "Ein klar strukturiertes Anforderungsprofil auf einen Blick",
-        "Messerscharf getrennte Must-haves und Nice-to-haves",
-        "Konkrete Leitplanken für Interviewdesign und Kandidatenansprache",
-        "Schnellere, fundiertere Entscheidungen im gesamten Hiring-Team",
     ),
     "security_title": "Datenschutz und Kontrolle",
     "security_body": (
@@ -121,25 +92,35 @@ def render(ctx: WizardContext) -> None:
 
     content_col, image_col = st.columns((1.35, 1), gap="large")
     with content_col:
-        render_importance_section(
-            section_id=LANDING_SECTION_IDS["importance"],
-            title=str(LANDING_COPY["importance_title"]),
-            intro=str(LANDING_COPY["importance_intro"]),
-            risk_points=cast(
-                tuple[tuple[str, str], ...],
-                LANDING_COPY["importance_risk_points"],
-            ),
-            leverage_points=cast(
-                tuple[tuple[str, str], ...],
-                LANDING_COPY["importance_leverage_points"],
-            ),
-            closer=str(LANDING_COPY["importance_closer"]),
+        st.markdown(
+            f'<section id="{LANDING_SECTION_IDS["importance"]}" class="landing-section">',
+            unsafe_allow_html=True,
         )
-        render_output_section(
-            section_id=LANDING_SECTION_IDS["output"],
-            title=str(LANDING_COPY["output_title"]),
-            bullets=cast(tuple[str, ...], LANDING_COPY["output_bullets"]),
+        st.subheader(str(LANDING_COPY["importance_title"]))
+        st.divider()
+        st.badge("Klassische Bedarfsanalyse")
+        st.subheader("Klassische Bedarfsanalyse")
+        st.markdown(
+            "Als langjähriger Personalvermittler ist mir die Suche nach der eierlegenden Wollmilchsau bestens bekannt. Unklare Anforderungen führen nicht nur für Personalvermittler zu unpräzisem Sourcing und Diskussionen über die falschen Profile. Unklare Anforderungen führen von den Verantwortlichen unbemerkt dazu, dass das Interesse des perfekten Kandidaten nicht geweckt wird, z.B. indem das essentielle Benefit nicht bekannt gegeben wird. Merklicher wird es für die Verantwortlichen, wenn unpassende Profile vorgestellt werden, Prozesse aufgrund ihrer Länge scheitern oder schlimmstenfalls der Mitarbeiter nach 6 Monaten Probe kündigt, da die Anforderungen in der Realität nicht mit den Vorstellungen des Mitarbeiters übereinstimmen. Der Prozess muss dann komplett neu gestartet werden, was allen Beteiligten nicht nur Zeit kostet, sondern auch viele Dollars"
         )
+        st.divider()
+        st.badge("Cognitive Staffing")
+        st.subheader("Wie profitieren Sie von Cognitive Staffing?")
+        st.markdown(
+            "- **Berufserkennung:** Nach Eingabe eines Stellen- oder Tätigkeitsnamens schlägt die App passende ESCO-Occupations vor. So werden verschiedene Bezeichnungen (z.B. „Full Stack Entwickler“, „Cloud-Engineer“) auf einen eindeutigen Beruf zusammengeführt.\n"
+            "- **Skill-Vorschläge:** Sobald ein ESCO-Beruf bestätigt ist, lädt die App die zugehörigen Essential/Nice-to-have Skills. Diese fließen in die KI-gestützte Anforderungsanalyse und Text-Generierung ein.\n"
+            "- **KI-Unterstützung (RAG):** Wir nutzen ESCO-Daten in einem Retrieval-Augmented-Generation-Ansatz (RAG). Das bedeutet: Beim Generieren von Texten (z.B. vorgeschlagene Aufgaben oder Umschreibungen) werden relevante ESCO-Beschreibungen und Skill-Listen aus der Wissensdatenbank abgerufen und als Faktenbasis eingesetzt. Dadurch erhält die KI konkreten Kontext statt nur freier Texte.\n"
+            "- **Anforderungsnormalisierung:** Unbekannte oder freie Stichworte in einer Stellenanzeige können durch ESCO-Skills ergänzt oder abgeglichen werden. Die App ermöglicht, fehlende Skills zuzuordnen oder als unternehmensspezifisch zu belassen."
+        )
+        st.divider()
+        st.badge("RAG + LLM")
+        st.subheader(
+            "Der Retrieval-Augmented-Generation-Ansatz (RAG) in Kombination mit LLM-gestützen Prompts bietet diverse Option zur Weiterverarbeitung der gesammelten Daten:"
+        )
+        st.markdown(
+            "a) Messerscharf formulierte Aufgaben, Must-haves und Nice-to-have Skills und (lokalen und zielgruppenorientierten) Benefits; b) Erwartungsmanagement der Einstellenden durch Gehaltsprognosen, die basierend auf allen eingegebenen Parametern berechnet werden; c) Automatisierung und Optimierung des internen Kommunikationsprozesses; d) Automatisierung und Optimierung diverser Sourcing-Schritte, beginnend bei der Erstellung der Jobad über das Generieren von Boolean-Searchstrings bis hin zur Erstellung des Arbeitsvertrags im Corporate Design"
+        )
+        st.markdown("</section>", unsafe_allow_html=True)
     with image_col:
         st.image("images/iceberg v1.png", width="stretch")
 
