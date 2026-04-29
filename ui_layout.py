@@ -58,6 +58,7 @@ def render_step_shell(
     open_questions_slot: Callable[[], None] | None = None,
     main_content_slot: Callable[[], None] | None = None,
     review_slot: Callable[[], None] | None = None,
+    after_review_slot: Callable[[], None] | None = None,
     post_review_slot: Callable[[], None] | None = None,
     footer_slot: Callable[[], None] | None = None,
     status_position: Literal["header", "before_footer"] = "header",
@@ -110,6 +111,8 @@ def render_step_shell(
         main_content_slot()
     if review_slot is not None:
         review_slot()
+    if after_review_slot is not None:
+        after_review_slot()
     if post_review_slot is not None:
         post_review_slot()
 

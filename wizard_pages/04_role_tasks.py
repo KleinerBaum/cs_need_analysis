@@ -19,6 +19,7 @@ from state import (
 )
 from ui_components import (
     has_meaningful_value,
+    render_multi_select_pills,
     render_compare_adopt_intro,
     render_esco_explainability,
     render_error_banner,
@@ -196,12 +197,6 @@ def _save_selected_task_suggestions(labels: list[str]) -> int:
     return added
 
 
-def _render_source_pills(label: str, options: list[str], key: str, default: list[str]) -> list[str]:
-    if hasattr(st, "pills"):
-        return st.pills(label, options=options, default=default, selection_mode="multi", key=key) or []
-    return st.multiselect(label, options=options, default=default, key=key)
-
-
 def _render_role_tasks_salary_block(
     *,
     job: JobAdExtract,
@@ -316,7 +311,17 @@ def render(ctx: WizardContext) -> None:
         col_jobspec, col_ai, col_esco = st.columns(3, gap="large")
         with col_jobspec:
             st.markdown("#### Aus der Anzeige extrahiert")
-            _render_source_pills(" ", jobspec_labels, "role_tasks.jobspec.pills", [item for item in selected if _normalize_task_term(item) in {_normalize_task_term(v) for v in jobspec_labels}])
+            render_multi_select_pills(
+                " ",
+                options=jobspec_labels,
+                key="role_tasks.jobspec.pills",
+                default=[
+                    item
+                    for item in selected
+                    if _normalize_task_term(item)
+                    in {_normalize_task_term(v) for v in jobspec_labels}
+                ],
+            )
         with col_ai:
             st.markdown("#### AI-Vorschläge")
             st.number_input(
@@ -364,10 +369,30 @@ def render(ctx: WizardContext) -> None:
                 st.session_state[SSKey.ROLE_TASKS_LLM_SUGGESTED.value] = merged_llm
             llm_after = st.session_state.get(SSKey.ROLE_TASKS_LLM_SUGGESTED.value, [])
             llm_after_labels = [str(item.get("label") or "").strip() for item in llm_after if isinstance(item, dict) and has_meaningful_value(item.get("label"))]
-            _render_source_pills("  ", llm_after_labels, "role_tasks.ai.pills", [item for item in selected if _normalize_task_term(item) in {_normalize_task_term(v) for v in llm_after_labels}])
+            render_multi_select_pills(
+                "  ",
+                options=llm_after_labels,
+                key="role_tasks.ai.pills",
+                default=[
+                    item
+                    for item in selected
+                    if _normalize_task_term(item)
+                    in {_normalize_task_term(v) for v in llm_after_labels}
+                ],
+            )
         with col_esco:
             st.markdown("#### ESCO")
-            _render_source_pills("   ", esco_labels, "role_tasks.esco.pills", [item for item in selected if _normalize_task_term(item) in {_normalize_task_term(v) for v in esco_labels}])
+            render_multi_select_pills(
+                "   ",
+                options=esco_labels,
+                key="role_tasks.esco.pills",
+                default=[
+                    item
+                    for item in selected
+                    if _normalize_task_term(item)
+                    in {_normalize_task_term(v) for v in esco_labels}
+                ],
+            )
 
         selected_jobspec = st.session_state.get("role_tasks.jobspec.pills", []) or []
         selected_ai = st.session_state.get("role_tasks.ai.pills", []) or []

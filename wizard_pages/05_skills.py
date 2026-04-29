@@ -28,8 +28,8 @@ from ui_layout import render_step_shell
 from ui_components import (
     has_meaningful_value,
     render_compare_adopt_intro,
-    render_compact_requirement_board,
     render_error_banner,
+    render_multi_select_pills,
     render_question_step,
     render_standard_step_review,
 )
@@ -222,36 +222,102 @@ def _save_selected_skill_suggestions(labels: list[str]) -> int:
     return added_count
 
 
-def _render_skills_source_columns(
+def _build_skills_source_view_data(
     *,
-    jobspec_suggested: list[dict[str, Any]],
-    esco_suggested: list[dict[str, Any]],
-    llm_suggested: list[dict[str, Any]],
-) -> None:
-    selected_labels_raw = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
-    selected_labels = (
-        [str(item).strip() for item in selected_labels_raw if has_meaningful_value(item)]
-        if isinstance(selected_labels_raw, list)
-        else []
+    job: JobAdExtract,
+    show_esco_sections: bool,
+) -> tuple[list[str], list[str], list[str], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    jobspec_terms = _dedupe_terms(
+        [
+            *[x for x in job.must_have_skills if has_meaningful_value(x)],
+            *[x for x in job.nice_to_have_skills if has_meaningful_value(x)],
+            *[x for x in job.tech_stack if has_meaningful_value(x)],
+        ]
+    )
+    jobspec_suggestions = [{"label": term, "source": "Jobspec"} for term in jobspec_terms]
+    st.session_state[SSKey.SKILLS_JOBSPEC_SUGGESTED.value] = jobspec_suggestions
+
+    llm_raw = st.session_state.get(SSKey.SKILLS_LLM_SUGGESTED.value, [])
+    llm_suggested = llm_raw if isinstance(llm_raw, list) else []
+    llm_labels = _dedupe_terms(
+        [str(item.get("label") or "").strip() for item in llm_suggested if isinstance(item, dict)]
     )
 
-    bulk_buffer = render_compact_requirement_board(
-        title_jobspec="Aus Jobspec extrahiert",
-        jobspec_items=jobspec_suggested,
-        title_esco="ESCO-Skills",
-        esco_items=esco_suggested,
-        title_llm="AI-Skills",
-        llm_items=llm_suggested,
-        selected_labels=selected_labels,
-        selection_state_key=f"{SSKey.SKILLS_SELECTED.value}.bulk_buffer",
-        key_prefix="skills.board",
-    )
+    selected_must_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
+    selected_nice_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
+    selected_must = selected_must_raw if isinstance(selected_must_raw, list) else []
+    selected_nice = selected_nice_raw if isinstance(selected_nice_raw, list) else []
+    deduped_must, deduped_nice = _dedupe_selected_skills_across_buckets(selected_must, selected_nice)
+    esco_labels = _dedupe_terms(
+        [str(item.get("title") or "").strip() for item in (deduped_must + deduped_nice)]
+    ) if show_esco_sections else []
+    return jobspec_terms, llm_labels, esco_labels, deduped_must, deduped_nice, llm_suggested
+
+
+def _render_skills_source_columns(
+    *,
+    jobspec_labels: list[str],
+    llm_labels: list[str],
+    esco_labels: list[str],
+) -> tuple[bool, bool]:
+    selected_labels_raw = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
+    selected_labels = _dedupe_terms([str(item) for item in selected_labels_raw]) if isinstance(selected_labels_raw, list) else []
+    selected_normalized = {_normalize_term(item) for item in selected_labels}
+
+    col_jobspec, col_ai, col_esco = st.columns(3, gap="large")
+    with col_jobspec:
+        st.markdown("#### Aus der Anzeige extrahiert")
+        render_multi_select_pills(
+            " ",
+            options=jobspec_labels,
+            key="skills.jobspec.pills",
+            default=[item for item in selected_labels if _normalize_term(item) in {_normalize_term(v) for v in jobspec_labels}],
+        )
+    with col_ai:
+        st.markdown("#### AI-Vorschläge")
+        st.number_input(
+            "Anzahl AI-Skill-Vorschläge",
+            key=SSKey.SKILLS_SUGGEST_COUNT.value,
+            min_value=1,
+            max_value=12,
+            step=1,
+        )
+        generate_ai_clicked = st.button(
+            "AI-Skill-Vorschläge generieren", key="skills.ai.generate"
+        )
+        render_multi_select_pills(
+            "  ",
+            options=llm_labels,
+            key="skills.ai.pills",
+            default=[item for item in selected_labels if _normalize_term(item) in {_normalize_term(v) for v in llm_labels}],
+        )
+    with col_esco:
+        st.markdown("#### ESCO")
+        load_esco_clicked = st.button("ESCO-Skills laden", key="skills.esco.load")
+        for label in esco_labels:
+            normalized = _normalize_term(label)
+            relation = "optional"
+            if normalized in {_normalize_term(str(v.get("title") or "")) for v in st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, []) if isinstance(v, dict)}:
+                relation = "essential"
+            st.caption(f"{label} · {relation}")
+        render_multi_select_pills(
+            "   ",
+            options=esco_labels,
+            key="skills.esco.pills",
+            default=[item for item in selected_labels if _normalize_term(item) in {_normalize_term(v) for v in esco_labels}],
+        )
+
+    selected_jobspec = st.session_state.get("skills.jobspec.pills", []) or []
+    selected_ai = st.session_state.get("skills.ai.pills", []) or []
+    selected_esco = st.session_state.get("skills.esco.pills", []) or []
+    buffer = _dedupe_terms([*selected_jobspec, *selected_ai, *selected_esco, *selected_labels])
+    st.session_state[f"{SSKey.SKILLS_SELECTED.value}.bulk_buffer"] = buffer
     if st.button("Ausgewählte Skills übernehmen", width="stretch"):
-        added_count = _save_selected_skill_suggestions(bulk_buffer)
-        if added_count > 0:
-            st.success(f"{added_count} Skill(s) übernommen.")
-        else:
-            st.info("Keine neuen Skills übernommen.")
+        _save_selected_skill_suggestions(buffer)
+    current_selected = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
+    current_count = len(_dedupe_terms([str(item) for item in current_selected])) if isinstance(current_selected, list) else 0
+    st.caption(f"Übernommen: {current_count} Skills")
+    return load_esco_clicked, generate_ai_clicked
 
 
 def _safe_text(value: str | None) -> str:
@@ -463,50 +529,10 @@ def _render_skills_source_comparison_block(
     show_esco_sections: bool,
 ) -> None:
     must_have_skills = [x for x in job.must_have_skills if has_meaningful_value(x)]
-    nice_to_have_skills = [
-        x for x in job.nice_to_have_skills if has_meaningful_value(x)
-    ]
-    tech_stack = [x for x in job.tech_stack if has_meaningful_value(x)]
-    jobspec_suggestions = [
-        {"label": term, "source": "Jobspec"}
-        for term in _dedupe_terms(
-            [*must_have_skills, *nice_to_have_skills, *tech_stack]
-        )
-    ]
-    st.session_state[SSKey.SKILLS_JOBSPEC_SUGGESTED.value] = jobspec_suggestions
-    llm_suggested_raw = st.session_state.get(SSKey.SKILLS_LLM_SUGGESTED.value, [])
-    llm_suggested = llm_suggested_raw if isinstance(llm_suggested_raw, list) else []
-
-    selected_must_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
-    selected_nice_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
-    selected_must = selected_must_raw if isinstance(selected_must_raw, list) else []
-    selected_nice = selected_nice_raw if isinstance(selected_nice_raw, list) else []
-    deduped_must, deduped_nice = _dedupe_selected_skills_across_buckets(
-        selected_must, selected_nice
-    )
-    esco_suggestions = (
-        [
-            {
-                "label": str(item.get("title") or "").strip(),
-                "source": "ESCO essential",
-                "rationale": "manually selected by user",
-                "importance": "high",
-            }
-            for item in deduped_must
-            if has_meaningful_value(str(item.get("title") or ""))
-        ]
-        + [
-            {
-                "label": str(item.get("title") or "").strip(),
-                "source": "ESCO optional",
-                "rationale": "manually selected by user",
-                "importance": "high",
-            }
-            for item in deduped_nice
-            if has_meaningful_value(str(item.get("title") or ""))
-        ]
-        if show_esco_sections
-        else []
+    nice_to_have_skills = [x for x in job.nice_to_have_skills if has_meaningful_value(x)]
+    jobspec_labels, llm_labels, esco_labels, deduped_must, deduped_nice, llm_suggested = _build_skills_source_view_data(
+        job=job,
+        show_esco_sections=show_esco_sections,
     )
 
     render_compare_adopt_intro(
@@ -516,12 +542,11 @@ def _render_skills_source_comparison_block(
         if not show_esco_sections
         else ("Jobspec", "ESCO", "AI"),
     )
-    _render_skills_source_columns(
-        jobspec_suggested=jobspec_suggestions,
-        esco_suggested=esco_suggestions,
-        llm_suggested=llm_suggested,
+    load_esco_clicked, generate_ai_clicked = _render_skills_source_columns(
+        jobspec_labels=jobspec_labels,
+        esco_labels=esco_labels,
+        llm_labels=llm_labels,
     )
-    st.markdown("#### Skill-Generierung")
     normalized_must_terms = _dedupe_terms(must_have_skills)
     normalized_nice_terms = _dedupe_terms(nice_to_have_skills)
 
@@ -537,30 +562,6 @@ def _render_skills_source_comparison_block(
         if show_esco_sections
         else ""
     )
-    col_esco_generate, col_ai_generate = st.columns(2, gap="large")
-    with col_esco_generate:
-        st.markdown("### ESCO-Skills")
-        st.caption(
-            "Lädt ESCO Occupation-Details und relationale Skills "
-            "(hasEssentialSkill/hasOptionalSkill)."
-        )
-        load_esco_clicked = st.button(
-            "Occupation-Skill-Vorschläge laden", key="skills.esco.load"
-        )
-
-    with col_ai_generate:
-        st.markdown("### AI Skill-Vorschläge")
-        st.number_input(
-            "Anzahl AI-Skill-Vorschläge",
-            key=SSKey.SKILLS_SUGGEST_COUNT.value,
-            min_value=1,
-            max_value=12,
-            step=1,
-        )
-        generate_ai_clicked = st.button(
-            "Skills-Vorschläge generieren", key="skills.ai.generate"
-        )
-
     if show_esco_sections and occupation_uri and load_esco_clicked:
         occupation_title = (
             str(selected_occupation.get("title") or "—").strip()
@@ -823,15 +824,17 @@ def render(ctx: WizardContext) -> None:
         extracted_from_jobspec_slot=lambda: _render_extracted_slot(job),
         extracted_from_jobspec_label="Aus der Anzeige extrahierte Skills",
         extracted_from_jobspec_use_expander=False,
-        source_comparison_slot=lambda: _render_skills_source_comparison_block(
-            job=job,
-            selected_occupation=selected_occupation,
-            coverage_snapshot=coverage_snapshot,
-            show_esco_sections=show_esco_sections,
-        ),
-        salary_forecast_slot=lambda: _render_salary_forecast_slot(job),
         open_questions_slot=lambda: _render_open_questions_slot(step),
         review_slot=lambda: render_standard_step_review(step),
+        after_review_slot=lambda: (
+            _render_skills_source_comparison_block(
+                job=job,
+                selected_occupation=selected_occupation,
+                coverage_snapshot=coverage_snapshot,
+                show_esco_sections=show_esco_sections,
+            ),
+            _render_salary_forecast_slot(job),
+        ),
         footer_slot=lambda: nav_buttons(ctx),
     )
 
