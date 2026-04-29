@@ -578,7 +578,6 @@ def _compute_matrix_coverage_rows(
                     ),
                     "matrix_bucket": bucket,
                     "expected_skill_uris": set(),
-                    "expected_skill_titles": set(),
                 },
             )
             target["expected_share_percent"] = max(
@@ -588,16 +587,10 @@ def _compute_matrix_coverage_rows(
             uri = str(row.get("uri") or "").strip()
             if uri:
                 target["expected_skill_uris"].add(uri)
-            title = str(row.get("title") or "").strip()
-            if title:
-                target["expected_skill_titles"].add(title)
 
     selected_by_uri: dict[str, str] = {}
     selected_group_rows: dict[tuple[str, str], dict[str, Any]] = {}
-    for default_bucket, selected_rows in (
-        ("must", confirmed_must),
-        ("nice", confirmed_nice),
-    ):
+    for default_bucket, selected_rows in (("must", confirmed_must), ("nice", confirmed_nice)):
         for item in selected_rows:
             if not isinstance(item, dict):
                 continue
@@ -631,20 +624,29 @@ def _compute_matrix_coverage_rows(
                 row_target["matched_skill_titles"].add(title or uri)
 
     output_rows: list[dict[str, Any]] = []
-    for (bucket, group_key), expected in expected_by_key.items():
+    for key, expected in expected_by_key.items():
+        bucket, group_key = key
         expected_uris = set(expected.get("expected_skill_uris", set()))
         matched_uris = sorted(uri for uri in expected_uris if uri in selected_by_uri)
-        matched_titles = sorted(
-            selected_by_uri[uri] for uri in matched_uris if uri in selected_by_uri
-        )
+        matched_titles = sorted(selected_by_uri[uri] for uri in matched_uris if uri in selected_by_uri)
+        match_basis = "uri"
+
+        if not matched_uris:
+            selected_group = selected_group_rows.get(key)
+            if selected_group is not None:
+                matched_uris = sorted(selected_group.get("matched_skill_uris", set()))
+                matched_titles = sorted(selected_group.get("matched_skill_titles", set()))
+                match_basis = "group"
+
         expected_count = len(expected_uris)
         matched_count = len(matched_uris)
         if matched_count == 0:
             status = "missing"
-        elif matched_count < expected_count:
+        elif expected_count > 0 and matched_count < expected_count:
             status = "partial"
         else:
             status = "covered"
+
         output_rows.append(
             {
                 "occupation_group": occupation_group,
@@ -655,6 +657,7 @@ def _compute_matrix_coverage_rows(
                 "matched_skill_uris": matched_uris,
                 "matched_skill_titles": matched_titles,
                 "coverage_status": status,
+                "match_basis": match_basis if matched_count > 0 else "none",
                 "matrix_bucket": bucket,
             }
         )
@@ -672,6 +675,7 @@ def _compute_matrix_coverage_rows(
                 "matched_skill_uris": sorted(selected_group.get("matched_skill_uris", set())),
                 "matched_skill_titles": sorted(selected_group.get("matched_skill_titles", set())),
                 "coverage_status": "overrepresented",
+                "match_basis": "group",
                 "matrix_bucket": str(selected_group.get("matrix_bucket") or key[0]),
             }
         )

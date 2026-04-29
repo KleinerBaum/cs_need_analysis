@@ -322,6 +322,73 @@ def test_compute_matrix_coverage_rows_marks_covered_and_partial() -> None:
     assert collab_row["coverage_status"] == "covered"
 
 
+
+
+def test_compute_matrix_coverage_rows_matches_group_when_uri_misses() -> None:
+    rows = SKILLS_MODULE._compute_matrix_coverage_rows(
+        occupation_group="251",
+        expected_must=[
+            {
+                "uri": "uri:skill:expected-only",
+                "title": "Expected only",
+                "skill_group_id": "group-core",
+                "skill_group_label": "Core",
+                "share_percent": 60.0,
+            }
+        ],
+        expected_nice=[],
+        confirmed_must=[
+            {
+                "uri": "uri:skill:confirmed-other",
+                "title": "Confirmed other",
+                "skill_group_id": "group-core",
+            }
+        ],
+        confirmed_nice=[],
+    )
+
+    assert rows[0]["coverage_status"] == "covered"
+    assert rows[0]["match_basis"] == "group"
+    assert rows[0]["matched_skill_uris"] == ["uri:skill:confirmed-other"]
+
+
+def test_compute_matrix_coverage_rows_group_match_avoids_false_missing() -> None:
+    rows = SKILLS_MODULE._compute_matrix_coverage_rows(
+        occupation_group="251",
+        expected_must=[
+            {
+                "uri": "uri:skill:a",
+                "title": "Python",
+                "skill_group_uri": "uri:group:core",
+                "skill_group_id": "group-core",
+                "skill_group_label": "Core",
+                "share_percent": 60.0,
+            },
+            {
+                "uri": "uri:skill:b",
+                "title": "SQL",
+                "skill_group_uri": "uri:group:core",
+                "skill_group_id": "group-core",
+                "skill_group_label": "Core",
+                "share_percent": 60.0,
+            },
+        ],
+        expected_nice=[],
+        confirmed_must=[
+            {
+                "uri": "uri:skill:other",
+                "title": "Other",
+                "skill_group_uri": "uri:group:core",
+                "skill_group_id": "group-core",
+            }
+        ],
+        confirmed_nice=[],
+    )
+
+    assert rows[0]["coverage_status"] == "partial"
+    assert rows[0]["coverage_status"] != "missing"
+    assert rows[0]["match_basis"] == "group"
+
 def test_compute_matrix_coverage_rows_marks_overrepresented_custom_group() -> None:
     rows = SKILLS_MODULE._compute_matrix_coverage_rows(
         occupation_group="251",
