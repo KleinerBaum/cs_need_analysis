@@ -472,6 +472,10 @@ class EscoMatrixCoverageRow(StrictSchemaModel):
     ] = Field(
         description="Deterministic coverage classification for this matrix row.",
     )
+    match_basis: Optional[Literal["uri", "group", "none"]] = Field(
+        default=None,
+        description="Optional deterministic reason explaining whether matching used URI, group fallback, or no match.",
+    )
     matrix_bucket: Literal["must", "nice"] = Field(
         description="Matrix bucket associated with the expected row."
     )

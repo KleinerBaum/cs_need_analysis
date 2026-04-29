@@ -136,6 +136,7 @@ def test_build_structured_export_payload_includes_esco_uri_and_label(
                         "matched_skill_uris": ["uri:skill:must"],
                         "matched_skill_titles": ["Python"],
                         "coverage_status": "covered",
+                        "match_basis": "uri",
                         "matrix_bucket": "must",
                     }
                 ],
@@ -187,6 +188,7 @@ def test_build_structured_export_payload_includes_esco_uri_and_label(
     assert payload["esco_matrix"]["version"] == "2026.04"
     assert payload["esco_matrix"]["coverage_rows"] == 1
     assert payload["esco_matrix_coverage"][0]["coverage_status"] == "covered"
+    assert payload["esco_matrix_coverage"][0]["match_basis"] == "uri"
     assert payload["esco_matrix_coverage_context"]["occupation_group"] == "251"
 
 
