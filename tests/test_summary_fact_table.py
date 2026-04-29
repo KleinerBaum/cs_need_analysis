@@ -197,3 +197,26 @@ def test_build_summary_fact_rows_marks_partial_multiselect_as_teilweise() -> Non
     skill_row = next(row.to_dict() for row in rows if row.feld == "Must-Haves")
     assert skill_row["Wert"] == "Python"
     assert skill_row["Status"] == "Teilweise"
+
+
+def test_build_esco_coverage_chart_spec_contains_expected_bars() -> None:
+    spec = SUMMARY_MODULE._build_esco_coverage_chart_spec(
+        metrics={
+            "essential_total": 3,
+            "optional_total": 2,
+            "essential_covered": 2,
+            "optional_covered": 1,
+        },
+        unmapped_requirements_count=2,
+    )
+
+    assert spec["mark"]["type"] == "bar"
+    values = spec["data"]["values"]
+    assert {"group": "Quelle", "category": "Must-have (Jobspec)", "value": 3} in values
+    assert {
+        "group": "Quelle",
+        "category": "Nice-to-have (Jobspec)",
+        "value": 2,
+    } in values
+    assert {"group": "Abdeckung", "category": "ESCO-unterstützt", "value": 3} in values
+    assert {"group": "Abdeckung", "category": "Nicht gemappt", "value": 2} in values
