@@ -14,8 +14,11 @@ from typing import Any, Dict, cast
 import streamlit as st
 
 from constants import (
+    DEFAULT_ESCO_DATA_SOURCE_MODE,
+    DEFAULT_ESCO_INDEX_STORAGE_PATH,
     DEFAULT_ESCO_SELECTED_VERSION,
     DEFAULT_LANGUAGE,
+    ESCO_DATA_SOURCE_MODES,
     SSKey,
     UI_PREFERENCE_ANSWER_MODE,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
@@ -244,7 +247,15 @@ def init_session_state() -> None:
             "view_obsolete": False,
             "api_mode": os.getenv("ESCO_API_MODE", "hosted").strip().lower()
             or "hosted",
+            "data_source_mode": os.getenv("ESCO_DATA_SOURCE_MODE", DEFAULT_ESCO_DATA_SOURCE_MODE).strip().lower()
+            if os.getenv("ESCO_DATA_SOURCE_MODE", DEFAULT_ESCO_DATA_SOURCE_MODE).strip().lower() in ESCO_DATA_SOURCE_MODES else DEFAULT_ESCO_DATA_SOURCE_MODE,
+            "index_storage_path": os.getenv("ESCO_INDEX_STORAGE_PATH", DEFAULT_ESCO_INDEX_STORAGE_PATH).strip() or DEFAULT_ESCO_INDEX_STORAGE_PATH,
+            "index_version": os.getenv("ESCO_INDEX_VERSION", "").strip() or (
+                os.getenv("ESCO_SELECTED_VERSION", DEFAULT_ESCO_SELECTED_VERSION).strip()
+                or DEFAULT_ESCO_SELECTED_VERSION
+            ),
         },
+        SSKey.ESCO_LAST_DATA_SOURCE.value: "",
         SSKey.ESCO_OCCUPATION_SELECTED.value: None,
         SSKey.ESCO_SELECTED_OCCUPATION_URI.value: "",
         SSKey.ESCO_OCCUPATION_PAYLOAD.value: None,
@@ -399,6 +410,7 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.ESCO_NEGATIVE_CACHE.value] = {}
     st.session_state[SSKey.ESCO_MIGRATION_LOG.value] = []
     st.session_state[SSKey.ESCO_MIGRATION_PENDING.value] = None
+    st.session_state[SSKey.ESCO_LAST_DATA_SOURCE.value] = ""
     st.session_state[SSKey.ESCO_MATRIX_METADATA.value] = {
         "source": "",
         "version": "",

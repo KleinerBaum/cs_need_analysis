@@ -274,13 +274,12 @@ def test_default_config_is_used_when_session_state_is_missing(monkeypatch) -> No
     client = esco_client.EscoClient()
     config = client._esco_config()
 
-    assert config == {
-        "base_url": "https://ec.europa.eu/esco/api/",
-        "selected_version": "v1.2.0",
-        "language": "de",
-        "view_obsolete": False,
-        "api_mode": "hosted",
-    }
+    assert config["base_url"] == "https://ec.europa.eu/esco/api/"
+    assert config["selected_version"] == "v1.2.0"
+    assert config["language"] == "de"
+    assert config["view_obsolete"] is False
+    assert config["api_mode"] == "hosted"
+    assert config["data_source_mode"] == "live_api"
 
 
 def test_esco_config_prefers_env_base_url_when_session_value_missing(

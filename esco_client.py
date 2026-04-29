@@ -13,7 +13,16 @@ from urllib.request import Request, urlopen
 
 import streamlit as st
 
-from constants import DEFAULT_ESCO_SELECTED_VERSION, SSKey
+from pathlib import Path
+
+from constants import (
+    DEFAULT_ESCO_DATA_SOURCE_MODE,
+    DEFAULT_ESCO_INDEX_STORAGE_PATH,
+    DEFAULT_ESCO_SELECTED_VERSION,
+    ESCO_DATA_SOURCE_MODES,
+    SSKey,
+)
+from esco_offline_index import OfflineEscoIndex
 
 LOGGER = logging.getLogger(__name__)
 EXTERNAL_PROVIDER_ERROR_EVENT = "external_provider_error"
@@ -523,6 +532,31 @@ class EscoClient:
             raise ValueError("conversion_endpoint must not be empty")
         return self._get(f"conversion/{clean_endpoint}", query)
 
+
+    def _load_offline_index(self, *, version: str, storage_path: str) -> OfflineEscoIndex | None:
+        return OfflineEscoIndex.load(Path(storage_path), version)
+
+    def _try_offline_get(self, endpoint: str, query: Mapping[str, object], config: Mapping[str, object]) -> dict[str, Any] | None:
+        index = self._load_offline_index(
+            version=str(config.get("index_version") or ""),
+            storage_path=str(config.get("index_storage_path") or DEFAULT_ESCO_INDEX_STORAGE_PATH),
+        )
+        if index is None:
+            return None
+        language = str(query.get("language") or config.get("language") or "de")
+        if endpoint == "search":
+            payload = index.search(text=str(query.get("text") or ""), type_name=str(query.get("type") or "occupation"), language=language, limit=int(query.get("limit") or 20))
+        elif endpoint == "terms":
+            payload = index.terms(uri=str(query.get("uri") or ""), type_name=str(query.get("type") or "occupation"), language=language)
+        elif endpoint == "resource/occupation":
+            payload = index.resource_occupation(uri=str(query.get("uri") or ""), language=language)
+        elif endpoint == "resource/related":
+            payload = index.resource_related(uri=str(query.get("uri") or ""), relation=str(query.get("relation") or ""), language=language)
+        else:
+            return None
+        self._session_state[SSKey.ESCO_LAST_DATA_SOURCE.value] = "offline_index"
+        return payload
+
     def _get(self, endpoint: str, query: Mapping[str, object]) -> dict[str, Any]:
         config = self._esco_config()
         resolved_endpoint = self._resolve_endpoint(
@@ -534,6 +568,10 @@ class EscoClient:
         selected_version = str(config["selected_version"])
         language = str(config["language"])
         view_obsolete = bool(config["view_obsolete"])
+        data_source_mode = str(config.get("data_source_mode") or DEFAULT_ESCO_DATA_SOURCE_MODE)
+        if data_source_mode not in ESCO_DATA_SOURCE_MODES:
+            data_source_mode = DEFAULT_ESCO_DATA_SOURCE_MODE
+
         signature = self._build_request_signature(
             base_url=base_url,
             endpoint=resolved_endpoint,
@@ -541,13 +579,37 @@ class EscoClient:
             language=language,
             query=injected_query,
         )
+        if data_source_mode == "offline_index":
+            offline_payload = self._try_offline_get(resolved_endpoint, injected_query, config)
+            if offline_payload is not None:
+                return offline_payload
+
         self._raise_if_negative_cached(
             signature=signature,
             endpoint=resolved_endpoint,
         )
 
+        if data_source_mode == "hybrid":
+            try:
+                payload = _cached_get_json(
+                    base_url=base_url,
+                    endpoint=resolved_endpoint,
+                    query_items=query_items,
+                    cache_selected_version=selected_version,
+                    cache_language=language,
+                    cache_view_obsolete=view_obsolete,
+                    timeout_seconds=self._timeout_seconds,
+                )
+                self._session_state[SSKey.ESCO_LAST_DATA_SOURCE.value] = "live_api"
+                return payload
+            except EscoClientError:
+                offline_payload = self._try_offline_get(resolved_endpoint, injected_query, config)
+                if offline_payload is not None:
+                    return offline_payload
+                raise
+
         try:
-            return _cached_get_json(
+            payload = _cached_get_json(
                 base_url=base_url,
                 endpoint=resolved_endpoint,
                 query_items=query_items,
@@ -556,6 +618,8 @@ class EscoClient:
                 cache_view_obsolete=view_obsolete,
                 timeout_seconds=self._timeout_seconds,
             )
+            self._session_state[SSKey.ESCO_LAST_DATA_SOURCE.value] = "live_api"
+            return payload
         except EscoClientError as exc:
             if exc.status_code is not None and 400 <= exc.status_code < 500:
                 self._store_negative_cache(
@@ -596,6 +660,9 @@ class EscoClient:
             "language": str(config.get("language") or "de"),
             "view_obsolete": _coerce_bool(config.get("view_obsolete"), default=False),
             "api_mode": api_mode,
+            "data_source_mode": str(config.get("data_source_mode") or os.getenv("ESCO_DATA_SOURCE_MODE", DEFAULT_ESCO_DATA_SOURCE_MODE)).strip().lower(),
+            "index_storage_path": str(config.get("index_storage_path") or os.getenv("ESCO_INDEX_STORAGE_PATH", DEFAULT_ESCO_INDEX_STORAGE_PATH)).strip() or DEFAULT_ESCO_INDEX_STORAGE_PATH,
+            "index_version": str(config.get("index_version") or os.getenv("ESCO_INDEX_VERSION", resolved_selected_version)).strip() or resolved_selected_version,
         }
 
     @staticmethod

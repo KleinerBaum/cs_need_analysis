@@ -287,3 +287,23 @@ Der strukturierte Summary-Export enthält – sofern vorhanden – folgende ESCO
 - `esco_skills_must` / `esco_skills_nice`: übernommene ESCO-Skills
 - `esco_unmapped_requirement_terms` / `esco_unmapped_role_terms`: offene, nicht normalisierte Begriffe
 - `esco_unmapped_term_actions`: dokumentierte Nutzerentscheidung je offenem Begriff
+
+
+## ESCO Offline Index Build
+
+Use `scripts/build_esco_index.py` to create versioned offline ESCO artifacts under `data/esco_index/<version>/`.
+
+```bash
+python scripts/build_esco_index.py --source-dir /path/to/esco_bulk --version v1.2.0
+```
+
+Generated artifacts:
+- `data/esco_index/<version>/esco_index.sqlite`
+- `data/esco_index/<version>/manifest.json`
+
+Runtime pinning/config:
+- `ESCO_DATA_SOURCE_MODE` (`live_api`, `offline_index`, `hybrid`)
+- `ESCO_INDEX_STORAGE_PATH` (default `data/esco_index`)
+- `ESCO_INDEX_VERSION` (defaults to selected ESCO version)
+
+In `hybrid` mode, the app queries the live API first and falls back to the offline index when the API is unavailable.

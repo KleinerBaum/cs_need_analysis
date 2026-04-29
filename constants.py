@@ -19,6 +19,9 @@ from typing import Final, List
 APP_TITLE: Final[str] = "Cognitive Staffing – Vacancy Intake Wizard"
 DEFAULT_LANGUAGE: Final[str] = "de"
 DEFAULT_ESCO_SELECTED_VERSION: Final[str] = "v1.2.0"
+DEFAULT_ESCO_INDEX_STORAGE_PATH: Final[str] = "data/esco_index"
+DEFAULT_ESCO_DATA_SOURCE_MODE: Final[str] = "live_api"
+ESCO_DATA_SOURCE_MODES: Final[tuple[str, str, str]] = ("live_api", "offline_index", "hybrid")
 UI_MODE_VALUES: Final[tuple[str, str, str]] = ("quick", "standard", "expert")
 UI_MODE_DISPLAY_LABELS: Final[dict[str, str]] = {
     "quick": "schnell",
@@ -200,6 +203,7 @@ class SSKey(str, Enum):
     EMPLOYMENT_CONTRACT_LAST_MODE = "cs.summary.employment_contract_last_mode"
     EMPLOYMENT_CONTRACT_LAST_MODELS = "cs.summary.employment_contract_last_models"
     ESCO_CONFIG = "cs.esco_config"
+    ESCO_LAST_DATA_SOURCE = "cs.esco_last_data_source"
     ESCO_OCCUPATION_SELECTED = "cs.esco_occupation_selected"
     ESCO_SELECTED_OCCUPATION_URI = "cs.esco_selected_occupation_uri"
     ESCO_OCCUPATION_PAYLOAD = "cs.esco_occupation_payload"
