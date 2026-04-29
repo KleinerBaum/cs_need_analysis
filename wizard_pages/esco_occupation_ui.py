@@ -659,9 +659,12 @@ def _safe_esco_config(client: EscoClient) -> Mapping[str, object]:
 
 def _build_capability_status_rows(
     *,
+    source_mode: str | None,
     api_mode: str | None,
     selected_version: str | None,
     capabilities: EscoApiCapabilities | None,
+    matrix_loaded: bool | None,
+    matrix_coverage_available: bool | None,
 ) -> list[_CapabilityStatusRow]:
     supported_relations = (
         capabilities.supported_occupation_relations if capabilities is not None else ()
@@ -669,15 +672,24 @@ def _build_capability_status_rows(
     unsupported_relations = (
         capabilities.unsupported_occupation_relations if capabilities is not None else ()
     )
-    supported_relations_text = (
-        ", ".join(supported_relations) if supported_relations else "—"
+    source_mode_value = (
+        source_mode.strip() if isinstance(source_mode, str) and source_mode.strip() else "—"
     )
-    unsupported_relations_text = (
-        ", ".join(unsupported_relations) if unsupported_relations else "—"
-    )
+    api_skill_relations_supported = bool(supported_relations)
+    matrix_loaded_state = _capability_state(matrix_loaded)
+    matrix_coverage_state = _capability_state(matrix_coverage_available)
     return [
         {
-            "label": "API mode",
+            "label": "Quelle",
+            "state": (
+                _CAPABILITY_STATE_SUPPORTED
+                if source_mode_value != "—"
+                else _CAPABILITY_STATE_NOT_LOADED
+            ),
+            "value": source_mode_value,
+        },
+        {
+            "label": "API-Modus",
             "state": (
                 _CAPABILITY_STATE_SUPPORTED
                 if api_mode and api_mode.strip()
@@ -686,7 +698,7 @@ def _build_capability_status_rows(
             "value": api_mode.strip() if isinstance(api_mode, str) and api_mode.strip() else "—",
         },
         {
-            "label": "selectedVersion",
+            "label": "ESCO-Version",
             "state": (
                 _CAPABILITY_STATE_SUPPORTED
                 if selected_version and selected_version.strip()
@@ -699,57 +711,66 @@ def _build_capability_status_rows(
             ),
         },
         {
-            "label": "Supported occupation relations",
+            "label": "Occupation-Skill API-Relation",
             "state": (
                 _CAPABILITY_STATE_SUPPORTED
-                if supported_relations
-                else _CAPABILITY_STATE_NOT_LOADED
-            ),
-            "value": supported_relations_text,
-        },
-        {
-            "label": "Unsupported occupation relations",
-            "state": (
-                _CAPABILITY_STATE_UNSUPPORTED
-                if unsupported_relations
-                else _CAPABILITY_STATE_NOT_LOADED
-            ),
-            "value": unsupported_relations_text,
-        },
-        {
-            "label": "Skill group share support",
-            "state": (
-                _capability_state(capabilities.supports_occupation_skill_group_share)
-                if capabilities is not None
+                if api_skill_relations_supported
                 else _CAPABILITY_STATE_NOT_LOADED
             ),
             "value": (
-                "available"
-                if capabilities is not None
-                and capabilities.supports_occupation_skill_group_share
-                else (
-                    "not supported"
-                    if capabilities is not None
-                    else "—"
-                )
+                "verfügbar"
+                if api_skill_relations_supported
+                else "nicht geladen"
             ),
         },
         {
-            "label": "Knowledge relation support",
+            "label": "Knowledge-Relation",
             "state": (
                 _capability_state(capabilities.supports_occupation_knowledge_relations)
                 if capabilities is not None
                 else _CAPABILITY_STATE_NOT_LOADED
             ),
             "value": (
-                "available"
+                "verfügbar"
                 if capabilities is not None
                 and capabilities.supports_occupation_knowledge_relations
                 else (
-                    "expected unsupported behavior"
+                    "nicht unterstützt"
                     if capabilities is not None
                     else "—"
                 )
+            ),
+        },
+        {
+            "label": "API Skill-Group-Share",
+            "state": (
+                _capability_state(capabilities.supports_occupation_skill_group_share)
+                if capabilities is not None
+                else _CAPABILITY_STATE_NOT_LOADED
+            ),
+            "value": (
+                "verfügbar"
+                if capabilities is not None
+                and capabilities.supports_occupation_skill_group_share
+                else (
+                    "nicht unterstützt"
+                    if capabilities is not None
+                    else "—"
+                )
+            ),
+        },
+        {
+            "label": "Offline-Matrix geladen",
+            "state": matrix_loaded_state,
+            "value": "geladen" if matrix_loaded else "nicht geladen",
+        },
+        {
+            "label": "Matrix-Coverage",
+            "state": matrix_coverage_state,
+            "value": (
+                "verfügbar"
+                if matrix_coverage_available
+                else "nicht verfügbar"
             ),
         },
     ]
@@ -761,12 +782,24 @@ def _render_capability_status_panel(
     capabilities: EscoApiCapabilities | None,
 ) -> None:
     config = _safe_esco_config(client)
+    source_mode = str(config.get("data_source_mode") or "").strip() if config else ""
     api_mode = str(config.get("api_mode") or "").strip() if config else ""
     selected_version = str(config.get("selected_version") or "").strip() if config else ""
+    matrix_loaded_raw = st.session_state.get(SSKey.ESCO_MATRIX_LOADED.value)
+    matrix_loaded = matrix_loaded_raw if isinstance(matrix_loaded_raw, bool) else None
+    matrix_coverage_rows_raw = st.session_state.get(SSKey.ESCO_MATRIX_COVERAGE_ROWS.value)
+    matrix_coverage_available = (
+        bool(matrix_coverage_rows_raw)
+        if isinstance(matrix_coverage_rows_raw, list)
+        else None
+    )
     rows = _build_capability_status_rows(
+        source_mode=source_mode,
         api_mode=api_mode,
         selected_version=selected_version,
         capabilities=capabilities,
+        matrix_loaded=matrix_loaded,
+        matrix_coverage_available=matrix_coverage_available,
     )
     with st.expander("ESCO Capability Status", expanded=False):
         for row in rows:

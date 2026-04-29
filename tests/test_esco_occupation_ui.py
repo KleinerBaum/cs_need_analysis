@@ -18,42 +18,64 @@ def test_build_capability_status_rows_with_capabilities() -> None:
     )
 
     rows = esco_occupation_ui._build_capability_status_rows(
+        source_mode="live_api",
         api_mode="hosted",
         selected_version="v1.2.0",
         capabilities=capabilities,
+        matrix_loaded=False,
+        matrix_coverage_available=False,
     )
 
     assert rows[0] == {
-        "label": "API mode",
+        "label": "Quelle",
+        "state": "supported",
+        "value": "live_api",
+    }
+    assert rows[1] == {
+        "label": "API-Modus",
         "state": "supported",
         "value": "hosted",
     }
-    assert rows[1] == {
-        "label": "selectedVersion",
+    assert rows[2] == {
+        "label": "ESCO-Version",
         "state": "supported",
         "value": "v1.2.0",
     }
-    assert rows[2]["state"] == "supported"
-    assert "hasEssentialSkill" in rows[2]["value"]
-    assert rows[3]["state"] == "unsupported"
-    assert "hasEssentialKnowledge" in rows[3]["value"]
+    assert rows[3] == {
+        "label": "Occupation-Skill API-Relation",
+        "state": "supported",
+        "value": "verfügbar",
+    }
     assert rows[4] == {
-        "label": "Skill group share support",
+        "label": "Knowledge-Relation",
         "state": "unsupported",
-        "value": "not supported",
+        "value": "nicht unterstützt",
     }
     assert rows[5] == {
-        "label": "Knowledge relation support",
+        "label": "API Skill-Group-Share",
         "state": "unsupported",
-        "value": "expected unsupported behavior",
+        "value": "nicht unterstützt",
+    }
+    assert rows[6] == {
+        "label": "Offline-Matrix geladen",
+        "state": "unsupported",
+        "value": "nicht geladen",
+    }
+    assert rows[7] == {
+        "label": "Matrix-Coverage",
+        "state": "unsupported",
+        "value": "nicht verfügbar",
     }
 
 
 def test_build_capability_status_rows_not_loaded_without_capabilities() -> None:
     rows = esco_occupation_ui._build_capability_status_rows(
+        source_mode="",
         api_mode="",
         selected_version="",
         capabilities=None,
+        matrix_loaded=None,
+        matrix_coverage_available=None,
     )
 
     assert rows[0]["state"] == "not loaded"
@@ -62,6 +84,31 @@ def test_build_capability_status_rows_not_loaded_without_capabilities() -> None:
     assert rows[3]["state"] == "not loaded"
     assert rows[4]["state"] == "not loaded"
     assert rows[5]["state"] == "not loaded"
+    assert rows[6]["state"] == "not loaded"
+    assert rows[7]["state"] == "not loaded"
+
+
+def test_build_capability_status_rows_offline_index_matrix_available() -> None:
+    rows = esco_occupation_ui._build_capability_status_rows(
+        source_mode="offline_index",
+        api_mode="hosted",
+        selected_version="v1.2.0",
+        capabilities=None,
+        matrix_loaded=True,
+        matrix_coverage_available=True,
+    )
+
+    assert rows[0]["value"] == "offline_index"
+    assert rows[6] == {
+        "label": "Offline-Matrix geladen",
+        "state": "supported",
+        "value": "geladen",
+    }
+    assert rows[7] == {
+        "label": "Matrix-Coverage",
+        "state": "supported",
+        "value": "verfügbar",
+    }
 
 
 def test_extract_first_text_supports_plain_string() -> None:
