@@ -12,9 +12,8 @@ inject_site_styles()
 render_hero(
     title="Über Cognitive Staffing",
     lead=(
-        "Cognitive Staffing steht für strukturiertes, intelligentes und verantwortungsbewusstes Recruiting. "
-        "Wir entwickeln digitale Werkzeuge, die Arbeitgebern helfen, Stellen klarer zu definieren, "
-        "Prozesse schlanker zu gestalten und bessere Entscheidungen früher im Recruiting-Verlauf zu treffen."
+        "Der Firmengründer, Gerrit Fabisch, entwickelt digitale Werkzeuge, die Arbeitgebern helfen, "
+        "Prozesse klarer zu definieren und durch den Einsatz von KI zu optimieren."
     ),
     eyebrow="Über uns",
 )
@@ -23,54 +22,30 @@ render_meta_line("Präzision · Steuerbarkeit · Wiederverwendbarkeit")
 render_cards(
     [
         {
-            "title": "Unser Ansatz",
+            "title": "Mein Werdegang",
             "body": (
-                "Viele Recruiting-Probleme beginnen nicht im Sourcing, sondern viel früher: "
-                "bei einer unklaren oder unvollständigen Bedarfserfassung. Genau dort setzen wir an."
+                "Ich bringe dafür ein Profil mit, das Business-Verständnis, Schnittstellenkompetenz und aktuelle KI-Praxis "
+                "zusammenführt. Nach meinem BWL-Studium habe ich über viele Jahre in vertriebs- und recruitingnahen Rollen "
+                "gearbeitet – mit Verantwortung für Kundenentwicklung, Verhandlungen, Projektstabilität, KPI-Steuerung und "
+                "die Zusammenarbeit mit unterschiedlichen internen und externen Stakeholdern."
             ),
         },
         {
-            "title": "Unser Verständnis von KI",
+            "title": "Was ich biete",
             "body": (
-                "Wir nutzen KI nicht als Show-Effekt, sondern als Werkzeug innerhalb eines kontrollierten Systems. "
-                "Struktur, Nachvollziehbarkeit und fachliche Nutzbarkeit stehen im Vordergrund."
+                "In meiner aktuellen Tätigkeit als Gründer und KI-Recruitment-Berater entwickle ich einen KI-gestützten "
+                "Prototypen zur Optimierung von Recruiting-Aktivitäten auf Basis der OpenAI-API, ESCO-API und eines eigenen "
+                "Vector Stores. Ergänzt wird dies durch meine Data-Science-Weiterbildung sowie LLM-spezifische Kurse zu "
+                "strukturierten Outputs und Reasoning."
             ),
         },
         {
-            "title": "Unser Produktziel",
+            "title": "Was ich mir wünsche",
             "body": (
-                "Aus verstreuten Informationen soll ein klarer, belastbarer und weiterverwendbarer Recruiting-Arbeitsstand entstehen."
+                "Ich sehe KI nicht als Selbstzweck, sondern als Hebel für bessere Entscheidungen, effizientere Prozesse und "
+                "einen konkreten Mehrwert für Fachbereiche und Kunden. Diese Haltung möchte ich in ein Umfeld einbringen, "
+                "das KI bereits strategisch und international verankert."
             ),
-        },
-    ],
-    columns=3,
-)
-
-st.markdown("## Woran wir glauben")
-st.markdown(
-    """
-Recruiting wird besser, wenn Anforderungen früh klarer werden.  
-Je strukturierter der erste Schritt, desto konsistenter werden Jobanzeige, Suche, Gesprächsführung und Auswahl.
-
-Deshalb bauen wir keine isolierten Einzelgeneratoren, sondern Werkzeuge, die Zusammenhänge sichtbar machen:
-zwischen Rolle und Kontext, zwischen Anforderungen und Markt, zwischen Recruiting und interner Abstimmung.
-"""
-)
-
-st.markdown("## Wofür wir stehen")
-render_cards(
-    [
-        {
-            "title": "Präzision statt Bauchgefühl",
-            "body": "Wir machen Anforderungen explizit, vergleichbar und belastbar.",
-        },
-        {
-            "title": "Struktur statt Medienbruch",
-            "body": "Wir reduzieren Übersetzungsarbeit zwischen Fachbereich, Recruiting und Management.",
-        },
-        {
-            "title": "Technologie mit Augenmaß",
-            "body": "Wir setzen moderne KI dort ein, wo sie tatsächlich Qualität und Nutzbarkeit erhöht.",
         },
     ],
     columns=3,
