@@ -746,6 +746,61 @@ def _compute_esco_coverage_metrics(shared_esco: EscoSharedFields) -> dict[str, i
     }
 
 
+def _build_esco_coverage_chart_spec(
+    *, metrics: dict[str, int], unmapped_requirements_count: int
+) -> dict[str, Any]:
+    essential_total = int(metrics.get("essential_total", 0) or 0)
+    optional_total = int(metrics.get("optional_total", 0) or 0)
+    covered_total = int(metrics.get("essential_covered", 0) or 0) + int(
+        metrics.get("optional_covered", 0) or 0
+    )
+    requirements_total = essential_total + optional_total
+    unmapped_total = max(int(unmapped_requirements_count or 0), 0)
+
+    return {
+        "data": {
+            "values": [
+                {
+                    "group": "Quelle",
+                    "category": "Must-have (Jobspec)",
+                    "value": essential_total,
+                },
+                {
+                    "group": "Quelle",
+                    "category": "Nice-to-have (Jobspec)",
+                    "value": optional_total,
+                },
+                {
+                    "group": "Abdeckung",
+                    "category": "ESCO-unterstützt",
+                    "value": covered_total,
+                },
+                {
+                    "group": "Abdeckung",
+                    "category": "Nicht gemappt",
+                    "value": unmapped_total,
+                },
+                {
+                    "group": "Abdeckung",
+                    "category": "Gesamtanforderungen",
+                    "value": requirements_total,
+                },
+            ]
+        },
+        "mark": {"type": "bar", "cornerRadiusTopLeft": 3, "cornerRadiusTopRight": 3},
+        "encoding": {
+            "x": {"field": "category", "type": "nominal", "title": ""},
+            "y": {"field": "value", "type": "quantitative", "title": "Anzahl"},
+            "color": {"field": "group", "type": "nominal", "title": "Sicht"},
+            "tooltip": [
+                {"field": "group", "type": "nominal", "title": "Sicht"},
+                {"field": "category", "type": "nominal", "title": "Kategorie"},
+                {"field": "value", "type": "quantitative", "title": "Anzahl"},
+            ],
+        },
+    }
+
+
 def _extract_skills_step_raw_terms(job_extract_payload: Any) -> list[str]:
     if not isinstance(job_extract_payload, dict):
         return []
@@ -1923,6 +1978,19 @@ def _build_country_readiness_items(job: JobAdExtract) -> list[tuple[str, str, bo
 
 def _render_summary_facts_section(vm: SummaryViewModel) -> None:
     st.markdown("### Fakten")
+    shared_esco = _build_esco_shared_fields()
+    coverage_metrics = _compute_esco_coverage_metrics(shared_esco)
+    requirements_total = coverage_metrics["essential_total"] + coverage_metrics["optional_total"]
+    unmapped_requirements = len(shared_esco.get("unmapped_terms", []))
+    if requirements_total == 0 and unmapped_requirements == 0:
+        st.info("Keine ESCO-RAG-Anforderungsdaten verfügbar.")
+    else:
+        st.caption("ESCO RAG Coverage: Quellenabdeckung und Mapping-Status der Anforderungen")
+        chart_spec = _build_esco_coverage_chart_spec(
+            metrics=coverage_metrics,
+            unmapped_requirements_count=unmapped_requirements,
+        )
+        st.vega_lite_chart(chart_spec, use_container_width=True)
     _render_summary_facts_table([row.to_dict() for row in vm.fact_rows])
 
 
