@@ -115,7 +115,11 @@ python -c "from eures_mapping import load_national_code_lookup_from_file as f; p
 
 ## ESCO Matrix Priors (optional)
 
-Für den Skills-Schritt kann zusätzlich ein vorverarbeitetes Matrix-Artefakt (CSV/JSON) aktiviert werden, das ESCO-Skill-Priors pro Occupation-URI (oder Occupation-Group) bereitstellt.
+Aktueller Stand (Implementierung):
+
+- Loader/Format-Parsing liegt in `esco_matrix.py` (`load_esco_matrix`).
+- Session-State wird über `SSKey.ESCO_MATRIX_ENABLED`, `SSKey.ESCO_MATRIX_LOADED` und `SSKey.ESCO_MATRIX_METADATA` geführt.
+- Im Skills-Schritt (`wizard_pages/05_skills.py`) werden Priors über `_load_matrix_priors(...)` geladen und zu den Live-ESCO-Skills hinzugefügt.
 
 Aktivierung:
 
@@ -124,12 +128,25 @@ export ESCO_MATRIX_ENABLED=true
 export ESCO_MATRIX_PATH=/pfad/zur/esco_matrix.json  # alternativ .csv
 ```
 
-Verhalten:
+Input-Formate (aktuell):
+
+- **JSON**: Mapping pro Occupation-URI/-Group auf Must-/Nice-Skill-URIs.
+- **CSV**: tabellarisches Äquivalent mit Occupation-Referenz + Skill-Zeilen inkl. Must/Nice-Klassifikation.
+- **Nicht enthalten**: Es gibt derzeit **keine XLSX-Import-Pipeline**.
+
+Output-Verhalten (aktuell):
 
 - Live-ESCO-Skills bleiben die primäre Quelle.
-- Matrix-Kandidaten werden zusätzlich geladen und mit Badge `ESCO matrix prior` ausgewiesen.
+- Matrix-Priors werden als **zusätzliche Must-/Nice-Kandidaten** eingeblendet.
+- Kandidaten aus der Matrix sind mit Badge `ESCO matrix prior` markiert.
 - Merge/Dedupe erfolgt deterministisch per ESCO-URI; Must/Nice-Semantik bleibt erhalten.
 - Wenn keine Matrix vorhanden ist (oder Laden fehlschlägt), läuft der Flow ohne Abbruch mit den bisherigen Live-API-Vorschlägen weiter.
+
+Explizite Lücken (aktuell):
+
+- Keine XLSX-Import-Pipeline.
+- Kein ISCO-Distribution-Benchmarking.
+- Keine erweiterten Coverage-/Coherence-Metriken.
 
 ## OpenAI Konfiguration (Secrets, Env, UI)
 
