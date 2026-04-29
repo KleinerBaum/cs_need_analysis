@@ -1003,7 +1003,7 @@ def _render_selected_occupation_detail(
 
         uri = str(payload.get("uri") or "").strip() if isinstance(payload, dict) else ""
         version = str(payload.get("version") or "").strip() if isinstance(payload, dict) else ""
-        source = "ESCO API"
+        source = str(st.session_state.get(SSKey.ESCO_LAST_DATA_SOURCE.value) or "live_api")
         meta_items: list[str] = [f"Quelle: {source}"]
         if version:
             meta_items.append(f"Version: {version}")

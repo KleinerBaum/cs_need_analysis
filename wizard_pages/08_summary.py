@@ -920,6 +920,12 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
     selected_version = str(esco_config.get("selected_version") or "").strip()
     if selected_version:
         payload["esco_version"] = selected_version
+    esco_source = str(st.session_state.get(SSKey.ESCO_LAST_DATA_SOURCE.value) or "").strip()
+    if esco_source:
+        payload["esco_data_source"] = esco_source
+    data_source_mode = str(esco_config.get("data_source_mode") or "").strip()
+    if data_source_mode:
+        payload["esco_data_source_mode"] = data_source_mode
     matrix_metadata = st.session_state.get(SSKey.ESCO_MATRIX_METADATA.value, {})
     matrix_loaded = bool(st.session_state.get(SSKey.ESCO_MATRIX_LOADED.value, False))
     if isinstance(matrix_metadata, dict) and (matrix_loaded or matrix_metadata):
