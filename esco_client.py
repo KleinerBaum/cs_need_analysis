@@ -48,6 +48,9 @@ OCCUPATION_RELATION_ESSENTIAL_KNOWLEDGE = "hasEssentialKnowledge"
 OCCUPATION_RELATION_OPTIONAL_KNOWLEDGE = "hasOptionalKnowledge"
 
 ENDPOINT_OCCUPATION_SKILL_GROUP_SHARE = "resource/occupationSkillsGroupShare"
+OFFLINE_INDEX_SUPPORTED_ENDPOINTS = frozenset(
+    {"search", "terms", "resource/occupation", "resource/related"}
+)
 
 _ALL_OCCUPATION_RELATIONS: tuple[str, ...] = (
     OCCUPATION_RELATION_ESSENTIAL_SKILL,
@@ -537,6 +540,8 @@ class EscoClient:
         return OfflineEscoIndex.load(Path(storage_path), version)
 
     def _try_offline_get(self, endpoint: str, query: Mapping[str, object], config: Mapping[str, object]) -> dict[str, Any] | None:
+        if endpoint not in OFFLINE_INDEX_SUPPORTED_ENDPOINTS:
+            return None
         index = self._load_offline_index(
             version=str(config.get("index_version") or ""),
             storage_path=str(config.get("index_storage_path") or DEFAULT_ESCO_INDEX_STORAGE_PATH),
@@ -580,9 +585,34 @@ class EscoClient:
             query=injected_query,
         )
         if data_source_mode == "offline_index":
+            if resolved_endpoint not in OFFLINE_INDEX_SUPPORTED_ENDPOINTS:
+                LOGGER.warning(
+                    "event=%s provider=esco endpoint=%s mode=offline_index reason=unsupported_offline_endpoint",
+                    EXTERNAL_PROVIDER_REQUEST_ERROR_EVENT,
+                    resolved_endpoint,
+                )
+                raise EscoClientError(
+                    status_code=None,
+                    endpoint=resolved_endpoint,
+                    message=(
+                        "The requested ESCO endpoint is not available in offline_index mode."
+                    ),
+                )
             offline_payload = self._try_offline_get(resolved_endpoint, injected_query, config)
             if offline_payload is not None:
                 return offline_payload
+            LOGGER.warning(
+                "event=%s provider=esco endpoint=%s mode=offline_index reason=index_unavailable",
+                EXTERNAL_PROVIDER_ERROR_EVENT,
+                resolved_endpoint,
+            )
+            raise EscoClientError(
+                status_code=None,
+                endpoint=resolved_endpoint,
+                message=(
+                    "The offline ESCO index is unavailable for offline_index mode."
+                ),
+            )
 
         self._raise_if_negative_cached(
             signature=signature,

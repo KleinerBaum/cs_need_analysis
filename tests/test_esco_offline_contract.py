@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+import esco_client
 from esco_client import EscoClient
 
 
@@ -50,3 +53,36 @@ def test_offline_mode_contract_shapes(tmp_path: Path) -> None:
 
     related_payload = client.resource_related(uri="occ:1", relation="hasEssentialSkill")
     assert isinstance(related_payload.get("_embedded", {}).get("results", []), list)
+
+
+def test_offline_mode_unsupported_endpoint_does_not_call_live_api(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    index_root = _write_minimal_index(tmp_path)
+    session_state = {
+        "cs.esco_config": {
+            "data_source_mode": "offline_index",
+            "index_storage_path": str(index_root),
+            "index_version": "vtest",
+            "language": "de",
+            "selected_version": "vtest",
+        }
+    }
+    client = EscoClient(session_state=session_state)
+    call_counter = {"count": 0}
+
+    def fail_if_live_api_called(**_kwargs):
+        call_counter["count"] += 1
+        raise AssertionError("_cached_get_json should not be called in offline_index mode")
+
+    monkeypatch.setattr(esco_client, "_cached_get_json", fail_if_live_api_called)
+
+    with pytest.raises(esco_client.EscoClientError) as exc_info:
+        client.suggest2(text="Software")
+
+    assert (
+        str(exc_info.value)
+        == "The requested ESCO endpoint is not available in offline_index mode."
+    )
+    assert exc_info.value.endpoint == "suggest2"
+    assert call_counter["count"] == 0
