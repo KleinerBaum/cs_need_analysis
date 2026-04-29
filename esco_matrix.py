@@ -57,19 +57,60 @@ def _append_record(
     bucket: str,
     skill_uri: str,
     title: str,
+    occupation_group: str = "",
+    skill_group_uri: str = "",
+    skill_group_id: str = "",
+    skill_group_label: str = "",
+    share_percent: float | None = None,
 ) -> None:
     key = key.strip()
     if not key:
         return
-    target.setdefault(key, {"must": [], "nice": []})[bucket].append(
-        {
-            "uri": skill_uri,
-            "title": title or skill_uri,
-            "type": "skill",
-            "source": "ESCO matrix prior",
-            "matrix_bucket": bucket,
-        }
-    )
+    candidate: dict[str, Any] = {
+        "uri": skill_uri,
+        "title": title or skill_uri,
+        "type": "skill",
+        "source": "ESCO matrix prior",
+        "matrix_bucket": bucket,
+    }
+    if occupation_group:
+        candidate["occupation_group"] = occupation_group
+    if skill_group_uri:
+        candidate["skill_group_uri"] = skill_group_uri
+    if skill_group_id:
+        candidate["skill_group_id"] = skill_group_id
+    if skill_group_label:
+        candidate["skill_group_label"] = skill_group_label
+    if share_percent is not None:
+        candidate["share_percent"] = share_percent
+    target.setdefault(key, {"must": [], "nice": []})[bucket].append(candidate)
+
+
+def _coerce_share_percent(value: object) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip().replace(",", ".").replace("%", "")
+    if not text:
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def _resolve_skill_uri(row: dict[str, Any]) -> str:
+    skill_uri = str(row.get("skill_uri") or "").strip()
+    if skill_uri:
+        return skill_uri
+    skill_group_uri = str(row.get("skill_group_uri") or "").strip()
+    if skill_group_uri:
+        return skill_group_uri
+    skill_group_id = str(row.get("skill_group_id") or "").strip()
+    if skill_group_id:
+        return f"urn:esco:skill-group:{skill_group_id}"
+    return ""
 
 
 def load_esco_matrix(path: str | Path) -> EscoMatrixLookup:
@@ -99,17 +140,45 @@ def load_esco_matrix(path: str | Path) -> EscoMatrixLookup:
     for row in rows:
         occupation_uri = str(row.get("occupation_uri") or "").strip()
         occupation_group = str(row.get("occupation_group") or "").strip().casefold()
-        skill_uri = str(row.get("skill_uri") or "").strip()
+        skill_uri = _resolve_skill_uri(row)
+        skill_group_uri = str(row.get("skill_group_uri") or "").strip()
+        skill_group_id = str(row.get("skill_group_id") or "").strip()
+        skill_group_label = str(row.get("skill_group_label") or "").strip()
+        share_percent = _coerce_share_percent(row.get("share_percent"))
         title = str(row.get("skill_title") or row.get("title") or "").strip()
         bucket = _normalize_bucket(str(row.get("bucket") or row.get("relation") or ""))
         if not skill_uri:
-            raise ValueError("Matrix record missing required field 'skill_uri'.")
+            raise ValueError(
+                "Matrix record requires skill_uri or skill_group_uri or skill_group_id."
+            )
         if not occupation_uri and not occupation_group:
             raise ValueError("Matrix record requires occupation_uri or occupation_group.")
         if occupation_uri:
-            _append_record(by_uri, key=occupation_uri, bucket=bucket, skill_uri=skill_uri, title=title)
+            _append_record(
+                by_uri,
+                key=occupation_uri,
+                bucket=bucket,
+                skill_uri=skill_uri,
+                title=title,
+                occupation_group=occupation_group,
+                skill_group_uri=skill_group_uri,
+                skill_group_id=skill_group_id,
+                skill_group_label=skill_group_label,
+                share_percent=share_percent,
+            )
         if occupation_group:
-            _append_record(by_group, key=occupation_group, bucket=bucket, skill_uri=skill_uri, title=title)
+            _append_record(
+                by_group,
+                key=occupation_group,
+                bucket=bucket,
+                skill_uri=skill_uri,
+                title=title,
+                occupation_group=occupation_group,
+                skill_group_uri=skill_group_uri,
+                skill_group_id=skill_group_id,
+                skill_group_label=skill_group_label,
+                share_percent=share_percent,
+            )
 
     return EscoMatrixLookup(
         by_occupation_uri=by_uri,
