@@ -109,6 +109,12 @@ def render(ctx: WizardContext) -> None:
             "- **KI-Unterstützung (RAG):** Wir nutzen ESCO-Daten in einem Retrieval-Augmented-Generation-Ansatz (RAG). Das bedeutet: Beim Generieren von Texten (z.B. vorgeschlagene Aufgaben oder Umschreibungen) werden relevante ESCO-Beschreibungen und Skill-Listen aus der Wissensdatenbank abgerufen und als Faktenbasis eingesetzt. Dadurch erhält die KI konkreten Kontext statt nur freier Texte.\n"
             "- **Anforderungsnormalisierung:** Unbekannte oder freie Stichworte in einer Stellenanzeige können durch ESCO-Skills ergänzt oder abgeglichen werden. Die App ermöglicht, fehlende Skills zuzuordnen oder als unternehmensspezifisch zu belassen."
         )
+        st.caption(
+            "Dieser Dienst stützt sich auf die ESCO-Klassifikation der Europäischen Kommission."
+        )
+        st.caption(
+            "Diese Veröffentlichung stützt sich auf die ESCO-Klassifikation der Europäischen Kommission."
+        )
     with rag_col:
         st.badge("RAG + LLM")
         st.subheader(
