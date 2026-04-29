@@ -13,6 +13,7 @@ from esco_client import (
     EscoClientError,
 )
 from esco_matrix import load_esco_matrix
+from esco_rag import extract_skill_suggestions, retrieve_esco_context
 from llm_client import (
     generate_requirement_gap_suggestions,
 )
@@ -181,6 +182,7 @@ def _merge_llm_skill_suggestions(
     blocked_labels: list[str],
 ) -> list[dict[str, Any]]:
     accepted: list[dict[str, Any]] = []
+    seen_uris: set[str] = set()
     seen = {
         _normalize_term(label)
         for label in blocked_labels
@@ -188,19 +190,23 @@ def _merge_llm_skill_suggestions(
     }
     for item in llm_skills:
         label = str(item.get("label") or "").strip()
+        uri = str(item.get("uri") or "").strip()
         normalized = _normalize_term(label)
-        if not normalized or normalized in seen:
+        if (uri and uri in seen_uris) or not normalized or normalized in seen:
             continue
         accepted.append(
             {
                 "label": label,
-                "source": "AI suggestion",
+                "uri": uri,
+                "source": str(item.get("source") or "AI suggestion").strip(),
                 "importance": str(item.get("importance") or "").strip(),
                 "rationale": str(item.get("rationale") or "").strip(),
                 "evidence": str(item.get("evidence") or "").strip(),
             }
         )
         seen.add(normalized)
+        if uri:
+            seen_uris.add(uri)
     return accepted
 
 
@@ -1185,8 +1191,22 @@ def _render_skills_source_comparison_block(
                     for item in suggestion_pack.skills
                     if str(item.type) == "skill"
                 ]
+                rag_query = " | ".join(
+                    [
+                        job.job_title,
+                        ", ".join(suggestion_context["jobspec_terms"]),
+                    ]
+                ).strip(" |")
+                rag_payload: list[dict[str, Any]] = []
+                if rag_query:
+                    rag_result = retrieve_esco_context(
+                        rag_query,
+                        purpose="skills",
+                    )
+                    if rag_result.reason is None:
+                        rag_payload = extract_skill_suggestions(rag_result)
                 merged_llm = _merge_llm_skill_suggestions(
-                    llm_skills=llm_skill_payload,
+                    llm_skills=[*llm_skill_payload, *rag_payload],
                     blocked_labels=[
                         *suggestion_context["jobspec_terms"],
                         *suggestion_context["esco_titles"],

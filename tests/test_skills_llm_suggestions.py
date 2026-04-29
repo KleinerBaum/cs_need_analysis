@@ -40,6 +40,7 @@ def test_merge_llm_skill_suggestions_dedupes_against_existing_esco_titles() -> N
     assert merged == [
         {
             "label": "Data Governance",
+            "uri": "",
             "source": "AI suggestion",
             "importance": "medium",
             "rationale": "relevant",
@@ -68,3 +69,15 @@ def test_merge_llm_skill_suggestions_handles_empty_result() -> None:
     )
 
     assert merged == []
+
+
+def test_merge_llm_skill_suggestions_dedupes_by_uri() -> None:
+    merged = SKILLS_MODULE._merge_llm_skill_suggestions(
+        llm_skills=[
+            {"label": "Skill A", "uri": "uri:1", "source": "AI suggestion"},
+            {"label": "Skill B", "uri": "uri:1", "source": "ESCO RAG"},
+        ],
+        blocked_labels=[],
+    )
+    assert len(merged) == 1
+    assert merged[0]["label"] == "Skill A"
