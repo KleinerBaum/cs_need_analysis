@@ -2055,6 +2055,7 @@ def generate_requirement_gap_suggestions(
     esco_skill_titles: list[str],
     target_skill_count: int,
     target_task_count: int,
+    task_rag_context: list[dict[str, str]] | None = None,
     model: str,
     language: str = DEFAULT_LANGUAGE,
     store: bool = False,
@@ -2073,6 +2074,12 @@ def generate_requirement_gap_suggestions(
     )
     capped_skill_count = max(0, min(target_skill_count, 8))
     capped_task_count = max(0, min(target_task_count, 8))
+    rag_context = task_rag_context or []
+    source_hint_rule = (
+        "Setze source_hint auf 'esco_rag', wenn evidence direkt durch ESCO-RAG-Kontext belegt ist; sonst 'llm'. "
+        if rag_context
+        else "Setze source_hint immer auf 'llm'. "
+    )
     system = (
         "Du bist ein Senior Recruiting Analyst. "
         "Identifiziere fehlende, aber relevante Anforderungen für Skills und Aufgaben "
@@ -2080,9 +2087,14 @@ def generate_requirement_gap_suggestions(
         "Liefere ausschließlich strukturierte Ausgabe entsprechend Schema. "
         "Keine Duplikate, keine bereits vorhandenen Einträge und maximal die geforderte Anzahl je Kategorie. "
         "Halte rationale und evidence jeweils kurz, präzise und belegbar aus dem Kontext. "
-        "Setze source_hint immer auf 'llm'. "
+        f"{source_hint_rule}"
         f"Sprache: {language}."
         f"{task_limits_suffix}"
+    )
+    source_hint_user_rule = (
+        "- source_hint 'esco_rag' nur bei klarer Belegstelle aus ESCO-RAG-Kontext, sonst 'llm'.\n"
+        if rag_context
+        else "- source_hint immer 'llm'.\n"
     )
     user = (
         "Erzeuge ein RequirementSuggestionPack.\n\n"
@@ -2092,7 +2104,7 @@ def generate_requirement_gap_suggestions(
         f"- Genau type='skill' für skills[] und type='task' für tasks[].\n"
         "- label als kurzer, konkreter Begriff.\n"
         "- importance nur high/medium/low.\n"
-        "- source_hint immer 'llm'.\n"
+        f"{source_hint_user_rule}"
         "- Nur Vorschläge, die im Kontext fehlen.\n\n"
         "Jobspec-Extraktion (JSON):\n"
         f"{json.dumps(job.model_dump(mode='json'), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
@@ -2103,7 +2115,9 @@ def generate_requirement_gap_suggestions(
         "Vorhandene Tasks (JSON):\n"
         f"{json.dumps(existing_tasks, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
         "ESCO Skill-Titel (JSON):\n"
-        f"{json.dumps(esco_skill_titles, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}"
+        f"{json.dumps(esco_skill_titles, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
+        "ESCO RAG Task-Kontext (JSON):\n"
+        f"{json.dumps(rag_context, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}"
     )
 
     normalized_content = _canonicalize_for_cache(
@@ -2115,6 +2129,7 @@ def generate_requirement_gap_suggestions(
             "esco_skill_titles": esco_skill_titles,
             "target_skill_count": capped_skill_count,
             "target_task_count": capped_task_count,
+            "task_rag_context": rag_context,
         }
     )
     cache_key = _build_llm_cache_key(

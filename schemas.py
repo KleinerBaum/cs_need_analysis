@@ -209,7 +209,7 @@ class JobAdExtract(StrictSchemaModel):
 class RequirementSuggestionItem(StrictSchemaModel):
     label: str
     type: Literal["skill", "task"]
-    source_hint: Literal["llm"]
+    source_hint: Literal["llm", "esco_rag"]
     rationale: str
     evidence: str
     importance: Literal["high", "medium", "low"]
