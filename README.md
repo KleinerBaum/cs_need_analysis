@@ -196,6 +196,8 @@ Die UI kann das aufgelöste Modell zur Laufzeit überschreiben (Session-State). 
 - Die Debug-Expander in den Wizard-Schritten zeigen zusätzlich die effektiv aufgelösten Task-Modelle an (`resolved_models`), damit Routing-Entscheidungen ohne Secret-Leak nachvollziehbar bleiben.
 - OpenAI-Settings bleiben bei `REASONING_EFFORT`/`VERBOSITY` bewusst optional: wenn nicht gesetzt, werden diese Werte als `None` behandelt und nicht künstlich vorbelegt.
 - Das zentrale OpenAI-Request-Timeout liegt konsistent bei **120 Sekunden** (falls `OPENAI_REQUEST_TIMEOUT` fehlt/ungültig ist).
+- Optionales ESCO-RAG für OpenAI kann über `ESCO_VECTOR_STORE_ID` konfiguriert werden; aktiviert wird es nur, wenn `ESCO_RAG_ENABLED=true` gesetzt ist **und** eine Vector-Store-ID vorhanden ist.
+- `ESCO_RAG_MAX_RESULTS` steuert die Ergebnisobergrenze (positiver Integer, Standard: `8`).
 - Für Debug/Diagnose steht eine sichere Provenance-Map (`resolved_from`) zur Verfügung, die nur die Quelle je Key (`nested_secret`/`root_secret`/`env`/`default`) ausweist – nie Secret-Inhalte.
 - Für `gpt-5`, `gpt-5-mini` und `gpt-5-nano` wird `temperature` nicht automatisch mitgesendet.
 - Snapshot-Varianten mit Datums-Suffixen (z. B. `gpt-5-mini-2026-01-15`) werden für `gpt-5`, `gpt-5-mini` und `gpt-5-nano` robust erkannt.
