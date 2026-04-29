@@ -88,6 +88,12 @@ RESET_EXPECTATIONS: dict[SSKey, object] = {
     SSKey.ESCO_MIGRATION_PENDING: None,
     SSKey.ESCO_MATRIX_METADATA: {"source": "", "version": "", "records": 0},
     SSKey.ESCO_MATRIX_LOADED: False,
+    SSKey.ESCO_MATRIX_COVERAGE_ROWS: [],
+    SSKey.ESCO_MATRIX_COVERAGE_CONTEXT: {
+        "reason": "no_matrix_loaded",
+        "occupation_group": "",
+        "rows": 0,
+    },
     SSKey.COMPANY_NACE_CODE: "",
     SSKey.COMPANY_WEBSITE_RESEARCH: {},
     SSKey.COMPANY_WEBSITE_LAST_ERROR: None,

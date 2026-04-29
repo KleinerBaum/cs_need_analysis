@@ -529,6 +529,242 @@ def _resolve_matrix_occupation_group(
     return ""
 
 
+def _normalize_matrix_group_key(item: dict[str, Any]) -> str:
+    uri = str(item.get("skill_group_uri") or "").strip()
+    group_id = str(item.get("skill_group_id") or "").strip()
+    return uri or group_id
+
+
+def _coerce_share_percent(value: Any) -> float:
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value or "").strip().replace(",", ".").replace("%", "")
+    if not text:
+        return 0.0
+    try:
+        return float(text)
+    except ValueError:
+        return 0.0
+
+
+def _compute_matrix_coverage_rows(
+    *,
+    occupation_group: str,
+    expected_must: list[dict[str, Any]],
+    expected_nice: list[dict[str, Any]],
+    confirmed_must: list[dict[str, Any]],
+    confirmed_nice: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    expected_by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    for bucket, rows in (("must", expected_must), ("nice", expected_nice)):
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            group_key = _normalize_matrix_group_key(row)
+            if not group_key:
+                continue
+            key = (bucket, group_key)
+            target = expected_by_key.setdefault(
+                key,
+                {
+                    "occupation_group": occupation_group,
+                    "skill_group_uri": str(row.get("skill_group_uri") or "").strip(),
+                    "skill_group_id": str(row.get("skill_group_id") or "").strip(),
+                    "skill_group_label": str(row.get("skill_group_label") or "").strip()
+                    or str(row.get("title") or "").strip()
+                    or group_key,
+                    "expected_share_percent": _coerce_share_percent(
+                        row.get("share_percent")
+                    ),
+                    "matrix_bucket": bucket,
+                    "expected_skill_uris": set(),
+                    "expected_skill_titles": set(),
+                },
+            )
+            target["expected_share_percent"] = max(
+                float(target.get("expected_share_percent") or 0.0),
+                _coerce_share_percent(row.get("share_percent")),
+            )
+            uri = str(row.get("uri") or "").strip()
+            if uri:
+                target["expected_skill_uris"].add(uri)
+            title = str(row.get("title") or "").strip()
+            if title:
+                target["expected_skill_titles"].add(title)
+
+    selected_by_uri: dict[str, str] = {}
+    selected_group_rows: dict[tuple[str, str], dict[str, Any]] = {}
+    for default_bucket, selected_rows in (
+        ("must", confirmed_must),
+        ("nice", confirmed_nice),
+    ):
+        for item in selected_rows:
+            if not isinstance(item, dict):
+                continue
+            uri = str(item.get("uri") or "").strip()
+            title = str(item.get("title") or "").strip()
+            if uri and uri not in selected_by_uri:
+                selected_by_uri[uri] = title or uri
+            group_key = _normalize_matrix_group_key(item)
+            if not group_key:
+                continue
+            bucket = str(item.get("matrix_bucket") or "").strip().lower()
+            if bucket not in {"must", "nice"}:
+                bucket = default_bucket
+            key = (bucket, group_key)
+            row_target = selected_group_rows.setdefault(
+                key,
+                {
+                    "occupation_group": occupation_group,
+                    "skill_group_uri": str(item.get("skill_group_uri") or "").strip(),
+                    "skill_group_id": str(item.get("skill_group_id") or "").strip(),
+                    "skill_group_label": str(item.get("skill_group_label") or "").strip()
+                    or title
+                    or group_key,
+                    "matrix_bucket": bucket,
+                    "matched_skill_uris": set(),
+                    "matched_skill_titles": set(),
+                },
+            )
+            if uri:
+                row_target["matched_skill_uris"].add(uri)
+                row_target["matched_skill_titles"].add(title or uri)
+
+    output_rows: list[dict[str, Any]] = []
+    for (bucket, group_key), expected in expected_by_key.items():
+        expected_uris = set(expected.get("expected_skill_uris", set()))
+        matched_uris = sorted(uri for uri in expected_uris if uri in selected_by_uri)
+        matched_titles = sorted(
+            selected_by_uri[uri] for uri in matched_uris if uri in selected_by_uri
+        )
+        expected_count = len(expected_uris)
+        matched_count = len(matched_uris)
+        if matched_count == 0:
+            status = "missing"
+        elif matched_count < expected_count:
+            status = "partial"
+        else:
+            status = "covered"
+        output_rows.append(
+            {
+                "occupation_group": occupation_group,
+                "skill_group_uri": str(expected.get("skill_group_uri") or ""),
+                "skill_group_id": str(expected.get("skill_group_id") or ""),
+                "skill_group_label": str(expected.get("skill_group_label") or group_key),
+                "expected_share_percent": float(expected.get("expected_share_percent") or 0.0),
+                "matched_skill_uris": matched_uris,
+                "matched_skill_titles": matched_titles,
+                "coverage_status": status,
+                "matrix_bucket": bucket,
+            }
+        )
+
+    for key, selected_group in selected_group_rows.items():
+        if key in expected_by_key:
+            continue
+        output_rows.append(
+            {
+                "occupation_group": occupation_group,
+                "skill_group_uri": str(selected_group.get("skill_group_uri") or ""),
+                "skill_group_id": str(selected_group.get("skill_group_id") or ""),
+                "skill_group_label": str(selected_group.get("skill_group_label") or key[1]),
+                "expected_share_percent": 0.0,
+                "matched_skill_uris": sorted(selected_group.get("matched_skill_uris", set())),
+                "matched_skill_titles": sorted(selected_group.get("matched_skill_titles", set())),
+                "coverage_status": "overrepresented",
+                "matrix_bucket": str(selected_group.get("matrix_bucket") or key[0]),
+            }
+        )
+
+    return sorted(
+        output_rows,
+        key=lambda row: (
+            str(row.get("matrix_bucket") or ""),
+            str(row.get("skill_group_label") or "").casefold(),
+            str(row.get("skill_group_uri") or ""),
+            str(row.get("skill_group_id") or ""),
+        ),
+    )
+
+
+def _compute_matrix_coverage_snapshot(
+    *,
+    matrix_loaded: bool,
+    occupation_group: str,
+    expected_must: list[dict[str, Any]],
+    expected_nice: list[dict[str, Any]],
+    confirmed_must: list[dict[str, Any]],
+    confirmed_nice: list[dict[str, Any]],
+) -> dict[str, Any]:
+    if not matrix_loaded:
+        return {"rows": [], "reason": "no_matrix_loaded", "occupation_group": "", "rows_count": 0}
+    if not occupation_group:
+        return {"rows": [], "reason": "occupation_group_missing", "occupation_group": "", "rows_count": 0}
+    if not expected_must and not expected_nice:
+        return {
+            "rows": [],
+            "reason": "missing_expected_group",
+            "occupation_group": occupation_group,
+            "rows_count": 0,
+        }
+    rows = _compute_matrix_coverage_rows(
+        occupation_group=occupation_group,
+        expected_must=expected_must,
+        expected_nice=expected_nice,
+        confirmed_must=confirmed_must,
+        confirmed_nice=confirmed_nice,
+    )
+    return {
+        "rows": rows,
+        "reason": "ok",
+        "occupation_group": occupation_group,
+        "rows_count": len(rows),
+    }
+
+
+def _render_matrix_coverage_section(snapshot: dict[str, Any]) -> None:
+    st.markdown("#### ESCO Matrix Coverage")
+    reason = str(snapshot.get("reason") or "").strip()
+    rows = snapshot.get("rows", [])
+    if not isinstance(rows, list) or not rows:
+        if reason == "no_matrix_loaded":
+            st.caption("Keine Matrix-Coverage verfügbar (Matrix nicht geladen).")
+        elif reason == "occupation_group_missing":
+            st.caption("Keine Matrix-Coverage verfügbar (ISCO Occupation Group fehlt).")
+        elif reason == "missing_expected_group":
+            st.caption("Keine Matrix-Coverage verfügbar (für diese ISCO Group keine Matrix-Zeilen).")
+        else:
+            st.caption("Keine Matrix-Coverage verfügbar.")
+        return
+
+    status_counts: dict[str, int] = {"covered": 0, "missing": 0, "partial": 0, "overrepresented": 0}
+    for row in rows:
+        status = str(row.get("coverage_status") or "").strip().lower()
+        if status in status_counts:
+            status_counts[status] += 1
+    st.caption(
+        " · ".join(
+            [
+                f"covered={status_counts['covered']}",
+                f"partial={status_counts['partial']}",
+                f"missing={status_counts['missing']}",
+                f"overrepresented={status_counts['overrepresented']}",
+            ]
+        )
+    )
+    compact_rows = [
+        {
+            "Bucket": row.get("matrix_bucket"),
+            "Skill Group": row.get("skill_group_label"),
+            "Expected %": row.get("expected_share_percent"),
+            "Matched Skills": len(row.get("matched_skill_uris", [])),
+            "Status": row.get("coverage_status"),
+        }
+        for row in rows
+    ]
+    st.dataframe(compact_rows, use_container_width=True, hide_index=True)
+
+
 def _render_unmapped_term_workflow(flagged_terms: list[str]) -> None:
     st.markdown("#### Offene Begriffe")
     st.caption("Für jeden Begriff: ESCO mappen, custom behalten, mergen, ignorieren oder DE/EN neu suchen.")
@@ -742,8 +978,10 @@ def _render_skills_source_comparison_block(
         if show_esco_sections
         else ""
     )
+    occupation_group = _resolve_matrix_occupation_group(selected_occupation) if show_esco_sections else ""
+    matrix_expected_must: list[dict[str, Any]] = []
+    matrix_expected_nice: list[dict[str, Any]] = []
     if show_esco_sections and occupation_uri and load_esco_clicked:
-        occupation_group = _resolve_matrix_occupation_group(selected_occupation)
         occupation_title = (
             str(selected_occupation.get("title") or "—").strip()
             if isinstance(selected_occupation, dict)
@@ -760,6 +998,8 @@ def _render_skills_source_comparison_block(
                 occupation_uri,
                 occupation_group=occupation_group,
             )
+            matrix_expected_must = list(matrix_must)
+            matrix_expected_nice = list(matrix_nice)
         except Exception as exc:
             st.session_state[SSKey.ESCO_MATRIX_LOADED.value] = False
             st.caption(f"Matrix-Prior nicht geladen: {exc}")
@@ -885,6 +1125,43 @@ def _render_skills_source_comparison_block(
         mapping_report["unmapped_terms"]
     )
     coverage_snapshot = sync_esco_shared_state()
+
+    if show_esco_sections and occupation_uri:
+        if not matrix_expected_must and not matrix_expected_nice:
+            try:
+                matrix_expected_must, matrix_expected_nice = _load_matrix_priors(
+                    occupation_uri,
+                    occupation_group=occupation_group,
+                )
+            except Exception:
+                matrix_expected_must, matrix_expected_nice = [], []
+        matrix_snapshot = _compute_matrix_coverage_snapshot(
+            matrix_loaded=bool(
+                st.session_state.get(SSKey.ESCO_MATRIX_LOADED.value, False)
+            ),
+            occupation_group=occupation_group,
+            expected_must=matrix_expected_must,
+            expected_nice=matrix_expected_nice,
+            confirmed_must=deduped_must,
+            confirmed_nice=deduped_nice,
+        )
+    else:
+        matrix_snapshot = {
+            "rows": [],
+            "reason": "occupation_group_missing",
+            "occupation_group": "",
+            "rows_count": 0,
+        }
+    st.session_state[SSKey.ESCO_MATRIX_COVERAGE_ROWS.value] = list(
+        matrix_snapshot.get("rows", [])
+    ) if isinstance(matrix_snapshot.get("rows", []), list) else []
+    st.session_state[SSKey.ESCO_MATRIX_COVERAGE_CONTEXT.value] = {
+        "reason": str(matrix_snapshot.get("reason") or ""),
+        "occupation_group": str(matrix_snapshot.get("occupation_group") or ""),
+        "rows": int(matrix_snapshot.get("rows_count") or 0),
+    }
+    if show_esco_sections:
+        _render_matrix_coverage_section(matrix_snapshot)
 
     suggestion_context = _build_skill_suggestion_context(
         job=job,

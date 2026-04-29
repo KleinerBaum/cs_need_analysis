@@ -126,6 +126,24 @@ def test_build_structured_export_payload_includes_esco_uri_and_label(
                     "version": "2026.04",
                     "records": 12,
                 },
+                SSKey.ESCO_MATRIX_COVERAGE_ROWS.value: [
+                    {
+                        "occupation_group": "251",
+                        "skill_group_uri": "uri:group:core",
+                        "skill_group_id": "group-core",
+                        "skill_group_label": "Core",
+                        "expected_share_percent": 60.0,
+                        "matched_skill_uris": ["uri:skill:must"],
+                        "matched_skill_titles": ["Python"],
+                        "coverage_status": "covered",
+                        "matrix_bucket": "must",
+                    }
+                ],
+                SSKey.ESCO_MATRIX_COVERAGE_CONTEXT.value: {
+                    "reason": "ok",
+                    "occupation_group": "251",
+                    "rows": 1,
+                },
                 SSKey.ESCO_SKILLS_SELECTED_MUST.value: [
                     {"uri": "uri:skill:must", "title": "Python", "type": "skill"}
                 ],
@@ -167,6 +185,9 @@ def test_build_structured_export_payload_includes_esco_uri_and_label(
     assert payload["esco_version"] == "v1.2.0"
     assert payload["esco_matrix"]["source"] == "offline_build"
     assert payload["esco_matrix"]["version"] == "2026.04"
+    assert payload["esco_matrix"]["coverage_rows"] == 1
+    assert payload["esco_matrix_coverage"][0]["coverage_status"] == "covered"
+    assert payload["esco_matrix_coverage_context"]["occupation_group"] == "251"
 
 
 def test_build_structured_export_payload_includes_recommended_titles_by_language(

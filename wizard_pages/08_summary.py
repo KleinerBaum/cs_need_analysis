@@ -42,6 +42,7 @@ from llm_client import (
 from schemas import (
     BooleanSearchPack,
     EscoConceptRef,
+    EscoMatrixCoverageRow,
     EscoMappingReport,
     EscoUnresolvedTermDecision,
     EmploymentContractDraft,
@@ -968,6 +969,32 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
             "version": str(matrix_metadata.get("version") or "").strip(),
             "records": int(matrix_metadata.get("records") or 0),
         }
+    matrix_coverage_rows_raw = _session_list(SSKey.ESCO_MATRIX_COVERAGE_ROWS)
+    matrix_coverage_rows: list[dict[str, Any]] = []
+    for row in matrix_coverage_rows_raw:
+        if not isinstance(row, dict):
+            continue
+        try:
+            matrix_coverage_rows.append(
+                EscoMatrixCoverageRow.model_validate(row).model_dump(mode="json")
+            )
+        except Exception:
+            continue
+    if matrix_coverage_rows:
+        payload["esco_matrix_coverage"] = matrix_coverage_rows
+        if isinstance(payload.get("esco_matrix"), dict):
+            payload["esco_matrix"]["coverage_rows"] = len(matrix_coverage_rows)
+    matrix_coverage_context = _session_dict(SSKey.ESCO_MATRIX_COVERAGE_CONTEXT)
+    if matrix_coverage_context:
+        context_payload = {
+            "reason": str(matrix_coverage_context.get("reason") or "").strip(),
+            "occupation_group": str(
+                matrix_coverage_context.get("occupation_group") or ""
+            ).strip(),
+            "rows": int(matrix_coverage_context.get("rows") or 0),
+        }
+        if any(context_payload.values()):
+            payload["esco_matrix_coverage_context"] = context_payload
 
     title_variants_raw = _session_dict(SSKey.ESCO_OCCUPATION_TITLE_VARIANTS)
     variants_uri = str(title_variants_raw.get("uri") or "").strip()

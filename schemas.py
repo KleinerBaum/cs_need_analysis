@@ -437,6 +437,46 @@ class EscoUnresolvedTermDecision(StrictSchemaModel):
     )
 
 
+class EscoMatrixCoverageRow(StrictSchemaModel):
+    occupation_group: str = Field(
+        description="ISCO occupation group key used for matrix coverage lookup."
+    )
+    skill_group_uri: Optional[str] = Field(
+        default=None,
+        description="Optional ESCO skill-group URI for the expected matrix row.",
+    )
+    skill_group_id: Optional[str] = Field(
+        default=None,
+        description="Optional stable skill-group identifier from preprocessed matrix data.",
+    )
+    skill_group_label: str = Field(
+        description="Human-readable skill-group label."
+    )
+    expected_share_percent: Optional[float] = Field(
+        default=None,
+        description="Expected ISCO matrix share percentage for this skill-group row.",
+    )
+    matched_skill_uris: List[str] = Field(
+        default_factory=list,
+        description="Matched confirmed skill URIs contributing to coverage.",
+    )
+    matched_skill_titles: List[str] = Field(
+        default_factory=list,
+        description="Matched confirmed skill titles contributing to coverage.",
+    )
+    coverage_status: Literal[
+        "covered",
+        "missing",
+        "partial",
+        "overrepresented",
+    ] = Field(
+        description="Deterministic coverage classification for this matrix row.",
+    )
+    matrix_bucket: Literal["must", "nice"] = Field(
+        description="Matrix bucket associated with the expected row."
+    )
+
+
 class VacancyStructuredData(StrictSchemaModel):
     job_extract: Dict[str, Any] = Field(default_factory=dict)
     answers: Dict[str, Any] = Field(default_factory=dict)
@@ -471,6 +511,14 @@ class VacancyStructuredData(StrictSchemaModel):
     esco_unresolved_term_decisions: Optional[List[EscoUnresolvedTermDecision]] = Field(
         default=None,
         description="Optional decision log for unresolved terms with provenance fields.",
+    )
+    esco_matrix_coverage: Optional[List[EscoMatrixCoverageRow]] = Field(
+        default=None,
+        description="Optional ISCO matrix skill-group coverage rows.",
+    )
+    esco_matrix_coverage_context: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Optional matrix coverage context metadata (reason, occupation_group, row count).",
     )
 
 

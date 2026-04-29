@@ -235,3 +235,112 @@ def test_resolve_matrix_occupation_group_prefers_selected_explicit_group() -> No
     )
 
     assert selected_group == "251"
+
+
+def test_compute_matrix_coverage_snapshot_no_matrix_loaded() -> None:
+    snapshot = SKILLS_MODULE._compute_matrix_coverage_snapshot(
+        matrix_loaded=False,
+        occupation_group="251",
+        expected_must=[],
+        expected_nice=[],
+        confirmed_must=[],
+        confirmed_nice=[],
+    )
+
+    assert snapshot["reason"] == "no_matrix_loaded"
+    assert snapshot["rows"] == []
+
+
+def test_compute_matrix_coverage_snapshot_missing_occupation_group() -> None:
+    snapshot = SKILLS_MODULE._compute_matrix_coverage_snapshot(
+        matrix_loaded=True,
+        occupation_group="",
+        expected_must=[],
+        expected_nice=[],
+        confirmed_must=[],
+        confirmed_nice=[],
+    )
+
+    assert snapshot["reason"] == "occupation_group_missing"
+    assert snapshot["rows"] == []
+
+
+def test_compute_matrix_coverage_snapshot_missing_expected_group() -> None:
+    snapshot = SKILLS_MODULE._compute_matrix_coverage_snapshot(
+        matrix_loaded=True,
+        occupation_group="251",
+        expected_must=[],
+        expected_nice=[],
+        confirmed_must=[],
+        confirmed_nice=[],
+    )
+
+    assert snapshot["reason"] == "missing_expected_group"
+    assert snapshot["rows"] == []
+
+
+def test_compute_matrix_coverage_rows_marks_covered_and_partial() -> None:
+    rows = SKILLS_MODULE._compute_matrix_coverage_rows(
+        occupation_group="251",
+        expected_must=[
+            {
+                "uri": "uri:skill:a",
+                "title": "Python",
+                "skill_group_uri": "uri:group:core",
+                "skill_group_id": "group-core",
+                "skill_group_label": "Core",
+                "share_percent": 60.0,
+            },
+            {
+                "uri": "uri:skill:b",
+                "title": "SQL",
+                "skill_group_uri": "uri:group:core",
+                "skill_group_id": "group-core",
+                "skill_group_label": "Core",
+                "share_percent": 60.0,
+            },
+        ],
+        expected_nice=[
+            {
+                "uri": "uri:skill:c",
+                "title": "Git",
+                "skill_group_uri": "uri:group:collab",
+                "skill_group_id": "group-collab",
+                "skill_group_label": "Collaboration",
+                "share_percent": 25.0,
+            }
+        ],
+        confirmed_must=[{"uri": "uri:skill:a", "title": "Python"}],
+        confirmed_nice=[{"uri": "uri:skill:c", "title": "Git"}],
+    )
+
+    core_row = next(row for row in rows if row["skill_group_id"] == "group-core")
+    collab_row = next(row for row in rows if row["skill_group_id"] == "group-collab")
+    assert core_row["coverage_status"] == "partial"
+    assert core_row["expected_share_percent"] == 60.0
+    assert core_row["matched_skill_uris"] == ["uri:skill:a"]
+    assert collab_row["coverage_status"] == "covered"
+
+
+def test_compute_matrix_coverage_rows_marks_overrepresented_custom_group() -> None:
+    rows = SKILLS_MODULE._compute_matrix_coverage_rows(
+        occupation_group="251",
+        expected_must=[],
+        expected_nice=[],
+        confirmed_must=[
+            {
+                "uri": "uri:skill:x",
+                "title": "Custom X",
+                "skill_group_id": "group-custom",
+                "skill_group_label": "Custom Group",
+                "matrix_bucket": "must",
+            }
+        ],
+        confirmed_nice=[],
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["coverage_status"] == "overrepresented"
+    assert rows[0]["matrix_bucket"] == "must"
+    assert rows[0]["skill_group_id"] == "group-custom"
+    assert rows[0]["matched_skill_uris"] == ["uri:skill:x"]

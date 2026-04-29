@@ -230,6 +230,8 @@ class SSKey(str, Enum):
     ESCO_MATRIX_ENABLED = "cs.esco_matrix_enabled"
     ESCO_MATRIX_METADATA = "cs.esco_matrix_metadata"
     ESCO_MATRIX_LOADED = "cs.esco_matrix_loaded"
+    ESCO_MATRIX_COVERAGE_ROWS = "cs.esco_matrix_coverage_rows"
+    ESCO_MATRIX_COVERAGE_CONTEXT = "cs.esco_matrix_coverage_context"
     EURES_NACE_TO_ESCO = "cs.eures_nace_to_esco"
     EURES_NACE_SOURCE = "cs.eures_nace_source"
     COMPANY_NACE_CODE = "cs.company_nace_code"

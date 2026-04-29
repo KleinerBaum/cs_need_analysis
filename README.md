@@ -155,6 +155,8 @@ Output-Verhalten (aktuell):
 - Matrix-Priors werden als **zusätzliche Must-/Nice-Kandidaten** eingeblendet.
 - Kandidaten aus der Matrix sind mit Badge `ESCO matrix prior` markiert.
 - Merge/Dedupe erfolgt deterministisch per ESCO-URI; Must/Nice-Semantik bleibt erhalten.
+- Für bestätigte Skills wird zusätzlich eine kompakte **ISCO Skill-Group Coverage** aus Matrix-Metadaten berechnet (deterministisch, ohne ESCO-API/LLM), inklusive Status `covered|missing|partial|overrepresented`.
+- Struktur-Export enthält optional `esco_matrix_coverage` sowie `esco_matrix_coverage_context`.
 - Wenn keine Matrix vorhanden ist (oder Laden fehlschlägt), läuft der Flow ohne Abbruch mit den bisherigen Live-API-Vorschlägen weiter.
 
 Explizite Lücken (aktuell):
