@@ -14,7 +14,7 @@ from wizard_pages.base import (
 )
 
 LANDING_COPY: dict[str, object] = {
-    "hero_headline": "Der optimale Recruiting-Prozess wird nicht erst in der Jobanzeige gut, sondern startet mit der umfassenden Aufnahme aller jobspezifischen Anforderungen.",
+    "hero_headline": "KI gestütze und dynamisch angepasste Bedarfsanalyse Ihrer Vakanz",
     "hero_subheadline": "",
     "hero_supporting_paragraph": "",
     "primary_cta": "Geben Sie uns ein paar Informationen zu Ihrer Vakanz",
@@ -26,7 +26,7 @@ LANDING_COPY: dict[str, object] = {
     "cta_helper": "",
     "cta_microcopy": "",
     "value_cards": (),
-    "importance_title": "Der optimale Recruiting-Prozess wird nicht erst in der Jobanzeige gut, sondern startet mit der umfassenden Aufnahme aller jobspezifischen Anforderungen.",
+    "importance_title": "KI gestütze und dynamisch angepasste Bedarfsanalyse Ihrer Vakanz",
     "flow_title": "So funktioniert der Ablauf",
     "flow_steps": (
         (
@@ -95,12 +95,14 @@ def render(ctx: WizardContext) -> None:
     st.markdown(
         "Als langjähriger Personalvermittler ist mir die Suche nach der eierlegenden Wollmilchsau bestens bekannt. Unklare Anforderungen führen nicht nur für Personalvermittler zu unpräzisem Sourcing und Diskussionen über die falschen Profile. Unklare Anforderungen führen von den Verantwortlichen unbemerkt dazu, dass das Interesse des perfekten Kandidaten nicht geweckt wird, z.B. indem das essentielle Benefit nicht bekannt gegeben wird. Merklicher wird es für die Verantwortlichen, wenn unpassende Profile vorgestellt werden, Prozesse aufgrund ihrer Länge scheitern oder schlimmstenfalls der Mitarbeiter nach 6 Monaten Probe kündigt, da die Anforderungen in der Realität nicht mit den Vorstellungen des Mitarbeiters übereinstimmen. Der Prozess muss dann komplett neu gestartet werden, was allen Beteiligten nicht nur Zeit kostet, sondern auch viele Dollars"
     )
-    st.image("images/iceberg v1.png", width="stretch")
+    _, image_col, _ = st.columns((1, 3, 1))
+    with image_col:
+        st.image("images/iceberg v1.png", width="stretch")
     st.divider()
     cognitive_col, rag_col = st.columns(2, gap="large")
     with cognitive_col:
         st.badge("Cognitive Staffing")
-        st.subheader("Wie profitieren Sie von Cognitive Staffing?")
+        st.subheader("Wie profitieren Sie von der KI-gestützen Analyse?")
         st.markdown(
             "- **Berufserkennung:** Nach Eingabe eines Stellen- oder Tätigkeitsnamens schlägt die App passende ESCO-Occupations vor. So werden verschiedene Bezeichnungen (z.B. „Full Stack Entwickler“, „Cloud-Engineer“) auf einen eindeutigen Beruf zusammengeführt.\n"
             "- **Skill-Vorschläge:** Sobald ein ESCO-Beruf bestätigt ist, lädt die App die zugehörigen Essential/Nice-to-have Skills. Diese fließen in die KI-gestützte Anforderungsanalyse und Text-Generierung ein.\n"
@@ -113,7 +115,10 @@ def render(ctx: WizardContext) -> None:
             "Der Retrieval-Augmented-Generation-Ansatz (RAG) in Kombination mit LLM-gestützen Prompts bietet diverse Option zur Weiterverarbeitung der gesammelten Daten:"
         )
         st.markdown(
-            "a) Messerscharf formulierte Aufgaben, Must-haves und Nice-to-have Skills und (lokalen und zielgruppenorientierten) Benefits; b) Erwartungsmanagement der Einstellenden durch Gehaltsprognosen, die basierend auf allen eingegebenen Parametern berechnet werden; c) Automatisierung und Optimierung des internen Kommunikationsprozesses; d) Automatisierung und Optimierung diverser Sourcing-Schritte, beginnend bei der Erstellung der Jobad über das Generieren von Boolean-Searchstrings bis hin zur Erstellung des Arbeitsvertrags im Corporate Design"
+            "- **a) Präzise Formulierungen:** Messerscharf formulierte Aufgaben, Must-haves, Nice-to-have Skills sowie lokale und zielgruppenorientierte Benefits.\n"
+            "- **b) Erwartungsmanagement:** Gehaltsprognosen für Einstellende, basierend auf allen eingegebenen Parametern.\n"
+            "- **c) Interne Kommunikation:** Automatisierung und Optimierung interner Kommunikationsprozesse.\n"
+            "- **d) Sourcing-Automatisierung:** Optimierung von Sourcing-Schritten von der Jobad-Erstellung über Boolean-Searchstrings bis zur Vertragserstellung im Corporate Design."
         )
     st.markdown("</section>", unsafe_allow_html=True)
 
