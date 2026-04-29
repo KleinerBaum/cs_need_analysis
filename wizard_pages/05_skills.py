@@ -1,6 +1,7 @@
 # wizard_pages/05_skills.py
 from __future__ import annotations
 
+import os
 from typing import Any
 
 import streamlit as st
@@ -11,6 +12,7 @@ from esco_client import (
     EscoClient,
     EscoClientError,
 )
+from esco_matrix import load_esco_matrix
 from llm_client import (
     generate_requirement_gap_suggestions,
 )
@@ -297,9 +299,18 @@ def _render_skills_source_columns(
         for label in esco_labels:
             normalized = _normalize_term(label)
             relation = "optional"
+            source_badge = "ESCO"
             if normalized in {_normalize_term(str(v.get("title") or "")) for v in st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, []) if isinstance(v, dict)}:
                 relation = "essential"
-            st.caption(f"{label} · {relation}")
+            for item in (
+                st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
+                + st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
+            ):
+                if isinstance(item, dict) and _normalize_term(str(item.get("title") or "")) == normalized:
+                    if str(item.get("source") or "").strip() == "ESCO matrix prior":
+                        source_badge = "ESCO matrix prior"
+                    break
+            st.caption(f"{label} · {relation} · {source_badge}")
         render_multi_select_pills(
             "   ",
             options=esco_labels,
@@ -452,6 +463,25 @@ def _load_related_skills_from_selected_occupation(
     return must_suggestions, nice_suggestions, None
 
 
+def _load_matrix_priors(
+    occupation_uri: str,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    if not bool(st.session_state.get(SSKey.ESCO_MATRIX_ENABLED.value, False)):
+        return [], []
+    matrix_path = os.getenv("ESCO_MATRIX_PATH", "").strip()
+    if not matrix_path:
+        st.session_state[SSKey.ESCO_MATRIX_LOADED.value] = False
+        return [], []
+    lookup = load_esco_matrix(matrix_path)
+    st.session_state[SSKey.ESCO_MATRIX_LOADED.value] = lookup.metadata.loaded
+    st.session_state[SSKey.ESCO_MATRIX_METADATA.value] = {
+        "source": lookup.metadata.source,
+        "version": lookup.metadata.version,
+        "records": lookup.metadata.records,
+    }
+    return lookup.candidates_for(occupation_uri=occupation_uri)
+
+
 def _render_unmapped_term_workflow(flagged_terms: list[str]) -> None:
     st.markdown("#### Offene Begriffe")
     st.caption("Offene Begriffe aus dem Jobspec, verteilt auf drei Spalten.")
@@ -572,6 +602,13 @@ def _render_skills_source_comparison_block(
             suggested_must, suggested_nice, load_error = (
                 _load_related_skills_from_selected_occupation(occupation_uri)
             )
+        matrix_must: list[dict[str, Any]] = []
+        matrix_nice: list[dict[str, Any]] = []
+        try:
+            matrix_must, matrix_nice = _load_matrix_priors(occupation_uri)
+        except Exception as exc:
+            st.session_state[SSKey.ESCO_MATRIX_LOADED.value] = False
+            st.caption(f"Matrix-Prior nicht geladen: {exc}")
 
         if load_error:
             if load_error.from_negative_cache:
@@ -594,6 +631,12 @@ def _render_skills_source_comparison_block(
                 f"ESCO-Vorschläge für {occupation_title}: "
                 f"{len(suggested_must)} essential, {len(suggested_nice)} optional."
             )
+            if matrix_must or matrix_nice:
+                st.caption(
+                    "Zusätzliche Matrix-Priors: "
+                    f"{len(matrix_must)} essential, {len(matrix_nice)} optional "
+                    "(Quelle: ESCO matrix prior)."
+                )
             selected_must_raw = st.session_state.get(
                 SSKey.ESCO_SKILLS_SELECTED_MUST.value, []
             )
@@ -614,7 +657,7 @@ def _render_skills_source_comparison_block(
                         "relation": "hasEssentialSkill",
                         "related_occupation_uri": occupation_uri,
                     }
-                    for item in suggested_must
+                    for item in [*suggested_must, *matrix_must]
                 ],
                 must_selected=selected_must,
                 nice_selected=selected_nice,
@@ -626,7 +669,7 @@ def _render_skills_source_comparison_block(
                         "relation": "hasOptionalSkill",
                         "related_occupation_uri": occupation_uri,
                     }
-                    for item in suggested_nice
+                    for item in [*suggested_nice, *matrix_nice]
                 ],
                 must_selected=merged_must,
                 nice_selected=selected_nice,

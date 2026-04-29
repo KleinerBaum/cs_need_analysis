@@ -266,6 +266,11 @@ def init_session_state() -> None:
         SSKey.ESCO_NEGATIVE_CACHE.value: {},
         SSKey.ESCO_MIGRATION_LOG.value: [],
         SSKey.ESCO_MIGRATION_PENDING.value: None,
+        SSKey.ESCO_MATRIX_ENABLED.value: bool(
+            os.getenv("ESCO_MATRIX_ENABLED", "").strip().lower() in {"1", "true", "yes"}
+        ),
+        SSKey.ESCO_MATRIX_METADATA.value: {"source": "", "version": "", "records": 0},
+        SSKey.ESCO_MATRIX_LOADED.value: False,
         SSKey.EURES_NACE_TO_ESCO.value: eures_nace_lookup,
         SSKey.EURES_NACE_SOURCE.value: configured_eures_nace_source,
         SSKey.COMPANY_NACE_CODE.value: "",
@@ -394,6 +399,12 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.ESCO_NEGATIVE_CACHE.value] = {}
     st.session_state[SSKey.ESCO_MIGRATION_LOG.value] = []
     st.session_state[SSKey.ESCO_MIGRATION_PENDING.value] = None
+    st.session_state[SSKey.ESCO_MATRIX_METADATA.value] = {
+        "source": "",
+        "version": "",
+        "records": 0,
+    }
+    st.session_state[SSKey.ESCO_MATRIX_LOADED.value] = False
     st.session_state[SSKey.COMPANY_NACE_CODE.value] = ""
     st.session_state[SSKey.COMPANY_WEBSITE_RESEARCH.value] = {}
     st.session_state[SSKey.COMPANY_WEBSITE_LAST_ERROR.value] = None

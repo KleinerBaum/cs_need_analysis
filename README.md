@@ -113,6 +113,24 @@ python -c "import openai; print(openai.__version__)"
 python -c "from eures_mapping import load_national_code_lookup_from_file as f; print('ok' if callable(f) else 'fail')"
 ```
 
+## ESCO Matrix Priors (optional)
+
+Für den Skills-Schritt kann zusätzlich ein vorverarbeitetes Matrix-Artefakt (CSV/JSON) aktiviert werden, das ESCO-Skill-Priors pro Occupation-URI (oder Occupation-Group) bereitstellt.
+
+Aktivierung:
+
+```bash
+export ESCO_MATRIX_ENABLED=true
+export ESCO_MATRIX_PATH=/pfad/zur/esco_matrix.json  # alternativ .csv
+```
+
+Verhalten:
+
+- Live-ESCO-Skills bleiben die primäre Quelle.
+- Matrix-Kandidaten werden zusätzlich geladen und mit Badge `ESCO matrix prior` ausgewiesen.
+- Merge/Dedupe erfolgt deterministisch per ESCO-URI; Must/Nice-Semantik bleibt erhalten.
+- Wenn keine Matrix vorhanden ist (oder Laden fehlschlägt), läuft der Flow ohne Abbruch mit den bisherigen Live-API-Vorschlägen weiter.
+
 ## OpenAI Konfiguration (Secrets, Env, UI)
 
 Du kannst die OpenAI-Parameter entweder als Root-Level-Secrets oder in einer `[openai]`-Sektion in `.streamlit/secrets.toml` setzen.

@@ -119,6 +119,13 @@ def test_build_structured_export_payload_includes_esco_uri_and_label(
                 SSKey.ESCO_MATCH_REASON.value: "Manuell als semantischer Anker bestätigt.",
                 SSKey.ESCO_MATCH_CONFIDENCE.value: "high",
                 SSKey.ESCO_MATCH_PROVENANCE.value: ["manually selected by user"],
+                SSKey.ESCO_MATRIX_ENABLED.value: True,
+                SSKey.ESCO_MATRIX_LOADED.value: True,
+                SSKey.ESCO_MATRIX_METADATA.value: {
+                    "source": "offline_build",
+                    "version": "2026.04",
+                    "records": 12,
+                },
                 SSKey.ESCO_SKILLS_SELECTED_MUST.value: [
                     {"uri": "uri:skill:must", "title": "Python", "type": "skill"}
                 ],
@@ -147,6 +154,8 @@ def test_build_structured_export_payload_includes_esco_uri_and_label(
     assert payload["esco_skills_must"] == [{"uri": "uri:skill:must", "label": "Python"}]
     assert payload["esco_skills_nice"] == [{"uri": "uri:skill:nice", "label": "dbt"}]
     assert payload["esco_version"] == "v1.2.0"
+    assert payload["esco_matrix"]["source"] == "offline_build"
+    assert payload["esco_matrix"]["version"] == "2026.04"
 
 
 def test_build_structured_export_payload_includes_recommended_titles_by_language(

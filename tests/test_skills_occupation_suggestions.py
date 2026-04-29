@@ -132,3 +132,38 @@ def test_load_related_skills_returns_friendly_error_when_related_endpoint_unsupp
     assert error is not None
     assert error.endpoint == "resource/related"
     assert error.message == SKILLS_MODULE.ESCO_RELATED_ENDPOINT_UNSUPPORTED_MESSAGE
+
+
+def test_load_matrix_priors_returns_empty_when_disabled(monkeypatch) -> None:
+    setattr(
+        SKILLS_MODULE,
+        "st",
+        SimpleNamespace(session_state={"cs.esco_matrix_enabled": False}),
+    )
+    must, nice = SKILLS_MODULE._load_matrix_priors("uri:occ:1")
+    assert must == []
+    assert nice == []
+
+
+def test_load_matrix_priors_updates_metadata_when_loaded(monkeypatch) -> None:
+    class DummyLookup:
+        metadata = SimpleNamespace(
+            loaded=True, source="offline_build", version="2026.04", records=3
+        )
+
+        def candidates_for(self, *, occupation_uri: str) -> tuple[list[dict], list[dict]]:
+            assert occupation_uri == "uri:occ:1"
+            return ([{"uri": "uri:skill:1", "title": "Python"}], [])
+
+    monkeypatch.setenv("ESCO_MATRIX_PATH", "/tmp/matrix.json")
+    monkeypatch.setattr(SKILLS_MODULE, "load_esco_matrix", lambda _: DummyLookup())
+    state = {
+        "cs.esco_matrix_enabled": True,
+        "cs.esco_matrix_metadata": {},
+        "cs.esco_matrix_loaded": False,
+    }
+    setattr(SKILLS_MODULE, "st", SimpleNamespace(session_state=state))
+    must, nice = SKILLS_MODULE._load_matrix_priors("uri:occ:1")
+    assert len(must) == 1 and nice == []
+    assert state["cs.esco_matrix_loaded"] is True
+    assert state["cs.esco_matrix_metadata"]["version"] == "2026.04"
