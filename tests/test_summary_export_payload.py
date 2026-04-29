@@ -115,7 +115,7 @@ def test_build_structured_export_payload_includes_esco_uri_and_label(
         "st",
         SimpleNamespace(
             session_state={
-                SSKey.ESCO_CONFIG.value: {"selected_version": "v1.2.0"},
+                SSKey.ESCO_CONFIG.value: {"selected_version": "v1.2.0", "data_source_mode": "api_live"},
                 SSKey.ESCO_MATCH_REASON.value: "Manuell als semantischer Anker bestätigt.",
                 SSKey.ESCO_MATCH_CONFIDENCE.value: "high",
                 SSKey.ESCO_MATCH_PROVENANCE.value: ["manually selected by user"],
@@ -154,11 +154,11 @@ def test_build_structured_export_payload_includes_esco_uri_and_label(
                 SSKey.ESCO_UNRESOLVED_TERM_DECISIONS.value: [
                     {
                         "raw_term": "PySpark",
-                        "esco_uri": "uri:skill:pyspark",
-                        "matched_label": "Apache Spark",
-                        "language": "de",
-                        "match_method": "picker_manual",
-                        "status": "mapped",
+                        "action": "map_to_esco_skill",
+                        "mapped_uri": "uri:skill:pyspark",
+                        "mapped_title": "Apache Spark",
+                        "bucket": "must",
+                        "source_mode": "api_live",
                     }
                 ],
             }
@@ -182,7 +182,13 @@ def test_build_structured_export_payload_includes_esco_uri_and_label(
     }
     assert payload["esco_skills_must"] == [{"uri": "uri:skill:must", "label": "Python"}]
     assert payload["esco_skills_nice"] == [{"uri": "uri:skill:nice", "label": "dbt"}]
-    assert payload["esco_unresolved_term_decisions"][0]["raw_term"] == "PySpark"
+    decision = payload["esco_unresolved_term_decisions"][0]
+    assert decision["raw_term"] == "PySpark"
+    assert decision["action"] == "map_to_esco_skill"
+    assert decision["mapped_uri"] == "uri:skill:pyspark"
+    assert decision["mapped_title"] == "Apache Spark"
+    assert decision["bucket"] == "must"
+    assert decision["source_mode"] == "api_live"
     assert payload["esco_version"] == "v1.2.0"
     assert payload["esco_matrix"]["source"] == "offline_build"
     assert payload["esco_matrix"]["version"] == "2026.04"
@@ -431,3 +437,40 @@ def test_build_country_readiness_items_reports_optional_nace_context(
     assert ("Semantischer Anker bestätigt", "Ja", True) in rows
     assert ("NACE-Code gesetzt", "62.01", True) in rows
     assert ("NACE → ESCO gemappt", "uri:occ:software", True) in rows
+
+
+def test_build_structured_export_payload_normalizes_legacy_unresolved_action_fields(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.ESCO_CONFIG.value: {},
+                SSKey.ESCO_SKILLS_SELECTED_MUST.value: [],
+                SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
+                SSKey.ESCO_UNRESOLVED_TERM_DECISIONS.value: [
+                    {
+                        "raw_term": "PySpark",
+                        "esco_uri": "uri:skill:pyspark",
+                        "matched_label": "Apache Spark",
+                        "match_method": "retry_query",
+                        "status": "retried",
+                    }
+                ],
+            }
+        ),
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "get_esco_occupation_selected", lambda: None)
+
+    payload = SUMMARY_MODULE._build_structured_export_payload(_brief())
+
+    assert payload["esco_unresolved_term_decisions"] == [
+        {
+            "raw_term": "PySpark",
+            "action": "retry_search",
+            "mapped_uri": "uri:skill:pyspark",
+            "mapped_title": "Apache Spark",
+        }
+    ]

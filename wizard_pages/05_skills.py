@@ -771,30 +771,34 @@ def _render_matrix_coverage_section(snapshot: dict[str, Any]) -> None:
 
 def _render_unmapped_term_workflow(flagged_terms: list[str]) -> None:
     st.markdown("#### Offene Begriffe")
-    st.caption("Für jeden Begriff: ESCO mappen, custom behalten, mergen, ignorieren oder DE/EN neu suchen.")
+    st.caption("Für jeden Begriff: ESCO mappen, Freitext behalten, ignorieren oder erneut suchen.")
     actions_raw = st.session_state.get(SSKey.ESCO_UNMAPPED_TERM_ACTIONS.value, {})
     actions = actions_raw if isinstance(actions_raw, dict) else {}
-    mapped_must_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
-    mapped_nice_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
-    mapped_items = [
-        item
-        for item in [*(mapped_must_raw if isinstance(mapped_must_raw, list) else []), *(mapped_nice_raw if isinstance(mapped_nice_raw, list) else [])]
-        if isinstance(item, dict) and str(item.get("title") or "").strip()
-    ]
-    merge_options = [str(item.get("title") or "").strip() for item in mapped_items]
+    unresolved_requirement_terms_raw = st.session_state.get(
+        SSKey.ESCO_UNMAPPED_REQUIREMENT_TERMS.value, []
+    )
+    unresolved_requirement_terms = {
+        _normalize_term(str(term))
+        for term in (unresolved_requirement_terms_raw if isinstance(unresolved_requirement_terms_raw, list) else [])
+        if has_meaningful_value(str(term))
+    }
+    esco_config_raw = st.session_state.get(SSKey.ESCO_CONFIG.value, {})
+    esco_config = esco_config_raw if isinstance(esco_config_raw, dict) else {}
+    source_mode = str(esco_config.get("data_source_mode") or "").strip() or None
 
     for term in flagged_terms:
         normalized_term = _normalize_term(term)
         term_key = f"skills.unresolved.{normalized_term}"
         existing = actions.get(term, {}) if isinstance(actions.get(term, {}), dict) else {}
+        bucket = "must" if normalized_term in unresolved_requirement_terms else "unknown"
         st.markdown(f"**{term}**")
         action = st.selectbox(
             "Aktion",
-            options=["map_esco", "keep_custom", "merge_existing", "ignore", "retry_query"],
+            options=["map_to_esco_skill", "keep_free_text", "ignore", "retry_search"],
             index=0,
             key=f"{term_key}.action",
         )
-        if action == "map_esco":
+        if action == "map_to_esco_skill":
             render_esco_picker_card(
                 concept_type="skill",
                 target_state_key=f"{term_key}.map",
@@ -803,52 +807,34 @@ def _render_unmapped_term_workflow(flagged_terms: list[str]) -> None:
                 auto_apply_single_select=False,
             )
             picked = st.session_state.get(f"{term_key}.map")
-            if isinstance(picked, dict) and str(picked.get("uri") or "").strip():
+            mapped_uri = str((picked or {}).get("uri") or "").strip() if isinstance(picked, dict) else ""
+            mapped_title = str((picked or {}).get("title") or "").strip() if isinstance(picked, dict) else ""
+            if mapped_uri:
                 actions[term] = {
                     "raw_term": term,
-                    "esco_uri": str(picked.get("uri") or "").strip(),
-                    "matched_label": str(picked.get("title") or "").strip(),
-                    "language": str(st.session_state.get(SSKey.LANGUAGE.value, "de")).strip(),
-                    "match_method": "picker_manual",
-                    "status": "mapped",
+                    "action": action,
+                    "mapped_uri": mapped_uri,
+                    "mapped_title": mapped_title or None,
+                    "bucket": bucket,
+                    "source_mode": source_mode,
                 }
-        elif action == "keep_custom":
+        elif action == "keep_free_text":
             actions[term] = {
                 "raw_term": term,
-                "esco_uri": "",
-                "matched_label": term,
-                "language": str(st.session_state.get(SSKey.LANGUAGE.value, "de")).strip(),
-                "match_method": "custom",
-                "status": "custom",
+                "action": action,
+                "mapped_uri": None,
+                "mapped_title": None,
+                "bucket": bucket,
+                "source_mode": source_mode,
             }
-        elif action == "merge_existing":
-            if not merge_options:
-                st.caption("Noch keine gemappten Skills verfügbar.")
-                selected_merge = ""
-            else:
-                selected_merge = st.selectbox(
-                    "Mit gemapptem Skill mergen",
-                    options=merge_options,
-                    key=f"{term_key}.merge",
-                )
-            if selected_merge:
-                matched = next((item for item in mapped_items if _normalize_term(str(item.get("title") or "")) == _normalize_term(selected_merge)), None)
-                actions[term] = {
-                    "raw_term": term,
-                    "esco_uri": str((matched or {}).get("uri") or "").strip(),
-                    "matched_label": selected_merge,
-                    "language": str(st.session_state.get(SSKey.LANGUAGE.value, "de")).strip(),
-                    "match_method": "merge_existing",
-                    "status": "merged",
-                }
         elif action == "ignore":
             actions[term] = {
                 "raw_term": term,
-                "esco_uri": "",
-                "matched_label": "",
-                "language": str(st.session_state.get(SSKey.LANGUAGE.value, "de")).strip(),
-                "match_method": "ignored",
-                "status": "ignored",
+                "action": action,
+                "mapped_uri": None,
+                "mapped_title": None,
+                "bucket": bucket,
+                "source_mode": source_mode,
             }
         else:
             retry_language = st.radio(
@@ -867,11 +853,11 @@ def _render_unmapped_term_workflow(flagged_terms: list[str]) -> None:
             picked_retry = st.session_state.get(f"{term_key}.retry_map")
             actions[term] = {
                 "raw_term": term,
-                "esco_uri": str((picked_retry or {}).get("uri") or "").strip() if isinstance(picked_retry, dict) else "",
-                "matched_label": str((picked_retry or {}).get("title") or "").strip() if isinstance(picked_retry, dict) else "",
-                "language": retry_language,
-                "match_method": "retry_query",
-                "status": "retried",
+                "action": action,
+                "mapped_uri": str((picked_retry or {}).get("uri") or "").strip() if isinstance(picked_retry, dict) else None,
+                "mapped_title": str((picked_retry or {}).get("title") or "").strip() if isinstance(picked_retry, dict) else None,
+                "bucket": bucket,
+                "source_mode": source_mode,
             }
         if existing and term not in actions:
             actions[term] = existing

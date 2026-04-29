@@ -921,29 +921,24 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
     unresolved_decisions: list[dict[str, Any]] = []
     if isinstance(unresolved_decisions_raw, list):
         for entry in unresolved_decisions_raw:
-            if isinstance(entry, dict):
-                try:
-                    unresolved_decisions.append(
-                        EscoUnresolvedTermDecision.model_validate(entry).model_dump(mode="json")
-                    )
-                except Exception:
-                    continue
+            if not isinstance(entry, dict):
+                continue
+            try:
+                parsed = EscoUnresolvedTermDecision.model_validate(entry)
+            except Exception:
+                continue
+            unresolved_decisions.append(parsed.model_dump(mode="json", exclude_none=True))
     if not unresolved_decisions and shared_esco["unmapped_actions"]:
         for raw_term, action_payload in shared_esco["unmapped_actions"].items():
             if not isinstance(action_payload, dict):
                 continue
             candidate = dict(action_payload)
             candidate.setdefault("raw_term", str(raw_term))
-            candidate.setdefault("esco_uri", "")
-            candidate.setdefault("matched_label", "")
-            candidate.setdefault("language", "")
-            candidate.setdefault("match_method", "")
-            candidate.setdefault("status", "")
             try:
                 parsed = EscoUnresolvedTermDecision.model_validate(candidate)
             except Exception:
                 continue
-            unresolved_decisions.append(parsed.model_dump(mode="json"))
+            unresolved_decisions.append(parsed.model_dump(mode="json", exclude_none=True))
     if unresolved_decisions:
         payload["esco_unresolved_term_decisions"] = unresolved_decisions
 

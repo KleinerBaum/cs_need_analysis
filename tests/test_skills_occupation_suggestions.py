@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from constants import SSKey
 from schemas import JobAdExtract
 
 SKILLS_PATH = Path(__file__).resolve().parents[1] / "wizard_pages" / "05_skills.py"
@@ -411,3 +412,51 @@ def test_compute_matrix_coverage_rows_marks_overrepresented_custom_group() -> No
     assert rows[0]["matrix_bucket"] == "must"
     assert rows[0]["skill_group_id"] == "group-custom"
     assert rows[0]["matched_skill_uris"] == ["uri:skill:x"]
+
+
+def test_render_unmapped_term_workflow_serializes_canonical_retry_and_bucket() -> None:
+    state = {
+        SSKey.ESCO_UNMAPPED_TERM_ACTIONS.value: {},
+        SSKey.ESCO_UNMAPPED_REQUIREMENT_TERMS.value: ["PySpark"],
+        SSKey.ESCO_CONFIG.value: {"data_source_mode": "api_live"},
+        "skills.unresolved.pyspark.retry_map": {
+            "uri": "uri:skill:pyspark",
+            "title": "Apache Spark",
+        },
+    }
+
+    class DummySt:
+        session_state = state
+
+        @staticmethod
+        def markdown(*args, **kwargs):
+            return None
+
+        @staticmethod
+        def caption(*args, **kwargs):
+            return None
+
+        @staticmethod
+        def selectbox(*args, **kwargs):
+            return "retry_search"
+
+        @staticmethod
+        def radio(*args, **kwargs):
+            return "de"
+
+    setattr(SKILLS_MODULE, "st", DummySt)
+    setattr(SKILLS_MODULE, "render_esco_picker_card", lambda **kwargs: None)
+
+    SKILLS_MODULE._render_unmapped_term_workflow(["PySpark"])
+
+    decisions = state[SSKey.ESCO_UNRESOLVED_TERM_DECISIONS.value]
+    assert decisions == [
+        {
+            "raw_term": "PySpark",
+            "action": "retry_search",
+            "mapped_uri": "uri:skill:pyspark",
+            "mapped_title": "Apache Spark",
+            "bucket": "must",
+            "source_mode": "api_live",
+        }
+    ]
