@@ -42,17 +42,45 @@ def test_offline_mode_contract_shapes(tmp_path: Path) -> None:
     client = EscoClient(session_state=session_state)
 
     search_payload = client.search(text="Software", type="occupation", limit=5)
-    assert isinstance(search_payload.get("_embedded", {}).get("results", []), list)
+    search_results = search_payload.get("_embedded", {}).get("results", [])
+    assert isinstance(search_results, list)
+    assert search_results
+    first_search = search_results[0]
+    assert first_search.get("uri") == "occ:1"
+    assert first_search.get("title") == "Softwareentwickler"
+    assert first_search.get("label") == "Softwareentwickler"
+    assert first_search.get("preferredLabel") == "Softwareentwickler"
+    assert first_search.get("conceptType") == "occupation"
 
     terms_payload = client.terms(uri="occ:1", type="occupation")
-    assert isinstance(terms_payload.get("_embedded", {}).get("results", []), list)
+    terms_results = terms_payload.get("_embedded", {}).get("results", [])
+    assert isinstance(terms_results, list)
+    assert terms_results
+    first_term = terms_results[0]
+    assert first_term.get("uri") == "occ:1"
+    assert first_term.get("title") == "Softwareentwickler"
+    assert first_term.get("label") == "Softwareentwickler"
+    assert first_term.get("preferredLabel") == "Softwareentwickler"
+    assert first_term.get("conceptType") == "occupation"
 
     occupation_payload = client.resource_occupation(uri="occ:1")
     assert isinstance(occupation_payload, dict)
     assert occupation_payload.get("uri") == "occ:1"
+    assert occupation_payload.get("title") == "Softwareentwickler"
+    assert occupation_payload.get("label") == "Softwareentwickler"
+    assert occupation_payload.get("preferredLabel") == "Softwareentwickler"
+    assert occupation_payload.get("conceptType") == "occupation"
 
     related_payload = client.resource_related(uri="occ:1", relation="hasEssentialSkill")
-    assert isinstance(related_payload.get("_embedded", {}).get("results", []), list)
+    related_results = related_payload.get("_embedded", {}).get("results", [])
+    assert isinstance(related_results, list)
+    assert related_results
+    first_related = related_results[0]
+    assert first_related.get("uri") == "skill:1"
+    assert first_related.get("title") == "Python"
+    assert first_related.get("label") == "Python"
+    assert first_related.get("preferredLabel") == "Python"
+    assert first_related.get("conceptType") == "skill"
 
 
 def test_offline_mode_skill_detail_does_not_call_live_api(
@@ -80,7 +108,10 @@ def test_offline_mode_skill_detail_does_not_call_live_api(
     skill_payload = client.resource_skill(uri="skill:1")
 
     assert skill_payload.get("uri") == "skill:1"
+    assert skill_payload.get("title") == "Python"
+    assert skill_payload.get("label") == "Python"
     assert skill_payload.get("preferredLabel") == "Python"
+    assert skill_payload.get("conceptType") == "skill"
     assert call_counter["count"] == 0
 
 
@@ -110,6 +141,14 @@ def test_offline_mode_suggest2_does_not_call_live_api(
     results = suggest_payload.get("_embedded", {}).get("results", [])
     assert isinstance(results, list)
     assert any(item.get("uri") == "skill:1" for item in results if isinstance(item, dict))
+    skill_result = next(
+        (item for item in results if isinstance(item, dict) and item.get("uri") == "skill:1"),
+        {},
+    )
+    assert skill_result.get("title") == "Python"
+    assert skill_result.get("label") == "Python"
+    assert skill_result.get("preferredLabel") == "Python"
+    assert skill_result.get("conceptType") == "skill"
     assert call_counter["count"] == 0
 
 
