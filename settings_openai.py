@@ -24,6 +24,9 @@ class OpenAISettings:
     reasoning_effort: str | None
     verbosity: str | None
     openai_request_timeout: float
+    esco_vector_store_id: str | None
+    esco_rag_enabled: bool
+    esco_rag_max_results: int
     task_max_output_tokens: dict[str, int | None]
     task_max_bullets_per_field: dict[str, int | None]
     task_max_sentences_per_field: dict[str, int | None]
@@ -53,6 +56,9 @@ _HARD_DEFAULTS: dict[str, str] = {
     "MEDIUM_REASONING_MODEL": _FINAL_MODEL_FALLBACK,
     "HIGH_REASONING_MODEL": "o3-mini",
     "OPENAI_REQUEST_TIMEOUT": str(int(DEFAULT_TIMEOUT_SECONDS)),
+    "ESCO_VECTOR_STORE_ID": "",
+    "ESCO_RAG_ENABLED": "false",
+    "ESCO_RAG_MAX_RESULTS": "8",
 }
 
 
@@ -158,6 +164,19 @@ def _parse_optional_positive_int(raw: str | None) -> int | None:
     return parsed
 
 
+def _parse_bool(raw: str | None, default_value: bool) -> bool:
+    """Parse boolean-like string values with a conservative fallback."""
+
+    if raw is None:
+        return default_value
+    text = raw.strip().lower()
+    if text in {"1", "true", "yes", "on"}:
+        return True
+    if text in {"0", "false", "no", "off"}:
+        return False
+    return default_value
+
+
 def load_openai_settings() -> OpenAISettings:
     """Load OpenAI-related settings from secrets/env/defaults."""
 
@@ -196,6 +215,22 @@ def load_openai_settings() -> OpenAISettings:
 
     timeout_default = DEFAULT_TIMEOUT_SECONDS
     openai_request_timeout = _parse_timeout_seconds(timeout_raw, timeout_default)
+    esco_vector_store_id, esco_vector_store_source = (
+        _resolve_optional_config_value_with_source("ESCO_VECTOR_STORE_ID")
+    )
+    esco_rag_enabled_raw, esco_rag_enabled_source = _resolve_config_value_with_source(
+        "ESCO_RAG_ENABLED"
+    )
+    esco_rag_max_results_raw, esco_rag_max_results_source = (
+        _resolve_config_value_with_source("ESCO_RAG_MAX_RESULTS")
+    )
+    esco_rag_max_results = _parse_optional_positive_int(esco_rag_max_results_raw) or 8
+    esco_rag_enabled = _parse_bool(esco_rag_enabled_raw, False) and bool(
+        esco_vector_store_id
+    )
+    resolved_from["ESCO_VECTOR_STORE_ID"] = esco_vector_store_source
+    resolved_from["ESCO_RAG_ENABLED"] = esco_rag_enabled_source
+    resolved_from["ESCO_RAG_MAX_RESULTS"] = esco_rag_max_results_source
     task_max_output_tokens: dict[str, int | None] = {}
     task_max_bullets_per_field: dict[str, int | None] = {}
     task_max_sentences_per_field: dict[str, int | None] = {}
@@ -232,6 +267,9 @@ def load_openai_settings() -> OpenAISettings:
         reasoning_effort=reasoning_effort,
         verbosity=verbosity,
         openai_request_timeout=openai_request_timeout,
+        esco_vector_store_id=esco_vector_store_id,
+        esco_rag_enabled=esco_rag_enabled,
+        esco_rag_max_results=esco_rag_max_results,
         task_max_output_tokens=task_max_output_tokens,
         task_max_bullets_per_field=task_max_bullets_per_field,
         task_max_sentences_per_field=task_max_sentences_per_field,
