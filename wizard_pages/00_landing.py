@@ -14,15 +14,9 @@ from wizard_pages.base import (
 )
 
 LANDING_COPY: dict[str, object] = {
-    "hero_headline": "Präzise Anforderungen. Schnellere Besetzungen. Bessere Einstellungen.",
+    "hero_headline": "Der optimale Recruiting-Prozess wird nicht erst in der Jobanzeige gut, sondern startet mit der umfassenden Aufnahme aller jobspezifischen Anforderungen.",
     "hero_subheadline": "",
-    "hero_supporting_paragraph": (
-        "Willkommen bei einer hochmodernen, KI-gestützten Recruiting-Anwendung: dem "
-        "„Cognitive Staffing – Vacancy Intake Wizard“. Ziel ist es, den Vacancy-Intake-"
-        "Prozess in einen intelligenten, unternehmenstauglichen Workspace zu verwandeln. "
-        "Mit Präzision und ruhiger Eleganz gestaltet, setzt dieses Konzept einen neuen "
-        "Standard in der Recruiting-Technologie."
-    ),
+    "hero_supporting_paragraph": "",
     "primary_cta": "Geben Sie uns ein paar Informationen zu Ihrer Vakanz",
     "secondary_cta_hint": "",
     "next_step_line": "",
@@ -90,20 +84,21 @@ def render(ctx: WizardContext) -> None:
         st.subheader(hero_subheadline)
     st.markdown(str(LANDING_COPY["hero_supporting_paragraph"]))
 
-    content_col, image_col = st.columns((1.35, 1), gap="large")
-    with content_col:
-        st.markdown(
-            f'<section id="{LANDING_SECTION_IDS["importance"]}" class="landing-section">',
-            unsafe_allow_html=True,
-        )
-        st.subheader(str(LANDING_COPY["importance_title"]))
-        st.divider()
-        st.badge("Klassische Bedarfsanalyse")
-        st.subheader("Klassische Bedarfsanalyse")
-        st.markdown(
-            "Als langjähriger Personalvermittler ist mir die Suche nach der eierlegenden Wollmilchsau bestens bekannt. Unklare Anforderungen führen nicht nur für Personalvermittler zu unpräzisem Sourcing und Diskussionen über die falschen Profile. Unklare Anforderungen führen von den Verantwortlichen unbemerkt dazu, dass das Interesse des perfekten Kandidaten nicht geweckt wird, z.B. indem das essentielle Benefit nicht bekannt gegeben wird. Merklicher wird es für die Verantwortlichen, wenn unpassende Profile vorgestellt werden, Prozesse aufgrund ihrer Länge scheitern oder schlimmstenfalls der Mitarbeiter nach 6 Monaten Probe kündigt, da die Anforderungen in der Realität nicht mit den Vorstellungen des Mitarbeiters übereinstimmen. Der Prozess muss dann komplett neu gestartet werden, was allen Beteiligten nicht nur Zeit kostet, sondern auch viele Dollars"
-        )
-        st.divider()
+    st.markdown(
+        f'<section id="{LANDING_SECTION_IDS["importance"]}" class="landing-section">',
+        unsafe_allow_html=True,
+    )
+    st.subheader(str(LANDING_COPY["importance_title"]))
+    st.divider()
+    st.badge("Klassische Bedarfsanalyse")
+    st.subheader("Klassische Bedarfsanalyse")
+    st.markdown(
+        "Als langjähriger Personalvermittler ist mir die Suche nach der eierlegenden Wollmilchsau bestens bekannt. Unklare Anforderungen führen nicht nur für Personalvermittler zu unpräzisem Sourcing und Diskussionen über die falschen Profile. Unklare Anforderungen führen von den Verantwortlichen unbemerkt dazu, dass das Interesse des perfekten Kandidaten nicht geweckt wird, z.B. indem das essentielle Benefit nicht bekannt gegeben wird. Merklicher wird es für die Verantwortlichen, wenn unpassende Profile vorgestellt werden, Prozesse aufgrund ihrer Länge scheitern oder schlimmstenfalls der Mitarbeiter nach 6 Monaten Probe kündigt, da die Anforderungen in der Realität nicht mit den Vorstellungen des Mitarbeiters übereinstimmen. Der Prozess muss dann komplett neu gestartet werden, was allen Beteiligten nicht nur Zeit kostet, sondern auch viele Dollars"
+    )
+    st.image("images/iceberg v1.png", width="stretch")
+    st.divider()
+    cognitive_col, rag_col = st.columns(2, gap="large")
+    with cognitive_col:
         st.badge("Cognitive Staffing")
         st.subheader("Wie profitieren Sie von Cognitive Staffing?")
         st.markdown(
@@ -112,7 +107,7 @@ def render(ctx: WizardContext) -> None:
             "- **KI-Unterstützung (RAG):** Wir nutzen ESCO-Daten in einem Retrieval-Augmented-Generation-Ansatz (RAG). Das bedeutet: Beim Generieren von Texten (z.B. vorgeschlagene Aufgaben oder Umschreibungen) werden relevante ESCO-Beschreibungen und Skill-Listen aus der Wissensdatenbank abgerufen und als Faktenbasis eingesetzt. Dadurch erhält die KI konkreten Kontext statt nur freier Texte.\n"
             "- **Anforderungsnormalisierung:** Unbekannte oder freie Stichworte in einer Stellenanzeige können durch ESCO-Skills ergänzt oder abgeglichen werden. Die App ermöglicht, fehlende Skills zuzuordnen oder als unternehmensspezifisch zu belassen."
         )
-        st.divider()
+    with rag_col:
         st.badge("RAG + LLM")
         st.subheader(
             "Der Retrieval-Augmented-Generation-Ansatz (RAG) in Kombination mit LLM-gestützen Prompts bietet diverse Option zur Weiterverarbeitung der gesammelten Daten:"
@@ -120,9 +115,7 @@ def render(ctx: WizardContext) -> None:
         st.markdown(
             "a) Messerscharf formulierte Aufgaben, Must-haves und Nice-to-have Skills und (lokalen und zielgruppenorientierten) Benefits; b) Erwartungsmanagement der Einstellenden durch Gehaltsprognosen, die basierend auf allen eingegebenen Parametern berechnet werden; c) Automatisierung und Optimierung des internen Kommunikationsprozesses; d) Automatisierung und Optimierung diverser Sourcing-Schritte, beginnend bei der Erstellung der Jobad über das Generieren von Boolean-Searchstrings bis hin zur Erstellung des Arbeitsvertrags im Corporate Design"
         )
-        st.markdown("</section>", unsafe_allow_html=True)
-    with image_col:
-        st.image("images/iceberg v1.png", width="stretch")
+    st.markdown("</section>", unsafe_allow_html=True)
 
     st.divider()
     render_jobad_intake(ctx, title=str(LANDING_COPY["primary_cta"]))
