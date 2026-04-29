@@ -132,7 +132,22 @@ Input-Formate (aktuell):
 
 - **JSON**: Mapping pro Occupation-URI/-Group auf Must-/Nice-Skill-URIs.
 - **CSV**: tabellarisches Äquivalent mit Occupation-Referenz + Skill-Zeilen inkl. Must/Nice-Klassifikation.
-- **Nicht enthalten**: Es gibt derzeit **keine XLSX-Import-Pipeline**.
+- **XLSX (Preprocessing)**: Über `scripts/build_esco_matrix.py` kann eine ESCO-Matrix-Arbeitsmappe in ein loader-kompatibles JSON transformiert werden.
+
+Preprocessing (XLSX -> JSON):
+
+```bash
+.venv/bin/python scripts/build_esco_matrix.py \
+  --xlsx /pfad/zur/esco_matrix.xlsx \
+  --out /pfad/zur/esco_matrix.normalized.json \
+  --version 2026.05
+```
+
+Hinweis zur Rollenverteilung:
+
+- `scripts/build_esco_matrix.py` ist ein **Offline-Preprocessor** (keine Streamlit-Request-Path-Nutzung).
+- `esco_matrix.py` lädt zur Laufzeit ausschließlich das bereits normalisierte `.json`/`.csv`.
+- Das generierte JSON enthält neben loader-kompatiblen Feldern (`occupation_group`, `skill_uri`, `skill_title`, `bucket`) zusätzliche Matrix-Metadaten (`skill_group_uri`/`skill_group_id`, `skill_group_label`, `share_percent`).
 
 Output-Verhalten (aktuell):
 
@@ -144,7 +159,6 @@ Output-Verhalten (aktuell):
 
 Explizite Lücken (aktuell):
 
-- Keine XLSX-Import-Pipeline.
 - Kein ISCO-Distribution-Benchmarking.
 - Keine erweiterten Coverage-/Coherence-Metriken.
 
