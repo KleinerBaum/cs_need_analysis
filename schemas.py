@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
 from constants import AnswerType, QUESTION_SCHEMA_VERSION, VACANCY_SCHEMA_VERSION
 
@@ -420,21 +420,55 @@ class EscoExportConcept(StrictSchemaModel):
 
 class EscoUnresolvedTermDecision(StrictSchemaModel):
     raw_term: str = Field(description="Original unresolved term from jobspec input.")
-    esco_uri: Optional[str] = Field(
-        default=None, description="Chosen ESCO URI when term was mapped to ESCO."
+    action: Literal[
+        "map_to_esco_skill",
+        "keep_free_text",
+        "ignore",
+        "retry_search",
+    ] = Field(
+        validation_alias=AliasChoices("action", "status"),
+        description="Canonical unresolved-term action.",
     )
-    matched_label: Optional[str] = Field(
-        default=None, description="Resolved ESCO label or chosen merge label."
+    mapped_uri: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("mapped_uri", "esco_uri"),
+        description="Chosen ESCO URI when action resolves to an ESCO skill.",
     )
-    language: Optional[str] = Field(
-        default=None, description="Language used during lookup (e.g., de, en)."
+    mapped_title: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("mapped_title", "matched_label"),
+        description="Chosen ESCO label when action resolves to an ESCO skill.",
     )
-    match_method: str = Field(
-        description="How the decision was created, e.g. picker_manual, merge, keep_custom."
+    bucket: Optional[str] = Field(
+        default=None,
+        description="Source bucket of the unresolved term (e.g., must/nice/unknown).",
     )
-    status: str = Field(
-        description="Final status for the unresolved term (mapped, custom, merged, ignored, retried)."
+    source_mode: Optional[str] = Field(
+        default=None,
+        description="ESCO data_source_mode active while taking the decision.",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_legacy_fields(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
+            return value
+        payload = dict(value)
+        legacy_status = str(payload.get("status") or "").strip().lower()
+        legacy_method = str(payload.get("match_method") or "").strip().lower()
+        if not payload.get("action"):
+            if legacy_status in {"mapped", "merged"}:
+                payload["action"] = "map_to_esco_skill"
+            elif legacy_status == "custom":
+                payload["action"] = "keep_free_text"
+            elif legacy_status == "ignored":
+                payload["action"] = "ignore"
+            elif legacy_status == "retried" or legacy_method == "retry_query":
+                payload["action"] = "retry_search"
+        payload.pop("status", None)
+        payload.pop("match_method", None)
+        payload.pop("language", None)
+        return payload
 
 
 class EscoMatrixCoverageRow(StrictSchemaModel):
