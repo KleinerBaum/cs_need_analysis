@@ -106,3 +106,43 @@ def test_dedupe_is_stable_across_jobspec_ai_esco_inputs() -> None:
         ["Ownership", " ownership ", "Incident Management", "incident management"]
     )
     assert merged == ["Ownership", "Incident Management"]
+
+
+def test_build_task_rag_context_returns_empty_when_disabled(monkeypatch) -> None:
+    monkeypatch.setattr(
+        ROLE_TASKS_MODULE,
+        "retrieve_esco_context",
+        lambda *args, **kwargs: SimpleNamespace(hits=(), reason="disabled"),
+    )
+    job = SimpleNamespace(
+        title="Data Engineer",
+        responsibilities=["Build pipelines"],
+        deliverables=["Reliable ETL jobs"],
+    )
+    assert ROLE_TASKS_MODULE._build_task_rag_context(job) == []
+
+
+def test_build_task_rag_context_injects_mocked_hits(monkeypatch) -> None:
+    hit = SimpleNamespace(
+        snippet="Coordinate incident response workflows and post-incident reviews.",
+        source_title="ESCO Occupation",
+        source_file="tasks.json",
+    )
+    monkeypatch.setattr(
+        ROLE_TASKS_MODULE,
+        "retrieve_esco_context",
+        lambda *args, **kwargs: SimpleNamespace(hits=(hit,), reason=None),
+    )
+    job = SimpleNamespace(
+        title="SRE",
+        responsibilities=["Run operations"],
+        deliverables=["Stable platform"],
+    )
+    context = ROLE_TASKS_MODULE._build_task_rag_context(job)
+    assert context == [
+        {
+            "snippet": "Coordinate incident response workflows and post-incident reviews.",
+            "source_title": "ESCO Occupation",
+            "source_file": "tasks.json",
+        }
+    ]

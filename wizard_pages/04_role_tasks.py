@@ -8,6 +8,7 @@ import streamlit as st
 
 from constants import SSKey
 from esco_client import EscoClient, EscoClientError
+from esco_rag import retrieve_esco_context
 from llm_client import generate_requirement_gap_suggestions
 from schemas import JobAdExtract
 from state import (
@@ -174,6 +175,31 @@ def _merge_llm_task_suggestions(
         )
         seen.add(normalized)
     return merged
+
+
+def _build_task_rag_context(job: JobAdExtract) -> list[dict[str, str]]:
+    query_parts = _dedupe_task_terms(
+        [job.title or "", *job.responsibilities[:3], *job.deliverables[:3]]
+    )
+    query = " | ".join(part for part in query_parts if has_meaningful_value(part))
+    if not query:
+        return []
+    rag_result = retrieve_esco_context(query, purpose="tasks", max_results=4)
+    if rag_result.reason is not None or not rag_result.hits:
+        return []
+    context: list[dict[str, str]] = []
+    for hit in rag_result.hits[:4]:
+        snippet = str(hit.snippet).strip()
+        if not snippet:
+            continue
+        context.append(
+            {
+                "snippet": snippet[:320],
+                "source_title": str(hit.source_title or "").strip(),
+                "source_file": str(hit.source_file or "").strip(),
+            }
+        )
+    return context
 
 
 def _save_selected_task_suggestions(labels: list[str]) -> int:
@@ -355,6 +381,7 @@ def render(ctx: WizardContext) -> None:
                         esco_skill_titles=context["esco_skill_titles"],
                         target_skill_count=0,
                         target_task_count=target_task_count,
+                        task_rag_context=_build_task_rag_context(job),
                         model=get_active_model(),
                         language=str(st.session_state.get(SSKey.LANGUAGE.value, "de")),
                         store=bool(
