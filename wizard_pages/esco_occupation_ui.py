@@ -1228,12 +1228,32 @@ def render_esco_occupation_confirmation(
         return
 
     if show_start_context_panels:
+        st.markdown("### Was ist ESCO?")
+        st.markdown(
+            "ESCO ist die europäische Klassifikation für **Berufe**, **Skills** und "
+            "**Kompetenzen**. Sie bietet ein gemeinsames Vokabular, damit ähnliche "
+            "Jobtitel und Anforderungen einheitlich beschrieben werden können."
+        )
+        st.markdown("### Wie nutzt diese App ESCO?")
+        st.markdown(
+            "Vor der KI-Generierung nutzt die App ESCO als **Retrieval-Kontext "
+            "(RAG-ähnlich)**: Zuerst wird eine passende Occupation gesucht, dann "
+            "werden zugehörige Skills und Relationen geladen. Diese Fakten ergänzen "
+            "die Jobspec und verbessern die Qualität der nachgelagerten Vorschläge."
+        )
+        st.markdown("### Welche ESCO-Quellen werden genutzt?")
+        st.markdown(
+            "- ESCO Web-Service API\n"
+            "- Offline ESCO Index\n"
+            "- Occupations pillar\n"
+            "- Skills & Competences pillar\n"
+            "- Skills–Occupations Matrix Tables"
+        )
+        st.markdown("### Nächster Schritt: Occupation bestätigen")
         st.caption(f"Suche mit: `{query_text}`")
     query_state_key = f"{SSKey.ESCO_OCCUPATION_SELECTED.value}.esco_picker.query"
     if not st.session_state.get(query_state_key):
         st.session_state[query_state_key] = query_text
-    if show_start_context_panels:
-        _render_esco_why_this_matters()
     render_esco_picker_card(
         concept_type="occupation",
         target_state_key=SSKey.ESCO_OCCUPATION_SELECTED,
@@ -1300,10 +1320,11 @@ def render_esco_occupation_confirmation(
 
     if show_start_context_panels:
         selected_title = str(selected.get("title") or "—").strip() or "—"
-        with st.container():
-            st.markdown("**Ausgewählte Occupation**")
-            st.write(selected_title)
-            st.caption(capabilities_badge)
+        st.markdown("**Ausgewählte Occupation**")
+        st.write(selected_title)
+        st.caption(capabilities_badge)
+
+        with st.expander("Technische Details (optional)", expanded=False):
             _render_capability_status_panel(client=client, capabilities=capabilities)
             st.markdown(
                 (
@@ -1319,12 +1340,12 @@ def render_esco_occupation_confirmation(
             if st.button("URI kopieren", key="esco.occupation.selected.uri.copy"):
                 st.code(occupation_uri, language="text")
                 st.caption("URI zum Kopieren eingeblendet.")
-        render_esco_explainability(
-            labels=explainability["provenance_categories"],
-            confidence=str(explainability["confidence"]),
-            reason=str(explainability["reason"]),
-            caption_prefix="Occupation Explainability",
-        )
+            render_esco_explainability(
+                labels=explainability["provenance_categories"],
+                confidence=str(explainability["confidence"]),
+                reason=str(explainability["reason"]),
+                caption_prefix="Occupation Explainability",
+            )
     related_labels: dict[str, list[str]] = {}
     try:
         occupation_payload = client.get_occupation_detail(uri=occupation_uri)
@@ -1417,16 +1438,17 @@ def render_esco_occupation_confirmation(
             )
             st.markdown(f"[Portal öffnen]({occupation_uri})")
     if show_start_context_panels:
-        _render_selected_occupation_detail(
-            st.session_state.get(SSKey.ESCO_OCCUPATION_PAYLOAD.value),
-            st.session_state.get(SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value),
-            related_labels,
-            supported_relations=supported_relations,
-            capabilities=capabilities,
-            skill_group_share_payload=st.session_state.get(
-                SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value
-            ),
-        )
+        with st.expander("Details zur ausgewählten Occupation", expanded=False):
+            _render_selected_occupation_detail(
+                st.session_state.get(SSKey.ESCO_OCCUPATION_PAYLOAD.value),
+                st.session_state.get(SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value),
+                related_labels,
+                supported_relations=supported_relations,
+                capabilities=capabilities,
+                skill_group_share_payload=st.session_state.get(
+                    SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value
+                ),
+            )
 
     if show_start_context_panels:
         configured_language = (
