@@ -465,6 +465,7 @@ def _load_related_skills_from_selected_occupation(
 
 def _load_matrix_priors(
     occupation_uri: str,
+    occupation_group: str | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     if not bool(st.session_state.get(SSKey.ESCO_MATRIX_ENABLED.value, False)):
         return [], []
@@ -479,7 +480,53 @@ def _load_matrix_priors(
         "version": lookup.metadata.version,
         "records": lookup.metadata.records,
     }
-    return lookup.candidates_for(occupation_uri=occupation_uri)
+    return lookup.candidates_for(
+        occupation_uri=occupation_uri,
+        occupation_group=occupation_group,
+    )
+
+
+def _resolve_matrix_occupation_group(
+    selected_occupation: dict[str, Any] | None,
+) -> str:
+    def _coerce_group_value(value: Any) -> str:
+        if isinstance(value, str):
+            return value.strip()
+        if isinstance(value, (int, float)):
+            return str(value).strip()
+        if isinstance(value, dict):
+            for candidate in value.values():
+                resolved = _coerce_group_value(candidate)
+                if resolved:
+                    return resolved
+        if isinstance(value, list):
+            for candidate in value:
+                resolved = _coerce_group_value(candidate)
+                if resolved:
+                    return resolved
+        return ""
+
+    payload_raw = st.session_state.get(SSKey.ESCO_OCCUPATION_PAYLOAD.value)
+    payload = payload_raw if isinstance(payload_raw, dict) else {}
+    sources: tuple[dict[str, Any], ...] = (
+        selected_occupation if isinstance(selected_occupation, dict) else {},
+        payload,
+    )
+    group_keys = (
+        "occupation_group",
+        "occupationGroup",
+        "iscoGroup",
+        "isco08",
+        "isco08Code",
+        "isco_code",
+        "code",
+    )
+    for source in sources:
+        for key in group_keys:
+            value = _coerce_group_value(source.get(key))
+            if value:
+                return value
+    return ""
 
 
 def _render_unmapped_term_workflow(flagged_terms: list[str]) -> None:
@@ -593,6 +640,7 @@ def _render_skills_source_comparison_block(
         else ""
     )
     if show_esco_sections and occupation_uri and load_esco_clicked:
+        occupation_group = _resolve_matrix_occupation_group(selected_occupation)
         occupation_title = (
             str(selected_occupation.get("title") or "—").strip()
             if isinstance(selected_occupation, dict)
@@ -605,7 +653,10 @@ def _render_skills_source_comparison_block(
         matrix_must: list[dict[str, Any]] = []
         matrix_nice: list[dict[str, Any]] = []
         try:
-            matrix_must, matrix_nice = _load_matrix_priors(occupation_uri)
+            matrix_must, matrix_nice = _load_matrix_priors(
+                occupation_uri,
+                occupation_group=occupation_group,
+            )
         except Exception as exc:
             st.session_state[SSKey.ESCO_MATRIX_LOADED.value] = False
             st.caption(f"Matrix-Prior nicht geladen: {exc}")

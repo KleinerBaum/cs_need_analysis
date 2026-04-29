@@ -151,8 +151,11 @@ def test_load_matrix_priors_updates_metadata_when_loaded(monkeypatch) -> None:
             loaded=True, source="offline_build", version="2026.04", records=3
         )
 
-        def candidates_for(self, *, occupation_uri: str) -> tuple[list[dict], list[dict]]:
+        def candidates_for(
+            self, *, occupation_uri: str, occupation_group: str | None = None
+        ) -> tuple[list[dict], list[dict]]:
             assert occupation_uri == "uri:occ:1"
+            assert occupation_group is None
             return ([{"uri": "uri:skill:1", "title": "Python"}], [])
 
     monkeypatch.setenv("ESCO_MATRIX_PATH", "/tmp/matrix.json")
@@ -167,3 +170,55 @@ def test_load_matrix_priors_updates_metadata_when_loaded(monkeypatch) -> None:
     assert len(must) == 1 and nice == []
     assert state["cs.esco_matrix_loaded"] is True
     assert state["cs.esco_matrix_metadata"]["version"] == "2026.04"
+
+
+def test_load_matrix_priors_passes_occupation_group_when_provided(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class DummyLookup:
+        metadata = SimpleNamespace(
+            loaded=True, source="offline_build", version="2026.04", records=2
+        )
+
+        def candidates_for(
+            self, *, occupation_uri: str, occupation_group: str | None = None
+        ) -> tuple[list[dict], list[dict]]:
+            assert occupation_uri == "uri:occ:1"
+            assert occupation_group == "251"
+            return (
+                [{"uri": "uri:skill:must", "title": "Python", "type": "skill"}],
+                [{"uri": "uri:skill:nice", "title": "Git", "type": "skill"}],
+            )
+
+    monkeypatch.setenv("ESCO_MATRIX_PATH", "/tmp/matrix.json")
+    monkeypatch.setattr(SKILLS_MODULE, "load_esco_matrix", lambda _: DummyLookup())
+    state = {
+        "cs.esco_matrix_enabled": True,
+        "cs.esco_matrix_metadata": {},
+        "cs.esco_matrix_loaded": False,
+    }
+    setattr(SKILLS_MODULE, "st", SimpleNamespace(session_state=state))
+
+    must, nice = SKILLS_MODULE._load_matrix_priors(
+        "uri:occ:1", occupation_group="251"
+    )
+
+    assert len(must) == 1
+    assert len(nice) == 1
+    assert must[0]["uri"] == "uri:skill:must"
+    assert nice[0]["uri"] == "uri:skill:nice"
+
+
+def test_resolve_matrix_occupation_group_uses_selected_then_payload() -> None:
+    state = {
+        "cs.esco_occupation_payload": {"iscoGroup": "351"},
+    }
+    setattr(SKILLS_MODULE, "st", SimpleNamespace(session_state=state))
+
+    selected_group = SKILLS_MODULE._resolve_matrix_occupation_group(
+        {"uri": "uri:occ:1", "code": "251"}
+    )
+    payload_group = SKILLS_MODULE._resolve_matrix_occupation_group({"uri": "uri:occ:1"})
+
+    assert selected_group == "251"
+    assert payload_group == "351"
