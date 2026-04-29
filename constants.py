@@ -220,6 +220,7 @@ class SSKey(str, Enum):
     ESCO_UNMAPPED_REQUIREMENT_TERMS = "cs.esco_unmapped_requirement_terms"
     ESCO_UNMAPPED_ROLE_TERMS = "cs.esco_unmapped_role_terms"
     ESCO_UNMAPPED_TERM_ACTIONS = "cs.esco_unmapped_term_actions"
+    ESCO_UNRESOLVED_TERM_DECISIONS = "cs.esco_unresolved_term_decisions"
     ESCO_SKILLS_MAPPING_REPORT = "cs.esco_skills_mapping_report"
     ESCO_SKILL_DETAIL_CACHE = "cs.esco_skill_detail_cache"
     ESCO_OCCUPATION_TITLE_VARIANTS = "cs.esco_occupation_title_variants"

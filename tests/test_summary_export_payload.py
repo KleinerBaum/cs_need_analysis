@@ -132,6 +132,16 @@ def test_build_structured_export_payload_includes_esco_uri_and_label(
                 SSKey.ESCO_SKILLS_SELECTED_NICE.value: [
                     {"uri": "uri:skill:nice", "title": "dbt", "type": "skill"}
                 ],
+                SSKey.ESCO_UNRESOLVED_TERM_DECISIONS.value: [
+                    {
+                        "raw_term": "PySpark",
+                        "esco_uri": "uri:skill:pyspark",
+                        "matched_label": "Apache Spark",
+                        "language": "de",
+                        "match_method": "picker_manual",
+                        "status": "mapped",
+                    }
+                ],
             }
         ),
     )
@@ -153,6 +163,7 @@ def test_build_structured_export_payload_includes_esco_uri_and_label(
     }
     assert payload["esco_skills_must"] == [{"uri": "uri:skill:must", "label": "Python"}]
     assert payload["esco_skills_nice"] == [{"uri": "uri:skill:nice", "label": "dbt"}]
+    assert payload["esco_unresolved_term_decisions"][0]["raw_term"] == "PySpark"
     assert payload["esco_version"] == "v1.2.0"
     assert payload["esco_matrix"]["source"] == "offline_build"
     assert payload["esco_matrix"]["version"] == "2026.04"

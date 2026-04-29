@@ -418,6 +418,25 @@ class EscoExportConcept(StrictSchemaModel):
     label: str = Field(description="Human-readable ESCO label.")
 
 
+class EscoUnresolvedTermDecision(StrictSchemaModel):
+    raw_term: str = Field(description="Original unresolved term from jobspec input.")
+    esco_uri: Optional[str] = Field(
+        default=None, description="Chosen ESCO URI when term was mapped to ESCO."
+    )
+    matched_label: Optional[str] = Field(
+        default=None, description="Resolved ESCO label or chosen merge label."
+    )
+    language: Optional[str] = Field(
+        default=None, description="Language used during lookup (e.g., de, en)."
+    )
+    match_method: str = Field(
+        description="How the decision was created, e.g. picker_manual, merge, keep_custom."
+    )
+    status: str = Field(
+        description="Final status for the unresolved term (mapped, custom, merged, ignored, retried)."
+    )
+
+
 class VacancyStructuredData(StrictSchemaModel):
     job_extract: Dict[str, Any] = Field(default_factory=dict)
     answers: Dict[str, Any] = Field(default_factory=dict)
@@ -448,6 +467,10 @@ class VacancyStructuredData(StrictSchemaModel):
     esco_version: Optional[str] = Field(
         default=None,
         description="Optional ESCO dataset version used during mapping.",
+    )
+    esco_unresolved_term_decisions: Optional[List[EscoUnresolvedTermDecision]] = Field(
+        default=None,
+        description="Optional decision log for unresolved terms with provenance fields.",
     )
 
 

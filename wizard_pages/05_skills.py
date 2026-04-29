@@ -29,6 +29,7 @@ from state import (
 from ui_layout import render_step_shell
 from ui_components import (
     has_meaningful_value,
+    render_esco_picker_card,
     render_compare_adopt_intro,
     render_error_banner,
     render_multi_select_pills,
@@ -530,11 +531,114 @@ def _resolve_matrix_occupation_group(
 
 def _render_unmapped_term_workflow(flagged_terms: list[str]) -> None:
     st.markdown("#### Offene Begriffe")
-    st.caption("Offene Begriffe aus dem Jobspec, verteilt auf drei Spalten.")
-    columns = st.columns(3, gap="large")
-    for idx, term in enumerate(flagged_terms):
-        with columns[idx % 3]:
-            st.write(f"- {term}")
+    st.caption("Für jeden Begriff: ESCO mappen, custom behalten, mergen, ignorieren oder DE/EN neu suchen.")
+    actions_raw = st.session_state.get(SSKey.ESCO_UNMAPPED_TERM_ACTIONS.value, {})
+    actions = actions_raw if isinstance(actions_raw, dict) else {}
+    mapped_must_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
+    mapped_nice_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
+    mapped_items = [
+        item
+        for item in [*(mapped_must_raw if isinstance(mapped_must_raw, list) else []), *(mapped_nice_raw if isinstance(mapped_nice_raw, list) else [])]
+        if isinstance(item, dict) and str(item.get("title") or "").strip()
+    ]
+    merge_options = [str(item.get("title") or "").strip() for item in mapped_items]
+
+    for term in flagged_terms:
+        normalized_term = _normalize_term(term)
+        term_key = f"skills.unresolved.{normalized_term}"
+        existing = actions.get(term, {}) if isinstance(actions.get(term, {}), dict) else {}
+        st.markdown(f"**{term}**")
+        action = st.selectbox(
+            "Aktion",
+            options=["map_esco", "keep_custom", "merge_existing", "ignore", "retry_query"],
+            index=0,
+            key=f"{term_key}.action",
+        )
+        if action == "map_esco":
+            render_esco_picker_card(
+                concept_type="skill",
+                target_state_key=f"{term_key}.map",
+                apply_label="ESCO-Mapping übernehmen",
+                selection_label="ESCO-Skill auswählen",
+                auto_apply_single_select=False,
+            )
+            picked = st.session_state.get(f"{term_key}.map")
+            if isinstance(picked, dict) and str(picked.get("uri") or "").strip():
+                actions[term] = {
+                    "raw_term": term,
+                    "esco_uri": str(picked.get("uri") or "").strip(),
+                    "matched_label": str(picked.get("title") or "").strip(),
+                    "language": str(st.session_state.get(SSKey.LANGUAGE.value, "de")).strip(),
+                    "match_method": "picker_manual",
+                    "status": "mapped",
+                }
+        elif action == "keep_custom":
+            actions[term] = {
+                "raw_term": term,
+                "esco_uri": "",
+                "matched_label": term,
+                "language": str(st.session_state.get(SSKey.LANGUAGE.value, "de")).strip(),
+                "match_method": "custom",
+                "status": "custom",
+            }
+        elif action == "merge_existing":
+            if not merge_options:
+                st.caption("Noch keine gemappten Skills verfügbar.")
+                selected_merge = ""
+            else:
+                selected_merge = st.selectbox(
+                    "Mit gemapptem Skill mergen",
+                    options=merge_options,
+                    key=f"{term_key}.merge",
+                )
+            if selected_merge:
+                matched = next((item for item in mapped_items if _normalize_term(str(item.get("title") or "")) == _normalize_term(selected_merge)), None)
+                actions[term] = {
+                    "raw_term": term,
+                    "esco_uri": str((matched or {}).get("uri") or "").strip(),
+                    "matched_label": selected_merge,
+                    "language": str(st.session_state.get(SSKey.LANGUAGE.value, "de")).strip(),
+                    "match_method": "merge_existing",
+                    "status": "merged",
+                }
+        elif action == "ignore":
+            actions[term] = {
+                "raw_term": term,
+                "esco_uri": "",
+                "matched_label": "",
+                "language": str(st.session_state.get(SSKey.LANGUAGE.value, "de")).strip(),
+                "match_method": "ignored",
+                "status": "ignored",
+            }
+        else:
+            retry_language = st.radio(
+                "Retry Sprache",
+                options=["de", "en"],
+                horizontal=True,
+                key=f"{term_key}.retry_lang",
+            )
+            st.session_state[SSKey.LANGUAGE.value] = retry_language
+            render_esco_picker_card(
+                concept_type="skill",
+                target_state_key=f"{term_key}.retry_map",
+                apply_label=f"Retry ({retry_language.upper()}) übernehmen",
+                selection_label="Erneute ESCO-Suche",
+            )
+            picked_retry = st.session_state.get(f"{term_key}.retry_map")
+            actions[term] = {
+                "raw_term": term,
+                "esco_uri": str((picked_retry or {}).get("uri") or "").strip() if isinstance(picked_retry, dict) else "",
+                "matched_label": str((picked_retry or {}).get("title") or "").strip() if isinstance(picked_retry, dict) else "",
+                "language": retry_language,
+                "match_method": "retry_query",
+                "status": "retried",
+            }
+        if existing and term not in actions:
+            actions[term] = existing
+    st.session_state[SSKey.ESCO_UNMAPPED_TERM_ACTIONS.value] = actions
+    st.session_state[SSKey.ESCO_UNRESOLVED_TERM_DECISIONS.value] = [
+        value for value in actions.values() if isinstance(value, dict)
+    ]
 
 
 def _render_extracted_slot(job: JobAdExtract) -> None:
