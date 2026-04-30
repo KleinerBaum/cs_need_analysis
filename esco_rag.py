@@ -118,11 +118,46 @@ def _extract_hits(items: list[Any]) -> tuple[EscoRagHit, ...]:
     return tuple(hits)
 
 
+def _eq_filter(key: str, value: str) -> dict[str, str]:
+    return {"type": "eq", "key": key, "value": value}
+
+
+def _build_retrieval_filters(
+    *,
+    purpose: str,
+    collection: str | None = None,
+    language: str | None = None,
+    skill_type: str | None = None,
+) -> dict[str, Any]:
+    normalized_purpose = (purpose or "").strip()
+    if not normalized_purpose:
+        raise ValueError("purpose must not be empty")
+
+    clauses = [_eq_filter("purpose", normalized_purpose)]
+    optional_filters = (
+        ("collection", collection),
+        ("language", language),
+        ("skill_type", skill_type),
+    )
+    for key, value in optional_filters:
+        normalized = _coerce_string(value)
+        if normalized is None:
+            continue
+        clauses.append(_eq_filter(key, normalized))
+
+    if len(clauses) == 1:
+        return clauses[0]
+    return {"type": "and", "filters": clauses}
+
+
 def retrieve_esco_context(
     query: str,
     *,
     purpose: str,
     max_results: int | None = None,
+    collection: str | None = None,
+    language: str | None = None,
+    skill_type: str | None = None,
 ) -> EscoRagResult:
     settings = load_openai_settings()
     if not settings.esco_vector_store_id:
@@ -133,20 +168,39 @@ def retrieve_esco_context(
 
     limit = max_results or settings.esco_rag_max_results
     client = get_openai_client(settings=settings)
+    primary_filters = _build_retrieval_filters(
+        purpose=purpose,
+        collection=collection,
+        language=language,
+        skill_type=skill_type,
+    )
+    fallback_filters = _build_retrieval_filters(purpose=purpose)
     try:
         response = client.vector_stores.search(
             vector_store_id=settings.esco_vector_store_id,
             query=query,
             max_num_results=limit,
             rewrite_query=False,
-            filters={"type": "eq", "key": "purpose", "value": purpose},
+            filters=primary_filters,
         )
+        data = response.model_dump() if hasattr(response, "model_dump") else {}
+        items = data.get("data") if isinstance(data, dict) else []
+
+        has_optional_metadata_filters = primary_filters != fallback_filters
+        if has_optional_metadata_filters and not items:
+            response = client.vector_stores.search(
+                vector_store_id=settings.esco_vector_store_id,
+                query=query,
+                max_num_results=limit,
+                rewrite_query=False,
+                filters=fallback_filters,
+            )
+            data = response.model_dump() if hasattr(response, "model_dump") else {}
+            items = data.get("data") if isinstance(data, dict) else []
     except Exception:
         LOGGER.warning("ESCO RAG retrieval failed", exc_info=True)
         return EscoRagResult(hits=(), provenance="openai_vector_store", reason="error")
 
-    data = response.model_dump() if hasattr(response, "model_dump") else {}
-    items = data.get("data") if isinstance(data, dict) else []
     hits = _extract_hits(items if isinstance(items, list) else [])
     return EscoRagResult(hits=hits, provenance="openai_vector_store", reason=None)
 

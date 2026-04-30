@@ -60,7 +60,11 @@ def test_retrieve_esco_context_success(monkeypatch) -> None:
         lambda *, settings: SimpleNamespace(vector_stores=_VectorStores()),
     )
 
-    result = esco_rag.retrieve_esco_context("python", purpose="skills")
+    result = esco_rag.retrieve_esco_context(
+        "python",
+        purpose="skills",
+        collection="skills",
+    )
 
     assert result.reason is None
     assert len(result.hits) == 1
@@ -69,6 +73,78 @@ def test_retrieve_esco_context_success(monkeypatch) -> None:
     assert result.hits[0].language == "unknown"
     assert result.hits[0].skill_type == "unknown"
     assert calls["max_num_results"] == 3
+    assert calls["filters"]["type"] == "and"
+
+
+def test_build_retrieval_filters_minimal() -> None:
+    filters = esco_rag._build_retrieval_filters(purpose="skills")
+
+    assert filters == {"type": "eq", "key": "purpose", "value": "skills"}
+
+
+def test_build_retrieval_filters_with_optional_metadata() -> None:
+    filters = esco_rag._build_retrieval_filters(
+        purpose="skills",
+        collection="skills",
+        language="de",
+        skill_type="essential",
+    )
+
+    assert filters["type"] == "and"
+    assert filters["filters"] == [
+        {"type": "eq", "key": "purpose", "value": "skills"},
+        {"type": "eq", "key": "collection", "value": "skills"},
+        {"type": "eq", "key": "language", "value": "de"},
+        {"type": "eq", "key": "skill_type", "value": "essential"},
+    ]
+
+
+def test_retrieve_esco_context_retries_without_hard_metadata_filters(monkeypatch) -> None:
+    settings = SimpleNamespace(
+        esco_vector_store_id="vs_123",
+        esco_rag_enabled=True,
+        esco_rag_max_results=3,
+    )
+    search_calls: list[dict[str, object]] = []
+
+    class _VectorStores:
+        def search(self, **kwargs):
+            search_calls.append(kwargs)
+            if len(search_calls) == 1:
+                return _FakeResponse({"data": []})
+            return _FakeResponse(
+                {
+                    "data": [
+                        {
+                            "text": "Fallback skill hit",
+                            "filename": "skills_essential_en.md",
+                        }
+                    ]
+                }
+            )
+
+    monkeypatch.setattr(esco_rag, "load_openai_settings", lambda: settings)
+    monkeypatch.setattr(
+        esco_rag,
+        "get_openai_client",
+        lambda *, settings: SimpleNamespace(vector_stores=_VectorStores()),
+    )
+
+    result = esco_rag.retrieve_esco_context(
+        "python",
+        purpose="skills",
+        collection="skills",
+    )
+
+    assert result.reason is None
+    assert len(result.hits) == 1
+    assert len(search_calls) == 2
+    assert search_calls[0]["filters"]["type"] == "and"
+    assert search_calls[1]["filters"] == {
+        "type": "eq",
+        "key": "purpose",
+        "value": "skills",
+    }
 
 
 def test_extract_hits_infers_known_filename_metadata() -> None:
