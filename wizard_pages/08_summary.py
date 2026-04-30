@@ -2026,7 +2026,7 @@ def _render_summary_facts_section(vm: SummaryViewModel) -> None:
             metrics=coverage_metrics,
             unmapped_requirements_count=unmapped_requirements,
         )
-        st.vega_lite_chart(chart_spec, use_container_width=True)
+        st.vega_lite_chart(chart_spec, width="stretch")
     _render_summary_facts_table([row.to_dict() for row in vm.fact_rows])
 
 

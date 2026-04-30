@@ -1187,7 +1187,7 @@ def _render_selected_occupation_detail(
                     "data": {"values": share_rows},
                     "height": max(180, len(share_rows) * 34),
                 },
-                use_container_width=True,
+                width="stretch",
             )
 
 
