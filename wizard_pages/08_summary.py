@@ -1075,6 +1075,42 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
     scenario_lab_rows = st.session_state.get(SSKey.SALARY_SCENARIO_LAB_ROWS.value)
     if isinstance(scenario_lab_rows, list):
         payload["salary_scenarios"] = scenario_lab_rows[:100]
+
+    def _normalized_provenance_rows(raw_rows: Any) -> list[dict[str, Any]]:
+        if not isinstance(raw_rows, list):
+            return []
+        rows: list[dict[str, Any]] = []
+        for item in raw_rows:
+            if not isinstance(item, dict):
+                continue
+            label = str(item.get("label") or "").strip()
+            if not label:
+                continue
+            row = {
+                "label": label,
+                "source_hint": str(item.get("source_hint") or "").strip(),
+                "source_file": str(item.get("source_file") or "").strip(),
+                "concept_uri": str(item.get("concept_uri") or item.get("uri") or "").strip(),
+                "rationale": str(item.get("rationale") or "").strip(),
+                "evidence": str(item.get("evidence") or "").strip(),
+            }
+            if not row["source_hint"]:
+                source_text = str(item.get("source") or "").strip().casefold()
+                row["source_hint"] = "esco_rag" if "rag" in source_text else "llm"
+            rows.append(row)
+        return rows
+
+    role_task_suggestions = _normalized_provenance_rows(
+        st.session_state.get(SSKey.ROLE_TASKS_LLM_SUGGESTED.value, [])
+    )
+    if role_task_suggestions:
+        payload["role_task_suggestions"] = role_task_suggestions
+
+    skill_suggestions = _normalized_provenance_rows(
+        st.session_state.get(SSKey.SKILLS_LLM_SUGGESTED.value, [])
+    )
+    if skill_suggestions:
+        payload["skill_suggestions"] = skill_suggestions
     return payload
 
 

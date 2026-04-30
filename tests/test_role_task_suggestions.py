@@ -59,6 +59,9 @@ def test_merge_llm_task_suggestions_dedupes_against_blocked_labels() -> None:
             {
                 "label": "Roadmap steuern",
                 "importance": "high",
+                "source_hint": "esco_rag",
+                "source_file": "rag/tasks.md",
+                "concept_uri": "uri:task:roadmap",
                 "rationale": "Neu",
                 "evidence": "A",
             },
@@ -76,6 +79,9 @@ def test_merge_llm_task_suggestions_dedupes_against_blocked_labels() -> None:
         {
             "label": "Roadmap steuern",
             "source": "AI",
+            "source_hint": "esco_rag",
+            "source_file": "rag/tasks.md",
+            "concept_uri": "uri:task:roadmap",
             "importance": "high",
             "rationale": "Neu",
             "evidence": "A",
@@ -142,7 +148,9 @@ def test_build_task_rag_context_injects_mocked_hits(monkeypatch) -> None:
     assert context == [
         {
             "snippet": "Coordinate incident response workflows and post-incident reviews.",
+            "source_hint": "esco_rag",
             "source_title": "ESCO Occupation",
             "source_file": "tasks.json",
+            "concept_uri": "",
         }
     ]
