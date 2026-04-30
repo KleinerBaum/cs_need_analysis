@@ -442,19 +442,19 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
 
         button_col_1, button_col_2, button_col_3 = st.columns(3)
         with button_col_1:
-            if st.button('Ermittle "Über uns"', use_container_width=True):
+            if st.button('Ermittle "Über uns"', width="stretch"):
                 _run_website_research(
                     homepage_url=homepage, topic_key="about", plan=plan
                 )
         with button_col_2:
-            if st.button('Ermittle "Impressum"', use_container_width=True):
+            if st.button('Ermittle "Impressum"', width="stretch"):
                 _run_website_research(
                     homepage_url=homepage, topic_key="imprint", plan=plan
                 )
         with button_col_3:
             if st.button(
                 'Ermittle "Vision und Mission"',
-                use_container_width=True,
+                width="stretch",
             ):
                 _run_website_research(
                     homepage_url=homepage,

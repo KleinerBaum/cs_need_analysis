@@ -775,7 +775,7 @@ def _render_matrix_coverage_section(snapshot: dict[str, Any]) -> None:
         }
         for row in rows
     ]
-    st.dataframe(compact_rows, use_container_width=True, hide_index=True)
+    st.dataframe(compact_rows, width="stretch", hide_index=True)
 
 
 def _render_unmapped_term_workflow(flagged_terms: list[str]) -> None:
