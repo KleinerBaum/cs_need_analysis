@@ -4,7 +4,7 @@ from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from types import SimpleNamespace
 
-from constants import AnswerType
+from constants import AnswerType, SSKey
 from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
 
 
@@ -220,3 +220,75 @@ def test_build_esco_coverage_chart_spec_contains_expected_bars() -> None:
     } in values
     assert {"group": "Abdeckung", "category": "ESCO-unterstützt", "value": 3} in values
     assert {"group": "Abdeckung", "category": "Nicht gemappt", "value": 2} in values
+
+
+def test_render_summary_facts_section_uses_esco_shared_fields_for_coverage(
+    monkeypatch,
+) -> None:
+    class _FakeStreamlit:
+        def __init__(self, session_state: dict[str, object]):
+            self.session_state = session_state
+            self.info_calls: list[str] = []
+            self.caption_calls: list[str] = []
+            self.vega_specs: list[dict[str, object]] = []
+            self.markdown_calls: list[str] = []
+
+        def markdown(self, text: str, **_: object) -> None:
+            self.markdown_calls.append(text)
+
+        def info(self, text: str, **_: object) -> None:
+            self.info_calls.append(text)
+
+        def caption(self, text: str, **_: object) -> None:
+            self.caption_calls.append(text)
+
+        def vega_lite_chart(self, spec: dict[str, object], **_: object) -> None:
+            self.vega_specs.append(spec)
+
+    fake_st = _FakeStreamlit(
+        {
+            SSKey.JOB_EXTRACT.value: {
+                "job_title": "Data Engineer",
+                "must_have_skills": ["Python", "SQL"],
+                "nice_to_have_skills": ["Airflow"],
+            },
+            SSKey.ESCO_CONFIRMED_ESSENTIAL_SKILLS.value: [
+                {"title": "Python"},
+                {"title": "Databricks"},
+            ],
+            SSKey.ESCO_CONFIRMED_OPTIONAL_SKILLS.value: [{"title": "Airflow"}],
+            SSKey.ESCO_UNMAPPED_REQUIREMENT_TERMS.value: ["Kafka"],
+        }
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
+    monkeypatch.setattr(SUMMARY_MODULE, "_render_summary_facts_table", lambda *_: None)
+
+    vm = SUMMARY_MODULE.SummaryViewModel(
+        job=JobAdExtract(job_title="Data Engineer"),
+        answers={},
+        plan=None,
+        meta=_meta(selected_occupation_title="Dateningenieur/in"),
+        status=SUMMARY_MODULE.SummaryStatus(
+            completion_ratio=1.0,
+            completion_text="100%",
+            brief_state="missing",
+            brief_status_label="",
+            next_step="",
+            readiness_percent=0,
+            ready_for_follow_ups=False,
+            esco_ready=False,
+            nace_ready=False,
+        ),
+        fact_rows=[],
+        artifacts=_artifacts(),
+    )
+
+    SUMMARY_MODULE._render_summary_facts_section(vm)
+
+    assert fake_st.info_calls == []
+    assert len(fake_st.vega_specs) == 1
+    values = fake_st.vega_specs[0]["data"]["values"]  # type: ignore[index]
+    assert {"group": "Quelle", "category": "Must-have (Jobspec)", "value": 2} in values
+    assert {"group": "Quelle", "category": "Nice-to-have (Jobspec)", "value": 1} in values
+    assert {"group": "Abdeckung", "category": "ESCO-unterstützt", "value": 2} in values
+    assert {"group": "Abdeckung", "category": "Nicht gemappt", "value": 1} in values
