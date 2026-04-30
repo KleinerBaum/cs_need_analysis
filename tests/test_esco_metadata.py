@@ -13,6 +13,14 @@ def test_infer_source_metadata_known_markdown_filenames() -> None:
         "skills_optional_en.md": ("skills", "en", "optional"),
         "skills_transversal_de.md": ("skills", "de", "transversal"),
         "skills_transversal_en.md": ("skills", "en", "transversal"),
+        "digCompSkillsCollection_de.md": ("skills", "de", "digital"),
+        "transversalSkillsCollection_de.md": ("skills", "de", "transversal"),
+        "languageSkillsCollection_de.md": ("skills", "de", "language"),
+        "researchSkillsCollection_de.md": ("skills", "de", "research"),
+        "researchOccupationsCollection_de.md": ("occupations", "de", "research"),
+        "skillGroups_de.md": ("taxonomy", "de", "unknown"),
+        "ISCOGroups_de.md": ("taxonomy", "de", "unknown"),
+        "dictionary_de.md": ("dictionary", "de", "unknown"),
     }
 
     for filename, metadata in expected.items():

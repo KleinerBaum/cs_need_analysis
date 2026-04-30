@@ -58,6 +58,14 @@ _KNOWN_FILENAME_METADATA: dict[str, tuple[str, str, str]] = {
     "skills_optional_en.md": ("skills", "en", "optional"),
     "skills_transversal_de.md": ("skills", "de", "transversal"),
     "skills_transversal_en.md": ("skills", "en", "transversal"),
+    "digcompskillscollection_de.md": ("skills", "de", "digital"),
+    "transversalskillscollection_de.md": ("skills", "de", "transversal"),
+    "languageskillscollection_de.md": ("skills", "de", "language"),
+    "researchskillscollection_de.md": ("skills", "de", "research"),
+    "researchoccupationscollection_de.md": ("occupations", "de", "research"),
+    "skillgroups_de.md": ("taxonomy", "de", "unknown"),
+    "iscogroups_de.md": ("taxonomy", "de", "unknown"),
+    "dictionary_de.md": ("dictionary", "de", "unknown"),
 }
 
 
