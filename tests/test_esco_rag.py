@@ -65,7 +65,31 @@ def test_retrieve_esco_context_success(monkeypatch) -> None:
     assert result.reason is None
     assert len(result.hits) == 1
     assert result.hits[0].source_file == "skills.jsonl"
+    assert result.hits[0].collection == "unknown"
+    assert result.hits[0].language == "unknown"
+    assert result.hits[0].skill_type == "unknown"
     assert calls["max_num_results"] == 3
+
+
+def test_extract_hits_infers_known_filename_metadata() -> None:
+    hits = esco_rag._extract_hits(
+        [
+            {
+                "text": "Skill row",
+                "filename": "skills_essential_en.md",
+                "concept_uri": "http://data.europa.eu/esco/skill/123",
+                "preferred_label": "Python",
+                "score": 0.88,
+            }
+        ]
+    )
+
+    assert hits[0].source_file == "skills_essential_en.md"
+    assert hits[0].collection == "skills"
+    assert hits[0].language == "en"
+    assert hits[0].skill_type == "essential"
+    assert hits[0].concept_uri == "http://data.europa.eu/esco/skill/123"
+    assert hits[0].preferred_label == "Python"
 
 
 def test_retrieve_esco_context_error_fallback_and_no_sensitive_logging(
