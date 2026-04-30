@@ -15,7 +15,12 @@ LOGGER = logging.getLogger(__name__)
 class EscoRagHit:
     rank: int
     snippet: str
-    source_file: str | None = None
+    source_file: str
+    collection: str
+    language: str
+    skill_type: str
+    concept_uri: str | None = None
+    preferred_label: str | None = None
     source_title: str | None = None
     score: float | None = None
     provenance: str = "openai_vector_store"
@@ -44,6 +49,28 @@ def _coerce_float(value: Any) -> float | None:
         return None
 
 
+_KNOWN_FILENAME_METADATA: dict[str, tuple[str, str, str]] = {
+    "occupation_profiles_de.md": ("occupations", "de", "unknown"),
+    "occupation_profiles_en.md": ("occupations", "en", "unknown"),
+    "skills_essential_de.md": ("skills", "de", "essential"),
+    "skills_essential_en.md": ("skills", "en", "essential"),
+    "skills_optional_de.md": ("skills", "de", "optional"),
+    "skills_optional_en.md": ("skills", "en", "optional"),
+    "skills_transversal_de.md": ("skills", "de", "transversal"),
+    "skills_transversal_en.md": ("skills", "en", "transversal"),
+}
+
+
+def _infer_source_metadata(source_file: str | None) -> tuple[str, str, str, str]:
+    normalized = (source_file or "").strip()
+    filename = normalized.rsplit("/", maxsplit=1)[-1].lower() if normalized else ""
+    metadata = _KNOWN_FILENAME_METADATA.get(filename)
+    if metadata is None:
+        return normalized or "unknown", "unknown", "unknown", "unknown"
+    collection, language, skill_type = metadata
+    return normalized or filename, collection, language, skill_type
+
+
 def _extract_hits(items: list[Any]) -> tuple[EscoRagHit, ...]:
     hits: list[EscoRagHit] = []
     for index, item in enumerate(items, start=1):
@@ -55,13 +82,27 @@ def _extract_hits(items: list[Any]) -> tuple[EscoRagHit, ...]:
         source_file = _coerce_string(item.get("filename")) or _coerce_string(
             item.get("source_file")
         )
+        canonical_source_file, collection, language, skill_type = _infer_source_metadata(
+            source_file
+        )
         source_title = _coerce_string(item.get("title")) or _coerce_string(
             item.get("source_title")
+        )
+        concept_uri = _coerce_string(item.get("concept_uri")) or _coerce_string(
+            item.get("uri")
+        )
+        preferred_label = _coerce_string(item.get("preferred_label")) or _coerce_string(
+            item.get("label")
         )
         hit = EscoRagHit(
             rank=int(item.get("rank") or index),
             snippet=snippet,
-            source_file=source_file,
+            source_file=canonical_source_file,
+            collection=collection,
+            language=language,
+            skill_type=skill_type,
+            concept_uri=concept_uri,
+            preferred_label=preferred_label,
             source_title=source_title,
             score=_coerce_float(item.get("score")),
         )
