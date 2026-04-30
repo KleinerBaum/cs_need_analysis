@@ -1978,7 +1978,7 @@ def _build_country_readiness_items(job: JobAdExtract) -> list[tuple[str, str, bo
 
 def _render_summary_facts_section(vm: SummaryViewModel) -> None:
     st.markdown("### Fakten")
-    shared_esco = _build_esco_shared_fields()
+    shared_esco = _read_esco_shared_fields()
     coverage_metrics = _compute_esco_coverage_metrics(shared_esco)
     requirements_total = coverage_metrics["essential_total"] + coverage_metrics["optional_total"]
     unmapped_requirements = len(shared_esco.get("unmapped_terms", []))
