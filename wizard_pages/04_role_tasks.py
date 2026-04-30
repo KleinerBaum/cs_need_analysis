@@ -168,6 +168,9 @@ def _merge_llm_task_suggestions(
             {
                 "label": label,
                 "source": "AI",
+                "source_hint": str(item.get("source_hint") or "llm").strip() or "llm",
+                "source_file": str(item.get("source_file") or "").strip(),
+                "concept_uri": str(item.get("concept_uri") or "").strip(),
                 "importance": str(item.get("importance") or "").strip(),
                 "rationale": str(item.get("rationale") or "").strip(),
                 "evidence": str(item.get("evidence") or "").strip(),
@@ -195,8 +198,10 @@ def _build_task_rag_context(job: JobAdExtract) -> list[dict[str, str]]:
         context.append(
             {
                 "snippet": snippet[:320],
+                "source_hint": "esco_rag",
                 "source_title": str(hit.source_title or "").strip(),
                 "source_file": str(hit.source_file or "").strip(),
+                "concept_uri": str(getattr(hit, "uri", "") or "").strip(),
             }
         )
     return context

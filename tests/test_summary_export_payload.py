@@ -107,6 +107,68 @@ def test_build_structured_export_payload_preserves_saved_tasks_and_skills(
     assert payload["selected_skills"] == ["Python", "SQL"]
 
 
+def test_build_structured_export_payload_keeps_rag_provenance_for_suggestions(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.ESCO_CONFIG.value: {},
+                SSKey.ESCO_SKILLS_SELECTED_MUST.value: [],
+                SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
+                SSKey.ROLE_TASKS_LLM_SUGGESTED.value: [
+                    {
+                        "label": "Run incident postmortems",
+                        "source": "AI",
+                        "source_hint": "esco_rag",
+                        "source_file": "rag/tasks.json",
+                        "concept_uri": "uri:task:incident-postmortem",
+                        "rationale": "Derived from similar ESCO occupation tasks.",
+                        "evidence": "RAG snippet on incident-response workflows.",
+                    }
+                ],
+                SSKey.SKILLS_LLM_SUGGESTED.value: [
+                    {
+                        "label": "Data Governance",
+                        "source": "AI suggestion",
+                        "source_hint": "esco_rag",
+                        "source_file": "rag/skills.json",
+                        "concept_uri": "uri:skill:data-governance",
+                        "rationale": "Recurring in adjacent occupation profiles.",
+                        "evidence": "RAG snippet referencing governance standards.",
+                    }
+                ],
+            }
+        ),
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "get_esco_occupation_selected", lambda: None)
+
+    payload = SUMMARY_MODULE._build_structured_export_payload(_brief())
+
+    assert payload["role_task_suggestions"] == [
+        {
+            "label": "Run incident postmortems",
+            "source_hint": "esco_rag",
+            "source_file": "rag/tasks.json",
+            "concept_uri": "uri:task:incident-postmortem",
+            "rationale": "Derived from similar ESCO occupation tasks.",
+            "evidence": "RAG snippet on incident-response workflows.",
+        }
+    ]
+    assert payload["skill_suggestions"] == [
+        {
+            "label": "Data Governance",
+            "source_hint": "esco_rag",
+            "source_file": "rag/skills.json",
+            "concept_uri": "uri:skill:data-governance",
+            "rationale": "Recurring in adjacent occupation profiles.",
+            "evidence": "RAG snippet referencing governance standards.",
+        }
+    ]
+
+
 def test_build_structured_export_payload_includes_esco_uri_and_label(
     monkeypatch,
 ) -> None:
