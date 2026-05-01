@@ -208,6 +208,14 @@ ACTION_ID_TO_CANONICAL_ARTIFACT_ID: dict[str, str] = {
     **SUMMARY_ARTIFACT_LEGACY_ALIASES,
     **{artifact_id: artifact_id for artifact_id in SUMMARY_ARTIFACT_IDS},
 }
+_ARTIFACT_DISPLAY_LABELS: dict[str, str] = {
+    "job_ad": "Stellenanzeige",
+    "interview_hr": "HR-Sheet",
+    "interview_fach": "Fachbereich-Sheet",
+    "boolean_search": "Boolean Search",
+    "employment_contract": "Arbeitsvertrag",
+    "brief": "Recruiting Brief",
+}
 
 
 @dataclass(frozen=True)
@@ -452,6 +460,15 @@ def _to_canonical_artifact_id(raw_id: Any) -> str:
     if normalized in ACTION_ID_TO_CANONICAL_ARTIFACT_ID:
         return ACTION_ID_TO_CANONICAL_ARTIFACT_ID[normalized]
     return ACTION_ID_TO_CANONICAL_ARTIFACT_ID.get(normalized.casefold(), "")
+
+
+def _artifact_display_label(artifact_id: str) -> str:
+    if not isinstance(artifact_id, str):
+        return ""
+    normalized = artifact_id.strip()
+    if not normalized:
+        return ""
+    return _ARTIFACT_DISPLAY_LABELS.get(normalized, normalized)
 
 
 def _resolve_active_artifact_id(*, available_artifact_ids: list[str]) -> str:
@@ -3157,7 +3174,10 @@ def _render_summary_results_workspace(*, brief: VacancyBrief) -> None:
     active_artifact_id = _resolve_active_artifact_id(
         available_artifact_ids=available_artifact_ids
     )
-    st.subheader(f"Ergebnis-Fokus: {active_artifact_id}")
+    render_output_header(
+        "Ergebnis-Fokus",
+        _artifact_display_label(active_artifact_id),
+    )
     _render_active_artifact(artifact_id=active_artifact_id, brief=brief)
     _render_secondary_artifacts(
         active_artifact_id=active_artifact_id,
