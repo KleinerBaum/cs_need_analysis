@@ -1,11 +1,24 @@
 :root {
-  --cs-bg: #0A0A0A;
-  --cs-surface: #121212;
-  --cs-surface-2: #171717;
-  --cs-text: #F5F5F5;
-  --cs-text-muted: #B8B8B8;
-  --cs-border: #232323;
-  --cs-radius: 14px;
+  --cs-bg: #06090d;
+  --cs-surface: #11161d;
+  --cs-surface-raised: #171f29;
+  --cs-surface-muted: #0d131a;
+  --cs-surface-2: var(--cs-surface-raised);
+  --cs-border: #2a3542;
+  --cs-border-soft: #1b2531;
+  --cs-text: #edf6ff;
+  --cs-text-muted: #b7c5d4;
+  --cs-text-subtle: #8ea1b3;
+  --cs-primary: #58d3ff;
+  --cs-primary-soft: #18354a;
+  --cs-success: #2ccf86;
+  --cs-warning: #f4b74b;
+  --cs-danger: #ff6a72;
+  --cs-radius-sm: 8px;
+  --cs-radius-md: 12px;
+  --cs-radius-lg: 16px;
+  --cs-radius-xl: 22px;
+  --cs-radius: var(--cs-radius-lg);
   --cs-space-1: 0.25rem;
   --cs-space-2: 0.5rem;
   --cs-space-3: 0.75rem;
@@ -21,7 +34,7 @@ html, body, [data-testid="stAppViewContainer"] {
 }
 
 section[data-testid="stSidebar"] {
-  background: #050505;
+  background: #05080c;
   border-right: 1px solid var(--cs-border);
 }
 
@@ -86,4 +99,93 @@ section[data-testid="stSidebar"] {
 [data-testid="stExpander"] {
   border: 1px solid var(--cs-border);
   border-radius: 12px;
+}
+
+.cs-card,
+.cs-step-header,
+.cs-output-header,
+.cs-next-action,
+.cs-critical,
+.cs-boolean-card,
+.cs-code-card,
+.cs-salary-card {
+  background: var(--cs-surface);
+  border: 1px solid var(--cs-border);
+  border-radius: var(--cs-radius-md);
+  color: var(--cs-text);
+}
+
+.cs-card,
+.cs-next-action,
+.cs-critical,
+.cs-boolean-card,
+.cs-code-card,
+.cs-salary-card {
+  padding: 1rem 1.1rem;
+}
+
+.cs-step-header,
+.cs-output-header {
+  padding: 0.9rem 1rem;
+  background: linear-gradient(180deg, var(--cs-surface-raised), var(--cs-surface));
+}
+
+.cs-output-header,
+.cs-next-action {
+  border-left: 4px solid var(--cs-primary);
+}
+
+.cs-critical {
+  border-left: 4px solid var(--cs-danger);
+}
+
+.cs-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid var(--cs-border);
+  background: var(--cs-surface-muted);
+  color: var(--cs-text-muted);
+}
+
+.cs-pill-primary {
+  border-color: color-mix(in srgb, var(--cs-primary) 55%, var(--cs-border));
+  background: color-mix(in srgb, var(--cs-primary) 20%, var(--cs-surface-muted));
+  color: var(--cs-text);
+}
+
+.cs-pill-warning {
+  border-color: color-mix(in srgb, var(--cs-warning) 58%, var(--cs-border));
+  background: color-mix(in srgb, var(--cs-warning) 20%, var(--cs-surface-muted));
+  color: #ffe8bf;
+}
+
+.cs-pill-success {
+  border-color: color-mix(in srgb, var(--cs-success) 58%, var(--cs-border));
+  background: color-mix(in srgb, var(--cs-success) 18%, var(--cs-surface-muted));
+  color: #d9ffe9;
+}
+
+.cs-boolean-card {
+  background: var(--cs-surface-muted);
+}
+
+.cs-boolean-card-primary {
+  border-color: color-mix(in srgb, var(--cs-primary) 60%, var(--cs-border));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--cs-primary) 16%, var(--cs-surface-raised)), var(--cs-surface));
+}
+
+.cs-code-card {
+  background: #0c1219;
+  border-color: var(--cs-border-soft);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.cs-salary-card {
+  border-color: color-mix(in srgb, var(--cs-success) 36%, var(--cs-border));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--cs-success) 10%, var(--cs-surface-raised)), var(--cs-surface));
 }
