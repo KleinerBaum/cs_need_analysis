@@ -124,11 +124,26 @@ def render_step_header(
     outcome: str | None = None,
     meta_items: Sequence[tuple[str, str, str]] = (),
 ) -> None:
+    step_header_html = _build_step_header_html(
+        title=title,
+        subtitle=subtitle,
+        outcome=outcome,
+        meta_items=meta_items,
+    )
+    st.markdown(step_header_html, unsafe_allow_html=True)
+
+
+def _build_step_header_html(
+    *,
+    title: str,
+    subtitle: str,
+    outcome: str | None,
+    meta_items: Sequence[tuple[str, str, str]],
+) -> str:
     outcome_html = (
         f'<span class="cs-pill cs-pill--primary">{escape(outcome)}</span>' if outcome else ""
     )
-    st.markdown(
-        f"""
+    return f"""
         <section class="cs-step-header">
             <div class="cs-step-topline">
                 <h2 class="cs-step-title">{escape(title)}</h2>
@@ -137,9 +152,7 @@ def render_step_header(
             <p class="cs-step-subtitle">{escape(subtitle)}</p>
             {_render_meta_items(meta_items)}
         </section>
-        """,
-        unsafe_allow_html=True,
-    )
+        """
 
 
 def render_output_header(
