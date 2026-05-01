@@ -28,7 +28,7 @@ from ui_components import (
     render_question_step,
     render_standard_step_review,
 )
-from ui_layout import render_step_shell
+from ui_layout import render_step_shell, responsive_three_columns
 from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
 from wizard_pages.salary_forecast_panel import render_role_tasks_salary_forecast_panel
 
@@ -264,7 +264,7 @@ def render(ctx: WizardContext) -> None:
     st.session_state[SSKey.ROLE_TASKS_JOBSPEC_SUGGESTED.value] = jobspec_suggestions
 
     def _render_extracted_slot() -> None:
-        col_resp, col_deliv, col_metrics = st.columns(3, gap="large")
+        col_resp, col_deliv, col_metrics = responsive_three_columns(gap="large")
         if responsibilities:
             with col_resp:
                 st.write("**Responsibilities (Auszug):**")
@@ -343,7 +343,7 @@ def render(ctx: WizardContext) -> None:
             "Aufgaben auswählen",
             "Wählen Sie die Aufgaben aus, die im Recruiting-Brief, in der Gehaltsprognose und in Folgeartefakten verwendet werden sollen.",
         )
-        col_jobspec, col_ai, col_esco = st.columns(3, gap="large")
+        col_jobspec, col_ai, col_esco = responsive_three_columns(gap="large")
         with col_jobspec:
             st.markdown("#### Aus der Anzeige extrahiert")
             render_multi_select_pills(
