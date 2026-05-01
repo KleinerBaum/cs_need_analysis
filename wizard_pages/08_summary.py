@@ -2562,106 +2562,122 @@ def _render_readiness_tab(
         "Readiness",
         "Recruiting Brief, nächste beste Aktion und kritische Lücken auf einen Blick.",
     )
-    if brief is None:
-        st.info("Noch kein gültiger Recruiting Brief verfügbar.")
-    else:
-        render_brief(brief)
-    _render_summary_facts_section(vm)
+    _render_readiness_dashboard_header(vm)
 
     next_action = _resolve_next_best_action(
         action_registry, resolved_brief_model=resolved_brief_model
     )
-    if next_action is None:
-        st.info("Aktuell ist kein nächster Schritt verfügbar.")
+    _render_next_best_action_card(next_action=next_action)
+    _render_critical_gaps_card(vm)
+    if brief is None:
+        st.info("Noch kein gültiger Recruiting Brief verfügbar.")
     else:
-        requirements_ok = _has_required_state(next_action["requires"])
-        requirement_status_ok = True
-        requirement_status_message = ""
-        requirement_check_fn = next_action.get("requirement_check_fn")
-        if requirement_check_fn is not None:
-            requirement_status_ok, requirement_status_message = requirement_check_fn()
-        cta_enabled = (
-            requirements_ok
-            and requirement_status_ok
-            and next_action["generator_fn"] is not None
-        )
-
-        render_next_best_action(
-            next_action["title"],
-            "Direkt aus aktuellem Zustand und Voraussetzungen abgeleitet.",
-            f"CTA: {next_action['cta_label']}",
-        )
-        requirement_label = next_action["requirement_text"]
-        if requirement_status_message:
-            requirement_label = f"{requirement_label} — {requirement_status_message}"
-        if requirements_ok and requirement_status_ok:
-            st.caption(f"Voraussetzung: ✅ {requirement_label}")
-        else:
-            st.caption(f"Voraussetzung: ⚠️ {requirement_label}")
-
-        if st.button(
-            f"CTA: {next_action['cta_label']}",
-            type="primary",
-            width="stretch",
-            key=_widget_key(
-                SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "readiness.next_action"
-            ),
-            disabled=not cta_enabled,
-        ):
-            st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = (
-                _to_canonical_artifact_id(next_action["id"])
-            )
-            if next_action["generator_fn"] is not None:
-                next_action["generator_fn"]()
-            st.rerun()
-
-    st.markdown("**Generate**")
-    quick_action_ids = (
-        "job_ad",
-        "interview_hr",
-        "interview_fach",
-        "boolean_search",
-        "employment_contract",
+        st.markdown("#### Recruiting Brief (Vorschau)")
+        render_brief(brief)
+    _render_artifact_launcher_cards(
+        action_registry=action_registry, resolved_brief_model=resolved_brief_model
     )
-    quick_actions = [
-        action for action in action_registry if action["id"] in quick_action_ids
-    ]
-    action_columns = st.columns(len(quick_actions), gap="small")
-    for column, action in zip(action_columns, quick_actions):
-        requirements_ok = _has_required_state(action["requires"])
-        requirement_ok = True
-        requirement_check_fn = action.get("requirement_check_fn")
-        if requirement_check_fn is not None:
-            requirement_ok, _ = requirement_check_fn()
-        with column:
-            if st.button(
-                action["cta_label"],
-                width="stretch",
-                key=_widget_key(
-                    SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
-                    f"readiness.quick.{action['id']}",
-                ),
-                disabled=(
-                    not (requirements_ok and requirement_ok)
-                    or action["generator_fn"] is None
-                ),
-            ):
-                st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = (
-                    _to_canonical_artifact_id(action["id"])
-                )
-                if action["generator_fn"] is not None:
-                    action["generator_fn"]()
-                st.rerun()
+    _render_summary_facts_section(vm)
 
     if brief is not None:
         st.markdown("---")
         _render_summary_results_workspace(brief=brief)
 
+
+def _render_readiness_dashboard_header(vm: SummaryViewModel) -> None:
+    with st.container(border=True):
+        st.markdown("### Readiness-Übersicht")
+        st.caption(vm.status.completion_text)
+
+
+def _render_next_best_action_card(*, next_action: SummaryAction | None) -> None:
+    if next_action is None:
+        st.info("Aktuell ist kein nächster Schritt verfügbar.")
+        return
+    requirements_ok = _has_required_state(next_action["requires"])
+    requirement_status_ok = True
+    requirement_status_message = ""
+    requirement_check_fn = next_action.get("requirement_check_fn")
+    if requirement_check_fn is not None:
+        requirement_status_ok, requirement_status_message = requirement_check_fn()
+    cta_enabled = (
+        requirements_ok and requirement_status_ok and next_action["generator_fn"] is not None
+    )
+    render_next_best_action(
+        next_action["title"],
+        "Direkt aus aktuellem Zustand und Voraussetzungen abgeleitet.",
+        f"CTA: {next_action['cta_label']}",
+    )
+    requirement_label = next_action["requirement_text"]
+    if requirement_status_message:
+        requirement_label = f"{requirement_label} — {requirement_status_message}"
+    st.caption(
+        f"Voraussetzung: {'✅' if (requirements_ok and requirement_status_ok) else '⚠️'} {requirement_label}"
+    )
+    if st.button(
+        f"CTA: {next_action['cta_label']}",
+        type="primary",
+        width="stretch",
+        key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "readiness.next_action"),
+        disabled=not cta_enabled,
+    ):
+        st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = _to_canonical_artifact_id(
+            next_action["id"]
+        )
+        if next_action["generator_fn"] is not None:
+            next_action["generator_fn"]()
+        st.rerun()
+
+
+def _render_critical_gaps_card(vm: SummaryViewModel) -> None:
     missing_items = _build_missing_critical_items(vm)
     if not missing_items:
         st.success("Keine kritischen Lücken erkannt.")
-    else:
-        render_critical_gaps(missing_items, title="Kritische Lücken (Top 5)")
+        return
+    render_critical_gaps(missing_items, title="Kritische Lücken (Top 5)")
+
+
+def _render_artifact_launcher_cards(
+    *, action_registry: list[SummaryAction], resolved_brief_model: str
+) -> None:
+    st.markdown("#### Artefakte starten")
+    for action in action_registry:
+        requirements_ok = _has_required_state(action["requires"])
+        requirement_ok = True
+        requirement_message = ""
+        requirement_check_fn = action.get("requirement_check_fn")
+        if requirement_check_fn is not None:
+            requirement_ok, requirement_message = requirement_check_fn()
+        has_result = bool(st.session_state.get(action["result_key"].value))
+        status_label = "Aktuell" if has_result else "Offen"
+        prerequisites_label = "Erfüllt" if (requirements_ok and requirement_ok) else "Offen"
+        with st.container(border=True):
+            st.markdown(f"**{action['title']}**")
+            st.caption(action["benefit"])
+            st.caption(f"Status: {status_label} · Voraussetzungen: {prerequisites_label}")
+            requirement_text = action["requirement_text"]
+            if requirement_message:
+                requirement_text = f"{requirement_text} — {requirement_message}"
+            st.caption(f"Voraussetzungen: {requirement_text}")
+            _, _, cta_label = _get_brief_status(
+                primary_action=action, resolved_brief_model=resolved_brief_model
+            )
+            if st.button(
+                cta_label,
+                width="stretch",
+                key=_widget_key(
+                    SSKey.SUMMARY_ACTION_WIDGET_PREFIX, f"readiness.launcher.{action['id']}"
+                ),
+                disabled=(
+                    not (requirements_ok and requirement_ok) or action["generator_fn"] is None
+                ),
+            ):
+                st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = _to_canonical_artifact_id(
+                    action["id"]
+                )
+                if action["generator_fn"] is not None:
+                    action["generator_fn"]()
+                st.rerun()
 
 
 def _build_summary_tabs() -> SummaryTabs:
