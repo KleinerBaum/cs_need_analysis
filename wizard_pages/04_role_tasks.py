@@ -442,18 +442,21 @@ def render(ctx: WizardContext) -> None:
         st.caption(f"Übernommen: {len(selected_now) if isinstance(selected_now, list) else 0} Aufgaben")
 
     def _render_salary_forecast_slot() -> None:
-        selected_tasks = st.session_state.get(SSKey.ROLE_TASKS_SELECTED.value, [])
+        selected_tasks_raw = st.session_state.get(SSKey.ROLE_TASKS_SELECTED.value, [])
         canonical_tasks = (
-            _dedupe_task_terms([str(item) for item in selected_tasks])
-            if isinstance(selected_tasks, list)
+            _dedupe_task_terms([str(item) for item in selected_tasks_raw])
+            if isinstance(selected_tasks_raw, list)
             else []
         )
+        selected_count = len(canonical_tasks)
 
         st.markdown("#### Auswirkung auf Prognose")
+        st.caption(f"Ausgewählte Aufgaben: {selected_count}")
         st.caption(
-            "Die ausgewählten Aufgaben beeinflussen die Gehaltsprognose. "
-            "Details und Szenarien findest du im aufklappbaren Bereich."
+            "Ausgewählte Aufgaben werden als Einflussfaktoren in der Gehaltsprognose berücksichtigt."
         )
+        if selected_count == 0:
+            st.caption("Noch keine Aufgaben übernommen.")
         with st.expander("Auswirkung auf Gehaltsprognose", expanded=False):
             _render_role_tasks_salary_block(
                 job=job,
