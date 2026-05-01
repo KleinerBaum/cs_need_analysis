@@ -83,14 +83,12 @@ def render_step_shell(
             answered_text = (
                 f"{status['answered']}/{status['total']} beantwortet" if status is not None else "0/0 beantwortet"
             )
-            header_meta.append(("Status", badge_text, "neutral"))
-            header_meta.append(("Fortschritt", answered_text, "neutral"))
+            header_meta.append(("📌", "Status", badge_text))
+            header_meta.append(("📊", "Fortschritt", answered_text))
             if status is not None:
                 missing_summary = _truncate_missing_essentials(status["missing_essentials"])
                 if missing_summary:
-                    header_meta.append(
-                        ("Fehlt (essentiell)", missing_summary, "warning")
-                    )
+                    header_meta.append(("⚠️", "Fehlt (essentiell)", missing_summary))
         render_step_header(title, subtitle, outcome=outcome_text, meta_items=header_meta)
         if outcome_slot is not None:
             outcome_slot()
