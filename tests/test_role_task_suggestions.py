@@ -128,6 +128,22 @@ def test_build_task_rag_context_returns_empty_when_disabled(monkeypatch) -> None
     assert ROLE_TASKS_MODULE._build_task_rag_context(job) == []
 
 
+
+
+def test_build_task_rag_context_accepts_jobadextract_job_title(monkeypatch) -> None:
+    monkeypatch.setattr(
+        ROLE_TASKS_MODULE,
+        "retrieve_esco_context",
+        lambda *args, **kwargs: SimpleNamespace(hits=(), reason="disabled"),
+    )
+    job = ROLE_TASKS_MODULE.JobAdExtract(
+        job_title="Data Engineer",
+        responsibilities=["Build pipelines"],
+        deliverables=["Reliable ETL jobs"],
+    )
+
+    assert ROLE_TASKS_MODULE._build_task_rag_context(job) == []
+
 def test_build_task_rag_context_injects_mocked_hits(monkeypatch) -> None:
     hit = SimpleNamespace(
         snippet="Coordinate incident response workflows and post-incident reviews.",
