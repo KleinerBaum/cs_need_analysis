@@ -83,20 +83,60 @@ def test_role_skills_benefits_use_identical_step_shell_block_order() -> None:
     skills_slots = _slot_order_from_render_kwargs(skills_kwargs)
     benefits_slots = _slot_order_from_render_kwargs(benefits_kwargs)
 
-    expected_order = [
+    assert role_slots == [
+        "extracted_from_jobspec_slot",
+        "post_review_slot",
+        "open_questions_slot",
+        "review_slot",
+    ]
+    assert skills_slots == [
         "extracted_from_jobspec_slot",
         "open_questions_slot",
         "review_slot",
-        "post_review_slot",
+        "after_review_slot",
+    ]
+    assert benefits_slots == [
+        "extracted_from_jobspec_slot",
+        "source_comparison_slot",
+        "salary_forecast_slot",
+        "open_questions_slot",
+        "review_slot",
     ]
 
-    assert role_slots == expected_order
-    assert skills_slots == expected_order
-    assert benefits_slots == expected_order
-
     assert callable(role_kwargs["post_review_slot"])
-    assert callable(skills_kwargs["salary_forecast_slot"])
+    assert callable(skills_kwargs["after_review_slot"])
     assert callable(benefits_kwargs["salary_forecast_slot"])
+
+
+def test_company_team_interview_use_step_shell_with_review_slot_and_canonical_order() -> None:
+    company = _load_module("wizard_pages.page_02_company", "wizard_pages/02_company.py")
+    team = _load_module("wizard_pages.page_03_team", "wizard_pages/03_team.py")
+    interview = _load_module("wizard_pages.page_07_interview", "wizard_pages/07_interview.py")
+
+    company_kwargs = _capture_step_shell_kwargs(company, step_key="company")
+    team_kwargs = _capture_step_shell_kwargs(team, step_key="team")
+    interview_kwargs = _capture_step_shell_kwargs(interview, step_key="interview")
+
+    assert _slot_order_from_render_kwargs(company_kwargs) == [
+        "extracted_from_jobspec_slot",
+        "main_content_slot",
+        "review_slot",
+    ]
+    assert _slot_order_from_render_kwargs(team_kwargs) == [
+        "extracted_from_jobspec_slot",
+        "main_content_slot",
+        "review_slot",
+    ]
+    assert _slot_order_from_render_kwargs(interview_kwargs) == [
+        "outcome_slot",
+        "extracted_from_jobspec_slot",
+        "open_questions_slot",
+        "review_slot",
+    ]
+
+    assert callable(company_kwargs["review_slot"])
+    assert callable(team_kwargs["review_slot"])
+    assert callable(interview_kwargs["review_slot"])
 
 
 def test_salary_forecast_slots_keep_canonical_result_key_wiring() -> None:
@@ -138,17 +178,15 @@ def test_salary_forecast_slots_keep_canonical_result_key_wiring() -> None:
     benefits.load_openai_settings = lambda: object()
     benefits.resolve_model_for_task = lambda **_kwargs: "test-model"
 
-    role_kwargs["post_review_slot"]()
-    skills_kwargs["salary_forecast_slot"]()
+    role_tasks._render_role_tasks_salary_block(
+        job=JobAdExtract(),
+        selected_tasks=[],
+    )
     benefits_kwargs["salary_forecast_slot"]()
 
     assert (
         role_tasks.st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value]["source"]
         == "role_tasks"
-    )
-    assert (
-        skills.st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value]["source"]
-        == "skills"
     )
     assert (
         benefits.st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value]["source"]

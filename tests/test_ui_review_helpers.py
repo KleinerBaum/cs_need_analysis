@@ -354,3 +354,78 @@ def test_render_question_step_hides_verbose_progress_captions(monkeypatch) -> No
     assert not any(
         caption.startswith("Pflichtfragen offen in:") for caption in fake_st.captions
     )
+
+
+def test_render_step_review_card_shows_compact_essentials_and_direct_answer_hint_when_inline_disabled(
+    monkeypatch,
+) -> None:
+    fake_st = _FakeStreamlitRecorder()
+    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_components, "_can_render_inline_answer_inputs", lambda: False)
+
+    questions = [
+        _question(question_id="q1", label="Essentiell 1", group_key="group_a"),
+        _question(question_id="q2", label="Essentiell 2", group_key="group_b"),
+        _question(question_id="q3", label="Optional", required=False, group_key="group_b"),
+    ]
+    step = _step_with_questions(questions)
+
+    ui_components.render_step_review_card(
+        step=step,
+        visible_questions=questions,
+        answers={"q3": "ok"},
+        answer_meta={},
+        answered_lookup={"q1": False, "q2": False, "q3": True},
+        step_status={
+            "answered": 1,
+            "total": 3,
+            "completion_state": "partial",
+            "essentials_answered": 0,
+            "essentials_total": 2,
+            "missing_essentials": ["Essentiell 1", "Essentiell 2"],
+            "missing_essential_ids": ["q1", "q2"],
+        },
+    )
+
+    assert "• Beantwortet 1/3" in fake_st.captions
+    assert "⚠️ Essentials 0/2" in fake_st.captions
+    assert "⚠️ Gruppen 0 vollständig · 2 offen" in fake_st.captions
+    assert "##### ⚠️ Essentials offen" in fake_st.markdowns
+    assert any(
+        "offene Frage(n) – Details und direkte Eingabe im Bereich „Gruppenstatus“."
+        in caption
+        for caption in fake_st.captions
+    )
+
+
+def test_render_step_review_card_hides_direct_answer_hint_when_no_open_questions(
+    monkeypatch,
+) -> None:
+    fake_st = _FakeStreamlitRecorder()
+    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_components, "_can_render_inline_answer_inputs", lambda: False)
+
+    questions = [
+        _question(question_id="q1", label="Essentiell 1", group_key="group_a"),
+        _question(question_id="q2", label="Optional", required=False, group_key="group_a"),
+    ]
+    step = _step_with_questions(questions)
+
+    ui_components.render_step_review_card(
+        step=step,
+        visible_questions=questions,
+        answers={"q1": "ok", "q2": "ok"},
+        answer_meta={},
+        answered_lookup={"q1": True, "q2": True},
+        step_status={
+            "answered": 2,
+            "total": 2,
+            "completion_state": "complete",
+            "essentials_answered": 1,
+            "essentials_total": 1,
+            "missing_essentials": [],
+            "missing_essential_ids": [],
+        },
+    )
+
+    assert not any("offene Frage(n)" in caption for caption in fake_st.captions)
