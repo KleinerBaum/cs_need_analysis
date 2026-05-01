@@ -182,8 +182,9 @@ def _merge_llm_task_suggestions(
 
 
 def _build_task_rag_context(job: JobAdExtract) -> list[dict[str, str]]:
+    job_title = getattr(job, "job_title", None)
     query_parts = _dedupe_task_terms(
-        [job.title or "", *job.responsibilities[:3], *job.deliverables[:3]]
+        [part for part in [job_title, *job.responsibilities[:3], *job.deliverables[:3]] if has_meaningful_value(part)]
     )
     query = " | ".join(part for part in query_parts if has_meaningful_value(part))
     if not query:
