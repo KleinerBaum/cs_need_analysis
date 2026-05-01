@@ -17,6 +17,8 @@ from ui_components import (
     render_error_banner,
     render_question_step,
     render_recruiting_consistency_checklist,
+    ReviewRenderContext,
+    resolve_standard_review_mode,
     render_standard_step_review,
 )
 from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
@@ -445,7 +447,10 @@ def render(ctx: WizardContext) -> None:
         render_question_step(step)
 
     def _render_review_slot() -> None:
-        render_standard_step_review(step)
+        render_standard_step_review(
+            step,
+            render_mode=resolve_standard_review_mode(context=ReviewRenderContext.STEP_FORM),
+        )
         _render_interview_consistency_checklist(job=job, step=step)
 
     shell_kwargs: dict[str, Any] = {

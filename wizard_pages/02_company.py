@@ -16,6 +16,8 @@ from ui_components import (
     has_meaningful_value,
     render_error_banner,
     render_question_step,
+    ReviewRenderContext,
+    resolve_standard_review_mode,
     render_standard_step_review,
 )
 from ui_layout import render_step_shell, responsive_three_columns, responsive_two_columns
@@ -638,7 +640,10 @@ def render(ctx: WizardContext) -> None:
         extracted_from_jobspec_slot=_render_extracted_slot,
         extracted_from_jobspec_label="Aus Jobspec extrahiert (Company & Location)",
         main_content_slot=_render_main_slot,
-        review_slot=lambda: render_standard_step_review(step_company),
+        review_slot=lambda: render_standard_step_review(
+            step_company,
+            render_mode=resolve_standard_review_mode(context=ReviewRenderContext.STEP_FORM),
+        ),
         footer_slot=lambda: nav_buttons(ctx),
     )
 

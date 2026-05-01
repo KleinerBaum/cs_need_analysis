@@ -3,7 +3,12 @@ from __future__ import annotations
 import streamlit as st
 
 from schemas import QuestionStep
-from ui_components import has_meaningful_value, render_standard_step_review
+from ui_components import (
+    ReviewRenderContext,
+    has_meaningful_value,
+    render_standard_step_review,
+    resolve_standard_review_mode,
+)
 from ui_layout import render_step_shell
 from wizard_pages.base import WizardContext, guard_job_and_plan, nav_buttons
 from wizard_pages.team_section import render_team_questions_with_optional_esco_context
@@ -50,7 +55,10 @@ def render(ctx: WizardContext) -> None:
         extracted_from_jobspec_slot=_render_extracted_slot,
         extracted_from_jobspec_label="Aus Jobspec extrahiert (Team/Org)",
         main_content_slot=_render_main_slot,
-        review_slot=lambda: render_standard_step_review(step),
+        review_slot=lambda: render_standard_step_review(
+            step,
+            render_mode=resolve_standard_review_mode(context=ReviewRenderContext.STEP_FORM),
+        ),
         footer_slot=lambda: nav_buttons(ctx),
     )
 
