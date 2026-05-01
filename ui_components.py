@@ -1725,6 +1725,7 @@ def render_step_review_card(
     step_status: StepStatusPayload | None = None,
 ) -> None:
     missing_essentials_display_max = 4
+    max_inline_unanswered = 2
     if not visible_questions:
         with st.container(border=True):
             st.markdown("#### ✅ Check answers")
@@ -1773,6 +1774,7 @@ def render_step_review_card(
     )
     total_groups = len(grouped_questions)
     complete_groups = 0
+    total_unanswered = 0
 
     for group_title, group_questions in grouped_questions:
         answered_items: list[tuple[str, str]] = []
@@ -1788,6 +1790,7 @@ def render_step_review_card(
         for question in group_questions:
             if not resolved_lookup.get(question.id, False):
                 unanswered_questions.append(question)
+                total_unanswered += 1
                 if question.id in missing_essential_id_set:
                     group_missing_essential = True
                 continue
@@ -1834,10 +1837,14 @@ def render_step_review_card(
                     f"Essentials {essentials_answered}/{essentials_total}"
                 )
             with col3:
-                st.caption(
-                    f"{'✅' if complete_groups == total_groups and total_groups > 0 else '⚠️'} "
-                    f"Gruppen vollständig {complete_groups}/{total_groups}"
-                )
+                if total_groups > 0:
+                    incomplete_groups = max(total_groups - complete_groups, 0)
+                    st.caption(
+                        f"{'✅' if incomplete_groups == 0 else '⚠️'} "
+                        f"Gruppen {complete_groups} vollständig · {incomplete_groups} offen"
+                    )
+                else:
+                    st.caption("• Keine Gruppen")
         else:
             answered = sum(1 for is_answered in resolved_lookup.values() if is_answered)
             total = len(visible_questions)
@@ -1859,44 +1866,55 @@ def render_step_review_card(
             st.caption("Noch keine sichtbaren Antworten vorhanden.")
             return
 
-        for (
-            _,
-            group_title,
-            progress,
-            answered_items,
-            unanswered_questions,
-            group_complete,
-        ) in sorted(
-            group_payload, key=lambda item: (item[0], item[1].casefold())
-        ):
-            status_chip = "✅ vollständig" if group_complete else "⚠️ offen"
-            with st.container(border=True):
-                col_title, col_chip, col_ratio = st.columns([5, 2, 2], gap="small")
-                with col_title:
-                    st.markdown(f"**{group_title}**")
-                with col_chip:
-                    st.caption(status_chip)
-                with col_ratio:
-                    st.caption(f"{progress['answered']}/{progress['total']}")
+        render_inline_inputs = _can_render_inline_answer_inputs() and (
+            bool(missing_essential_id_set)
+            or (0 < total_unanswered <= max_inline_unanswered)
+        )
 
-                if answered_items:
-                    for label, formatted_value in answered_items:
-                        st.caption(f"{label}: {formatted_value}")
-                elif not group_complete:
-                    st.caption("Noch keine bestätigten Antworten in dieser Gruppe.")
+        if not render_inline_inputs and total_unanswered > 0:
+            st.caption(
+                f"{total_unanswered} offene Frage(n) – Details und direkte Eingabe im Bereich „Gruppenstatus“."
+            )
 
-                if unanswered_questions:
-                    if _can_render_inline_answer_inputs():
-                        st.markdown("**Offene Fragen direkt beantworten**")
-                        _render_questions_two_columns(
-                            unanswered_questions,
-                            answers,
-                            widget_key_prefix=REVIEW_WIDGET_KEY_PREFIX,
-                        )
-                    else:
-                        st.caption(
-                            f"{len(unanswered_questions)} offene Frage(n) in dieser Gruppe."
-                        )
+        with st.expander("Gruppenstatus", expanded=False):
+            for (
+                _,
+                group_title,
+                progress,
+                answered_items,
+                unanswered_questions,
+                group_complete,
+            ) in sorted(
+                group_payload, key=lambda item: (item[0], item[1].casefold())
+            ):
+                status_chip = "✅ vollständig" if group_complete else "⚠️ offen"
+                with st.container(border=True):
+                    col_title, col_chip, col_ratio = st.columns([5, 2, 2], gap="small")
+                    with col_title:
+                        st.markdown(f"**{group_title}**")
+                    with col_chip:
+                        st.caption(status_chip)
+                    with col_ratio:
+                        st.caption(f"{progress['answered']}/{progress['total']}")
+
+                    if answered_items:
+                        for label, formatted_value in answered_items:
+                            st.caption(f"{label}: {formatted_value}")
+                    elif not group_complete:
+                        st.caption("Noch keine bestätigten Antworten in dieser Gruppe.")
+
+                    if unanswered_questions:
+                        if render_inline_inputs:
+                            st.markdown("**Offene Fragen direkt beantworten**")
+                            _render_questions_two_columns(
+                                unanswered_questions,
+                                answers,
+                                widget_key_prefix=REVIEW_WIDGET_KEY_PREFIX,
+                            )
+                        else:
+                            st.caption(
+                                f"{len(unanswered_questions)} offene Frage(n) in dieser Gruppe."
+                            )
 
 
 def _can_render_inline_answer_inputs() -> bool:
