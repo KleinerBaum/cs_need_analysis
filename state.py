@@ -554,13 +554,48 @@ def clear_error() -> None:
 
 
 def get_esco_occupation_selected() -> Dict[str, Any] | None:
-    """Return a validated ESCO occupation payload or None for legacy sessions."""
+    """Return a validated ESCO occupation payload; normalize legacy shape first."""
+
+    def _normalize_selected_payload(raw_payload: Any) -> Dict[str, Any] | None:
+        if not isinstance(raw_payload, dict):
+            return None
+        normalized_uri = str(raw_payload.get("uri") or "").strip()
+        if not normalized_uri:
+            return None
+
+        normalized_title = str(
+            raw_payload.get("title")
+            or raw_payload.get("preferredLabel")
+            or raw_payload.get("label")
+            or raw_payload.get("name")
+            or ""
+        ).strip()
+        if not normalized_title:
+            return None
+
+        normalized_type = str(raw_payload.get("type") or "").strip().lower()
+        if not normalized_type:
+            normalized_type = "occupation"
+
+        normalized: Dict[str, Any] = {
+            "uri": normalized_uri,
+            "title": normalized_title,
+            "type": normalized_type,
+        }
+        code_value = raw_payload.get("code")
+        if code_value is not None:
+            normalized["code"] = str(code_value).strip() or None
+        return normalized
 
     raw = st.session_state.get(SSKey.ESCO_OCCUPATION_SELECTED.value)
     if raw is None:
         return None
+    normalized_payload = _normalize_selected_payload(raw)
+    if normalized_payload is None:
+        return None
     try:
-        validated = EscoConceptRef.model_validate(raw).model_dump()
+        validated = EscoConceptRef.model_validate(normalized_payload).model_dump()
+        st.session_state[SSKey.ESCO_OCCUPATION_SELECTED.value] = validated
         st.session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] = str(
             validated.get("uri") or ""
         ).strip()
@@ -597,7 +632,7 @@ def get_esco_anchor_status() -> EscoAnchorStatus:
     if not anchor_confirmed:
         status_reason = "anchor_not_confirmed"
     elif selected_occupation is None:
-        status_reason = "anchor_confirmed_missing_payload"
+        status_reason = "anchor_confirmed_invalid_payload"
     else:
         status_reason = "anchor_confirmed_with_payload"
     return EscoAnchorStatus(

@@ -463,7 +463,7 @@ def test_render_unmapped_term_workflow_serializes_canonical_retry_and_bucket() -
     ]
 
 
-def test_skills_source_block_warns_when_anchor_confirmed_but_payload_missing(
+def test_skills_source_block_warns_when_anchor_confirmed_but_payload_invalid(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[tuple[str, str]] = []
@@ -494,7 +494,7 @@ def test_skills_source_block_warns_when_anchor_confirmed_but_payload_missing(
         selected_occupation=None,
         coverage_snapshot=EscoCoverageSnapshot("", [], [], [], 0, 0, 0, 0),
         show_esco_sections=True,
-        esco_anchor_status=EscoAnchorStatus(True, None, "anchor_confirmed_missing_payload"),
+        esco_anchor_status=EscoAnchorStatus(True, None, "anchor_confirmed_invalid_payload"),
     )
 
     assert any(kind == "warning" and "erneut synchronisieren" in msg for kind, msg in calls)
