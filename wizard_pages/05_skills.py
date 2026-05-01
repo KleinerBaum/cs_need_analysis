@@ -291,7 +291,7 @@ def _render_skills_source_columns(
     render_multi_select_pills(
         " ",
         options=jobspec_labels,
-        key="skills.jobspec.pills",
+        key=SSKey.SKILLS_JOBSPEC_PILLS.value,
         default=[item for item in selected_labels if _normalize_term(item) in {_normalize_term(v) for v in jobspec_labels}],
     )
 
@@ -299,7 +299,9 @@ def _render_skills_source_columns(
     st.markdown("#### 2) ESCO-Vorschläge")
     st.caption("Essential/Optional prüfen und markieren.")
     if show_esco_sections:
-        load_esco_clicked = st.button("ESCO-Skills laden", key="skills.esco.load")
+        load_esco_clicked = st.button(
+            "ESCO-Skills laden", key=SSKey.SKILLS_ESCO_LOAD_CLICKED.value
+        )
         selected_must_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
         selected_nice_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
         selected_must = selected_must_raw if isinstance(selected_must_raw, list) else []
@@ -320,13 +322,19 @@ def _render_skills_source_columns(
         essential_chips = _to_chip_data(selected_must, "essential")
         optional_chips = _to_chip_data(selected_nice, "optional")
         esco_labels = _dedupe_terms([c["title"] for c in [*essential_chips, *optional_chips]])
-        search_text = st.text_input("Suche (contains/filter)", key="skills.esco.search").strip().lower()
+        search_text = (
+            st.text_input(
+                "Suche (contains/filter)", key=SSKey.SKILLS_ESCO_SEARCH.value
+            )
+            .strip()
+            .lower()
+        )
 
         sort_mode = st.radio(
             "Sortierung",
             options=["alphabetisch", "quelle"],
             horizontal=True,
-            key="skills.esco.sort",
+            key=SSKey.SKILLS_ESCO_SORT.value,
             label_visibility="collapsed",
         )
 
@@ -366,7 +374,7 @@ def _render_skills_source_columns(
         render_multi_select_pills(
             "   ",
             options=esco_labels,
-            key="skills.esco.pills",
+            key=SSKey.SKILLS_ESCO_PILLS.value,
             default=[item for item in selected_labels if _normalize_term(item) in {_normalize_term(v) for v in esco_labels}],
         )
     else:
@@ -382,20 +390,20 @@ def _render_skills_source_columns(
         step=1,
     )
     generate_ai_clicked = st.button(
-        "AI-Skill-Vorschläge generieren", key="skills.ai.generate"
+        "AI-Skill-Vorschläge generieren", key=SSKey.SKILLS_AI_GENERATE_CLICKED.value
     )
     render_multi_select_pills(
         "  ",
         options=llm_labels,
-        key="skills.ai.pills",
+        key=SSKey.SKILLS_AI_PILLS.value,
         default=[item for item in selected_labels if _normalize_term(item) in {_normalize_term(v) for v in llm_labels}],
     )
 
-    selected_jobspec = st.session_state.get("skills.jobspec.pills", []) or []
-    selected_ai = st.session_state.get("skills.ai.pills", []) or []
-    selected_esco = st.session_state.get("skills.esco.pills", []) or []
+    selected_jobspec = st.session_state.get(SSKey.SKILLS_JOBSPEC_PILLS.value, []) or []
+    selected_ai = st.session_state.get(SSKey.SKILLS_AI_PILLS.value, []) or []
+    selected_esco = st.session_state.get(SSKey.SKILLS_ESCO_PILLS.value, []) or []
     buffer = _dedupe_terms([*selected_jobspec, *selected_ai, *selected_esco, *selected_labels])
-    st.session_state[f"{SSKey.SKILLS_SELECTED.value}.bulk_buffer"] = buffer
+    st.session_state[SSKey.SKILLS_SELECTED_BULK_BUFFER.value] = buffer
     if st.button("Ausgewählte Skills übernehmen", width="stretch"):
         _save_selected_skill_suggestions(buffer)
     current_selected = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
