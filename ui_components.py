@@ -80,6 +80,34 @@ class ReviewRenderMode(str, Enum):
     FULL = "full"
 
 
+class ReviewRenderContext(str, Enum):
+    STEP_FORM = "step_form"
+    SUMMARY_READINESS = "summary_readiness"
+
+
+def resolve_standard_review_mode(
+    *,
+    context: ReviewRenderContext,
+    ui_mode: str | None = None,
+    debug_enabled: bool | None = None,
+) -> ReviewRenderMode:
+    """Resolve canonical review rendering mode from UI mode/debug + context."""
+
+    normalized_ui_mode = str(
+        ui_mode if ui_mode is not None else st.session_state.get(SSKey.UI_MODE.value, "standard")
+    ).strip().lower()
+    is_debug = (
+        bool(debug_enabled)
+        if debug_enabled is not None
+        else bool(st.session_state.get(SSKey.DEBUG.value, False))
+    )
+    if normalized_ui_mode == "expert" or is_debug:
+        return ReviewRenderMode.FULL
+    if context is ReviewRenderContext.STEP_FORM:
+        return ReviewRenderMode.COMPACT
+    return ReviewRenderMode.DIRECT_ANSWERS
+
+
 def _resolve_review_render_mode(
     render_mode: ReviewRenderMode | None,
 ) -> ReviewRenderMode:

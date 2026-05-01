@@ -192,3 +192,52 @@ def test_salary_forecast_slots_keep_canonical_result_key_wiring() -> None:
         benefits.st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value]["source"]
         == "benefits"
     )
+
+
+def test_primary_step_pages_use_compact_review_render_mode() -> None:
+    page_specs = [
+        ("wizard_pages.page_02_company", "wizard_pages/02_company.py", "company"),
+        ("wizard_pages.page_04_role_tasks", "wizard_pages/04_role_tasks.py", "role_tasks"),
+        ("wizard_pages.page_06_benefits", "wizard_pages/06_benefits.py", "benefits"),
+        ("wizard_pages.page_07_interview", "wizard_pages/07_interview.py", "interview"),
+        ("wizard_pages.page_03_team", "wizard_pages/03_team.py", "team"),
+        ("wizard_pages.page_05_skills", "wizard_pages/05_skills.py", "skills"),
+    ]
+
+    for alias, rel_path, step_key in page_specs:
+        page_module = _load_module(alias, rel_path)
+        kwargs = _capture_step_shell_kwargs(page_module, step_key=step_key)
+        called: dict[str, Any] = {}
+
+        def _capture_review(step: Any, render_mode: Any = None) -> None:
+            called["step"] = step
+            called["render_mode"] = render_mode
+
+        page_module.render_standard_step_review = _capture_review
+        if hasattr(page_module, "_render_benefits_consistency_checklist"):
+            page_module._render_benefits_consistency_checklist = lambda **_kwargs: None
+        if hasattr(page_module, "_render_interview_consistency_checklist"):
+            page_module._render_interview_consistency_checklist = lambda **_kwargs: None
+        kwargs["review_slot"]()
+
+        assert getattr(called["render_mode"], "value", called["render_mode"]) == "compact"
+
+
+def test_review_mode_resolution_prefers_full_for_expert_or_debug() -> None:
+    from ui_components import ReviewRenderContext, ReviewRenderMode, resolve_standard_review_mode
+
+    assert resolve_standard_review_mode(
+        context=ReviewRenderContext.STEP_FORM,
+        ui_mode="expert",
+        debug_enabled=False,
+    ) is ReviewRenderMode.FULL
+    assert resolve_standard_review_mode(
+        context=ReviewRenderContext.SUMMARY_READINESS,
+        ui_mode="standard",
+        debug_enabled=True,
+    ) is ReviewRenderMode.FULL
+    assert resolve_standard_review_mode(
+        context=ReviewRenderContext.SUMMARY_READINESS,
+        ui_mode="standard",
+        debug_enabled=False,
+    ) is ReviewRenderMode.DIRECT_ANSWERS

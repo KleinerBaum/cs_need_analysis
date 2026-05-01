@@ -26,6 +26,8 @@ from ui_components import (
     render_esco_explainability,
     render_error_banner,
     render_question_step,
+    ReviewRenderContext,
+    resolve_standard_review_mode,
     render_standard_step_review,
 )
 from ui_layout import render_step_shell, responsive_three_columns
@@ -477,7 +479,10 @@ def render(ctx: WizardContext) -> None:
         extracted_from_jobspec_use_expander=False,
         post_review_slot=_render_decision_and_salary_slot,
         open_questions_slot=_render_open_questions_slot,
-        review_slot=lambda: render_standard_step_review(step),
+        review_slot=lambda: render_standard_step_review(
+            step,
+            render_mode=resolve_standard_review_mode(context=ReviewRenderContext.STEP_FORM),
+        ),
         footer_slot=lambda: nav_buttons(ctx),
     )
 

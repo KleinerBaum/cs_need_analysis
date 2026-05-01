@@ -36,6 +36,8 @@ from ui_components import (
     render_error_banner,
     render_multi_select_pills,
     render_question_step,
+    ReviewRenderContext,
+    resolve_standard_review_mode,
     render_standard_step_review,
 )
 from wizard_pages.base import (
@@ -1335,7 +1337,10 @@ def render(ctx: WizardContext) -> None:
         extracted_from_jobspec_label="Aus der Anzeige extrahierte Skills",
         extracted_from_jobspec_use_expander=False,
         open_questions_slot=lambda: _render_open_questions_slot(step),
-        review_slot=lambda: render_standard_step_review(step),
+        review_slot=lambda: render_standard_step_review(
+            step,
+            render_mode=resolve_standard_review_mode(context=ReviewRenderContext.STEP_FORM),
+        ),
         after_review_slot=lambda: (
             _render_skills_source_comparison_block(
                 job=job,
