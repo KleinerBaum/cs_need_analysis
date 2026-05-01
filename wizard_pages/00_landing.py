@@ -84,6 +84,22 @@ def render(ctx: WizardContext) -> None:
         st.subheader(hero_subheadline)
     st.markdown(str(LANDING_COPY["hero_supporting_paragraph"]))
 
+    st.markdown("### Jetzt analysieren")
+    render_jobad_intake(ctx, title=str(LANDING_COPY["primary_cta"]))
+
+    st.markdown(
+        f'<section id="{LANDING_SECTION_IDS["flow"]}" class="landing-section">',
+        unsafe_allow_html=True,
+    )
+    st.subheader(str(LANDING_COPY["flow_title"]))
+    flow_steps = LANDING_COPY.get("flow_steps", ())
+    if isinstance(flow_steps, tuple):
+        for step_title, step_body in flow_steps:
+            st.markdown(f"**{step_title}**")
+            st.markdown(step_body)
+    st.markdown("</section>", unsafe_allow_html=True)
+    st.divider()
+
     st.markdown(
         f'<section id="{LANDING_SECTION_IDS["importance"]}" class="landing-section">',
         unsafe_allow_html=True,
@@ -124,9 +140,6 @@ def render(ctx: WizardContext) -> None:
             "- **d) Sourcing-Automatisierung:** Optimierung von Sourcing-Schritten von der Jobad-Erstellung über Boolean-Searchstrings bis zur Vertragserstellung im Corporate Design."
         )
     st.markdown("</section>", unsafe_allow_html=True)
-
-    st.divider()
-    render_jobad_intake(ctx, title=str(LANDING_COPY["primary_cta"]))
 
 
 PAGE = WizardPage(
