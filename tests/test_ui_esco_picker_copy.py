@@ -20,6 +20,7 @@ class _FakeStreamlit:
         self.selectbox_labels: list[str] = []
         self.button_labels: list[str] = []
         self.expander_labels: list[str] = []
+        self.expander_calls: list[tuple[str, bool | None]] = []
         self.captions: list[str] = []
 
     def text_input(self, _: str, **__: Any) -> str:
@@ -35,6 +36,7 @@ class _FakeStreamlit:
 
     def expander(self, label: str, **__: Any) -> _NoopContext:
         self.expander_labels.append(label)
+        self.expander_calls.append((label, __.get("expanded")))
         return _NoopContext()
 
     def caption(self, message: str) -> None:
@@ -72,6 +74,7 @@ def test_render_esco_picker_card_uses_default_copy(monkeypatch) -> None:
 
     assert fake_st.selectbox_labels == ["Top-Vorschlag auswählen"]
     assert fake_st.expander_labels == ["Preview vor Apply"]
+    assert fake_st.expander_calls == [("Preview vor Apply", False)]
     assert fake_st.button_labels == ["Apply"]
 
 
@@ -91,5 +94,6 @@ def test_render_esco_picker_card_uses_copy_overrides(monkeypatch) -> None:
 
     assert fake_st.selectbox_labels == ["Choose semantic occupation"]
     assert fake_st.expander_labels == ["Preview semantic anchor"]
+    assert fake_st.expander_calls == [("Preview semantic anchor", False)]
     assert fake_st.button_labels == ["Use as semantic anchor"]
     assert "Confirm occupation for downstream suggestions" in fake_st.captions
