@@ -448,10 +448,17 @@ def render(ctx: WizardContext) -> None:
             if isinstance(selected_tasks, list)
             else []
         )
-        _render_role_tasks_salary_block(
-            job=job,
-            selected_tasks=canonical_tasks,
+
+        st.markdown("#### Auswirkung auf Prognose")
+        st.caption(
+            "Die ausgewählten Aufgaben beeinflussen die Gehaltsprognose. "
+            "Details und Szenarien findest du im aufklappbaren Bereich."
         )
+        with st.expander("Auswirkung auf Gehaltsprognose", expanded=False):
+            _render_role_tasks_salary_block(
+                job=job,
+                selected_tasks=canonical_tasks,
+            )
 
     def _render_decision_and_salary_slot() -> None:
         _render_source_comparison_slot()
