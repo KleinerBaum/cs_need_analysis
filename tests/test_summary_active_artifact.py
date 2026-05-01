@@ -28,6 +28,7 @@ class _FakeStreamlit:
         self.session_state = session_state
         self._button_results = button_results
         self.rerun_called = False
+        self.button_labels: list[str] = []
 
     def container(self, **_: Any) -> _NoopContext:
         return _NoopContext()
@@ -44,7 +45,8 @@ class _FakeStreamlit:
     def info(self, *_: Any, **__: Any) -> None:
         return None
 
-    def button(self, *_: Any, **__: Any) -> bool:
+    def button(self, label: str, **__: Any) -> bool:
+        self.button_labels.append(label)
         return self._button_results.pop(0) if self._button_results else False
 
     def columns(self, count: int) -> list[_NoopContext]:
@@ -196,3 +198,34 @@ def test_secondary_artifact_switching_updates_active_artifact(monkeypatch) -> No
 
     assert fake_st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] == "job_ad"
     assert fake_st.rerun_called is True
+
+
+def test_artifact_display_label_maps_expected_labels_and_fallbacks() -> None:
+    assert SUMMARY_MODULE._artifact_display_label("job_ad") == "Stellenanzeige"
+    assert SUMMARY_MODULE._artifact_display_label("interview_hr") == "HR-Sheet"
+    assert SUMMARY_MODULE._artifact_display_label("interview_fach") == "Fachbereich-Sheet"
+    assert SUMMARY_MODULE._artifact_display_label("boolean_search") == "Boolean Search"
+    assert SUMMARY_MODULE._artifact_display_label("employment_contract") == "Arbeitsvertrag"
+    assert SUMMARY_MODULE._artifact_display_label("brief") == "Recruiting Brief"
+    assert SUMMARY_MODULE._artifact_display_label("custom_artifact") == "custom_artifact"
+    assert SUMMARY_MODULE._artifact_display_label("  custom_artifact  ") == "custom_artifact"
+    assert SUMMARY_MODULE._artifact_display_label("") == ""
+    assert SUMMARY_MODULE._artifact_display_label(123) == ""
+
+
+def test_render_secondary_artifacts_uses_human_label_but_sets_canonical_id(
+    monkeypatch,
+) -> None:
+    fake_st = _FakeStreamlit(
+        session_state={SSKey.SUMMARY_ACTIVE_ARTIFACT.value: "brief"},
+        button_results=[True],
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
+
+    SUMMARY_MODULE._render_secondary_artifacts(
+        active_artifact_id="brief",
+        available_artifact_ids=["brief", "job_ad"],
+    )
+
+    assert fake_st.button_labels == ["Als Fokus öffnen: Stellenanzeige"]
+    assert fake_st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] == "job_ad"
