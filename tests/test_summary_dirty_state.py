@@ -21,7 +21,6 @@ def _fingerprint(
     *,
     answers: dict[str, object] | None = None,
     occupation_title: str = "Data Engineer",
-    nace_mapping: dict[str, str] | None = None,
     esco_provenance: list[str] | None = None,
 ) -> str:
     monkeypatch.setattr(
@@ -40,10 +39,6 @@ def _fingerprint(
                     {"uri": "uri:skill:python", "title": "Python"}
                 ],
                 SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
-                SSKey.COMPANY_NACE_CODE.value: "62.01",
-                SSKey.EURES_NACE_TO_ESCO.value: nace_mapping
-                if nace_mapping is not None
-                else {"62.01": "uri:occ:data-engineer"},
             }
         ),
     )
@@ -67,8 +62,6 @@ def _fingerprint(
         esco_selected_skills_nice=SUMMARY_MODULE._read_esco_skill_refs(
             SSKey.ESCO_SKILLS_SELECTED_NICE
         ),
-        nace_code="62.01",
-        nace_to_esco_mapping=SUMMARY_MODULE._read_nace_to_esco_mapping(),
     )
 
 
@@ -87,16 +80,6 @@ def test_summary_dirty_fingerprint_changes_when_esco_occupation_changes(
 
     assert baseline != changed
 
-
-def test_summary_dirty_fingerprint_changes_when_nace_mapping_changes(
-    monkeypatch,
-) -> None:
-    baseline = _fingerprint(
-        monkeypatch, nace_mapping={"62.01": "uri:occ:data-engineer"}
-    )
-    changed = _fingerprint(
-        monkeypatch, nace_mapping={"62.01": "uri:occ:software-developer"}
-    )
 
     assert baseline != changed
 
