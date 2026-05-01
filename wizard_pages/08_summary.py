@@ -3145,7 +3145,7 @@ def _render_secondary_artifacts(
     st.caption("Weitere Ergebnisse")
     for artifact_id in secondary_ids:
         if st.button(
-            f"Als Fokus öffnen: {artifact_id}",
+            f"Als Fokus öffnen: {_artifact_display_label(artifact_id)}",
             key=_widget_key(
                 SSKey.SUMMARY_ACTION_WIDGET_PREFIX, f"activate.{artifact_id}"
             ),
