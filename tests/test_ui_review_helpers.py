@@ -23,6 +23,7 @@ class _FakeStreamlitRecorder:
         self.captions: list[str] = []
         self.warnings: list[str] = []
         self.events: list[tuple[str, str]] = []
+        self.expanders: list[tuple[str, bool]] = []
 
     def container(self, *, border: bool = False) -> _NoopContext:
         self.container_calls.append(border)
@@ -43,6 +44,11 @@ class _FakeStreamlitRecorder:
     def columns(self, spec: int | list[int], **_: Any) -> list[_NoopContext]:
         count = spec if isinstance(spec, int) else len(spec)
         return [_NoopContext() for _ in range(count)]
+
+    def expander(self, label: str, *, expanded: bool = False) -> _NoopContext:
+        self.expanders.append((label, expanded))
+        self.events.append(("expander", label))
+        return _NoopContext()
 
 
 def _question(
@@ -145,6 +151,7 @@ def test_render_step_review_card_renders_group_status_indicators(monkeypatch) ->
     assert "**Group Partial**" in fake_st.markdowns
     assert "✅ vollständig" in fake_st.captions
     assert "⚠️ offen" in fake_st.captions
+    assert ("Gruppenstatus", False) in fake_st.expanders
 
 
 def test_render_step_review_card_truncates_long_answer_previews(monkeypatch) -> None:
@@ -245,7 +252,42 @@ def test_render_step_review_card_shows_open_question_count_without_input_widgets
         step_status=None,
     )
 
-    assert "1 offene Frage(n) in dieser Gruppe." in fake_st.captions
+    assert (
+        "1 offene Frage(n) – Details und direkte Eingabe im Bereich „Gruppenstatus“."
+        in fake_st.captions
+    )
+
+
+def test_render_step_review_card_compact_summary_with_group_counts(monkeypatch) -> None:
+    fake_st = _FakeStreamlitRecorder()
+    monkeypatch.setattr(ui_components, "st", fake_st)
+
+    questions = [
+        _question(question_id="q1", label="Frage 1", group_key="group_a"),
+        _question(question_id="q2", label="Frage 2", group_key="group_a"),
+        _question(question_id="q3", label="Frage 3", required=False, group_key="group_b"),
+    ]
+    step = _step_with_questions(questions)
+    ui_components.render_step_review_card(
+        step=step,
+        visible_questions=questions,
+        answers={"q1": "ok", "q3": "ok"},
+        answer_meta={},
+        answered_lookup={"q1": True, "q2": False, "q3": True},
+        step_status={
+            "answered": 2,
+            "total": 3,
+            "completion_state": "partial",
+            "essentials_answered": 1,
+            "essentials_total": 2,
+            "missing_essentials": ["Frage 2"],
+            "missing_essential_ids": ["q2"],
+        },
+    )
+
+    assert "• Beantwortet 2/3" in fake_st.captions
+    assert "⚠️ Essentials 1/2" in fake_st.captions
+    assert "⚠️ Gruppen 1 vollständig · 1 offen" in fake_st.captions
 
 
 def test_render_question_step_hides_verbose_progress_captions(monkeypatch) -> None:
