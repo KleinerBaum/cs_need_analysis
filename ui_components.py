@@ -201,28 +201,26 @@ def render_esco_explainability(
     normalized_confidence = _normalize_esco_confidence(confidence)
     if not normalized_labels and not reason:
         return
-    badges = [f"Confidence: {normalized_confidence.title()}"] + [
-        label.title() for label in normalized_labels
-    ]
-
-    def _render_badges(entries: Sequence[str]) -> None:
-        badge_html = " ".join(
-            (
-                f"<span style='display:inline-block;padding:0.15rem 0.45rem;border-radius:0.6rem;"
-                "border:1px solid #d1d5db;font-size:0.78rem;'>"
-                f"{badge}</span>"
-            )
-            for badge in entries
-        )
-        if badge_html:
-            st.markdown(badge_html, unsafe_allow_html=True)
-
-    _render_badges(badges[:2])
-    if len(badges) > 2:
-        with st.expander("Mehr Infos", expanded=False):
-            _render_badges(badges[2:])
+    st.caption(f"Confidence: {normalized_confidence.title()}")
     if reason:
         st.caption(f"{caption_prefix}: {reason}")
+    if normalized_labels:
+        badges = [label.title() for label in normalized_labels]
+
+        def _render_badges(entries: Sequence[str]) -> None:
+            badge_html = " ".join(
+                (
+                    "<span style='display:inline-block;padding:0.15rem 0.45rem;"
+                    "border-radius:0.6rem;border:1px solid #d1d5db;font-size:0.78rem;'>"
+                    f"{badge}</span>"
+                )
+                for badge in entries
+            )
+            if badge_html:
+                st.markdown(badge_html, unsafe_allow_html=True)
+
+        with st.expander("Technische Details", expanded=False):
+            _render_badges(badges)
 
 
 _OTHER_OPTION = "Sonstiges"
