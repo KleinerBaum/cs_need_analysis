@@ -279,7 +279,6 @@ def _render_skills_source_columns(
     *,
     jobspec_labels: list[str],
     llm_labels: list[str],
-    esco_labels: list[str],
 ) -> tuple[bool, bool]:
     selected_labels_raw = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
     selected_labels = _dedupe_terms([str(item) for item in selected_labels_raw]) if isinstance(selected_labels_raw, list) else []
@@ -315,21 +314,46 @@ def _render_skills_source_columns(
     with col_esco:
         st.markdown("#### ESCO")
         load_esco_clicked = st.button("ESCO-Skills laden", key="skills.esco.load")
-        for label in esco_labels:
-            normalized = _normalize_term(label)
-            relation = "optional"
-            source_badge = "ESCO"
-            if normalized in {_normalize_term(str(v.get("title") or "")) for v in st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, []) if isinstance(v, dict)}:
-                relation = "essential"
-            for item in (
-                st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
-                + st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
-            ):
-                if isinstance(item, dict) and _normalize_term(str(item.get("title") or "")) == normalized:
-                    if str(item.get("source") or "").strip() == "ESCO matrix prior":
-                        source_badge = "ESCO matrix prior"
-                    break
-            st.caption(f"{label} · {relation} · {source_badge}")
+        selected_must_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
+        selected_nice_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
+        selected_must = selected_must_raw if isinstance(selected_must_raw, list) else []
+        selected_nice = selected_nice_raw if isinstance(selected_nice_raw, list) else []
+
+        def _to_chip_data(items: list[dict[str, Any]], relation: str) -> list[dict[str, str]]:
+            chips: list[dict[str, str]] = []
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                title = str(item.get("title") or "").strip()
+                if not title:
+                    continue
+                source = str(item.get("source") or "").strip() or "ESCO"
+                chips.append({"title": title, "relation": relation, "source": source})
+            return chips
+
+        essential_chips = _to_chip_data(selected_must, "essential")
+        optional_chips = _to_chip_data(selected_nice, "optional")
+        esco_labels = _dedupe_terms([c["title"] for c in [*essential_chips, *optional_chips]])
+        search_text = st.text_input("Suche (contains/filter)", key="skills.esco.search").strip().lower()
+
+        def _render_chip_list(chips: list[dict[str, str]]) -> None:
+            filtered = [c for c in chips if not search_text or search_text in c["title"].lower()]
+            if not filtered:
+                st.caption("Keine Skills gefunden.")
+                return
+            for chip in filtered:
+                title = chip["title"]
+                compact_title = title if len(title) <= 48 else f"{title[:45]}..."
+                relation_badge = "essential" if chip["relation"] == "essential" else "optional"
+                source_badge = "ESCO matrix prior" if chip["source"] == "ESCO matrix prior" else "ESCO"
+                with st.expander(f"{compact_title} · {relation_badge} · {source_badge}", expanded=False):
+                    st.caption(title)
+
+        tab_essential, tab_optional = st.tabs(["Essential", "Optional"])
+        with tab_essential:
+            _render_chip_list(essential_chips)
+        with tab_optional:
+            _render_chip_list(optional_chips)
         render_multi_select_pills(
             "   ",
             options=esco_labels,
@@ -971,7 +995,7 @@ def _render_skills_source_comparison_block(
     )
     must_have_skills = [x for x in job.must_have_skills if has_meaningful_value(x)]
     nice_to_have_skills = [x for x in job.nice_to_have_skills if has_meaningful_value(x)]
-    jobspec_labels, llm_labels, esco_labels, deduped_must, deduped_nice, llm_suggested = _build_skills_source_view_data(
+    jobspec_labels, llm_labels, _esco_labels, deduped_must, deduped_nice, llm_suggested = _build_skills_source_view_data(
         job=job,
         show_esco_sections=show_esco_sections,
     )
@@ -985,7 +1009,6 @@ def _render_skills_source_comparison_block(
     )
     load_esco_clicked, generate_ai_clicked = _render_skills_source_columns(
         jobspec_labels=jobspec_labels,
-        esco_labels=esco_labels,
         llm_labels=llm_labels,
     )
     normalized_must_terms = _dedupe_terms(must_have_skills)
