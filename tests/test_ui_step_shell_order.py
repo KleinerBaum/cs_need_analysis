@@ -85,9 +85,9 @@ def test_role_skills_benefits_use_identical_step_shell_block_order() -> None:
 
     assert role_slots == [
         "extracted_from_jobspec_slot",
-        "post_review_slot",
         "open_questions_slot",
         "review_slot",
+        "after_review_slot",
     ]
     assert skills_slots == [
         "extracted_from_jobspec_slot",
@@ -103,7 +103,7 @@ def test_role_skills_benefits_use_identical_step_shell_block_order() -> None:
         "review_slot",
     ]
 
-    assert callable(role_kwargs["post_review_slot"])
+    assert callable(role_kwargs["after_review_slot"])
     assert callable(skills_kwargs["after_review_slot"])
     assert callable(benefits_kwargs["salary_forecast_slot"])
 

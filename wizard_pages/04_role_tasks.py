@@ -477,12 +477,12 @@ def render(ctx: WizardContext) -> None:
         extracted_from_jobspec_slot=_render_extracted_slot,
         extracted_from_jobspec_label="Aus der Anzeige extrahierte Rollen & Aufgaben",
         extracted_from_jobspec_use_expander=False,
-        post_review_slot=_render_decision_and_salary_slot,
         open_questions_slot=_render_open_questions_slot,
         review_slot=lambda: render_standard_step_review(
             step,
             render_mode=resolve_standard_review_mode(context=ReviewRenderContext.STEP_FORM),
         ),
+        after_review_slot=_render_decision_and_salary_slot,
         footer_slot=lambda: nav_buttons(ctx),
     )
 
