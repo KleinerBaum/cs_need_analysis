@@ -97,6 +97,13 @@ class EscoCoverageSnapshot:
         return round((self.optional_covered / self.optional_total) * 100)
 
 
+@dataclass(frozen=True)
+class EscoAnchorStatus:
+    anchor_confirmed: bool
+    selected_occupation: Dict[str, Any] | None
+    status_reason: str
+
+
 def get_model_override() -> str | None:
     """Return a cleaned model override from the UI, if provided."""
 
@@ -573,6 +580,31 @@ def has_confirmed_esco_anchor() -> bool:
     ).strip()
     st.session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] = selected_uri
     return bool(selected_uri)
+
+
+def get_esco_anchor_status() -> EscoAnchorStatus:
+    """Resolve ESCO anchor state atomically for consistent UI decisions."""
+
+    selected_occupation = get_esco_occupation_selected()
+    selected_uri = str(
+        st.session_state.get(SSKey.ESCO_SELECTED_OCCUPATION_URI.value)
+        or (selected_occupation or {}).get("uri")
+        or ""
+    ).strip()
+    st.session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] = selected_uri
+    anchor_confirmed = bool(selected_uri)
+
+    if not anchor_confirmed:
+        status_reason = "anchor_not_confirmed"
+    elif selected_occupation is None:
+        status_reason = "anchor_confirmed_missing_payload"
+    else:
+        status_reason = "anchor_confirmed_with_payload"
+    return EscoAnchorStatus(
+        anchor_confirmed=anchor_confirmed,
+        selected_occupation=selected_occupation,
+        status_reason=status_reason,
+    )
 
 
 def get_esco_occupation_payload() -> Dict[str, Any] | None:

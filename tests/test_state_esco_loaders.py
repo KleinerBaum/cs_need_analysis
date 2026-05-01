@@ -13,6 +13,7 @@ def test_esco_loaders_tolerate_missing_session_keys(monkeypatch) -> None:
     assert state.get_esco_occupation_payload() is None
     assert state.get_esco_occupation_candidates() == []
     assert state.get_esco_skills_mapping_report() is None
+    assert state.get_esco_anchor_status().status_reason == "anchor_not_confirmed"
 
 
 def test_sync_esco_shared_state_updates_canonical_fields(monkeypatch) -> None:
@@ -104,3 +105,17 @@ def test_esco_loaders_return_model_dump_payloads(monkeypatch) -> None:
         "collisions": ["Python"],
         "notes": ["Used exact label fallback."],
     }
+
+
+def test_get_esco_anchor_status_handles_missing_selected_payload(monkeypatch) -> None:
+    fake_state = {
+        SSKey.ESCO_SELECTED_OCCUPATION_URI.value: "http://data.europa.eu/esco/occupation/123",
+        SSKey.ESCO_OCCUPATION_SELECTED.value: {"legacy": "invalid"},
+    }
+    monkeypatch.setattr(state, "st", SimpleNamespace(session_state=fake_state))
+
+    status = state.get_esco_anchor_status()
+
+    assert status.anchor_confirmed is True
+    assert status.selected_occupation is None
+    assert status.status_reason == "anchor_confirmed_missing_payload"

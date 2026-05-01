@@ -21,11 +21,11 @@ from components.design_system import render_output_header
 from schemas import EscoMappingReport
 from schemas import EscoSkillDetail, JobAdExtract, QuestionStep
 from state import (
+    EscoAnchorStatus,
     EscoCoverageSnapshot,
     get_active_model,
     get_answers,
-    get_esco_occupation_selected,
-    has_confirmed_esco_anchor,
+    get_esco_anchor_status,
     sync_esco_shared_state,
 )
 from ui_layout import render_step_shell, responsive_three_columns
@@ -963,6 +963,7 @@ def _render_skills_source_comparison_block(
     selected_occupation: dict[str, Any] | None,
     coverage_snapshot: EscoCoverageSnapshot,
     show_esco_sections: bool,
+    esco_anchor_status: EscoAnchorStatus,
 ) -> None:
     render_output_header(
         "Skills auswählen",
@@ -1099,7 +1100,13 @@ def _render_skills_source_comparison_block(
                 "(dedupliziert anhand ESCO-URI)."
             )
     elif show_esco_sections:
-        st.info("Keine ESCO Occupation ausgewählt.")
+        if esco_anchor_status.status_reason == "anchor_confirmed_missing_payload":
+            st.warning(
+                "ESCO-Anker ist bestätigt, aber die Occupation-Daten fehlen. "
+                "Bitte ESCO-Auswahl erneut synchronisieren (Start → Phase C)."
+            )
+        else:
+            st.info("ESCO-Sektion wird nach bestätigtem ESCO-Anker eingeblendet.")
 
     selected_must_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
     selected_nice_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
@@ -1311,8 +1318,9 @@ def render(ctx: WizardContext) -> None:
         return
 
     job, plan = preflight
-    selected_occupation = get_esco_occupation_selected()
-    show_esco_sections = has_confirmed_esco_anchor()
+    esco_anchor_status = get_esco_anchor_status()
+    selected_occupation = esco_anchor_status.selected_occupation
+    show_esco_sections = esco_anchor_status.anchor_confirmed
     coverage_snapshot = sync_esco_shared_state()
     step = next((value for value in plan.steps if value.step_key == "skills"), None)
 
@@ -1347,6 +1355,7 @@ def render(ctx: WizardContext) -> None:
                 selected_occupation=selected_occupation,
                 coverage_snapshot=coverage_snapshot,
                 show_esco_sections=show_esco_sections,
+                esco_anchor_status=esco_anchor_status,
             ),
             _render_salary_forecast_slot(job),
         ),

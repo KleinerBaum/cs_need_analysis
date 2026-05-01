@@ -8,6 +8,7 @@ import pytest
 
 from constants import SSKey
 from schemas import JobAdExtract
+from state import EscoAnchorStatus, EscoCoverageSnapshot
 
 SKILLS_PATH = Path(__file__).resolve().parents[1] / "wizard_pages" / "05_skills.py"
 SPEC = spec_from_file_location("wizard_pages.page_05_skills", SKILLS_PATH)
@@ -445,7 +446,7 @@ def test_render_unmapped_term_workflow_serializes_canonical_retry_and_bucket() -
             return "de"
 
     setattr(SKILLS_MODULE, "st", DummySt)
-    setattr(SKILLS_MODULE, "render_esco_picker_card", lambda **kwargs: None)
+    setattr(SKILLS_MODULE, "render_esco_picker_card", lambda *args, **kwargs: None)
 
     SKILLS_MODULE._render_unmapped_term_workflow(["PySpark"])
 
@@ -460,3 +461,78 @@ def test_render_unmapped_term_workflow_serializes_canonical_retry_and_bucket() -
             "source_mode": "api_live",
         }
     ]
+
+
+def test_skills_source_block_warns_when_anchor_confirmed_but_payload_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, str]] = []
+    monkeypatch.setattr(SKILLS_MODULE, "render_output_header", lambda *args, **kwargs: None)
+    monkeypatch.setattr(SKILLS_MODULE, "_build_skills_source_view_data", lambda **kwargs: ([], [], [], [], [], []))
+    monkeypatch.setattr(SKILLS_MODULE, "render_compare_adopt_intro", lambda *args, **kwargs: None)
+    monkeypatch.setattr(SKILLS_MODULE, "_render_skills_source_columns", lambda **kwargs: (False, False))
+    monkeypatch.setattr(SKILLS_MODULE, "_resolve_matrix_occupation_group", lambda *_args, **_kwargs: "")
+    monkeypatch.setattr(SKILLS_MODULE, "_render_matrix_coverage_section", lambda *args, **kwargs: None)
+    monkeypatch.setattr(SKILLS_MODULE, "_render_confirmed_selection_block", lambda *args, **kwargs: None)
+    monkeypatch.setattr(SKILLS_MODULE, "get_current_ui_mode", lambda: "standard")
+    monkeypatch.setattr(
+        SKILLS_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.ESCO_SKILLS_SELECTED_MUST.value: [],
+                SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
+            },
+            warning=lambda message: calls.append(("warning", message)),
+            info=lambda message: calls.append(("info", message)),
+            caption=lambda *_args, **_kwargs: None,
+        ),
+    )
+
+    SKILLS_MODULE._render_skills_source_comparison_block(
+        job=JobAdExtract(),
+        selected_occupation=None,
+        coverage_snapshot=EscoCoverageSnapshot("", [], [], [], 0, 0, 0, 0),
+        show_esco_sections=True,
+        esco_anchor_status=EscoAnchorStatus(True, None, "anchor_confirmed_missing_payload"),
+    )
+
+    assert any(kind == "warning" and "erneut synchronisieren" in msg for kind, msg in calls)
+    assert not any("Keine ESCO Occupation ausgewählt." in msg for _, msg in calls)
+
+
+def test_skills_source_block_does_not_show_missing_occupation_message_when_payload_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, str]] = []
+    monkeypatch.setattr(SKILLS_MODULE, "render_output_header", lambda *args, **kwargs: None)
+    monkeypatch.setattr(SKILLS_MODULE, "_build_skills_source_view_data", lambda **kwargs: ([], [], [], [], [], []))
+    monkeypatch.setattr(SKILLS_MODULE, "render_compare_adopt_intro", lambda *args, **kwargs: None)
+    monkeypatch.setattr(SKILLS_MODULE, "_render_skills_source_columns", lambda **kwargs: (False, False))
+    monkeypatch.setattr(SKILLS_MODULE, "_resolve_matrix_occupation_group", lambda *_args, **_kwargs: "")
+    monkeypatch.setattr(SKILLS_MODULE, "_render_matrix_coverage_section", lambda *args, **kwargs: None)
+    monkeypatch.setattr(SKILLS_MODULE, "_render_confirmed_selection_block", lambda *args, **kwargs: None)
+    monkeypatch.setattr(SKILLS_MODULE, "get_current_ui_mode", lambda: "standard")
+    monkeypatch.setattr(
+        SKILLS_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.ESCO_SKILLS_SELECTED_MUST.value: [],
+                SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
+            },
+            warning=lambda message: calls.append(("warning", message)),
+            info=lambda message: calls.append(("info", message)),
+            caption=lambda *_args, **_kwargs: None,
+        ),
+    )
+
+    SKILLS_MODULE._render_skills_source_comparison_block(
+        job=JobAdExtract(),
+        selected_occupation={"uri": "uri:occ:1", "title": "Data Engineer", "type": "occupation"},
+        coverage_snapshot=EscoCoverageSnapshot("uri:occ:1", [], [], [], 0, 0, 0, 0),
+        show_esco_sections=True,
+        esco_anchor_status=EscoAnchorStatus(True, {"uri": "uri:occ:1", "title": "Data Engineer", "type": "occupation"}, "anchor_confirmed_with_payload"),
+    )
+
+    assert not any("Keine ESCO Occupation ausgewählt." in msg for _, msg in calls)
