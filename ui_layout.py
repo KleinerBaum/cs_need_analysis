@@ -36,7 +36,7 @@ def responsive_two_columns(*, gap: str = "large") -> tuple:
 
 
 def responsive_three_columns(*, gap: str = "large") -> tuple:
-    """Render 3 columns on desktop and 1 column on mobile/tablet user agents."""
+    """Render 3 columns on wide desktop, 2 on narrow desktop, and 1 on mobile/tablet."""
     user_agent = str(st.context.headers.get("User-Agent", "")).casefold()
     is_mobile_or_tablet = any(
         marker in user_agent
@@ -50,6 +50,23 @@ def responsive_three_columns(*, gap: str = "large") -> tuple:
     )
     if is_mobile_or_tablet:
         return (st.container(), st.container(), st.container())
+
+    viewport_header = (
+        st.context.headers.get("Sec-CH-Viewport-Width")
+        or st.context.headers.get("Viewport-Width")
+        or ""
+    )
+    viewport_width: int | None = None
+    try:
+        cleaned = str(viewport_header).split(",", 1)[0].strip()
+        if cleaned:
+            viewport_width = int(cleaned)
+    except (TypeError, ValueError):
+        viewport_width = None
+
+    if viewport_width is not None and viewport_width < 1280:
+        col_left, col_right = st.columns(2, gap=gap)
+        return (col_left, col_right, st.container())
     return tuple(st.columns(3, gap=gap))
 
 
