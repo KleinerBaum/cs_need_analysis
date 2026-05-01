@@ -82,9 +82,10 @@ STEP_KEY_LANDING: Final[str] = "landing"
 # Start phases B/C, so this key must stay out of active runtime step contracts.
 STEP_KEY_JOBSPEC_REVIEW: Final[str] = "jobspec_review"
 STEP_KEY_COMPANY: Final[str] = "company"
-# Legacy-only key: Team is no longer part of the visible canonical wizard
-# navigation, but this step key remains for backward compatibility with
-# historical question plans/answers and legacy artifacts.
+# Deprecated routed step key: Team is intentionally excluded from canonical wizard
+# routing/sidebar navigation, but this key remains as a compatibility contract for
+# historical question plans/answers and summary/progress logic that may still carry
+# `step_key == "team"` data.
 STEP_KEY_TEAM: Final[str] = "team"
 STEP_KEY_ROLE_TASKS: Final[str] = "role_tasks"
 STEP_KEY_SKILLS: Final[str] = "skills"
@@ -248,7 +249,7 @@ class SSKey(str, Enum):
     SKILLS_SUGGEST_COUNT = "cs.skills.suggest_count"
 
 
-# ---- Wizard Steps (match your screenshot structure) ----
+# ---- Wizard Steps (canonical routed/visible wizard navigation only) ----
 @dataclass(frozen=True)
 class WizardStepDef:
     key: str
