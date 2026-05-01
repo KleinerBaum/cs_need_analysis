@@ -54,7 +54,5 @@ def render(ctx: WizardContext) -> None:
         footer_slot=lambda: nav_buttons(ctx),
     )
 
-# Legacy helper module: The standalone Team wizard page was retired.
-# Team questions are rendered inside `wizard_pages/02_company.py` via
-# `render_team_questions_with_optional_esco_context(...)`.
-# Intentionally no `PAGE` export so this module cannot be routed directly.
+# Team questions are rendered exclusively on this Team step (`step_key == "team"`).
+# Intentionally no `PAGE` export so routing can stay controlled by the central wizard config.

@@ -20,7 +20,6 @@ from ui_components import (
 )
 from ui_layout import render_step_shell, responsive_three_columns, responsive_two_columns
 from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
-from wizard_pages.team_section import render_team_questions_with_optional_esco_context
 
 _PAGE_KEYWORDS: dict[str, tuple[str, ...]] = {
     "about": ("über uns", "ueber uns", "about", "unternehmen", "company"),
@@ -598,7 +597,6 @@ def render(ctx: WizardContext) -> None:
         return
     job, plan = preflight
     step_company = next((s for s in plan.steps if s.step_key == "company"), None)
-    step_team = next((s for s in plan.steps if s.step_key == "team"), None)
 
     def _render_extracted_slot() -> None:
         extracted_rows = [
@@ -628,13 +626,6 @@ def render(ctx: WizardContext) -> None:
         else:
             render_question_step(step_company)
 
-        st.divider()
-        st.markdown("### Team")
-        render_team_questions_with_optional_esco_context(
-            step=step_team,
-            ctx=ctx,
-            show_error_banner=False,
-        )
 
     render_step_shell(
         title=_format_company_header(job),
