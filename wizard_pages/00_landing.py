@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import streamlit as st
+from content.start_page import START_PAGE_COPY
 from constants import APP_TITLE
 from wizard_pages.jobad_intake import render_jobad_intake
 from wizard_pages.base import (
@@ -12,52 +13,6 @@ from wizard_pages.base import (
     render_esco_language_toggle,
     render_landing_css,
 )
-
-LANDING_COPY: dict[str, object] = {
-    "hero_headline": "Cognitive Staffing",
-    "hero_subheadline": "KI-gestützte Bedarfsanalyse für präzisere Recruiting-Entscheidungen",
-    "hero_supporting_paragraph": "",
-    "primary_cta": "Geben Sie uns ein paar Informationen zu Ihrer Vakanz",
-    "secondary_cta_hint": "",
-    "next_step_line": "",
-    "before_start_title": "",
-    "before_start_bullets": (),
-    "cta_reassurance": "",
-    "cta_helper": "",
-    "cta_microcopy": "",
-    "value_cards": (),
-    "importance_title": "Hintergrund",
-    "flow_title": "Was passiert danach?",
-    "flow_steps": (
-        (
-            "1. Beruf semantisch verankern",
-            "Die Rolle wird auf einen eindeutigen ESCO-Beruf gemappt.",
-        ),
-        (
-            "2. Anforderungen normalisieren",
-            "Skills, Aufgaben und Muss-/Kann-Kriterien werden strukturiert.",
-        ),
-        (
-            "3. Recruiting-Artefakte erzeugen",
-            "Die App erstellt verwertbare Outputs für Recruiting und Hiring-Team.",
-        ),
-    ),
-    "security_title": "Datenschutz und Kontrolle",
-    "security_body": (
-        "Vor der Verarbeitung können sensible personenbezogene Angaben optional reduziert werden. "
-        "Ziel ist eine datensparsame, nachvollziehbare Nutzung im Vacancy Intake."
-    ),
-    "consent_warning": (
-        "Start ist gesperrt, bis die Einwilligung bestätigt wurde. "
-        "Start is blocked until consent is confirmed."
-    ),
-    "consent_details_inline": (
-        "Wenn für eure Organisation Designated Content freigegeben ist, können diese Inhalte "
-        "von OpenAI zu Entwicklungszwecken genutzt werden (inkl. Training, Evaluierung, Tests). "
-        "Ihr müsst Endnutzende informieren und – falls erforderlich – Einwilligungen einholen."
-    ),
-}
-
 
 def render(ctx: WizardContext) -> None:
     render_landing_css(LANDING_STYLE_TOKENS)
@@ -74,22 +29,22 @@ def render(ctx: WizardContext) -> None:
         _, centered_logo_col, _ = st.columns((1, 1, 1))
         with centered_logo_col:
             st.image("images/white_logo_color1_background.png", width=320)
-    st.title(str(LANDING_COPY["hero_headline"]))
-    hero_subheadline = str(LANDING_COPY["hero_subheadline"])
+    st.title(str(START_PAGE_COPY["hero_headline"]))
+    hero_subheadline = str(START_PAGE_COPY["hero_subheadline"])
     if hero_subheadline:
         st.subheader(hero_subheadline)
-    st.markdown(str(LANDING_COPY["hero_supporting_paragraph"]))
+    st.markdown(str(START_PAGE_COPY["hero_supporting_paragraph"]))
 
     st.markdown("### Einstiegsoptionen")
     st.caption("Jobspec hochladen · Text einfügen · Jetzt analysieren")
-    render_jobad_intake(ctx, title=str(LANDING_COPY["primary_cta"]))
+    render_jobad_intake(ctx, title=str(START_PAGE_COPY["primary_cta"]))
 
     st.markdown(
         f'<section id="{LANDING_SECTION_IDS["flow"]}" class="landing-section">',
         unsafe_allow_html=True,
     )
-    st.subheader(str(LANDING_COPY["flow_title"]))
-    flow_steps = LANDING_COPY.get("flow_steps", ())
+    st.subheader(str(START_PAGE_COPY["flow_title"]))
+    flow_steps = START_PAGE_COPY.get("flow_steps", ())
     if isinstance(flow_steps, tuple):
         for step_title, step_body in flow_steps:
             st.markdown(f"**{step_title}**")
@@ -100,7 +55,7 @@ def render(ctx: WizardContext) -> None:
             f'<section id="{LANDING_SECTION_IDS["importance"]}" class="landing-section">',
             unsafe_allow_html=True,
         )
-        st.subheader(str(LANDING_COPY["importance_title"]))
+        st.subheader(str(START_PAGE_COPY["importance_title"]))
 
         st.markdown("#### Was ist ESCO?")
         st.markdown(
