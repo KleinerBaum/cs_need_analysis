@@ -3025,16 +3025,59 @@ def render_interview_prep_fach(sheet: InterviewPrepSheetHiringManager) -> None:
         st.info("Keine Debrief-Fragen hinterlegt.")
 
 
-def render_boolean_search_pack(pack: BooleanSearchPack) -> None:
-    st.markdown(f"**Rolle:** {pack.role_title}")
+def _first_boolean_query(pack: BooleanSearchPack) -> tuple[str, str, str] | None:
+    prioritized_queries = (
+        ("Google", "Focused", pack.google.focused),
+        ("LinkedIn", "Focused", pack.linkedin.focused),
+        ("XING", "Focused", pack.xing.focused),
+        ("Google", "Broad", pack.google.broad),
+        ("LinkedIn", "Broad", pack.linkedin.broad),
+        ("XING", "Broad", pack.xing.broad),
+        ("Google", "Fallback", pack.google.fallback),
+        ("LinkedIn", "Fallback", pack.linkedin.fallback),
+        ("XING", "Fallback", pack.xing.fallback),
+    )
+    for channel, variant, entries in prioritized_queries:
+        for entry in entries:
+            query = entry.strip()
+            if query:
+                return channel, variant, query
+    return None
 
+
+def _render_boolean_code_card(
+    channel: str,
+    variant: str,
+    queries: Sequence[str],
+    *,
+    primary: bool = False,
+    key_prefix: str,
+) -> None:
+    del key_prefix
+    st.markdown(f"**{channel} · {variant}**")
+    normalized_queries = [query.strip() for query in queries if query.strip()]
+    if not normalized_queries:
+        st.caption("Keine Queries vorhanden.")
+        return
+
+    if primary:
+        st.caption("Primäre Query")
+
+    for index, query in enumerate(normalized_queries, start=1):
+        if len(normalized_queries) > 1:
+            st.caption(f"Query {index}")
+        st.code(query, language="text")
+
+
+def _render_boolean_terms_section(pack: BooleanSearchPack) -> None:
+    st.markdown("### Supporting Terms")
     metadata_columns = st.columns(4)
-    metadata_fields = [
+    metadata_fields = (
         ("Must-have Terms", pack.must_have_terms),
         ("Seniority Terms", pack.seniority_terms),
         ("Exclusion Terms", pack.exclusion_terms),
         ("Target Locations", pack.target_locations),
-    ]
+    )
     for column, (label, values) in zip(metadata_columns, metadata_fields):
         with column:
             st.markdown(f"**{label}**")
@@ -3044,31 +3087,9 @@ def render_boolean_search_pack(pack: BooleanSearchPack) -> None:
             else:
                 st.caption("—")
 
-    for channel_name, channel_queries in (
-        ("Google", pack.google),
-        ("LinkedIn", pack.linkedin),
-        ("XING", pack.xing),
-    ):
-        st.markdown(f"**{channel_name}**")
-        broad_col, focused_col, fallback_col = st.columns(3)
-        for column, label, entries in (
-            (broad_col, "Broad", channel_queries.broad),
-            (focused_col, "Focused", channel_queries.focused),
-            (fallback_col, "Fallback", channel_queries.fallback),
-        ):
-            with column:
-                st.caption(label)
-                if entries:
-                    st.text_area(
-                        f"{channel_name} {label}",
-                        value="\n".join(entries),
-                        height=120,
-                        disabled=True,
-                        key=f"cs.boolean_search.preview.{channel_name.lower()}.{label.lower()}",
-                    )
-                else:
-                    st.caption("Keine Queries vorhanden.")
 
+def _render_boolean_risks_section(pack: BooleanSearchPack) -> None:
+    st.markdown("### Risks")
     st.markdown("**Channel Limitations**")
     if pack.channel_limitations:
         for limitation in pack.channel_limitations:
@@ -3083,6 +3104,49 @@ def render_boolean_search_pack(pack: BooleanSearchPack) -> None:
     else:
         st.info("Keine Usage Notes hinterlegt.")
 
+
+def render_boolean_search_pack(pack: BooleanSearchPack) -> None:
+    st.markdown("## Boolean Search")
+    locations = ", ".join(pack.target_locations) if pack.target_locations else "—"
+    st.caption(f"Rolle: {pack.role_title} · Zielregionen: {locations}")
+
+    primary_query = _first_boolean_query(pack)
+    if primary_query is None:
+        st.info("Keine Boolean Queries vorhanden.")
+    else:
+        st.markdown("### Primary Output")
+        channel, variant, query = primary_query
+        _render_boolean_code_card(
+            channel,
+            variant,
+            [query],
+            primary=True,
+            key_prefix="primary",
+        )
+
+    st.markdown("### Channel Variants")
+    for channel_name, channel_queries in (
+        ("Google", pack.google),
+        ("LinkedIn", pack.linkedin),
+        ("XING", pack.xing),
+    ):
+        st.markdown(f"#### {channel_name}")
+        broad_col, focused_col, fallback_col = st.columns(3)
+        for column, variant_label, entries in (
+            (broad_col, "Broad", channel_queries.broad),
+            (focused_col, "Focused", channel_queries.focused),
+            (fallback_col, "Fallback", channel_queries.fallback),
+        ):
+            with column:
+                _render_boolean_code_card(
+                    channel_name,
+                    variant_label,
+                    entries,
+                    key_prefix=f"{channel_name.lower()}.{variant_label.lower()}",
+                )
+
+    _render_boolean_terms_section(pack)
+    _render_boolean_risks_section(pack)
 
 def render_employment_contract_draft(draft: EmploymentContractDraft) -> None:
     st.info(
