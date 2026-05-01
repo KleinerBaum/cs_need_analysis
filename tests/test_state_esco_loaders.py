@@ -107,6 +107,27 @@ def test_esco_loaders_return_model_dump_payloads(monkeypatch) -> None:
     }
 
 
+
+
+def test_get_esco_occupation_selected_migrates_legacy_payload(monkeypatch) -> None:
+    fake_state = {
+        SSKey.ESCO_OCCUPATION_SELECTED.value: {
+            "uri": "http://data.europa.eu/esco/occupation/legacy-1",
+            "preferredLabel": "Legacy Occupation",
+        }
+    }
+    monkeypatch.setattr(state, "st", SimpleNamespace(session_state=fake_state))
+
+    selected = state.get_esco_occupation_selected()
+
+    assert selected == {
+        "uri": "http://data.europa.eu/esco/occupation/legacy-1",
+        "title": "Legacy Occupation",
+        "type": "occupation",
+        "code": None,
+    }
+    assert fake_state[SSKey.ESCO_OCCUPATION_SELECTED.value]["type"] == "occupation"
+
 def test_get_esco_anchor_status_handles_missing_selected_payload(monkeypatch) -> None:
     fake_state = {
         SSKey.ESCO_SELECTED_OCCUPATION_URI.value: "http://data.europa.eu/esco/occupation/123",
@@ -118,4 +139,4 @@ def test_get_esco_anchor_status_handles_missing_selected_payload(monkeypatch) ->
 
     assert status.anchor_confirmed is True
     assert status.selected_occupation is None
-    assert status.status_reason == "anchor_confirmed_missing_payload"
+    assert status.status_reason == "anchor_confirmed_invalid_payload"

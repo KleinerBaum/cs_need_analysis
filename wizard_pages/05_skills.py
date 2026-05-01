@@ -1181,9 +1181,9 @@ def _render_skills_source_comparison_block(
                 "(dedupliziert anhand ESCO-URI)."
             )
     elif show_esco_sections:
-        if esco_anchor_status.status_reason == "anchor_confirmed_missing_payload":
+        if esco_anchor_status.status_reason == "anchor_confirmed_invalid_payload":
             st.warning(
-                "ESCO-Anker ist bestätigt, aber die Occupation-Daten fehlen. "
+                "ESCO-Anker ist bestätigt, aber die Occupation-Payload ist unvollständig oder veraltet. "
                 "Bitte ESCO-Auswahl erneut synchronisieren (Start → Phase C)."
             )
         else:
