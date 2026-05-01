@@ -28,7 +28,7 @@ from state import (
     has_confirmed_esco_anchor,
     sync_esco_shared_state,
 )
-from ui_layout import render_step_shell
+from ui_layout import render_step_shell, responsive_three_columns
 from ui_components import (
     has_meaningful_value,
     render_esco_picker_card,
@@ -283,7 +283,7 @@ def _render_skills_source_columns(
     selected_labels = _dedupe_terms([str(item) for item in selected_labels_raw]) if isinstance(selected_labels_raw, list) else []
     selected_normalized = {_normalize_term(item) for item in selected_labels}
 
-    col_jobspec, col_ai, col_esco = st.columns(3, gap="large")
+    col_jobspec, col_ai, col_esco = responsive_three_columns(gap="large")
     with col_jobspec:
         st.markdown("#### Aus der Anzeige extrahiert")
         render_multi_select_pills(
@@ -901,7 +901,7 @@ def _render_extracted_slot(job: JobAdExtract) -> None:
         x for x in job.nice_to_have_skills if has_meaningful_value(x)
     ]
     tech_stack = [x for x in job.tech_stack if has_meaningful_value(x)]
-    col_must, col_nice, col_stack = st.columns(3, gap="large")
+    col_must, col_nice, col_stack = responsive_three_columns(gap="large")
     with col_must:
         st.write("**Must-have (Auszug):**")
         for value in must_have_skills[:12]:
@@ -927,7 +927,7 @@ def _render_confirmed_selection_block(
     is_expert_mode: bool,
 ) -> None:
     st.markdown("#### Bestätigte Auswahl")
-    cc1, cc2, cc3 = st.columns(3, gap="large")
+    cc1, cc2, cc3 = responsive_three_columns(gap="large")
     with cc1:
         _render_selected_skill_details(
             title="ESCO · Essential",
