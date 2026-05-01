@@ -1,4 +1,4 @@
-# pages/02_Ueber_Cognitive_Staffing.py
+# pages/02_Über_Cognitive_Staffing.py
 from __future__ import annotations
 
 import streamlit as st

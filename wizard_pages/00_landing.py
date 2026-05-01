@@ -14,8 +14,8 @@ from wizard_pages.base import (
 )
 
 LANDING_COPY: dict[str, object] = {
-    "hero_headline": "KI gestütze und dynamisch angepasste Bedarfsanalyse Ihrer Vakanz",
-    "hero_subheadline": "",
+    "hero_headline": "Cognitive Staffing",
+    "hero_subheadline": "KI-gestützte Bedarfsanalyse für präzisere Recruiting-Entscheidungen",
     "hero_supporting_paragraph": "",
     "primary_cta": "Geben Sie uns ein paar Informationen zu Ihrer Vakanz",
     "secondary_cta_hint": "",
@@ -26,7 +26,7 @@ LANDING_COPY: dict[str, object] = {
     "cta_helper": "",
     "cta_microcopy": "",
     "value_cards": (),
-    "importance_title": "KI gestütze und dynamisch angepasste Bedarfsanalyse Ihrer Vakanz",
+    "importance_title": "Hintergrund",
     "flow_title": "So funktioniert der Ablauf",
     "flow_steps": (
         (
@@ -102,7 +102,7 @@ def render(ctx: WizardContext) -> None:
     cognitive_col, rag_col = st.columns(2, gap="large")
     with cognitive_col:
         st.badge("Cognitive Staffing")
-        st.subheader("Wie profitieren Sie von der KI-gestützen Analyse?")
+        st.subheader("Wie profitieren Sie von der KI-gestützten Analyse?")
         st.markdown(
             "- **Berufserkennung:** Nach Eingabe eines Stellen- oder Tätigkeitsnamens schlägt die App passende ESCO-Occupations vor. So werden verschiedene Bezeichnungen (z.B. „Full Stack Entwickler“, „Cloud-Engineer“) auf einen eindeutigen Beruf zusammengeführt.\n"
             "- **Skill-Vorschläge:** Sobald ein ESCO-Beruf bestätigt ist, lädt die App die zugehörigen Essential/Nice-to-have Skills. Diese fließen in die KI-gestützte Anforderungsanalyse und Text-Generierung ein.\n"
@@ -112,13 +112,10 @@ def render(ctx: WizardContext) -> None:
         st.caption(
             "Dieser Dienst stützt sich auf die ESCO-Klassifikation der Europäischen Kommission."
         )
-        st.caption(
-            "Diese Veröffentlichung stützt sich auf die ESCO-Klassifikation der Europäischen Kommission."
-        )
     with rag_col:
         st.badge("RAG + LLM")
         st.subheader(
-            "Der Retrieval-Augmented-Generation-Ansatz (RAG) in Kombination mit LLM-gestützen Prompts bietet diverse Option zur Weiterverarbeitung der gesammelten Daten:"
+            "Der Retrieval-Augmented-Generation-Ansatz (RAG) in Kombination mit LLM-gestützten Prompts bietet diverse Optionen zur Weiterverarbeitung der gesammelten Daten:"
         )
         st.markdown(
             "- **a) Präzise Formulierungen:** Messerscharf formulierte Aufgaben, Must-haves, Nice-to-have Skills sowie lokale und zielgruppenorientierte Benefits.\n"
