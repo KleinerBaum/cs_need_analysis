@@ -64,6 +64,12 @@ from state import (
     get_model_override,
     handle_unexpected_exception,
 )
+from components.design_system import (
+    render_card_start,
+    render_critical_gaps,
+    render_next_best_action,
+    render_output_header,
+)
 from ui_components import (
     render_boolean_search_pack,
     render_brief,
@@ -2552,10 +2558,10 @@ def _render_readiness_tab(
     resolved_brief_model: str,
     brief: VacancyBrief | None = None,
 ) -> None:
-    if hasattr(st, "subheader"):
-        st.subheader("Readiness")
-    else:
-        st.markdown("### Readiness")
+    render_output_header(
+        "Readiness",
+        "Recruiting Brief, nächste beste Aktion und kritische Lücken auf einen Blick.",
+    )
     if brief is None:
         st.info("Noch kein gültiger Recruiting Brief verfügbar.")
     else:
@@ -2580,7 +2586,11 @@ def _render_readiness_tab(
             and next_action["generator_fn"] is not None
         )
 
-        st.markdown(f"**Nächste beste Aktion:** {next_action['title']}")
+        render_next_best_action(
+            next_action["title"],
+            "Direkt aus aktuellem Zustand und Voraussetzungen abgeleitet.",
+            f"CTA: {next_action['cta_label']}",
+        )
         requirement_label = next_action["requirement_text"]
         if requirement_status_message:
             requirement_label = f"{requirement_label} — {requirement_status_message}"
@@ -2647,13 +2657,11 @@ def _render_readiness_tab(
         st.markdown("---")
         _render_summary_results_workspace(brief=brief)
 
-    st.markdown("**Kritische Lücken (Top 5)**")
     missing_items = _build_missing_critical_items(vm)
     if not missing_items:
         st.success("Keine kritischen Lücken erkannt.")
     else:
-        for item in missing_items:
-            st.write(f"- {item}")
+        render_critical_gaps(missing_items, title="Kritische Lücken (Top 5)")
 
 
 def _build_summary_tabs() -> SummaryTabs:
@@ -2811,8 +2819,10 @@ def _render_summary_processing_hub(
     show_job_ad_configuration_panel: bool = True,
     show_export_bar: bool = True,
 ) -> None:
-    st.markdown("### Processing Hub")
-    st.caption("Primärer Pfad kompakt: Recruiting Brief → Folgeartefakte → Export.")
+    render_output_header(
+        "Processing Hub",
+        "Primärer Pfad kompakt: Recruiting Brief → Folgeartefakte → Export.",
+    )
 
     primary_action = next(
         (action for action in action_registry if action["id"] == "brief"),
@@ -2917,7 +2927,9 @@ def _render_summary_processing_hub(
 
 def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
     if artifact_id == "brief":
+        render_card_start("cs-card cs-result-card")
         render_brief(brief)
+        st.markdown("</section>", unsafe_allow_html=True)
         return
 
     if artifact_id == "job_ad":
@@ -2933,7 +2945,10 @@ def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
                 "job_ad_text": custom_job_ad_raw.get("job_ad_text", ""),
             }
         )
-        st.markdown(f"### {custom_job_ad.headline}")
+        render_output_header(
+            custom_job_ad.headline,
+            "Generierte Stellenanzeige mit Zielgruppen- und AGG-Hinweisen.",
+        )
         st.text_area(
             "Stellenanzeige",
             value=custom_job_ad.job_ad_text,

@@ -11,6 +11,7 @@ from esco_client import EscoClient, EscoClientError
 from esco_rag import retrieve_esco_context
 from llm_client import generate_requirement_gap_suggestions
 from schemas import JobAdExtract
+from components.design_system import render_output_header
 from state import (
     get_active_model,
     get_answers,
@@ -337,8 +338,10 @@ def render(ctx: WizardContext) -> None:
             if not show_esco_sections
             else ("Jobspec", "ESCO", "AI"),
         )
-        st.markdown("### Aufgaben auswählen")
-        st.caption("Wählen Sie die Aufgaben aus, die im Recruiting-Brief, in der Gehaltsprognose und in Folgeartefakten verwendet werden sollen.")
+        render_output_header(
+            "Aufgaben auswählen",
+            "Wählen Sie die Aufgaben aus, die im Recruiting-Brief, in der Gehaltsprognose und in Folgeartefakten verwendet werden sollen.",
+        )
         col_jobspec, col_ai, col_esco = st.columns(3, gap="large")
         with col_jobspec:
             st.markdown("#### Aus der Anzeige extrahiert")

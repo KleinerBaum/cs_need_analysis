@@ -17,6 +17,7 @@ from esco_rag import extract_skill_suggestions, retrieve_esco_context
 from llm_client import (
     generate_requirement_gap_suggestions,
 )
+from components.design_system import render_output_header
 from schemas import EscoMappingReport
 from schemas import EscoSkillDetail, JobAdExtract, QuestionStep
 from state import (
@@ -943,6 +944,10 @@ def _render_skills_source_comparison_block(
     coverage_snapshot: EscoCoverageSnapshot,
     show_esco_sections: bool,
 ) -> None:
+    render_output_header(
+        "Skills auswählen",
+        "Kombinieren Sie Jobspec-, AI- und ESCO-Skills für Recruiting-Brief, Matching und Folgeartefakte.",
+    )
     must_have_skills = [x for x in job.must_have_skills if has_meaningful_value(x)]
     nice_to_have_skills = [x for x in job.nice_to_have_skills if has_meaningful_value(x)]
     jobspec_labels, llm_labels, esco_labels, deduped_must, deduped_nice, llm_suggested = _build_skills_source_view_data(
