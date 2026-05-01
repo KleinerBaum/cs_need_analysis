@@ -266,6 +266,7 @@ def render(ctx: WizardContext) -> None:
     st.session_state[SSKey.ROLE_TASKS_JOBSPEC_SUGGESTED.value] = jobspec_suggestions
 
     def _render_extracted_slot() -> None:
+        st.markdown('<div class="cs-grid-3">', unsafe_allow_html=True)
         col_resp, col_deliv, col_metrics = responsive_three_columns(gap="large")
         if responsibilities:
             with col_resp:
@@ -286,6 +287,7 @@ def render(ctx: WizardContext) -> None:
             st.info(
                 "Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions."
             )
+        st.markdown("</div>", unsafe_allow_html=True)
 
     def _render_source_comparison_slot() -> None:
         coverage = sync_esco_shared_state()
@@ -345,6 +347,7 @@ def render(ctx: WizardContext) -> None:
             "Aufgaben auswählen",
             "Wählen Sie die Aufgaben aus, die im Recruiting-Brief, in der Gehaltsprognose und in Folgeartefakten verwendet werden sollen.",
         )
+        st.markdown('<div class="cs-grid-3">', unsafe_allow_html=True)
         col_jobspec, col_ai, col_esco = responsive_three_columns(gap="large")
         with col_jobspec:
             st.markdown("#### Aus der Anzeige extrahiert")
@@ -431,6 +434,8 @@ def render(ctx: WizardContext) -> None:
                     in {_normalize_task_term(v) for v in esco_labels}
                 ],
             )
+
+        st.markdown("</div>", unsafe_allow_html=True)
 
         selected_jobspec = st.session_state.get("role_tasks.jobspec.pills", []) or []
         selected_ai = st.session_state.get("role_tasks.ai.pills", []) or []
