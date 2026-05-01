@@ -103,6 +103,7 @@ def test_render_step_review_card_shows_missing_essentials_before_group_cards(
         answers={"q_a": "Erledigt", "q_b": "Done"},
         answer_meta={},
         answered_lookup={"q_essential": False, "q_a": True, "q_b": True},
+        render_mode=ui_components.ReviewRenderMode.FULL,
         step_status={
             "answered": 2,
             "total": 3,
@@ -144,6 +145,7 @@ def test_render_step_review_card_renders_group_status_indicators(monkeypatch) ->
             "g2_q1": True,
             "g2_q2": False,
         },
+        render_mode=ui_components.ReviewRenderMode.FULL,
         step_status=None,
     )
 
@@ -173,6 +175,7 @@ def test_render_step_review_card_truncates_long_answer_previews(monkeypatch) -> 
         answers={"long_text": long_text},
         answer_meta={},
         answered_lookup={"long_text": True},
+        render_mode=ui_components.ReviewRenderMode.FULL,
         step_status=None,
     )
 
@@ -210,6 +213,7 @@ def test_render_step_review_card_maps_missing_essentials_by_id_with_duplicate_la
         answers={"dup_a": "gesetzt", "group_b_answered": "ok"},
         answer_meta={},
         answered_lookup={"dup_a": True, "dup_b": False, "group_b_answered": True},
+        render_mode=ui_components.ReviewRenderMode.FULL,
         step_status={
             "answered": 1,
             "total": 3,
@@ -230,7 +234,7 @@ def test_render_step_review_card_maps_missing_essentials_by_id_with_duplicate_la
     assert "Group A" not in affected_group_caption
 
 
-def test_render_step_review_card_shows_open_question_count_without_input_widgets(
+def test_render_step_review_card_mode_compact_hides_direct_answer_block(
     monkeypatch,
 ) -> None:
     fake_st = _FakeStreamlitRecorder()
@@ -249,12 +253,13 @@ def test_render_step_review_card_shows_open_question_count_without_input_widgets
         answers={},
         answer_meta={},
         answered_lookup={"group_open_q1": False},
+        render_mode=ui_components.ReviewRenderMode.COMPACT,
         step_status=None,
     )
 
-    assert (
-        "1 offene Frage(n) – Details und direkte Eingabe im Bereich „Gruppenstatus“."
-        in fake_st.captions
+    assert ("Gruppenstatus", False) not in fake_st.expanders
+    assert not any(
+        "Offene Fragen direkt beantworten" in markdown for markdown in fake_st.markdowns
     )
 
 
@@ -274,6 +279,7 @@ def test_render_step_review_card_compact_summary_with_group_counts(monkeypatch) 
         answers={"q1": "ok", "q3": "ok"},
         answer_meta={},
         answered_lookup={"q1": True, "q2": False, "q3": True},
+        render_mode=ui_components.ReviewRenderMode.COMPACT,
         step_status={
             "answered": 2,
             "total": 3,
@@ -356,7 +362,7 @@ def test_render_question_step_hides_verbose_progress_captions(monkeypatch) -> No
     )
 
 
-def test_render_step_review_card_shows_compact_essentials_and_direct_answer_hint_when_inline_disabled(
+def test_render_step_review_card_direct_answers_mode_shows_hint_when_inline_disabled(
     monkeypatch,
 ) -> None:
     fake_st = _FakeStreamlitRecorder()
@@ -376,6 +382,7 @@ def test_render_step_review_card_shows_compact_essentials_and_direct_answer_hint
         answers={"q3": "ok"},
         answer_meta={},
         answered_lookup={"q1": False, "q2": False, "q3": True},
+        render_mode=ui_components.ReviewRenderMode.DIRECT_ANSWERS,
         step_status={
             "answered": 1,
             "total": 3,
@@ -417,6 +424,7 @@ def test_render_step_review_card_hides_direct_answer_hint_when_no_open_questions
         answers={"q1": "ok", "q2": "ok"},
         answer_meta={},
         answered_lookup={"q1": True, "q2": True},
+        render_mode=ui_components.ReviewRenderMode.DIRECT_ANSWERS,
         step_status={
             "answered": 2,
             "total": 2,
@@ -429,3 +437,26 @@ def test_render_step_review_card_hides_direct_answer_hint_when_no_open_questions
     )
 
     assert not any("offene Frage(n)" in caption for caption in fake_st.captions)
+
+
+def test_render_step_review_card_full_mode_shows_group_level_open_question_counts(
+    monkeypatch,
+) -> None:
+    fake_st = _FakeStreamlitRecorder()
+    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_components, "_can_render_inline_answer_inputs", lambda: False)
+
+    question = _question(question_id="q1", label="Offen", group_key="group_open")
+    step = _step_with_questions([question])
+    ui_components.render_step_review_card(
+        step=step,
+        visible_questions=[question],
+        answers={},
+        answer_meta={},
+        answered_lookup={"q1": False},
+        render_mode=ui_components.ReviewRenderMode.FULL,
+        step_status=None,
+    )
+
+    assert ("Gruppenstatus", False) in fake_st.expanders
+    assert "1 offene Frage(n) in dieser Gruppe." in fake_st.captions

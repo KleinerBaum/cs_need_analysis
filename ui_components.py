@@ -7,6 +7,7 @@ import re
 import hashlib
 from datetime import date
 from collections.abc import Callable, Sequence
+from enum import Enum
 from typing import Any, Dict, Literal, Optional, TypedDict
 
 import streamlit as st
@@ -73,6 +74,18 @@ class StepReviewPayload(TypedDict):
     step_status: StepStatusPayload
 
 
+class ReviewRenderMode(str, Enum):
+    COMPACT = "compact"
+    DIRECT_ANSWERS = "direct_answers"
+    FULL = "full"
+
+
+def _resolve_review_render_mode(
+    render_mode: ReviewRenderMode | None,
+) -> ReviewRenderMode:
+    return render_mode or ReviewRenderMode.DIRECT_ANSWERS
+
+
 def build_step_review_payload(step: QuestionStep | None) -> StepReviewPayload:
     answers = get_answers()
     answer_meta = get_answer_meta()
@@ -108,7 +121,10 @@ def build_step_review_payload(step: QuestionStep | None) -> StepReviewPayload:
     }
 
 
-def render_standard_step_review(step: QuestionStep | None) -> None:
+def render_standard_step_review(
+    step: QuestionStep | None,
+    render_mode: ReviewRenderMode | None = None,
+) -> None:
     if step is None or not step.questions:
         return
     review_payload = build_step_review_payload(step)
@@ -119,6 +135,7 @@ def render_standard_step_review(step: QuestionStep | None) -> None:
         answer_meta=review_payload["answer_meta"],
         answered_lookup=review_payload["answered_lookup"],
         step_status=review_payload["step_status"],
+        render_mode=_resolve_review_render_mode(render_mode),
     )
 
 
@@ -1721,7 +1738,9 @@ def render_step_review_card(
     answer_meta: dict[str, Any],
     answered_lookup: dict[str, bool] | None = None,
     step_status: StepStatusPayload | None = None,
+    render_mode: ReviewRenderMode | None = None,
 ) -> None:
+    resolved_render_mode = _resolve_review_render_mode(render_mode)
     missing_essentials_display_max = 4
     max_inline_unanswered = 2
     if not visible_questions:
@@ -1864,15 +1883,26 @@ def render_step_review_card(
             st.caption("Noch keine sichtbaren Antworten vorhanden.")
             return
 
-        render_inline_inputs = _can_render_inline_answer_inputs() and (
-            bool(missing_essential_id_set)
-            or (0 < total_unanswered <= max_inline_unanswered)
-        )
+        render_inline_inputs = False
+        if resolved_render_mode is ReviewRenderMode.DIRECT_ANSWERS:
+            render_inline_inputs = _can_render_inline_answer_inputs() and (
+                bool(missing_essential_id_set)
+                or (0 < total_unanswered <= max_inline_unanswered)
+            )
+        elif resolved_render_mode is ReviewRenderMode.FULL:
+            render_inline_inputs = _can_render_inline_answer_inputs()
 
-        if not render_inline_inputs and total_unanswered > 0:
+        if (
+            resolved_render_mode is ReviewRenderMode.DIRECT_ANSWERS
+            and not render_inline_inputs
+            and total_unanswered > 0
+        ):
             st.caption(
                 f"{total_unanswered} offene Frage(n) – Details und direkte Eingabe im Bereich „Gruppenstatus“."
             )
+
+        if resolved_render_mode is ReviewRenderMode.COMPACT:
+            return
 
         with st.expander("Gruppenstatus", expanded=False):
             for (
@@ -1910,9 +1940,10 @@ def render_step_review_card(
                                 widget_key_prefix=REVIEW_WIDGET_KEY_PREFIX,
                             )
                         else:
-                            st.caption(
-                                f"{len(unanswered_questions)} offene Frage(n) in dieser Gruppe."
-                            )
+                            if resolved_render_mode is ReviewRenderMode.FULL:
+                                st.caption(
+                                    f"{len(unanswered_questions)} offene Frage(n) in dieser Gruppe."
+                                )
 
 
 def _can_render_inline_answer_inputs() -> bool:
