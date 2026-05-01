@@ -247,6 +247,14 @@ class SSKey(str, Enum):
     SKILLS_LLM_SUGGESTED = "cs.skills.llm_suggested"
     SKILLS_SELECTED = "cs.skills.selected"
     SKILLS_SUGGEST_COUNT = "cs.skills.suggest_count"
+    SKILLS_JOBSPEC_PILLS = "cs.skills.jobspec_pills"
+    SKILLS_ESCO_PILLS = "cs.skills.esco_pills"
+    SKILLS_AI_PILLS = "cs.skills.ai_pills"
+    SKILLS_SELECTED_BULK_BUFFER = "cs.skills.selected_bulk_buffer"
+    SKILLS_ESCO_LOAD_CLICKED = "cs.skills.esco_load_clicked"
+    SKILLS_ESCO_SEARCH = "cs.skills.esco_search"
+    SKILLS_ESCO_SORT = "cs.skills.esco_sort"
+    SKILLS_AI_GENERATE_CLICKED = "cs.skills.ai_generate_clicked"
 
 
 # ---- Wizard Steps (canonical routed/visible wizard navigation only) ----

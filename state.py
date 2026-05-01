@@ -304,6 +304,14 @@ def init_session_state() -> None:
         SSKey.SKILLS_LLM_SUGGESTED.value: [],
         SSKey.SKILLS_SELECTED.value: [],
         SSKey.SKILLS_SUGGEST_COUNT.value: 5,
+        SSKey.SKILLS_JOBSPEC_PILLS.value: [],
+        SSKey.SKILLS_ESCO_PILLS.value: [],
+        SSKey.SKILLS_AI_PILLS.value: [],
+        SSKey.SKILLS_SELECTED_BULK_BUFFER.value: [],
+        SSKey.SKILLS_ESCO_LOAD_CLICKED.value: False,
+        SSKey.SKILLS_ESCO_SEARCH.value: "",
+        SSKey.SKILLS_ESCO_SORT.value: "alphabetisch",
+        SSKey.SKILLS_AI_GENERATE_CLICKED.value: False,
         SSKey.SALARY_SCENARIO_SKILLS_ADD.value: [],
         SSKey.SALARY_SCENARIO_SKILLS_REMOVE.value: [],
         SSKey.SALARY_SCENARIO_LOCATION_OVERRIDE.value: "",
@@ -443,6 +451,14 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.SKILLS_LLM_SUGGESTED.value] = []
     st.session_state[SSKey.SKILLS_SELECTED.value] = []
     st.session_state[SSKey.SKILLS_SUGGEST_COUNT.value] = 5
+    st.session_state[SSKey.SKILLS_JOBSPEC_PILLS.value] = []
+    st.session_state[SSKey.SKILLS_ESCO_PILLS.value] = []
+    st.session_state[SSKey.SKILLS_AI_PILLS.value] = []
+    st.session_state[SSKey.SKILLS_SELECTED_BULK_BUFFER.value] = []
+    st.session_state[SSKey.SKILLS_ESCO_LOAD_CLICKED.value] = False
+    st.session_state[SSKey.SKILLS_ESCO_SEARCH.value] = ""
+    st.session_state[SSKey.SKILLS_ESCO_SORT.value] = "alphabetisch"
+    st.session_state[SSKey.SKILLS_AI_GENERATE_CLICKED.value] = False
     st.session_state[SSKey.SALARY_SCENARIO_SKILLS_ADD.value] = []
     st.session_state[SSKey.SALARY_SCENARIO_SKILLS_REMOVE.value] = []
     st.session_state[SSKey.SALARY_SCENARIO_LOCATION_OVERRIDE.value] = ""
