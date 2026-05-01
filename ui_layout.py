@@ -73,28 +73,27 @@ def render_step_shell(
         should_show_question=should_show_question,
         step_key=step.step_key if step is not None else None,
     )
-    header_col, status_col = st.columns([4, 2])
-    with header_col:
-        header_meta: list[tuple[str, str, str]] = []
-        if status_position == "header":
-            badge_text = (
-                _status_badge_text(status["completion_state"]) if status is not None else "⬜ Offen"
-            )
-            answered_text = (
-                f"{status['answered']}/{status['total']} beantwortet" if status is not None else "0/0 beantwortet"
-            )
-            header_meta.append(("📌", "Status", badge_text))
-            header_meta.append(("📊", "Fortschritt", answered_text))
-            if status is not None:
-                missing_summary = _truncate_missing_essentials(status["missing_essentials"])
-                if missing_summary:
-                    header_meta.append(("⚠️", "Fehlt (essentiell)", missing_summary))
-        render_step_header(title, subtitle, outcome=outcome_text, meta_items=header_meta)
-        if outcome_slot is not None:
-            outcome_slot()
-    with status_col:
-        if status_position == "header":
-            _render_step_status(status)
+    header_meta: list[tuple[str, str, str]] = []
+    if status_position == "header":
+        badge_text = (
+            _status_badge_text(status["completion_state"]) if status is not None else "⬜ Offen"
+        )
+        answered_text = (
+            f"{status['answered']}/{status['total']} beantwortet" if status is not None else "0/0 beantwortet"
+        )
+        header_meta.append(("📌", "Status", badge_text))
+        header_meta.append(("📊", "Fortschritt", answered_text))
+        if status is not None:
+            missing_summary = _truncate_missing_essentials(status["missing_essentials"])
+            if missing_summary:
+                header_meta.append(("⚠️", "Fehlt (essentiell)", missing_summary))
+
+    render_step_header(title, subtitle, outcome=outcome_text, meta_items=header_meta)
+    if outcome_slot is not None:
+        outcome_slot()
+
+    if status_position == "header":
+        _render_step_status(status)
 
     if extracted_from_jobspec_slot is not None:
         if extracted_from_jobspec_use_expander:

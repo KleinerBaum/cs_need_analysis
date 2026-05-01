@@ -47,6 +47,16 @@ def render_ui_styles() -> None:
             margin: 0.5rem 0 1rem;
             background: #ffffff;
         }
+        .cs-grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1rem;
+        }
+        .cs-grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 1rem;
+        }
         .cs-step-title, .cs-output-title {
             margin: 0;
             font-size: 1.2rem;
@@ -88,8 +98,19 @@ def render_ui_styles() -> None:
         .cs-step-topline, .cs-output-topline {
             display: flex;
             justify-content: space-between;
+            align-items: flex-start;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+        .cs-step-topline > * {
+            min-width: 0;
+        }
+        .cs-step-meta {
+            display: flex;
             align-items: center;
-            gap: 0.5rem;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+            gap: 0.4rem;
         }
         .cs-critical-gaps ul { margin: 0.5rem 0 0; }
         .cs-critical-gaps li { margin-bottom: 0.25rem; }
@@ -103,6 +124,24 @@ def render_ui_styles() -> None:
         .cs-next-best-action .cs-next-cta {
             margin-top: 0.65rem;
             font-weight: 600;
+        }
+        @media (max-width: 960px) {
+            .cs-grid-2, .cs-grid-3 {
+                grid-template-columns: minmax(0, 1fr);
+            }
+            .cs-step-topline, .cs-output-topline {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr);
+                justify-items: start;
+            }
+            .cs-step-meta {
+                justify-content: flex-start;
+            }
+            .cs-step-title, .cs-output-title {
+                overflow-wrap: break-word;
+                word-break: normal;
+                hyphens: auto;
+            }
         }
         </style>
         """,
@@ -147,7 +186,7 @@ def _build_step_header_html(
         <section class="cs-step-header">
             <div class="cs-step-topline">
                 <h2 class="cs-step-title">{escape(title)}</h2>
-                {outcome_html}
+                <div class="cs-step-meta">{outcome_html}</div>
             </div>
             <p class="cs-step-subtitle">{escape(subtitle)}</p>
             {_render_meta_items(meta_items)}
