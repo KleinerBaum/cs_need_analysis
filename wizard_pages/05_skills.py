@@ -1005,35 +1005,76 @@ def _render_confirmed_selection_block(
         if _normalize_term(label) not in esco_selected_normalized
     ]
 
-    basket_col, details_col = st.columns([1, 2], gap="large")
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stVerticalBlock"] div[data-testid="stVerticalBlockBorderWrapper"]:has(.skills-selection-sticky) {
+            position: sticky;
+            top: 0.85rem;
+            z-index: 20;
+            background: color-mix(in srgb, var(--background-color) 95%, transparent);
+            border-radius: 0.5rem;
+            backdrop-filter: blur(2px);
+        }
+        .skills-chip-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+            margin-top: 0.25rem;
+            margin-bottom: 0.3rem;
+        }
+        .skills-chip {
+            display: inline-block;
+            max-width: 18rem;
+            padding: 0.2rem 0.55rem;
+            border-radius: 0.9rem;
+            background: color-mix(in srgb, var(--secondary-background-color) 90%, transparent);
+            border: 1px solid color-mix(in srgb, var(--text-color) 14%, transparent);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 0.82rem;
+            line-height: 1.3;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    basket_col, details_col = st.columns([1.35, 1.65], gap="large")
     with basket_col:
-        st.markdown("##### Kategorien")
+        sticky = st.container(border=True)
+        with sticky:
+            st.markdown('<span class="skills-selection-sticky"></span>', unsafe_allow_html=True)
+            st.markdown("##### Kategorien")
 
-        def _render_compact_group(title: str, labels: list[str]) -> None:
-            st.markdown(f"**{title}** · {len(labels)}")
-            if not labels:
-                st.caption("Keine Einträge.")
-                return
-            chips = " ".join(
-                [f"`{label if len(label) <= 32 else f'{label[:29]}...'}`" for label in labels[:8]]
+            def _render_compact_group(title: str, labels: list[str]) -> None:
+                st.markdown(f"**{title}** · {len(labels)}")
+                if not labels:
+                    st.caption("Keine Einträge.")
+                    return
+                chip_html = "".join(
+                    f'<span class="skills-chip" title="{label}">{label}</span>'
+                    for label in labels
+                )
+                st.markdown(
+                    f'<div class="skills-chip-row">{chip_html}</div>',
+                    unsafe_allow_html=True,
+                )
+                with st.expander("Details anzeigen", expanded=False):
+                    for idx, label in enumerate(labels, start=1):
+                        st.caption(f"{idx}. {label}")
+
+            _render_compact_group("Must-have", must_titles)
+            _render_compact_group("Nice-to-have", nice_titles)
+            _render_compact_group(
+                "Unternehmensspezifisch",
+                _dedupe_terms(company_specific_labels),
             )
-            st.markdown(chips)
-            if len(labels) > 8:
-                st.caption(f"+{len(labels) - 8} weitere")
-            with st.expander("Details", expanded=False):
-                for label in labels:
-                    st.write(f"- {label}")
-
-        _render_compact_group("Must-have", must_titles)
-        _render_compact_group("Nice-to-have", nice_titles)
-        _render_compact_group(
-            "Unternehmensspezifisch",
-            company_specific_labels,
-        )
 
     cc1, cc2, cc3 = responsive_three_columns(gap="large")
     with details_col:
-        with st.expander("Details zur Auswahl", expanded=False):
+        with st.expander("Vertiefung (optional)", expanded=False):
             with cc1:
                 _render_selected_skill_details(
                     title="ESCO · Essential",
