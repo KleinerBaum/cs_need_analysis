@@ -63,3 +63,46 @@ def test_infer_esco_match_explainability_prefers_jobspec_title_match() -> None:
     assert explainability["badge_label"] == "Exact Label Match"
     assert explainability["confidence"] == "high"
     assert "exact label match" in explainability["provenance_categories"]
+
+
+def test_render_esco_explainability_renders_collapsed_technical_details(monkeypatch) -> None:
+    class _DummyContext:
+        def __enter__(self) -> "_DummyContext":
+            return self
+
+        def __exit__(self, *_: object) -> bool:
+            return False
+
+    class _FakeStreamlit:
+        def __init__(self) -> None:
+            self.caption_messages: list[str] = []
+            self.expander_calls: list[tuple[str, bool | None]] = []
+            self.markdown_calls: list[str] = []
+
+        def caption(self, message: str) -> None:
+            self.caption_messages.append(message)
+
+        def expander(self, label: str, **kwargs: object) -> _DummyContext:
+            self.expander_calls.append((label, kwargs.get("expanded")))
+            return _DummyContext()
+
+        def markdown(self, message: str, **_kwargs: object) -> None:
+            self.markdown_calls.append(message)
+
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(ui_components, "st", fake_st)
+
+    ui_components.render_esco_explainability(
+        labels=["exact label match", "manually selected by user"],
+        confidence="high",
+        reason="Top-ranked ESCO occupation aligns with query title.",
+        caption_prefix="Occupation Explainability",
+    )
+
+    assert "Confidence: High" in fake_st.caption_messages
+    assert (
+        "Occupation Explainability: Top-ranked ESCO occupation aligns with query title."
+        in fake_st.caption_messages
+    )
+    assert fake_st.expander_calls == [("Technische Details", False)]
+    assert any("Exact Label Match" in message for message in fake_st.markdown_calls)

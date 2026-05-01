@@ -396,6 +396,9 @@ def test_render_esco_occupation_confirmation_keeps_chart_before_title_variants(
     class _FakeStreamlit:
         def __init__(self) -> None:
             self.events: list[str] = []
+            self.caption_messages: list[str] = []
+            self.write_messages: list[object] = []
+            self.expander_calls: list[tuple[str, bool | None]] = []
             self.session_state = {
                 f"{SSKey.ESCO_OCCUPATION_SELECTED.value}.esco_picker.options": [],
                 SSKey.ESCO_OCCUPATION_SELECTED.value: {
@@ -405,8 +408,8 @@ def test_render_esco_occupation_confirmation_keeps_chart_before_title_variants(
                 SSKey.ESCO_CONFIG.value: {"language": "de"},
             }
 
-        def caption(self, _message: str) -> None:
-            return None
+        def caption(self, message: str) -> None:
+            self.caption_messages.append(message)
 
         def info(self, _message: str) -> None:
             return None
@@ -414,8 +417,8 @@ def test_render_esco_occupation_confirmation_keeps_chart_before_title_variants(
         def warning(self, _message: str) -> None:
             return None
 
-        def write(self, _message: object) -> None:
-            return None
+        def write(self, message: object) -> None:
+            self.write_messages.append(message)
 
         def code(self, _value: str, *, language: str) -> None:
             del language
@@ -437,7 +440,8 @@ def test_render_esco_occupation_confirmation_keeps_chart_before_title_variants(
         def container(self) -> _DummyContext:
             return _DummyContext()
 
-        def expander(self, _label: str, **_kwargs: object) -> _DummyContext:
+        def expander(self, label: str, **kwargs: object) -> _DummyContext:
+            self.expander_calls.append((label, kwargs.get("expanded")))
             return _DummyContext()
 
         def multiselect(self, _label: str, **_kwargs: object) -> list[str]:
@@ -491,6 +495,14 @@ def test_render_esco_occupation_confirmation_keeps_chart_before_title_variants(
     title_variant_index = fake_st.events.index("button::Titel-Varianten laden")
 
     assert skills_index < chart_index < title_variant_index
+    assert "Data Engineer" in fake_st.write_messages
+    assert any(message == "Confidence: High" for message in fake_st.caption_messages)
+    assert any("Match reason:" in message for message in fake_st.caption_messages)
+    assert fake_st.expander_calls[:3] == [
+        ("Technische Details", False),
+        ("ESCO Capability Status", False),
+        ("ESCO Debug", False),
+    ]
     assert any("Essential Knowledge" in event for event in fake_st.events)
     assert any("Optional Knowledge" in event for event in fake_st.events)
 
