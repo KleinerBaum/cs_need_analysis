@@ -2100,26 +2100,24 @@ def render_compare_adopt_intro(
             "border:1px solid #d1d5db;font-size:0.78rem;'>"
             f"{badge}</span>"
         )
-        for badge in (
-            [f"{'/'.join(source_labels)} = Vorschläge", "Status: inferred context"]
-            if source_labels
-            else ["Status: inferred context"]
-        )
+        for badge in ([f"{'/'.join(source_labels)} = Vorschläge"] if source_labels else [])
     )
     st.markdown(badge_html, unsafe_allow_html=True)
     st.caption(
-        f"Warum nebeneinander? {', '.join(source_labels)} liefern unterschiedliche Perspektiven "
-        "auf denselben Bedarf und machen Lücken/Widersprüche sichtbar."
+        f"Vergleiche die Vorschläge aus {', '.join(source_labels)} und übernimm, was am besten "
+        "zum Bedarf passt. Unterschiede helfen dir, Lücken und Prioritäten schneller zu entscheiden."
     )
-    st.caption(
-        f"„Übernehmen“ schreibt dedupliziert in `{canonical_target}` "
-        f"(canonical selected list für {adopt_target})."
-    )
-    if include_inferred_confirmed_note:
+    with st.expander("Advanced", expanded=False):
+        st.caption("Status: inferred context")
         st.caption(
-            "Inferred = Vorschlag/Arbeitskontext; confirmed = durch Nutzer bestätigt "
-            "und für Summary/Exporte priorisiert."
+            f"„Übernehmen“ schreibt dedupliziert in `{canonical_target}` "
+            f"(canonical selected list für {adopt_target})."
         )
+        if include_inferred_confirmed_note:
+            st.caption(
+                "Inferred = Vorschlag/Arbeitskontext; confirmed = durch Nutzer bestätigt "
+                "und für Summary/Exporte priorisiert."
+            )
 
 
 def render_compact_requirement_board(
