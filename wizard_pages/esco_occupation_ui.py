@@ -1393,6 +1393,11 @@ def render_esco_occupation_confirmation(
         capabilities=capabilities,
     )
 
+    ui_mode = str(st.session_state.get(SSKey.UI_MODE.value, "standard")).strip().lower()
+    if ui_mode not in {"quick", "standard", "expert"}:
+        ui_mode = "standard"
+    technical_expanded = ui_mode == "expert"
+
     if show_start_context_panels:
         selected_title = str(selected.get("title") or "—").strip() or "—"
         st.markdown("**Ausgewählte Occupation**")
@@ -1491,7 +1496,7 @@ def render_esco_occupation_confirmation(
             )
             st.markdown(f"[Portal öffnen]({occupation_uri})")
     if show_start_context_panels:
-        with st.expander("Technische Details", expanded=False):
+        with st.expander("Technische Details", expanded=technical_expanded):
             _render_capability_status_panel(client=client, capabilities=capabilities)
             st.caption(capabilities_badge)
             st.markdown(
@@ -1514,7 +1519,7 @@ def render_esco_occupation_confirmation(
                 caption_prefix="Occupation Explainability",
             )
 
-        with st.expander("ESCO Debug", expanded=False):
+        with st.expander("ESCO Debug", expanded=technical_expanded):
             _render_selected_occupation_detail(
                 st.session_state.get(SSKey.ESCO_OCCUPATION_PAYLOAD.value),
                 st.session_state.get(SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value),
