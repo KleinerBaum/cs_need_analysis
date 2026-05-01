@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+from contextlib import nullcontext
 from typing import Any
 
 import streamlit as st
@@ -279,40 +280,25 @@ def _render_skills_source_columns(
     *,
     jobspec_labels: list[str],
     llm_labels: list[str],
+    show_esco_sections: bool,
 ) -> tuple[bool, bool]:
     selected_labels_raw = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
     selected_labels = _dedupe_terms([str(item) for item in selected_labels_raw]) if isinstance(selected_labels_raw, list) else []
     selected_normalized = {_normalize_term(item) for item in selected_labels}
 
-    col_jobspec, col_ai, col_esco = responsive_three_columns(gap="large")
-    with col_jobspec:
-        st.markdown("#### Aus der Anzeige extrahiert")
-        render_multi_select_pills(
-            " ",
-            options=jobspec_labels,
-            key="skills.jobspec.pills",
-            default=[item for item in selected_labels if _normalize_term(item) in {_normalize_term(v) for v in jobspec_labels}],
-        )
-    with col_ai:
-        st.markdown("#### AI-Vorschläge")
-        st.number_input(
-            "Anzahl AI-Skill-Vorschläge",
-            key=SSKey.SKILLS_SUGGEST_COUNT.value,
-            min_value=1,
-            max_value=12,
-            step=1,
-        )
-        generate_ai_clicked = st.button(
-            "AI-Skill-Vorschläge generieren", key="skills.ai.generate"
-        )
-        render_multi_select_pills(
-            "  ",
-            options=llm_labels,
-            key="skills.ai.pills",
-            default=[item for item in selected_labels if _normalize_term(item) in {_normalize_term(v) for v in llm_labels}],
-        )
-    with col_esco:
-        st.markdown("#### ESCO")
+    st.markdown("#### 1) Jobspec-Rohbegriffe")
+    st.caption("Direkt aus dem Inserat übernehmen.")
+    render_multi_select_pills(
+        " ",
+        options=jobspec_labels,
+        key="skills.jobspec.pills",
+        default=[item for item in selected_labels if _normalize_term(item) in {_normalize_term(v) for v in jobspec_labels}],
+    )
+
+    load_esco_clicked = False
+    st.markdown("#### 2) ESCO-Vorschläge")
+    st.caption("Essential/Optional prüfen und markieren.")
+    if show_esco_sections:
         load_esco_clicked = st.button("ESCO-Skills laden", key="skills.esco.load")
         selected_must_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
         selected_nice_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
@@ -360,6 +346,27 @@ def _render_skills_source_columns(
             key="skills.esco.pills",
             default=[item for item in selected_labels if _normalize_term(item) in {_normalize_term(v) for v in esco_labels}],
         )
+    else:
+        st.caption("Nur bei bestätigtem ESCO-Anker verfügbar.")
+
+    st.markdown("#### 3) AI-Vorschläge")
+    st.caption("Neue Skills generieren und auswählen.")
+    st.number_input(
+        "Anzahl AI-Skill-Vorschläge",
+        key=SSKey.SKILLS_SUGGEST_COUNT.value,
+        min_value=1,
+        max_value=12,
+        step=1,
+    )
+    generate_ai_clicked = st.button(
+        "AI-Skill-Vorschläge generieren", key="skills.ai.generate"
+    )
+    render_multi_select_pills(
+        "  ",
+        options=llm_labels,
+        key="skills.ai.pills",
+        default=[item for item in selected_labels if _normalize_term(item) in {_normalize_term(v) for v in llm_labels}],
+    )
 
     selected_jobspec = st.session_state.get("skills.jobspec.pills", []) or []
     selected_ai = st.session_state.get("skills.ai.pills", []) or []
@@ -952,7 +959,8 @@ def _render_confirmed_selection_block(
     llm_suggested: list[dict[str, Any]],
     is_expert_mode: bool,
 ) -> None:
-    st.markdown("#### Bestätigte Auswahl")
+    st.markdown("#### 4) Auswahlkorb")
+    st.caption("Gesammelte Skills im Überblick.")
     selected_labels_raw = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
     selected_labels = (
         _dedupe_terms([str(item) for item in selected_labels_raw])
@@ -976,7 +984,7 @@ def _render_confirmed_selection_block(
 
     basket_col, details_col = st.columns([1, 2], gap="large")
     with basket_col:
-        st.markdown("##### Auswahlkorb")
+        st.markdown("##### Kategorien")
 
         def _render_compact_group(title: str, labels: list[str]) -> None:
             st.markdown(f"**{title}** · {len(labels)}")
@@ -1002,7 +1010,7 @@ def _render_confirmed_selection_block(
 
     cc1, cc2, cc3 = responsive_three_columns(gap="large")
     with details_col:
-        with st.expander("Advanced/Details", expanded=False):
+        with st.expander("Details zur Auswahl", expanded=False):
             with cc1:
                 _render_selected_skill_details(
                     title="ESCO · Essential",
@@ -1059,6 +1067,7 @@ def _render_skills_source_comparison_block(
     load_esco_clicked, generate_ai_clicked = _render_skills_source_columns(
         jobspec_labels=jobspec_labels,
         llm_labels=llm_labels,
+        show_esco_sections=show_esco_sections,
     )
     normalized_must_terms = _dedupe_terms(must_have_skills)
     normalized_nice_terms = _dedupe_terms(nice_to_have_skills)
@@ -1263,9 +1272,6 @@ def _render_skills_source_comparison_block(
         "occupation_group": str(matrix_snapshot.get("occupation_group") or ""),
         "rows": int(matrix_snapshot.get("rows_count") or 0),
     }
-    if show_esco_sections:
-        _render_matrix_coverage_section(matrix_snapshot, ui_mode=ui_mode)
-
     suggestion_context = _build_skill_suggestion_context(
         job=job,
         esco_must_selected=deduped_must,
@@ -1345,14 +1351,21 @@ def _render_skills_source_comparison_block(
     )
     unmapped_terms = list(coverage_snapshot.unmapped_requirement_terms)
     flagged_terms = _dedupe_terms([*ambiguous_terms, *unmapped_terms])
-    if show_esco_sections and flagged_terms:
-        _render_unmapped_term_workflow(flagged_terms)
-    else:
-        st.caption(
-            "Keine offenen oder mehrdeutigen Skill-Begriffe vorhanden."
-            if show_esco_sections
-            else "ESCO-spezifische Normalisierung ist ohne bestätigten ESCO-Anker ausgeblendet."
-        )
+    if hasattr(st, "markdown"):
+        st.markdown("#### 5) Advanced")
+    st.caption("Coverage, offene Begriffe, technische Details.")
+    advanced_container = st.expander("Advanced öffnen", expanded=False) if hasattr(st, "expander") else nullcontext()
+    with advanced_container:
+        if show_esco_sections:
+            _render_matrix_coverage_section(matrix_snapshot, ui_mode=ui_mode)
+        if show_esco_sections and flagged_terms:
+            _render_unmapped_term_workflow(flagged_terms)
+        else:
+            st.caption(
+                "Keine offenen oder mehrdeutigen Skill-Begriffe vorhanden."
+                if show_esco_sections
+                else "ESCO-spezifische Normalisierung ist ohne bestätigten ESCO-Anker ausgeblendet."
+            )
 
 def _render_salary_forecast_slot(job: JobAdExtract) -> None:
     selected_skills_raw = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
