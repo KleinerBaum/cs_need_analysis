@@ -471,35 +471,6 @@ def test_build_esco_mapping_report_csv_has_expected_columns(monkeypatch) -> None
     )
 
 
-def test_build_country_readiness_items_reports_optional_nace_context(
-    monkeypatch,
-) -> None:
-    monkeypatch.setattr(
-        SUMMARY_MODULE,
-        "st",
-        SimpleNamespace(
-            session_state={
-                SSKey.EURES_NACE_TO_ESCO.value: {"62.01": "uri:occ:software"},
-                SSKey.COMPANY_NACE_CODE.value: "62.01",
-            }
-        ),
-    )
-    monkeypatch.setattr(
-        SUMMARY_MODULE,
-        "get_esco_occupation_selected",
-        lambda: {"uri": "uri:occ:1", "title": "Software Developer"},
-    )
-    monkeypatch.setattr(SUMMARY_MODULE, "has_confirmed_esco_anchor", lambda: True)
-
-    rows = SUMMARY_MODULE._build_country_readiness_items(
-        SimpleNamespace(location_country="Germany")
-    )
-
-    assert ("Land vorhanden", "Germany", True) in rows
-    assert ("Semantischer Anker bestätigt", "Ja", True) in rows
-    assert ("NACE-Code gesetzt", "62.01", True) in rows
-    assert ("NACE → ESCO gemappt", "uri:occ:software", True) in rows
-
 
 def test_build_structured_export_payload_normalizes_legacy_unresolved_action_fields(
     monkeypatch,

@@ -32,8 +32,6 @@ def _meta() -> Any:
         company_label="ACME",
         country_label="DE",
         selected_occupation_title="Occupation",
-        nace_code="6201",
-        nace_mapped_esco_uri="esco:1",
         readiness_items=[],
     )
 

@@ -22,8 +22,6 @@ def _meta(*, selected_occupation_title: str | None) -> object:
         company_label="Acme",
         country_label="DE",
         selected_occupation_title=selected_occupation_title or "",
-        nace_code="62.01",
-        nace_mapped_esco_uri="http://data.europa.eu/esco/occupation/123",
         readiness_items=[],
     )
 
@@ -130,7 +128,7 @@ def test_build_summary_fact_rows_marks_missing_values_as_fehlend() -> None:
     assert skill_row["Status"] == "Fehlend"
 
 
-def test_build_summary_fact_rows_include_esco_and_nace_rows_when_anchor_confirmed(
+def test_build_summary_fact_rows_include_esco_row_when_anchor_confirmed(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(SUMMARY_MODULE, "has_confirmed_esco_anchor", lambda: True)
@@ -144,9 +142,6 @@ def test_build_summary_fact_rows_include_esco_and_nace_rows_when_anchor_confirme
 
     fields = {row.feld: row.to_dict() for row in rows}
     assert fields["ESCO Occupation"]["Status"] == "Automatisch erkannt"
-    assert fields["NACE-Code"]["Wert"] == "62.01"
-    assert fields["NACE-Code"]["Status"] == "Automatisch erkannt"
-    assert fields["NACE → ESCO Mapping"]["Wert"].startswith("http://data.europa.eu")
 
 
 def test_build_summary_fact_rows_have_deterministic_ordering() -> None:
@@ -164,7 +159,6 @@ def test_build_summary_fact_rows_have_deterministic_ordering() -> None:
         "Unternehmen",
         "Land",
         "Stadt",
-        "NACE-Code",
         "Recruiting Brief",
     ]
 
@@ -277,7 +271,6 @@ def test_render_summary_facts_section_uses_esco_shared_fields_for_coverage(
             readiness_percent=0,
             ready_for_follow_ups=False,
             esco_ready=False,
-            nace_ready=False,
         ),
         fact_rows=[],
         artifacts=_artifacts(),

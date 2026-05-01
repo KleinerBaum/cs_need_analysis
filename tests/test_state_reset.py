@@ -94,7 +94,6 @@ RESET_EXPECTATIONS: dict[SSKey, object] = {
         "occupation_group": "",
         "rows": 0,
     },
-    SSKey.COMPANY_NACE_CODE: "",
     SSKey.COMPANY_WEBSITE_RESEARCH: {},
     SSKey.COMPANY_WEBSITE_LAST_ERROR: None,
     SSKey.COMPANY_WEBSITE_MANUAL_URL: "",
@@ -239,34 +238,6 @@ def test_init_session_state_uses_env_esco_selected_version(monkeypatch) -> None:
     state.init_session_state()
     assert fake_session_state[SSKey.ESCO_CONFIG.value]["selected_version"] == "v1.3.1"
 
-
-def test_init_session_state_loads_eures_nace_mapping_from_env_file(
-    monkeypatch, tmp_path
-) -> None:
-    fake_session_state: dict[str, object] = {}
-    mapping_path = tmp_path / "eures_mapping.csv"
-    mapping_path.write_text(
-        "national_code,esco_uri\nA1,http://example.org/esco/a1\n",
-        encoding="utf-8",
-    )
-    monkeypatch.setenv("EURES_NACE_MAPPING_CSV", str(mapping_path))
-    monkeypatch.setattr(
-        state,
-        "load_openai_settings",
-        lambda: SimpleNamespace(openai_model="gpt-5-mini"),
-    )
-    monkeypatch.setattr(
-        state,
-        "st",
-        SimpleNamespace(session_state=fake_session_state),
-    )
-
-    state.init_session_state()
-
-    assert fake_session_state[SSKey.EURES_NACE_SOURCE.value] == str(mapping_path)
-    assert fake_session_state[SSKey.EURES_NACE_TO_ESCO.value] == {
-        "A1": "http://example.org/esco/a1"
-    }
 
 
 def test_init_session_state_maps_legacy_summary_alias_key(monkeypatch) -> None:

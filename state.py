@@ -33,7 +33,6 @@ from constants import (
     STEPS,
     SUMMARY_SESSION_KEY_LEGACY_ALIASES,
 )
-from eures_mapping import load_national_code_lookup_from_file
 from question_progress import AnswerMeta, AnswerMetaMap, value_hash
 from schemas import EscoConceptRef, EscoMappingReport, EscoSuggestionItem
 from settings_openai import load_openai_settings
@@ -162,15 +161,6 @@ def init_session_state() -> None:
     configured_esco_base_url = os.getenv("ESCO_API_BASE_URL", "").strip()
     if not configured_esco_base_url:
         configured_esco_base_url = DEFAULT_ESCO_API_BASE_URL
-    configured_eures_nace_source = os.getenv("EURES_NACE_MAPPING_CSV", "").strip()
-    eures_nace_lookup: dict[str, str] = {}
-    if configured_eures_nace_source:
-        try:
-            eures_nace_lookup = load_national_code_lookup_from_file(
-                configured_eures_nace_source
-            )
-        except Exception:
-            eures_nace_lookup = {}
 
     defaults: Dict[str, Any] = {
         SSKey.CURRENT_STEP.value: STEPS[0].key,
@@ -289,9 +279,6 @@ def init_session_state() -> None:
             "occupation_group": "",
             "rows": 0,
         },
-        SSKey.EURES_NACE_TO_ESCO.value: eures_nace_lookup,
-        SSKey.EURES_NACE_SOURCE.value: configured_eures_nace_source,
-        SSKey.COMPANY_NACE_CODE.value: "",
         SSKey.COMPANY_WEBSITE_RESEARCH.value: {},
         SSKey.COMPANY_WEBSITE_LAST_ERROR.value: None,
         SSKey.COMPANY_WEBSITE_MANUAL_URL.value: "",
@@ -431,7 +418,6 @@ def reset_vacancy() -> None:
         "occupation_group": "",
         "rows": 0,
     }
-    st.session_state[SSKey.COMPANY_NACE_CODE.value] = ""
     st.session_state[SSKey.COMPANY_WEBSITE_RESEARCH.value] = {}
     st.session_state[SSKey.COMPANY_WEBSITE_LAST_ERROR.value] = None
     st.session_state[SSKey.COMPANY_WEBSITE_MANUAL_URL.value] = ""

@@ -75,8 +75,6 @@ def test_summary_hero_status_complete_data(monkeypatch) -> None:
         company_label="Cognitive Staffing GmbH",
         country_label="Deutschland",
         selected_occupation_title="Data engineer",
-        nace_code="62.01",
-        nace_mapped_esco_uri="uri:occ:1",
         readiness_items=[],
     )
     status = SUMMARY_MODULE._build_summary_status(
@@ -87,7 +85,6 @@ def test_summary_hero_status_complete_data(monkeypatch) -> None:
 
     assert status.brief_state == "current"
     assert status.esco_ready is True
-    assert status.nace_ready is True
     assert status.ready_for_follow_ups is True
     assert (
         SUMMARY_MODULE._build_summary_headline(meta)
@@ -95,7 +92,7 @@ def test_summary_hero_status_complete_data(monkeypatch) -> None:
     )
 
 
-def test_summary_hero_status_missing_esco_and_nace(monkeypatch) -> None:
+def test_summary_hero_status_missing_esco(monkeypatch) -> None:
     fake_st = SimpleNamespace(
         session_state={SSKey.BRIEF.value: _build_valid_brief_payload()}
     )
@@ -105,8 +102,6 @@ def test_summary_hero_status_missing_esco_and_nace(monkeypatch) -> None:
         company_label="Cognitive Staffing GmbH",
         country_label="Deutschland",
         selected_occupation_title="",
-        nace_code="",
-        nace_mapped_esco_uri="",
         readiness_items=[],
     )
     status = SUMMARY_MODULE._build_summary_status(
@@ -117,8 +112,7 @@ def test_summary_hero_status_missing_esco_and_nace(monkeypatch) -> None:
     subheader = SUMMARY_MODULE._build_summary_subheader(meta, status)
 
     assert status.esco_ready is False
-    assert status.nace_ready is False
-    assert "semantischer Anker noch offen und NACE noch offen" in subheader
+    assert "semantischer Anker noch offen" in subheader
 
 
 def test_summary_hero_status_missing_brief(monkeypatch) -> None:
@@ -129,8 +123,6 @@ def test_summary_hero_status_missing_brief(monkeypatch) -> None:
         company_label="Cognitive Staffing GmbH",
         country_label="Deutschland",
         selected_occupation_title="Data engineer",
-        nace_code="62.01",
-        nace_mapped_esco_uri="uri:occ:1",
         readiness_items=[],
     )
     status = SUMMARY_MODULE._build_summary_status(
@@ -157,8 +149,6 @@ def test_summary_hero_status_stale_brief_text_path(monkeypatch) -> None:
         company_label="Cognitive Staffing GmbH",
         country_label="Deutschland",
         selected_occupation_title="Data engineer",
-        nace_code="62.01",
-        nace_mapped_esco_uri="uri:occ:1",
         readiness_items=[],
     )
     status = SUMMARY_MODULE._build_summary_status(
@@ -181,8 +171,6 @@ def test_summary_hero_meta_badges_show_dynamic_readiness(monkeypatch) -> None:
         company_label="Cognitive Staffing GmbH",
         country_label="Deutschland",
         selected_occupation_title="Data engineer",
-        nace_code="62.01",
-        nace_mapped_esco_uri="uri:occ:1",
         readiness_items=[],
     )
     status = SUMMARY_MODULE.SummaryStatus(
@@ -194,7 +182,6 @@ def test_summary_hero_meta_badges_show_dynamic_readiness(monkeypatch) -> None:
         readiness_percent=100,
         ready_for_follow_ups=True,
         esco_ready=True,
-        nace_ready=True,
     )
     SUMMARY_MODULE._render_summary_meta_badges(meta, status)
     metric_values = [

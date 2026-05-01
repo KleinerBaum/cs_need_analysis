@@ -24,7 +24,6 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 - ESCO-Integration in **Start · Phase C (ESCO-Suche)** ohne Expander mit Occupation-Picker, direkter Bestätigung via **„Speichern“** und 3-spaltiger Trefferübersicht; diese Bestätigung erfolgt vor der Weiterarbeit im integrierten Unternehmens-/Teamkontext sowie im Skills-Schritt und dient dort als Downstream-Grundlage. Zusätzlich gibt es einen expandierbaren Occupation-Detailbereich (u. a. Preferred/Alternative Labels, Description, Scope Note, ISCO-08, Regulated Profession sowie Skill-/Knowledge-Relationen) sowie optionales Laden von Occupation-Titelvarianten in mehreren Sprachen.
 - Degradiertes Verhalten bei ESCO-Ausfall: Bei temporären ESCO-Fehlern (z. B. 5xx/Netzwerk) bleibt der Wizard bedienbar, zeigt verständliche Hinweise und bietet „manuell fortfahren“ sowie „später erneut versuchen“ statt eines harten Abbruchs.
 - Skills-Mapping als geführter 4-Schritt-Flow: (1) extrahierte Jobspec-Phrasen, (2) ESCO-Normalisierung über Occupation-Relationen, (3) sichtbare Essential/Optional-Bestätigung, (4) dedizierter Bereich „Not normalized yet“ mit Optionen „Keep free text“, Retry-Suche und Attach an Occupation.
-- Optionales NACE/EURES-Mapping im Unternehmensschritt als Grundlage für spätere Country-/Occupation-Kontexte; die Summary-Readiness bewertet den bestätigten semantischen Anker (ESCO) und NACE separat.
 - Unternehmensschritt mit Homepage-Enrichment (Beta): Die aus dem Jobspec extrahierte Arbeitgeber-URL kann per Buttons für **Über uns**, **Impressum** und **Vision/Mission** analysiert werden; essenzielle Textausschnitte werden rechts angezeigt, mit offenen Wizard-Fragen abgeglichen, im Session-State gespeichert und in die Brief-Generierung im Summary-Schritt eingespeist.
 - Der Unternehmensschritt umfasst neben dem Unternehmenskontext auch den Teamkontext inkl. Team-Fragen und enthält dafür ein zweizoniges **Role-context enrichment (ESCO)**-Muster: links klar als **Inferred suggestion/context** markierte Hinweise (inkl. Match-Provenance/-Confidence, falls vorhanden), rechts der Bereich **Confirmed input** aus der kanonischen Team-Notiz. Die Übernahme erfolgt gesammelt über eine eindeutige Aktion „Ausgewählte Vorschläge als confirmed selection übernehmen“.
 - Primäre Fakten-Tabelle in der Summary (Bereich/Feld/Wert/Quelle/Status) unterhalb des Recruiting Briefs mit 2/3-Tabellenbereich und 1/3 Filterspalte (Suche/Status), plus sekundärer Kompaktüberblick und ESCO Mapping Report (JSON/CSV-Export).
@@ -38,7 +37,6 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
    - Phase A: Quelle, Consent, optionale PII-Redaktion, UI-Modus (global zusätzlich über Sidebar-Präferenz-Center steuerbar)
    - Phase B: editierbare „Identifizierte Informationen“ + Gaps/Assumptions
    - Phase C: ESCO-Suche (verpflichtende Bestätigung vor „Weiter“)
-2. **Unternehmen** (Unternehmenskontext plus integrierter Teamkontext/Team-Fragen inkl. ESCO-Teamkontext-Anreicherung; optionaler NACE-Code, falls Mapping geladen ist; plus Homepage-Enrichment für Über-uns/Impressum/Vision-Mission)
 3. **Rolle & Aufgaben**
 4. **Skills & Anforderungen**
 5. **Benefits & Rahmenbedingungen**
@@ -295,12 +293,6 @@ Die App-Konfiguration nutzt dieselbe Priorität wie `settings_openai.py`: `st.se
 Für verlässliche lokale Verifikation daher nicht nur auf Env-Mutation verlassen, sondern die effektiven Request-Kwargs/Metadaten im Smoke-Test prüfen.
 
 Dieser Smoke-Test ist der bevorzugte Verifikationspfad für Änderungen an Modellrouting, Capability-Gating, `reasoning_effort`, `verbosity`, `temperature` und OpenAI-Request-Building.
-
-## EURES/NACE Mapping (optional)
-
-- Optionaler NACE→ESCO-Lookup wird über `EURES_NACE_MAPPING_CSV` geladen.
-- Ist kein Mapping geladen, bleibt der NACE-Block im Unternehmensschritt unsichtbar.
-- Ist ein Mapping geladen, wird der gesetzte NACE-Code in der Summary-Readiness separat von ESCO berücksichtigt.
 
 ## Exporte
 

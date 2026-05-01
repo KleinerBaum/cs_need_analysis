@@ -224,8 +224,6 @@ class SummaryMeta:
     company_label: str
     country_label: str
     selected_occupation_title: str
-    nace_code: str
-    nace_mapped_esco_uri: str
     readiness_items: list[tuple[str, str, bool]]
 
 
@@ -239,7 +237,6 @@ class SummaryStatus:
     readiness_percent: int
     ready_for_follow_ups: bool
     esco_ready: bool
-    nace_ready: bool
 
 
 @dataclass(frozen=True)
@@ -563,8 +560,6 @@ def _build_summary_input_fingerprint(
     esco_match_explainability: EscoMatchExplainability,
     esco_selected_skills_must: list[dict[str, str]],
     esco_selected_skills_nice: list[dict[str, str]],
-    nace_code: str,
-    nace_to_esco_mapping: dict[str, str],
 ) -> str:
     non_sensitive_payload = {
         "job": job.model_dump(mode="json", exclude_none=True),
@@ -575,8 +570,6 @@ def _build_summary_input_fingerprint(
         "esco_match_explainability": esco_match_explainability,
         "esco_selected_skills_must": esco_selected_skills_must,
         "esco_selected_skills_nice": esco_selected_skills_nice,
-        "nace_code": nace_code,
-        "nace_to_esco_mapping": nace_to_esco_mapping,
     }
     serialized = json.dumps(
         non_sensitive_payload,
@@ -1703,10 +1696,6 @@ def _build_summary_subheader(meta: SummaryMeta, status: SummaryStatus) -> str:
         )
     else:
         mapping_fragments.append("semantischer Anker noch offen")
-    if status.nace_ready:
-        mapping_fragments.append(f"NACE gesetzt ({meta.nace_code})")
-    else:
-        mapping_fragments.append("NACE noch offen")
     mapping_status = " und ".join(mapping_fragments)
 
     readiness_intro = (
@@ -1740,7 +1729,6 @@ def _render_summary_meta_badges(meta: SummaryMeta, status: SummaryStatus) -> Non
         ("Unternehmen", meta.company_label or "Nicht angegeben"),
         ("Land", meta.country_label or "Nicht angegeben"),
         ("ESCO", "✅" if status.esco_ready else "—"),
-        ("NACE", "✅" if status.nace_ready else "—"),
         ("Readiness", readiness),
     )
     columns = st.columns(len(badges))
@@ -1752,7 +1740,6 @@ def _build_summary_status(
     *, answers: dict[str, Any], meta: SummaryMeta, resolved_brief_model: str | None
 ) -> SummaryStatus:
     esco_ready = bool(meta.selected_occupation_title)
-    nace_ready = bool(meta.nace_code)
     completion_text = f"{len(answers)} Antworten"
     completion_ratio = 0.0
     plan_payload = st.session_state.get(SSKey.QUESTION_PLAN.value)
@@ -1794,7 +1781,6 @@ def _build_summary_status(
         bool(meta.company_label),
         bool(meta.country_label),
         esco_ready,
-        nace_ready,
         brief_status.ready_for_follow_ups,
     ]
     readiness_percent = round(
@@ -1811,7 +1797,6 @@ def _build_summary_status(
         readiness_percent=readiness_percent,
         ready_for_follow_ups=ready_for_follow_ups,
         esco_ready=esco_ready,
-        nace_ready=nace_ready,
     )
 
 
@@ -1858,8 +1843,6 @@ def _build_summary_view_model() -> SummaryViewModel | None:
         esco_selected_skills_nice=_read_esco_skill_refs(
             SSKey.ESCO_SKILLS_SELECTED_NICE
         ),
-        nace_code=meta.nace_code,
-        nace_to_esco_mapping=_read_nace_to_esco_mapping(),
     )
     artifacts = _build_summary_artifact_state(
         selected_role_tasks=selected_role_tasks,
@@ -1887,17 +1870,6 @@ def _build_summary_view_model() -> SummaryViewModel | None:
         fact_rows=fact_rows,
         artifacts=artifacts,
     )
-
-
-def _read_nace_to_esco_mapping() -> dict[str, str]:
-    nace_lookup_raw = _session_dict(SSKey.EURES_NACE_TO_ESCO)
-    mapping: dict[str, str] = {}
-    for code, uri in nace_lookup_raw.items():
-        normalized_code = str(code or "").strip()
-        normalized_uri = str(uri or "").strip()
-        if normalized_code and normalized_uri:
-            mapping[normalized_code] = normalized_uri
-    return mapping
 
 
 def _read_esco_skill_refs(key: SSKey) -> list[dict[str, str]]:
@@ -1951,15 +1923,11 @@ def _read_esco_match_explainability() -> EscoMatchExplainability:
 
 def _build_summary_meta(job: JobAdExtract) -> SummaryMeta:
     selected_occupation = _read_selected_esco_occupation()
-    nace_code = _session_str(SSKey.COMPANY_NACE_CODE)
-    nace_mapping = _read_nace_to_esco_mapping()
     return SummaryMeta(
         role_label=str(job.job_title or "").strip(),
         company_label=str(job.company_name or "").strip(),
         country_label=str(job.location_country or "").strip(),
         selected_occupation_title=selected_occupation.get("title", ""),
-        nace_code=nace_code,
-        nace_mapped_esco_uri=str(nace_mapping.get(nace_code, "") or "").strip(),
         readiness_items=_build_country_readiness_items(job),
     )
 
@@ -1994,14 +1962,6 @@ def _build_summary_artifact_state(
 
 
 def _build_country_readiness_items(job: JobAdExtract) -> list[tuple[str, str, bool]]:
-    nace_lookup_raw = st.session_state.get(SSKey.EURES_NACE_TO_ESCO.value, {})
-    nace_lookup = nace_lookup_raw if isinstance(nace_lookup_raw, dict) else {}
-    selected_nace_code = str(
-        st.session_state.get(SSKey.COMPANY_NACE_CODE.value, "") or ""
-    ).strip()
-    mapped_esco_uri = (
-        str(nace_lookup.get(selected_nace_code, "") or "") if selected_nace_code else ""
-    )
     selected_occupation = get_esco_occupation_selected()
     show_esco_sections = has_confirmed_esco_anchor()
     rows: list[tuple[str, str, bool]] = [
@@ -2009,11 +1969,6 @@ def _build_country_readiness_items(job: JobAdExtract) -> list[tuple[str, str, bo
             "Land vorhanden",
             job.location_country or "Nicht angegeben",
             bool(job.location_country),
-        ),
-        (
-            "NACE-Code gesetzt",
-            selected_nace_code or "Nicht gesetzt",
-            bool(selected_nace_code),
         ),
     ]
     if show_esco_sections:
@@ -2024,13 +1979,6 @@ def _build_country_readiness_items(job: JobAdExtract) -> list[tuple[str, str, bo
                 "Ja" if selected_occupation else "Nein",
                 bool(selected_occupation),
             ),
-        )
-        rows.append(
-            (
-                "NACE → ESCO gemappt",
-                mapped_esco_uri or "Nicht verfügbar",
-                bool(mapped_esco_uri),
-            )
         )
     return rows
 
@@ -2189,13 +2137,6 @@ def _build_summary_fact_rows(
             _status_for_value(job.location_city),
         ),
         SummaryFactsRow(
-            "Klassifikation",
-            "NACE-Code",
-            meta.nace_code or "Nicht gesetzt",
-            "Unternehmen",
-            _status_for_classification_value(meta.nace_code),
-        ),
-        SummaryFactsRow(
             "Artefakte",
             "Recruiting Brief",
             "Vorhanden" if artifacts.brief is not None else "Noch nicht generiert",
@@ -2212,16 +2153,6 @@ def _build_summary_fact_rows(
                 meta.selected_occupation_title or "Nicht gesetzt",
                 "Jobspec-Review",
                 _status_for_classification_value(meta.selected_occupation_title),
-            ),
-        )
-        rows.insert(
-            6,
-            SummaryFactsRow(
-                "Klassifikation",
-                "NACE → ESCO Mapping",
-                meta.nace_mapped_esco_uri or "Nicht verfügbar",
-                "EURES",
-                _status_for_classification_value(meta.nace_mapped_esco_uri),
             ),
         )
 
