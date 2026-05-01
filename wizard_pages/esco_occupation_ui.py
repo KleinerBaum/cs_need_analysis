@@ -1303,28 +1303,7 @@ def render_esco_occupation_confirmation(
         return
 
     if show_start_context_panels:
-        st.markdown("### Was ist ESCO?")
-        st.markdown(
-            "ESCO ist die europäische Klassifikation für **Berufe**, **Skills** und "
-            "**Kompetenzen**. Sie bietet ein gemeinsames Vokabular, damit ähnliche "
-            "Jobtitel und Anforderungen einheitlich beschrieben werden können."
-        )
-        st.markdown("### Wie nutzt diese App ESCO?")
-        st.markdown(
-            "Vor der KI-Generierung nutzt die App ESCO als **Retrieval-Kontext "
-            "(RAG-ähnlich)**: Zuerst wird eine passende Occupation gesucht, dann "
-            "werden zugehörige Skills und Relationen geladen. Diese Fakten ergänzen "
-            "die Jobspec und verbessern die Qualität der nachgelagerten Vorschläge."
-        )
-        st.markdown("### Welche ESCO-Quellen werden genutzt?")
-        st.markdown(
-            "- ESCO Web-Service API\n"
-            "- Offline ESCO Index\n"
-            "- Occupations pillar\n"
-            "- Skills & Competences pillar\n"
-            "- Skills–Occupations Matrix Tables"
-        )
-        st.markdown("### Nächster Schritt: Occupation bestätigen")
+        st.markdown("### ESCO-Anker bestätigen")
         st.caption(f"Suche mit: `{query_text}`")
     query_state_key = f"{SSKey.ESCO_OCCUPATION_SELECTED.value}.esco_picker.query"
     if not st.session_state.get(query_state_key):
@@ -1386,6 +1365,19 @@ def render_esco_occupation_confirmation(
         "provenance_categories"
     ]
 
+    if show_start_context_panels:
+        selected_title = str(selected.get("title") or "—").strip() or "—"
+        st.markdown("**Gefundene Occupation**")
+        st.write(selected_title)
+        confidence = str(explainability["confidence"]).strip().lower()
+        if confidence == "low":
+            st.warning(
+                "Confidence: Low — Bitte aktiv entscheiden: Übernehmen oder Alternative suchen."
+            )
+        else:
+            st.caption(f"Confidence: {confidence.title()}")
+        st.caption(f"Grund: {str(explainability['reason'])}")
+
     client = EscoClient()
     supported_relations = _supported_occupation_relations(client)
     capabilities = _occupation_capabilities(client, supported_relations)
@@ -1398,12 +1390,6 @@ def render_esco_occupation_confirmation(
         ui_mode = "standard"
     technical_expanded = ui_mode == "expert"
 
-    if show_start_context_panels:
-        selected_title = str(selected.get("title") or "—").strip() or "—"
-        st.markdown("**Ausgewählte Occupation**")
-        st.write(selected_title)
-        st.caption(f"Confidence: {str(explainability['confidence']).title()}")
-        st.caption(f"Match reason: {str(explainability['reason'])}")
     related_labels: dict[str, list[str]] = {}
     try:
         occupation_payload = client.get_occupation_detail(uri=occupation_uri)
@@ -1496,6 +1482,21 @@ def render_esco_occupation_confirmation(
             )
             st.markdown(f"[Portal öffnen]({occupation_uri})")
     if show_start_context_panels:
+        with st.expander("Warum ESCO?", expanded=False):
+            st.markdown(
+                "ESCO ist die europäische Klassifikation für **Berufe**, **Skills** und "
+                "**Kompetenzen**. Sie bietet ein gemeinsames Vokabular, damit ähnliche "
+                "Jobtitel und Anforderungen einheitlich beschrieben werden können."
+            )
+            st.markdown(
+                "Die App nutzt ESCO als Retrieval-Kontext: erst Occupation, dann Skills "
+                "und Relationen für bessere Vorschläge in Rollenaufgaben, Skills und Summary."
+            )
+            st.markdown(
+                "**Quellen**: ESCO Web-Service API, Offline ESCO Index, Occupations pillar, "
+                "Skills & Competences pillar, Skills–Occupations Matrix Tables"
+            )
+
         with st.expander("Technische Details", expanded=technical_expanded):
             _render_capability_status_panel(client=client, capabilities=capabilities)
             st.caption(capabilities_badge)
