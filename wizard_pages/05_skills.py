@@ -953,32 +953,81 @@ def _render_confirmed_selection_block(
     is_expert_mode: bool,
 ) -> None:
     st.markdown("#### Bestätigte Auswahl")
-    cc1, cc2, cc3 = responsive_three_columns(gap="large")
-    with cc1:
-        _render_selected_skill_details(
-            title="ESCO · Essential",
-            selected_skills=deduped_must,
-            detail_cache=detail_cache,
-            is_expert_mode=is_expert_mode,
-            key_prefix="skills.must",
-        )
-    with cc2:
-        _render_selected_skill_details(
-            title="ESCO · Optional",
-            selected_skills=deduped_nice,
-            detail_cache=detail_cache,
-            is_expert_mode=is_expert_mode,
-            key_prefix="skills.nice",
-        )
-    with cc3:
-        st.markdown("#### AI · Vorschläge")
-        if llm_suggested:
-            for item in llm_suggested:
-                label = str(item.get("label") or "").strip()
-                if label:
+    selected_labels_raw = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
+    selected_labels = (
+        _dedupe_terms([str(item) for item in selected_labels_raw])
+        if isinstance(selected_labels_raw, list)
+        else []
+    )
+    must_titles = _dedupe_terms(
+        [str(item.get("title") or "").strip() for item in deduped_must]
+    )
+    nice_titles = _dedupe_terms(
+        [str(item.get("title") or "").strip() for item in deduped_nice]
+    )
+    esco_selected_normalized = {
+        _normalize_term(item) for item in [*must_titles, *nice_titles]
+    }
+    company_specific_labels = [
+        label
+        for label in selected_labels
+        if _normalize_term(label) not in esco_selected_normalized
+    ]
+
+    basket_col, details_col = st.columns([1, 2], gap="large")
+    with basket_col:
+        st.markdown("##### Auswahlkorb")
+
+        def _render_compact_group(title: str, labels: list[str]) -> None:
+            st.markdown(f"**{title}** · {len(labels)}")
+            if not labels:
+                st.caption("Keine Einträge.")
+                return
+            chips = " ".join(
+                [f"`{label if len(label) <= 32 else f'{label[:29]}...'}`" for label in labels[:8]]
+            )
+            st.markdown(chips)
+            if len(labels) > 8:
+                st.caption(f"+{len(labels) - 8} weitere")
+            with st.expander("Details", expanded=False):
+                for label in labels:
                     st.write(f"- {label}")
-        else:
-            st.caption("Noch keine AI-Skills vorhanden.")
+
+        _render_compact_group("Must-have", must_titles)
+        _render_compact_group("Nice-to-have", nice_titles)
+        _render_compact_group(
+            "Unternehmensspezifisch",
+            company_specific_labels,
+        )
+
+    cc1, cc2, cc3 = responsive_three_columns(gap="large")
+    with details_col:
+        with st.expander("Advanced/Details", expanded=False):
+            with cc1:
+                _render_selected_skill_details(
+                    title="ESCO · Essential",
+                    selected_skills=deduped_must,
+                    detail_cache=detail_cache,
+                    is_expert_mode=is_expert_mode,
+                    key_prefix="skills.must",
+                )
+            with cc2:
+                _render_selected_skill_details(
+                    title="ESCO · Optional",
+                    selected_skills=deduped_nice,
+                    detail_cache=detail_cache,
+                    is_expert_mode=is_expert_mode,
+                    key_prefix="skills.nice",
+                )
+            with cc3:
+                st.markdown("#### AI · Vorschläge")
+                if llm_suggested:
+                    for item in llm_suggested:
+                        label = str(item.get("label") or "").strip()
+                        if label:
+                            st.write(f"- {label}")
+                else:
+                    st.caption("Noch keine AI-Skills vorhanden.")
 
 
 def _render_skills_source_comparison_block(
