@@ -15,6 +15,26 @@ from step_status import StepStatusPayload, build_step_status_payload
 from state import get_answer_meta, get_answers
 
 
+
+
+def responsive_two_columns(*, gap: str = "large") -> tuple:
+    """Render 2 columns on desktop and 1 column on mobile/tablet user agents."""
+    user_agent = str(st.context.headers.get("User-Agent", "")).casefold()
+    is_mobile_or_tablet = any(
+        marker in user_agent
+        for marker in (
+            "iphone",
+            "android",
+            "ipad",
+            "mobile",
+            "tablet",
+        )
+    )
+    if is_mobile_or_tablet:
+        return (st.container(), st.container())
+    return tuple(st.columns(2, gap=gap))
+
+
 def responsive_three_columns(*, gap: str = "large") -> tuple:
     """Render 3 columns on desktop and 1 column on mobile/tablet user agents."""
     user_agent = str(st.context.headers.get("User-Agent", "")).casefold()

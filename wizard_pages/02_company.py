@@ -18,7 +18,7 @@ from ui_components import (
     render_question_step,
     render_standard_step_review,
 )
-from ui_layout import render_step_shell
+from ui_layout import render_step_shell, responsive_three_columns, responsive_two_columns
 from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
 from wizard_pages.team_section import render_team_questions_with_optional_esco_context
 
@@ -425,7 +425,7 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
     ).strip()
     manual_homepage = _normalize_url(manual_homepage_raw)
     homepage = extracted_homepage or manual_homepage
-    left_col, right_col = st.columns([1, 1], gap="large")
+    left_col, right_col = responsive_two_columns(gap="large")
     with left_col:
         st.write("**Extrahierte URL**")
         if extracted_homepage:
@@ -440,7 +440,7 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
             if manual_homepage:
                 st.caption("Manuell erfasste URL wird für die Analyse verwendet.")
 
-        button_col_1, button_col_2, button_col_3 = st.columns(3)
+        button_col_1, button_col_2, button_col_3 = responsive_three_columns(gap="small")
         with button_col_1:
             if st.button('Ermittle "Über uns"', width="stretch"):
                 _run_website_research(

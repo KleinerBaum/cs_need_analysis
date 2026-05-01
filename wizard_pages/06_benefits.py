@@ -7,7 +7,7 @@ from llm_client import TASK_GENERATE_ROLE_TASKS_SALARY_FORECAST, resolve_model_f
 from schemas import JobAdExtract, QuestionStep
 from settings_openai import load_openai_settings
 from state import get_answers
-from ui_layout import render_step_shell
+from ui_layout import render_step_shell, responsive_three_columns
 from ui_components import (
     build_step_review_payload,
     has_answered_question_with_keywords,
@@ -116,7 +116,7 @@ def _render_benefits_influence_overview(benefits: list[str]) -> None:
 
     st.caption("Diese Benefits werden als Einflussfaktoren in den Salary Forecast übernommen.")
     column_count = min(3, max(2, len(benefits) // 5 + 1))
-    columns = st.columns(column_count, gap="small")
+    columns = responsive_three_columns(gap="small") if column_count == 3 else st.columns(column_count, gap="small")
     for index, benefit in enumerate(benefits):
         with columns[index % column_count]:
             st.markdown(f"- {benefit}")
@@ -135,7 +135,7 @@ def render(ctx: WizardContext) -> None:
 
     def _render_extracted_slot() -> None:
         shown = False
-        col_salary, col_benefits, col_remote = st.columns(3, gap="large")
+        col_salary, col_benefits, col_remote = responsive_three_columns(gap="large")
         with col_salary:
             if job.salary_range:
                 min_salary = job.salary_range.min

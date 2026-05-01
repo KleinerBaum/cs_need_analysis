@@ -9,7 +9,7 @@ import streamlit as st
 
 from constants import SSKey
 from schemas import JobAdExtract, QuestionStep, RecruitmentStep
-from ui_layout import render_step_shell
+from ui_layout import render_step_shell, responsive_three_columns, responsive_two_columns
 from ui_components import (
     build_step_review_payload,
     has_answered_question_with_keywords,
@@ -140,7 +140,7 @@ def _render_internal_process_container(job: JobAdExtract) -> None:
             latest_default = earliest_default
 
     with st.container(border=True):
-        header_col1, header_col2, header_col3 = st.columns(3, gap="large")
+        header_col1, header_col2, header_col3 = responsive_three_columns(gap="large")
         with header_col1:
             earliest_start = st.date_input(
                 "Frühestmöglicher Startzeitpunkt",
@@ -160,7 +160,7 @@ def _render_internal_process_container(job: JobAdExtract) -> None:
 
         if merged_names:
             st.caption("Erkannte Ansprechpartner (Jobspec): " + ", ".join(merged_names))
-        cols = st.columns(3, gap="large")
+        cols = responsive_three_columns(gap="large")
         updated_contacts: list[dict[str, Any]] = []
         interview_participants: list[str] = []
         money_seed: dict[str, Any] = {}
@@ -290,7 +290,7 @@ def _render_internal_process_container(job: JobAdExtract) -> None:
             key="interview.internal.info_loop_selectbox",
             format_func=lambda item: option_display_map.get(item, item),
         )
-        add_col, clear_col = st.columns(2, gap="small")
+        add_col, clear_col = responsive_two_columns(gap="small")
         with add_col:
             if st.button("Auswahl zum Infoloop hinzufügen", key="interview.internal.info_loop_add"):
                 if selected_option not in selected_pills:
