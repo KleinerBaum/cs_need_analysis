@@ -2566,9 +2566,11 @@ def _render_number_question(
     bounded_value = min(max(numeric_value, min_value), max_value)
     validation_error: str | None = None
     if parse_error:
+        value_text = f"{bounded_value:g}"
         validation_error = (
-            "Ungültiger Zahlenwert erkannt, Standardwert wurde verwendet. "
-            "Invalid numeric value detected, fallback value was applied."
+            "Gehalt konnte nicht eindeutig gelesen werden. "
+            f"Verwendeter Wert: {value_text}. "
+            "Bitte prüfen Sie, ob Jahresgehalt, Monatsgehalt oder Gehaltsrange gemeint ist."
         )
     elif numeric_value != bounded_value:
         validation_error = (
