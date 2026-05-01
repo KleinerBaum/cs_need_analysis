@@ -13,6 +13,26 @@ from question_dependencies import should_show_question
 from schemas import QuestionStep
 from step_status import StepStatusPayload, build_step_status_payload
 from state import get_answer_meta, get_answers
+
+
+def responsive_three_columns(*, gap: str = "large") -> tuple:
+    """Render 3 columns on desktop and 1 column on mobile/tablet user agents."""
+    user_agent = str(st.context.headers.get("User-Agent", "")).casefold()
+    is_mobile_or_tablet = any(
+        marker in user_agent
+        for marker in (
+            "iphone",
+            "android",
+            "ipad",
+            "mobile",
+            "tablet",
+        )
+    )
+    if is_mobile_or_tablet:
+        return (st.container(), st.container(), st.container())
+    return tuple(st.columns(3, gap=gap))
+
+
 def _status_badge_text(completion_state: str) -> str:
     return COMPLETION_STATE_BADGE_TEXT.get(
         completion_state, COMPLETION_STATE_BADGE_TEXT[COMPLETION_STATE_NOT_STARTED]
