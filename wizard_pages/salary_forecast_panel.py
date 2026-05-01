@@ -641,18 +641,41 @@ def _run_step_salary_forecast_generation(
     )
 
 
-def _read_last_forecast_payload() -> tuple[dict[str, Any], int, str]:
-    last_result = st.session_state.get(SSKey.SALARY_FORECAST_LAST_RESULT.value, {})
-    forecast_payload = (
-        last_result.get("forecast", {}) if isinstance(last_result, dict) else {}
-    )
-    p50_value = _safe_int(forecast_payload.get("p50"))
-    note = (
-        str(last_result.get("confidence_note") or "").strip()
-        if isinstance(last_result, dict)
-        else ""
-    )
-    return forecast_payload, p50_value, note
+def render_salary_forecast_result_card(
+    *,
+    salary_result: dict[str, Any] | None,
+    empty_message: str,
+    headline: str = "Erwartetes Jahresgehalt",
+) -> None:
+    payload = salary_result if isinstance(salary_result, dict) else {}
+    forecast_payload = payload.get("forecast", {}) if isinstance(payload, dict) else {}
+    p50 = _safe_int(forecast_payload.get("p50"))
+    if p50 <= 0:
+        st.info(empty_message)
+        return
+
+    p10 = _safe_int(forecast_payload.get("p10"))
+    p90 = _safe_int(forecast_payload.get("p90"))
+    confidence_note = str(payload.get("confidence_note") or "").strip()
+    inputs = payload.get("inputs", {})
+    answers_count = 0
+    if isinstance(inputs, dict):
+        answers_count = _safe_int(inputs.get("answers_count"))
+
+    with st.container(border=True):
+        st.markdown(f"**{headline}**")
+        metric_col_main, metric_col_low, metric_col_high = st.columns((2, 1, 1))
+        with metric_col_main:
+            st.metric("p50", _format_eur(p50))
+        with metric_col_low:
+            st.metric("p10", _format_eur(p10) if p10 > 0 else "—")
+        with metric_col_high:
+            st.metric("p90", _format_eur(p90) if p90 > 0 else "—")
+        st.caption("Kontext: indikative Prognose basierend auf den gewählten Angaben.")
+        if confidence_note:
+            st.caption(f"Confidence: {confidence_note}")
+        if answers_count > 0:
+            st.caption(f"Fehlende Inputs möglich – erfasste Antworten: {answers_count}.")
 
 
 def render_salary_forecast_step_sections(
@@ -727,15 +750,13 @@ def render_role_tasks_salary_forecast_panel(
             }
 
     def _render_forecast_result() -> None:
-        _, p50_value, note = _read_last_forecast_payload()
-        if p50_value > 0:
-            st.metric("Gehaltsprognose (Jahr)", _format_eur(p50_value))
-            if note:
-                st.caption(note)
-        else:
-            st.info(
-                "Noch keine Gehaltsprognose vorhanden. Bitte Prognose aktualisieren."
-            )
+        render_salary_forecast_result_card(
+            salary_result=st.session_state.get(
+                SSKey.SALARY_FORECAST_LAST_RESULT.value, {}
+            ),
+            empty_message="Noch keine Gehaltsprognose vorhanden. Bitte Prognose aktualisieren.",
+            headline="Gehaltsprognose (Jahr)",
+        )
 
     render_salary_forecast_step_sections(
         influence_factors_slot=_render_influence_factors,
@@ -825,15 +846,13 @@ def render_benefits_salary_forecast_panel(
             }
 
     def _render_forecast_result() -> None:
-        _, p50_value, note = _read_last_forecast_payload()
-        if p50_value > 0:
-            st.metric("Erwartetes Jahresgehalt", _format_eur(p50_value))
-            if note:
-                st.caption(note)
-        else:
-            st.info(
-                "Noch keine Gehaltsprognose vorhanden. Bitte Prognose aktualisieren."
-            )
+        render_salary_forecast_result_card(
+            salary_result=st.session_state.get(
+                SSKey.SALARY_FORECAST_LAST_RESULT.value, {}
+            ),
+            empty_message="Noch keine Gehaltsprognose vorhanden. Bitte Prognose aktualisieren.",
+            headline="Erwartetes Jahresgehalt",
+        )
 
     render_salary_forecast_step_sections(
         influence_factors_slot=_render_influence_factors,
@@ -944,26 +963,13 @@ def render_skills_salary_forecast_panel(
             }
 
     def _render_forecast_result() -> None:
-        salary_result = st.session_state.get(SSKey.SALARY_FORECAST_LAST_RESULT.value, {})
-        salary_forecast_payload = (
-            salary_result.get("forecast", {}) if isinstance(salary_result, dict) else {}
+        render_salary_forecast_result_card(
+            salary_result=st.session_state.get(
+                SSKey.SALARY_FORECAST_LAST_RESULT.value, {}
+            ),
+            empty_message="Noch keine Gehaltsprognose vorhanden.",
+            headline="Erwartetes Jahresgehalt",
         )
-        p50 = _safe_int(salary_forecast_payload.get("p50"))
-        if p50 > 0:
-            p10 = _safe_int(salary_forecast_payload.get("p10"))
-            p90 = _safe_int(salary_forecast_payload.get("p90"))
-            metric_col_main, metric_col_low, metric_col_high = st.columns((2, 1, 1))
-            with metric_col_main:
-                st.metric("Erwartetes Jahresgehalt (p50)", _format_eur(p50))
-            with metric_col_low:
-                st.metric("p10", _format_eur(p10) if p10 > 0 else "—")
-            with metric_col_high:
-                st.metric("p90", _format_eur(p90) if p90 > 0 else "—")
-            note = str(salary_result.get("confidence_note") or "").strip()
-            if note:
-                st.caption(note)
-        else:
-            st.info("Noch keine Gehaltsprognose vorhanden.")
 
     render_salary_forecast_step_sections(
         influence_factors_slot=_render_influence_factors,
