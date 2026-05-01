@@ -1397,30 +1397,8 @@ def render_esco_occupation_confirmation(
         selected_title = str(selected.get("title") or "—").strip() or "—"
         st.markdown("**Ausgewählte Occupation**")
         st.write(selected_title)
-        st.caption(capabilities_badge)
-
-        with st.expander("Technische Details (optional)", expanded=False):
-            _render_capability_status_panel(client=client, capabilities=capabilities)
-            st.markdown(
-                (
-                    "<span style='display:inline-block;padding:0.1rem 0.5rem;"
-                    "border:1px solid #999;border-radius:0.75rem;font-size:0.8rem;'>"
-                    f"{explainability['badge_label']}</span>"
-                ),
-                unsafe_allow_html=True,
-            )
-            st.caption(f"Confidence: {str(explainability['confidence']).title()}")
-            uri_suffix = occupation_uri.rstrip("/").rsplit("/", 1)[-1] or occupation_uri
-            st.markdown(f"[ESCO URI: …{uri_suffix}]({occupation_uri})")
-            if st.button("URI kopieren", key="esco.occupation.selected.uri.copy"):
-                st.code(occupation_uri, language="text")
-                st.caption("URI zum Kopieren eingeblendet.")
-            render_esco_explainability(
-                labels=explainability["provenance_categories"],
-                confidence=str(explainability["confidence"]),
-                reason=str(explainability["reason"]),
-                caption_prefix="Occupation Explainability",
-            )
+        st.caption(f"Confidence: {str(explainability['confidence']).title()}")
+        st.caption(f"Match reason: {str(explainability['reason'])}")
     related_labels: dict[str, list[str]] = {}
     try:
         occupation_payload = client.get_occupation_detail(uri=occupation_uri)
@@ -1513,7 +1491,30 @@ def render_esco_occupation_confirmation(
             )
             st.markdown(f"[Portal öffnen]({occupation_uri})")
     if show_start_context_panels:
-        with st.expander("Details zur ausgewählten Occupation", expanded=False):
+        with st.expander("Technische Details", expanded=False):
+            _render_capability_status_panel(client=client, capabilities=capabilities)
+            st.caption(capabilities_badge)
+            st.markdown(
+                (
+                    "<span style='display:inline-block;padding:0.1rem 0.5rem;"
+                    "border:1px solid #999;border-radius:0.75rem;font-size:0.8rem;'>"
+                    f"{explainability['badge_label']}</span>"
+                ),
+                unsafe_allow_html=True,
+            )
+            uri_suffix = occupation_uri.rstrip("/").rsplit("/", 1)[-1] or occupation_uri
+            st.markdown(f"[ESCO URI: …{uri_suffix}]({occupation_uri})")
+            if st.button("URI kopieren", key="esco.occupation.selected.uri.copy"):
+                st.code(occupation_uri, language="text")
+                st.caption("URI zum Kopieren eingeblendet.")
+            render_esco_explainability(
+                labels=explainability["provenance_categories"],
+                confidence=str(explainability["confidence"]),
+                reason=str(explainability["reason"]),
+                caption_prefix="Occupation Explainability",
+            )
+
+        with st.expander("ESCO Debug", expanded=False):
             _render_selected_occupation_detail(
                 st.session_state.get(SSKey.ESCO_OCCUPATION_PAYLOAD.value),
                 st.session_state.get(SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value),
