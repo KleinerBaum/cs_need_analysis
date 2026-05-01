@@ -310,18 +310,25 @@ def _reset_scroll_on_step_change() -> None:
     st.html(
         """
         <script>
-        const topOptions = { top: 0, behavior: "instant" };
-        try {
-            if (window.parent && typeof window.parent.scrollTo === "function") {
-                window.parent.scrollTo(topOptions);
-            } else if (typeof window.scrollTo === "function") {
-                window.scrollTo(topOptions);
+        const topOptions = { top: 0, behavior: "auto" };
+        const scrollTop = () => {
+            try {
+                if (window.parent && typeof window.parent.scrollTo === "function") {
+                    window.parent.scrollTo(topOptions);
+                } else if (typeof window.scrollTo === "function") {
+                    window.scrollTo(topOptions);
+                }
+            } catch (error) {
+                if (typeof window.scrollTo === "function") {
+                    window.scrollTo(topOptions);
+                }
             }
-        } catch (error) {
-            if (typeof window.scrollTo === "function") {
-                window.scrollTo(topOptions);
-            }
+        };
+        scrollTop();
+        if (typeof window.requestAnimationFrame === "function") {
+            window.requestAnimationFrame(scrollTop);
         }
+        window.setTimeout(scrollTop, 0);
         </script>
         """
     )
