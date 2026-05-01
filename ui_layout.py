@@ -7,6 +7,7 @@ from typing import Literal
 
 import streamlit as st
 
+from components.design_system import render_step_header
 from constants import COMPLETION_STATE_BADGE_TEXT, COMPLETION_STATE_NOT_STARTED
 from question_dependencies import should_show_question
 from schemas import QuestionStep
@@ -63,14 +64,6 @@ def render_step_shell(
     footer_slot: Callable[[], None] | None = None,
     status_position: Literal["header", "before_footer"] = "header",
 ) -> None:
-    header_col, status_col = st.columns([4, 2])
-    with header_col:
-        st.header(title)
-        st.caption(subtitle)
-        if outcome_text:
-            st.markdown(f"**Outcome:** {outcome_text}")
-        if outcome_slot is not None:
-            outcome_slot()
     answers = get_answers()
     answer_meta = get_answer_meta()
     status = build_step_status_payload(
@@ -80,6 +73,27 @@ def render_step_shell(
         should_show_question=should_show_question,
         step_key=step.step_key if step is not None else None,
     )
+    header_col, status_col = st.columns([4, 2])
+    with header_col:
+        header_meta: list[tuple[str, str, str]] = []
+        if status_position == "header":
+            badge_text = (
+                _status_badge_text(status["completion_state"]) if status is not None else "⬜ Offen"
+            )
+            answered_text = (
+                f"{status['answered']}/{status['total']} beantwortet" if status is not None else "0/0 beantwortet"
+            )
+            header_meta.append(("Status", badge_text, "neutral"))
+            header_meta.append(("Fortschritt", answered_text, "neutral"))
+            if status is not None:
+                missing_summary = _truncate_missing_essentials(status["missing_essentials"])
+                if missing_summary:
+                    header_meta.append(
+                        ("Fehlt (essentiell)", missing_summary, "warning")
+                    )
+        render_step_header(title, subtitle, outcome=outcome_text, meta_items=header_meta)
+        if outcome_slot is not None:
+            outcome_slot()
     with status_col:
         if status_position == "header":
             _render_step_status(status)
