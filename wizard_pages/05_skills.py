@@ -38,7 +38,13 @@ from ui_components import (
     render_question_step,
     render_standard_step_review,
 )
-from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
+from wizard_pages.base import (
+    WizardContext,
+    WizardPage,
+    get_current_ui_mode,
+    guard_job_and_plan,
+    nav_buttons,
+)
 from wizard_pages.salary_forecast_panel import render_skills_salary_forecast_panel
 
 ESCO_RELATED_ENDPOINT_UNSUPPORTED_MESSAGE = (
@@ -736,19 +742,22 @@ def _compute_matrix_coverage_snapshot(
     }
 
 
-def _render_matrix_coverage_section(snapshot: dict[str, Any]) -> None:
+def _render_matrix_coverage_section(snapshot: dict[str, Any], *, ui_mode: str) -> None:
     st.markdown("#### ESCO Matrix Coverage")
     reason = str(snapshot.get("reason") or "").strip()
     rows = snapshot.get("rows", [])
+
+    reason_messages = {
+        "no_matrix_loaded": "Keine Matrix-Coverage verfügbar (Matrix nicht geladen).",
+        "occupation_group_missing": "Keine Matrix-Coverage verfügbar (ISCO Occupation Group fehlt).",
+        "missing_expected_group": "Keine Matrix-Coverage verfügbar (für diese ISCO Group keine Matrix-Zeilen).",
+    }
     if not isinstance(rows, list) or not rows:
-        if reason == "no_matrix_loaded":
-            st.caption("Keine Matrix-Coverage verfügbar (Matrix nicht geladen).")
-        elif reason == "occupation_group_missing":
-            st.caption("Keine Matrix-Coverage verfügbar (ISCO Occupation Group fehlt).")
-        elif reason == "missing_expected_group":
-            st.caption("Keine Matrix-Coverage verfügbar (für diese ISCO Group keine Matrix-Zeilen).")
-        else:
-            st.caption("Keine Matrix-Coverage verfügbar.")
+        st.warning(reason_messages.get(reason, "Keine Matrix-Coverage verfügbar."))
+        technical_expanded = ui_mode == "expert"
+        with st.expander("Technische Details", expanded=technical_expanded):
+            st.caption(f"reason={reason or 'unknown'}")
+            st.caption("covered=0 · partial=0 · missing=0 · overrepresented=0")
         return
 
     status_counts: dict[str, int] = {"covered": 0, "missing": 0, "partial": 0, "overrepresented": 0}
@@ -756,27 +765,36 @@ def _render_matrix_coverage_section(snapshot: dict[str, Any]) -> None:
         status = str(row.get("coverage_status") or "").strip().lower()
         if status in status_counts:
             status_counts[status] += 1
-    st.caption(
-        " · ".join(
-            [
-                f"covered={status_counts['covered']}",
-                f"partial={status_counts['partial']}",
-                f"missing={status_counts['missing']}",
-                f"overrepresented={status_counts['overrepresented']}",
-            ]
+
+    if status_counts["missing"] > 0 or status_counts["partial"] > 0:
+        st.warning("Matrix-Coverage hat Lücken: bitte fehlende oder teilweise abgedeckte Skill-Gruppen prüfen.")
+    else:
+        st.caption("Matrix-Coverage ist vollständig oder überrepräsentiert.")
+
+    technical_expanded = ui_mode == "expert"
+    with st.expander("Technische Details", expanded=technical_expanded):
+        st.caption(f"reason={reason or 'ok'}")
+        st.caption(
+            " · ".join(
+                [
+                    f"covered={status_counts['covered']}",
+                    f"partial={status_counts['partial']}",
+                    f"missing={status_counts['missing']}",
+                    f"overrepresented={status_counts['overrepresented']}",
+                ]
+            )
         )
-    )
-    compact_rows = [
-        {
-            "Bucket": row.get("matrix_bucket"),
-            "Skill Group": row.get("skill_group_label"),
-            "Expected %": row.get("expected_share_percent"),
-            "Matched Skills": len(row.get("matched_skill_uris", [])),
-            "Status": row.get("coverage_status"),
-        }
-        for row in rows
-    ]
-    st.dataframe(compact_rows, width="stretch", hide_index=True)
+        compact_rows = [
+            {
+                "Bucket": row.get("matrix_bucket"),
+                "Skill Group": row.get("skill_group_label"),
+                "Expected %": row.get("expected_share_percent"),
+                "Matched Skills": len(row.get("matched_skill_uris", [])),
+                "Status": row.get("coverage_status"),
+            }
+            for row in rows
+        ]
+        st.dataframe(compact_rows, width="stretch", hide_index=True)
 
 
 def _render_unmapped_term_workflow(flagged_terms: list[str]) -> None:
@@ -1104,7 +1122,7 @@ def _render_skills_source_comparison_block(
     raw_detail_cache = st.session_state.get(SSKey.ESCO_SKILL_DETAIL_CACHE.value, {})
     detail_cache = raw_detail_cache if isinstance(raw_detail_cache, dict) else {}
     st.session_state[SSKey.ESCO_SKILL_DETAIL_CACHE.value] = detail_cache
-    ui_mode = str(st.session_state.get(SSKey.UI_MODE.value, "standard")).strip().lower()
+    ui_mode = get_current_ui_mode()
     is_expert_mode = ui_mode == "expert"
 
     mapped_titles = {
@@ -1165,7 +1183,7 @@ def _render_skills_source_comparison_block(
         "rows": int(matrix_snapshot.get("rows_count") or 0),
     }
     if show_esco_sections:
-        _render_matrix_coverage_section(matrix_snapshot)
+        _render_matrix_coverage_section(matrix_snapshot, ui_mode=ui_mode)
 
     suggestion_context = _build_skill_suggestion_context(
         job=job,
