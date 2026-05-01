@@ -322,24 +322,47 @@ def _render_skills_source_columns(
         esco_labels = _dedupe_terms([c["title"] for c in [*essential_chips, *optional_chips]])
         search_text = st.text_input("Suche (contains/filter)", key="skills.esco.search").strip().lower()
 
-        def _render_chip_list(chips: list[dict[str, str]]) -> None:
+        sort_mode = st.radio(
+            "Sortierung",
+            options=["alphabetisch", "quelle"],
+            horizontal=True,
+            key="skills.esco.sort",
+            label_visibility="collapsed",
+        )
+
+        def _sort_chips(chips: list[dict[str, str]]) -> list[dict[str, str]]:
+            if sort_mode == "quelle":
+                return sorted(chips, key=lambda c: (c["source"].casefold(), c["title"].casefold()))
+            return sorted(chips, key=lambda c: c["title"].casefold())
+
+        def _render_chip_cloud(chips: list[dict[str, str]]) -> int:
             filtered = [c for c in chips if not search_text or search_text in c["title"].lower()]
             if not filtered:
                 st.caption("Keine Skills gefunden.")
-                return
-            for chip in filtered:
+                return 0
+            chip_markup = []
+            for chip in _sort_chips(filtered):
                 title = chip["title"]
-                compact_title = title if len(title) <= 48 else f"{title[:45]}..."
-                relation_badge = "essential" if chip["relation"] == "essential" else "optional"
-                source_badge = "ESCO matrix prior" if chip["source"] == "ESCO matrix prior" else "ESCO"
-                with st.expander(f"{compact_title} · {relation_badge} · {source_badge}", expanded=False):
-                    st.caption(title)
+                compact_title = title if len(title) <= 46 else f"{title[:43]}..."
+                source_badge = "Matrix" if chip["source"] == "ESCO matrix prior" else "ESCO"
+                pill_text = f"{compact_title} · {source_badge}".replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                title_attr = title.replace('"', '&quot;')
+                chip_markup.append(
+                    f'<span title="{title_attr}" style="display:inline-block;margin:0 6px 8px 0;padding:2px 10px;border-radius:999px;border:1px solid #cfd6e4;background:#f6f8fc;font-size:0.82rem;">{pill_text}</span>'
+                )
+            st.markdown("".join(chip_markup), unsafe_allow_html=True)
+            with st.expander("Vollständige Namen anzeigen", expanded=False):
+                for chip in _sort_chips(filtered):
+                    st.caption(f"• {chip['title']}")
+            return len(filtered)
 
-        tab_essential, tab_optional = st.tabs(["Essential", "Optional"])
+        essential_count = len([c for c in essential_chips if not search_text or search_text in c["title"].lower()])
+        optional_count = len([c for c in optional_chips if not search_text or search_text in c["title"].lower()])
+        tab_essential, tab_optional = st.tabs([f"Essential ({essential_count})", f"Optional ({optional_count})"])
         with tab_essential:
-            _render_chip_list(essential_chips)
+            _render_chip_cloud(essential_chips)
         with tab_optional:
-            _render_chip_list(optional_chips)
+            _render_chip_cloud(optional_chips)
         render_multi_select_pills(
             "   ",
             options=esco_labels,
