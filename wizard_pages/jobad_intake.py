@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from contextlib import nullcontext
 from typing import Any, Final
 
 import streamlit as st
@@ -158,91 +159,168 @@ def _on_upload_change() -> None:
     )
 
 
+def _has_completed_intake_analysis() -> bool:
+    job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
+    plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
+    return isinstance(job_dict, dict) and isinstance(plan_dict, dict)
+
+
 def _render_phase_a_source_and_privacy_controls() -> bool:
     do_extract = False
 
-    with st.container(border=True):
-        st.markdown(
-            """
-            <style>
-            .st-key-cs_ui_mode [data-baseweb="select"] > div,
-            .st-key-cs-ui_mode [data-baseweb="select"] > div {
-                background: rgba(255, 255, 255, 0.10) !important;
-                color: #eaf2ff !important;
-                border: 1px solid rgba(255, 255, 255, 0.25) !important;
-            }
-            </style>
-            """,
-            unsafe_allow_html=True,
+    st.markdown(
+        """
+        <style>
+        .st-key-cs_ui_mode [data-baseweb="select"] > div,
+        .st-key-cs-ui_mode [data-baseweb="select"] > div {
+            background: rgba(255, 255, 255, 0.10) !important;
+            color: #eaf2ff !important;
+            border: 1px solid rgba(255, 255, 255, 0.25) !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown("### Jobspec erfassen")
+
+    upload_col, text_col = st.columns([1, 1.4], gap="large")
+    with upload_col:
+        st.file_uploader(
+            "Jobspec hochladen (PDF oder DOCX)",
+            type=["pdf", "docx", "txt"],
+            accept_multiple_files=False,
+            key="cs.source_upload_file",
+            on_change=_on_upload_change,
         )
-        upload_col, text_col = st.columns([1, 1.4], gap="large")
-        with upload_col:
-            st.file_uploader(
-                "Jobspec hochladen (PDF oder DOCX)",
-                type=["pdf", "docx", "txt"],
-                accept_multiple_files=False,
-                key="cs.source_upload_file",
-                on_change=_on_upload_change,
-            )
-            st.caption(
-                "Verarbeitet werden PDF, DOCX und TXT mit auslesbarem Text. "
-                "Scan-PDFs ohne OCR können leer bleiben."
-            )
-            upload = st.session_state.get("cs.source_upload_file")
-            if upload is not None:
-                current_sig = (
-                    str(getattr(upload, "name", "") or ""),
-                    int(getattr(upload, "size", 0) or 0),
-                )
-                if st.session_state.get(SOURCE_UPLOAD_SIG_KEY) != current_sig:
-                    _extract_upload_to_state(
-                        upload,
-                        step="_render_phase_a_source_and_privacy_controls.sync_upload",
-                        update_text_widget=True,
-                    )
-            render_ui_mode_selector(show_label=False)
-        with text_col:
-            manual_text = str(st.session_state.get(SOURCE_TEXT_INPUT_KEY, ""))
-            st.text_area(
-                "Text einfügen",
-                key=SOURCE_TEXT_INPUT_KEY,
-                height=max(280, _manual_input_height_for_text(manual_text)),
-                on_change=_on_manual_text_change,
-                placeholder="Füge hier die Stellenanzeige oder Jobspec ein …",
-            )
-
-        uploaded_text = str(st.session_state.get(SOURCE_UPLOAD_TEXT_KEY, ""))
-        upload_meta = st.session_state.get(SSKey.SOURCE_FILE_META.value, {})
+        st.caption(
+            "Verarbeitet werden PDF, DOCX und TXT mit auslesbarem Text. "
+            "Scan-PDFs ohne OCR können leer bleiben."
+        )
         upload = st.session_state.get("cs.source_upload_file")
-        last_error = str(st.session_state.get(SSKey.LAST_ERROR.value, "") or "")
-
-        status_col, chars_col, action_col = st.columns([2, 1, 1], gap="small")
-        with status_col:
-            file_name = str(
-                upload_meta.get("name") or getattr(upload, "name", "") or ""
+        if upload is not None:
+            current_sig = (
+                str(getattr(upload, "name", "") or ""),
+                int(getattr(upload, "size", 0) or 0),
             )
-            if upload is not None:
-                st.info(f"Datei ausgewählt: {file_name or 'Unbekannt'}")
+            if st.session_state.get(SOURCE_UPLOAD_SIG_KEY) != current_sig:
+                _extract_upload_to_state(
+                    upload,
+                    step="_render_phase_a_source_and_privacy_controls.sync_upload",
+                    update_text_widget=True,
+                )
+        render_ui_mode_selector(show_label=False)
+    with text_col:
+        manual_text = str(st.session_state.get(SOURCE_TEXT_INPUT_KEY, ""))
+        st.text_area(
+            "Text einfügen",
+            key=SOURCE_TEXT_INPUT_KEY,
+            height=min(420, max(280, _manual_input_height_for_text(manual_text))),
+            on_change=_on_manual_text_change,
+            placeholder="Füge hier die Stellenanzeige oder Jobspec ein …",
+        )
 
-            if uploaded_text:
-                st.success("Text extrahiert.")
-            elif upload is not None and last_error:
-                st.error(f"Extraktion fehlgeschlagen: {last_error}")
-            else:
-                st.caption("Optional: Datei hochladen oder Text direkt einfügen.")
-        with chars_col:
-            active_source_text = str(st.session_state.get(SSKey.SOURCE_TEXT.value, ""))
-            char_count = len(active_source_text.strip()) if active_source_text else 0
-            st.metric("Zeichen", f"{char_count:,}".replace(",", "."))
-        with action_col:
-            do_extract = st.button(
-                "Jetzt analysieren",
-                width="stretch",
-                help="Analysieren und identifizierte Informationen direkt im Start anzeigen",
-            )
+    uploaded_text = str(st.session_state.get(SOURCE_UPLOAD_TEXT_KEY, ""))
+    upload_meta = st.session_state.get(SSKey.SOURCE_FILE_META.value, {})
+    upload = st.session_state.get("cs.source_upload_file")
+    last_error = str(st.session_state.get(SSKey.LAST_ERROR.value, "") or "")
+
+    st.markdown("---")
+    status_col, chars_col, action_col = st.columns([2, 1, 1], gap="small")
+    with status_col:
+        file_name = str(upload_meta.get("name") or getattr(upload, "name", "") or "")
+        if upload is not None:
+            st.info(f"Datei ausgewählt: {file_name or 'Unbekannt'}")
+
+        if uploaded_text:
+            st.success("Text extrahiert.")
+        elif upload is not None and last_error:
+            st.error(f"Extraktion fehlgeschlagen: {last_error}")
+        else:
+            st.caption("Optional: Datei hochladen oder Text direkt einfügen.")
+    with chars_col:
+        active_source_text = str(st.session_state.get(SSKey.SOURCE_TEXT.value, ""))
+        char_count = len(active_source_text.strip()) if active_source_text else 0
+        st.metric("Zeichen", f"{char_count:,}".replace(",", "."))
+    with action_col:
+        do_extract = st.button(
+            "Jetzt analysieren",
+            width="stretch",
+            help="Analysieren und identifizierte Informationen direkt im Start anzeigen",
+        )
 
     return do_extract
 
+
+
+
+def _render_source_summary() -> None:
+    active_source = str(st.session_state.get(SOURCE_ACTIVE_KEY, "") or "")
+    source_label = "Upload" if active_source == "upload" else "Text"
+    source_text = str(st.session_state.get(SSKey.SOURCE_TEXT.value, "") or "")
+    char_count = len(source_text.strip())
+
+    job_title = ""
+    company_name = ""
+    job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
+    if isinstance(job_dict, dict):
+        job_title = str(job_dict.get("job_title") or "").strip()
+        company_name = str(job_dict.get("employer_name") or "").strip()
+
+    summary_parts = [
+        f"Quelle: **{source_label}**",
+        f"Zeichen: **{char_count:,}**".replace(",", "."),
+    ]
+    if job_title:
+        summary_parts.append(f"Rolle: **{job_title}**")
+    if company_name:
+        summary_parts.append(f"Unternehmen: **{company_name}**")
+    st.caption(" · ".join(summary_parts))
+
+
+def _render_source_input_section(ctx: WizardContext) -> bool:
+    del ctx
+    if _has_completed_intake_analysis():
+        _render_source_summary()
+        expander_ctx = (
+            st.expander("Jobspec-Quelle bearbeiten", expanded=False)
+            if hasattr(st, "expander")
+            else nullcontext()
+        )
+        with expander_ctx:
+            container_ctx = (
+                st.container(border=True) if hasattr(st, "container") else nullcontext()
+            )
+            with container_ctx:
+                return _render_phase_a_source_and_privacy_controls()
+    container_ctx = (
+        st.container(border=True) if hasattr(st, "container") else nullcontext()
+    )
+    with container_ctx:
+        return _render_phase_a_source_and_privacy_controls()
+
+
+def _render_extraction_result_section(ctx: WizardContext) -> None:
+    if not _has_completed_intake_analysis():
+        return
+    container_ctx = (
+        st.container(border=True) if hasattr(st, "container") else nullcontext()
+    )
+    with container_ctx:
+        if hasattr(st, "markdown"):
+            st.markdown("### Analyseergebnis")
+        _render_phase_b_extraction_review(ctx)
+
+
+def _render_esco_anchor_section(ctx: WizardContext) -> None:
+    if not _has_completed_intake_analysis():
+        return
+    container_ctx = (
+        st.container(border=True) if hasattr(st, "container") else nullcontext()
+    )
+    with container_ctx:
+        if hasattr(st, "markdown"):
+            st.markdown("### ESCO-Anker bestätigen")
+        _render_phase_c_esco_anchor(ctx)
 
 def _render_phase_b_extraction_review(ctx: WizardContext) -> None:
     _render_identified_information_block(ctx)
@@ -253,8 +331,6 @@ def _render_phase_c_esco_anchor(ctx: WizardContext) -> None:
     plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
     if not isinstance(job_dict, dict) or not isinstance(plan_dict, dict):
         return
-
-    st.markdown("### ESCO-Suche")
     job = JobAdExtract.model_validate(job_dict)
     render_esco_occupation_confirmation(
         job,
@@ -283,7 +359,7 @@ def render_jobad_intake(
             SSKey.SOURCE_TEXT.value, ""
         )
 
-    do_extract = _render_phase_a_source_and_privacy_controls()
+    do_extract = _render_source_input_section(ctx)
 
     if do_extract:
         clear_error()
@@ -368,5 +444,5 @@ def render_jobad_intake(
 
         st.rerun()
 
-    _render_phase_b_extraction_review(ctx)
-    _render_phase_c_esco_anchor(ctx)
+    _render_extraction_result_section(ctx)
+    _render_esco_anchor_section(ctx)
