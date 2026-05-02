@@ -3237,10 +3237,28 @@ def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
 def _render_secondary_artifacts(
     *, active_artifact_id: str, available_artifact_ids: list[str]
 ) -> None:
+    secondary_priority = [
+        "interview_hr",
+        "interview_fach",
+        "boolean_search",
+        "employment_contract",
+        "brief",
+    ]
+    priority_rank = {artifact_id: index for index, artifact_id in enumerate(secondary_priority)}
     secondary_ids = [
         artifact_id
         for artifact_id in available_artifact_ids
         if artifact_id != active_artifact_id
+    ]
+    secondary_ids = [
+        artifact_id
+        for _, artifact_id in sorted(
+            enumerate(secondary_ids),
+            key=lambda item: (
+                priority_rank.get(item[1], len(priority_rank)),
+                item[0],
+            ),
+        )
     ]
     if not secondary_ids:
         return
