@@ -907,7 +907,64 @@ def render_job_extract_overview(
     plan: QuestionPlan | None = None,
     show_question_limits: bool = True,
     show_heading: bool = True,
+    mode: Literal["full", "compact"] = "full",
 ) -> None:
+    del plan, show_question_limits
+    gap_label_map = {
+        "job_title": "Jobtitel",
+        "company_name": "Unternehmen",
+        "brand_name": "Marke",
+        "contract_type": "Vertragsart",
+        "place_of_work": "Arbeitsort",
+        "location_city": "Ort",
+        "location_country": "Land",
+    }
+
+    def _format_gap(gap: str) -> str:
+        text = str(gap or "").strip()
+        return gap_label_map.get(text, text)
+
+    if mode == "compact":
+        if show_heading:
+            st.markdown("### Analyseergebnis")
+        st.caption(
+            "Prüfen Sie die wichtigsten erkannten Angaben. "
+            "Details können bei Bedarf bearbeitet werden."
+        )
+        st.markdown("**Kernprofil**")
+        location_value = (
+            (job.place_of_work or "").strip()
+            or ", ".join(
+                [
+                    value
+                    for value in [job.location_city or "", job.location_country or ""]
+                    if value.strip()
+                ]
+            )
+            or "—"
+        )
+        core_rows = [
+            ("Rolle", (job.job_title or "").strip() or "—"),
+            ("Unternehmen", (job.company_name or "").strip() or "—"),
+            ("Marke", (job.brand_name or "").strip() or "—"),
+            ("Vertragsart", (job.contract_type or "").strip() or "—"),
+            ("Arbeitsort", location_value),
+        ]
+        st.table([{"Feld": label, "Wert": value} for label, value in core_rows])
+        st.markdown("### Fehlende oder unklare Angaben")
+        if job.gaps:
+            st.write("\n".join([f"- {_format_gap(gap)}" for gap in job.gaps]))
+        else:
+            st.info("Keine expliziten Gaps erkannt.")
+        st.markdown("### Annahmen")
+        if job.assumptions:
+            st.write("\n".join([f"- {assumption}" for assumption in job.assumptions]))
+        else:
+            st.info("Keine Annahmen erkannt.")
+        with st.expander("Extrahierte Werte bearbeiten", expanded=False):
+            _render_editable_job_extract(job)
+        return
+
     if show_heading:
         st.markdown("### Identifizierte Informationen")
     _render_editable_job_extract(job)

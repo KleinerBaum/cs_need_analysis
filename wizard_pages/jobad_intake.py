@@ -99,7 +99,11 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
         else:
             st.caption("Cache-Status: keine Daten verfügbar")
     render_job_extract_overview(
-        job, plan=plan, show_question_limits=False, show_heading=False
+        job,
+        plan=plan,
+        show_question_limits=False,
+        show_heading=False,
+        mode="compact",
     )
 
     nav_col_back, nav_col_anchor = st.columns([1, 2], gap="small")
