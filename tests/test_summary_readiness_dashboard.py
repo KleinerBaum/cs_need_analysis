@@ -47,8 +47,64 @@ def test_resolve_next_best_action_prefers_brief_when_not_ready(monkeypatch) -> N
             "input_renderer": None,
         },
     ]
+    vm = SimpleNamespace(fact_rows=[])
     action = SUMMARY_MODULE._resolve_next_best_action(
-        registry, resolved_brief_model="gpt-5-mini"
+        registry, resolved_brief_model="gpt-5-mini", vm=vm
+    )
+    assert action is not None
+    assert action["id"] == "brief"
+
+
+def test_resolve_next_best_action_keeps_brief_for_missing_core_context(monkeypatch) -> None:
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.JOB_EXTRACT.value: {"job_title": "Engineer"},
+                SSKey.QUESTION_PLAN.value: {"steps": []},
+            }
+        ),
+    )
+    registry = [
+        {
+            "id": "brief",
+            "title": "Recruiting Brief erstellen",
+            "benefit": "",
+            "cta_label": "gen",
+            "blocked_cta_label": None,
+            "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
+            "requirement_text": "",
+            "requirement_check_fn": None,
+            "generator_fn": lambda: None,
+            "result_key": SSKey.BRIEF,
+            "input_hints": (),
+            "input_renderer": None,
+        },
+        {
+            "id": "employment_contract",
+            "title": "Arbeitsvertrag erstellen",
+            "benefit": "",
+            "cta_label": "gen",
+            "blocked_cta_label": None,
+            "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
+            "requirement_text": "",
+            "requirement_check_fn": lambda: (True, ""),
+            "generator_fn": lambda: None,
+            "result_key": SSKey.EMPLOYMENT_CONTRACT_DRAFT,
+            "input_hints": (),
+            "input_renderer": None,
+        },
+    ]
+    vm = SimpleNamespace(
+        fact_rows=[
+            SUMMARY_MODULE.SummaryFactsRow("Kernprofil", "Land", "Nicht angegeben", "Jobspec", "Fehlend"),
+            SUMMARY_MODULE.SummaryFactsRow("Kernprofil", "Stadt", "Nicht angegeben", "Jobspec", "Fehlend"),
+            SUMMARY_MODULE.SummaryFactsRow("Kernprofil", "Unternehmen", "Nicht angegeben", "Jobspec", "Fehlend"),
+        ]
+    )
+    action = SUMMARY_MODULE._resolve_next_best_action(
+        registry, resolved_brief_model="gpt-5-mini", vm=vm
     )
     assert action is not None
     assert action["id"] == "brief"
