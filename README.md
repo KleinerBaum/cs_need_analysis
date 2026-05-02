@@ -76,6 +76,13 @@ streamlit run app.py
 
 Falls du ohne Constraints arbeiten willst, bleibt auch `pip install -r requirements.txt` möglich.
 
+## Debugging & Deployment Incident-Reports
+
+- Für verwertbare Incident-Meldungen bitte immer das Template verwenden: `docs/debugging_incident_template.md`.
+- Pflichtfelder: Repro-Schritte, Expected vs. Actual, vollständiger Traceback (inkl. letzter Zeile `ExceptionType: message`) sowie Commit/Branch/Deploy-Zeit.
+- Abgeschnittene Logs mit Encoding-Artefakten wie `â”€` oder `â±` reichen nicht aus; erfasst immer den vollständigen Fehlerblock bis zur finalen Exception-Zeile.
+- Team-Runbook für diesen Ablauf: `docs/team_runbook_debugging.md`.
+
 ## ESCO API Konfiguration
 
 Die ESCO-Basis-URL kann optional über `ESCO_API_BASE_URL` gesetzt werden (z. B. für lokale Mirror/Proxy-Setups).
