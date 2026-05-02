@@ -1287,6 +1287,7 @@ def render_esco_occupation_confirmation(
     job: JobAdExtract,
     *,
     on_next: Callable[[], None] | None = None,
+    compact: bool = False,
     show_start_context_panels: bool = True,
 ) -> None:
     # Mobile Verhalten (Smartphone-Breakpoints):
@@ -1377,6 +1378,8 @@ def render_esco_occupation_confirmation(
         else:
             st.caption(f"Confidence: {confidence.title()}")
         st.caption(f"Grund: {str(explainability['reason'])}")
+        if compact:
+            st.caption("Details anzeigen: Taxonomie, technische Daten und Occupation-Details.")
 
     client = EscoClient()
     supported_relations = _supported_occupation_relations(client)
@@ -1482,6 +1485,9 @@ def render_esco_occupation_confirmation(
             )
             st.markdown(f"[Portal öffnen]({occupation_uri})")
     if show_start_context_panels:
+        if compact:
+            st.markdown("[Portal öffnen]({})".format(occupation_uri))
+
         with st.expander("Warum ESCO?", expanded=False):
             st.markdown(
                 "ESCO ist die europäische Klassifikation für **Berufe**, **Skills** und "
@@ -1497,7 +1503,21 @@ def render_esco_occupation_confirmation(
                 "Skills & Competences pillar, Skills–Occupations Matrix Tables"
             )
 
-        with st.expander("Technische Details", expanded=technical_expanded):
+        with st.expander("Taxonomie/Breadcrumb", expanded=False):
+            st.caption(
+                "Taxonomie- und Relationshinweise stammen aus den geladenen ESCO-Relationen."
+            )
+            render_esco_explainability(
+                labels=explainability["provenance_categories"],
+                confidence=str(explainability["confidence"]),
+                reason=str(explainability["reason"]),
+                caption_prefix="Occupation Explainability",
+            )
+
+        with st.expander(
+            "Technische Details",
+            expanded=(technical_expanded and not compact),
+        ):
             _render_capability_status_panel(client=client, capabilities=capabilities)
             st.caption(capabilities_badge)
             st.markdown(
@@ -1513,14 +1533,15 @@ def render_esco_occupation_confirmation(
             if st.button("URI kopieren", key="esco.occupation.selected.uri.copy"):
                 st.code(occupation_uri, language="text")
                 st.caption("URI zum Kopieren eingeblendet.")
-            render_esco_explainability(
-                labels=explainability["provenance_categories"],
-                confidence=str(explainability["confidence"]),
-                reason=str(explainability["reason"]),
-                caption_prefix="Occupation Explainability",
+
+        with st.expander("ESCO Debug", expanded=(technical_expanded and not compact)):
+            st.caption(
+                f"Session key: {SSKey.ESCO_OCCUPATION_SELECTED.value} · URI: {occupation_uri}"
             )
 
-        with st.expander("ESCO Debug", expanded=technical_expanded):
+        with st.expander(
+            "Occupation-Details", expanded=(technical_expanded and not compact)
+        ):
             _render_selected_occupation_detail(
                 st.session_state.get(SSKey.ESCO_OCCUPATION_PAYLOAD.value),
                 st.session_state.get(SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value),

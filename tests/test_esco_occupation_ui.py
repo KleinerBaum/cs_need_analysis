@@ -497,14 +497,104 @@ def test_render_esco_occupation_confirmation_keeps_chart_before_title_variants(
     assert skills_index < chart_index < title_variant_index
     assert "Data Engineer" in fake_st.write_messages
     assert any(message == "Confidence: High" for message in fake_st.caption_messages)
-    assert any("Match reason:" in message for message in fake_st.caption_messages)
-    assert fake_st.expander_calls[:3] == [
+    assert any(
+        ("Match reason:" in message) or ("Grund:" in message)
+        for message in fake_st.caption_messages
+    )
+    assert fake_st.expander_calls[:5] == [
+        ("Warum ESCO?", False),
+        ("Taxonomie/Breadcrumb", False),
         ("Technische Details", False),
         ("ESCO Capability Status", False),
         ("ESCO Debug", False),
     ]
+    assert ("Occupation-Details", False) in fake_st.expander_calls
     assert any("Essential Knowledge" in event for event in fake_st.events)
     assert any("Optional Knowledge" in event for event in fake_st.events)
+
+
+def test_render_esco_occupation_confirmation_compact_mode_keeps_decision_first(
+    monkeypatch,
+) -> None:
+    class _DummyContext:
+        def __enter__(self) -> "_DummyContext":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> bool:
+            del exc_type, exc, tb
+            return False
+
+    class _FakeStreamlit:
+        def __init__(self) -> None:
+            self.session_state = {
+                f"{SSKey.ESCO_OCCUPATION_SELECTED.value}.esco_picker.options": [],
+                SSKey.ESCO_OCCUPATION_SELECTED.value: {
+                    "uri": "http://data.europa.eu/esco/occupation/123",
+                    "title": "Data Engineer",
+                },
+                SSKey.ESCO_CONFIG.value: {"language": "de"},
+            }
+            self.caption_messages: list[str] = []
+            self.markdown_messages: list[str] = []
+            self.expander_calls: list[tuple[str, bool | None]] = []
+
+        def caption(self, message: str) -> None:
+            self.caption_messages.append(message)
+
+        def info(self, _message: str) -> None: return None
+        def warning(self, _message: str) -> None: return None
+        def write(self, _message: object) -> None: return None
+        def code(self, _value: str, *, language: str) -> None:
+            del language
+            return None
+        def markdown(self, message: str, **_kwargs: object) -> None:
+            self.markdown_messages.append(message)
+        def button(self, _label: str, **_kwargs: object) -> bool: return False
+        def toggle(self, _label: str, *, value: bool = False, **_kwargs: object) -> bool:
+            return value
+        def columns(self, _spec: list[int] | tuple[int, ...]) -> list[_DummyContext]:
+            return [_DummyContext(), _DummyContext(), _DummyContext()]
+        def container(self) -> _DummyContext: return _DummyContext()
+        def expander(self, label: str, **kwargs: object) -> _DummyContext:
+            self.expander_calls.append((label, kwargs.get("expanded")))
+            return _DummyContext()
+        def multiselect(self, _label: str, **_kwargs: object) -> list[str]: return ["de"]
+        def vega_lite_chart(self, _spec: object, **_kwargs: object) -> None: return None
+
+    class _FakeClient:
+        def supports_endpoint(self, _endpoint: str) -> bool:
+            return True
+        def get_occupation_detail(self, *, uri: str) -> dict[str, object]:
+            del uri
+            return {"description": {"de": "Beschreibung"}, "uri": "uri:occ:1"}
+        def resource_related(self, *, uri: str, relation: str) -> dict[str, object]:
+            del uri, relation
+            return {"_embedded": {}}
+        def get_occupation_skill_group_share(self, *, occupation_uri: str) -> dict[str, object]:
+            del occupation_uri
+            return {"results": []}
+
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(esco_occupation_ui, "st", fake_st)
+    monkeypatch.setattr(esco_occupation_ui, "EscoClient", _FakeClient)
+    monkeypatch.setattr(esco_occupation_ui, "render_esco_picker_card", lambda **_kwargs: None)
+    monkeypatch.setattr(esco_occupation_ui, "render_esco_explainability", lambda **_kwargs: None)
+
+    job = SimpleNamespace(
+        job_title="Data Engineer",
+        seniority_level="Senior",
+        department_name="Data",
+        location_city="Berlin",
+    )
+    esco_occupation_ui.render_esco_occupation_confirmation(
+        cast(object, job),
+        compact=True,
+        show_start_context_panels=True,
+    )
+
+    assert any("Details anzeigen" in message for message in fake_st.caption_messages)
+    assert any("Portal öffnen" in message for message in fake_st.markdown_messages)
+    assert ("Technische Details", False) in fake_st.expander_calls
 
 
 def test_render_esco_occupation_confirmation_skips_skill_group_request_when_unsupported(
