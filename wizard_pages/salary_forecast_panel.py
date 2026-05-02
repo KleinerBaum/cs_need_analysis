@@ -646,6 +646,7 @@ def render_salary_forecast_result_card(
     salary_result: dict[str, Any] | None,
     empty_message: str,
     headline: str = "Gehaltsprognose (Jahr)",
+    use_main_card_layout: bool = False,
 ) -> None:
     payload = salary_result if isinstance(salary_result, dict) else {}
     forecast_payload = payload.get("forecast", {}) if isinstance(payload, dict) else {}
@@ -664,13 +665,58 @@ def render_salary_forecast_result_card(
 
     with st.container(border=True):
         st.markdown(f"**{headline}**")
-        metric_col_main, metric_col_low, metric_col_high = st.columns((2, 1, 1), gap="small")
-        with metric_col_main:
-            st.metric("Median", _format_eur(p50))
-        with metric_col_low:
-            st.metric("p10 (niedrig)", _format_eur(p10) if p10 > 0 else "—")
-        with metric_col_high:
-            st.metric("p90 (hoch)", _format_eur(p90) if p90 > 0 else "—")
+        if use_main_card_layout:
+            st.markdown(
+                """
+                <style>
+                .salary-main-cards-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                    gap: 0.75rem;
+                    margin-top: 0.5rem;
+                }
+                .salary-main-card {
+                    border: 1px solid rgba(49, 51, 63, 0.2);
+                    border-radius: 0.75rem;
+                    padding: 0.8rem 0.9rem;
+                    min-width: 0;
+                    background: rgba(255, 255, 255, 0.02);
+                }
+                .salary-main-card-label {
+                    font-size: 0.85rem;
+                    opacity: 0.85;
+                    margin-bottom: 0.25rem;
+                }
+                .salary-main-card-value {
+                    font-size: 1.25rem;
+                    font-weight: 700;
+                    line-height: 1.2;
+                    overflow-wrap: anywhere;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                (
+                    "<div class='salary-main-cards-grid'>"
+                    f"<div class='salary-main-card'><div class='salary-main-card-label'>Erwartetes Jahresgehalt</div><div class='salary-main-card-value'>{_format_eur(p50)}</div></div>"
+                    f"<div class='salary-main-card'><div class='salary-main-card-label'>p10 (niedrig)</div><div class='salary-main-card-value'>{_format_eur(p10) if p10 > 0 else '—'}</div></div>"
+                    f"<div class='salary-main-card'><div class='salary-main-card-label'>p90 (hoch)</div><div class='salary-main-card-value'>{_format_eur(p90) if p90 > 0 else '—'}</div></div>"
+                    "</div>"
+                ),
+                unsafe_allow_html=True,
+            )
+        else:
+            metric_col_main, metric_col_low, metric_col_high = st.columns(
+                (2, 1, 1), gap="small"
+            )
+            with metric_col_main:
+                st.metric("Median", _format_eur(p50))
+            with metric_col_low:
+                st.metric("p10 (niedrig)", _format_eur(p10) if p10 > 0 else "—")
+            with metric_col_high:
+                st.metric("p90 (hoch)", _format_eur(p90) if p90 > 0 else "—")
         st.caption("Indikative Prognose auf Basis der aktuellen Angaben.")
         if confidence_note:
             st.caption(f"Confidence: {confidence_note}")
@@ -880,6 +926,7 @@ def render_benefits_salary_forecast_panel(
             ),
             empty_message="Noch keine Gehaltsprognose vorhanden. Bitte Prognose aktualisieren.",
             headline="Gehaltsprognose (Jahr)",
+            use_main_card_layout=True,
         )
 
     render_salary_forecast_step_sections(
