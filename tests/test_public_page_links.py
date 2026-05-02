@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import app
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
@@ -43,3 +44,28 @@ def test_kontakt_legal_links_cover_all_policy_pages() -> None:
         "Cookie Policy Settings",
         "Erklärung zur Barrierefreiheit",
     ]
+
+
+def test_static_page_link_targets_under_pages_exist() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    pages_dir = repo_root / "pages"
+
+    for page_file in pages_dir.glob("*.py"):
+        tree = ast.parse(page_file.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if not isinstance(func, ast.Attribute) or func.attr != "page_link":
+                continue
+            if not node.args:
+                continue
+            first_arg = node.args[0]
+            if not isinstance(first_arg, ast.Constant) or not isinstance(first_arg.value, str):
+                continue
+            target = first_arg.value
+            if not target.startswith("pages/"):
+                continue
+            assert (repo_root / target).is_file(), (
+                f"Missing static st.page_link target in {page_file.name}: {target}"
+            )
