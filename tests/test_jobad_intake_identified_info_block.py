@@ -4,6 +4,8 @@ from types import SimpleNamespace
 from typing import cast
 
 from constants import SSKey
+from schemas import JobAdExtract
+import ui_components
 import wizard_pages.jobad_intake as jobad_intake
 
 
@@ -29,11 +31,15 @@ class _FakeStreamlit:
         self.successes: list[str] = []
         self.expanders: list[str] = []
         self.rerun_called = False
+        self.writes: list[str] = []
+        self.markdowns: list[str] = []
         self.column_config = SimpleNamespace(
             TextColumn=lambda *args, **kwargs: None,
         )
 
     def markdown(self, *_args, **_kwargs) -> None:
+        if _args:
+            self.markdowns.append(str(_args[0]))
         return None
 
     def caption(self, text: str, *_args, **_kwargs) -> None:
@@ -50,6 +56,11 @@ class _FakeStreamlit:
         return tuple(_DummyColumn() for _ in range(count))
 
     def write(self, *_args, **_kwargs) -> None:
+        if _args:
+            self.writes.append(str(_args[0]))
+        return None
+
+    def table(self, *_args, **_kwargs) -> None:
         return None
 
     def info(self, *_args, **_kwargs) -> None:
@@ -172,3 +183,25 @@ def test_has_completed_landing_analysis_true_when_both_dicts(monkeypatch) -> Non
     monkeypatch.setattr(jobad_intake, "st", fake_st)
 
     assert jobad_intake._has_completed_landing_analysis() is True
+
+
+def test_job_extract_overview_maps_gap_labels_to_german(monkeypatch) -> None:
+    fake_st = _FakeStreamlit(session_state={})
+    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_components, "_render_editable_job_extract", lambda _job: None)
+
+    extract = JobAdExtract.model_validate(
+        {
+            "job_title": "Data Engineer",
+            "gaps": ["company_website", "employment_type", "steps", "QuestionPlan"],
+            "assumptions": [],
+        }
+    )
+
+    ui_components.render_job_extract_overview(extract, mode="compact")
+
+    assert any("Unternehmenswebsite" in text for text in fake_st.writes)
+    assert any("Beschäftigungsart" in text for text in fake_st.writes)
+    assert any("Prozessschritte" in text for text in fake_st.writes)
+    assert all("company_website" not in text for text in fake_st.writes)
+    assert all("employment_type" not in text for text in fake_st.writes)
