@@ -69,6 +69,7 @@ from components.design_system import (
     render_critical_gaps,
     render_next_best_action,
     render_output_header,
+    render_pill,
 )
 from ui_components import (
     render_boolean_search_pack,
@@ -3024,8 +3025,11 @@ def _render_job_ad_artifact(custom_job_ad_raw: dict[str, Any]) -> None:
     render_card_start("cs-card cs-result-card")
     st.markdown("### Review")
     st.markdown("**Zielgruppe**")
-    for group in custom_job_ad.target_group:
-        st.write(f"- {group}")
+    if custom_job_ad.target_group:
+        for index, group in enumerate(custom_job_ad.target_group):
+            render_pill(group, tone="primary" if index == 0 else "neutral")
+    else:
+        st.caption("Keine Zielgruppe hinterlegt.")
     st.markdown("**AGG-Checkliste**")
     for item in custom_job_ad.agg_checklist:
         st.write(f"- {item}")
