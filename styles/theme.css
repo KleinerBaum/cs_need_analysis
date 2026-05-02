@@ -104,6 +104,8 @@ section[data-testid="stSidebar"] {
 .cs-card,
 .cs-step-header,
 .cs-output-header,
+.cs-next-best-action,
+.cs-critical-gaps,
 .cs-next-action,
 .cs-critical,
 .cs-boolean-card,
@@ -116,6 +118,8 @@ section[data-testid="stSidebar"] {
 }
 
 .cs-card,
+.cs-next-best-action,
+.cs-critical-gaps,
 .cs-next-action,
 .cs-critical,
 .cs-boolean-card,
@@ -157,8 +161,18 @@ section[data-testid="stSidebar"] {
   background: color-mix(in srgb, var(--cs-primary) 20%, var(--cs-surface-muted));
   color: var(--cs-text);
 }
+.cs-pill--primary {
+  border-color: color-mix(in srgb, var(--cs-primary) 55%, var(--cs-border));
+  background: color-mix(in srgb, var(--cs-primary) 20%, var(--cs-surface-muted));
+  color: var(--cs-text);
+}
 
 .cs-pill-warning {
+  border-color: color-mix(in srgb, var(--cs-warning) 58%, var(--cs-border));
+  background: color-mix(in srgb, var(--cs-warning) 20%, var(--cs-surface-muted));
+  color: #ffe8bf;
+}
+.cs-pill--warning {
   border-color: color-mix(in srgb, var(--cs-warning) 58%, var(--cs-border));
   background: color-mix(in srgb, var(--cs-warning) 20%, var(--cs-surface-muted));
   color: #ffe8bf;
@@ -168,6 +182,17 @@ section[data-testid="stSidebar"] {
   border-color: color-mix(in srgb, var(--cs-success) 58%, var(--cs-border));
   background: color-mix(in srgb, var(--cs-success) 18%, var(--cs-surface-muted));
   color: #d9ffe9;
+}
+.cs-pill--success {
+  border-color: color-mix(in srgb, var(--cs-success) 58%, var(--cs-border));
+  background: color-mix(in srgb, var(--cs-success) 18%, var(--cs-surface-muted));
+  color: #d9ffe9;
+}
+
+.cs-pill--neutral {
+  border-color: var(--cs-border);
+  background: var(--cs-surface-muted);
+  color: var(--cs-text-muted);
 }
 
 .cs-boolean-card {
