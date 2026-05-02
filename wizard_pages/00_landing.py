@@ -4,7 +4,10 @@ from __future__ import annotations
 import streamlit as st
 from content.start_page import START_PAGE_COPY
 from constants import APP_TITLE
-from wizard_pages.jobad_intake import render_jobad_intake
+from wizard_pages.jobad_intake import (
+    _has_completed_landing_analysis,
+    render_jobad_intake,
+)
 from wizard_pages.base import (
     LANDING_SECTION_IDS,
     LANDING_STYLE_TOKENS,
@@ -14,31 +17,7 @@ from wizard_pages.base import (
     render_landing_css,
 )
 
-def render(ctx: WizardContext) -> None:
-    render_landing_css(LANDING_STYLE_TOKENS)
-    title_col, language_col = st.columns((1.7, 0.3), gap="small")
-    with title_col:
-        st.markdown(
-            f'<span class="landing-app-title">{APP_TITLE}</span>',
-            unsafe_allow_html=True,
-        )
-    with language_col:
-        render_esco_language_toggle()
-    _, logo_col, _ = st.columns((1, 2, 1))
-    with logo_col:
-        _, centered_logo_col, _ = st.columns((1, 1, 1))
-        with centered_logo_col:
-            st.image("images/white_logo_color1_background.png", width=320)
-    st.title(str(START_PAGE_COPY["hero_headline"]))
-    hero_subheadline = str(START_PAGE_COPY["hero_subheadline"])
-    if hero_subheadline:
-        st.subheader(hero_subheadline)
-    st.markdown(str(START_PAGE_COPY["hero_supporting_paragraph"]))
-
-    st.markdown("### Einstiegsoptionen")
-    st.caption("Jobspec hochladen · Text einfügen · Jetzt analysieren")
-    render_jobad_intake(ctx, title=str(START_PAGE_COPY["primary_cta"]))
-
+def _render_landing_explainer_sections() -> None:
     st.markdown(
         f'<section id="{LANDING_SECTION_IDS["flow"]}" class="landing-section">',
         unsafe_allow_html=True,
@@ -90,6 +69,38 @@ def render(ctx: WizardContext) -> None:
         with image_col:
             st.image("images/iceberg v1.png", width="stretch")
     st.markdown("</section>", unsafe_allow_html=True)
+
+
+def render(ctx: WizardContext) -> None:
+    render_landing_css(LANDING_STYLE_TOKENS)
+    title_col, language_col = st.columns((1.7, 0.3), gap="small")
+    with title_col:
+        st.markdown(
+            f'<span class="landing-app-title">{APP_TITLE}</span>',
+            unsafe_allow_html=True,
+        )
+    with language_col:
+        render_esco_language_toggle()
+    _, logo_col, _ = st.columns((1, 2, 1))
+    with logo_col:
+        _, centered_logo_col, _ = st.columns((1, 1, 1))
+        with centered_logo_col:
+            st.image("images/white_logo_color1_background.png", width=320)
+    st.title(str(START_PAGE_COPY["hero_headline"]))
+    hero_subheadline = str(START_PAGE_COPY["hero_subheadline"])
+    if hero_subheadline:
+        st.subheader(hero_subheadline)
+    st.markdown(str(START_PAGE_COPY["hero_supporting_paragraph"]))
+
+    st.markdown("### Einstiegsoptionen")
+    st.caption("Jobspec hochladen · Text einfügen · Jetzt analysieren")
+    render_jobad_intake(ctx, title=str(START_PAGE_COPY["primary_cta"]))
+
+    if _has_completed_landing_analysis():
+        with st.expander("Über diesen Prozess", expanded=False):
+            _render_landing_explainer_sections()
+    else:
+        _render_landing_explainer_sections()
 
 
 PAGE = WizardPage(

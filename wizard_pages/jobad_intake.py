@@ -180,10 +180,14 @@ def _on_upload_change() -> None:
     )
 
 
-def _has_completed_intake_analysis() -> bool:
+def _has_completed_landing_analysis() -> bool:
     job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
     plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
     return isinstance(job_dict, dict) and isinstance(plan_dict, dict)
+
+
+def _has_completed_intake_analysis() -> bool:
+    return _has_completed_landing_analysis()
 
 
 def _render_phase_a_source_and_privacy_controls() -> bool:

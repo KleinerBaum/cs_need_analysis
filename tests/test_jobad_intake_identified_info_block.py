@@ -153,3 +153,22 @@ def test_identified_info_next_uses_selected_occupation_fallback(monkeypatch) -> 
     assert "ESCO-Anker bestätigt: Data Scientist" in fake_st.successes
     assert next_calls["count"] == 0
     assert fake_st.rerun_called is False
+
+
+def test_has_completed_landing_analysis_requires_both_dicts(monkeypatch) -> None:
+    fake_st = _FakeStreamlit(
+        session_state={
+            SSKey.JOB_EXTRACT.value: {"job_title": "Data Engineer"},
+            SSKey.QUESTION_PLAN.value: None,
+        }
+    )
+    monkeypatch.setattr(jobad_intake, "st", fake_st)
+
+    assert jobad_intake._has_completed_landing_analysis() is False
+
+
+def test_has_completed_landing_analysis_true_when_both_dicts(monkeypatch) -> None:
+    fake_st = _FakeStreamlit(session_state=_minimal_identified_info_state())
+    monkeypatch.setattr(jobad_intake, "st", fake_st)
+
+    assert jobad_intake._has_completed_landing_analysis() is True
