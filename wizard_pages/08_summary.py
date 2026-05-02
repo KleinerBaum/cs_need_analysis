@@ -9,7 +9,7 @@ import hashlib
 from contextlib import nullcontext
 from dataclasses import dataclass
 from collections import defaultdict
-from typing import Any, Callable, Protocol, TypedDict
+from typing import Any, Callable, Protocol, Sequence, TypedDict
 
 import streamlit as st
 import docx
@@ -2999,6 +2999,29 @@ def _render_summary_processing_hub(
         _render_export_bar(has_brief=brief_state == "current")
 
 
+
+
+def _is_warning_checklist_item(item: str) -> bool:
+    normalized = item.strip().lower()
+    if not normalized:
+        return False
+    warning_tokens = ("fehlt", "nicht", "missing", "kritisch")
+    return any(token in normalized for token in warning_tokens)
+
+
+def _render_agg_checklist_review(items: Sequence[str]) -> None:
+    if not items:
+        st.caption("Keine AGG-Checkliste hinterlegt.")
+        return
+    for raw_item in items:
+        item = str(raw_item).strip()
+        if not item:
+            continue
+        if _is_warning_checklist_item(item):
+            render_pill(item, tone="warning")
+        else:
+            render_pill(item, tone="neutral")
+
 def _render_job_ad_artifact(custom_job_ad_raw: dict[str, Any]) -> None:
     custom_job_ad = JobAdGenerationResult.model_validate(
         {
@@ -3031,13 +3054,17 @@ def _render_job_ad_artifact(custom_job_ad_raw: dict[str, Any]) -> None:
     else:
         st.caption("Keine Zielgruppe hinterlegt.")
     st.markdown("**AGG-Checkliste**")
-    for item in custom_job_ad.agg_checklist:
-        st.write(f"- {item}")
+    _render_agg_checklist_review(custom_job_ad.agg_checklist)
+    critical_gaps_raw = custom_job_ad_raw.get("critical_gaps")
+    critical_gaps: list[str] = []
+    if isinstance(critical_gaps_raw, list):
+        critical_gaps.extend(str(note).strip() for note in critical_gaps_raw if str(note).strip())
     generation_notes = custom_job_ad_raw.get("generation_notes", [])
     if isinstance(generation_notes, list):
-        critical_gaps = [str(note) for note in generation_notes if str(note).strip()]
-        if critical_gaps:
-            render_critical_gaps(critical_gaps, title="Kritische Lücken")
+        critical_gaps.extend(str(note).strip() for note in generation_notes if str(note).strip())
+    critical_gaps = _dedupe_preserve_order(critical_gaps)
+    if critical_gaps:
+        render_critical_gaps(critical_gaps, title="Kritische Lücken")
     st.markdown("</section>", unsafe_allow_html=True)
 
     render_card_start("cs-card cs-result-card")
