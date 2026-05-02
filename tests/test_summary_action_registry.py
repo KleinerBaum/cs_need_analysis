@@ -47,6 +47,25 @@ class _FakeStreamlit:
         return self.button_result
 
 
+class _LauncherFakeStreamlit:
+    def __init__(self, session_state: dict[str, Any]):
+        self.session_state = session_state
+        self.button_labels: list[str] = []
+
+    def container(self, **_: Any) -> _NoopContext:
+        return _NoopContext()
+
+    def markdown(self, *_: Any, **__: Any) -> None:
+        return None
+
+    def caption(self, *_: Any, **__: Any) -> None:
+        return None
+
+    def button(self, label: str, **__: Any) -> bool:
+        self.button_labels.append(label)
+        return False
+
+
 def test_build_action_registry_contains_expected_actions_and_requirements() -> None:
     action_registry = SUMMARY_MODULE._build_action_registry(
         resolved_brief_model="gpt-5-mini",
@@ -228,3 +247,107 @@ def test_follow_up_actions_describe_explicit_brief_dependency() -> None:
                 == "Aktueller Recruiting Brief ist erforderlich"
             )
             assert action["blocked_cta_label"]
+
+
+def test_render_artifact_launcher_cards_uses_artifact_specific_labels(monkeypatch) -> None:
+    fake_st = _LauncherFakeStreamlit(
+        session_state={
+            SSKey.JOB_EXTRACT.value: {"job_title": "Engineer"},
+            SSKey.QUESTION_PLAN.value: {"questions": []},
+        }
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
+    monkeypatch.setattr(SUMMARY_MODULE, "_has_required_state", lambda _requires: True)
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "_get_brief_status",
+        lambda **_: ("dirty", "Inputs geändert", "Brief aktualisieren"),
+    )
+
+    action_registry = [
+        {
+            "id": "brief",
+            "title": "Recruiting Brief",
+            "benefit": "desc",
+            "cta_label": "Recruiting Brief erstellen",
+            "blocked_cta_label": None,
+            "requires": (SSKey.JOB_EXTRACT,),
+            "requirement_text": "Jobspec vorhanden",
+            "requirement_check_fn": None,
+            "generator_fn": lambda: None,
+            "result_key": SSKey.BRIEF,
+            "input_hints": (),
+            "input_renderer": None,
+        },
+        {
+            "id": "job_ad",
+            "title": "Stellenanzeige",
+            "benefit": "desc",
+            "cta_label": "Stellenanzeige erstellen",
+            "blocked_cta_label": None,
+            "requires": (SSKey.JOB_EXTRACT,),
+            "requirement_text": "Jobspec vorhanden",
+            "requirement_check_fn": None,
+            "generator_fn": lambda: None,
+            "result_key": SSKey.JOB_AD_DRAFT_CUSTOM,
+            "input_hints": (),
+            "input_renderer": None,
+        },
+        {
+            "id": "boolean_search",
+            "title": "Boolean Search",
+            "benefit": "desc",
+            "cta_label": "Boolean Search erstellen",
+            "blocked_cta_label": "Recruiting Brief erstellen und danach Boolean String erstellen",
+            "requires": (SSKey.JOB_EXTRACT,),
+            "requirement_text": "Jobspec vorhanden",
+            "requirement_check_fn": None,
+            "generator_fn": lambda: None,
+            "result_key": SSKey.BOOLEAN_SEARCH_STRING,
+            "input_hints": (),
+            "input_renderer": None,
+        },
+    ]
+
+    SUMMARY_MODULE._render_artifact_launcher_cards(
+        action_registry=action_registry,
+        resolved_brief_model="gpt-5-mini",
+    )
+
+    assert fake_st.button_labels[0] == "Brief aktualisieren"
+    assert fake_st.button_labels[1] == "Stellenanzeige erstellen"
+    assert fake_st.button_labels[2] == "Boolean Search erstellen"
+
+
+def test_render_artifact_launcher_cards_prefers_blocked_label_when_requirements_fail(
+    monkeypatch,
+) -> None:
+    fake_st = _LauncherFakeStreamlit(session_state={})
+    monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
+    monkeypatch.setattr(SUMMARY_MODULE, "_has_required_state", lambda _requires: False)
+
+    action_registry = [
+        {
+            "id": "boolean_search",
+            "title": "Boolean Search",
+            "benefit": "desc",
+            "cta_label": "Boolean Search erstellen",
+            "blocked_cta_label": "Recruiting Brief erstellen und danach Boolean String erstellen",
+            "requires": (SSKey.BRIEF,),
+            "requirement_text": "Aktueller Recruiting Brief ist erforderlich",
+            "requirement_check_fn": None,
+            "generator_fn": lambda: None,
+            "result_key": SSKey.BOOLEAN_SEARCH_STRING,
+            "input_hints": (),
+            "input_renderer": None,
+        }
+    ]
+
+    SUMMARY_MODULE._render_artifact_launcher_cards(
+        action_registry=action_registry,
+        resolved_brief_model="gpt-5-mini",
+    )
+
+    assert fake_st.button_labels == [
+        "Recruiting Brief erstellen und danach Boolean String erstellen"
+    ]
