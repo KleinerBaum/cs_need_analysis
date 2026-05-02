@@ -700,9 +700,9 @@ def render_salary_forecast_result_card(
             st.markdown(
                 (
                     "<div class='salary-main-cards-grid'>"
-                    f"<div class='salary-main-card'><div class='salary-main-card-label'>Erwartetes Jahresgehalt</div><div class='salary-main-card-value'>{_format_eur(p50)}</div></div>"
-                    f"<div class='salary-main-card'><div class='salary-main-card-label'>p10 (niedrig)</div><div class='salary-main-card-value'>{_format_eur(p10) if p10 > 0 else '—'}</div></div>"
-                    f"<div class='salary-main-card'><div class='salary-main-card-label'>p90 (hoch)</div><div class='salary-main-card-value'>{_format_eur(p90) if p90 > 0 else '—'}</div></div>"
+                    f"<div class='salary-main-card'><div class='salary-main-card-label'>p50 (Median)</div><div class='salary-main-card-value'>{_format_eur(p50)}</div></div>"
+                    f"<div class='salary-main-card'><div class='salary-main-card-label'>p10 (niedrig)</div><div class='salary-main-card-value'>{_format_eur(p10) if p10 > 0 else 'nicht verfügbar'}</div></div>"
+                    f"<div class='salary-main-card'><div class='salary-main-card-label'>p90 (hoch)</div><div class='salary-main-card-value'>{_format_eur(p90) if p90 > 0 else 'nicht verfügbar'}</div></div>"
                     "</div>"
                 ),
                 unsafe_allow_html=True,
@@ -712,12 +712,12 @@ def render_salary_forecast_result_card(
                 (2, 1, 1), gap="small"
             )
             with metric_col_main:
-                st.metric("Median", _format_eur(p50))
+                st.metric("p50 (Median)", _format_eur(p50))
             with metric_col_low:
-                st.metric("p10 (niedrig)", _format_eur(p10) if p10 > 0 else "—")
+                st.metric("p10 (niedrig)", _format_eur(p10) if p10 > 0 else "nicht verfügbar")
             with metric_col_high:
-                st.metric("p90 (hoch)", _format_eur(p90) if p90 > 0 else "—")
-        st.caption("Indikative Prognose auf Basis der aktuellen Angaben.")
+                st.metric("p90 (hoch)", _format_eur(p90) if p90 > 0 else "nicht verfügbar")
+        st.info("Kontext: indikative Prognose basierend auf den gewählten Angaben.\n\nFehlende Inputs können die Prognosequalität reduzieren.")
         if confidence_note:
             st.caption(f"Confidence: {confidence_note}")
         if answers_count > 0:
