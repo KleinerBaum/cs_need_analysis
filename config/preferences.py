@@ -6,8 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List
 
-APP_NAME = "Cognitive Staffing"
-APP_TAGLINE = "AI-gestützte Kompetenz- und Matching-Workflows"
+from constants import APP_NAME, APP_TAGLINE
 
 SESSION_KEYS = {
     "preferences": "cs_preferences",

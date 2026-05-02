@@ -16,7 +16,9 @@ from enum import Enum
 from typing import Final, List
 
 
-APP_TITLE: Final[str] = "Cognitive Staffing – Vacancy Intake Wizard"
+APP_NAME: Final[str] = "Cognitive Staffing"
+APP_TAGLINE: Final[str] = "AI-gestützte Kompetenz- und Matching-Workflows"
+APP_TITLE: Final[str] = f"{APP_NAME} – Vacancy Intake Wizard"
 DEFAULT_LANGUAGE: Final[str] = "de"
 DEFAULT_ESCO_SELECTED_VERSION: Final[str] = "v1.2.0"
 DEFAULT_ESCO_INDEX_STORAGE_PATH: Final[str] = "data/esco_index"
