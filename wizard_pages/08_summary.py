@@ -2472,7 +2472,66 @@ def _build_artifact_status_rows(
 def _resolve_next_best_action(
     action_registry: list[SummaryAction],
     resolved_brief_model: str,
+    vm: SummaryViewModel,
 ) -> SummaryAction | None:
+    action_by_id = {action["id"]: action for action in action_registry}
+
+    missing_or_partial = {
+        (row.bereich, row.feld)
+        for row in vm.fact_rows
+        if row.status in {"Fehlend", "Teilweise"}
+    }
+    has_recruiting_brief = bool(st.session_state.get(SSKey.BRIEF.value))
+
+    def _first_available_action(ids: tuple[str, ...]) -> SummaryAction | None:
+        for action_id in ids:
+            action = action_by_id.get(action_id)
+            if action is None:
+                continue
+            if bool(st.session_state.get(action["result_key"].value)):
+                continue
+            if not _has_required_state(action["requires"]):
+                continue
+            requirement_check_fn = action.get("requirement_check_fn")
+            if requirement_check_fn is not None:
+                requirement_ok, _ = requirement_check_fn()
+                if not requirement_ok:
+                    continue
+            return action
+        return None
+
+    def _is_group_missing(group: set[tuple[str, str]]) -> bool:
+        return any(item in missing_or_partial for item in group)
+
+    core_profile_group = {
+        ("Kernprofil", "Rolle"),
+        ("Kernprofil", "Land"),
+        ("Kernprofil", "Stadt"),
+    }
+    company_basics_group = {("Kernprofil", "Unternehmen")}
+    role_profile_group = {("Rolle & Aufgaben", "Aufgaben"), ("Rolle & Aufgaben", "Ziele")}
+    skills_profile_group = {
+        ("Skills", "Must-have Skills"),
+        ("Skills", "Nice-to-have Skills"),
+    }
+    benefits_group = {("Benefits", "Benefit")}
+    interview_group = {("Interview", "Interviewphasen")}
+
+    if _is_group_missing(core_profile_group | company_basics_group):
+        return action_by_id.get("brief")
+
+    if _is_group_missing(role_profile_group):
+        return action_by_id.get("brief")
+
+    if _is_group_missing(skills_profile_group):
+        return action_by_id.get("brief")
+
+    if _is_group_missing(benefits_group):
+        return action_by_id.get("brief")
+
+    if _is_group_missing(interview_group):
+        return action_by_id.get("brief")
+
     brief_action = next(
         (action for action in action_registry if action["id"] == "brief"),
         None,
@@ -2483,19 +2542,29 @@ def _resolve_next_best_action(
         )
         if not brief_status.ready_for_follow_ups:
             return brief_action
-    for action in action_registry:
-        if action["id"] == "brief":
-            continue
-        if bool(st.session_state.get(action["result_key"].value)):
-            continue
-        if not _has_required_state(action["requires"]):
-            continue
-        requirement_check_fn = action.get("requirement_check_fn")
-        if requirement_check_fn is not None:
-            requirement_ok, _ = requirement_check_fn()
-            if not requirement_ok:
-                continue
-        return action
+
+    sourcing_action = _first_available_action(("job_ad", "boolean_search"))
+    if sourcing_action is not None:
+        return sourcing_action
+
+    contract_core_requirements_missing = _is_group_missing(
+        core_profile_group | company_basics_group
+    )
+    contract_action = action_by_id.get("employment_contract")
+    if (
+        contract_action is not None
+        and not contract_core_requirements_missing
+        and has_recruiting_brief
+    ):
+        selected_contract_action = _first_available_action(("employment_contract",))
+        if selected_contract_action is not None:
+            return selected_contract_action
+
+    fallback_action = _first_available_action(
+        ("interview_hr", "interview_fach", "boolean_search", "employment_contract")
+    )
+    if fallback_action is not None:
+        return fallback_action
     return brief_action
 
 
@@ -2513,7 +2582,7 @@ def _render_readiness_tab(
     _render_readiness_dashboard_header(vm)
 
     next_action = _resolve_next_best_action(
-        action_registry, resolved_brief_model=resolved_brief_model
+        action_registry, resolved_brief_model=resolved_brief_model, vm=vm
     )
     _render_next_best_action_card(next_action=next_action)
     _render_critical_gaps_card(vm)
