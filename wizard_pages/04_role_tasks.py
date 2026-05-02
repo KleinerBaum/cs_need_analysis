@@ -490,7 +490,7 @@ def render(ctx: WizardContext) -> None:
         ),
         step=step,
         extracted_from_jobspec_slot=_render_extracted_slot,
-        extracted_from_jobspec_label="Aus der Anzeige extrahierte Rollen & Aufgaben",
+        extracted_from_jobspec_label="Aufgaben aus der Anzeige",
         extracted_from_jobspec_use_expander=False,
         open_questions_slot=_render_open_questions_slot,
         review_slot=lambda: render_standard_step_review(
