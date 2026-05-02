@@ -123,7 +123,7 @@ def render(ctx: WizardContext) -> None:
 
     def _render_extracted_slot() -> None:
         shown = False
-        col_salary, col_benefits, col_remote = responsive_three_columns(gap="large")
+        col_salary, _, col_remote = responsive_three_columns(gap="large")
         with col_salary:
             if job.salary_range:
                 min_salary = job.salary_range.min
@@ -136,15 +136,6 @@ def render(ctx: WizardContext) -> None:
                 if has_meaningful_value(job.salary_range.notes):
                     st.write(f"**Notes:** {job.salary_range.notes}")
                     shown = True
-
-        with col_benefits:
-            benefits = [b for b in job.benefits if has_meaningful_value(b)]
-            if benefits:
-                st.write("**Benefits (Auszug):**")
-                for b in benefits[:12]:
-                    st.write(f"- {b}")
-                shown = True
-
         with col_remote:
             if has_meaningful_value(job.remote_policy):
                 st.write("**Arbeitsmodell (Auszug):**")
@@ -205,12 +196,21 @@ def render(ctx: WizardContext) -> None:
             if isinstance(ai_suggested_raw, list)
             else []
         )
+
         selected_raw = st.session_state.get(_BENEFITS_SELECTED_COMPARE_KEY, [])
-        selected_labels = (
+        selected_labels = _dedupe_benefit_terms(
             [str(item).strip() for item in selected_raw if has_meaningful_value(item)]
             if isinstance(selected_raw, list)
             else []
         )
+
+        st.markdown("### Einflussfaktoren")
+        st.caption("Gewählte Benefits werden in der Gehaltsprognose berücksichtigt.")
+        st.caption(f"{len(selected_labels)} ausgewählt")
+        if selected_labels:
+            st.markdown(" ".join(f"`{label}`" for label in selected_labels))
+        else:
+            st.caption("Noch keine Benefits ausgewählt.")
 
         render_compare_adopt_intro(
             adopt_target="Benefits",
@@ -245,20 +245,21 @@ def render(ctx: WizardContext) -> None:
             ("remote", "hybrid", "onsite", "homeoffice", "arbeitsmodell")
         )
 
-        salary_col, benefits_col, remote_col = st.columns(3, gap="large")
-        for column, title, confirmed in (
-            (salary_col, "Vergütung", confirmed_salary),
-            (benefits_col, "Benefits", confirmed_benefits),
-            (remote_col, "Arbeitsmodell", confirmed_remote),
-        ):
-            with column:
-                st.markdown(f"**{title}**")
-                st.caption("Bereits bestätigt")
-                if confirmed:
-                    for item in confirmed[:8]:
-                        st.write(f"- {item}")
-                else:
-                    st.caption("—")
+        with st.expander("Details zu Einflussfaktoren", expanded=False):
+            salary_col, benefits_col, remote_col = st.columns(3, gap="large")
+            for column, title, confirmed in (
+                (salary_col, "Vergütung", confirmed_salary),
+                (benefits_col, "Benefits", confirmed_benefits),
+                (remote_col, "Arbeitsmodell", confirmed_remote),
+            ):
+                with column:
+                    st.markdown(f"**{title}**")
+                    st.caption("Bereits bestätigt")
+                    if confirmed:
+                        for item in confirmed[:8]:
+                            st.write(f"- {item}")
+                    else:
+                        st.caption("—")
 
     def _render_salary_forecast_slot() -> None:
         selected_benefits_for_forecast = _dedupe_benefit_terms(
