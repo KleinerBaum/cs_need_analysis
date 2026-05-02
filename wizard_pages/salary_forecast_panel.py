@@ -645,7 +645,7 @@ def render_salary_forecast_result_card(
     *,
     salary_result: dict[str, Any] | None,
     empty_message: str,
-    headline: str = "Erwartetes Jahresgehalt",
+    headline: str = "Gehaltsprognose (Jahr)",
 ) -> None:
     payload = salary_result if isinstance(salary_result, dict) else {}
     forecast_payload = payload.get("forecast", {}) if isinstance(payload, dict) else {}
@@ -664,14 +664,14 @@ def render_salary_forecast_result_card(
 
     with st.container(border=True):
         st.markdown(f"**{headline}**")
-        metric_col_main, metric_col_low, metric_col_high = st.columns((2, 1, 1))
+        metric_col_main, metric_col_low, metric_col_high = st.columns((2, 1, 1), gap="small")
         with metric_col_main:
-            st.metric("p50", _format_eur(p50))
+            st.metric("Median", _format_eur(p50))
         with metric_col_low:
-            st.metric("p10", _format_eur(p10) if p10 > 0 else "—")
+            st.metric("p10 (niedrig)", _format_eur(p10) if p10 > 0 else "—")
         with metric_col_high:
-            st.metric("p90", _format_eur(p90) if p90 > 0 else "—")
-        st.caption("Kontext: indikative Prognose basierend auf den gewählten Angaben.")
+            st.metric("p90 (hoch)", _format_eur(p90) if p90 > 0 else "—")
+        st.caption("Indikative Prognose auf Basis der aktuellen Angaben.")
         if confidence_note:
             st.caption(f"Confidence: {confidence_note}")
         if answers_count > 0:
@@ -686,7 +686,7 @@ def render_salary_forecast_step_sections(
 ) -> None:
     """Render the shared three-section salary forecast layout for wizard steps."""
 
-    left_col, right_col = st.columns((3, 2), gap="large")
+    left_col, right_col = st.columns((5, 7), gap="large")
     with left_col:
         with st.container(border=True):
             st.markdown("#### Einflussfaktoren")
@@ -696,7 +696,7 @@ def render_salary_forecast_step_sections(
         with st.container(border=True):
             st.markdown("#### Szenario-Steuerung")
             scenario_controls_slot()
-        with st.container(border=True):
+            st.markdown("---")
             st.markdown("#### Prognose-Ergebnis")
             forecast_result_slot()
 
@@ -879,7 +879,7 @@ def render_benefits_salary_forecast_panel(
                 SSKey.SALARY_FORECAST_LAST_RESULT.value, {}
             ),
             empty_message="Noch keine Gehaltsprognose vorhanden. Bitte Prognose aktualisieren.",
-            headline="Erwartetes Jahresgehalt",
+            headline="Gehaltsprognose (Jahr)",
         )
 
     render_salary_forecast_step_sections(
@@ -996,7 +996,7 @@ def render_skills_salary_forecast_panel(
                 SSKey.SALARY_FORECAST_LAST_RESULT.value, {}
             ),
             empty_message="Noch keine Gehaltsprognose vorhanden.",
-            headline="Erwartetes Jahresgehalt",
+            headline="Gehaltsprognose (Jahr)",
         )
 
     render_salary_forecast_step_sections(
