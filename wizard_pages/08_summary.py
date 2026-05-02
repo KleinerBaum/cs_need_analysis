@@ -2692,9 +2692,14 @@ def _render_artifact_launcher_cards(
             if requirement_message:
                 requirement_text = f"{requirement_text} — {requirement_message}"
             st.caption(f"Voraussetzungen: {requirement_text}")
-            _, _, cta_label = _get_brief_status(
-                primary_action=action, resolved_brief_model=resolved_brief_model
-            )
+            if action["id"] == "brief":
+                _, _, cta_label = _get_brief_status(
+                    primary_action=action, resolved_brief_model=resolved_brief_model
+                )
+            else:
+                cta_label = action["cta_label"]
+            if not (requirements_ok and requirement_ok) and action.get("blocked_cta_label"):
+                cta_label = str(action["blocked_cta_label"])
             if st.button(
                 cta_label,
                 width="stretch",
