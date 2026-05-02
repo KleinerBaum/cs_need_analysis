@@ -27,6 +27,7 @@ class _FakeStreamlit:
         self.button_disabled: dict[str, bool] = {}
         self.captions: list[str] = []
         self.successes: list[str] = []
+        self.expanders: list[str] = []
         self.rerun_called = False
         self.column_config = SimpleNamespace(
             TextColumn=lambda *args, **kwargs: None,
@@ -56,6 +57,10 @@ class _FakeStreamlit:
 
     def success(self, text: str, *_args, **_kwargs) -> None:
         self.successes.append(text)
+
+    def expander(self, label: str, expanded: bool = False):
+        self.expanders.append(label)
+        return _DummyColumn()
 
     def button(self, _label: str, *, key: str, disabled: bool = False) -> bool:
         self.button_disabled[key] = disabled
@@ -92,6 +97,13 @@ def test_identified_info_next_is_enabled_without_esco_anchor(monkeypatch) -> Non
 
     jobad_intake._render_identified_information_block(ctx)
 
+    assert "Analyse abgeschlossen" in fake_st.successes
+    assert (
+        "Extrahierte Werte und dynamische Rückfragen wurden vorbereitet. "
+        "Prüfen Sie die Angaben und bestätigen Sie anschließend den ESCO-Anker."
+        in fake_st.captions
+    )
+    assert "Technische Details zur Analyse" in fake_st.expanders
     assert "cs.jobspec.ident_info.next" not in fake_st.button_disabled
     assert (
         "Optional: In Phase C können Sie einen semantischen ESCO-Anker bestätigen."

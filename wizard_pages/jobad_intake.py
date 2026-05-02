@@ -78,9 +78,26 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
     has_confirmed_anchor = has_confirmed_esco_anchor()
     selected_occupation_title = str(selected_occupation.get("title") or "").strip()
 
-    st.info(
-        f'QuestionPlan geladen: "{plan_question_count}" Fragen in {len(plan.steps)} Steps.'
+    st.success("Analyse abgeschlossen")
+    st.caption(
+        "Extrahierte Werte und dynamische Rückfragen wurden vorbereitet. "
+        "Prüfen Sie die Angaben und bestätigen Sie anschließend den ESCO-Anker."
     )
+
+    with st.expander("Technische Details zur Analyse", expanded=False):
+        st.caption(f"Generierte Rückfragen gesamt: {plan_question_count}")
+        st.caption(f"Generierte Step-Blöcke: {len(plan.steps)}")
+        cache_info = st.session_state.get(SSKey.JOBAD_CACHE_HIT.value)
+        if isinstance(cache_info, dict) and cache_info:
+            extract_cached = bool(cache_info.get("extract_job_ad"))
+            plan_cached = bool(cache_info.get("generate_question_plan"))
+            st.caption(
+                "Cache-Status: "
+                f"Extraktion={'Ja' if extract_cached else 'Nein'}, "
+                f"Frageplan={'Ja' if plan_cached else 'Nein'}"
+            )
+        else:
+            st.caption("Cache-Status: keine Daten verfügbar")
     render_job_extract_overview(
         job, plan=plan, show_question_limits=False, show_heading=False
     )
