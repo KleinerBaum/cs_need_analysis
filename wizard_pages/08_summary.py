@@ -2998,6 +2998,81 @@ def _render_summary_processing_hub(
         _render_export_bar(has_brief=brief_state == "current")
 
 
+def _render_job_ad_artifact(custom_job_ad_raw: dict[str, Any]) -> None:
+    custom_job_ad = JobAdGenerationResult.model_validate(
+        {
+            "headline": custom_job_ad_raw.get("headline", ""),
+            "target_group": custom_job_ad_raw.get("target_group", []),
+            "agg_checklist": custom_job_ad_raw.get("agg_checklist", []),
+            "job_ad_text": custom_job_ad_raw.get("job_ad_text", ""),
+        }
+    )
+    render_output_header(
+        custom_job_ad.headline or "Stellenanzeige",
+        "Generierte Stellenanzeige mit Zielgruppen- und AGG-Hinweisen.",
+    )
+    render_card_start("cs-card cs-result-card")
+    st.markdown("### Primary Output")
+    st.text_area(
+        "Stellenanzeige",
+        value=custom_job_ad.job_ad_text,
+        height=_estimate_text_area_height(custom_job_ad.job_ad_text),
+        disabled=True,
+    )
+    st.markdown("</section>", unsafe_allow_html=True)
+
+    render_card_start("cs-card cs-result-card")
+    st.markdown("### Review")
+    st.markdown("**Zielgruppe**")
+    for group in custom_job_ad.target_group:
+        st.write(f"- {group}")
+    st.markdown("**AGG-Checkliste**")
+    for item in custom_job_ad.agg_checklist:
+        st.write(f"- {item}")
+    generation_notes = custom_job_ad_raw.get("generation_notes", [])
+    if isinstance(generation_notes, list):
+        critical_gaps = [str(note) for note in generation_notes if str(note).strip()]
+        if critical_gaps:
+            render_critical_gaps(critical_gaps, title="Kritische Lücken")
+    st.markdown("</section>", unsafe_allow_html=True)
+
+    render_card_start("cs-card cs-result-card")
+    st.markdown("### Export")
+    custom_docx = _job_ad_to_docx_bytes(
+        custom_job_ad, str(custom_job_ad_raw.get("styleguide", ""))
+    )
+    custom_pdf = _job_ad_to_pdf_bytes(
+        custom_job_ad, str(custom_job_ad_raw.get("styleguide", ""))
+    )
+    custom_md = custom_job_ad.job_ad_text.encode("utf-8")
+    x1, x2, x3 = st.columns(3)
+    with x1:
+        st.download_button(
+            "Download Stellenanzeige (DOCX)",
+            data=custom_docx,
+            file_name="stellenanzeige.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+    with x2:
+        if custom_pdf is None:
+            st.caption("PDF-Export benötigt reportlab (nicht verfügbar).")
+        else:
+            st.download_button(
+                "Download Stellenanzeige (PDF)",
+                data=custom_pdf,
+                file_name="stellenanzeige.pdf",
+                mime="application/pdf",
+            )
+    with x3:
+        st.download_button(
+            "Download Stellenanzeige (Markdown)",
+            data=custom_md,
+            file_name="stellenanzeige.md",
+            mime="text/markdown",
+        )
+    st.markdown("</section>", unsafe_allow_html=True)
+
+
 def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
     if artifact_id == "brief":
         render_card_start("cs-card cs-result-card")
@@ -3013,54 +3088,7 @@ def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
         if not isinstance(custom_job_ad_raw, dict):
             st.info("Für dieses Artefakt liegt noch kein Ergebnis vor.")
             return
-        custom_job_ad = JobAdGenerationResult.model_validate(
-            {
-                "headline": custom_job_ad_raw.get("headline", ""),
-                "target_group": custom_job_ad_raw.get("target_group", []),
-                "agg_checklist": custom_job_ad_raw.get("agg_checklist", []),
-                "job_ad_text": custom_job_ad_raw.get("job_ad_text", ""),
-            }
-        )
-        render_output_header(
-            custom_job_ad.headline,
-            "Generierte Stellenanzeige mit Zielgruppen- und AGG-Hinweisen.",
-        )
-        st.text_area(
-            "Stellenanzeige",
-            value=custom_job_ad.job_ad_text,
-            height=_estimate_text_area_height(custom_job_ad.job_ad_text),
-            disabled=True,
-        )
-        st.markdown("**Zielgruppe**")
-        for group in custom_job_ad.target_group:
-            st.write(f"- {group}")
-        st.markdown("**AGG-Checkliste**")
-        for item in custom_job_ad.agg_checklist:
-            st.write(f"- {item}")
-        custom_docx = _job_ad_to_docx_bytes(
-            custom_job_ad, str(custom_job_ad_raw.get("styleguide", ""))
-        )
-        custom_pdf = _job_ad_to_pdf_bytes(
-            custom_job_ad, str(custom_job_ad_raw.get("styleguide", ""))
-        )
-        x1, x2 = st.columns(2)
-        with x1:
-            st.download_button(
-                "Download Stellenanzeige (DOCX)",
-                data=custom_docx,
-                file_name="stellenanzeige.docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            )
-        with x2:
-            if custom_pdf is None:
-                st.caption("PDF-Export benötigt reportlab (nicht verfügbar).")
-            else:
-                st.download_button(
-                    "Download Stellenanzeige (PDF)",
-                    data=custom_pdf,
-                    file_name="stellenanzeige.pdf",
-                    mime="application/pdf",
-                )
+        _render_job_ad_artifact(custom_job_ad_raw)
         return
 
     if artifact_id == "interview_hr":
