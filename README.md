@@ -13,7 +13,7 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 - Die vormals getrennte Ansicht **Identifizierte Informationen** ist in den Start-Schritt integriert (eine Wizard-Stufe weniger): Nach der Analyse erscheinen dort direkt die editierbare Übersicht, Gaps/Annahmen und der Übergang von Phase B zu Phase C bzw. in den nächsten Fachschritt; es gibt **keinen separaten sichtbaren Review-Wizard-Schritt** mehr.
 - Finaler **Recruiting Brief** mit Export als JSON, Markdown und DOCX.
 - **Summary-Workspace** als einheitliche Readiness-Ansicht ohne separate Tabs.
-- Die **Readiness-Ansicht** aktualisiert den **Recruiting Brief** beim Betreten automatisch (falls veraltet/fehlend), zeigt den Brief ohne zusätzlichen Expander und platziert den Faktenbereich darunter vor der **„next best action“**.
+- Die **Readiness-Ansicht** zeigt den **Recruiting Brief** inkl. kompakter Structured-Data-Preview; der vollständige JSON-Export bleibt im separaten Bereich **Export** verfügbar.
 - Die Verfügbarkeit von CTAs in der Summary folgt einer Kombination aus **fachlichen Voraussetzungen** (Prerequisites) und **kurzen Freshness-Checks** auf die zugrunde liegenden Inhalte.
 - Unterhalb der Readiness-CTA stehen kompakt nebeneinander die **Generate-Buttons** für Stellenanzeige, HR-Sheet, Fachbereich-Sheet, Boolean String und Arbeitsvertrag; darunter folgt der Ergebnisbereich (volle Breite).
 - **Action Hub in der Readiness-Ansicht** mit kanonischen Artefakt-IDs (`brief`, `job_ad`, `interview_hr`, `interview_fach`, `boolean_search`, `employment_contract`) und fokussiertem Primärpfad (Recruiting Brief → Folgeartefakte → Export).

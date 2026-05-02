@@ -1130,6 +1130,22 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
     return payload
 
 
+def _build_brief_structured_preview_payload(brief: VacancyBrief) -> dict[str, Any]:
+    export_payload = _build_structured_export_payload(brief)
+    preview_keys = (
+        "job_extract",
+        "question_plan",
+        "answers",
+        "selected_role_tasks",
+        "selected_skills",
+    )
+    return {
+        key: export_payload[key]
+        for key in preview_keys
+        if key in export_payload
+    }
+
+
 def _read_saved_selection_labels(key: SSKey) -> list[str]:
     raw = st.session_state.get(key.value, [])
     if not isinstance(raw, list):
@@ -2605,7 +2621,10 @@ def _render_readiness_tab(
         st.info("Noch kein gültiger Recruiting Brief verfügbar.")
     else:
         st.markdown("#### Recruiting Brief (Vorschau)")
-        render_brief(brief)
+        render_brief(
+            brief,
+            structured_data_payload=_build_brief_structured_preview_payload(brief),
+        )
     _render_artifact_launcher_cards(
         action_registry=action_registry, resolved_brief_model=resolved_brief_model
     )
@@ -2982,7 +3001,10 @@ def _render_summary_processing_hub(
 def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
     if artifact_id == "brief":
         render_card_start("cs-card cs-result-card")
-        render_brief(brief)
+        render_brief(
+            brief,
+            structured_data_payload=_build_brief_structured_preview_payload(brief),
+        )
         st.markdown("</section>", unsafe_allow_html=True)
         return
 

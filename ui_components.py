@@ -2923,7 +2923,9 @@ def _parse_scale_bounds(text: str) -> tuple[int | None, int | None]:
     return lower, upper
 
 
-def render_brief(brief: VacancyBrief) -> None:
+def render_brief(
+    brief: VacancyBrief, *, structured_data_payload: Any | None = None
+) -> None:
     st.subheader("Recruiting Brief")
     st.markdown(f"**One-liner:** {brief.one_liner}")
     st.markdown("**Hiring Context**")
@@ -2962,17 +2964,25 @@ def render_brief(brief: VacancyBrief) -> None:
     with st.expander("Job Ad Draft (DE)", expanded=False):
         st.write(brief.job_ad_draft)
 
+    payload = (
+        structured_data_payload
+        if structured_data_payload is not None
+        else brief.structured_data
+    )
     structured_data_json = json.dumps(
-        brief.structured_data,
+        payload,
         ensure_ascii=False,
         indent=2,
     )
 
     st.markdown("**Structured Data**")
+    st.caption(
+        "Kompakte Preview. Der vollständige Export-JSON steht im Bereich „Export“ bereit."
+    )
     show_col, download_col = st.columns([1, 1])
     with show_col:
         with st.expander("JSON anzeigen", expanded=False):
-            st.json(brief.structured_data, expanded=False)
+            st.json(payload, expanded=False)
     with download_col:
         st.download_button(
             "JSON herunterladen",
