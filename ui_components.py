@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import re
+import json
 import hashlib
 from datetime import date
 from collections.abc import Callable, Sequence
@@ -2961,8 +2962,24 @@ def render_brief(brief: VacancyBrief) -> None:
     with st.expander("Job Ad Draft (DE)", expanded=False):
         st.write(brief.job_ad_draft)
 
-    with st.expander("Structured data (JSON)", expanded=False):
-        st.json(brief.structured_data, expanded=False)
+    structured_data_json = json.dumps(
+        brief.structured_data,
+        ensure_ascii=False,
+        indent=2,
+    )
+
+    st.markdown("**Structured Data**")
+    show_col, download_col = st.columns([1, 1])
+    with show_col:
+        with st.expander("JSON anzeigen", expanded=False):
+            st.json(brief.structured_data, expanded=False)
+    with download_col:
+        st.download_button(
+            "JSON herunterladen",
+            data=structured_data_json.encode("utf-8"),
+            file_name="vacancy_brief_structured_data.json",
+            mime="application/json",
+        )
 
 
 def render_interview_prep_hr(sheet: InterviewPrepSheetHR) -> None:
