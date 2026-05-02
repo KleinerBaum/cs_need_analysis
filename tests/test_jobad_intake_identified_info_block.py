@@ -94,6 +94,12 @@ def test_identified_info_next_is_enabled_without_esco_anchor(monkeypatch) -> Non
     monkeypatch.setattr(jobad_intake, "st", fake_st)
     monkeypatch.setattr(jobad_intake, "get_esco_occupation_selected", lambda: None)
     monkeypatch.setattr(jobad_intake, "has_confirmed_esco_anchor", lambda: False)
+    overview_calls: list[dict[str, object]] = []
+
+    def _capture_overview(*_args, **kwargs) -> None:
+        overview_calls.append(kwargs)
+
+    monkeypatch.setattr(jobad_intake, "render_job_extract_overview", _capture_overview)
 
     jobad_intake._render_identified_information_block(ctx)
 
@@ -109,6 +115,8 @@ def test_identified_info_next_is_enabled_without_esco_anchor(monkeypatch) -> Non
         "Optional: In Phase C können Sie einen semantischen ESCO-Anker bestätigen."
         in fake_st.captions
     )
+    assert overview_calls
+    assert overview_calls[0].get("mode") == "compact"
     assert next_calls["count"] == 0
     assert fake_st.rerun_called is False
 
