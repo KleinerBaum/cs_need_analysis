@@ -837,15 +837,13 @@ def render_benefits_salary_forecast_panel(
         selected_count = len([item for item in benefit_candidates if str(item).strip()])
         st.caption("Diese Faktoren werden in der Prognose berücksichtigt.")
         st.caption(f"Gewählte Benefits: {selected_count}")
-        if benefit_candidates:
-            column_count = min(3, max(2, len(benefit_candidates) // 5 + 1))
-            columns = st.columns(column_count, gap="small")
-            for index, item in enumerate(benefit_candidates):
-                with columns[index % column_count]:
-                    st.markdown(f"- {item}")
-        else:
+        if not benefit_candidates:
             st.caption(
                 "Keine Benefits ausgewählt – Prognose wird ohne Benefit-Einflussfaktoren berechnet."
+            )
+        else:
+            st.caption(
+                "Die konkrete Benefits-Liste wird oben im Abschnitt „Einflussfaktoren“ gepflegt."
             )
 
         with st.expander("Bearbeiten", expanded=False):
