@@ -107,6 +107,34 @@ def test_build_structured_export_payload_preserves_saved_tasks_and_skills(
     assert payload["selected_skills"] == ["Python", "SQL"]
 
 
+def test_build_brief_structured_preview_payload_uses_export_subset(monkeypatch) -> None:
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.ESCO_CONFIG.value: {},
+                SSKey.ESCO_SKILLS_SELECTED_MUST.value: [],
+                SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
+            }
+        ),
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "get_esco_occupation_selected", lambda: None)
+
+    brief = _brief_with_saved_selections()
+    preview_payload = SUMMARY_MODULE._build_brief_structured_preview_payload(brief)
+    export_payload = SUMMARY_MODULE._build_structured_export_payload(brief)
+
+    assert preview_payload == {
+        "job_extract": {"job_title": "Engineer"},
+        "answers": {},
+        "selected_role_tasks": ["Build ETL pipelines"],
+        "selected_skills": ["Python", "SQL"],
+    }
+    assert export_payload["selected_role_tasks"] == preview_payload["selected_role_tasks"]
+    assert export_payload["selected_skills"] == preview_payload["selected_skills"]
+
+
 def test_build_structured_export_payload_keeps_rag_provenance_for_suggestions(
     monkeypatch,
 ) -> None:
