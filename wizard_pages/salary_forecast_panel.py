@@ -788,23 +788,30 @@ def render_benefits_salary_forecast_panel(
 
     def _render_influence_factors() -> None:
         nonlocal selected_benefits
-        _render_influence_factor_header(
-            title="Einflussfaktoren: Gewählte Benefits",
-            items=benefit_candidates,
-            empty_caption="Keine Benefits ausgewählt – Prognose wird ohne Benefit-Einflussfaktoren berechnet.",
-            intro_caption="Gewählte Benefits werden als Einflussfaktoren für die Prognose verwendet.",
-        )
-        selected_benefits = st.multiselect(
-            "Einflussfaktoren: Benefits",
-            options=benefit_candidates,
-            default=benefit_candidates,
-            help=(
-                "Nur bei Bedarf anpassen. Standardmäßig fließen alle gewählten "
-                "Benefits als Einflussfaktoren ein."
-            ),
-        )
-        selected_factor_count = len([item for item in _factor_candidates() if item])
-        st.caption(f"Einbezogene Faktoren (inkl. Benefits): {selected_factor_count}")
+        selected_count = len([item for item in benefit_candidates if str(item).strip()])
+        st.caption("Diese Faktoren werden in der Prognose berücksichtigt.")
+        st.caption(f"Gewählte Benefits: {selected_count}")
+        if benefit_candidates:
+            column_count = min(3, max(2, len(benefit_candidates) // 5 + 1))
+            columns = st.columns(column_count, gap="small")
+            for index, item in enumerate(benefit_candidates):
+                with columns[index % column_count]:
+                    st.markdown(f"- {item}")
+        else:
+            st.caption(
+                "Keine Benefits ausgewählt – Prognose wird ohne Benefit-Einflussfaktoren berechnet."
+            )
+
+        with st.expander("Bearbeiten", expanded=False):
+            selected_benefits = st.multiselect(
+                "Benefits auswählen",
+                options=benefit_candidates,
+                default=benefit_candidates,
+                help=(
+                    "Nur bei Bedarf anpassen. Standardmäßig fließen alle gewählten "
+                    "Benefits als Einflussfaktoren ein."
+                ),
+            )
 
     def _render_scenario_controls() -> None:
         _render_common_scenario_inputs()
