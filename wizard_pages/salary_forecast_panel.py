@@ -819,18 +819,40 @@ def render_benefits_salary_forecast_panel(
             "Prognose aktualisieren", width="stretch", key="benefits.salary.update"
         ):
             with st.spinner("Berechne Gehaltsprognose …"):
-                p50, confidence_note, usage = _run_step_salary_forecast_generation(
-                    job=job,
-                    selected_inputs=[item for item in _factor_candidates() if item],
-                    model=model,
-                    language=language,
-                    store=store,
+                scenario_inputs = SalaryScenarioInputs(
+                    location_city_override=str(
+                        st.session_state.get(
+                            SSKey.SALARY_SCENARIO_LOCATION_CITY_OVERRIDE.value,
+                            str(job.location_city or "").strip(),
+                        )
+                    ).strip()
+                    or None,
+                    location_country_override=str(
+                        st.session_state.get(
+                            SSKey.SALARY_SCENARIO_LOCATION_COUNTRY_OVERRIDE.value,
+                            str(job.location_country or "").strip(),
+                        )
+                    ).strip()
+                    or None,
+                    search_radius_km=_safe_int(
+                        st.session_state.get(SSKey.SALARY_SCENARIO_RADIUS_KM.value, 50)
+                    ),
+                    remote_share_percent=_safe_int(
+                        st.session_state.get(
+                            SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value, 0
+                        )
+                    ),
+                )
+                forecast_result = compute_salary_forecast(
+                    job_extract=job,
+                    answers=answers,
+                    scenario_inputs=scenario_inputs,
                 )
             st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {
-                "forecast": {"p50": p50},
-                "currency": "EUR",
-                "period": "year",
-                "confidence_note": confidence_note,
+                "forecast": forecast_result.forecast.model_dump(mode="json"),
+                "currency": forecast_result.currency,
+                "period": forecast_result.period,
+                "confidence_note": forecast_result.confidence.note,
                 "inputs": {
                     "benefits_selected": selected_benefits,
                     "factors": [item for item in _factor_candidates() if item],
@@ -849,7 +871,6 @@ def render_benefits_salary_forecast_panel(
                         )
                     ).strip(),
                 },
-                "usage": usage or {},
             }
 
     def _render_forecast_result() -> None:
