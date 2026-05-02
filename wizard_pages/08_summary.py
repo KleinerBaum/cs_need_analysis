@@ -2469,11 +2469,18 @@ def _build_artifact_status_rows(
     return rows
 
 
-def _resolve_next_best_action(
+@dataclass(frozen=True)
+class NextBestActionRecommendation:
+    action: SummaryAction
+    reason: str
+    cta_label: str
+
+
+def _resolve_next_best_action_recommendation(
     action_registry: list[SummaryAction],
     resolved_brief_model: str,
     vm: SummaryViewModel,
-) -> SummaryAction | None:
+) -> NextBestActionRecommendation | None:
     action_by_id = {action["id"]: action for action in action_registry}
 
     missing_or_partial = {
@@ -2481,7 +2488,6 @@ def _resolve_next_best_action(
         for row in vm.fact_rows
         if row.status in {"Fehlend", "Teilweise"}
     }
-    has_recruiting_brief = bool(st.session_state.get(SSKey.BRIEF.value))
 
     def _first_available_action(ids: tuple[str, ...]) -> SummaryAction | None:
         for action_id in ids:
@@ -2503,12 +2509,23 @@ def _resolve_next_best_action(
     def _is_group_missing(group: set[tuple[str, str]]) -> bool:
         return any(item in missing_or_partial for item in group)
 
+    def _recommend(action_id: str, reason: str, *, cta_label: str | None = None) -> NextBestActionRecommendation | None:
+        action = action_by_id.get(action_id)
+        if action is None:
+            return None
+        return NextBestActionRecommendation(action=action, reason=reason, cta_label=cta_label or action["cta_label"])
+
     core_profile_group = {
         ("Kernprofil", "Rolle"),
         ("Kernprofil", "Land"),
         ("Kernprofil", "Stadt"),
+        ("Klassifikation", "NACE-Code"),
+        ("Klassifikation", "NACE → ESCO Mapping"),
     }
-    company_basics_group = {("Kernprofil", "Unternehmen")}
+    company_basics_group = {
+        ("Kernprofil", "Unternehmen"),
+        ("Unternehmen", "Wie lautet der Firmenname?"),
+    }
     role_profile_group = {("Rolle & Aufgaben", "Aufgaben"), ("Rolle & Aufgaben", "Ziele")}
     skills_profile_group = {
         ("Skills", "Must-have Skills"),
@@ -2518,54 +2535,52 @@ def _resolve_next_best_action(
     interview_group = {("Interview", "Interviewphasen")}
 
     if _is_group_missing(core_profile_group | company_basics_group):
-        return action_by_id.get("brief")
-
+        return _recommend("brief", "Kernprofil, Standort oder Unternehmenskontext fehlen.", cta_label="Unternehmenskontext vervollständigen")
     if _is_group_missing(role_profile_group):
-        return action_by_id.get("brief")
-
+        return _recommend("brief", "Rollenprofil ist noch unvollständig.", cta_label="Rollenprofil vervollständigen")
     if _is_group_missing(skills_profile_group):
-        return action_by_id.get("brief")
-
+        return _recommend("brief", "Skills und Anforderungen sind noch unvollständig.", cta_label="Skills und Anforderungen klären")
     if _is_group_missing(benefits_group):
-        return action_by_id.get("brief")
-
+        return _recommend("brief", "Benefits und Rahmenbedingungen fehlen.", cta_label="Benefits und Rahmenbedingungen ergänzen")
     if _is_group_missing(interview_group):
-        return action_by_id.get("brief")
+        return _recommend("brief", "Interviewprozess ist noch nicht definiert.", cta_label="Interviewprozess definieren")
 
-    brief_action = next(
-        (action for action in action_registry if action["id"] == "brief"),
-        None,
-    )
+    brief_action = action_by_id.get("brief")
     if brief_action is not None:
-        brief_status = _resolve_canonical_brief_status(
-            resolved_brief_model=resolved_brief_model
-        )
+        brief_status = _resolve_canonical_brief_status(resolved_brief_model=resolved_brief_model)
         if not brief_status.ready_for_follow_ups:
-            return brief_action
+            return _recommend("brief", "Recruiting Brief fehlt oder ist noch nicht bereit.", cta_label="Recruiting Brief erstellen")
 
     sourcing_action = _first_available_action(("job_ad", "boolean_search"))
     if sourcing_action is not None:
-        return sourcing_action
+        reason = "Recruiting Brief ist verfügbar, nächster Schritt ist Sourcing-Output."
+        return NextBestActionRecommendation(action=sourcing_action, reason=reason, cta_label=sourcing_action["cta_label"])
 
-    contract_core_requirements_missing = _is_group_missing(
-        core_profile_group | company_basics_group
-    )
-    contract_action = action_by_id.get("employment_contract")
-    if (
-        contract_action is not None
-        and not contract_core_requirements_missing
-        and has_recruiting_brief
-    ):
-        selected_contract_action = _first_available_action(("employment_contract",))
-        if selected_contract_action is not None:
-            return selected_contract_action
+    contract_prereq_group = core_profile_group | company_basics_group | role_profile_group
+    if not _is_group_missing(contract_prereq_group) and bool(st.session_state.get(SSKey.BRIEF.value)):
+        contract_action = _first_available_action(("employment_contract",))
+        if contract_action is not None:
+            return NextBestActionRecommendation(action=contract_action, reason="Vertragsrelevante Basisdaten sind vorhanden.", cta_label=contract_action["cta_label"])
 
-    fallback_action = _first_available_action(
-        ("interview_hr", "interview_fach", "boolean_search", "employment_contract")
-    )
+    fallback_action = _first_available_action(("interview_hr", "interview_fach", "boolean_search", "employment_contract"))
     if fallback_action is not None:
-        return fallback_action
-    return brief_action
+        return NextBestActionRecommendation(action=fallback_action, reason="Nächster verfügbarer Schritt basierend auf dem aktuellen Status.", cta_label=fallback_action["cta_label"])
+    if brief_action is not None:
+        return NextBestActionRecommendation(action=brief_action, reason="Brief als sicherer Startpunkt.", cta_label=brief_action["cta_label"])
+    return None
+
+
+def _resolve_next_best_action(
+    action_registry: list[SummaryAction],
+    resolved_brief_model: str,
+    vm: SummaryViewModel,
+) -> SummaryAction | None:
+    recommendation = _resolve_next_best_action_recommendation(
+        action_registry=action_registry,
+        resolved_brief_model=resolved_brief_model,
+        vm=vm,
+    )
+    return recommendation.action if recommendation is not None else None
 
 
 def _render_readiness_tab(
@@ -2581,10 +2596,10 @@ def _render_readiness_tab(
     )
     _render_readiness_dashboard_header(vm)
 
-    next_action = _resolve_next_best_action(
+    recommendation = _resolve_next_best_action_recommendation(
         action_registry, resolved_brief_model=resolved_brief_model, vm=vm
     )
-    _render_next_best_action_card(next_action=next_action)
+    _render_next_best_action_card(recommendation=recommendation)
     _render_critical_gaps_card(vm)
     if brief is None:
         st.info("Noch kein gültiger Recruiting Brief verfügbar.")
@@ -2607,10 +2622,11 @@ def _render_readiness_dashboard_header(vm: SummaryViewModel) -> None:
         st.caption(vm.status.completion_text)
 
 
-def _render_next_best_action_card(*, next_action: SummaryAction | None) -> None:
-    if next_action is None:
+def _render_next_best_action_card(*, recommendation: NextBestActionRecommendation | None) -> None:
+    if recommendation is None:
         st.info("Aktuell ist kein nächster Schritt verfügbar.")
         return
+    next_action = recommendation.action
     requirements_ok = _has_required_state(next_action["requires"])
     requirement_status_ok = True
     requirement_status_message = ""
@@ -2622,8 +2638,8 @@ def _render_next_best_action_card(*, next_action: SummaryAction | None) -> None:
     )
     render_next_best_action(
         next_action["title"],
-        "Direkt aus aktuellem Zustand und Voraussetzungen abgeleitet.",
-        f"CTA: {next_action['cta_label']}",
+        recommendation.reason,
+        f"CTA: {recommendation.cta_label}",
     )
     requirement_label = next_action["requirement_text"]
     if requirement_status_message:
@@ -2632,7 +2648,7 @@ def _render_next_best_action_card(*, next_action: SummaryAction | None) -> None:
         f"Voraussetzung: {'✅' if (requirements_ok and requirement_status_ok) else '⚠️'} {requirement_label}"
     )
     if st.button(
-        f"CTA: {next_action['cta_label']}",
+        f"CTA: {recommendation.cta_label}",
         type="primary",
         width="stretch",
         key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "readiness.next_action"),
