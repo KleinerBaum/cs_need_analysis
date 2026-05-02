@@ -1,4 +1,3 @@
-# wizard_pages/00_landing.py
 from __future__ import annotations
 
 import streamlit as st
@@ -17,18 +16,80 @@ from wizard_pages.base import (
     render_landing_css,
 )
 
-def _render_landing_explainer_sections() -> None:
+
+def _render_landing_responsive_overrides() -> None:
+    st.markdown(
+        """
+        <style>
+            .landing-flow-grid {
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 0.85rem;
+                max-width: 100%;
+            }
+            .landing-flow-grid p,
+            .landing-flow-grid strong {
+                overflow-wrap: anywhere;
+            }
+            @media (max-width: 900px) {
+                .landing-flow-grid {
+                    grid-template-columns: minmax(0, 1fr);
+                }
+            }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_landing_hero() -> None:
+    st.markdown(
+        f'<section id="{LANDING_SECTION_IDS["hero"]}" class="landing-section landing-hero">',
+        unsafe_allow_html=True,
+    )
+    st.markdown('<div class="landing-app-title-row">', unsafe_allow_html=True)
+    st.markdown(
+        f'<span class="landing-app-title">{APP_TITLE}</span>',
+        unsafe_allow_html=True,
+    )
+    render_esco_language_toggle()
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    _, logo_col, _ = st.columns((1, 2, 1))
+    with logo_col:
+        _, centered_logo_col, _ = st.columns((1, 1, 1))
+        with centered_logo_col:
+            st.image("images/white_logo_color1_background.png", width=320)
+
+    st.title(str(START_PAGE_COPY["hero_headline"]))
+    hero_subheadline = str(START_PAGE_COPY["hero_subheadline"])
+    if hero_subheadline:
+        st.subheader(hero_subheadline)
+    hero_supporting = str(START_PAGE_COPY["hero_supporting_paragraph"])
+    if hero_supporting:
+        st.markdown(hero_supporting)
+    st.markdown("</section>", unsafe_allow_html=True)
+
+
+def _render_landing_flow_cards() -> None:
     st.markdown(
         f'<section id="{LANDING_SECTION_IDS["flow"]}" class="landing-section">',
         unsafe_allow_html=True,
     )
     st.subheader(str(START_PAGE_COPY["flow_title"]))
+    st.markdown('<div class="cs-grid-3 landing-flow-grid">', unsafe_allow_html=True)
     flow_steps = START_PAGE_COPY.get("flow_steps", ())
     if isinstance(flow_steps, tuple):
         for step_title, step_body in flow_steps:
+            st.markdown('<article class="landing-flow-step">', unsafe_allow_html=True)
             st.markdown(f"**{step_title}**")
             st.markdown(step_body)
+            st.markdown("</article>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("</section>", unsafe_allow_html=True)
+
+
+def _render_landing_explainer_sections() -> None:
     with st.expander("Details & Hintergrundwissen", expanded=False):
         st.markdown(
             f'<section id="{LANDING_SECTION_IDS["importance"]}" class="landing-section">',
@@ -68,33 +129,22 @@ def _render_landing_explainer_sections() -> None:
         _, image_col, _ = st.columns((1, 3, 1))
         with image_col:
             st.image("images/iceberg v1.png", width="stretch")
-    st.markdown("</section>", unsafe_allow_html=True)
 
 
 def render(ctx: WizardContext) -> None:
     render_landing_css(LANDING_STYLE_TOKENS)
-    title_col, language_col = st.columns((1.7, 0.3), gap="small")
-    with title_col:
-        st.markdown(
-            f'<span class="landing-app-title">{APP_TITLE}</span>',
-            unsafe_allow_html=True,
-        )
-    with language_col:
-        render_esco_language_toggle()
-    _, logo_col, _ = st.columns((1, 2, 1))
-    with logo_col:
-        _, centered_logo_col, _ = st.columns((1, 1, 1))
-        with centered_logo_col:
-            st.image("images/white_logo_color1_background.png", width=320)
-    st.title(str(START_PAGE_COPY["hero_headline"]))
-    hero_subheadline = str(START_PAGE_COPY["hero_subheadline"])
-    if hero_subheadline:
-        st.subheader(hero_subheadline)
-    st.markdown(str(START_PAGE_COPY["hero_supporting_paragraph"]))
+    _render_landing_responsive_overrides()
+    _render_landing_hero()
 
-    st.markdown("### Einstiegsoptionen")
-    st.caption("Jobspec hochladen · Text einfügen · Jetzt analysieren")
+    st.markdown('<section class="landing-section landing-card landing-intake-card">', unsafe_allow_html=True)
+    st.markdown("### Jobspec erfassen")
+    st.caption(
+        "Upload oder Text einfügen — die Analyse startet erst nach Klick auf „Jetzt analysieren“."
+    )
     render_jobad_intake(ctx, title=str(START_PAGE_COPY["primary_cta"]))
+    st.markdown("</section>", unsafe_allow_html=True)
+
+    _render_landing_flow_cards()
 
     if _has_completed_landing_analysis():
         with st.expander("Über diesen Prozess", expanded=False):

@@ -4,7 +4,7 @@ START_PAGE_COPY: dict[str, object] = {
     "hero_headline": "Cognitive Staffing",
     "hero_subheadline": "KI-gestützte Bedarfsanalyse für präzisere Recruiting-Entscheidungen",
     "hero_supporting_paragraph": "",
-    "primary_cta": "Geben Sie uns ein paar Informationen zu Ihrer Vakanz",
+    "primary_cta": "Jobspec erfassen",
     "secondary_cta_hint": "",
     "next_step_line": "",
     "before_start_title": "",
