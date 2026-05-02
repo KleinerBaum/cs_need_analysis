@@ -66,6 +66,49 @@ ESCO_EXPLAINABILITY_LABELS: tuple[str, ...] = (
 ESCO_CONFIDENCE_BUCKETS: tuple[str, ...] = ("high", "medium", "low")
 REVIEW_WIDGET_KEY_PREFIX = f"{WIDGET_KEY_PREFIX}review."
 
+JOB_EXTRACT_DISPLAY_LABELS: dict[str, str] = {
+    "job_title": "Jobtitel",
+    "company_name": "Unternehmen",
+    "brand_name": "Marke",
+    "company_website": "Unternehmenswebsite",
+    "language_guess": "Erkannte Sprache",
+    "employment_type": "Beschäftigungsart",
+    "contract_type": "Vertragsart",
+    "seniority_level": "Senioritätslevel",
+    "start_date": "Startdatum",
+    "application_deadline": "Bewerbungsfrist",
+    "job_ref_number": "Referenznummer",
+    "department_name": "Abteilung",
+    "reports_to": "Berichtet an",
+    "location_city": "Ort",
+    "location_country": "Land",
+    "place_of_work": "Arbeitsort",
+    "remote_policy": "Remote-Regelung",
+    "travel_required": "Reisebereitschaft",
+    "on_call": "Rufbereitschaft",
+    "direct_reports_count": "Anzahl direkter Reports",
+    "role_overview": "Rollenüberblick",
+    "onboarding_notes": "Onboarding-Hinweise",
+    "responsibilities": "Aufgaben",
+    "deliverables": "Lieferergebnisse",
+    "success_metrics": "Erfolgskriterien",
+    "must_have_skills": "Muss-Skills",
+    "nice_to_have_skills": "Kann-Skills",
+    "soft_skills": "Soft Skills",
+    "education": "Ausbildung",
+    "education_requirements": "Ausbildung",
+    "certifications": "Zertifikate / Qualifikationen",
+    "languages": "Sprachen",
+    "tech_stack": "Technische Anforderungen",
+    "domain_expertise": "Branchenerfahrung",
+    "salary_range": "Gehaltsrahmen",
+    "benefits": "Benefits",
+    "recruitment_steps": "Recruiting-Prozess",
+    "contacts": "Kontakte",
+    "steps": "Prozessschritte",
+    "QuestionPlan": "Fragenplan",
+}
+
 
 class StepReviewPayload(TypedDict):
     visible_questions: list[Question]
@@ -910,19 +953,9 @@ def render_job_extract_overview(
     mode: Literal["full", "compact"] = "full",
 ) -> None:
     del plan, show_question_limits
-    gap_label_map = {
-        "job_title": "Jobtitel",
-        "company_name": "Unternehmen",
-        "brand_name": "Marke",
-        "contract_type": "Vertragsart",
-        "place_of_work": "Arbeitsort",
-        "location_city": "Ort",
-        "location_country": "Land",
-    }
-
     def _format_gap(gap: str) -> str:
         text = str(gap or "").strip()
-        return gap_label_map.get(text, text)
+        return JOB_EXTRACT_DISPLAY_LABELS.get(text, text)
 
     if mode == "compact":
         if show_heading:
@@ -973,7 +1006,7 @@ def render_job_extract_overview(
     with c_gaps:
         st.markdown("### Fehlende oder unklare Punkte")
         if job.gaps:
-            st.write("\n".join([f"- {g}" for g in job.gaps]))
+            st.write("\n".join([f"- {_format_gap(g)}" for g in job.gaps]))
         else:
             st.info("Keine expliziten Gaps erkannt.")
     with c_assumptions:
@@ -1080,7 +1113,11 @@ def _render_editable_job_extract(job: JobAdExtract) -> None:
 
     with tab_core:
         core_rows = [
-            {"field": field, "value": values.get(field)}
+            {
+                "field": field,
+                "label": JOB_EXTRACT_DISPLAY_LABELS.get(field, field),
+                "value": values.get(field),
+            }
             for field in core_fields
             if field in values and has_meaningful_value(values.get(field))
         ]
@@ -1093,6 +1130,7 @@ def _render_editable_job_extract(job: JobAdExtract) -> None:
                 num_rows="fixed",
                 column_config={
                     "field": st.column_config.TextColumn("Feld", disabled=True),
+                    "label": st.column_config.TextColumn("Bezeichnung", disabled=True),
                     "value": st.column_config.TextColumn("Wert"),
                 },
             )
@@ -1105,7 +1143,11 @@ def _render_editable_job_extract(job: JobAdExtract) -> None:
 
     with tab_location:
         location_rows = [
-            {"field": field, "value": values.get(field)}
+            {
+                "field": field,
+                "label": JOB_EXTRACT_DISPLAY_LABELS.get(field, field),
+                "value": values.get(field),
+            }
             for field in location_fields
             if field in values and has_meaningful_value(values.get(field))
         ]
@@ -1118,6 +1160,7 @@ def _render_editable_job_extract(job: JobAdExtract) -> None:
                 num_rows="fixed",
                 column_config={
                     "field": st.column_config.TextColumn("Feld", disabled=True),
+                    "label": st.column_config.TextColumn("Bezeichnung", disabled=True),
                     "value": st.column_config.TextColumn("Wert"),
                 },
             )
@@ -1137,7 +1180,7 @@ def _render_editable_job_extract(job: JobAdExtract) -> None:
             if has_meaningful_value(values.get(field)):
                 values[field] = (
                     st.text_area(
-                        field.replace("_", " ").title(),
+                        JOB_EXTRACT_DISPLAY_LABELS.get(field, field),
                         value=(values.get(field) or ""),
                         key=f"cs.job_extract.text.{field}",
                         height=130,

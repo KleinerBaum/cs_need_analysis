@@ -13,7 +13,7 @@ def test_public_sidebar_links_exclude_legal_pages() -> None:
     assert labels == [
         "Recruitment Need Analysis",
         "Unsere Kompetenzen",
-        "Ueber Cognitive Staffing",
+        "Über Cognitive Staffing",
         "Kontakt",
     ]
 

@@ -39,7 +39,7 @@ def _public_sidebar_links() -> tuple[tuple[str, str], ...]:
     return (
         ("app.py", "Recruitment Need Analysis"),
         ("pages/01_Unsere_Kompetenzen.py", "Unsere Kompetenzen"),
-        ("pages/02_Über_Cognitive_Staffing.py", "Ueber Cognitive Staffing"),
+        ("pages/02_Über_Cognitive_Staffing.py", "Über Cognitive Staffing"),
         ("pages/15_Kontakt.py", "Kontakt"),
     )
 
