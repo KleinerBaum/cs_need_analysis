@@ -1,5 +1,6 @@
 # wizard_pages/06_benefits.py
 from __future__ import annotations
+import logging
 import streamlit as st
 
 from constants import SSKey
@@ -23,6 +24,8 @@ from ui_components import (
 )
 from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
 from wizard_pages.salary_forecast_panel import render_benefits_salary_forecast_panel
+
+LOGGER = logging.getLogger(__name__)
 
 _BENEFITS_SELECTED_COMPARE_KEY = "benefits.compare.selected"
 _BENEFITS_AI_SUGGESTED_KEY = "benefits.ai_suggested"
@@ -285,14 +288,23 @@ def render(ctx: WizardContext) -> None:
             session_override=None,
             settings=settings,
         )
-        render_benefits_salary_forecast_panel(
-            job=job.model_copy(update={"benefits": benefits_for_forecast}),
-            benefit_candidates=benefits_for_forecast,
-            answers=answers,
-            model=resolved_model,
-            language="de",
-            store=bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)),
-        )
+        try:
+            render_benefits_salary_forecast_panel(
+                job=job.model_copy(update={"benefits": benefits_for_forecast}),
+                benefit_candidates=benefits_for_forecast,
+                answers=answers,
+                model=resolved_model,
+                language="de",
+                store=bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)),
+            )
+        except AttributeError as exc:
+            LOGGER.warning(
+                "Salary forecast rendering unavailable: expected SalaryForecastResult with quality field (%s).",
+                exc,
+            )
+            st.warning(
+                "Die Gehaltsprognose ist vorübergehend nicht verfügbar. Bitte versuche es in Kürze erneut."
+            )
 
     def _render_open_questions_slot() -> None:
         if step is None or not step.questions:
