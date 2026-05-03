@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import logging
 from typing import Any
 
 import plotly.graph_objects as go  # type: ignore[import-untyped]
@@ -25,6 +26,8 @@ from salary.scenarios import (
 )
 from salary.types import SalaryScenarioInputs, SalaryScenarioOverrides
 from schemas import JobAdExtract
+
+LOGGER = logging.getLogger(__name__)
 
 
 def _safe_int(value: Any) -> int:
@@ -922,30 +925,41 @@ def render_benefits_salary_forecast_panel(
                     answers=answers,
                     scenario_inputs=scenario_inputs,
                 )
-            st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {
-                "forecast": forecast_result.forecast.model_dump(mode="json"),
-                "currency": forecast_result.currency,
-                "period": forecast_result.period,
-                "confidence_note": _build_quality_note(forecast_result.quality),
-                "inputs": {
-                    "benefits_selected": selected_benefits,
-                    "factors": [item for item in _factor_candidates() if item],
-                    "answers_count": len(answers),
-                    "radius_km": _safe_int(
-                        st.session_state.get(SSKey.SALARY_SCENARIO_RADIUS_KM.value, 50)
-                    ),
-                    "remote_share_percent": _safe_int(
-                        st.session_state.get(
-                            SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value, 0
-                        )
-                    ),
-                    "seniority_override": str(
-                        st.session_state.get(
-                            SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value, ""
-                        )
-                    ).strip(),
-                },
-            }
+            try:
+                st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {
+                    "forecast": forecast_result.forecast.model_dump(mode="json"),
+                    "currency": forecast_result.currency,
+                    "period": forecast_result.period,
+                    "confidence_note": _build_quality_note(forecast_result.quality),
+                    "inputs": {
+                        "benefits_selected": selected_benefits,
+                        "factors": [item for item in _factor_candidates() if item],
+                        "answers_count": len(answers),
+                        "radius_km": _safe_int(
+                            st.session_state.get(
+                                SSKey.SALARY_SCENARIO_RADIUS_KM.value, 50
+                            )
+                        ),
+                        "remote_share_percent": _safe_int(
+                            st.session_state.get(
+                                SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value, 0
+                            )
+                        ),
+                        "seniority_override": str(
+                            st.session_state.get(
+                                SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value, ""
+                            )
+                        ).strip(),
+                    },
+                }
+            except AttributeError as exc:
+                LOGGER.warning(
+                    "Salary forecast serialization unavailable: missing expected SalaryForecastResult.quality field (%s).",
+                    exc,
+                )
+                st.warning(
+                    "Die Gehaltsprognose ist vorübergehend nicht verfügbar. Bitte versuche es in Kürze erneut."
+                )
 
     def _render_forecast_result() -> None:
         render_salary_forecast_result_card(
