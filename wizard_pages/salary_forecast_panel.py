@@ -34,6 +34,36 @@ def _safe_int(value: Any) -> int:
         return 0
 
 
+
+
+def _build_quality_note(quality_payload: Any) -> str:
+    fallback_note = "Heuristische Prognose ohne zusätzliche Qualitätssignale"
+    if not hasattr(quality_payload, "signals") and not isinstance(quality_payload, dict):
+        return fallback_note
+
+    if isinstance(quality_payload, dict):
+        signals_raw = quality_payload.get("signals", [])
+        kind_raw = quality_payload.get("kind")
+        value_raw = quality_payload.get("value")
+    else:
+        signals_raw = getattr(quality_payload, "signals", [])
+        kind_raw = getattr(quality_payload, "kind", "")
+        value_raw = getattr(quality_payload, "value", None)
+
+    signals = [str(item).strip() for item in signals_raw if str(item).strip()]
+    if signals:
+        return "; ".join(signals)
+
+    kind = str(kind_raw or "").strip()
+    try:
+        value = float(value_raw)
+    except (TypeError, ValueError):
+        value = 0.0
+
+    if kind:
+        return f"{kind}: {int(round(value * 100, 0))}%"
+    return fallback_note
+
 def _extract_esco_skill_titles(raw_items: Any) -> list[str]:
     if not isinstance(raw_items, list):
         return []
@@ -657,7 +687,7 @@ def render_salary_forecast_result_card(
 
     p10 = _safe_int(forecast_payload.get("p10"))
     p90 = _safe_int(forecast_payload.get("p90"))
-    confidence_note = str(payload.get("confidence_note") or "").strip()
+    confidence_note = str(payload.get("quality_note") or payload.get("confidence_note") or "").strip()
     inputs = payload.get("inputs", {})
     answers_count = 0
     if isinstance(inputs, dict):
@@ -896,7 +926,7 @@ def render_benefits_salary_forecast_panel(
                 "forecast": forecast_result.forecast.model_dump(mode="json"),
                 "currency": forecast_result.currency,
                 "period": forecast_result.period,
-                "confidence_note": forecast_result.confidence.note,
+                "confidence_note": _build_quality_note(forecast_result.quality),
                 "inputs": {
                     "benefits_selected": selected_benefits,
                     "factors": [item for item in _factor_candidates() if item],
