@@ -818,6 +818,24 @@ def _build_esco_coverage_chart_spec(
     }
 
 
+def _build_esco_coverage_kpis(
+    *, metrics: dict[str, int], unmapped_requirements_count: int
+) -> list[tuple[str, int]]:
+    essential_total = int(metrics.get("essential_total", 0) or 0)
+    optional_total = int(metrics.get("optional_total", 0) or 0)
+    covered_total = int(metrics.get("essential_covered", 0) or 0) + int(
+        metrics.get("optional_covered", 0) or 0
+    )
+    requirements_total = essential_total + optional_total
+    unmapped_total = max(int(unmapped_requirements_count or 0), 0)
+    return [
+        ("Anforderungen", requirements_total),
+        ("ESCO unterstützt", covered_total),
+        ("Nicht gemappt", unmapped_total),
+        ("Quelle vorhanden", requirements_total),
+    ]
+
+
 def _extract_skills_step_raw_terms(job_extract_payload: Any) -> list[str]:
     if not isinstance(job_extract_payload, dict):
         return []
@@ -2009,12 +2027,14 @@ def _render_summary_facts_section(vm: SummaryViewModel) -> None:
     if requirements_total == 0 and unmapped_requirements == 0:
         st.info("Keine ESCO-RAG-Anforderungsdaten verfügbar.")
     else:
-        st.caption("ESCO RAG Coverage: Quellenabdeckung und Mapping-Status der Anforderungen")
-        chart_spec = _build_esco_coverage_chart_spec(
+        st.caption("ESCO RAG Coverage: kompakte KPI-Übersicht zur Anforderungsabdeckung")
+        kpis = _build_esco_coverage_kpis(
             metrics=coverage_metrics,
             unmapped_requirements_count=unmapped_requirements,
         )
-        st.vega_lite_chart(chart_spec, width="stretch")
+        columns = st.columns(4)
+        for idx, (label, value) in enumerate(kpis):
+            columns[idx].metric(label=label, value=str(value))
     _render_summary_facts_table([row.to_dict() for row in vm.fact_rows])
 
 
