@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-05-05
+
+- Salary-Forecast-Panel stabilisiert: Confidence-Hinweis wird jetzt konsistent aus der Forecast-Qualität abgeleitet, wodurch widersprüchliche Qualitätslabels in der UI reduziert werden.
+- Robustere Fehlerbehandlung im Benefits-Bereich: Rendering ist gegen unerwartete Attribut-/Datenformen abgesichert, damit der Wizard bei Teilfehlern nicht abbricht.
+- Salary-Ausgabe im Panel weiter gehärtet, um inkonsistente Datenpfade defensiv zu behandeln und Nutzer:innen weiterhin verwertbare Ergebnisse zu zeigen.
+- Design-System-Styles mit Dark-Theme-Tokens vereinheitlicht; zentrale Stildefinitionen wurden konsolidiert, um UI-Abweichungen zu verringern.
+- Bereiche: `salary`, `state`, `ui`.
+- **Breaking Change:** keiner.
 ## 2026-04-12
 
 - README an den aktuellen Redesign-Stand angepasst: dokumentierter Wizard-Flow (Start-Phasen A/B/C, kein separater routbarer Review-Schritt), Summary-Tab-Semantik (`Readiness`, `Fakten`, `Artefakte`, `Export`, `Advanced`) und ESCO-Anchor-/Readiness-Verhalten präzisiert.
