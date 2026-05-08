@@ -63,6 +63,7 @@ from schemas import (
     QuestionPlan,
     RequirementSuggestionPack,
     RoleTaskSalaryForecast,
+    CompanyWebsiteResearch,
     VacancyBrief,
     VacancyBriefLLM,
     VacancyStructuredData,
@@ -1436,7 +1437,7 @@ def generate_vacancy_brief(
     model: str,
     selected_role_tasks: Optional[List[str]] = None,
     selected_skills: Optional[List[str]] = None,
-    company_website_research: Optional[Dict[str, Any]] = None,
+    company_website_research: Optional[CompanyWebsiteResearch] = None,
     language: str = DEFAULT_LANGUAGE,
     store: bool = False,
     temperature: float | None = None,
@@ -1467,7 +1468,7 @@ def generate_vacancy_brief(
         "Manager-Antworten (JSON):\n"
         f"{json.dumps(answers, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
         "Firmen-Homepage-Research (JSON):\n"
-        f"{json.dumps(company_website_research or {}, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
+        f"{json.dumps((company_website_research.model_dump(mode='json') if company_website_research is not None else {}), ensure_ascii=False, sort_keys=True, separators=(',',':'))}\n\n"
         "Wichtig: Falls wichtige Informationen fehlen, schreibe sie unter risks_open_questions."
     )
 
@@ -1477,7 +1478,11 @@ def generate_vacancy_brief(
             "answers": answers,
             "selected_role_tasks": selected_role_tasks or [],
             "selected_skills": selected_skills or [],
-            "company_website_research": company_website_research or {},
+            "company_website_research": (
+                company_website_research.model_dump(mode="json")
+                if company_website_research is not None
+                else {}
+            ),
         }
     )
     cache_key = _build_llm_cache_key(
@@ -1525,7 +1530,11 @@ def generate_vacancy_brief(
         "answers": answers,
         "selected_role_tasks": selected_role_tasks or None,
         "selected_skills": selected_skills or None,
-        "company_website_research": company_website_research or None,
+        "company_website_research": (
+            company_website_research.model_dump(mode="json")
+            if company_website_research is not None
+            else None
+        ),
     }
     brief = VacancyBrief(
         **parsed_brief.model_dump(),

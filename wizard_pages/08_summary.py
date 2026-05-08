@@ -53,6 +53,7 @@ from schemas import (
     Question,
     QuestionPlan,
     VacancyBrief,
+    CompanyWebsiteResearch,
     question_option_label_map,
 )
 from settings_openai import load_openai_settings
@@ -997,7 +998,7 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
                 continue
             try:
                 parsed = EscoUnresolvedTermDecision.model_validate(entry)
-            except Exception:
+            except ValueError:
                 continue
             unresolved_decisions.append(parsed.model_dump(mode="json", exclude_none=True))
     if not unresolved_decisions and shared_esco["unmapped_actions"]:
@@ -1008,7 +1009,7 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
             candidate.setdefault("raw_term", str(raw_term))
             try:
                 parsed = EscoUnresolvedTermDecision.model_validate(candidate)
-            except Exception:
+            except ValueError:
                 continue
             unresolved_decisions.append(parsed.model_dump(mode="json", exclude_none=True))
     if unresolved_decisions:
@@ -3399,6 +3400,22 @@ def render(ctx: WizardContext) -> None:
     ) -> bool:
         clear_error()
         store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
+        raw_company_website_research = st.session_state.get(
+            SSKey.COMPANY_WEBSITE_RESEARCH.value
+        )
+        company_website_research: CompanyWebsiteResearch | None = None
+        if raw_company_website_research not in (None, {}):
+            try:
+                company_website_research = CompanyWebsiteResearch.model_validate(
+                    raw_company_website_research
+                )
+            except ValueError:
+                st.error(
+                    "Die Firmen-Website-Research-Daten sind ungültig. "
+                    "Bitte prüfe die Angaben im Unternehmensschritt und versuche es erneut."
+                )
+                return False
+
         try:
             with st.spinner(spinner_text):
                 brief, usage = generate_vacancy_brief(
@@ -3407,9 +3424,7 @@ def render(ctx: WizardContext) -> None:
                     model=resolved_brief_model,
                     selected_role_tasks=vm.artifacts.selected_role_tasks,
                     selected_skills=vm.artifacts.selected_skills,
-                    company_website_research=(
-                        st.session_state.get(SSKey.COMPANY_WEBSITE_RESEARCH.value, {})
-                    ),
+                    company_website_research=company_website_research,
                     store=store,
                 )
             st.session_state[SSKey.BRIEF.value] = brief.model_dump()
