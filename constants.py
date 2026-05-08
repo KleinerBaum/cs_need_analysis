@@ -319,6 +319,21 @@ SUMMARY_SESSION_KEY_LEGACY_ALIASES: Final[dict[SSKey, tuple[str, ...]]] = {
     SSKey.SUMMARY_STYLEGUIDE_TEXT: ("cs.summary.style_guide",),
     SSKey.SUMMARY_CHANGE_REQUEST_TEXT: ("cs.summary.change_requests",),
 }
+
+# ---- Company website research canonical keys ----
+WEBSITE_TOPIC_ABOUT: Final[str] = "about"
+WEBSITE_TOPIC_IMPRINT: Final[str] = "imprint"
+WEBSITE_TOPIC_VISION_MISSION: Final[str] = "vision_mission"
+
+WEBSITE_RESEARCH_HOMEPAGE_URL: Final[str] = "homepage_url"
+WEBSITE_RESEARCH_SECTIONS: Final[str] = "sections"
+WEBSITE_RESEARCH_OPEN_QUESTION_MATCHES: Final[str] = "open_question_matches"
+
+WEBSITE_SECTION_SOURCE_URL: Final[str] = "source_url"
+WEBSITE_SECTION_SUMMARY: Final[str] = "summary"
+WEBSITE_SECTION_FACTS: Final[str] = "facts"
+WEBSITE_SECTION_FETCHED_AT: Final[str] = "fetched_at"
+
 STALE_REDESIGN_SESSION_KEY_PREFIXES: Final[tuple[str, ...]] = (
     "cs.redesign.",
     "cs.summary.redesign.",

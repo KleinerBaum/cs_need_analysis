@@ -10,7 +10,19 @@ from urllib.request import Request, urlopen
 
 import streamlit as st
 
-from constants import SSKey
+from constants import (
+    SSKey,
+    WEBSITE_RESEARCH_HOMEPAGE_URL,
+    WEBSITE_RESEARCH_OPEN_QUESTION_MATCHES,
+    WEBSITE_RESEARCH_SECTIONS,
+    WEBSITE_SECTION_FACTS,
+    WEBSITE_SECTION_FETCHED_AT,
+    WEBSITE_SECTION_SOURCE_URL,
+    WEBSITE_SECTION_SUMMARY,
+    WEBSITE_TOPIC_ABOUT,
+    WEBSITE_TOPIC_IMPRINT,
+    WEBSITE_TOPIC_VISION_MISSION,
+)
 from schemas import JobAdExtract, QuestionPlan
 from ui_components import (
     has_meaningful_value,
@@ -24,14 +36,14 @@ from ui_layout import render_step_shell, responsive_three_columns, responsive_tw
 from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
 
 _PAGE_KEYWORDS: dict[str, tuple[str, ...]] = {
-    "about": ("über uns", "ueber uns", "about", "unternehmen", "company"),
-    "imprint": ("impressum", "imprint", "legal", "rechtliche", "kontakt"),
-    "vision_mission": ("vision", "mission", "leitbild", "werte", "purpose"),
+    WEBSITE_TOPIC_ABOUT: ("über uns", "ueber uns", "about", "unternehmen", "company"),
+    WEBSITE_TOPIC_IMPRINT: ("impressum", "imprint", "legal", "rechtliche", "kontakt"),
+    WEBSITE_TOPIC_VISION_MISSION: ("vision", "mission", "leitbild", "werte", "purpose"),
 }
 _TOPIC_LABELS: dict[str, str] = {
-    "about": "Über uns",
-    "imprint": "Impressum",
-    "vision_mission": "Vision und Mission",
+    WEBSITE_TOPIC_ABOUT: "Über uns",
+    WEBSITE_TOPIC_IMPRINT: "Impressum",
+    WEBSITE_TOPIC_VISION_MISSION: "Vision und Mission",
 }
 _USER_AGENT = "cs-need-analysis/1.0 (+https://example.invalid)"
 _NOISE_PATTERNS: tuple[str, ...] = (
@@ -230,7 +242,7 @@ def _extract_imprint_facts(raw_html: str, text: str) -> dict[str, str]:
 def _derive_topic_facts(topic_key: str, text: str, raw_html: str) -> list[str]:
     facts: list[str] = []
     compact = re.sub(r"\s+", " ", text)
-    if topic_key == "imprint":
+    if topic_key == WEBSITE_TOPIC_IMPRINT:
         imprint_facts = _extract_imprint_facts(raw_html, compact)
         for label in (
             "Firma",
@@ -289,7 +301,7 @@ def _derive_insights_from_open_questions(
     for topic_key, section in research_sections.items():
         if not isinstance(section, dict):
             continue
-        summary = section.get("summary", [])
+        summary = section.get(WEBSITE_SECTION_SUMMARY, [])
         if not isinstance(summary, list):
             continue
         section_corpus[topic_key] = " ".join(str(line) for line in summary).casefold()
@@ -306,7 +318,11 @@ def _derive_insights_from_open_questions(
         if not matched_tokens:
             continue
         source_topic = ""
-        for topic_key in ("about", "imprint", "vision_mission"):
+        for topic_key in (
+            WEBSITE_TOPIC_ABOUT,
+            WEBSITE_TOPIC_IMPRINT,
+            WEBSITE_TOPIC_VISION_MISSION,
+        ):
             topic_text = section_corpus.get(topic_key, "")
             if any(token in topic_text for token in matched_tokens):
                 source_topic = topic_key
@@ -396,17 +412,17 @@ def _run_website_research(
         resolved_topic_url, _, summary, facts = best_payload
         research_raw = st.session_state.get(SSKey.COMPANY_WEBSITE_RESEARCH.value, {})
         research = research_raw if isinstance(research_raw, dict) else {}
-        sections_raw = research.get("sections", {})
+        sections_raw = research.get(WEBSITE_RESEARCH_SECTIONS, {})
         sections = sections_raw if isinstance(sections_raw, dict) else {}
         sections[topic_key] = {
-            "source_url": resolved_topic_url,
-            "summary": summary,
-            "facts": facts,
-            "fetched_at": datetime.now(UTC).isoformat(),
+            WEBSITE_SECTION_SOURCE_URL: resolved_topic_url,
+            WEBSITE_SECTION_SUMMARY: summary,
+            WEBSITE_SECTION_FACTS: facts,
+            WEBSITE_SECTION_FETCHED_AT: datetime.now(UTC).isoformat(),
         }
-        research["homepage_url"] = resolved_homepage
-        research["sections"] = sections
-        research["open_question_matches"] = _derive_insights_from_open_questions(
+        research[WEBSITE_RESEARCH_HOMEPAGE_URL] = resolved_homepage
+        research[WEBSITE_RESEARCH_SECTIONS] = sections
+        research[WEBSITE_RESEARCH_OPEN_QUESTION_MATCHES] = _derive_insights_from_open_questions(
             _collect_open_questions(plan),
             sections,
         )
@@ -445,12 +461,12 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
         with button_col_1:
             if st.button('Ermittle "Über uns"', width="stretch"):
                 _run_website_research(
-                    homepage_url=homepage, topic_key="about", plan=plan
+                    homepage_url=homepage, topic_key=WEBSITE_TOPIC_ABOUT, plan=plan
                 )
         with button_col_2:
             if st.button('Ermittle "Impressum"', width="stretch"):
                 _run_website_research(
-                    homepage_url=homepage, topic_key="imprint", plan=plan
+                    homepage_url=homepage, topic_key=WEBSITE_TOPIC_IMPRINT, plan=plan
                 )
         with button_col_3:
             if st.button(
@@ -459,7 +475,7 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
             ):
                 _run_website_research(
                     homepage_url=homepage,
-                    topic_key="vision_mission",
+                    topic_key=WEBSITE_TOPIC_VISION_MISSION,
                     plan=plan,
                 )
 
@@ -470,20 +486,20 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
     with right_col:
         research_raw = st.session_state.get(SSKey.COMPANY_WEBSITE_RESEARCH.value, {})
         research = research_raw if isinstance(research_raw, dict) else {}
-        sections = research.get("sections", {})
+        sections = research.get(WEBSITE_RESEARCH_SECTIONS, {})
         section_payload = sections if isinstance(sections, dict) else {}
         if not section_payload:
             st.caption("Noch keine Analyse durchgeführt.")
         for topic_key, topic_label in _TOPIC_LABELS.items():
             payload_raw = section_payload.get(topic_key, {})
             payload = payload_raw if isinstance(payload_raw, dict) else {}
-            summary = payload.get("summary", [])
-            facts = payload.get("facts", [])
+            summary = payload.get(WEBSITE_SECTION_SUMMARY, [])
+            facts = payload.get(WEBSITE_SECTION_FACTS, [])
             if not isinstance(summary, list) or not summary:
                 continue
             with st.container(border=True):
                 st.write(f"**{topic_label}**")
-                source_url = str(payload.get("source_url") or "").strip()
+                source_url = str(payload.get(WEBSITE_SECTION_SOURCE_URL) or "").strip()
                 if source_url:
                     st.caption(f"Quelle: {source_url}")
                 if isinstance(facts, list) and facts:
@@ -492,7 +508,7 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
                 for line in summary:
                     st.write(f"- {str(line).strip()}")
 
-        matches_raw = research.get("open_question_matches", [])
+        matches_raw = research.get(WEBSITE_RESEARCH_OPEN_QUESTION_MATCHES, [])
         matches = [
             match for match in (matches_raw if isinstance(matches_raw, list) else [])
             if isinstance(match, dict)
