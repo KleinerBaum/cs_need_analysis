@@ -13,7 +13,18 @@ from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
-from constants import AnswerType, QUESTION_SCHEMA_VERSION, VACANCY_SCHEMA_VERSION
+from constants import (
+    AnswerType,
+    QUESTION_SCHEMA_VERSION,
+    VACANCY_SCHEMA_VERSION,
+    WEBSITE_RESEARCH_HOMEPAGE_URL,
+    WEBSITE_RESEARCH_OPEN_QUESTION_MATCHES,
+    WEBSITE_RESEARCH_SECTIONS,
+    WEBSITE_SECTION_FACTS,
+    WEBSITE_SECTION_FETCHED_AT,
+    WEBSITE_SECTION_SOURCE_URL,
+    WEBSITE_SECTION_SUMMARY,
+)
 
 
 class StrictSchemaModel(BaseModel):
@@ -515,6 +526,47 @@ class EscoMatrixCoverageRow(StrictSchemaModel):
     )
 
 
+class WebsiteResearchSection(StrictSchemaModel):
+    source_url: Optional[str] = Field(
+        default=None,
+        serialization_alias=WEBSITE_SECTION_SOURCE_URL,
+    )
+    summary: List[str] = Field(
+        default_factory=list,
+        serialization_alias=WEBSITE_SECTION_SUMMARY,
+    )
+    facts: Dict[str, str] = Field(
+        default_factory=dict,
+        serialization_alias=WEBSITE_SECTION_FACTS,
+    )
+    fetched_at: Optional[str] = Field(
+        default=None,
+        serialization_alias=WEBSITE_SECTION_FETCHED_AT,
+    )
+
+
+class WebsiteOpenQuestionMatch(StrictSchemaModel):
+    question_id: str
+    question_label: str
+    source_topic: str
+    match_tokens: Optional[str] = None
+
+
+class CompanyWebsiteResearch(StrictSchemaModel):
+    homepage_url: Optional[str] = Field(
+        default=None,
+        serialization_alias=WEBSITE_RESEARCH_HOMEPAGE_URL,
+    )
+    sections: Dict[str, WebsiteResearchSection] = Field(
+        default_factory=dict,
+        serialization_alias=WEBSITE_RESEARCH_SECTIONS,
+    )
+    open_question_matches: List[WebsiteOpenQuestionMatch] = Field(
+        default_factory=list,
+        serialization_alias=WEBSITE_RESEARCH_OPEN_QUESTION_MATCHES,
+    )
+
+
 class VacancyStructuredData(StrictSchemaModel):
     job_extract: Dict[str, Any] = Field(default_factory=dict)
     answers: Dict[str, Any] = Field(default_factory=dict)
@@ -526,7 +578,7 @@ class VacancyStructuredData(StrictSchemaModel):
         default=None,
         description="Optional skill labels explicitly selected in the wizard.",
     )
-    company_website_research: Optional[Dict[str, Any]] = Field(
+    company_website_research: Optional[CompanyWebsiteResearch] = Field(
         default=None,
         description="Optional homepage research findings captured in the company step.",
     )

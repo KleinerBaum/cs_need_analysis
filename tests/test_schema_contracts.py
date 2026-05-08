@@ -1,10 +1,12 @@
 from schemas import (
     BooleanSearchPack,
+    CompanyWebsiteResearch,
     EmploymentContractDraft,
     InterviewPrepSheetHR,
     InterviewPrepSheetHiringManager,
     QuestionPlan,
     RequirementSuggestionPack,
+    VacancyStructuredData,
     VacancyBriefLLM,
 )
 
@@ -71,3 +73,34 @@ def test_requirement_suggestion_pack_schema_is_strict() -> None:
     defs = schema.get("$defs", {})
     item_schema = defs["RequirementSuggestionItem"]
     assert item_schema.get("additionalProperties") is False
+
+
+def test_company_website_research_contract_is_strict_and_typed() -> None:
+    schema = CompanyWebsiteResearch.model_json_schema()
+    assert schema.get("additionalProperties") is False
+    properties = schema["properties"]
+    assert set(properties) == {"homepage_url", "sections", "open_question_matches"}
+    defs = schema.get("$defs", {})
+    assert defs["WebsiteResearchSection"].get("additionalProperties") is False
+    assert defs["WebsiteOpenQuestionMatch"].get("additionalProperties") is False
+
+
+def test_vacancy_structured_data_rejects_invalid_company_website_research_shape() -> None:
+    payload = {
+        "job_extract": {},
+        "answers": {},
+        "company_website_research": {
+            "homepage_url": "https://example.com",
+            "sections": [],
+            "open_question_matches": {},
+        },
+    }
+
+    try:
+        VacancyStructuredData.model_validate(payload)
+    except Exception as exc:  # noqa: BLE001
+        message = str(exc)
+        assert "company_website_research.sections" in message
+        assert "company_website_research.open_question_matches" in message
+    else:
+        raise AssertionError("Expected validation to fail for invalid research payload")
