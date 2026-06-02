@@ -219,7 +219,7 @@ def _build_settings(*, openai_model_override: str | None) -> OpenAISettings:
         openai_request_timeout=120.0,
         esco_vector_store_id=None,
         esco_rag_enabled=False,
-        esco_rag_max_results=8,
+        esco_rag_max_results=5,
         task_max_output_tokens={},
         task_max_bullets_per_field={},
         task_max_sentences_per_field={},

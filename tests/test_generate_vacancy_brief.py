@@ -27,7 +27,7 @@ def _runtime_config() -> OpenAIRuntimeConfig:
         resolved_from={},
         esco_vector_store_id=None,
         esco_rag_enabled=False,
-        esco_rag_max_results=3,
+        esco_rag_max_results=5,
     )
     return OpenAIRuntimeConfig(
         resolved_model="gpt-5-mini",

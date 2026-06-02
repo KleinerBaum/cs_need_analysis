@@ -1,6 +1,16 @@
 from __future__ import annotations
 
+import pytest
+
+import settings_openai
 from settings_openai import DEFAULT_TIMEOUT_SECONDS, load_openai_settings
+
+
+@pytest.fixture(autouse=True)
+def _isolate_openai_settings_sources(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings_openai.st, "secrets", {})
+    for key in settings_openai._HARD_DEFAULTS:
+        monkeypatch.delenv(key, raising=False)
 
 
 def test_openai_settings_esco_rag_defaults_without_env(monkeypatch) -> None:
