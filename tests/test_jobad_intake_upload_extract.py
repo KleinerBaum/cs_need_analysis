@@ -170,6 +170,93 @@ def test_phase_a_shows_pdf_ocr_error_message(monkeypatch) -> None:
     )
 
 
+class _FakeStreamlitSourceSection:
+    def __init__(self, session_state: dict[str, object]) -> None:
+        self.session_state = session_state
+        self.markdowns: list[str] = []
+        self.expanders: list[tuple[str, bool]] = []
+
+    def container(self, **_kwargs: Any) -> _DummyContext:
+        return _DummyContext()
+
+    def markdown(self, text: str, *_args: Any, **_kwargs: Any) -> None:
+        self.markdowns.append(text)
+
+    def expander(self, label: str, *, expanded: bool = False) -> _DummyContext:
+        self.expanders.append((label, expanded))
+        return _DummyContext()
+
+    def caption(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    def columns(self, spec, **_kwargs: Any):
+        count = spec if isinstance(spec, int) else len(spec)
+        return tuple(_DummyContext() for _ in range(count))
+
+    def file_uploader(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    def text_area(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    def metric(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    def button(self, *_args: Any, **_kwargs: Any) -> bool:
+        return False
+
+    def info(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    def success(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    def error(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
+
+
+def test_source_input_section_stays_visible_after_analysis(monkeypatch) -> None:
+    fake_st = _FakeStreamlitSourceSection(
+        {
+            SSKey.JOB_EXTRACT.value: {"job_title": "Data Engineer"},
+            SSKey.QUESTION_PLAN.value: {"steps": []},
+            SSKey.SOURCE_TEXT.value: "Initial text",
+        }
+    )
+    monkeypatch.setattr(jobad_intake, "st", fake_st)
+    monkeypatch.setattr(jobad_intake, "_render_source_summary", lambda: None)
+    monkeypatch.setattr(
+        jobad_intake, "_render_phase_a_source_and_privacy_controls", lambda: False
+    )
+
+    result = jobad_intake._render_source_input_section(object())
+
+    assert result is False
+    assert "#### Jobspec-Quelle bearbeiten" in fake_st.markdowns
+    assert fake_st.expanders == []
+
+
+def test_extraction_result_section_opens_by_default(monkeypatch) -> None:
+    fake_st = _FakeStreamlitSourceSection(
+        {
+            SSKey.JOB_EXTRACT.value: {"job_title": "Data Engineer"},
+            SSKey.QUESTION_PLAN.value: {"steps": []},
+        }
+    )
+    monkeypatch.setattr(jobad_intake, "st", fake_st)
+    monkeypatch.setattr(jobad_intake, "_has_completed_intake_analysis", lambda: True)
+    monkeypatch.setattr(
+        jobad_intake,
+        "_render_phase_b_extraction_review",
+        lambda _ctx: fake_st.markdowns.append("rendered-review"),
+    )
+
+    jobad_intake._render_extraction_result_section(object())
+
+    assert ("Analyseergebnis", True) in fake_st.expanders
+    assert "rendered-review" in fake_st.markdowns
+
+
 class _DummySpinner:
     def __enter__(self) -> "_DummySpinner":
         return self

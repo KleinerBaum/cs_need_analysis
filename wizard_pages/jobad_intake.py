@@ -73,7 +73,6 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
     job = JobAdExtract.model_validate(job_dict)
     plan = QuestionPlan.model_validate(plan_dict)
 
-    plan_question_count = sum(len(step.questions) for step in plan.steps)
     selected_occupation = get_esco_occupation_selected() or {}
     has_confirmed_anchor = has_confirmed_esco_anchor()
     selected_occupation_title = str(selected_occupation.get("title") or "").strip()
@@ -83,21 +82,6 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
         "Extrahierte Werte und dynamische Rückfragen wurden vorbereitet. "
         "Prüfen Sie die Angaben und bestätigen Sie anschließend den ESCO-Anker."
     )
-
-    with st.expander("Technische Details zur Analyse", expanded=False):
-        st.caption(f"Generierte Rückfragen gesamt: {plan_question_count}")
-        st.caption(f"Generierte Step-Blöcke: {len(plan.steps)}")
-        cache_info = st.session_state.get(SSKey.JOBAD_CACHE_HIT.value)
-        if isinstance(cache_info, dict) and cache_info:
-            extract_cached = bool(cache_info.get("extract_job_ad"))
-            plan_cached = bool(cache_info.get("generate_question_plan"))
-            st.caption(
-                "Cache-Status: "
-                f"Extraktion={'Ja' if extract_cached else 'Nein'}, "
-                f"Frageplan={'Ja' if plan_cached else 'Nein'}"
-            )
-        else:
-            st.caption("Cache-Status: keine Daten verfügbar")
     render_job_extract_overview(
         job,
         plan=plan,
@@ -306,17 +290,13 @@ def _render_source_input_section(ctx: WizardContext) -> bool:
     del ctx
     if _has_completed_intake_analysis():
         _render_source_summary()
-        expander_ctx = (
-            st.expander("Jobspec-Quelle bearbeiten", expanded=False)
-            if hasattr(st, "expander")
-            else nullcontext()
+        container_ctx = (
+            st.container(border=True) if hasattr(st, "container") else nullcontext()
         )
-        with expander_ctx:
-            container_ctx = (
-                st.container(border=True) if hasattr(st, "container") else nullcontext()
-            )
-            with container_ctx:
-                return _render_phase_a_source_and_privacy_controls()
+        with container_ctx:
+            if hasattr(st, "markdown"):
+                st.markdown("#### Jobspec-Quelle bearbeiten")
+            return _render_phase_a_source_and_privacy_controls()
     container_ctx = (
         st.container(border=True) if hasattr(st, "container") else nullcontext()
     )
@@ -331,9 +311,13 @@ def _render_extraction_result_section(ctx: WizardContext) -> None:
         st.container(border=True) if hasattr(st, "container") else nullcontext()
     )
     with container_ctx:
-        if hasattr(st, "markdown"):
-            st.markdown("### Analyseergebnis")
-        _render_phase_b_extraction_review(ctx)
+        if hasattr(st, "expander"):
+            with st.expander("Analyseergebnis", expanded=True):
+                _render_phase_b_extraction_review(ctx)
+        else:
+            if hasattr(st, "markdown"):
+                st.markdown("### Analyseergebnis")
+            _render_phase_b_extraction_review(ctx)
 
 
 def _render_esco_anchor_section(ctx: WizardContext) -> None:

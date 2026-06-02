@@ -1029,67 +1029,7 @@ def _render_selected_occupation_detail(
     ]
     available_fields = sum(1 for _, value, state in detail_fields if _is_available(state, value))
 
-    st.markdown("### ESCO Occupation-Details")
-    with st.expander("Mehr Infos", expanded=False):
-        st.caption(f"{available_fields}/{len(detail_fields)} Felder verfügbar")
-        show_only_available = st.toggle("Nur verfügbare Felder anzeigen", value=True)
-
-        def _render_field(label: str, value: str, state: str) -> None:
-            if show_only_available and not _is_available(state, value):
-                return
-            st.markdown(f"**{label}**")
-            if _is_available(state, value):
-                st.write(value)
-                if state == _FIELD_STATE_FALLBACK_LANGUAGE:
-                    st.caption(_FIELD_STATE_FALLBACK_LANGUAGE)
-            else:
-                st.caption(state)
-
-        st.markdown("##### Beschreibung")
-        _render_field("Description", description, description_state)
-        _render_field("Scope Note", scope_note, scope_note_state)
-        _render_field("Regulated Profession Note", regulated_text, regulated_text_state)
-
-        st.markdown("##### Basisdaten")
-        _render_field("Preferred Label", preferred_label, preferred_label_state)
-        _render_field(
-            "Alternative Labels",
-            ", ".join(alternative_labels),
-            alternative_label_state,
-        )
-        _render_field("Regulated Profession", regulated_value, regulated_state)
-
-        st.markdown("##### Klassifikation")
-        _render_field("ISCO-08 Mapping", isco_mapping, isco_mapping_state)
-
-        st.markdown("##### Relationen")
-        _render_field("Essential skills", str(essential_skill_count), essential_skill_state)
-        _render_field("Optional skills", str(optional_skill_count), optional_skill_state)
-        _render_field(
-            "Essential knowledge",
-            str(essential_knowledge_count),
-            essential_knowledge_state,
-        )
-        _render_field(
-            "Optional knowledge",
-            str(optional_knowledge_count),
-            optional_knowledge_state,
-        )
-
-        uri = str(payload.get("uri") or "").strip() if isinstance(payload, dict) else ""
-        version = str(payload.get("version") or "").strip() if isinstance(payload, dict) else ""
-        source = str(st.session_state.get(SSKey.ESCO_LAST_DATA_SOURCE.value) or "live_api")
-        meta_items: list[str] = [f"Quelle: {source}"]
-        if version:
-            meta_items.append(f"Version: {version}")
-        st.caption(" · ".join(meta_items))
-        if uri:
-            uri_suffix = uri.rstrip("/").rsplit("/", 1)[-1] or uri
-            st.markdown(f"[ESCO URI: …{uri_suffix}]({uri})")
-            if st.button("URI kopieren", key="esco.occupation.details.uri.copy"):
-                st.code(uri, language="text")
-                st.caption("URI zum Kopieren eingeblendet.")
-
+    st.caption("Die wichtigsten Inhalte zuerst, technische Daten darunter.")
     st.markdown("#### Concept overview")
     st.markdown("**Description**")
     if description:
@@ -1153,6 +1093,66 @@ def _render_selected_occupation_detail(
         st.write(" · ".join(optional_knowledge_labels))
     else:
         st.caption(f"{optional_knowledge_count} Treffer")
+
+    with st.expander("Technische Details", expanded=False):
+        st.caption(f"{available_fields}/{len(detail_fields)} Felder verfügbar")
+        show_only_available = st.toggle("Nur verfügbare Felder anzeigen", value=True)
+
+        def _render_field(label: str, value: str, state: str) -> None:
+            if show_only_available and not _is_available(state, value):
+                return
+            st.markdown(f"**{label}**")
+            if _is_available(state, value):
+                st.write(value)
+                if state == _FIELD_STATE_FALLBACK_LANGUAGE:
+                    st.caption(_FIELD_STATE_FALLBACK_LANGUAGE)
+            else:
+                st.caption(state)
+
+        st.markdown("##### Beschreibung")
+        _render_field("Description", description, description_state)
+        _render_field("Scope Note", scope_note, scope_note_state)
+        _render_field("Regulated Profession Note", regulated_text, regulated_text_state)
+
+        st.markdown("##### Basisdaten")
+        _render_field("Preferred Label", preferred_label, preferred_label_state)
+        _render_field(
+            "Alternative Labels",
+            ", ".join(alternative_labels),
+            alternative_label_state,
+        )
+        _render_field("Regulated Profession", regulated_value, regulated_state)
+
+        st.markdown("##### Klassifikation")
+        _render_field("ISCO-08 Mapping", isco_mapping, isco_mapping_state)
+
+        st.markdown("##### Relationen")
+        _render_field("Essential skills", str(essential_skill_count), essential_skill_state)
+        _render_field("Optional skills", str(optional_skill_count), optional_skill_state)
+        _render_field(
+            "Essential knowledge",
+            str(essential_knowledge_count),
+            essential_knowledge_state,
+        )
+        _render_field(
+            "Optional knowledge",
+            str(optional_knowledge_count),
+            optional_knowledge_state,
+        )
+
+        uri = str(payload.get("uri") or "").strip() if isinstance(payload, dict) else ""
+        version = str(payload.get("version") or "").strip() if isinstance(payload, dict) else ""
+        source = str(st.session_state.get(SSKey.ESCO_LAST_DATA_SOURCE.value) or "live_api")
+        meta_items: list[str] = [f"Quelle: {source}"]
+        if version:
+            meta_items.append(f"Version: {version}")
+        st.caption(" · ".join(meta_items))
+        if uri:
+            uri_suffix = uri.rstrip("/").rsplit("/", 1)[-1] or uri
+            st.markdown(f"[ESCO URI: …{uri_suffix}]({uri})")
+            if st.button("URI kopieren", key="esco.occupation.details.uri.copy"):
+                st.code(uri, language="text")
+                st.caption("URI zum Kopieren eingeblendet.")
 
     share_rows = _extract_skill_group_share_rows(skill_group_share_payload)
     left_column, center_column, right_column = st.columns([1, 2, 1])
@@ -1306,6 +1306,10 @@ def render_esco_occupation_confirmation(
     if show_start_context_panels:
         st.markdown("### ESCO-Anker bestätigen")
         st.caption(f"Suche mit: `{query_text}`")
+        st.info(
+            "Warum ESCO? Ein eindeutiger Berufsanker reduziert Mehrdeutigkeit und "
+            "wird in den nächsten Schritten für Aufgaben, Skills und Summary weiterverwendet."
+        )
     query_state_key = f"{SSKey.ESCO_OCCUPATION_SELECTED.value}.esco_picker.query"
     if not st.session_state.get(query_state_key):
         st.session_state[query_state_key] = query_text
@@ -1540,7 +1544,8 @@ def render_esco_occupation_confirmation(
             )
 
         with st.expander(
-            "Occupation-Details", expanded=(technical_expanded and not compact)
+            "Beruf im Detail",
+            expanded=compact or (technical_expanded and not compact),
         ):
             _render_selected_occupation_detail(
                 st.session_state.get(SSKey.ESCO_OCCUPATION_PAYLOAD.value),
