@@ -216,16 +216,42 @@ def test_build_esco_coverage_chart_spec_contains_expected_bars() -> None:
     assert {"group": "Abdeckung", "category": "Nicht gemappt", "value": 2} in values
 
 
+def test_build_esco_coverage_kpis_contains_expected_values() -> None:
+    kpis = SUMMARY_MODULE._build_esco_coverage_kpis(
+        metrics={
+            "essential_total": 3,
+            "optional_total": 2,
+            "essential_covered": 2,
+            "optional_covered": 1,
+        },
+        unmapped_requirements_count=2,
+    )
+
+    assert kpis == [
+        ("Anforderungen", 5),
+        ("ESCO unterstützt", 3),
+        ("Nicht gemappt", 2),
+        ("Quelle vorhanden", 5),
+    ]
+
+
 def test_render_summary_facts_section_uses_esco_shared_fields_for_coverage(
     monkeypatch,
 ) -> None:
+    class _FakeColumn:
+        def __init__(self, metrics_calls: list[tuple[str, str]]):
+            self.metrics_calls = metrics_calls
+
+        def metric(self, label: str, value: str, **_: object) -> None:
+            self.metrics_calls.append((label, value))
+
     class _FakeStreamlit:
         def __init__(self, session_state: dict[str, object]):
             self.session_state = session_state
             self.info_calls: list[str] = []
             self.caption_calls: list[str] = []
-            self.vega_specs: list[dict[str, object]] = []
             self.markdown_calls: list[str] = []
+            self.metric_calls: list[tuple[str, str]] = []
 
         def markdown(self, text: str, **_: object) -> None:
             self.markdown_calls.append(text)
@@ -236,8 +262,8 @@ def test_render_summary_facts_section_uses_esco_shared_fields_for_coverage(
         def caption(self, text: str, **_: object) -> None:
             self.caption_calls.append(text)
 
-        def vega_lite_chart(self, spec: dict[str, object], **_: object) -> None:
-            self.vega_specs.append(spec)
+        def columns(self, count: int, **_: object) -> list[_FakeColumn]:
+            return [_FakeColumn(self.metric_calls) for _ in range(count)]
 
     fake_st = _FakeStreamlit(
         {
@@ -279,9 +305,9 @@ def test_render_summary_facts_section_uses_esco_shared_fields_for_coverage(
     SUMMARY_MODULE._render_summary_facts_section(vm)
 
     assert fake_st.info_calls == []
-    assert len(fake_st.vega_specs) == 1
-    values = fake_st.vega_specs[0]["data"]["values"]  # type: ignore[index]
-    assert {"group": "Quelle", "category": "Must-have (Jobspec)", "value": 2} in values
-    assert {"group": "Quelle", "category": "Nice-to-have (Jobspec)", "value": 1} in values
-    assert {"group": "Abdeckung", "category": "ESCO-unterstützt", "value": 2} in values
-    assert {"group": "Abdeckung", "category": "Nicht gemappt", "value": 1} in values
+    assert fake_st.metric_calls == [
+        ("Anforderungen", "3"),
+        ("ESCO unterstützt", "2"),
+        ("Nicht gemappt", "1"),
+        ("Quelle vorhanden", "3"),
+    ]
