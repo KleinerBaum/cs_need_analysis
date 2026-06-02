@@ -508,7 +508,7 @@ def test_render_esco_occupation_confirmation_keeps_chart_before_title_variants(
         ("ESCO Capability Status", False),
         ("ESCO Debug", False),
     ]
-    assert ("Occupation-Details", False) in fake_st.expander_calls
+    assert ("Beruf im Detail", False) in fake_st.expander_calls
     assert any("Essential Knowledge" in event for event in fake_st.events)
     assert any("Optional Knowledge" in event for event in fake_st.events)
 
@@ -594,7 +594,7 @@ def test_render_esco_occupation_confirmation_compact_mode_keeps_decision_first(
 
     assert any("Details anzeigen" in message for message in fake_st.caption_messages)
     assert any("Portal öffnen" in message for message in fake_st.markdown_messages)
-    assert ("Technische Details", False) in fake_st.expander_calls
+    assert ("Beruf im Detail", True) in fake_st.expander_calls
 
 
 def test_render_esco_occupation_confirmation_skips_skill_group_request_when_unsupported(

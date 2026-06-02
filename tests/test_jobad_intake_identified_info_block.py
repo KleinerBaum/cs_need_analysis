@@ -103,6 +103,8 @@ def test_identified_info_next_is_enabled_without_esco_anchor(monkeypatch) -> Non
     )
 
     monkeypatch.setattr(jobad_intake, "st", fake_st)
+    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_components, "_render_editable_job_extract", lambda _job: None)
     monkeypatch.setattr(jobad_intake, "get_esco_occupation_selected", lambda: None)
     monkeypatch.setattr(jobad_intake, "has_confirmed_esco_anchor", lambda: False)
     overview_calls: list[dict[str, object]] = []
@@ -120,7 +122,7 @@ def test_identified_info_next_is_enabled_without_esco_anchor(monkeypatch) -> Non
         "Prüfen Sie die Angaben und bestätigen Sie anschließend den ESCO-Anker."
         in fake_st.captions
     )
-    assert "Technische Details zur Analyse" in fake_st.expanders
+    assert "Technische Details zur Analyse" not in fake_st.expanders
     assert "cs.jobspec.ident_info.next" not in fake_st.button_disabled
     assert (
         "Optional: In Phase C können Sie einen semantischen ESCO-Anker bestätigen."
@@ -147,6 +149,8 @@ def test_identified_info_next_uses_selected_occupation_fallback(monkeypatch) -> 
     )
 
     monkeypatch.setattr(jobad_intake, "st", fake_st)
+    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_components, "_render_editable_job_extract", lambda _job: None)
     monkeypatch.setattr(
         jobad_intake,
         "get_esco_occupation_selected",

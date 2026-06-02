@@ -2,8 +2,11 @@ from __future__ import annotations
 
 START_PAGE_COPY: dict[str, object] = {
     "hero_headline": "Cognitive Staffing",
-    "hero_subheadline": "KI-gestützte Bedarfsanalyse für präzisere Recruiting-Entscheidungen",
-    "hero_supporting_paragraph": "",
+    "hero_subheadline": "KI-gestützte Bedarfsanalyse für präzisere Recruiting-Entscheidungen.",
+    "hero_supporting_paragraph": (
+        "Jobspec einlesen, semantisch verankern, Anforderungen strukturieren und "
+        "direkt verwertbare Recruiting-Artefakte erzeugen."
+    ),
     "primary_cta": "Jobspec erfassen",
     "secondary_cta_hint": "",
     "next_step_line": "",
@@ -17,16 +20,16 @@ START_PAGE_COPY: dict[str, object] = {
     "flow_title": "Was passiert danach?",
     "flow_steps": (
         (
-            "1. Beruf semantisch verankern",
-            "Die Rolle wird auf einen eindeutigen ESCO-Beruf gemappt.",
+            "1. Beruf eindeutig verankern",
+            "Die Rolle wird auf einen klaren ESCO-Beruf gemappt, damit alle Folgeschritte denselben Kontext nutzen.",
         ),
         (
-            "2. Anforderungen normalisieren",
-            "Skills, Aufgaben und Muss-/Kann-Kriterien werden strukturiert.",
+            "2. Anforderungen strukturieren",
+            "Skills, Aufgaben und Muss-/Kann-Kriterien werden normalisiert und in einen nutzbaren Plan überführt.",
         ),
         (
             "3. Recruiting-Artefakte erzeugen",
-            "Die App erstellt verwertbare Outputs für Recruiting und Hiring-Team.",
+            "Die App erstellt belastbare Texte, Zusammenfassungen und Folge-Outputs für Recruiting und Hiring-Team.",
         ),
     ),
     "security_title": "Datenschutz und Kontrolle",
