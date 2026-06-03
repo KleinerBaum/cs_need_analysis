@@ -107,6 +107,49 @@ def test_build_structured_export_payload_preserves_saved_tasks_and_skills(
     assert payload["selected_skills"] == ["Python", "SQL"]
 
 
+def test_build_structured_export_payload_includes_occupation_context(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.OCCUPATION_PROFILE.value: {
+                    "occupation_family": "digital_product",
+                    "confidence": 0.72,
+                    "authority_source": "deterministic_rules",
+                    "pack_keys": ["base.core", "family.digital_product"],
+                },
+                SSKey.QUESTION_FLOW_PROVENANCE.value: {
+                    "base_question_count": 3,
+                    "compiled_question_count": 5,
+                    "selected_pack_keys": ["base.core", "family.digital_product"],
+                    "injected_question_ids": ["ctx_digital_ownership"],
+                },
+                SSKey.ESCO_CONFIG.value: {},
+                SSKey.ESCO_SKILLS_SELECTED_MUST.value: [],
+                SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
+            }
+        ),
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "get_esco_occupation_selected", lambda: None)
+
+    payload = SUMMARY_MODULE._build_structured_export_payload(_brief())
+
+    assert payload["occupation_context_profile"]["occupation_family"] == (
+        "digital_product"
+    )
+    assert payload["occupation_context_profile"]["pack_keys"] == [
+        "base.core",
+        "family.digital_product",
+    ]
+    assert payload["question_flow_provenance"]["compiled_question_count"] == 5
+    assert payload["question_flow_provenance"]["injected_question_ids"] == [
+        "ctx_digital_ownership"
+    ]
+
+
 def test_build_brief_structured_preview_payload_uses_export_subset(monkeypatch) -> None:
     monkeypatch.setattr(
         SUMMARY_MODULE,

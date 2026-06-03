@@ -50,7 +50,9 @@ from schemas import (
     InterviewPrepSheetHR,
     JobAdExtract,
     LanguageRequirement,
+    OccupationContextProfile,
     Question,
+    QuestionFlowProvenance,
     QuestionPlan,
     VacancyBrief,
     CompanyWebsiteResearch,
@@ -980,6 +982,26 @@ def _build_esco_mapping_report_csv(rows: list[dict[str, str]]) -> bytes:
 
 def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
     payload = dict(brief.structured_data.model_dump(mode="json", exclude_none=True))
+    occupation_profile_raw = st.session_state.get(SSKey.OCCUPATION_PROFILE.value)
+    if isinstance(occupation_profile_raw, dict):
+        try:
+            payload["occupation_context_profile"] = (
+                OccupationContextProfile.model_validate(
+                    occupation_profile_raw
+                ).model_dump(mode="json", exclude_none=True)
+            )
+        except Exception:
+            pass
+    flow_provenance_raw = st.session_state.get(SSKey.QUESTION_FLOW_PROVENANCE.value)
+    if isinstance(flow_provenance_raw, dict) and flow_provenance_raw:
+        try:
+            payload["question_flow_provenance"] = (
+                QuestionFlowProvenance.model_validate(
+                    flow_provenance_raw
+                ).model_dump(mode="json", exclude_none=True)
+            )
+        except Exception:
+            pass
     selected_occupation = get_esco_occupation_selected()
     if isinstance(selected_occupation, dict):
         try:

@@ -117,8 +117,14 @@ class SSKey(str, Enum):
     SOURCE_REDACT_PII = "cs.source_redact_pii"
 
     JOB_EXTRACT = "cs.job_extract"
+    QUESTION_PLAN_BASE = "cs.question_plan_base"
     QUESTION_PLAN = "cs.question_plan"
     QUESTION_LIMITS = "cs.question_limits"
+    OCCUPATION_PROFILE = "cs.occupation.profile"
+    OCCUPATION_CLASSIFICATION_TRACE = "cs.occupation.classification_trace"
+    OCCUPATION_PACK_KEYS = "cs.occupation.pack_keys"
+    QUESTION_FLOW_PROVENANCE = "cs.question_flow_provenance"
+    QUESTION_FLOW_FINGERPRINT = "cs.question_flow_fingerprint"
     ANSWERS = "cs.answers"
     ANSWER_META = "cs.answer_meta"
     UI_MODE = "cs.ui_mode"
@@ -296,6 +302,7 @@ class AnswerType(str, Enum):
 QUESTION_SCHEMA_VERSION: Final[str] = "2026-04-09"
 VACANCY_SCHEMA_VERSION: Final[str] = "2026-04-14"
 JOB_AD_SCHEMA_VERSION: Final[str] = "2026-04-07"
+OCCUPATION_CONTEXT_SCHEMA_VERSION: Final[str] = "2026-06-03"
 SUMMARY_ARTIFACT_IDS: Final[tuple[str, ...]] = (
     "brief",
     "job_ad",

@@ -1177,8 +1177,9 @@ def generate_question_plan(
     )
 
     user = (
-        "Erstelle einen QuestionPlan in dieser Reihenfolge: company, team, role_tasks, skills, benefits, interview. "
-        "Der Step 'jobad' ist bereits durch die Jobspec-Extraktion abgedeckt. "
+        "Erstelle einen QuestionPlan in dieser Reihenfolge: company, role_tasks, skills, benefits, interview. "
+        "Der Step 'jobad' ist bereits durch die Jobspec-Extraktion abgedeckt; "
+        "der historische Step 'team' ist kein sichtbarer Wizard-Schritt mehr. "
         "Füge bei jedem Step 6–12 Fragen hinzu, je nachdem, was im Jobspec fehlt. "
         "Markiere pro Step genau 3–5 Fragen mit priority='core'; "
         "weitere Fragen als 'standard' oder 'detail'. "

@@ -4,7 +4,9 @@ from schemas import (
     EmploymentContractDraft,
     InterviewPrepSheetHR,
     InterviewPrepSheetHiringManager,
+    OccupationContextProfile,
     QuestionPlan,
+    QuestionFlowProvenance,
     RequirementSuggestionPack,
     VacancyStructuredData,
     VacancyBriefLLM,
@@ -83,6 +85,16 @@ def test_company_website_research_contract_is_strict_and_typed() -> None:
     defs = schema.get("$defs", {})
     assert defs["WebsiteResearchSection"].get("additionalProperties") is False
     assert defs["WebsiteOpenQuestionMatch"].get("additionalProperties") is False
+
+
+def test_occupation_context_contracts_are_strict() -> None:
+    profile_schema = OccupationContextProfile.model_json_schema()
+    provenance_schema = QuestionFlowProvenance.model_json_schema()
+
+    assert profile_schema.get("additionalProperties") is False
+    assert provenance_schema.get("additionalProperties") is False
+    assert "occupation_family" in profile_schema["properties"]
+    assert "selected_pack_keys" in provenance_schema["properties"]
 
 
 def test_vacancy_structured_data_rejects_invalid_company_website_research_shape() -> None:

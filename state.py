@@ -181,8 +181,14 @@ def init_session_state() -> None:
         SSKey.SOURCE_FILE_META.value: {},
         SSKey.SOURCE_REDACT_PII.value: False,
         SSKey.JOB_EXTRACT.value: None,
+        SSKey.QUESTION_PLAN_BASE.value: None,
         SSKey.QUESTION_PLAN.value: None,
         SSKey.QUESTION_LIMITS.value: {},
+        SSKey.OCCUPATION_PROFILE.value: None,
+        SSKey.OCCUPATION_CLASSIFICATION_TRACE.value: [],
+        SSKey.OCCUPATION_PACK_KEYS.value: [],
+        SSKey.QUESTION_FLOW_PROVENANCE.value: {},
+        SSKey.QUESTION_FLOW_FINGERPRINT.value: "",
         SSKey.ANSWERS.value: {},
         SSKey.ANSWER_META.value: {},
         SSKey.UI_MODE.value: "standard",
@@ -346,8 +352,14 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.SOURCE_TEXT.value] = ""
     st.session_state[SSKey.SOURCE_FILE_META.value] = {}
     st.session_state[SSKey.JOB_EXTRACT.value] = None
+    st.session_state[SSKey.QUESTION_PLAN_BASE.value] = None
     st.session_state[SSKey.QUESTION_PLAN.value] = None
     st.session_state[SSKey.QUESTION_LIMITS.value] = {}
+    st.session_state[SSKey.OCCUPATION_PROFILE.value] = None
+    st.session_state[SSKey.OCCUPATION_CLASSIFICATION_TRACE.value] = []
+    st.session_state[SSKey.OCCUPATION_PACK_KEYS.value] = []
+    st.session_state[SSKey.QUESTION_FLOW_PROVENANCE.value] = {}
+    st.session_state[SSKey.QUESTION_FLOW_FINGERPRINT.value] = ""
     st.session_state[SSKey.ANSWERS.value] = {}
     st.session_state[SSKey.ANSWER_META.value] = {}
     st.session_state[SSKey.UI_MODE.value] = "standard"

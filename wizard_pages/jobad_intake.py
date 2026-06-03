@@ -15,7 +15,9 @@ from llm_client import (
     generate_question_plan,
     resolve_model_for_task,
 )
+from occupation_context import classify_occupation_context
 from parsing import extract_text_from_uploaded_file, redact_pii
+from question_plan_compiler import compile_question_plan
 from schemas import JobAdExtract, QuestionPlan
 from settings_openai import load_openai_settings
 from state import (
@@ -43,6 +45,41 @@ SOURCE_TEXT_INPUT_KEY: Final[str] = "cs.source_text_input"
 SOURCE_UPLOAD_SIG_KEY: Final[str] = "cs.source_upload_signature"
 SOURCE_UPLOAD_TEXT_KEY: Final[str] = "cs.source_uploaded_text"
 SOURCE_ACTIVE_KEY: Final[str] = "cs.source_active"
+
+
+def _model_dump_json_compatible(model: Any) -> dict[str, Any]:
+    model_dump = getattr(model, "model_dump")
+    try:
+        return model_dump(mode="json")
+    except TypeError:
+        return model_dump()
+
+
+def _sync_deterministic_question_flow(job: JobAdExtract, base_plan: QuestionPlan) -> None:
+    esco_config_raw = st.session_state.get(SSKey.ESCO_CONFIG.value, {})
+    esco_config = esco_config_raw if isinstance(esco_config_raw, dict) else {}
+    answers_raw = st.session_state.get(SSKey.ANSWERS.value, {})
+    answers = answers_raw if isinstance(answers_raw, dict) else {}
+    profile = classify_occupation_context(
+        job=job,
+        esco_selected=get_esco_occupation_selected(),
+        esco_payload=st.session_state.get(SSKey.ESCO_OCCUPATION_PAYLOAD.value),
+        esco_version=str(esco_config.get("selected_version") or "").strip() or None,
+        answers=answers,
+    )
+    compiled = compile_question_plan(base_plan=base_plan, profile=profile)
+    st.session_state[SSKey.OCCUPATION_PROFILE.value] = profile.model_dump(mode="json")
+    st.session_state[SSKey.OCCUPATION_CLASSIFICATION_TRACE.value] = [
+        item.model_dump(mode="json") for item in profile.evidence
+    ]
+    st.session_state[SSKey.OCCUPATION_PACK_KEYS.value] = list(profile.pack_keys)
+    st.session_state[SSKey.QUESTION_FLOW_PROVENANCE.value] = (
+        compiled.provenance.model_dump(mode="json")
+    )
+    st.session_state[SSKey.QUESTION_FLOW_FINGERPRINT.value] = (
+        compiled.provenance.profile_fingerprint
+    )
+    st.session_state[SSKey.QUESTION_PLAN.value] = compiled.plan.model_dump(mode="json")
 
 
 def _preview_height_for_text(text: str) -> int:
@@ -337,15 +374,19 @@ def _render_phase_b_extraction_review(ctx: WizardContext) -> None:
 
 def _render_phase_c_esco_anchor(ctx: WizardContext) -> None:
     job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
-    plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
+    plan_dict = st.session_state.get(SSKey.QUESTION_PLAN_BASE.value) or st.session_state.get(
+        SSKey.QUESTION_PLAN.value
+    )
     if not isinstance(job_dict, dict) or not isinstance(plan_dict, dict):
         return
     job = JobAdExtract.model_validate(job_dict)
+    base_plan = QuestionPlan.model_validate(plan_dict)
     render_esco_occupation_confirmation(
         job,
         compact=True,
         show_start_context_panels=True,
     )
+    _sync_deterministic_question_flow(job, base_plan)
 
     _, _, next_col = st.columns([1, 1, 1], gap="small")
     with next_col:
@@ -429,8 +470,18 @@ def render_jobad_intake(
                     store=store,
                 )
 
-            st.session_state[SSKey.JOB_EXTRACT.value] = job.model_dump()
-            st.session_state[SSKey.QUESTION_PLAN.value] = plan.model_dump()
+            st.session_state[SSKey.JOB_EXTRACT.value] = _model_dump_json_compatible(
+                job
+            )
+            st.session_state[SSKey.QUESTION_PLAN_BASE.value] = (
+                _model_dump_json_compatible(plan)
+            )
+            if isinstance(job, JobAdExtract) and isinstance(plan, QuestionPlan):
+                _sync_deterministic_question_flow(job, plan)
+            else:
+                st.session_state[SSKey.QUESTION_PLAN.value] = (
+                    _model_dump_json_compatible(plan)
+                )
 
             extract_cached = usage_has_cache_hit(usage1)
             plan_cached = usage_has_cache_hit(usage2)

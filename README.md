@@ -169,6 +169,33 @@ Explizite Lücken (aktuell):
 - Kein ISCO-Distribution-Benchmarking.
 - Keine erweiterten Coverage-/Coherence-Metriken.
 
+## Occupation-aware Question Flow
+
+Der Wizard nutzt weiterhin `QuestionPlan` als Render- und Export-Zwischenformat. Neu ist eine
+deterministische Overlay-Schicht vor der adaptiven quick/standard/expert-Begrenzung:
+
+1. `extract_job_ad` erzeugt wie bisher ein strukturiertes `JobAdExtract`.
+2. `generate_question_plan` erzeugt den generischen Basisplan, der in `cs.question_plan_base`
+   erhalten bleibt.
+3. Eine deterministische `OccupationContextProfile`-Klassifikation wertet Jobspec, bestaetigten
+   ESCO-Anker, ESCO-Payload, vorhandene Antworten und ESCO-Version aus.
+4. Der Question-Pack-Compiler schreibt den renderfertigen Plan nach `cs.question_plan` und
+   dokumentiert `cs.question_flow_provenance`.
+5. Erst danach berechnet `question_limits.py` die sichtbare Tiefe je UI-Modus.
+
+Die deterministische Schicht entscheidet nur ueber Frage-Relevanz, Pack-Auswahl, Priorisierung und
+konservative Unterdrueckung klar unpassender Fragen. LLM-Advisory fuer Grenzfaelle ist bewusst nicht
+Teil dieser v1-Implementierung.
+
+Persistierte State-Keys:
+
+- `cs.occupation.profile`
+- `cs.occupation.classification_trace`
+- `cs.occupation.pack_keys`
+- `cs.question_plan_base`
+- `cs.question_flow_provenance`
+- `cs.question_flow_fingerprint`
+
 ## OpenAI Konfiguration (Secrets, Env, UI)
 
 Du kannst die OpenAI-Parameter entweder als Root-Level-Secrets oder in einer `[openai]`-Sektion in `.streamlit/secrets.toml` setzen.
@@ -322,6 +349,8 @@ Der strukturierte Summary-Export enthält – sofern vorhanden – folgende ESCO
 - `esco_skills_must` / `esco_skills_nice`: übernommene ESCO-Skills
 - `esco_unmapped_requirement_terms` / `esco_unmapped_role_terms`: offene, nicht normalisierte Begriffe
 - `esco_unmapped_term_actions`: dokumentierte Nutzerentscheidung je offenem Begriff
+- `occupation_context_profile`: deterministisches Berufs-/Kontextprofil fuer die Question-Pack-Auswahl
+- `question_flow_provenance`: deterministische Provenance zum kompilierten Fragenflow
 
 
 ## ESCO Offline Index Build

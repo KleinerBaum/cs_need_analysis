@@ -9,12 +9,14 @@ These models are used in two ways:
 
 from __future__ import annotations
 
+from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
 from constants import (
     AnswerType,
+    OCCUPATION_CONTEXT_SCHEMA_VERSION,
     QUESTION_SCHEMA_VERSION,
     VACANCY_SCHEMA_VERSION,
     WEBSITE_RESEARCH_HOMEPAGE_URL,
@@ -110,6 +112,78 @@ class EscoMappingReport(StrictSchemaModel):
         default_factory=list,
         description="Additional normalization or mapping notes.",
     )
+
+
+class OccupationFamily(str, Enum):
+    DIGITAL_PRODUCT = "digital_product"
+    CLINICAL_PHYSICIAN = "clinical_physician"
+    NURSING_CARE = "nursing_care"
+    FIELD_SALES = "field_sales"
+    FIELD_SERVICE = "field_service"
+    TRANSPORT_LOGISTICS = "transport_logistics"
+    CUSTOMER_SUPPORT = "customer_support"
+    OFFICE_OPERATIONS = "office_operations"
+    EDUCATION_SOCIAL = "education_social"
+    INDUSTRIAL_SHIFT = "industrial_shift"
+    LEADERSHIP_GENERAL = "leadership_general"
+    UNKNOWN = "unknown"
+
+
+class WorkArrangement(str, Enum):
+    ONSITE_REQUIRED = "onsite_required"
+    HYBRID_POSSIBLE = "hybrid_possible"
+    REMOTE_POSSIBLE = "remote_possible"
+    REMOTE_GLOBAL_POSSIBLE = "remote_global_possible"
+    UNKNOWN = "unknown"
+
+
+class RelevanceLevel(str, Enum):
+    REQUIRED = "required"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+    IRRELEVANT = "irrelevant"
+    UNKNOWN = "unknown"
+
+
+class ClassificationEvidence(StrictSchemaModel):
+    source: str
+    signal: str
+    weight: float = Field(ge=0, le=1)
+    rationale: str
+
+
+class OccupationContextProfile(StrictSchemaModel):
+    schema_version: str = Field(default=OCCUPATION_CONTEXT_SCHEMA_VERSION)
+    esco_version: Optional[str] = None
+    occupation_family: OccupationFamily = OccupationFamily.UNKNOWN
+    confidence: float = Field(default=0.0, ge=0, le=1)
+    work_arrangement: WorkArrangement = WorkArrangement.UNKNOWN
+    region_scope: str = "unknown"
+    driving_relevance: RelevanceLevel = RelevanceLevel.UNKNOWN
+    travel_relevance: RelevanceLevel = RelevanceLevel.UNKNOWN
+    regulated_profession: Optional[bool] = None
+    shift_oncall_relevance: RelevanceLevel = RelevanceLevel.UNKNOWN
+    customer_contact_relevance: RelevanceLevel = RelevanceLevel.UNKNOWN
+    language_locality_relevance: RelevanceLevel = RelevanceLevel.UNKNOWN
+    authority_source: Literal[
+        "user_confirmed_esco",
+        "deterministic_rules",
+        "generic_fallback",
+    ] = "generic_fallback"
+    pack_keys: List[str] = Field(default_factory=list)
+    evidence: List[ClassificationEvidence] = Field(default_factory=list)
+
+
+class QuestionFlowProvenance(StrictSchemaModel):
+    schema_version: str = Field(default=OCCUPATION_CONTEXT_SCHEMA_VERSION)
+    profile_fingerprint: str = ""
+    base_question_count: int = Field(default=0, ge=0)
+    compiled_question_count: int = Field(default=0, ge=0)
+    selected_pack_keys: List[str] = Field(default_factory=list)
+    suppressed_question_ids: List[str] = Field(default_factory=list)
+    demoted_question_ids: List[str] = Field(default_factory=list)
+    injected_question_ids: List[str] = Field(default_factory=list)
 
 
 class EscoLinks(StrictSchemaModel):
@@ -609,6 +683,14 @@ class VacancyStructuredData(StrictSchemaModel):
     esco_matrix_coverage_context: Optional[Dict[str, Any]] = Field(
         default=None,
         description="Optional matrix coverage context metadata (reason, occupation_group, row count).",
+    )
+    occupation_context_profile: Optional[OccupationContextProfile] = Field(
+        default=None,
+        description="Optional deterministic occupation-aware context profile used for question flow selection.",
+    )
+    question_flow_provenance: Optional[QuestionFlowProvenance] = Field(
+        default=None,
+        description="Optional deterministic question-flow compilation provenance.",
     )
 
 
