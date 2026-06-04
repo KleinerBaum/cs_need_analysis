@@ -4,8 +4,33 @@ import ast
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
+from app import SIDEBAR_PAGE_LINKS
 from components.sidebar import render_sidebar
 from constants import PAGE_DEFS
+
+
+def test_app_sidebar_links_include_public_and_legal_pages() -> None:
+    labels = [label for _, label in SIDEBAR_PAGE_LINKS]
+
+    assert labels == [
+        "Unsere Kompetenzen",
+        "Über Cognitive Staffing",
+        "Kontakt",
+        "Impressum",
+        "Datenschutzrichtlinie",
+        "Nutzungsbedingungen",
+        "Cookie Policy/Settings",
+        "Erklärung zur Barrierefreiheit",
+    ]
+
+
+def test_app_sidebar_link_targets_exist() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+
+    for page_path, _ in SIDEBAR_PAGE_LINKS:
+        assert page_path.startswith("pages/")
+        assert page_path.endswith(".py")
+        assert (repo_root / page_path).is_file(), f"Missing app sidebar target: {page_path}"
 
 
 def test_public_sidebar_links_exclude_legal_pages() -> None:

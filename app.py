@@ -32,6 +32,17 @@ from wizard_pages.base import (
     sidebar_navigation,
 )
 
+SIDEBAR_PAGE_LINKS: tuple[tuple[str, str], ...] = (
+    ("pages/01_Unsere_Kompetenzen.py", "Unsere Kompetenzen"),
+    ("pages/02_Über_Cognitive_Staffing.py", "Über Cognitive Staffing"),
+    ("pages/15_Kontakt.py", "Kontakt"),
+    ("pages/03_Impressum.py", "Impressum"),
+    ("pages/11_Datenschutzrichtlinie.py", "Datenschutzrichtlinie"),
+    ("pages/12_Nutzungsbedingungen.py", "Nutzungsbedingungen"),
+    ("pages/13_Cookie_Policy_Settings.py", "Cookie Policy/Settings"),
+    ("pages/14_Erklaerung_zur_Barrierefreiheit.py", "Erklärung zur Barrierefreiheit"),
+)
+
 
 def _inject_theme_styles() -> None:
     """Inject global design-system styles plus minimal app-shell overrides."""
@@ -281,6 +292,9 @@ def _render_sidebar_actions() -> None:
         st.caption("Globale Steuerung für den aktuellen Wizard-Kontext.")
         with st.expander("Präferenz-Center", expanded=False):
             _render_preference_center_sidebar()
+        st.markdown("#### Seiten")
+        for page_path, label in SIDEBAR_PAGE_LINKS:
+            st.page_link(page_path, label=label)
 
 
 def _reset_scroll_on_step_change() -> None:

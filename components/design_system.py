@@ -15,6 +15,14 @@ _PILL_TONE_CLASS_MAP = {
 }
 
 
+def _render_html_block(html: str) -> None:
+    render_html = getattr(st, "html", None)
+    if callable(render_html):
+        render_html(html)
+        return
+    st.markdown(html, unsafe_allow_html=True)
+
+
 def _render_meta_items(meta_items: Sequence[tuple[str, str, str]]) -> str:
     entries: list[str] = []
     for icon, label, value in meta_items:
@@ -37,7 +45,7 @@ def _render_meta_items(meta_items: Sequence[tuple[str, str, str]]) -> str:
 
 
 def render_ui_styles() -> None:
-    st.markdown(
+    _render_html_block(
         """
         <style>
         .cs-step-title, .cs-output-title {
@@ -114,16 +122,12 @@ def render_ui_styles() -> None:
         }
         </style>
         """,
-        unsafe_allow_html=True,
     )
 
 
 def render_pill(label: str, *, tone: str = "neutral") -> None:
     tone_class = _PILL_TONE_CLASS_MAP.get(tone, _PILL_TONE_CLASS_MAP["neutral"])
-    st.markdown(
-        f'<span class="cs-pill {tone_class}">{escape(label)}</span>',
-        unsafe_allow_html=True,
-    )
+    _render_html_block(f'<span class="cs-pill {tone_class}">{escape(label)}</span>')
 
 
 def render_step_header(
@@ -138,7 +142,7 @@ def render_step_header(
         outcome=outcome,
         meta_items=meta_items,
     )
-    st.markdown(step_header_html, unsafe_allow_html=True)
+    _render_html_block(step_header_html)
 
 
 def _build_step_header_html(
@@ -168,7 +172,7 @@ def render_output_header(
     context: str,
     meta_items: Sequence[tuple[str, str, str]] = (),
 ) -> None:
-    st.markdown(
+    _render_html_block(
         f"""
         <section class="cs-output-header">
             <div class="cs-output-topline">
@@ -177,29 +181,27 @@ def render_output_header(
             <p class="cs-output-context">{escape(context)}</p>
             {_render_meta_items(meta_items)}
         </section>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
 def render_card_start(class_name: str = "cs-card") -> None:
     safe_class = escape(class_name)
-    st.markdown(f'<section class="{safe_class}">', unsafe_allow_html=True)
+    _render_html_block(f'<section class="{safe_class}">')
 
 
 def render_next_best_action(title: str, reason: str, cta_label: str | None = None) -> None:
     cta_html = (
         f'<div class="cs-next-cta">{escape(cta_label)}</div>' if cta_label else ""
     )
-    st.markdown(
+    _render_html_block(
         f"""
         <section class="cs-next-best-action">
             <h4 class="cs-next-title">{escape(title)}</h4>
             <p class="cs-next-reason">{escape(reason)}</p>
             {cta_html}
         </section>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
@@ -208,12 +210,11 @@ def render_critical_gaps(gaps: Sequence[str], *, title: str = "Kritische Lücken
     if not visible_gaps:
         return
     gap_items = "".join(f"<li>{escape(gap)}</li>" for gap in visible_gaps)
-    st.markdown(
+    _render_html_block(
         f"""
         <section class="cs-critical-gaps">
             <h4>{escape(title)}</h4>
             <ul>{gap_items}</ul>
         </section>
-        """,
-        unsafe_allow_html=True,
+        """
     )

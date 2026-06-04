@@ -460,3 +460,34 @@ def test_render_step_review_card_full_mode_shows_group_level_open_question_count
 
     assert ("Gruppenstatus", False) in fake_st.expanders
     assert "1 offene Frage(n) in dieser Gruppe." in fake_st.captions
+
+
+def test_render_compare_adopt_intro_uses_html_helper(monkeypatch) -> None:
+    calls: list[str] = []
+
+    class _FakeStreamlit:
+        def __init__(self) -> None:
+            self.session_state: dict[str, Any] = {}
+
+        def markdown(self, *_: Any, **__: Any) -> None:
+            raise AssertionError("markdown fallback should not be used when html exists")
+
+        def caption(self, *_: Any, **__: Any) -> None:
+            return None
+
+        def expander(self, *_: Any, **__: Any) -> _NoopContext:
+            return _NoopContext()
+
+        def html(self, html: str) -> None:
+            calls.append(html)
+
+    monkeypatch.setattr(ui_components, "st", _FakeStreamlit())
+
+    ui_components.render_compare_adopt_intro(
+        adopt_target="Skills",
+        canonical_target="SSKey.SKILLS_SELECTED",
+        source_labels=("Jobspec", "ESCO", "AI"),
+    )
+
+    assert calls
+    assert "Vorschläge" in calls[0]

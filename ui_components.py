@@ -14,6 +14,7 @@ from typing import Any, Dict, Literal, Optional, TypedDict
 
 import streamlit as st
 
+from components.design_system import _render_html_block
 from constants import (
     AnswerType,
     SSKey,
@@ -1167,7 +1168,7 @@ def render_intake_process_animation(*, state: Literal["idle", "running", "done"]
                 """
             ).strip()
         )
-    st.markdown(
+    _render_html_block(
         textwrap.dedent(
             f"""
             <style>
@@ -1260,8 +1261,7 @@ def render_intake_process_animation(*, state: Literal["idle", "running", "done"]
                 </div>
             </div>
             """
-        ).strip(),
-        unsafe_allow_html=True,
+        ).strip()
     )
 
 
@@ -2578,7 +2578,7 @@ def render_compare_adopt_intro(
         )
         for badge in ([f"{'/'.join(source_labels)} = Vorschläge"] if source_labels else [])
     )
-    st.markdown(badge_html, unsafe_allow_html=True)
+    _render_html_block(badge_html)
     st.caption(
         f"Vergleiche die Vorschläge aus {', '.join(source_labels)} und übernimm, was am besten "
         "zum Bedarf passt. Unterschiede helfen dir, Lücken und Prioritäten schneller zu entscheiden."

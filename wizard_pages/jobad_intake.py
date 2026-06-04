@@ -228,20 +228,14 @@ def _render_phase_a_source_and_privacy_controls() -> bool:
         """,
         unsafe_allow_html=True,
     )
-    st.markdown("### Jobspec erfassen")
-
     upload_col, text_col = st.columns([1, 1.4], gap="large")
     with upload_col:
         st.file_uploader(
-            "Jobspec hochladen (PDF oder DOCX)",
+            "Datei hochladen",
             type=["pdf", "docx", "txt"],
             accept_multiple_files=False,
             key="cs.source_upload_file",
             on_change=_on_upload_change,
-        )
-        st.caption(
-            "Verarbeitet werden PDF, DOCX und TXT mit auslesbarem Text. "
-            "Scan-PDFs ohne OCR können leer bleiben."
         )
         upload = st.session_state.get("cs.source_upload_file")
         if upload is not None:
@@ -259,7 +253,7 @@ def _render_phase_a_source_and_privacy_controls() -> bool:
     with text_col:
         manual_text = str(st.session_state.get(SOURCE_TEXT_INPUT_KEY, ""))
         st.text_area(
-            "Text einfügen",
+            "Text einfügen oder Datei hochladen (PDF/DOCX/TXT)",
             key=SOURCE_TEXT_INPUT_KEY,
             height=min(420, max(280, _manual_input_height_for_text(manual_text))),
             on_change=_on_manual_text_change,
@@ -272,7 +266,7 @@ def _render_phase_a_source_and_privacy_controls() -> bool:
     last_error = str(st.session_state.get(SSKey.LAST_ERROR.value, "") or "")
 
     st.markdown("---")
-    status_col, chars_col, action_col = st.columns([2, 1, 1], gap="small")
+    status_col, chars_col, action_col = st.columns([1.6, 1, 1], gap="small")
     with status_col:
         file_name = str(upload_meta.get("name") or getattr(upload, "name", "") or "")
         if upload is not None:
@@ -282,8 +276,6 @@ def _render_phase_a_source_and_privacy_controls() -> bool:
             st.success("Text extrahiert.")
         elif upload is not None and last_error:
             st.error(f"Extraktion fehlgeschlagen: {last_error}")
-        else:
-            st.caption("Optional: Datei hochladen oder Text direkt einfügen.")
     with chars_col:
         active_source_text = str(st.session_state.get(SSKey.SOURCE_TEXT.value, ""))
         char_count = len(active_source_text.strip()) if active_source_text else 0
@@ -397,10 +389,6 @@ def render_jobad_intake(
 ) -> None:
     st.header(title)
     render_error_banner()
-
-    st.caption(
-        "Lade ein Jobspec als PDF/DOCX hoch oder füge den Text direkt ein. Danach klickst du auf **Analysieren**."
-    )
 
     if SOURCE_TEXT_INPUT_KEY not in st.session_state:
         st.session_state[SOURCE_TEXT_INPUT_KEY] = st.session_state.get(

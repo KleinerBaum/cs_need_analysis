@@ -141,10 +141,6 @@ def render(ctx: WizardContext) -> None:
     _render_landing_flow_cards()
 
     st.markdown('<section class="landing-section landing-card landing-intake-card">', unsafe_allow_html=True)
-    st.markdown("### Jobspec erfassen")
-    st.caption(
-        "Upload oder Text einfügen — die Analyse startet erst nach Klick auf „Jetzt analysieren“."
-    )
     render_jobad_intake(ctx, title=str(START_PAGE_COPY["primary_cta"]))
     st.markdown("</section>", unsafe_allow_html=True)
 

@@ -740,20 +740,16 @@ def render_esco_language_toggle() -> None:
     if language not in {"de", "en"}:
         language = "de"
 
-    left_flag_col, toggle_col, right_flag_col = st.columns((1, 1.4, 1))
-    with left_flag_col:
-        st.markdown("<div style='text-align:center;'>🇩🇪</div>", unsafe_allow_html=True)
-    with toggle_col:
-        english_selected = st.toggle(
-            "Sprache",
-            value=language == "en",
-            key=f"{SSKey.ESCO_CONFIG.value}.language_toggle",
-            label_visibility="collapsed",
-        )
-    with right_flag_col:
-        st.markdown("<div style='text-align:center;'>🇬🇧</div>", unsafe_allow_html=True)
-
-    selected_language = "en" if english_selected else "de"
+    language_options = ("de", "en")
+    selected_language = st.radio(
+        "Sprache",
+        options=language_options,
+        index=language_options.index(language),
+        format_func=lambda value: "🇩🇪 Deutsch" if value == "de" else "🇬🇧 English",
+        horizontal=True,
+        key=f"{SSKey.ESCO_CONFIG.value}.language_choice",
+        label_visibility="collapsed",
+    )
     _set_esco_config(
         selected_version=selected_version,
         view_obsolete=view_obsolete,
