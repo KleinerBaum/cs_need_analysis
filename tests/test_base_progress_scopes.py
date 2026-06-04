@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import sys
 
-from constants import AnswerType, SSKey
+from constants import AnswerType, SSKey, STEP_KEY_SUMMARY
 from question_progress import build_step_scope_progress_labels
 from schemas import Question, QuestionDependency, QuestionPlan, QuestionStep
 
@@ -17,6 +17,14 @@ if SPEC is None or SPEC.loader is None:
 BASE_MODULE = module_from_spec(SPEC)
 sys.modules[SPEC.name] = BASE_MODULE
 SPEC.loader.exec_module(BASE_MODULE)  # type: ignore[attr-defined]
+
+UI_LAYOUT_PATH = Path(__file__).resolve().parents[1] / "ui_layout.py"
+UI_LAYOUT_SPEC = spec_from_file_location("ui_layout_progress_for_tests", UI_LAYOUT_PATH)
+if UI_LAYOUT_SPEC is None or UI_LAYOUT_SPEC.loader is None:
+    raise RuntimeError("Could not load ui_layout module")
+UI_LAYOUT_MODULE = module_from_spec(UI_LAYOUT_SPEC)
+sys.modules[UI_LAYOUT_SPEC.name] = UI_LAYOUT_MODULE
+UI_LAYOUT_SPEC.loader.exec_module(UI_LAYOUT_MODULE)  # type: ignore[attr-defined]
 
 
 def _noop_render(_: object) -> None:
@@ -98,3 +106,106 @@ def test_sidebar_progress_keeps_visible_scope_explicit_when_overall_differs(
     assert labels["visible_label"].endswith("1/1")
     assert labels["overall_label"].endswith("1/3")
     assert labels["has_different_denominator"] is True
+
+
+def test_intake_process_progress_excludes_start_and_marks_summary_from_brief(
+    monkeypatch,
+) -> None:
+    company_question = Question(
+        id="q_company",
+        label="Company",
+        answer_type=AnswerType.SHORT_TEXT,
+        required=True,
+    )
+    plan = QuestionPlan(
+        steps=[
+            QuestionStep(
+                step_key="company",
+                title_de="Company",
+                questions=[company_question],
+            )
+        ]
+    )
+    rendered_items: list[list[dict[str, object]]] = []
+    monkeypatch.setattr(
+        UI_LAYOUT_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.QUESTION_PLAN.value: plan.model_dump(mode="json"),
+                SSKey.QUESTION_LIMITS.value: {},
+                SSKey.BRIEF.value: {"summary": "ok"},
+            }
+        ),
+    )
+    monkeypatch.setattr(UI_LAYOUT_MODULE, "get_answers", lambda: {"q_company": "Ja"})
+    monkeypatch.setattr(UI_LAYOUT_MODULE, "get_answer_meta", lambda: {})
+    monkeypatch.setattr(
+        UI_LAYOUT_MODULE,
+        "render_process_progress",
+        lambda items: rendered_items.append(list(items)),
+    )
+
+    UI_LAYOUT_MODULE.render_intake_process_progress(STEP_KEY_SUMMARY)
+
+    assert rendered_items
+    items = rendered_items[0]
+    assert [item["label"] for item in items][:2] == [
+        "Unternehmen",
+        "Rolle & Aufgaben",
+    ]
+    assert "Start" not in [item["label"] for item in items]
+    assert items[0]["status"] == "complete"
+    assert items[0]["count"] == "1/1"
+    assert items[-1]["label"] == "Zusammenfassung"
+    assert items[-1]["status"] == "complete"
+    assert items[-1]["current"] is True
+
+
+def test_sidebar_navigation_uses_navigation_only_labels(monkeypatch) -> None:
+    captured_labels: list[str] = []
+
+    class _FakeSidebar:
+        def radio(self, _label: str, *, options: list[str], key: str, format_func):
+            del key
+            captured_labels.extend(format_func(option) for option in options)
+            return options[0]
+
+    monkeypatch.setattr(
+        BASE_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={SSKey.CURRENT_STEP.value: "company"},
+            sidebar=_FakeSidebar(),
+            rerun=lambda: None,
+        ),
+    )
+    monkeypatch.setattr(BASE_MODULE, "_ensure_salary_forecast_state_defaults", lambda: None)
+    monkeypatch.setattr(BASE_MODULE, "sync_adaptive_question_limits", lambda: None)
+    monkeypatch.setattr(BASE_MODULE, "get_current_ui_mode", lambda: "standard")
+    monkeypatch.setattr(
+        BASE_MODULE,
+        "normalize_ui_preferences",
+        lambda value: value if isinstance(value, dict) else {},
+    )
+    monkeypatch.setattr(BASE_MODULE, "_compute_sidebar_salary_forecast", lambda **_: None)
+    monkeypatch.setattr(BASE_MODULE, "_render_esco_warnings_and_migration_cta", lambda: None)
+    pages = [
+        BASE_MODULE.WizardPage(
+            key="company",
+            title_de="Unternehmen",
+            icon="🏢",
+            render=_noop_render,
+        ),
+        BASE_MODULE.WizardPage(
+            key="summary",
+            title_de="Zusammenfassung",
+            icon="✅",
+            render=_noop_render,
+        ),
+    ]
+
+    BASE_MODULE.sidebar_navigation(BASE_MODULE.WizardContext(pages=pages))
+
+    assert captured_labels == ["🏢 Unternehmen", "✅ Zusammenfassung"]
+    assert all("/" not in label for label in captured_labels)

@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 import streamlit as st
 
-from components.design_system import render_step_header
+from components.design_system import render_process_progress, render_step_header
 from constants import (
     COMPLETION_STATE_BADGE_TEXT,
     COMPLETION_STATE_NOT_STARTED,
@@ -17,11 +17,110 @@ from constants import (
     JOBSPEC_NOTE_ROUTE_STEP_KEYS,
     NON_INTAKE_STEP_KEYS,
     SSKey,
+    STEPS,
+    STEP_KEY_BENEFITS,
+    STEP_KEY_COMPANY,
+    STEP_KEY_LANDING,
+    STEP_KEY_SUMMARY,
 )
 from question_dependencies import should_show_question
-from schemas import JobAdExtract, QuestionStep
+from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
 from step_status import StepStatusPayload, build_step_status_payload
 from state import get_answer_meta, get_answers, mark_answer_touched, set_answer
+
+
+def _load_question_plan_from_state() -> QuestionPlan | None:
+    plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
+    if not isinstance(plan_dict, dict):
+        return None
+    try:
+        return QuestionPlan.model_validate(plan_dict)
+    except Exception:
+        return None
+
+
+def _get_step_questions_from_plan(
+    plan: QuestionPlan | None, step_key: str
+) -> list[Question]:
+    if plan is None:
+        return []
+    step = next((entry for entry in plan.steps if entry.step_key == step_key), None)
+    if step is None:
+        return []
+
+    questions = step.questions
+    limits_raw = st.session_state.get(SSKey.QUESTION_LIMITS.value, {})
+    if not isinstance(limits_raw, dict):
+        return questions
+
+    raw_limit = limits_raw.get(step_key)
+    try:
+        step_limit = int(raw_limit) if raw_limit is not None else None
+    except (TypeError, ValueError):
+        step_limit = None
+    if step_limit is not None and step_limit > 0:
+        return questions[:step_limit]
+    return questions
+
+
+def _process_progress_status(
+    *,
+    step_key: str,
+    title_de: str,
+    questions: list[Question],
+    answers: dict[str, object],
+    answer_meta: dict[str, object],
+) -> tuple[str, str]:
+    status = build_step_status_payload(
+        step=QuestionStep(step_key=step_key, title_de=title_de, questions=questions),
+        answers=answers,
+        answer_meta=answer_meta,
+        should_show_question=should_show_question,
+        step_key=step_key,
+    )
+    if status["total"] > 0:
+        return status["completion_state"], f"{status['answered']}/{status['total']}"
+
+    if step_key == STEP_KEY_SUMMARY:
+        has_brief = bool(st.session_state.get(SSKey.BRIEF.value))
+        if has_brief:
+            return "complete", ""
+        if any(value for value in answers.values()):
+            return "partial", ""
+    return "not_started", ""
+
+
+def render_intake_process_progress(current_step_key: str) -> None:
+    process_steps = [step for step in STEPS if step.key != STEP_KEY_LANDING]
+    process_keys = [step.key for step in process_steps]
+    if current_step_key not in process_keys:
+        return
+
+    plan = _load_question_plan_from_state()
+    answers = get_answers()
+    answer_meta = get_answer_meta()
+    items: list[dict[str, object]] = []
+    for step in process_steps:
+        questions = _get_step_questions_from_plan(plan, step.key)
+        status, count = _process_progress_status(
+            step_key=step.key,
+            title_de=step.title_de,
+            questions=questions,
+            answers=answers,
+            answer_meta=answer_meta,
+        )
+        title = f"{step.title_de}: {count} beantwortet" if count else step.title_de
+        items.append(
+            {
+                "label": step.title_de,
+                "status": status,
+                "count": count,
+                "current": step.key == current_step_key,
+                "title": title,
+            }
+        )
+    if items and process_keys[0] == STEP_KEY_COMPANY:
+        render_process_progress(items)
 
 
 
@@ -139,6 +238,11 @@ def resolve_jobspec_note_step(note: str) -> str | None:
     for step_key in JOBSPEC_NOTE_ROUTE_STEP_KEYS:
         keywords = JOBSPEC_NOTE_ROUTE_KEYWORDS.get(step_key, ())
         score = sum(1 for keyword in keywords if keyword.casefold() in normalized)
+        if step_key == STEP_KEY_BENEFITS and any(
+            keyword in normalized
+            for keyword in ("salary", "gehalt", "vergütung", "compensation")
+        ):
+            score += 2
         if score > best_score:
             best_step_key = step_key
             best_score = score

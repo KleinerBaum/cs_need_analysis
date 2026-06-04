@@ -24,6 +24,7 @@ from llm_client import (
 )
 from settings_openai import load_openai_settings
 from state import init_session_state, normalize_ui_preferences, reset_vacancy
+from ui_layout import render_intake_process_progress
 from wizard_pages import load_pages
 from wizard_pages.base import (
     WizardContext,
@@ -357,6 +358,7 @@ def main() -> None:
     if step_changed:
         _reset_scroll_on_step_change()
 
+    render_intake_process_progress(current.key)
     current.render(ctx)
     _render_sidebar_actions()
     st.session_state[SSKey.LAST_RENDERED_STEP.value] = current.key

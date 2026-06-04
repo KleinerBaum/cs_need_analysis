@@ -32,3 +32,30 @@ def test_render_html_block_prefers_streamlit_html(monkeypatch) -> None:
     design_system._render_html_block("<div>ok</div>")
 
     assert calls == ["<div>ok</div>"]
+
+
+def test_build_process_progress_html_escapes_labels_and_starts_with_company() -> None:
+    html = design_system._build_process_progress_html(
+        [
+            {
+                "label": "Unternehmen <script>",
+                "status": "complete",
+                "count": "1/1",
+                "current": False,
+            },
+            {
+                "label": "Rolle & Aufgaben",
+                "status": "partial",
+                "count": "1/3",
+                "current": True,
+            },
+        ],
+        aria_label="Prozess <Fortschritt>",
+    )
+
+    assert html.count("<li class=\"cs-process-progress-item\"") == 2
+    assert "Unternehmen &lt;script&gt;" in html
+    assert "Prozess &lt;Fortschritt&gt;" in html
+    assert "data-status=\"complete\"" in html
+    assert "data-current=\"true\"" in html
+    assert html.find("Unternehmen") < html.find("Rolle &amp; Aufgaben")

@@ -886,8 +886,6 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
         st.session_state[nav_key] = cur_key
         st.session_state[SSKey.NAV_SYNC_PENDING.value] = False
 
-    step_statuses = _compute_step_statuses(pages)
-    status_by_key = {entry["key"]: entry for entry in step_statuses}
     ui_preferences_key = SSKey.UI_PREFERENCES.value
     ui_mode = get_current_ui_mode()
     st.session_state[ui_preferences_key] = normalize_ui_preferences(
@@ -895,12 +893,7 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
     )
     format_map: dict[str, str] = {}
     for page in pages:
-        step_status = status_by_key.get(page.key)
-        prefix = _status_prefix(step_status["status"]) if step_status else "⬜"
-        progress_suffix = ""
-        if step_status and step_status["total"] > 0:
-            progress_suffix = f" · {step_status['answered']}/{step_status['total']}"
-        format_map[page.key] = f"{prefix} {page.title_de}{progress_suffix}"
+        format_map[page.key] = page.label
 
     def _format(k: str) -> str:
         return format_map.get(k, k)

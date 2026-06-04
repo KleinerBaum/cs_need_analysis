@@ -374,6 +374,22 @@ def test_assumption_rejection_persists_as_wizard_answer(monkeypatch) -> None:
         SSKey.ANSWER_META.value: {},
     }
     monkeypatch.setattr(ui_layout, "st", fake_st)
+    monkeypatch.setattr(
+        ui_layout,
+        "get_answers",
+        lambda: fake_st.session_state[SSKey.ANSWERS.value],
+    )
+
+    def _set_answer(question_id: str, value: Any) -> None:
+        fake_st.session_state[SSKey.ANSWERS.value][question_id] = value
+
+    def _mark_answer_touched(question_id: str, _previous: Any, _current: Any) -> None:
+        fake_st.session_state[SSKey.ANSWER_META.value][question_id] = {
+            "touched": True
+        }
+
+    monkeypatch.setattr(ui_layout, "set_answer", _set_answer)
+    monkeypatch.setattr(ui_layout, "mark_answer_touched", _mark_answer_touched)
 
     ui_layout.render_jobspec_step_notes("benefits")
 
