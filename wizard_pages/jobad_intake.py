@@ -375,6 +375,7 @@ def _render_phase_c_esco_anchor(ctx: WizardContext) -> None:
         job,
         compact=True,
         show_start_context_panels=True,
+        show_detail_panels=False,
     )
     _sync_deterministic_question_flow(job, base_plan)
 

@@ -1289,6 +1289,7 @@ def render_esco_occupation_confirmation(
     on_next: Callable[[], None] | None = None,
     compact: bool = False,
     show_start_context_panels: bool = True,
+    show_detail_panels: bool = True,
 ) -> None:
     # Mobile Verhalten (Smartphone-Breakpoints):
     # - Titel, Match-Badge und Confidence immer in separaten Zeilen/Containern rendern.
@@ -1303,7 +1304,7 @@ def render_esco_occupation_confirmation(
         st.session_state[SSKey.ESCO_UNMAPPED_ROLE_TERMS.value] = []
         return
 
-    if show_start_context_panels:
+    if show_start_context_panels and show_detail_panels:
         st.markdown("### ESCO-Anker bestätigen")
         st.caption(f"Suche mit: `{query_text}`")
         st.info(
@@ -1467,18 +1468,20 @@ def render_esco_occupation_confirmation(
                             f"{exc}"
                         )
                     st.session_state[SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value] = []
-        else:
+        elif show_detail_panels:
             st.session_state[SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value] = []
             st.caption(
                 "Das ESCO-Portal zeigt diesen Anteil, der aktuell über den genutzten ESCO-Webservice nicht abrufbar ist."
             )
             st.markdown(f"[Portal öffnen]({occupation_uri})")
+        else:
+            st.session_state[SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value] = []
 
     if show_start_context_panels:
         selected_title = str(selected.get("title") or "—").strip() or "—"
         confidence = str(explainability["confidence"]).strip().lower()
         reason = str(explainability["reason"]).strip()
-        if compact:
+        if compact and show_detail_panels:
             st.markdown("### ESCO-Anker bestätigen")
             st.caption(f"Suche mit: `{query_text}`")
             st.info(
@@ -1535,10 +1538,11 @@ def render_esco_occupation_confirmation(
                 st.caption(f"Confidence: {confidence.title()}")
             if reason:
                 st.caption(f"Grund: {reason}")
-            st.caption(
-                "Details anzeigen: Taxonomie, technische Daten und Occupation-Details."
-            )
-    if show_start_context_panels and not compact:
+            if show_detail_panels:
+                st.caption(
+                    "Details anzeigen: Taxonomie, technische Daten und Occupation-Details."
+                )
+    if show_start_context_panels and show_detail_panels and not compact:
         st.markdown("[Portal öffnen]({})".format(occupation_uri))
 
         with st.expander("Warum ESCO?", expanded=False):
@@ -1607,7 +1611,7 @@ def render_esco_occupation_confirmation(
                 ),
             )
 
-    if show_start_context_panels:
+    if show_start_context_panels and show_detail_panels:
         configured_language = (
             str(
                 (st.session_state.get(SSKey.ESCO_CONFIG.value, {}) or {}).get(
