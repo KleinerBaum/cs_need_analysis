@@ -1,17 +1,21 @@
 from __future__ import annotations
 
 import ast
-import app
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
+from components.sidebar import render_sidebar
+from constants import PAGE_DEFS
+
 
 def test_public_sidebar_links_exclude_legal_pages() -> None:
-    links = app._public_sidebar_links()
-    labels = [label for _, label in links]
+    labels = [
+        page.title
+        for page in PAGE_DEFS
+        if page.key in {"competencies", "about", "contact"}
+    ]
 
     assert labels == [
-        "Recruitment Need Analysis",
         "Unsere Kompetenzen",
         "Über Cognitive Staffing",
         "Kontakt",
@@ -20,10 +24,94 @@ def test_public_sidebar_links_exclude_legal_pages() -> None:
 
 def test_public_sidebar_link_targets_exist_and_are_allowed() -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    for page_path, _ in app._public_sidebar_links():
+    for page in PAGE_DEFS:
+        if page.key not in {"competencies", "about", "contact"}:
+            continue
+        page_path = page.path
         assert page_path == "app.py" or page_path.startswith("pages/")
         assert page_path.endswith(".py")
         assert (repo_root / page_path).is_file(), f"Missing public sidebar target: {page_path}"
+
+
+def test_sidebar_renders_preference_center_before_public_links(monkeypatch) -> None:
+    events: list[str] = []
+
+    class _FakeExpander:
+        def __init__(self, label: str) -> None:
+            self.label = label
+
+        def __enter__(self) -> "_FakeExpander":
+            events.append(f"enter:{self.label}")
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> bool:
+            del exc_type, exc, tb
+            events.append(f"exit:{self.label}")
+            return False
+
+    class _FakeSidebar:
+        def markdown(self, text: str, **_kwargs) -> None:
+            events.append(f"markdown:{text}")
+
+        def expander(self, label: str, expanded: bool = False) -> _FakeExpander:
+            del expanded
+            events.append(f"expander:{label}")
+            return _FakeExpander(label)
+
+        def page_link(self, page_path: str, label: str) -> None:
+            events.append(f"page_link:{label}")
+
+        def selectbox(self, *_args, **_kwargs):
+            return "de"
+
+        def select_slider(self, *_args, **_kwargs):
+            return "standard"
+
+        def slider(self, *_args, **_kwargs):
+            return 0
+
+        def toggle(self, *_args, **_kwargs):
+            return False
+
+        def json(self, *_args, **_kwargs):
+            return None
+
+    fake_st = type("FakeStreamlit", (), {})()
+    fake_st.sidebar = _FakeSidebar()
+    fake_st.page_link = fake_st.sidebar.page_link
+
+    monkeypatch.setattr("components.sidebar.st", fake_st)
+    monkeypatch.setattr("components.sidebar.ensure_preference_state", lambda: None)
+    monkeypatch.setattr("components.sidebar.get_preferences", lambda: {
+        "ui_language": "de",
+        "response_mode": "compact",
+        "info_depth": "standard",
+        "esco_match_strictness": 50,
+        "regional_focus": "DACH",
+        "privacy_mode": "minimal",
+        "accessibility_mode": "standard",
+        "output_format": "cards",
+        "include_sources": False,
+        "reuse_profile_context": False,
+    })
+    monkeypatch.setattr(
+        "components.sidebar.get_cookie_consent",
+        lambda: {"essential": True, "analytics": False, "personalization": False, "marketing": False},
+    )
+    monkeypatch.setattr("components.sidebar.update_preference", lambda *args, **kwargs: None)
+    monkeypatch.setattr("components.sidebar.update_cookie", lambda *args, **kwargs: None)
+    monkeypatch.setattr("components.sidebar.build_runtime_context", lambda: {})
+    monkeypatch.setattr("components.sidebar.render_ui_mode_selector", lambda **kwargs: None)
+
+    render_sidebar("landing")
+
+    preference_exit_idx = events.index("exit:Präferenz-Center")
+    public_links_idx = min(
+        events.index("page_link:Unsere Kompetenzen"),
+        events.index("page_link:Über Cognitive Staffing"),
+        events.index("page_link:Kontakt"),
+    )
+    assert preference_exit_idx < public_links_idx
 
 
 def test_kontakt_legal_links_cover_all_policy_pages() -> None:

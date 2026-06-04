@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import base64
-from pathlib import Path
-
 import streamlit as st
 
 from components.design_system import render_ui_styles
@@ -35,35 +33,17 @@ from wizard_pages.base import (
 )
 
 
-def _public_sidebar_links() -> tuple[tuple[str, str], ...]:
-    return (
-        ("app.py", "Recruitment Need Analysis"),
-        ("pages/01_Unsere_Kompetenzen.py", "Unsere Kompetenzen"),
-        ("pages/02_Über_Cognitive_Staffing.py", "Über Cognitive Staffing"),
-        ("pages/15_Kontakt.py", "Kontakt"),
-    )
-
-
-def _render_public_page_links_sidebar() -> None:
-    for page_path, label in _public_sidebar_links():
-        st.sidebar.page_link(page_path, label=label)
-    st.sidebar.markdown('<div class="cs-sidebar-nav-gap"></div>', unsafe_allow_html=True)
-
-
-def _image_as_data_uri(image_path: Path, mime_type: str) -> str:
-    image_bytes = image_path.read_bytes()
-    encoded = base64.b64encode(image_bytes).decode("utf-8")
-    return f"data:{mime_type};base64,{encoded}"
-
-
 def _inject_theme_styles() -> None:
     """Inject global design-system styles plus minimal app-shell overrides."""
 
     render_ui_styles()
 
+    from pathlib import Path
+
     root_dir = Path(__file__).resolve().parent
     logo_path = root_dir / "images" / "animation_pulse_SingleColorHex1_7kigl22lw.gif"
-    logo_uri = _image_as_data_uri(logo_path, "image/gif")
+    image_bytes = logo_path.read_bytes()
+    logo_uri = f"data:image/gif;base64,{base64.b64encode(image_bytes).decode('utf-8')}"
 
     # App-shell specific styles (logo/header/sidebar spacing/layout quirks).
     st.markdown(
@@ -347,7 +327,6 @@ def main() -> None:
 
     pages = load_pages()
     ctx = WizardContext(pages=pages)
-    _render_public_page_links_sidebar()
 
     page_param = st.query_params.get("page")
     if isinstance(page_param, list):

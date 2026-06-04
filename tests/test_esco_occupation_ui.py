@@ -536,12 +536,14 @@ def test_render_esco_occupation_confirmation_compact_mode_keeps_decision_first(
             }
             self.caption_messages: list[str] = []
             self.markdown_messages: list[str] = []
+            self.info_messages: list[str] = []
             self.expander_calls: list[tuple[str, bool | None]] = []
 
         def caption(self, message: str) -> None:
             self.caption_messages.append(message)
 
-        def info(self, _message: str) -> None: return None
+        def info(self, message: str) -> None:
+            self.info_messages.append(message)
         def warning(self, _message: str) -> None: return None
         def write(self, _message: object) -> None: return None
         def code(self, _value: str, *, language: str) -> None:
@@ -592,9 +594,10 @@ def test_render_esco_occupation_confirmation_compact_mode_keeps_decision_first(
         show_start_context_panels=True,
     )
 
-    assert any("ESCO verankert die Rolle" in message for message in fake_st.caption_messages)
+    assert any("ESCO verankert die Rolle" in message for message in fake_st.info_messages)
     assert any("Portal öffnen" in message for message in fake_st.markdown_messages)
-    assert fake_st.expander_calls == [("Mehr Details", False)]
+    assert ("Mehr Details", False) in fake_st.expander_calls
+    assert ("Beruf im Detail", False) not in fake_st.expander_calls
 
 
 def test_render_esco_occupation_confirmation_skips_skill_group_request_when_unsupported(

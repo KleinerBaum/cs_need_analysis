@@ -11,6 +11,7 @@ from config.preferences import (
     update_cookie,
     update_preference,
 )
+from wizard_pages.base import render_ui_mode_selector
 
 
 def render_sidebar(current_page_key: str) -> None:
@@ -96,6 +97,9 @@ def render_sidebar(current_page_key: str) -> None:
             )
             update_preference(PREFERENCE_KEYS["include_sources"], include_sources)
 
+            st.markdown("#### Start")
+            render_ui_mode_selector(sidebar=True, show_label=False)
+
             reuse_profile_context = st.toggle(
                 "Profilkontext wizardweit wiederverwenden",
                 value=bool(prefs[PREFERENCE_KEYS["reuse_profile_context"]]),
@@ -117,3 +121,8 @@ def render_sidebar(current_page_key: str) -> None:
 
         with st.expander("Aktiver Runtime-Kontext"):
             st.json(build_runtime_context())
+
+        st.markdown("#### Seiten")
+        for page in PAGE_DEFS:
+            if page.key != "preference_center":
+                st.page_link(page.path, label=page.title)
