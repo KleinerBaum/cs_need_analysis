@@ -33,6 +33,7 @@ class _FakeStreamlit:
         self.rerun_called = False
         self.writes: list[str] = []
         self.markdowns: list[str] = []
+        self.tables: list[object] = []
         self.column_config = SimpleNamespace(
             TextColumn=lambda *args, **kwargs: None,
         )
@@ -60,7 +61,9 @@ class _FakeStreamlit:
             self.writes.append(str(_args[0]))
         return None
 
-    def table(self, *_args, **_kwargs) -> None:
+    def table(self, *args, **_kwargs) -> None:
+        if args:
+            self.tables.append(args[0])
         return None
 
     def info(self, *_args, **_kwargs) -> None:
@@ -204,8 +207,10 @@ def test_job_extract_overview_maps_gap_labels_to_german(monkeypatch) -> None:
 
     ui_components.render_job_extract_overview(extract, mode="compact")
 
-    assert any("Unternehmenswebsite" in text for text in fake_st.writes)
-    assert any("Beschäftigungsart" in text for text in fake_st.writes)
-    assert any("Prozessschritte" in text for text in fake_st.writes)
-    assert all("company_website" not in text for text in fake_st.writes)
-    assert all("employment_type" not in text for text in fake_st.writes)
+    assert fake_st.tables
+    table_rows = fake_st.tables[0]
+    assert {"Attribut": "Location City", "Wert": "—"} in table_rows
+    assert {"Attribut": "Start Date", "Wert": "—"} in table_rows
+    assert {"Attribut": "Salary Range", "Wert": "—"} in table_rows
+    assert {"Attribut": "Recruitment Steps", "Wert": "—"} in table_rows
+    assert all("Feld" not in row for row in table_rows)

@@ -109,6 +109,78 @@ JOB_EXTRACT_DISPLAY_LABELS: dict[str, str] = {
     "QuestionPlan": "Fragenplan",
 }
 
+JOB_EXTRACT_TAB_FIELDS: dict[str, tuple[str, ...]] = {
+    "Basis": (
+        "job_title",
+        "company_name",
+        "brand_name",
+        "company_website",
+        "language_guess",
+        "employment_type",
+        "contract_type",
+        "seniority_level",
+        "start_date",
+        "application_deadline",
+        "job_ref_number",
+        "department_name",
+        "reports_to",
+    ),
+    "Standort": (
+        "location_city",
+        "location_country",
+        "place_of_work",
+        "remote_policy",
+        "travel_required",
+        "on_call",
+        "direct_reports_count",
+    ),
+    "Rolle": ("role_overview", "onboarding_notes"),
+    "Skills & Benefits": (
+        "responsibilities",
+        "deliverables",
+        "success_metrics",
+        "must_have_skills",
+        "nice_to_have_skills",
+        "soft_skills",
+        "education",
+        "certifications",
+        "languages",
+        "tech_stack",
+        "domain_expertise",
+        "salary_range",
+        "benefits",
+    ),
+    "Prozess": ("recruitment_steps", "contacts"),
+}
+
+JOB_EXTRACT_TAB_NOTE_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "Basis": (
+        "job_title",
+        "company",
+        "brand",
+        "contract",
+        "employment",
+        "language",
+        "deadline",
+        "reference",
+        "department",
+        "reports_to",
+    ),
+    "Standort": ("location", "place_of_work", "remote", "travel", "on call", "on_call"),
+    "Rolle": ("role", "overview", "responsibility", "deliverable", "success"),
+    "Skills & Benefits": (
+        "skill",
+        "education",
+        "certificate",
+        "language",
+        "tech",
+        "domain",
+        "salary",
+        "benefit",
+    ),
+    "Prozess": ("process", "recruit", "contact", "step", "interview", "start"),
+}
+
 
 class StepReviewPayload(TypedDict):
     visible_questions: list[Question]
@@ -945,6 +1017,232 @@ def render_openai_error(error: OpenAICallError) -> None:
         st.session_state[SSKey.LAST_ERROR_DEBUG.value] = " | ".join(details)
 
 
+def _normalize_display_text(value: object) -> str:
+    text = str(value or "").strip()
+    return text if text else "—"
+
+
+def _format_salary_range_value(value: Any) -> str:
+    if value is None:
+        return "—"
+    if hasattr(value, "model_dump"):
+        try:
+            value = value.model_dump()
+        except Exception:
+            value = value
+    if not isinstance(value, dict):
+        return _normalize_display_text(value)
+
+    min_value = value.get("min")
+    max_value = value.get("max")
+    currency = str(value.get("currency") or "").strip()
+    period = str(value.get("period") or "").strip()
+    notes = str(value.get("notes") or "").strip()
+
+    parts: list[str] = []
+    if min_value is not None or max_value is not None:
+        min_text = "—" if min_value is None else str(min_value)
+        max_text = "—" if max_value is None else str(max_value)
+        parts.append(f"{min_text} – {max_text}")
+    if currency:
+        parts.append(currency)
+    if period:
+        parts.append(f"/ {period}")
+    if notes:
+        parts.append(f"({notes})")
+    return " ".join(parts) if parts else "—"
+
+
+def _format_recruitment_steps_value(value: Any) -> str:
+    if not value:
+        return "—"
+    if not isinstance(value, list):
+        return _normalize_display_text(value)
+
+    items: list[str] = []
+    for entry in value:
+        if hasattr(entry, "name"):
+            step_name = str(getattr(entry, "name", "") or "").strip()
+            step_details = str(getattr(entry, "details", "") or "").strip()
+        elif isinstance(entry, dict):
+            step_name = str(entry.get("name") or "").strip()
+            step_details = str(entry.get("details") or "").strip()
+        else:
+            step_name = str(entry or "").strip()
+            step_details = ""
+        if not step_name:
+            continue
+        if step_details:
+            items.append(f"{step_name} ({step_details})")
+        else:
+            items.append(step_name)
+    if not items:
+        return "—"
+    preview = items[:3]
+    suffix = f" +{len(items) - len(preview)} weitere" if len(items) > len(preview) else ""
+    return " · ".join(preview) + suffix
+
+
+def _classify_extract_note_tab(note: str) -> str:
+    normalized = " ".join(str(note or "").strip().casefold().split())
+    if not normalized:
+        return "Basis"
+
+    best_tab = "Basis"
+    best_score = 0
+    for tab_name, keywords in JOB_EXTRACT_TAB_NOTE_KEYWORDS.items():
+        score = sum(1 for keyword in keywords if keyword in normalized)
+        if score > best_score:
+            best_tab = tab_name
+            best_score = score
+    return best_tab
+
+
+def _group_extract_notes_by_tab(
+    notes: Sequence[str] | None,
+) -> dict[str, list[str]]:
+    grouped: dict[str, list[str]] = {tab_name: [] for tab_name in JOB_EXTRACT_TAB_FIELDS}
+    if not notes:
+        return grouped
+
+    seen: set[str] = set()
+    for note in notes:
+        normalized = " ".join(str(note or "").strip().split())
+        if not normalized:
+            continue
+        dedupe_key = normalized.casefold()
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        grouped[_classify_extract_note_tab(normalized)].append(normalized)
+    return grouped
+
+
+def _render_note_block(title: str, notes: Sequence[str], *, tone: str) -> None:
+    cleaned = [str(note).strip() for note in notes if str(note).strip()]
+    if not cleaned:
+        return
+    if tone == "warning":
+        st.warning(f"**{title}**\n\n" + "\n".join(f"- {note}" for note in cleaned))
+    else:
+        st.info(f"**{title}**\n\n" + "\n".join(f"- {note}" for note in cleaned))
+
+
+def render_intake_process_animation(*, state: Literal["idle", "running", "done"]) -> None:
+    state = state if state in {"idle", "running", "done"} else "idle"
+    state_class = f"cs-process-{state}"
+    subtitle = {
+        "idle": "Nach dem Klick laufen die Schritte automatisch im Hintergrund.",
+        "running": "Die Analyse verarbeitet gerade Text, Kontext und Fragenplan.",
+        "done": "Die Hintergrundschritte sind abgeschlossen und die Ergebnisse sind bereit.",
+    }[state]
+    steps = (
+        ("Text extrahieren", "Jobspec wird gelesen und normalisiert."),
+        ("ESCO verankern", "Der passende Berufskontext wird gesetzt."),
+        ("Fragenplan bauen", "Dynamische Fragen und Limits werden vorbereitet."),
+    )
+    step_items = []
+    for idx, (label, detail) in enumerate(steps):
+        step_items.append(
+            f"""
+            <div class="cs-process-step cs-process-step-{idx + 1}">
+                <span class="cs-process-dot"></span>
+                <div class="cs-process-copy">
+                    <div class="cs-process-label">{label}</div>
+                    <div class="cs-process-detail">{detail}</div>
+                </div>
+            </div>
+            """
+        )
+    st.markdown(
+        f"""
+        <style>
+        .cs-process-banner {{
+            border: 1px solid rgba(59, 130, 246, 0.22);
+            background: linear-gradient(180deg, rgba(10, 14, 24, 0.95), rgba(9, 14, 22, 0.88));
+            border-radius: 0.75rem;
+            padding: 0.85rem 1rem;
+            margin: 0.45rem 0 0.8rem 0;
+        }}
+        .cs-process-title {{
+            font-weight: 700;
+            font-size: 0.98rem;
+            margin-bottom: 0.15rem;
+        }}
+        .cs-process-subtitle {{
+            color: rgba(233, 238, 255, 0.72);
+            font-size: 0.88rem;
+            margin-bottom: 0.8rem;
+        }}
+        .cs-process-track {{
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.65rem;
+        }}
+        .cs-process-step {{
+            display: flex;
+            align-items: flex-start;
+            gap: 0.65rem;
+            padding: 0.7rem 0.75rem;
+            border-radius: 0.65rem;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            background: rgba(255, 255, 255, 0.03);
+            min-height: 3.2rem;
+        }}
+        .cs-process-step-{state} {{
+            box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.12);
+        }}
+        .cs-process-dot {{
+            width: 0.7rem;
+            height: 0.7rem;
+            margin-top: 0.3rem;
+            border-radius: 999px;
+            background: rgba(59, 130, 246, 0.95);
+            box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.38);
+            animation: csProcessPulse 1.8s ease-in-out infinite;
+        }}
+        .cs-process-step-1 .cs-process-dot {{ animation-delay: 0s; }}
+        .cs-process-step-2 .cs-process-dot {{ animation-delay: 0.2s; }}
+        .cs-process-step-3 .cs-process-dot {{ animation-delay: 0.4s; }}
+        .cs-process-label {{
+            font-weight: 650;
+            font-size: 0.9rem;
+            line-height: 1.2;
+        }}
+        .cs-process-detail {{
+            color: rgba(233, 238, 255, 0.72);
+            font-size: 0.82rem;
+            line-height: 1.25;
+            margin-top: 0.18rem;
+        }}
+        @keyframes csProcessPulse {{
+            0%, 100% {{
+                transform: scale(0.92);
+                opacity: 0.68;
+            }}
+            50% {{
+                transform: scale(1);
+                opacity: 1;
+            }}
+        }}
+        @media (max-width: 820px) {{
+            .cs-process-track {{
+                grid-template-columns: minmax(0, 1fr);
+            }}
+        }}
+        </style>
+        <div class="cs-process-banner {state_class}">
+            <div class="cs-process-title">Was passiert im Hintergrund?</div>
+            <div class="cs-process-subtitle">{subtitle}</div>
+            <div class="cs-process-track">
+                {''.join(step_items)}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_job_extract_overview(
     job: JobAdExtract,
     plan: QuestionPlan | None = None,
@@ -953,68 +1251,44 @@ def render_job_extract_overview(
     mode: Literal["full", "compact"] = "full",
 ) -> None:
     del plan, show_question_limits
-    def _format_gap(gap: str) -> str:
-        text = str(gap or "").strip()
-        return JOB_EXTRACT_DISPLAY_LABELS.get(text, text)
-
     if mode == "compact":
         if show_heading:
             st.markdown("### Analyseergebnis")
         st.caption(
-            "Prüfen Sie die wichtigsten erkannten Angaben. "
-            "Details können bei Bedarf bearbeitet werden."
+            "Die wichtigsten Angaben sind kompakt zusammengefasst. "
+            "Die vollständige Bearbeitung erfolgt in den Tabs darunter."
         )
         st.markdown("**Kernprofil**")
+        location_parts = [
+            value
+            for value in [
+                str(job.location_city or "").strip(),
+                str(job.location_country or "").strip(),
+            ]
+            if value
+        ]
         location_value = (
-            (job.place_of_work or "").strip()
-            or ", ".join(
-                [
-                    value
-                    for value in [job.location_city or "", job.location_country or ""]
-                    if value.strip()
-                ]
-            )
+            str(job.place_of_work or "").strip()
+            or ", ".join(location_parts)
             or "—"
         )
         core_rows = [
-            ("Rolle", (job.job_title or "").strip() or "—"),
-            ("Unternehmen", (job.company_name or "").strip() or "—"),
-            ("Marke", (job.brand_name or "").strip() or "—"),
-            ("Vertragsart", (job.contract_type or "").strip() or "—"),
-            ("Arbeitsort", location_value),
+            ("Rolle", _normalize_display_text(job.job_title)),
+            ("Unternehmen", _normalize_display_text(job.company_name)),
+            ("Marke", _normalize_display_text(job.brand_name)),
+            ("Ort", location_value),
+            ("Location City", _normalize_display_text(job.location_city)),
+            ("Start Date", _normalize_display_text(job.start_date)),
+            ("Salary Range", _format_salary_range_value(job.salary_range)),
+            ("Recruitment Steps", _format_recruitment_steps_value(job.recruitment_steps)),
         ]
-        st.table([{"Feld": label, "Wert": value} for label, value in core_rows])
-        st.markdown("### Fehlende oder unklare Angaben")
-        if job.gaps:
-            st.write("\n".join([f"- {_format_gap(gap)}" for gap in job.gaps]))
-        else:
-            st.info("Keine expliziten Gaps erkannt.")
-        st.markdown("### Annahmen")
-        if job.assumptions:
-            st.write("\n".join([f"- {assumption}" for assumption in job.assumptions]))
-        else:
-            st.info("Keine Annahmen erkannt.")
-        with st.expander("Extrahierte Werte bearbeiten", expanded=False):
-            _render_editable_job_extract(job)
+        st.table([{"Attribut": label, "Wert": value} for label, value in core_rows])
+        _render_editable_job_extract(job)
         return
 
     if show_heading:
         st.markdown("### Identifizierte Informationen")
     _render_editable_job_extract(job)
-
-    c_gaps, c_assumptions = st.columns(2, gap="large")
-    with c_gaps:
-        st.markdown("### Fehlende oder unklare Punkte")
-        if job.gaps:
-            st.write("\n".join([f"- {_format_gap(g)}" for g in job.gaps]))
-        else:
-            st.info("Keine expliziten Gaps erkannt.")
-    with c_assumptions:
-        st.markdown("### Annahmen")
-        if job.assumptions:
-            st.write("\n".join([f"- {a}" for a in job.assumptions]))
-        else:
-            st.info("Keine Annahmen erkannt.")
 
 
 def _render_compact_extract_lists(job: JobAdExtract) -> None:
@@ -1067,51 +1341,23 @@ def _render_editable_job_extract(job: JobAdExtract) -> None:
     )
     values = _sanitize_display_value(job.model_dump())
 
-    core_fields = [
-        "job_title",
-        "company_name",
-        "brand_name",
-        "company_website",
-        "language_guess",
-        "employment_type",
-        "contract_type",
-        "seniority_level",
-        "start_date",
-        "application_deadline",
-        "job_ref_number",
-        "department_name",
-        "reports_to",
-    ]
-    location_fields = [
-        "location_city",
-        "location_country",
-        "place_of_work",
-        "remote_policy",
-        "travel_required",
-        "on_call",
-        "direct_reports_count",
-    ]
-    text_fields = ["role_overview", "onboarding_notes"]
-    list_fields = [
-        ("responsibilities", "Responsibilities"),
-        ("deliverables", "Deliverables"),
-        ("success_metrics", "Success Metrics"),
-        ("must_have_skills", "Must-have Skills"),
-        ("nice_to_have_skills", "Nice-to-have Skills"),
-        ("soft_skills", "Soft Skills"),
-        ("education", "Education"),
-        ("certifications", "Certifications"),
-        ("languages", "Languages"),
-        ("tech_stack", "Tech Stack"),
-        ("domain_expertise", "Domain Expertise"),
-        ("benefits", "Benefits"),
-    ]
-
     tab_core, tab_location, tab_role, tab_skills, tab_process = st.tabs(
         ["Basis", "Standort", "Rolle", "Skills & Benefits", "Prozess"]
     )
+    gap_notes_by_tab = _group_extract_notes_by_tab(job.gaps)
+    assumption_notes_by_tab = _group_extract_notes_by_tab(job.assumptions)
 
     with tab_core:
+        _render_note_block(
+            "Fehlende oder unklare Angaben",
+            gap_notes_by_tab["Basis"],
+            tone="warning",
+        )
+        _render_note_block("Annahmen",
+            assumption_notes_by_tab["Basis"],
+            tone="info",
+        )
+        core_fields = JOB_EXTRACT_TAB_FIELDS["Basis"]
         core_rows = [
             {
                 "field": field,
@@ -1129,7 +1375,7 @@ def _render_editable_job_extract(job: JobAdExtract) -> None:
                 hide_index=True,
                 num_rows="fixed",
                 column_config={
-                    "field": st.column_config.TextColumn("Feld", disabled=True),
+                    "field": st.column_config.TextColumn("Attribut", disabled=True),
                     "label": st.column_config.TextColumn("Bezeichnung", disabled=True),
                     "value": st.column_config.TextColumn("Wert"),
                 },
@@ -1142,6 +1388,17 @@ def _render_editable_job_extract(job: JobAdExtract) -> None:
             st.info("Keine extrahierten Basiswerte mit Inhalt vorhanden.")
 
     with tab_location:
+        _render_note_block(
+            "Fehlende oder unklare Angaben",
+            gap_notes_by_tab["Standort"],
+            tone="warning",
+        )
+        _render_note_block(
+            "Annahmen",
+            assumption_notes_by_tab["Standort"],
+            tone="info",
+        )
+        location_fields = JOB_EXTRACT_TAB_FIELDS["Standort"]
         location_rows = [
             {
                 "field": field,
@@ -1159,7 +1416,7 @@ def _render_editable_job_extract(job: JobAdExtract) -> None:
                 hide_index=True,
                 num_rows="fixed",
                 column_config={
-                    "field": st.column_config.TextColumn("Feld", disabled=True),
+                    "field": st.column_config.TextColumn("Attribut", disabled=True),
                     "label": st.column_config.TextColumn("Bezeichnung", disabled=True),
                     "value": st.column_config.TextColumn("Wert"),
                 },
@@ -1176,6 +1433,13 @@ def _render_editable_job_extract(job: JobAdExtract) -> None:
             st.info("Keine extrahierten Standort-/Org-Werte mit Inhalt vorhanden.")
 
     with tab_role:
+        _render_note_block(
+            "Fehlende oder unklare Angaben",
+            gap_notes_by_tab["Rolle"],
+            tone="warning",
+        )
+        _render_note_block("Annahmen", assumption_notes_by_tab["Rolle"], tone="info")
+        text_fields = JOB_EXTRACT_TAB_FIELDS["Rolle"]
         for field in text_fields:
             if has_meaningful_value(values.get(field)):
                 values[field] = (
@@ -1187,7 +1451,11 @@ def _render_editable_job_extract(job: JobAdExtract) -> None:
                     )
                     or None
                 )
-        for list_field, label in list_fields[:3]:
+        for list_field, label in [
+            ("responsibilities", "Responsibilities"),
+            ("deliverables", "Deliverables"),
+            ("success_metrics", "Success Metrics"),
+        ]:
             values[list_field] = _render_list_editor(
                 label=label,
                 key=f"cs.job_extract.list.{list_field}",
@@ -1195,7 +1463,27 @@ def _render_editable_job_extract(job: JobAdExtract) -> None:
             )
 
     with tab_skills:
-        for list_field, label in list_fields[3:]:
+        _render_note_block(
+            "Fehlende oder unklare Angaben",
+            gap_notes_by_tab["Skills & Benefits"],
+            tone="warning",
+        )
+        _render_note_block(
+            "Annahmen",
+            assumption_notes_by_tab["Skills & Benefits"],
+            tone="info",
+        )
+        for list_field, label in [
+            ("must_have_skills", "Must-have Skills"),
+            ("nice_to_have_skills", "Nice-to-have Skills"),
+            ("soft_skills", "Soft Skills"),
+            ("education", "Education"),
+            ("certifications", "Certifications"),
+            ("languages", "Languages"),
+            ("tech_stack", "Tech Stack"),
+            ("domain_expertise", "Domain Expertise"),
+            ("benefits", "Benefits"),
+        ]:
             values[list_field] = _render_list_editor(
                 label=label,
                 key=f"cs.job_extract.list.{list_field}",
@@ -1204,6 +1492,12 @@ def _render_editable_job_extract(job: JobAdExtract) -> None:
         values["salary_range"] = _render_salary_editor(values.get("salary_range"))
 
     with tab_process:
+        _render_note_block(
+            "Fehlende oder unklare Angaben",
+            gap_notes_by_tab["Prozess"],
+            tone="warning",
+        )
+        _render_note_block("Annahmen", assumption_notes_by_tab["Prozess"], tone="info")
         values["recruitment_steps"] = _render_recruitment_steps_editor(
             values.get("recruitment_steps", [])
         )

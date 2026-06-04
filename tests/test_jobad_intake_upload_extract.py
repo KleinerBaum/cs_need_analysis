@@ -253,7 +253,7 @@ def test_extraction_result_section_opens_by_default(monkeypatch) -> None:
 
     jobad_intake._render_extraction_result_section(object())
 
-    assert ("Analyseergebnis", True) in fake_st.expanders
+    assert fake_st.expanders == []
     assert "rendered-review" in fake_st.markdowns
 
 

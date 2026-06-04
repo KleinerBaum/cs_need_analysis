@@ -12,6 +12,7 @@ from wizard_pages.base import (
     render_esco_language_toggle,
     render_landing_css,
 )
+from ui_components import render_intake_process_animation
 
 
 def _render_landing_responsive_overrides() -> None:
@@ -74,19 +75,8 @@ def _render_landing_flow_cards() -> None:
         unsafe_allow_html=True,
     )
     st.subheader(str(START_PAGE_COPY["flow_title"]))
-    st.caption(
-        "Der Ablauf bleibt bewusst schlank: erst sauberer Intake, dann semantische "
-        "Verankerung und schließlich verwertbare Ergebnisse."
-    )
-    st.markdown('<div class="cs-grid-3 landing-flow-grid">', unsafe_allow_html=True)
-    flow_steps = START_PAGE_COPY.get("flow_steps", ())
-    if isinstance(flow_steps, tuple):
-        for step_title, step_body in flow_steps:
-            st.markdown('<article class="landing-flow-step">', unsafe_allow_html=True)
-            st.markdown(f"**{step_title}**")
-            st.markdown(step_body)
-            st.markdown("</article>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.caption("Die wichtigen Hintergrundschritte bleiben sichtbar, ohne den Start zu überladen.")
+    render_intake_process_animation(state="idle")
     st.markdown("</section>", unsafe_allow_html=True)
 
 
@@ -148,6 +138,7 @@ def render(ctx: WizardContext) -> None:
     _render_landing_responsive_overrides()
     _render_landing_hero()
     _render_landing_explainer_sections()
+    _render_landing_flow_cards()
 
     st.markdown('<section class="landing-section landing-card landing-intake-card">', unsafe_allow_html=True)
     st.markdown("### Jobspec erfassen")
@@ -156,8 +147,6 @@ def render(ctx: WizardContext) -> None:
     )
     render_jobad_intake(ctx, title=str(START_PAGE_COPY["primary_cta"]))
     st.markdown("</section>", unsafe_allow_html=True)
-
-    _render_landing_flow_cards()
 
 
 PAGE = WizardPage(

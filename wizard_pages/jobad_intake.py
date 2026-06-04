@@ -30,6 +30,7 @@ from state import (
 )
 from ui_components import (
     render_error_banner,
+    render_intake_process_animation,
     render_job_extract_overview,
     render_openai_error,
 )
@@ -348,13 +349,9 @@ def _render_extraction_result_section(ctx: WizardContext) -> None:
         st.container(border=True) if hasattr(st, "container") else nullcontext()
     )
     with container_ctx:
-        if hasattr(st, "expander"):
-            with st.expander("Analyseergebnis", expanded=True):
-                _render_phase_b_extraction_review(ctx)
-        else:
-            if hasattr(st, "markdown"):
-                st.markdown("### Analyseergebnis")
-            _render_phase_b_extraction_review(ctx)
+        if hasattr(st, "markdown"):
+            st.markdown("### Analyseergebnis")
+        _render_phase_b_extraction_review(ctx)
 
 
 def _render_esco_anchor_section(ctx: WizardContext) -> None:
@@ -411,6 +408,9 @@ def render_jobad_intake(
         )
 
     do_extract = _render_source_input_section(ctx)
+
+    if _has_completed_intake_analysis():
+        render_intake_process_animation(state="done")
 
     if do_extract:
         clear_error()

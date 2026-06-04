@@ -1370,21 +1370,6 @@ def render_esco_occupation_confirmation(
         "provenance_categories"
     ]
 
-    if show_start_context_panels:
-        selected_title = str(selected.get("title") or "—").strip() or "—"
-        st.markdown("**Gefundene Occupation**")
-        st.write(selected_title)
-        confidence = str(explainability["confidence"]).strip().lower()
-        if confidence == "low":
-            st.warning(
-                "Confidence: Low — Bitte aktiv entscheiden: Übernehmen oder Alternative suchen."
-            )
-        else:
-            st.caption(f"Confidence: {confidence.title()}")
-        st.caption(f"Grund: {str(explainability['reason'])}")
-        if compact:
-            st.caption("Details anzeigen: Taxonomie, technische Daten und Occupation-Details.")
-
     client = EscoClient()
     supported_relations = _supported_occupation_relations(client)
     capabilities = _occupation_capabilities(client, supported_relations)
@@ -1488,9 +1473,73 @@ def render_esco_occupation_confirmation(
                 "Das ESCO-Portal zeigt diesen Anteil, der aktuell über den genutzten ESCO-Webservice nicht abrufbar ist."
             )
             st.markdown(f"[Portal öffnen]({occupation_uri})")
+
     if show_start_context_panels:
+        selected_title = str(selected.get("title") or "—").strip() or "—"
+        confidence = str(explainability["confidence"]).strip().lower()
+        reason = str(explainability["reason"]).strip()
         if compact:
-            st.markdown("[Portal öffnen]({})".format(occupation_uri))
+            st.markdown("### ESCO-Anker bestätigen")
+            st.caption(f"Suche mit: `{query_text}`")
+            st.info(
+                "ESCO verankert die Rolle auf einen eindeutigen Beruf und nutzt diesen Kontext "
+                "für Aufgaben, Skills und Zusammenfassung."
+            )
+            st.markdown(f"**Gefundene Occupation:** {selected_title}")
+            if confidence == "low":
+                st.warning(
+                    "Confidence: Low — Bitte aktiv entscheiden: Übernehmen oder Alternative suchen."
+                )
+            else:
+                st.caption(f"Confidence: {confidence.title()}")
+            if reason:
+                st.caption(f"Grund: {reason}")
+            st.markdown(f"[Portal öffnen]({occupation_uri})")
+            with st.expander("Mehr Details", expanded=False):
+                st.caption(
+                    "Taxonomie, technische Daten und Occupation-Details sind hier gebündelt."
+                )
+                _render_capability_status_panel(client=client, capabilities=capabilities)
+                st.caption(capabilities_badge)
+                st.markdown(
+                    (
+                        "<span style='display:inline-block;padding:0.1rem 0.5rem;"
+                        "border:1px solid #999;border-radius:0.75rem;font-size:0.8rem;'>"
+                        f"{explainability['badge_label']}</span>"
+                    ),
+                    unsafe_allow_html=True,
+                )
+                uri_suffix = occupation_uri.rstrip("/").rsplit("/", 1)[-1] or occupation_uri
+                st.markdown(f"[ESCO URI: …{uri_suffix}]({occupation_uri})")
+                if st.button("URI kopieren", key="esco.occupation.selected.uri.copy"):
+                    st.code(occupation_uri, language="text")
+                    st.caption("URI zum Kopieren eingeblendet.")
+                _render_selected_occupation_detail(
+                    st.session_state.get(SSKey.ESCO_OCCUPATION_PAYLOAD.value),
+                    st.session_state.get(SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value),
+                    related_labels,
+                    supported_relations=supported_relations,
+                    capabilities=capabilities,
+                    skill_group_share_payload=st.session_state.get(
+                        SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value
+                    ),
+                )
+        else:
+            st.markdown("**Gefundene Occupation**")
+            st.write(selected_title)
+            if confidence == "low":
+                st.warning(
+                    "Confidence: Low — Bitte aktiv entscheiden: Übernehmen oder Alternative suchen."
+                )
+            else:
+                st.caption(f"Confidence: {confidence.title()}")
+            if reason:
+                st.caption(f"Grund: {reason}")
+            st.caption(
+                "Details anzeigen: Taxonomie, technische Daten und Occupation-Details."
+            )
+    if show_start_context_panels and not compact:
+        st.markdown("[Portal öffnen]({})".format(occupation_uri))
 
         with st.expander("Warum ESCO?", expanded=False):
             st.markdown(
