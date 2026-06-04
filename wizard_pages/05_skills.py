@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import os
-from contextlib import nullcontext
 from typing import Any
 
 import streamlit as st
@@ -1426,18 +1425,16 @@ def _render_skills_source_comparison_block(
     if hasattr(st, "markdown"):
         st.markdown("#### 5) Advanced")
     st.caption("Coverage, offene Begriffe, technische Details.")
-    advanced_container = st.expander("Advanced öffnen", expanded=False) if hasattr(st, "expander") else nullcontext()
-    with advanced_container:
-        if show_esco_sections:
-            _render_matrix_coverage_section(matrix_snapshot, ui_mode=ui_mode)
-        if show_esco_sections and flagged_terms:
-            _render_unmapped_term_workflow(flagged_terms)
-        else:
-            st.caption(
-                "Keine offenen oder mehrdeutigen Skill-Begriffe vorhanden."
-                if show_esco_sections
-                else "ESCO-spezifische Normalisierung ist ohne bestätigten ESCO-Anker ausgeblendet."
-            )
+    if show_esco_sections:
+        _render_matrix_coverage_section(matrix_snapshot, ui_mode=ui_mode)
+    if show_esco_sections and flagged_terms:
+        _render_unmapped_term_workflow(flagged_terms)
+    else:
+        st.caption(
+            "Keine offenen oder mehrdeutigen Skill-Begriffe vorhanden."
+            if show_esco_sections
+            else "ESCO-spezifische Normalisierung ist ohne bestätigten ESCO-Anker ausgeblendet."
+        )
 
 def _render_salary_forecast_slot(job: JobAdExtract) -> None:
     selected_skills_raw = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])

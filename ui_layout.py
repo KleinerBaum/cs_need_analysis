@@ -2,17 +2,26 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Callable
-from typing import Literal
+from typing import Any, Literal
 
 import streamlit as st
 
 from components.design_system import render_step_header
-from constants import COMPLETION_STATE_BADGE_TEXT, COMPLETION_STATE_NOT_STARTED
+from constants import (
+    COMPLETION_STATE_BADGE_TEXT,
+    COMPLETION_STATE_NOT_STARTED,
+    JOBSPEC_ASSUMPTION_ANSWER_ID_PREFIX,
+    JOBSPEC_NOTE_ROUTE_KEYWORDS,
+    JOBSPEC_NOTE_ROUTE_STEP_KEYS,
+    NON_INTAKE_STEP_KEYS,
+    SSKey,
+)
 from question_dependencies import should_show_question
-from schemas import QuestionStep
+from schemas import JobAdExtract, QuestionStep
 from step_status import StepStatusPayload, build_step_status_payload
-from state import get_answer_meta, get_answers
+from state import get_answer_meta, get_answers, mark_answer_touched, set_answer
 
 
 
@@ -101,6 +110,164 @@ def _render_step_status(status: StepStatusPayload | None) -> None:
         st.caption(f"Fehlt (essentiell): {missing_summary}")
 
 
+def _normalize_jobspec_note(note: Any) -> str:
+    return " ".join(str(note or "").strip().split())
+
+
+def _dedupe_jobspec_notes(notes: list[str]) -> list[str]:
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for note in notes:
+        normalized = _normalize_jobspec_note(note)
+        if not normalized:
+            continue
+        dedupe_key = normalized.casefold()
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        deduped.append(normalized)
+    return deduped
+
+
+def resolve_jobspec_note_step(note: str) -> str | None:
+    normalized = _normalize_jobspec_note(note).casefold()
+    if not normalized:
+        return None
+
+    best_step_key: str | None = None
+    best_score = 0
+    for step_key in JOBSPEC_NOTE_ROUTE_STEP_KEYS:
+        keywords = JOBSPEC_NOTE_ROUTE_KEYWORDS.get(step_key, ())
+        score = sum(1 for keyword in keywords if keyword.casefold() in normalized)
+        if score > best_score:
+            best_step_key = step_key
+            best_score = score
+    return best_step_key
+
+
+def _jobspec_notes_for_step(notes: list[str], *, step_key: str) -> list[str]:
+    return _dedupe_jobspec_notes(
+        [note for note in notes if resolve_jobspec_note_step(note) == step_key]
+    )
+
+
+def _load_job_extract_from_state() -> JobAdExtract | None:
+    raw_job = st.session_state.get(SSKey.JOB_EXTRACT.value)
+    if not isinstance(raw_job, dict):
+        return None
+    try:
+        return JobAdExtract.model_validate(raw_job)
+    except Exception:
+        return None
+
+
+def _render_jobspec_note_block(title: str, notes: list[str], *, tone: str) -> None:
+    cleaned = _dedupe_jobspec_notes(notes)
+    if not cleaned:
+        return
+    body = "\n".join(f"- {note}" for note in cleaned)
+    if tone == "warning":
+        st.warning(f"**{title}**\n\n{body}")
+    else:
+        st.info(f"**{title}**\n\n{body}")
+
+
+def _jobspec_assumption_answer_id(*, step_key: str, note: str) -> str:
+    note_hash = hashlib.sha1(
+        _normalize_jobspec_note(note).casefold().encode("utf-8")
+    ).hexdigest()[:12]
+    return f"{JOBSPEC_ASSUMPTION_ANSWER_ID_PREFIX}{step_key}.{note_hash}"
+
+
+def _coerce_assumption_answer(raw_value: Any) -> dict[str, str]:
+    if not isinstance(raw_value, dict):
+        return {"status": "", "correction": ""}
+    status = str(raw_value.get("status") or "").strip()
+    if status not in {"confirmed", "rejected"}:
+        status = ""
+    return {
+        "status": status,
+        "correction": str(raw_value.get("correction") or "").strip(),
+    }
+
+
+def _render_assumption_decision(*, step_key: str, note: str) -> None:
+    answer_id = _jobspec_assumption_answer_id(step_key=step_key, note=note)
+    answers = get_answers()
+    previous_value = _coerce_assumption_answer(answers.get(answer_id))
+    status_by_label = {
+        "Bestätigt": "confirmed",
+        "Ablehnen & korrigieren": "rejected",
+    }
+    label_by_status = {value: label for label, value in status_by_label.items()}
+    current_label = label_by_status.get(previous_value["status"])
+    options = tuple(status_by_label)
+    widget_key = f"cs.jobspec.assumption.{step_key}.{answer_id.rsplit('.', 1)[-1]}"
+
+    if hasattr(st, "segmented_control"):
+        selected_label = st.segmented_control(
+            "Annahme prüfen",
+            options=options,
+            default=current_label,
+            key=widget_key,
+        )
+    else:
+        selected_label = st.radio(
+            "Annahme prüfen",
+            options=options,
+            index=options.index(current_label) if current_label in options else None,
+            horizontal=True,
+            key=widget_key,
+        )
+
+    if selected_label not in status_by_label:
+        return
+
+    status = status_by_label[str(selected_label)]
+    correction = previous_value["correction"]
+    if status == "rejected":
+        correction = st.text_area(
+            "Korrektur",
+            value=correction,
+            key=f"{widget_key}.correction",
+            height=90,
+            placeholder="Korrekte Annahme oder Klarstellung eintragen",
+        ).strip()
+
+    current_value = {"status": status, "correction": correction}
+    mark_answer_touched(answer_id, previous_value, current_value)
+    set_answer(answer_id, current_value)
+
+
+def render_jobspec_step_notes(step_key: str | None) -> None:
+    if not step_key or step_key in NON_INTAKE_STEP_KEYS:
+        return
+    if step_key not in JOBSPEC_NOTE_ROUTE_STEP_KEYS:
+        return
+
+    job = _load_job_extract_from_state()
+    if job is None:
+        return
+
+    gaps = _jobspec_notes_for_step(list(job.gaps), step_key=step_key)
+    assumptions = _jobspec_notes_for_step(list(job.assumptions), step_key=step_key)
+    if not gaps and not assumptions:
+        return
+
+    _render_jobspec_note_block(
+        "Fehlende oder unklare Angaben",
+        gaps,
+        tone="warning",
+    )
+    if not assumptions:
+        return
+
+    _render_jobspec_note_block("Annahmen", assumptions, tone="info")
+    for note in assumptions:
+        st.write(f"**{note}**")
+        _render_assumption_decision(step_key=step_key, note=note)
+
+
 def render_step_shell(
     *,
     title: str,
@@ -153,12 +320,9 @@ def render_step_shell(
         _render_step_status(status)
 
     if extracted_from_jobspec_slot is not None:
-        if extracted_from_jobspec_use_expander:
-            with st.expander(extracted_from_jobspec_label, expanded=True):
-                extracted_from_jobspec_slot()
-        else:
-            st.markdown(f"### {extracted_from_jobspec_label}")
-            extracted_from_jobspec_slot()
+        st.markdown(f"### {extracted_from_jobspec_label}")
+        extracted_from_jobspec_slot()
+        render_jobspec_step_notes(step.step_key if step is not None else None)
 
     uses_new_slots = any(
         slot is not None

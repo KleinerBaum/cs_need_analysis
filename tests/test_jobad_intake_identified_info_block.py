@@ -107,7 +107,9 @@ def test_identified_info_next_is_enabled_without_esco_anchor(monkeypatch) -> Non
 
     monkeypatch.setattr(jobad_intake, "st", fake_st)
     monkeypatch.setattr(ui_components, "st", fake_st)
-    monkeypatch.setattr(ui_components, "_render_editable_job_extract", lambda _job: None)
+    monkeypatch.setattr(
+        ui_components, "_render_editable_job_extract", lambda *_args, **_kwargs: None
+    )
     monkeypatch.setattr(jobad_intake, "get_esco_occupation_selected", lambda: None)
     monkeypatch.setattr(jobad_intake, "has_confirmed_esco_anchor", lambda: False)
     overview_calls: list[dict[str, object]] = []
@@ -133,6 +135,7 @@ def test_identified_info_next_is_enabled_without_esco_anchor(monkeypatch) -> Non
     )
     assert overview_calls
     assert overview_calls[0].get("mode") == "compact"
+    assert overview_calls[0].get("show_notes") is False
     assert next_calls["count"] == 0
     assert fake_st.rerun_called is False
 
@@ -153,7 +156,9 @@ def test_identified_info_next_uses_selected_occupation_fallback(monkeypatch) -> 
 
     monkeypatch.setattr(jobad_intake, "st", fake_st)
     monkeypatch.setattr(ui_components, "st", fake_st)
-    monkeypatch.setattr(ui_components, "_render_editable_job_extract", lambda _job: None)
+    monkeypatch.setattr(
+        ui_components, "_render_editable_job_extract", lambda *_args, **_kwargs: None
+    )
     monkeypatch.setattr(
         jobad_intake,
         "get_esco_occupation_selected",
@@ -195,7 +200,9 @@ def test_has_completed_landing_analysis_true_when_both_dicts(monkeypatch) -> Non
 def test_job_extract_overview_maps_gap_labels_to_german(monkeypatch) -> None:
     fake_st = _FakeStreamlit(session_state={})
     monkeypatch.setattr(ui_components, "st", fake_st)
-    monkeypatch.setattr(ui_components, "_render_editable_job_extract", lambda _job: None)
+    monkeypatch.setattr(
+        ui_components, "_render_editable_job_extract", lambda *_args, **_kwargs: None
+    )
 
     extract = JobAdExtract.model_validate(
         {

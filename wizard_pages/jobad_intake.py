@@ -126,6 +126,7 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
         show_question_limits=False,
         show_heading=False,
         mode="compact",
+        show_notes=False,
     )
 
     nav_col_back, nav_col_anchor = st.columns([1, 2], gap="small")

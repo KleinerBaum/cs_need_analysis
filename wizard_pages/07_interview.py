@@ -433,23 +433,11 @@ def _render_candidate_communication_container(job: JobAdExtract) -> None:
 def _render_internal_roles_container(job: JobAdExtract) -> None:
     if hasattr(st, "markdown"):
         st.markdown("#### Interne Rollen und Ansprechpartner")
-    is_expert_mode = (
-        str(st.session_state.get(SSKey.UI_MODE.value, "standard")).strip().lower()
-        == "expert"
+    _render_internal_process_container(
+        job,
+        show_info_loop=False,
+        show_internal_roles=True,
     )
-    if is_expert_mode:
-        _render_internal_process_container(
-            job,
-            show_info_loop=False,
-            show_internal_roles=True,
-        )
-        return
-    with st.expander("Interne Rollen und Ansprechpartner", expanded=False):
-        _render_internal_process_container(
-            job,
-            show_info_loop=False,
-            show_internal_roles=True,
-        )
 
 
 def render(ctx: WizardContext) -> None:

@@ -11,7 +11,8 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 - Wizard mit Fortschrittsanzeige und drei Ansichtsmodi (`quick`, `standard`, `expert`) für die sichtbaren Navigationsschritte: Start, Unternehmen, Rolle & Aufgaben, Skills, Benefits, Interviewprozess und Summary.
 - Der Ansichtsmodus (gespeicherte Werte: `quick`, `standard`, `expert`; Anzeige: `schnell`, `ausführlich`, `vollumfänglich`) ist global über das Sidebar-**Präferenz-Center** steuerbar und zusätzlich im Start-Schritt direkt unter dem Jobspec-Upload. Beim Wechsel greift sofort die adaptive Fragenbegrenzung (Neuberechnung der sichtbaren Fragen pro Step). In jedem Schritt wird der aktive Modus als sichtbare Caption angezeigt, damit reduzierte Frageanzahl nachvollziehbar bleibt. `schnell`/`ausführlich`: Detailgruppen standardmäßig kompakt. `vollumfänglich`: Detailgruppen standardmäßig geöffnet.
 - Die Sidebar zeigt die **Gehaltsprognose** in allen Ansichtsmodi, sobald ausreichend Stelleninformationen vorliegen; sie aktualisiert sich mit dem aktuellen Wizard-State und erklärt die stärksten Einflussfaktoren in einfacher Sprache.
-- Die vormals getrennte Ansicht **Identifizierte Informationen** ist in den Start-Schritt integriert (eine Wizard-Stufe weniger): Nach der Analyse erscheinen dort direkt die editierbare Übersicht, Gaps/Annahmen und der Übergang von Phase B zu Phase C bzw. in den nächsten Fachschritt; es gibt **keinen separaten sichtbaren Review-Wizard-Schritt** mehr.
+- Die vormals getrennte Ansicht **Identifizierte Informationen** ist in den Start-Schritt integriert (eine Wizard-Stufe weniger): Nach der Analyse erscheint dort direkt die editierbare Übersicht und der Übergang von Phase B zu Phase C bzw. in den nächsten Fachschritt; es gibt **keinen separaten sichtbaren Review-Wizard-Schritt** mehr.
+- Jobspec-Gaps und -Annahmen werden nicht im Start-Schritt gesammelt angezeigt, sondern best-fit im jeweils passenden Folgeschritt direkt unter **Aus Jobspec extrahiert**; Annahmen können dort bestätigt oder abgelehnt und korrigiert werden.
 - Finaler **Recruiting Brief** mit Export als JSON, Markdown und DOCX.
 - **Summary-Workspace** als einheitliche Readiness-Ansicht ohne separate Tabs.
 - Die **Readiness-Ansicht** zeigt den **Recruiting Brief** inkl. kompakter Structured-Data-Preview; der vollständige JSON-Export bleibt im separaten Bereich **Export** verfügbar.
@@ -36,7 +37,7 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 
 1. **Start**
    - Phase A: Quelle, Consent, optionale PII-Redaktion, UI-Modus (global zusätzlich über Sidebar-Präferenz-Center steuerbar)
-   - Phase B: editierbare „Identifizierte Informationen“ + Gaps/Assumptions
+   - Phase B: editierbare „Identifizierte Informationen“
    - Phase C: ESCO-Suche (verpflichtende Bestätigung vor „Weiter“)
 3. **Rolle & Aufgaben**
 4. **Skills & Anforderungen**

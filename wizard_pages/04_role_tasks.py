@@ -462,11 +462,10 @@ def render(ctx: WizardContext) -> None:
         )
         if selected_count == 0:
             st.caption("Noch keine Aufgaben übernommen.")
-        with st.expander("Auswirkung auf Gehaltsprognose", expanded=False):
-            _render_role_tasks_salary_block(
-                job=job,
-                selected_tasks=canonical_tasks,
-            )
+        _render_role_tasks_salary_block(
+            job=job,
+            selected_tasks=canonical_tasks,
+        )
 
     def _render_decision_and_salary_slot() -> None:
         _render_source_comparison_slot()

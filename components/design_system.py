@@ -48,6 +48,70 @@ def render_ui_styles() -> None:
     _render_html_block(
         """
         <style>
+        .cs-process-progress {
+            display: flex;
+            justify-content: center;
+            margin: 0.15rem auto 0.85rem;
+        }
+        .cs-process-progress-list {
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 0.45rem;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+            max-width: min(100%, 980px);
+        }
+        .cs-process-progress-item {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            align-items: center;
+            gap: 0.35rem;
+            min-height: 2rem;
+            padding: 0.28rem 0.55rem;
+            border: 1px solid #d1d5db;
+            border-radius: 999px;
+            background: #ffffff;
+            color: #374151;
+            font-size: 0.82rem;
+            line-height: 1.2;
+        }
+        .cs-process-progress-item::before {
+            content: "";
+            width: 0.55rem;
+            height: 0.55rem;
+            border-radius: 999px;
+            border: 1px solid #9ca3af;
+            background: #ffffff;
+        }
+        .cs-process-progress-item[data-status="complete"]::before {
+            border-color: #15803d;
+            background: #22c55e;
+        }
+        .cs-process-progress-item[data-status="partial"]::before {
+            border-color: #a16207;
+            background: #facc15;
+        }
+        .cs-process-progress-item[data-current="true"] {
+            border-color: #2563eb;
+            background: #eff6ff;
+            color: #111827;
+            font-weight: 700;
+        }
+        .cs-process-progress-item[data-current="true"]::before {
+            border-color: #1d4ed8;
+            background: #2563eb;
+        }
+        .cs-process-progress-label {
+            overflow-wrap: anywhere;
+        }
+        .cs-process-progress-count {
+            color: #6b7280;
+            font-weight: 600;
+            white-space: nowrap;
+        }
         .cs-step-title, .cs-output-title {
             margin: 0;
             font-size: 1.2rem;
@@ -119,6 +183,15 @@ def render_ui_styles() -> None:
                 word-break: normal;
                 hyphens: auto;
             }
+            .cs-process-progress {
+                justify-content: flex-start;
+            }
+            .cs-process-progress-list {
+                justify-content: flex-start;
+            }
+            .cs-process-progress-item {
+                border-radius: 8px;
+            }
         }
         </style>
         """,
@@ -143,6 +216,60 @@ def render_step_header(
         meta_items=meta_items,
     )
     _render_html_block(step_header_html)
+
+
+def render_process_progress(
+    items: Sequence[dict[str, object]],
+    *,
+    aria_label: str = "Fortschritt des Informationsgewinnungsprozesses",
+) -> None:
+    progress_html = _build_process_progress_html(items, aria_label=aria_label)
+    if progress_html:
+        _render_html_block(progress_html)
+
+
+def _build_process_progress_html(
+    items: Sequence[dict[str, object]], *, aria_label: str
+) -> str:
+    entries: list[str] = []
+    for item in items:
+        label = str(item.get("label") or "").strip()
+        if not label:
+            continue
+        status = str(item.get("status") or "not_started").strip()
+        if status not in {"complete", "partial", "not_started"}:
+            status = "not_started"
+        count = str(item.get("count") or "").strip()
+        current = "true" if bool(item.get("current")) else "false"
+        title = str(item.get("title") or label).strip()
+        count_html = (
+            f'<span class="cs-process-progress-count">{escape(count)}</span>'
+            if count
+            else ""
+        )
+        entries.append(
+            """
+            <li class="cs-process-progress-item" data-status="{status}" data-current="{current}" title="{title}">
+                <span class="cs-process-progress-label">{label}</span>{count_html}
+            </li>
+            """.format(
+                status=escape(status),
+                current=current,
+                title=escape(title),
+                label=escape(label),
+                count_html=count_html,
+            )
+        )
+    if not entries:
+        return ""
+    return """
+        <nav class="cs-process-progress" aria-label="{aria_label}">
+            <ol class="cs-process-progress-list">{entries}</ol>
+        </nav>
+        """.format(
+            aria_label=escape(aria_label),
+            entries="".join(entries),
+        )
 
 
 def _build_step_header_html(

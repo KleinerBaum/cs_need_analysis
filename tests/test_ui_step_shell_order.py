@@ -5,8 +5,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-from constants import SSKey
-from schemas import JobAdExtract
+from constants import AnswerType, SSKey
+from schemas import JobAdExtract, Question, QuestionStep
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -17,6 +17,41 @@ class _FakeStreamlit:
 
     def caption(self, _text: str) -> None:
         return None
+
+
+class _ShellFakeStreamlit:
+    def __init__(self, *, selected_label: str | None = None, correction: str = "") -> None:
+        self.session_state: dict[str, Any] = {}
+        self.selected_label = selected_label
+        self.correction = correction
+        self.events: list[tuple[str, str]] = []
+
+    def caption(self, text: str) -> None:
+        self.events.append(("caption", text))
+
+    def markdown(self, text: str, *_args: Any, **_kwargs: Any) -> None:
+        self.events.append(("markdown", text))
+
+    def warning(self, text: str, *_args: Any, **_kwargs: Any) -> None:
+        self.events.append(("warning", text))
+
+    def info(self, text: str, *_args: Any, **_kwargs: Any) -> None:
+        self.events.append(("info", text))
+
+    def write(self, text: str, *_args: Any, **_kwargs: Any) -> None:
+        self.events.append(("write", text))
+
+    def segmented_control(self, *_args: Any, **_kwargs: Any) -> str | None:
+        return self.selected_label
+
+    def radio(self, *_args: Any, **_kwargs: Any) -> str | None:
+        return self.selected_label
+
+    def text_area(self, *_args: Any, **_kwargs: Any) -> str:
+        return self.correction
+
+    def divider(self) -> None:
+        self.events.append(("divider", ""))
 
 
 def _load_module(alias: str, relative_path: str):
@@ -241,3 +276,113 @@ def test_review_mode_resolution_prefers_full_for_expert_or_debug() -> None:
         ui_mode="standard",
         debug_enabled=False,
     ) is ReviewRenderMode.DIRECT_ANSWERS
+
+
+def test_jobspec_note_routing_uses_best_fit_once() -> None:
+    import ui_layout
+
+    assert (
+        ui_layout.resolve_jobspec_note_step(
+            "Konkrete Informationen zum Gehalt und zu den Arbeitsstandorten fehlen."
+        )
+        == "benefits"
+    )
+    assert ui_layout.resolve_jobspec_note_step("Python skill assumptions") == "skills"
+    assert ui_layout.resolve_jobspec_note_step("Interview steps missing") == "interview"
+    assert ui_layout.resolve_jobspec_note_step("company_website fehlt") == "company"
+
+
+def test_step_shell_renders_jobspec_notes_after_extracted_slot(monkeypatch) -> None:
+    import ui_layout
+
+    fake_st = _ShellFakeStreamlit()
+    fake_st.session_state = {
+        SSKey.JOB_EXTRACT.value: JobAdExtract(
+            gaps=["salary_range fehlt"],
+            assumptions=["Gehalt wird als marktüblich angenommen."],
+        ).model_dump(mode="json"),
+        SSKey.ANSWERS.value: {},
+        SSKey.ANSWER_META.value: {},
+    }
+    monkeypatch.setattr(ui_layout, "st", fake_st)
+    monkeypatch.setattr(ui_layout, "render_step_header", lambda *_args, **_kwargs: None)
+
+    step = QuestionStep(
+        step_key="benefits",
+        title_de="Benefits",
+        questions=[
+            Question(
+                id="q_salary",
+                label="Gehalt?",
+                answer_type=AnswerType.SHORT_TEXT,
+            )
+        ],
+    )
+
+    def _render_extracted() -> None:
+        fake_st.events.append(("slot", "extracted"))
+
+    ui_layout.render_step_shell(
+        title="Benefits",
+        subtitle="Rahmenbedingungen",
+        step=step,
+        extracted_from_jobspec_slot=_render_extracted,
+    )
+
+    event_names = [name for name, _value in fake_st.events]
+    assert event_names.index("slot") < event_names.index("warning")
+    assert any(
+        name == "warning" and "salary_range fehlt" in value
+        for name, value in fake_st.events
+    )
+    assert any(
+        name == "info" and "Gehalt wird als marktüblich angenommen." in value
+        for name, value in fake_st.events
+    )
+
+
+def test_landing_and_summary_do_not_render_jobspec_step_notes(monkeypatch) -> None:
+    import ui_layout
+
+    fake_st = _ShellFakeStreamlit()
+    fake_st.session_state = {
+        SSKey.JOB_EXTRACT.value: JobAdExtract(
+            gaps=["company_website fehlt"],
+            assumptions=["Remote Policy wird angenommen."],
+        ).model_dump(mode="json"),
+    }
+    monkeypatch.setattr(ui_layout, "st", fake_st)
+
+    ui_layout.render_jobspec_step_notes("landing")
+    ui_layout.render_jobspec_step_notes("summary")
+
+    assert not any(name in {"warning", "info"} for name, _value in fake_st.events)
+
+
+def test_assumption_rejection_persists_as_wizard_answer(monkeypatch) -> None:
+    import ui_layout
+
+    fake_st = _ShellFakeStreamlit(
+        selected_label="Ablehnen & korrigieren",
+        correction="Gehalt ist tariflich festgelegt.",
+    )
+    fake_st.session_state = {
+        SSKey.JOB_EXTRACT.value: JobAdExtract(
+            assumptions=["Gehalt wird als marktüblich angenommen."],
+        ).model_dump(mode="json"),
+        SSKey.ANSWERS.value: {},
+        SSKey.ANSWER_META.value: {},
+    }
+    monkeypatch.setattr(ui_layout, "st", fake_st)
+
+    ui_layout.render_jobspec_step_notes("benefits")
+
+    answers = fake_st.session_state[SSKey.ANSWERS.value]
+    answer_id = next(
+        key for key in answers if key.startswith("jobspec_assumption.benefits.")
+    )
+    assert answers[answer_id] == {
+        "status": "rejected",
+        "correction": "Gehalt ist tariflich festgelegt.",
+    }
+    assert fake_st.session_state[SSKey.ANSWER_META.value][answer_id]["touched"] is True

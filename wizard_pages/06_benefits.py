@@ -248,21 +248,21 @@ def render(ctx: WizardContext) -> None:
             ("remote", "hybrid", "onsite", "homeoffice", "arbeitsmodell")
         )
 
-        with st.expander("Details zu Einflussfaktoren", expanded=False):
-            salary_col, benefits_col, remote_col = st.columns(3, gap="large")
-            for column, title, confirmed in (
-                (salary_col, "Vergütung", confirmed_salary),
-                (benefits_col, "Benefits", confirmed_benefits),
-                (remote_col, "Arbeitsmodell", confirmed_remote),
-            ):
-                with column:
-                    st.markdown(f"**{title}**")
-                    st.caption("Bereits bestätigt")
-                    if confirmed:
-                        for item in confirmed[:8]:
-                            st.write(f"- {item}")
-                    else:
-                        st.caption("—")
+        st.markdown("#### Details zu Einflussfaktoren")
+        salary_col, benefits_col, remote_col = st.columns(3, gap="large")
+        for column, title, confirmed in (
+            (salary_col, "Vergütung", confirmed_salary),
+            (benefits_col, "Benefits", confirmed_benefits),
+            (remote_col, "Arbeitsmodell", confirmed_remote),
+        ):
+            with column:
+                st.markdown(f"**{title}**")
+                st.caption("Bereits bestätigt")
+                if confirmed:
+                    for item in confirmed[:8]:
+                        st.write(f"- {item}")
+                else:
+                    st.caption("—")
 
     def _render_salary_forecast_slot() -> None:
         selected_benefits_for_forecast = _dedupe_benefit_terms(

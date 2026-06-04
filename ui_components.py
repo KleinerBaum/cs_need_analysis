@@ -1271,6 +1271,7 @@ def render_job_extract_overview(
     show_question_limits: bool = True,
     show_heading: bool = True,
     mode: Literal["full", "compact"] = "full",
+    show_notes: bool = True,
 ) -> None:
     del plan, show_question_limits
     if mode == "compact":
@@ -1305,12 +1306,12 @@ def render_job_extract_overview(
             ("Recruitment Steps", _format_recruitment_steps_value(job.recruitment_steps)),
         ]
         st.table([{"Attribut": label, "Wert": value} for label, value in core_rows])
-        _render_editable_job_extract(job)
+        _render_editable_job_extract(job, show_notes=show_notes)
         return
 
     if show_heading:
         st.markdown("### Identifizierte Informationen")
-    _render_editable_job_extract(job)
+    _render_editable_job_extract(job, show_notes=show_notes)
 
 
 def _render_compact_extract_lists(job: JobAdExtract) -> None:
@@ -1357,7 +1358,7 @@ def _render_compact_list_table(*, label: str, entries: Any, key: str) -> None:
         )
 
 
-def _render_editable_job_extract(job: JobAdExtract) -> None:
+def _render_editable_job_extract(job: JobAdExtract, *, show_notes: bool = True) -> None:
     st.caption(
         "Extrahierte Werte können hier direkt angepasst werden. Änderungen werden sofort gespeichert."
     )
@@ -1370,15 +1371,17 @@ def _render_editable_job_extract(job: JobAdExtract) -> None:
     assumption_notes_by_tab = _group_extract_notes_by_tab(job.assumptions)
 
     with tab_core:
-        _render_note_block(
-            "Fehlende oder unklare Angaben",
-            gap_notes_by_tab["Basis"],
-            tone="warning",
-        )
-        _render_note_block("Annahmen",
-            assumption_notes_by_tab["Basis"],
-            tone="info",
-        )
+        if show_notes:
+            _render_note_block(
+                "Fehlende oder unklare Angaben",
+                gap_notes_by_tab["Basis"],
+                tone="warning",
+            )
+            _render_note_block(
+                "Annahmen",
+                assumption_notes_by_tab["Basis"],
+                tone="info",
+            )
         core_fields = JOB_EXTRACT_TAB_FIELDS["Basis"]
         core_rows = [
             {
@@ -1410,16 +1413,17 @@ def _render_editable_job_extract(job: JobAdExtract) -> None:
             st.info("Keine extrahierten Basiswerte mit Inhalt vorhanden.")
 
     with tab_location:
-        _render_note_block(
-            "Fehlende oder unklare Angaben",
-            gap_notes_by_tab["Standort"],
-            tone="warning",
-        )
-        _render_note_block(
-            "Annahmen",
-            assumption_notes_by_tab["Standort"],
-            tone="info",
-        )
+        if show_notes:
+            _render_note_block(
+                "Fehlende oder unklare Angaben",
+                gap_notes_by_tab["Standort"],
+                tone="warning",
+            )
+            _render_note_block(
+                "Annahmen",
+                assumption_notes_by_tab["Standort"],
+                tone="info",
+            )
         location_fields = JOB_EXTRACT_TAB_FIELDS["Standort"]
         location_rows = [
             {
@@ -1455,12 +1459,13 @@ def _render_editable_job_extract(job: JobAdExtract) -> None:
             st.info("Keine extrahierten Standort-/Org-Werte mit Inhalt vorhanden.")
 
     with tab_role:
-        _render_note_block(
-            "Fehlende oder unklare Angaben",
-            gap_notes_by_tab["Rolle"],
-            tone="warning",
-        )
-        _render_note_block("Annahmen", assumption_notes_by_tab["Rolle"], tone="info")
+        if show_notes:
+            _render_note_block(
+                "Fehlende oder unklare Angaben",
+                gap_notes_by_tab["Rolle"],
+                tone="warning",
+            )
+            _render_note_block("Annahmen", assumption_notes_by_tab["Rolle"], tone="info")
         text_fields = JOB_EXTRACT_TAB_FIELDS["Rolle"]
         for field in text_fields:
             if has_meaningful_value(values.get(field)):
@@ -1485,16 +1490,17 @@ def _render_editable_job_extract(job: JobAdExtract) -> None:
             )
 
     with tab_skills:
-        _render_note_block(
-            "Fehlende oder unklare Angaben",
-            gap_notes_by_tab["Skills & Benefits"],
-            tone="warning",
-        )
-        _render_note_block(
-            "Annahmen",
-            assumption_notes_by_tab["Skills & Benefits"],
-            tone="info",
-        )
+        if show_notes:
+            _render_note_block(
+                "Fehlende oder unklare Angaben",
+                gap_notes_by_tab["Skills & Benefits"],
+                tone="warning",
+            )
+            _render_note_block(
+                "Annahmen",
+                assumption_notes_by_tab["Skills & Benefits"],
+                tone="info",
+            )
         for list_field, label in [
             ("must_have_skills", "Must-have Skills"),
             ("nice_to_have_skills", "Nice-to-have Skills"),
@@ -1514,12 +1520,13 @@ def _render_editable_job_extract(job: JobAdExtract) -> None:
         values["salary_range"] = _render_salary_editor(values.get("salary_range"))
 
     with tab_process:
-        _render_note_block(
-            "Fehlende oder unklare Angaben",
-            gap_notes_by_tab["Prozess"],
-            tone="warning",
-        )
-        _render_note_block("Annahmen", assumption_notes_by_tab["Prozess"], tone="info")
+        if show_notes:
+            _render_note_block(
+                "Fehlende oder unklare Angaben",
+                gap_notes_by_tab["Prozess"],
+                tone="warning",
+            )
+            _render_note_block("Annahmen", assumption_notes_by_tab["Prozess"], tone="info")
         values["recruitment_steps"] = _render_recruitment_steps_editor(
             values.get("recruitment_steps", [])
         )
@@ -3349,36 +3356,36 @@ def render_brief(
     st.markdown("**Role Summary**")
     st.write(brief.role_summary)
 
-    with st.expander("Top Responsibilities", expanded=False):
-        for x in brief.top_responsibilities:
-            st.write(f"- {x}")
+    st.markdown("**Top Responsibilities**")
+    for x in brief.top_responsibilities:
+        st.write(f"- {x}")
 
-    with st.expander("Must-have", expanded=False):
-        for x in brief.must_have:
-            st.write(f"- {x}")
+    st.markdown("**Must-have**")
+    for x in brief.must_have:
+        st.write(f"- {x}")
 
-    with st.expander("Nice-to-have", expanded=False):
-        for x in brief.nice_to_have:
-            st.write(f"- {x}")
+    st.markdown("**Nice-to-have**")
+    for x in brief.nice_to_have:
+        st.write(f"- {x}")
 
-    with st.expander("Dealbreakers", expanded=False):
-        for x in brief.dealbreakers:
-            st.write(f"- {x}")
+    st.markdown("**Dealbreakers**")
+    for x in brief.dealbreakers:
+        st.write(f"- {x}")
 
-    with st.expander("Interview Plan", expanded=False):
-        for x in brief.interview_plan:
-            st.write(f"- {x}")
+    st.markdown("**Interview Plan**")
+    for x in brief.interview_plan:
+        st.write(f"- {x}")
 
-    with st.expander("Evaluation Rubric", expanded=False):
-        for x in brief.evaluation_rubric:
-            st.write(f"- {x}")
+    st.markdown("**Evaluation Rubric**")
+    for x in brief.evaluation_rubric:
+        st.write(f"- {x}")
 
-    with st.expander("Risks / Open Questions", expanded=False):
-        for x in brief.risks_open_questions:
-            st.write(f"- {x}")
+    st.markdown("**Risks / Open Questions**")
+    for x in brief.risks_open_questions:
+        st.write(f"- {x}")
 
-    with st.expander("Job Ad Draft (DE)", expanded=False):
-        st.write(brief.job_ad_draft)
+    st.markdown("**Job Ad Draft (DE)**")
+    st.write(brief.job_ad_draft)
 
     payload = (
         structured_data_payload
@@ -3397,8 +3404,8 @@ def render_brief(
     )
     show_col, download_col = st.columns([1, 1])
     with show_col:
-        with st.expander("JSON anzeigen", expanded=False):
-            st.json(payload, expanded=False)
+        st.markdown("**JSON anzeigen**")
+        st.json(payload, expanded=False)
     with download_col:
         st.download_button(
             "JSON herunterladen",

@@ -151,10 +151,10 @@ def render_sidebar_salary_forecast(*, forecast: SalaryForecastResult) -> None:
             st.caption(
                 f"**{row['Faktor']}:** {row['Einschätzung']} - {row['Hinweis']}"
             )
-    with st.sidebar.expander("Was heißt das?", expanded=False):
-        st.write(
-            "- Der große Wert ist die Mitte der aktuellen Schätzung.\n"
-            "- Die Spanne zeigt, womit du im Markt grob rechnen solltest.\n"
-            "- Skills, Anforderungen, Standort und Rolle können den Wert sofort verändern.\n"
-            "- Die Prognose ist eine Orientierung und ersetzt kein externes Vergütungsbenchmarking."
-        )
+    st.sidebar.markdown("**Was heißt das?**")
+    st.sidebar.write(
+        "- Der große Wert ist die Mitte der aktuellen Schätzung.\n"
+        "- Die Spanne zeigt, womit du im Markt grob rechnen solltest.\n"
+        "- Skills, Anforderungen, Standort und Rolle können den Wert sofort verändern.\n"
+        "- Die Prognose ist eine Orientierung und ersetzt kein externes Vergütungsbenchmarking."
+    )
