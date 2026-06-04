@@ -6,6 +6,7 @@ from __future__ import annotations
 import re
 import json
 import hashlib
+import textwrap
 from datetime import date
 from collections.abc import Callable, Sequence
 from enum import Enum
@@ -178,7 +179,17 @@ JOB_EXTRACT_TAB_NOTE_KEYWORDS: dict[str, tuple[str, ...]] = {
         "salary",
         "benefit",
     ),
-    "Prozess": ("process", "recruit", "contact", "step", "interview", "start"),
+    "Prozess": (
+        "process",
+        "recruit",
+        "contact",
+        "step",
+        "interview",
+        "start",
+        "questionplan",
+        "question_plan",
+        "question plan",
+    ),
 }
 
 
@@ -1144,101 +1155,112 @@ def render_intake_process_animation(*, state: Literal["idle", "running", "done"]
     step_items = []
     for idx, (label, detail) in enumerate(steps):
         step_items.append(
+            textwrap.dedent(
+                f"""
+                <div class="cs-process-step cs-process-step-{idx + 1}">
+                    <span class="cs-process-dot"></span>
+                    <div class="cs-process-copy">
+                        <div class="cs-process-label">{label}</div>
+                        <div class="cs-process-detail">{detail}</div>
+                    </div>
+                </div>
+                """
+            ).strip()
+        )
+    st.markdown(
+        textwrap.dedent(
             f"""
-            <div class="cs-process-step cs-process-step-{idx + 1}">
-                <span class="cs-process-dot"></span>
-                <div class="cs-process-copy">
-                    <div class="cs-process-label">{label}</div>
-                    <div class="cs-process-detail">{detail}</div>
+            <style>
+            .cs-process-banner {{
+                border: 1px solid rgba(59, 130, 246, 0.22);
+                background: linear-gradient(180deg, rgba(10, 14, 24, 0.95), rgba(9, 14, 22, 0.88));
+                border-radius: 0.75rem;
+                padding: 0.85rem 1rem;
+                margin: 0.45rem 0 0.8rem 0;
+            }}
+            .cs-process-title {{
+                font-weight: 700;
+                font-size: 0.98rem;
+                margin-bottom: 0.15rem;
+            }}
+            .cs-process-subtitle {{
+                color: rgba(233, 238, 255, 0.72);
+                font-size: 0.88rem;
+                margin-bottom: 0.8rem;
+            }}
+            .cs-process-track {{
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 0.65rem;
+            }}
+            .cs-process-step {{
+                display: flex;
+                align-items: flex-start;
+                gap: 0.65rem;
+                padding: 0.7rem 0.75rem;
+                border-radius: 0.65rem;
+                border: 1px solid rgba(148, 163, 184, 0.18);
+                background: rgba(255, 255, 255, 0.03);
+                min-height: 3.2rem;
+            }}
+            .cs-process-banner.cs-process-running .cs-process-step {{
+                box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.12);
+            }}
+            .cs-process-banner.cs-process-done .cs-process-step {{
+                box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.12);
+            }}
+            .cs-process-dot {{
+                width: 0.7rem;
+                height: 0.7rem;
+                margin-top: 0.3rem;
+                border-radius: 999px;
+                background: rgba(59, 130, 246, 0.95);
+                box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.38);
+                animation: csProcessPulse 1.8s ease-in-out infinite;
+            }}
+            .cs-process-banner.cs-process-done .cs-process-dot {{
+                background: rgba(34, 197, 94, 0.95);
+                box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.38);
+            }}
+            .cs-process-step-1 .cs-process-dot {{ animation-delay: 0s; }}
+            .cs-process-step-2 .cs-process-dot {{ animation-delay: 0.2s; }}
+            .cs-process-step-3 .cs-process-dot {{ animation-delay: 0.4s; }}
+            .cs-process-label {{
+                font-weight: 650;
+                font-size: 0.9rem;
+                line-height: 1.2;
+            }}
+            .cs-process-detail {{
+                color: rgba(233, 238, 255, 0.72);
+                font-size: 0.82rem;
+                line-height: 1.25;
+                margin-top: 0.18rem;
+            }}
+            @keyframes csProcessPulse {{
+                0%, 100% {{
+                    transform: scale(0.92);
+                    opacity: 0.68;
+                }}
+                50% {{
+                    transform: scale(1);
+                    opacity: 1;
+                }}
+            }}
+            @media (max-width: 820px) {{
+                .cs-process-track {{
+                    grid-template-columns: minmax(0, 1fr);
+                }}
+            }}
+            </style>
+            <div class="cs-process-banner {state_class}">
+                <div class="cs-process-title">Was passiert im Hintergrund?</div>
+                <div class="cs-process-subtitle">{subtitle}</div>
+                <div class="cs-process-track">
+                    {''.join(step_items)}
                 </div>
             </div>
             """
-        )
-    st.markdown(
-        f"""
-        <style>
-        .cs-process-banner {{
-            border: 1px solid rgba(59, 130, 246, 0.22);
-            background: linear-gradient(180deg, rgba(10, 14, 24, 0.95), rgba(9, 14, 22, 0.88));
-            border-radius: 0.75rem;
-            padding: 0.85rem 1rem;
-            margin: 0.45rem 0 0.8rem 0;
-        }}
-        .cs-process-title {{
-            font-weight: 700;
-            font-size: 0.98rem;
-            margin-bottom: 0.15rem;
-        }}
-        .cs-process-subtitle {{
-            color: rgba(233, 238, 255, 0.72);
-            font-size: 0.88rem;
-            margin-bottom: 0.8rem;
-        }}
-        .cs-process-track {{
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 0.65rem;
-        }}
-        .cs-process-step {{
-            display: flex;
-            align-items: flex-start;
-            gap: 0.65rem;
-            padding: 0.7rem 0.75rem;
-            border-radius: 0.65rem;
-            border: 1px solid rgba(148, 163, 184, 0.18);
-            background: rgba(255, 255, 255, 0.03);
-            min-height: 3.2rem;
-        }}
-        .cs-process-step-{state} {{
-            box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.12);
-        }}
-        .cs-process-dot {{
-            width: 0.7rem;
-            height: 0.7rem;
-            margin-top: 0.3rem;
-            border-radius: 999px;
-            background: rgba(59, 130, 246, 0.95);
-            box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.38);
-            animation: csProcessPulse 1.8s ease-in-out infinite;
-        }}
-        .cs-process-step-1 .cs-process-dot {{ animation-delay: 0s; }}
-        .cs-process-step-2 .cs-process-dot {{ animation-delay: 0.2s; }}
-        .cs-process-step-3 .cs-process-dot {{ animation-delay: 0.4s; }}
-        .cs-process-label {{
-            font-weight: 650;
-            font-size: 0.9rem;
-            line-height: 1.2;
-        }}
-        .cs-process-detail {{
-            color: rgba(233, 238, 255, 0.72);
-            font-size: 0.82rem;
-            line-height: 1.25;
-            margin-top: 0.18rem;
-        }}
-        @keyframes csProcessPulse {{
-            0%, 100% {{
-                transform: scale(0.92);
-                opacity: 0.68;
-            }}
-            50% {{
-                transform: scale(1);
-                opacity: 1;
-            }}
-        }}
-        @media (max-width: 820px) {{
-            .cs-process-track {{
-                grid-template-columns: minmax(0, 1fr);
-            }}
-        }}
-        </style>
-        <div class="cs-process-banner {state_class}">
-            <div class="cs-process-title">Was passiert im Hintergrund?</div>
-            <div class="cs-process-subtitle">{subtitle}</div>
-            <div class="cs-process-track">
-                {''.join(step_items)}
-            </div>
-        </div>
-        """,
+        ).strip(),
         unsafe_allow_html=True,
     )
 

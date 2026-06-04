@@ -592,9 +592,9 @@ def test_render_esco_occupation_confirmation_compact_mode_keeps_decision_first(
         show_start_context_panels=True,
     )
 
-    assert any("Details anzeigen" in message for message in fake_st.caption_messages)
+    assert any("ESCO verankert die Rolle" in message for message in fake_st.caption_messages)
     assert any("Portal öffnen" in message for message in fake_st.markdown_messages)
-    assert ("Beruf im Detail", True) in fake_st.expander_calls
+    assert fake_st.expander_calls == [("Mehr Details", False)]
 
 
 def test_render_esco_occupation_confirmation_skips_skill_group_request_when_unsupported(
