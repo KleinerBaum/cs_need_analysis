@@ -41,12 +41,12 @@ def inject_site_styles() -> None:
         <style>
             .cs-hero {
                 padding: 1.35rem 1.4rem;
-                border: 1px solid color-mix(in srgb, var(--text-color, #111111) 18%, transparent);
+                border: 1px solid color-mix(in srgb, var(--text-color, #334155) 18%, transparent);
                 border-radius: 20px;
                 background:
                     linear-gradient(
                         135deg,
-                        color-mix(in srgb, var(--primary-color, #1565c0) 14%, transparent),
+                        color-mix(in srgb, var(--primary-color, #2563EB) 14%, transparent),
                         color-mix(in srgb, var(--secondary-background-color, #f3f4f6) 70%, transparent)
                     ),
                     linear-gradient(180deg, color-mix(in srgb, var(--background-color, #ffffff) 93%, transparent), transparent);
@@ -56,8 +56,8 @@ def inject_site_styles() -> None:
                 display: inline-block;
                 padding: 0.22rem 0.60rem;
                 border-radius: 999px;
-                background: color-mix(in srgb, var(--primary-color, #1565c0) 18%, transparent);
-                color: var(--primary-color, #1565c0);
+                background: color-mix(in srgb, var(--primary-color, #2563EB) 18%, transparent);
+                color: var(--primary-color, #2563EB);
                 font-size: 0.78rem;
                 font-weight: 700;
                 letter-spacing: 0.04em;
@@ -68,17 +68,17 @@ def inject_site_styles() -> None:
                 font-size: 2.0rem;
                 line-height: 1.15;
                 font-weight: 800;
-                color: var(--text-color, inherit);
+                color: var(--text-color, #16324F);
                 margin: 0 0 0.45rem 0;
             }
             .cs-lead {
-                color: color-mix(in srgb, var(--text-color, #111111) 86%, transparent);
+                color: color-mix(in srgb, var(--text-color, #334155) 86%, transparent);
                 font-size: 1.05rem;
                 line-height: 1.6;
                 margin: 0;
             }
             .cs-card {
-                border: 1px solid color-mix(in srgb, var(--text-color, #111111) 12%, transparent);
+                border: 1px solid color-mix(in srgb, var(--text-color, #334155) 12%, transparent);
                 border-radius: 18px;
                 background: color-mix(in srgb, var(--secondary-background-color, #f3f4f6) 72%, transparent);
                 padding: 1rem 1rem 0.9rem 1rem;
@@ -87,50 +87,50 @@ def inject_site_styles() -> None:
             }
             .cs-card h4 {
                 margin: 0 0 0.45rem 0;
-                color: var(--text-color, inherit);
+                color: var(--text-color, #16324F);
                 font-size: 1.02rem;
                 line-height: 1.3;
             }
             .cs-card p {
                 margin: 0;
-                color: color-mix(in srgb, var(--text-color, #111111) 86%, transparent);
+                color: color-mix(in srgb, var(--text-color, #334155) 86%, transparent);
                 font-size: 0.96rem;
                 line-height: 1.55;
             }
             .cs-callout {
-                border-left: 5px solid var(--primary-color, #1e88e5);
-                background: color-mix(in srgb, var(--primary-color, #1e88e5) 12%, transparent);
+                border-left: 5px solid var(--primary-color, #2563EB);
+                background: color-mix(in srgb, var(--primary-color, #2563EB) 12%, transparent);
                 border-radius: 14px;
                 padding: 0.95rem 1rem;
                 margin: 0.75rem 0 1rem 0;
             }
             .cs-callout-warning {
-                border-left-color: #f9a825;
-                background: color-mix(in srgb, #f9a825 16%, transparent);
+                border-left-color: #F59E0B;
+                background: color-mix(in srgb, #F59E0B 16%, transparent);
             }
             .cs-callout-success {
-                border-left-color: #2e7d32;
-                background: color-mix(in srgb, #2e7d32 16%, transparent);
+                border-left-color: #0F766E;
+                background: color-mix(in srgb, #0F766E 16%, transparent);
             }
             .cs-meta {
-                color: color-mix(in srgb, var(--text-color, #111111) 70%, transparent);
+                color: color-mix(in srgb, var(--text-color, #334155) 70%, transparent);
                 font-size: 0.9rem;
                 margin-top: -0.15rem;
                 margin-bottom: 1.2rem;
             }
             .cs-cta {
-                border: 1px solid color-mix(in srgb, var(--text-color, #111111) 12%, transparent);
+                border: 1px solid color-mix(in srgb, var(--text-color, #334155) 12%, transparent);
                 border-radius: 18px;
                 padding: 1.1rem 1.1rem 1rem 1.1rem;
                 background: linear-gradient(
                     135deg,
-                    color-mix(in srgb, var(--primary-color, #1976d2) 12%, transparent),
+                    color-mix(in srgb, var(--primary-color, #2563EB) 12%, transparent),
                     color-mix(in srgb, var(--secondary-background-color, #f3f4f6) 72%, transparent)
                 );
                 margin-top: 1rem;
             }
             .cs-small {
-                color: color-mix(in srgb, var(--text-color, #111111) 70%, transparent);
+                color: color-mix(in srgb, var(--text-color, #334155) 70%, transparent);
                 font-size: 0.88rem;
                 line-height: 1.5;
             }
