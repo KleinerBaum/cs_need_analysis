@@ -848,7 +848,7 @@ def _render_skills_source_columns(
             step=1,
         )
         generate_ai_clicked = st.button(
-            "AI-Skill-Vorschläge generieren",
+            "Weitere AI-Skill-Vorschläge generieren",
             key=SSKey.SKILLS_AI_GENERATE_CLICKED.value,
         )
 
@@ -1710,6 +1710,94 @@ def _maybe_autoload_esco_skill_suggestions(
     return matrix_expected_must, matrix_expected_nice
 
 
+def _generate_ai_skill_suggestions(
+    *,
+    job: JobAdExtract,
+    deduped_must: list[dict[str, Any]],
+    deduped_nice: list[dict[str, Any]],
+    target_skill_count: int,
+) -> list[dict[str, Any]]:
+    suggestion_context = _build_skill_suggestion_context(
+        job=job,
+        esco_must_selected=deduped_must,
+        esco_nice_selected=deduped_nice,
+    )
+    suggestion_pack, _usage = generate_requirement_gap_suggestions(
+        job=job,
+        answers=get_answers(),
+        existing_skills=[
+            *suggestion_context["jobspec_terms"],
+            *suggestion_context["esco_titles"],
+            *suggestion_context["selected_labels"],
+        ],
+        existing_tasks=[],
+        esco_skill_titles=suggestion_context["esco_titles"],
+        target_skill_count=target_skill_count,
+        target_task_count=0,
+        model=get_active_model(),
+    )
+    llm_skill_payload = [
+        item.model_dump(mode="json")
+        for item in suggestion_pack.skills
+        if str(item.type) == "skill"
+    ]
+    rag_query = " | ".join(
+        [
+            job.job_title or "",
+            ", ".join(suggestion_context["jobspec_terms"]),
+        ]
+    ).strip(" |")
+    rag_payload: list[dict[str, Any]] = []
+    if rag_query:
+        rag_result = retrieve_esco_context(
+            rag_query,
+            purpose="skills",
+        )
+        if rag_result.reason is None:
+            rag_payload = extract_skill_suggestions(rag_result)
+    return _merge_llm_skill_suggestions(
+        llm_skills=[*llm_skill_payload, *rag_payload],
+        blocked_labels=[
+            *suggestion_context["jobspec_terms"],
+            *suggestion_context["esco_titles"],
+            *suggestion_context["selected_labels"],
+        ],
+    )
+
+
+def _maybe_generate_default_ai_skill_suggestions(
+    *,
+    job: JobAdExtract,
+    deduped_must: list[dict[str, Any]],
+    deduped_nice: list[dict[str, Any]],
+) -> list[dict[str, Any]] | None:
+    if not isinstance(job, JobAdExtract):
+        return None
+    if bool(st.session_state.get(SSKey.SKILLS_AI_DEFAULT_GENERATED.value, False)):
+        return None
+    llm_raw = st.session_state.get(SSKey.SKILLS_LLM_SUGGESTED.value, [])
+    if isinstance(llm_raw, list) and llm_raw:
+        return None
+    if llm_raw not in (None, []):
+        return None
+
+    with st.spinner("Generiere erste AI-Skill-Vorschläge …"):
+        try:
+            merged_llm = _generate_ai_skill_suggestions(
+                job=job,
+                deduped_must=deduped_must,
+                deduped_nice=deduped_nice,
+                target_skill_count=5,
+            )
+        except Exception:
+            st.warning("AI-Vorschläge konnten nicht automatisch erzeugt werden.")
+            return None
+
+    st.session_state[SSKey.SKILLS_LLM_SUGGESTED.value] = merged_llm
+    st.session_state[SSKey.SKILLS_AI_DEFAULT_GENERATED.value] = True
+    return merged_llm
+
+
 def _render_skills_source_comparison_block(
     *,
     job: JobAdExtract,
@@ -1790,6 +1878,33 @@ def _render_skills_source_comparison_block(
             *_get_selected_skill_labels(),
         ]
     )
+    auto_generated_llm = _maybe_generate_default_ai_skill_suggestions(
+        job=job,
+        deduped_must=deduped_must,
+        deduped_nice=deduped_nice,
+    )
+    if auto_generated_llm is not None:
+        jobspec_labels, llm_labels, _esco_labels, deduped_must, deduped_nice, llm_suggested = _build_skills_source_view_data(
+            job=job,
+            show_esco_sections=show_esco_sections,
+        )
+        llm_count_labels = _dedupe_terms(
+            [
+                label
+                for label in llm_labels
+                if _normalize_term(label)
+                not in {
+                    _normalize_term(_skill_title(item))
+                    for item in [*deduped_must, *deduped_nice]
+                }
+            ]
+        )
+        selected_status_labels = _dedupe_terms(
+            [
+                *[_skill_title(item) for item in [*deduped_must, *deduped_nice]],
+                *_get_selected_skill_labels(),
+            ]
+        )
     _render_skill_status_surface(
         jobspec_count=len(_dedupe_terms(jobspec_labels)),
         esco_count=len(
@@ -1868,60 +1983,20 @@ def _render_skills_source_comparison_block(
         "occupation_group": str(matrix_snapshot.get("occupation_group") or ""),
         "rows": int(matrix_snapshot.get("rows_count") or 0),
     }
-    suggestion_context = _build_skill_suggestion_context(
-        job=job,
-        esco_must_selected=deduped_must,
-        esco_nice_selected=deduped_nice,
-    )
     if generate_ai_clicked:
         with st.spinner("Generiere Skill-Vorschläge …"):
             try:
-                suggestion_pack, _usage = generate_requirement_gap_suggestions(
+                merged_llm = _generate_ai_skill_suggestions(
                     job=job,
-                    answers=get_answers(),
-                    existing_skills=[
-                        *suggestion_context["jobspec_terms"],
-                        *suggestion_context["esco_titles"],
-                        *suggestion_context["selected_labels"],
-                    ],
-                    existing_tasks=[],
-                    esco_skill_titles=suggestion_context["esco_titles"],
+                    deduped_must=deduped_must,
+                    deduped_nice=deduped_nice,
                     target_skill_count=int(
                         st.session_state.get(SSKey.SKILLS_SUGGEST_COUNT.value, 5)
                     ),
-                    target_task_count=0,
-                    model=get_active_model(),
                 )
             except Exception:
                 st.warning("AI-Vorschläge konnten nicht erzeugt werden.")
             else:
-                llm_skill_payload = [
-                    item.model_dump(mode="json")
-                    for item in suggestion_pack.skills
-                    if str(item.type) == "skill"
-                ]
-                rag_query = " | ".join(
-                    [
-                        job.job_title,
-                        ", ".join(suggestion_context["jobspec_terms"]),
-                    ]
-                ).strip(" |")
-                rag_payload: list[dict[str, Any]] = []
-                if rag_query:
-                    rag_result = retrieve_esco_context(
-                        rag_query,
-                        purpose="skills",
-                    )
-                    if rag_result.reason is None:
-                        rag_payload = extract_skill_suggestions(rag_result)
-                merged_llm = _merge_llm_skill_suggestions(
-                    llm_skills=[*llm_skill_payload, *rag_payload],
-                    blocked_labels=[
-                        *suggestion_context["jobspec_terms"],
-                        *suggestion_context["esco_titles"],
-                        *suggestion_context["selected_labels"],
-                    ],
-                )
                 st.session_state[SSKey.SKILLS_LLM_SUGGESTED.value] = merged_llm
                 llm_suggested = merged_llm
                 if merged_llm:

@@ -305,6 +305,7 @@ def init_session_state() -> None:
         SSKey.INTERVIEW_INTERNAL_FLOW.value: dict(INTERVIEW_INTERNAL_FLOW_DEFAULT),
         SSKey.SKILLS_JOBSPEC_SUGGESTED.value: [],
         SSKey.SKILLS_LLM_SUGGESTED.value: [],
+        SSKey.SKILLS_AI_DEFAULT_GENERATED.value: False,
         SSKey.SKILLS_SELECTED.value: [],
         SSKey.SKILLS_SELECTED_STATUS.value: {},
         SSKey.SKILLS_SUGGEST_COUNT.value: 5,
@@ -463,6 +464,7 @@ def reset_vacancy() -> None:
     )
     st.session_state[SSKey.SKILLS_JOBSPEC_SUGGESTED.value] = []
     st.session_state[SSKey.SKILLS_LLM_SUGGESTED.value] = []
+    st.session_state[SSKey.SKILLS_AI_DEFAULT_GENERATED.value] = False
     st.session_state[SSKey.SKILLS_SELECTED.value] = []
     st.session_state[SSKey.SKILLS_SELECTED_STATUS.value] = {}
     st.session_state[SSKey.SKILLS_SUGGEST_COUNT.value] = 5
