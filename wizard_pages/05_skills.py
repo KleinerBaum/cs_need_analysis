@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+from html import escape
 from typing import Any
 
 import streamlit as st
@@ -32,9 +33,7 @@ from ui_layout import render_step_shell, responsive_three_columns
 from ui_components import (
     has_meaningful_value,
     render_esco_picker_card,
-    render_compare_adopt_intro,
     render_error_banner,
-    render_multi_select_pills,
     render_question_step,
     ReviewRenderContext,
     resolve_standard_review_mode,
@@ -243,6 +242,231 @@ def _save_selected_skill_suggestions(labels: list[str]) -> int:
     return added_count
 
 
+def _get_selected_skill_labels() -> list[str]:
+    selected_raw = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
+    if not isinstance(selected_raw, list):
+        return []
+    return _dedupe_terms([str(item) for item in selected_raw])
+
+
+def _remove_selected_skill_label(label: str) -> None:
+    normalized_label = _normalize_term(label)
+    if not normalized_label:
+        return
+    st.session_state[SSKey.SKILLS_SELECTED.value] = [
+        item
+        for item in _get_selected_skill_labels()
+        if _normalize_term(item) != normalized_label
+    ]
+
+
+def _skill_title(item: dict[str, Any]) -> str:
+    return (
+        str(item.get("title") or item.get("label") or "Unbenannter Skill").strip()
+        or "Unbenannter Skill"
+    )
+
+
+def _skill_uri(item: dict[str, Any]) -> str:
+    return str(item.get("uri") or item.get("concept_uri") or "").strip()
+
+
+def _remove_esco_skill(uri: str, label: str) -> None:
+    normalized_label = _normalize_term(label)
+    for state_key in (
+        SSKey.ESCO_SKILLS_SELECTED_MUST.value,
+        SSKey.ESCO_SKILLS_SELECTED_NICE.value,
+    ):
+        existing_raw = st.session_state.get(state_key, [])
+        existing = existing_raw if isinstance(existing_raw, list) else []
+        st.session_state[state_key] = [
+            item
+            for item in existing
+            if not (
+                isinstance(item, dict)
+                and (
+                    (_skill_uri(item) and _skill_uri(item) == uri)
+                    or (
+                        normalized_label
+                        and _normalize_term(_skill_title(item)) == normalized_label
+                    )
+                )
+            )
+        ]
+    _remove_selected_skill_label(label)
+
+
+def _mark_esco_skill_optional(uri: str, label: str) -> None:
+    if not uri:
+        _save_selected_skill_suggestions([label])
+        return
+
+    must_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
+    nice_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
+    must_items = must_raw if isinstance(must_raw, list) else []
+    nice_items = nice_raw if isinstance(nice_raw, list) else []
+    moved_item: dict[str, Any] | None = None
+    remaining_must: list[dict[str, Any]] = []
+    for item in must_items:
+        if isinstance(item, dict) and _skill_uri(item) == uri:
+            moved_item = {**item, "relation": "hasOptionalSkill"}
+            continue
+        if isinstance(item, dict):
+            remaining_must.append(item)
+    if moved_item is not None and not any(
+        isinstance(item, dict) and _skill_uri(item) == uri for item in nice_items
+    ):
+        nice_items = [*nice_items, moved_item]
+    st.session_state[SSKey.ESCO_SKILLS_SELECTED_MUST.value] = remaining_must
+    st.session_state[SSKey.ESCO_SKILLS_SELECTED_NICE.value] = nice_items
+    _save_selected_skill_suggestions([label])
+
+
+def _render_skill_status_surface(
+    *,
+    jobspec_count: int,
+    esco_count: int,
+    selected_count: int,
+) -> None:
+    render_output_header(
+        "Skills & Anforderungen schärfen",
+        "Aus Stellenanzeige, ESCO und AI-Vorschlägen entsteht eine prüfbare "
+        "Skill-Liste für Brief, Matching und Interview.",
+    )
+    col_jobspec, col_esco, col_selected = st.columns(3, gap="medium")
+    with col_jobspec:
+        st.metric("Aus Anzeige erkannt", jobspec_count)
+    with col_esco:
+        st.metric("ESCO ergänzt", esco_count)
+    with col_selected:
+        st.metric("Übernommen", selected_count)
+
+
+def _render_term_group(title: str, values: list[str], *, limit: int = 10) -> None:
+    st.markdown(f"**{title}** · {len(values)}")
+    if not values:
+        st.caption("Keine Begriffe erkannt.")
+        return
+    visible_values = values[:limit]
+    for value in visible_values:
+        st.caption(f"- {value}")
+    if len(values) > limit:
+        with st.expander(f"Mehr anzeigen ({len(values) - limit})", expanded=False):
+            for value in values[limit:]:
+                st.caption(f"- {value}")
+
+
+def _render_jobspec_terms_tab(job: JobAdExtract) -> None:
+    must_have = _dedupe_terms(
+        [x for x in job.must_have_skills if has_meaningful_value(x)]
+    )
+    nice_to_have = _dedupe_terms(
+        [x for x in job.nice_to_have_skills if has_meaningful_value(x)]
+    )
+    tech_stack = _dedupe_terms([x for x in job.tech_stack if has_meaningful_value(x)])
+    st.caption("Rohbegriffe aus der Jobspec, kurz gruppiert.")
+    col_must, col_nice, col_stack = responsive_three_columns(gap="large")
+    with col_must:
+        _render_term_group("Must-have", must_have)
+    with col_nice:
+        _render_term_group("Nice-to-have", nice_to_have)
+    with col_stack:
+        _render_term_group("Tech Stack", tech_stack)
+
+
+def _render_skill_action_row(
+    *,
+    label: str,
+    source: str,
+    key_prefix: str,
+    uri: str = "",
+    can_mark_optional: bool = True,
+) -> None:
+    selected_labels = _get_selected_skill_labels()
+    is_selected = _normalize_term(label) in {
+        _normalize_term(item) for item in selected_labels
+    }
+    item_col, adopt_col, optional_col, remove_col = st.columns([4.4, 1.3, 1.8, 1.2])
+    with item_col:
+        st.markdown(f"**{label}**")
+        st.caption(f"{source} · {'übernommen' if is_selected else 'Vorschlag'}")
+    with adopt_col:
+        if st.button("Übernehmen", key=f"{key_prefix}.adopt", width="stretch"):
+            _save_selected_skill_suggestions([label])
+    with optional_col:
+        if st.button(
+            "Als optional markieren",
+            key=f"{key_prefix}.optional",
+            width="stretch",
+            disabled=not can_mark_optional,
+        ):
+            _mark_esco_skill_optional(uri, label)
+    with remove_col:
+        if st.button("Entfernen", key=f"{key_prefix}.remove", width="stretch"):
+            if uri:
+                _remove_esco_skill(uri, label)
+            else:
+                _remove_selected_skill_label(label)
+
+
+def _filter_recommendations(
+    *,
+    filter_mode: str,
+    must_items: list[dict[str, Any]],
+    nice_items: list[dict[str, Any]],
+    review_labels: list[str],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+    if filter_mode == "Fachlich":
+        return must_items, [], []
+    if filter_mode == "Optional":
+        return [], nice_items, []
+    if filter_mode == "Unklar":
+        return [], [], review_labels
+    return must_items, nice_items, review_labels
+
+
+def _render_recommendation_group(
+    *,
+    title: str,
+    items: list[dict[str, Any]],
+    key_prefix: str,
+    can_mark_optional: bool,
+) -> None:
+    st.markdown(f"**{title}** · {len(items)}")
+    if not items:
+        st.caption("Keine Vorschläge.")
+        return
+    for index, item in enumerate(items):
+        label = _skill_title(item)
+        uri = _skill_uri(item)
+        source = str(item.get("source") or "ESCO").strip() or "ESCO"
+        _render_skill_action_row(
+            label=label,
+            source=source,
+            uri=uri,
+            key_prefix=f"{key_prefix}.{index}.{_normalize_term(label)}",
+            can_mark_optional=can_mark_optional,
+        )
+
+
+def _render_review_recommendations(
+    *,
+    labels: list[str],
+    key_prefix: str,
+) -> None:
+    st.markdown(f"**Bitte prüfen** · {len(labels)}")
+    if not labels:
+        st.caption("Keine offenen Empfehlungen.")
+        return
+    for index, label in enumerate(labels):
+        _render_skill_action_row(
+            label=label,
+            source="Jobspec/AI",
+            key_prefix=f"{key_prefix}.{index}.{_normalize_term(label)}",
+            can_mark_optional=True,
+        )
+
+
 def _build_skills_source_view_data(
     *,
     job: JobAdExtract,
@@ -277,138 +501,95 @@ def _build_skills_source_view_data(
 
 def _render_skills_source_columns(
     *,
+    job: JobAdExtract,
     jobspec_labels: list[str],
     llm_labels: list[str],
+    deduped_must: list[dict[str, Any]],
+    deduped_nice: list[dict[str, Any]],
     show_esco_sections: bool,
-) -> tuple[bool, bool]:
-    selected_labels_raw = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
-    selected_labels = _dedupe_terms([str(item) for item in selected_labels_raw]) if isinstance(selected_labels_raw, list) else []
+) -> bool:
+    selected_labels = _get_selected_skill_labels()
     selected_normalized = {_normalize_term(item) for item in selected_labels}
+    esco_normalized = {
+        _normalize_term(_skill_title(item)) for item in [*deduped_must, *deduped_nice]
+    }
+    llm_review_labels = [
+        label
+        for label in llm_labels
+        if _normalize_term(label) not in selected_normalized
+        and _normalize_term(label) not in esco_normalized
+    ]
+    jobspec_review_labels = [
+        label
+        for label in jobspec_labels
+        if _normalize_term(label) not in selected_normalized
+        and _normalize_term(label) not in esco_normalized
+    ]
+    review_labels = _dedupe_terms([*jobspec_review_labels, *llm_review_labels])
 
-    st.markdown("#### 1) Jobspec-Rohbegriffe")
-    st.caption("Direkt aus dem Inserat übernehmen.")
-    render_multi_select_pills(
-        " ",
-        options=jobspec_labels,
-        key=SSKey.SKILLS_JOBSPEC_PILLS.value,
-        default=[item for item in selected_labels if _normalize_term(item) in {_normalize_term(v) for v in jobspec_labels}],
+    tab_jobspec, tab_suggestions, tab_selection = st.tabs(
+        ["Anzeige", "Vorschläge", "Auswahl"]
     )
+    with tab_jobspec:
+        _render_jobspec_terms_tab(job)
 
-    load_esco_clicked = False
-    st.markdown("#### 2) ESCO-Vorschläge")
-    st.caption("Essential/Optional prüfen und markieren.")
-    if show_esco_sections:
-        load_esco_clicked = st.button(
-            "ESCO-Skills laden", key=SSKey.SKILLS_ESCO_LOAD_CLICKED.value
-        )
-        selected_must_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
-        selected_nice_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
-        selected_must = selected_must_raw if isinstance(selected_must_raw, list) else []
-        selected_nice = selected_nice_raw if isinstance(selected_nice_raw, list) else []
-
-        def _to_chip_data(items: list[dict[str, Any]], relation: str) -> list[dict[str, str]]:
-            chips: list[dict[str, str]] = []
-            for item in items:
-                if not isinstance(item, dict):
-                    continue
-                title = str(item.get("title") or "").strip()
-                if not title:
-                    continue
-                source = str(item.get("source") or "").strip() or "ESCO"
-                chips.append({"title": title, "relation": relation, "source": source})
-            return chips
-
-        essential_chips = _to_chip_data(selected_must, "essential")
-        optional_chips = _to_chip_data(selected_nice, "optional")
-        esco_labels = _dedupe_terms([c["title"] for c in [*essential_chips, *optional_chips]])
-        search_text = (
-            st.text_input(
-                "Suche (contains/filter)", key=SSKey.SKILLS_ESCO_SEARCH.value
-            )
-            .strip()
-            .lower()
-        )
-
-        sort_mode = st.radio(
-            "Sortierung",
-            options=["alphabetisch", "quelle"],
+    generate_ai_clicked = False
+    with tab_suggestions:
+        if show_esco_sections:
+            st.caption("ESCO + AI als gemeinsame Empfehlungsliste.")
+        else:
+            st.caption("ESCO-Vorschläge erscheinen nach bestätigtem ESCO-Anker.")
+        filter_mode = st.radio(
+            "Filter",
+            options=["Relevant", "Fachlich", "Optional", "Unklar"],
             horizontal=True,
-            key=SSKey.SKILLS_ESCO_SORT.value,
-            label_visibility="collapsed",
+        )
+        filtered_must, filtered_nice, filtered_review = _filter_recommendations(
+            filter_mode=filter_mode,
+            must_items=deduped_must,
+            nice_items=deduped_nice,
+            review_labels=review_labels,
+        )
+        _render_recommendation_group(
+            title="Empfohlen als Must-have",
+            items=filtered_must,
+            key_prefix="skills.recommend.must",
+            can_mark_optional=True,
+        )
+        _render_recommendation_group(
+            title="Empfohlen als Nice-to-have",
+            items=filtered_nice,
+            key_prefix="skills.recommend.nice",
+            can_mark_optional=False,
+        )
+        _render_review_recommendations(
+            labels=filtered_review,
+            key_prefix="skills.recommend.review",
+        )
+        st.number_input(
+            "Anzahl AI-Skill-Vorschläge",
+            key=SSKey.SKILLS_SUGGEST_COUNT.value,
+            min_value=1,
+            max_value=12,
+            step=1,
+        )
+        generate_ai_clicked = st.button(
+            "AI-Skill-Vorschläge generieren",
+            key=SSKey.SKILLS_AI_GENERATE_CLICKED.value,
         )
 
-        def _sort_chips(chips: list[dict[str, str]]) -> list[dict[str, str]]:
-            if sort_mode == "quelle":
-                return sorted(chips, key=lambda c: (c["source"].casefold(), c["title"].casefold()))
-            return sorted(chips, key=lambda c: c["title"].casefold())
-
-        def _render_chip_cloud(chips: list[dict[str, str]]) -> int:
-            filtered = [c for c in chips if not search_text or search_text in c["title"].lower()]
-            if not filtered:
-                st.caption("Keine Skills gefunden.")
-                return 0
-            chip_markup = []
-            for chip in _sort_chips(filtered):
-                title = chip["title"]
-                compact_title = title if len(title) <= 46 else f"{title[:43]}..."
-                source_badge = "Matrix" if chip["source"] == "ESCO matrix prior" else "ESCO"
-                pill_text = f"{compact_title} · {source_badge}".replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-                title_attr = title.replace('"', '&quot;')
-                chip_markup.append(
-                    f'<span title="{title_attr}" style="display:inline-block;margin:0 6px 8px 0;padding:2px 10px;border-radius:999px;border:1px solid #cfd6e4;background:#f6f8fc;font-size:0.82rem;">{pill_text}</span>'
-                )
-            st.markdown("".join(chip_markup), unsafe_allow_html=True)
-            with st.expander("Vollständige Namen anzeigen", expanded=False):
-                for chip in _sort_chips(filtered):
-                    st.caption(f"• {chip['title']}")
-            return len(filtered)
-
-        essential_count = len([c for c in essential_chips if not search_text or search_text in c["title"].lower()])
-        optional_count = len([c for c in optional_chips if not search_text or search_text in c["title"].lower()])
-        tab_essential, tab_optional = st.tabs([f"Essential ({essential_count})", f"Optional ({optional_count})"])
-        with tab_essential:
-            _render_chip_cloud(essential_chips)
-        with tab_optional:
-            _render_chip_cloud(optional_chips)
-        render_multi_select_pills(
-            "   ",
-            options=esco_labels,
-            key=SSKey.SKILLS_ESCO_PILLS.value,
-            default=[item for item in selected_labels if _normalize_term(item) in {_normalize_term(v) for v in esco_labels}],
+    with tab_selection:
+        _render_confirmed_selection_block(
+            deduped_must=deduped_must,
+            deduped_nice=deduped_nice,
+            detail_cache={},
+            llm_suggested=[],
+            is_expert_mode=False,
+            include_details=False,
         )
-    else:
-        st.caption("Nur bei bestätigtem ESCO-Anker verfügbar.")
 
-    st.markdown("#### 3) AI-Vorschläge")
-    st.caption("Neue Skills generieren und auswählen.")
-    st.number_input(
-        "Anzahl AI-Skill-Vorschläge",
-        key=SSKey.SKILLS_SUGGEST_COUNT.value,
-        min_value=1,
-        max_value=12,
-        step=1,
-    )
-    generate_ai_clicked = st.button(
-        "AI-Skill-Vorschläge generieren", key=SSKey.SKILLS_AI_GENERATE_CLICKED.value
-    )
-    render_multi_select_pills(
-        "  ",
-        options=llm_labels,
-        key=SSKey.SKILLS_AI_PILLS.value,
-        default=[item for item in selected_labels if _normalize_term(item) in {_normalize_term(v) for v in llm_labels}],
-    )
-
-    selected_jobspec = st.session_state.get(SSKey.SKILLS_JOBSPEC_PILLS.value, []) or []
-    selected_ai = st.session_state.get(SSKey.SKILLS_AI_PILLS.value, []) or []
-    selected_esco = st.session_state.get(SSKey.SKILLS_ESCO_PILLS.value, []) or []
-    buffer = _dedupe_terms([*selected_jobspec, *selected_ai, *selected_esco, *selected_labels])
-    st.session_state[SSKey.SKILLS_SELECTED_BULK_BUFFER.value] = buffer
-    if st.button("Ausgewählte Skills übernehmen", width="stretch"):
-        _save_selected_skill_suggestions(buffer)
-    current_selected = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
-    current_count = len(_dedupe_terms([str(item) for item in current_selected])) if isinstance(current_selected, list) else 0
-    st.caption(f"Übernommen: {current_count} Skills")
-    return load_esco_clicked, generate_ai_clicked
+    st.session_state[SSKey.SKILLS_SELECTED_BULK_BUFFER.value] = selected_labels
+    return generate_ai_clicked
 
 
 def _safe_text(value: str | None) -> str:
@@ -988,9 +1169,10 @@ def _render_confirmed_selection_block(
     detail_cache: dict[str, dict[str, Any]],
     llm_suggested: list[dict[str, Any]],
     is_expert_mode: bool,
+    include_details: bool = True,
 ) -> None:
-    st.markdown("#### 4) Auswahlkorb")
-    st.caption("Gesammelte Skills im Überblick.")
+    st.markdown("#### Auswahl")
+    st.caption("Finaler Warenkorb für Brief, Matching und Interview.")
     selected_labels_raw = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
     selected_labels = (
         _dedupe_terms([str(item) for item in selected_labels_raw])
@@ -1048,7 +1230,11 @@ def _render_confirmed_selection_block(
         unsafe_allow_html=True,
     )
 
-    basket_col, details_col = st.columns([1.35, 1.65], gap="large")
+    if include_details:
+        basket_col, details_col = st.columns([1.35, 1.65], gap="large")
+    else:
+        basket_col = st.container()
+        details_col = None
     with basket_col:
         sticky = st.container(border=True)
         with sticky:
@@ -1061,7 +1247,10 @@ def _render_confirmed_selection_block(
                     st.caption("Keine Einträge.")
                     return
                 chip_html = "".join(
-                    f'<span class="skills-chip" title="{label}">{label}</span>'
+                    (
+                        '<span class="skills-chip" '
+                        f'title="{escape(label, quote=True)}">{escape(label)}</span>'
+                    )
                     for label in labels
                 )
                 st.markdown(
@@ -1069,8 +1258,25 @@ def _render_confirmed_selection_block(
                     unsafe_allow_html=True,
                 )
                 with st.expander("Details anzeigen", expanded=False):
-                    for idx, label in enumerate(labels, start=1):
-                        st.caption(f"{idx}. {label}")
+                    for idx, label in enumerate(labels):
+                        matching_item = next(
+                            (
+                                item
+                                for item in [*deduped_must, *deduped_nice]
+                                if _normalize_term(_skill_title(item))
+                                == _normalize_term(label)
+                            ),
+                            {},
+                        )
+                        _render_skill_action_row(
+                            label=label,
+                            source="Auswahl",
+                            uri=_skill_uri(matching_item)
+                            if isinstance(matching_item, dict)
+                            else "",
+                            key_prefix=f"skills.selection.{title}.{idx}.{_normalize_term(label)}",
+                            can_mark_optional=title != "Nice-to-have",
+                        )
 
             _render_compact_group("Must-have", must_titles)
             _render_compact_group("Nice-to-have", nice_titles)
@@ -1079,7 +1285,12 @@ def _render_confirmed_selection_block(
                 _dedupe_terms(company_specific_labels),
             )
 
+    if not include_details:
+        return
+
     cc1, cc2, cc3 = responsive_three_columns(gap="large")
+    if details_col is None:
+        return
     with details_col:
         with st.expander("Vertiefung (optional)", expanded=False):
             with cc1:
@@ -1109,6 +1320,105 @@ def _render_confirmed_selection_block(
                     st.caption("Noch keine AI-Skills vorhanden.")
 
 
+def _maybe_autoload_esco_skill_suggestions(
+    *,
+    show_esco_sections: bool,
+    occupation_uri: str,
+    occupation_group: str,
+    selected_occupation: dict[str, Any] | None,
+    esco_anchor_status: EscoAnchorStatus,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    matrix_expected_must: list[dict[str, Any]] = []
+    matrix_expected_nice: list[dict[str, Any]] = []
+    if not show_esco_sections:
+        return matrix_expected_must, matrix_expected_nice
+
+    if not occupation_uri:
+        if esco_anchor_status.status_reason == "anchor_confirmed_invalid_payload":
+            st.warning(
+                "ESCO-Anker ist bestätigt, aber die Occupation-Payload ist unvollständig oder veraltet. "
+                "Bitte ESCO-Auswahl erneut synchronisieren (Start → Phase C)."
+            )
+        else:
+            st.info("ESCO-Sektion wird nach bestätigtem ESCO-Anker eingeblendet.")
+        return matrix_expected_must, matrix_expected_nice
+
+    selected_must_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
+    selected_nice_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
+    selected_must = selected_must_raw if isinstance(selected_must_raw, list) else []
+    selected_nice = selected_nice_raw if isinstance(selected_nice_raw, list) else []
+    if selected_must or selected_nice:
+        return matrix_expected_must, matrix_expected_nice
+
+    occupation_title = (
+        str(selected_occupation.get("title") or "—").strip()
+        if isinstance(selected_occupation, dict)
+        else "—"
+    )
+    with st.spinner("Lade relationale Skills aus ESCO …"):
+        suggested_must, suggested_nice, load_error = (
+            _load_related_skills_from_selected_occupation(occupation_uri)
+        )
+    matrix_must: list[dict[str, Any]] = []
+    matrix_nice: list[dict[str, Any]] = []
+    try:
+        matrix_must, matrix_nice = _load_matrix_priors(
+            occupation_uri,
+            occupation_group=occupation_group,
+        )
+        matrix_expected_must = list(matrix_must)
+        matrix_expected_nice = list(matrix_nice)
+    except Exception as exc:
+        st.session_state[SSKey.ESCO_MATRIX_LOADED.value] = False
+        st.caption(f"Matrix-Prior nicht geladen: {exc}")
+
+    if load_error:
+        if load_error.from_negative_cache:
+            st.caption(
+                "ESCO-Anfragen kurzzeitig gedrosselt (wiederholter 4xx-Fehler). "
+                f"Unterdrückte Wiederholungen: {load_error.suppressed_repeat_count}."
+            )
+        elif load_error.endpoint == "resource/related" and load_error.status_code is None:
+            st.info(load_error.message)
+        else:
+            st.warning(
+                "ESCO-Vorschläge sind aktuell nicht verfügbar. "
+                "Du kannst mit manueller Auswahl weiterarbeiten oder später erneut versuchen."
+            )
+        return matrix_expected_must, matrix_expected_nice
+
+    merged_must, added_must = _merge_suggested_skills_by_uri(
+        suggested_skills=[
+            {
+                **item,
+                "relation": "hasEssentialSkill",
+                "related_occupation_uri": occupation_uri,
+            }
+            for item in [*suggested_must, *matrix_must]
+        ],
+        must_selected=selected_must,
+        nice_selected=selected_nice,
+    )
+    merged_nice, added_nice = _merge_suggested_skills_by_uri(
+        suggested_skills=[
+            {
+                **item,
+                "relation": "hasOptionalSkill",
+                "related_occupation_uri": occupation_uri,
+            }
+            for item in [*suggested_nice, *matrix_nice]
+        ],
+        must_selected=selected_nice,
+        nice_selected=merged_must,
+    )
+    st.session_state[SSKey.ESCO_SKILLS_SELECTED_MUST.value] = merged_must
+    st.session_state[SSKey.ESCO_SKILLS_SELECTED_NICE.value] = merged_nice
+    st.caption(
+        f"ESCO ergänzt {added_must + added_nice} Skills für {occupation_title}."
+    )
+    return matrix_expected_must, matrix_expected_nice
+
+
 def _render_skills_source_comparison_block(
     *,
     job: JobAdExtract,
@@ -1117,27 +1427,10 @@ def _render_skills_source_comparison_block(
     show_esco_sections: bool,
     esco_anchor_status: EscoAnchorStatus,
 ) -> None:
-    render_output_header(
-        "Skills auswählen",
-        "Kombinieren Sie Jobspec-, AI- und ESCO-Skills für Recruiting-Brief, Matching und Folgeartefakte.",
-    )
     must_have_skills = [x for x in job.must_have_skills if has_meaningful_value(x)]
     nice_to_have_skills = [x for x in job.nice_to_have_skills if has_meaningful_value(x)]
     jobspec_labels, llm_labels, _esco_labels, deduped_must, deduped_nice, llm_suggested = _build_skills_source_view_data(
         job=job,
-        show_esco_sections=show_esco_sections,
-    )
-
-    render_compare_adopt_intro(
-        adopt_target="Skills",
-        canonical_target="SSKey.SKILLS_SELECTED",
-        source_labels=("Jobspec", "AI")
-        if not show_esco_sections
-        else ("Jobspec", "ESCO", "AI"),
-    )
-    load_esco_clicked, generate_ai_clicked = _render_skills_source_columns(
-        jobspec_labels=jobspec_labels,
-        llm_labels=llm_labels,
         show_esco_sections=show_esco_sections,
     )
     normalized_must_terms = _dedupe_terms(must_have_skills)
@@ -1156,109 +1449,13 @@ def _render_skills_source_comparison_block(
         else ""
     )
     occupation_group = _resolve_matrix_occupation_group(selected_occupation) if show_esco_sections else ""
-    matrix_expected_must: list[dict[str, Any]] = []
-    matrix_expected_nice: list[dict[str, Any]] = []
-    if show_esco_sections and occupation_uri and load_esco_clicked:
-        occupation_title = (
-            str(selected_occupation.get("title") or "—").strip()
-            if isinstance(selected_occupation, dict)
-            else "—"
-        )
-        with st.spinner("Lade relationale Skills aus ESCO …"):
-            suggested_must, suggested_nice, load_error = (
-                _load_related_skills_from_selected_occupation(occupation_uri)
-            )
-        matrix_must: list[dict[str, Any]] = []
-        matrix_nice: list[dict[str, Any]] = []
-        try:
-            matrix_must, matrix_nice = _load_matrix_priors(
-                occupation_uri,
-                occupation_group=occupation_group,
-            )
-            matrix_expected_must = list(matrix_must)
-            matrix_expected_nice = list(matrix_nice)
-        except Exception as exc:
-            st.session_state[SSKey.ESCO_MATRIX_LOADED.value] = False
-            st.caption(f"Matrix-Prior nicht geladen: {exc}")
-
-        if load_error:
-            if load_error.from_negative_cache:
-                st.caption(
-                    "ESCO-Anfragen kurzzeitig gedrosselt (wiederholter 4xx-Fehler). "
-                    f"Unterdrückte Wiederholungen: {load_error.suppressed_repeat_count}."
-                )
-            elif (
-                load_error.endpoint == "resource/related"
-                and load_error.status_code is None
-            ):
-                st.info(load_error.message)
-            else:
-                st.warning(
-                    "ESCO-Vorschläge sind aktuell nicht verfügbar. "
-                    "Du kannst mit manueller Auswahl weiterarbeiten oder später erneut versuchen."
-                )
-        else:
-            st.success(
-                f"ESCO-Vorschläge für {occupation_title}: "
-                f"{len(suggested_must)} essential, {len(suggested_nice)} optional."
-            )
-            if matrix_must or matrix_nice:
-                st.caption(
-                    "Zusätzliche Matrix-Priors: "
-                    f"{len(matrix_must)} essential, {len(matrix_nice)} optional "
-                    "(Quelle: ESCO matrix prior)."
-                )
-            selected_must_raw = st.session_state.get(
-                SSKey.ESCO_SKILLS_SELECTED_MUST.value, []
-            )
-            selected_nice_raw = st.session_state.get(
-                SSKey.ESCO_SKILLS_SELECTED_NICE.value, []
-            )
-            selected_must = (
-                selected_must_raw if isinstance(selected_must_raw, list) else []
-            )
-            selected_nice = (
-                selected_nice_raw if isinstance(selected_nice_raw, list) else []
-            )
-
-            merged_must, added_must = _merge_suggested_skills_by_uri(
-                suggested_skills=[
-                    {
-                        **item,
-                        "relation": "hasEssentialSkill",
-                        "related_occupation_uri": occupation_uri,
-                    }
-                    for item in [*suggested_must, *matrix_must]
-                ],
-                must_selected=selected_must,
-                nice_selected=selected_nice,
-            )
-            merged_nice, added_nice = _merge_suggested_skills_by_uri(
-                suggested_skills=[
-                    {
-                        **item,
-                        "relation": "hasOptionalSkill",
-                        "related_occupation_uri": occupation_uri,
-                    }
-                    for item in [*suggested_nice, *matrix_nice]
-                ],
-                must_selected=merged_must,
-                nice_selected=selected_nice,
-            )
-            st.session_state[SSKey.ESCO_SKILLS_SELECTED_MUST.value] = merged_must
-            st.session_state[SSKey.ESCO_SKILLS_SELECTED_NICE.value] = merged_nice
-            st.info(
-                f"Übernommen: {added_must} Must, {added_nice} Nice "
-                "(dedupliziert anhand ESCO-URI)."
-            )
-    elif show_esco_sections:
-        if esco_anchor_status.status_reason == "anchor_confirmed_invalid_payload":
-            st.warning(
-                "ESCO-Anker ist bestätigt, aber die Occupation-Payload ist unvollständig oder veraltet. "
-                "Bitte ESCO-Auswahl erneut synchronisieren (Start → Phase C)."
-            )
-        else:
-            st.info("ESCO-Sektion wird nach bestätigtem ESCO-Anker eingeblendet.")
+    matrix_expected_must, matrix_expected_nice = _maybe_autoload_esco_skill_suggestions(
+        show_esco_sections=show_esco_sections,
+        occupation_uri=occupation_uri,
+        occupation_group=occupation_group,
+        selected_occupation=selected_occupation,
+        esco_anchor_status=esco_anchor_status,
+    )
 
     selected_must_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
     selected_nice_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
@@ -1285,6 +1482,20 @@ def _render_skills_source_comparison_block(
     st.session_state[SSKey.ESCO_SKILL_DETAIL_CACHE.value] = detail_cache
     ui_mode = get_current_ui_mode()
     is_expert_mode = ui_mode == "expert"
+
+    _render_skill_status_surface(
+        jobspec_count=len(jobspec_labels),
+        esco_count=len(deduped_must) + len(deduped_nice),
+        selected_count=len(_get_selected_skill_labels()),
+    )
+    generate_ai_clicked = _render_skills_source_columns(
+        job=job,
+        jobspec_labels=jobspec_labels,
+        llm_labels=llm_labels,
+        deduped_must=deduped_must,
+        deduped_nice=deduped_nice,
+        show_esco_sections=show_esco_sections,
+    )
 
     mapped_titles = {
         _normalize_term(str(item.get("title") or ""))
@@ -1404,14 +1615,6 @@ def _render_skills_source_comparison_block(
                 else:
                     st.info("Keine zusätzlichen AI-Skills gefunden.")
 
-    _render_confirmed_selection_block(
-        deduped_must=deduped_must,
-        deduped_nice=deduped_nice,
-        detail_cache=detail_cache,
-        llm_suggested=llm_suggested,
-        is_expert_mode=is_expert_mode,
-    )
-
     ambiguous_terms = sorted(
         {
             term
@@ -1422,19 +1625,33 @@ def _render_skills_source_comparison_block(
     )
     unmapped_terms = list(coverage_snapshot.unmapped_requirement_terms)
     flagged_terms = _dedupe_terms([*ambiguous_terms, *unmapped_terms])
-    if hasattr(st, "markdown"):
-        st.markdown("#### 5) Advanced")
-    st.caption("Coverage, offene Begriffe, technische Details.")
-    if show_esco_sections:
-        _render_matrix_coverage_section(matrix_snapshot, ui_mode=ui_mode)
-    if show_esco_sections and flagged_terms:
-        _render_unmapped_term_workflow(flagged_terms)
-    else:
-        st.caption(
-            "Keine offenen oder mehrdeutigen Skill-Begriffe vorhanden."
-            if show_esco_sections
-            else "ESCO-spezifische Normalisierung ist ohne bestätigten ESCO-Anker ausgeblendet."
-        )
+    selected_count = len(_get_selected_skill_labels())
+    open_count = len(flagged_terms)
+    status_label = (
+        "Bereit für Recruiting Brief und Interviewfragen"
+        if open_count == 0
+        else "Bitte offene Begriffe technisch prüfen"
+    )
+    st.info(
+        f"{selected_count} Skills übernommen · "
+        f"{open_count} offene Begriffe · {status_label}"
+    )
+    with st.expander("Advanced / Technische Prüfung", expanded=False):
+        st.caption("Status: inferred context")
+        st.caption("SSKey.SKILLS_SELECTED")
+        st.caption("contains/filter")
+        st.caption("map_to_esco_skill · keep_free_text · retry_search")
+        if show_esco_sections:
+            _render_matrix_coverage_section(matrix_snapshot, ui_mode=ui_mode)
+        if show_esco_sections and flagged_terms:
+            _render_unmapped_term_workflow(flagged_terms)
+        else:
+            st.caption(
+                "Keine offenen oder mehrdeutigen Skill-Begriffe vorhanden."
+                if show_esco_sections
+                else "ESCO-spezifische Normalisierung ist ohne bestätigten ESCO-Anker ausgeblendet."
+            )
+
 
 def _render_salary_forecast_slot(job: JobAdExtract) -> None:
     selected_skills_raw = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
@@ -1487,31 +1704,25 @@ def render(ctx: WizardContext) -> None:
     render_step_shell(
         title="Skills & Anforderungen",
         subtitle=(
-            "Ziel: Rohbegriffe aus dem Jobspec zuerst sichtbar machen, dann mit ESCO "
-            "vereinheitlichen und abschließend als essential oder optional bestätigen."
+            "Skills aus Anzeige, ESCO und AI kuratieren und als belastbare "
+            "Anforderungsliste bestätigen."
         ),
         outcome_text=(
-            "Eine bestätigte Skill-Liste (essential/optional) mit nachvollziehbarer Herkunft "
-            "aus Jobspec, ESCO und AI-Vorschlägen."
+            "Eine prüfbare Skill-Liste für Recruiting Brief, Matching und Interviewfragen."
         ),
         step=step,
-        extracted_from_jobspec_slot=lambda: _render_extracted_slot(job),
-        extracted_from_jobspec_label="Aus der Anzeige extrahierte Skills",
-        extracted_from_jobspec_use_expander=False,
+        source_comparison_slot=lambda: _render_skills_source_comparison_block(
+            job=job,
+            selected_occupation=selected_occupation,
+            coverage_snapshot=coverage_snapshot,
+            show_esco_sections=show_esco_sections,
+            esco_anchor_status=esco_anchor_status,
+        ),
+        salary_forecast_slot=lambda: _render_salary_forecast_slot(job),
         open_questions_slot=lambda: _render_open_questions_slot(step),
         review_slot=lambda: render_standard_step_review(
             step,
             render_mode=resolve_standard_review_mode(context=ReviewRenderContext.STEP_FORM),
-        ),
-        after_review_slot=lambda: (
-            _render_skills_source_comparison_block(
-                job=job,
-                selected_occupation=selected_occupation,
-                coverage_snapshot=coverage_snapshot,
-                show_esco_sections=show_esco_sections,
-                esco_anchor_status=esco_anchor_status,
-            ),
-            _render_salary_forecast_slot(job),
         ),
         footer_slot=lambda: nav_buttons(ctx),
     )

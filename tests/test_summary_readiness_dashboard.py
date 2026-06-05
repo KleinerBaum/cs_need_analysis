@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
+from typing import Any, Literal
 from types import SimpleNamespace
 
 from constants import SSKey
@@ -13,6 +14,14 @@ if SPEC is None or SPEC.loader is None:
     raise RuntimeError("Could not load summary page module")
 SUMMARY_MODULE = module_from_spec(SPEC)
 SPEC.loader.exec_module(SUMMARY_MODULE)  # type: ignore[attr-defined]
+
+
+class _NoopContext:
+    def __enter__(self) -> "_NoopContext":
+        return self
+
+    def __exit__(self, *_: object) -> Literal[False]:
+        return False
 
 
 def test_resolve_next_best_action_prefers_brief_when_not_ready(monkeypatch) -> None:
@@ -53,6 +62,174 @@ def test_resolve_next_best_action_prefers_brief_when_not_ready(monkeypatch) -> N
     )
     assert action is not None
     assert action["id"] == "brief"
+
+
+def test_build_summary_tabs_uses_dashboard_workspace_labels(monkeypatch) -> None:
+    captured_labels: list[str] = []
+
+    class _FakeStreamlit:
+        def tabs(self, labels: list[str]) -> list[_NoopContext]:
+            captured_labels.extend(labels)
+            return [_NoopContext() for _ in labels]
+
+    monkeypatch.setattr(SUMMARY_MODULE, "st", _FakeStreamlit())
+
+    tabs = SUMMARY_MODULE._build_summary_tabs()
+
+    assert len(tabs) == 5
+    assert captured_labels == ["Brief", "Artefakte", "Fakten", "Export", "Advanced"]
+
+
+def test_artifact_pipeline_status_uses_brief_freshness(monkeypatch) -> None:
+    action = {
+        "id": "brief",
+        "title": "Recruiting Brief",
+        "benefit": "",
+        "cta_label": "Brief erstellen",
+        "blocked_cta_label": None,
+        "requires": (),
+        "requirement_text": "",
+        "requirement_check_fn": None,
+        "generator_fn": lambda: None,
+        "result_key": SSKey.BRIEF,
+        "input_hints": (),
+        "input_renderer": None,
+    }
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "_get_brief_status",
+        lambda **_kwargs: ("stale", "Recruiting Brief ist veraltet.", "Aktualisieren"),
+    )
+
+    status_key, status_label = SUMMARY_MODULE._artifact_pipeline_status(
+        action,
+        resolved_brief_model="gpt-5-mini",
+    )
+
+    assert (status_key, status_label) == ("stale", "Veraltet")
+
+
+def test_readiness_tab_delegates_detail_sections_to_workspaces(monkeypatch) -> None:
+    class _MetricColumn:
+        def __enter__(self) -> "_MetricColumn":
+            return self
+
+        def __exit__(self, *_: object) -> Literal[False]:
+            return False
+
+        def metric(self, *_args: Any, **_kwargs: Any) -> None:
+            return None
+
+    class _FakeStreamlit:
+        def __init__(self) -> None:
+            self.session_state: dict[str, object] = {}
+
+        def markdown(self, *_args: Any, **_kwargs: Any) -> None:
+            return None
+
+        def container(self, **_kwargs: Any) -> _NoopContext:
+            return _NoopContext()
+
+        def columns(self, spec: Any, **_kwargs: Any) -> list[Any]:
+            count = spec if isinstance(spec, int) else len(spec)
+            return [_MetricColumn() for _ in range(count)]
+
+        def caption(self, *_args: Any, **_kwargs: Any) -> None:
+            return None
+
+        def button(self, *_args: Any, **_kwargs: Any) -> bool:
+            return False
+
+        def success(self, *_args: Any, **_kwargs: Any) -> None:
+            return None
+
+    action = {
+        "id": "brief",
+        "title": "Recruiting Brief",
+        "benefit": "desc",
+        "cta_label": "Brief erstellen",
+        "blocked_cta_label": None,
+        "requires": (),
+        "requirement_text": "Jobspec vorhanden",
+        "requirement_check_fn": None,
+        "generator_fn": lambda: None,
+        "result_key": SSKey.BRIEF,
+        "input_hints": (),
+        "input_renderer": None,
+    }
+    vm = SimpleNamespace(
+        status=SimpleNamespace(
+            readiness_percent=80,
+            completion_text="4/5 beantwortet",
+            esco_ready=True,
+            brief_state="current",
+            brief_status_label="Aktuell",
+        ),
+        fact_rows=[],
+    )
+    workspace_calls: list[dict[str, object]] = []
+
+    monkeypatch.setattr(SUMMARY_MODULE, "st", _FakeStreamlit())
+    monkeypatch.setattr(
+        SUMMARY_MODULE, "render_output_header", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr(
+        SUMMARY_MODULE, "render_next_best_action", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "_build_missing_critical_items", lambda _vm: [])
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "_resolve_next_best_action_recommendation",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            action=action, reason="Sicherer Startpunkt", cta_label="Brief erstellen"
+        ),
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "_has_required_state", lambda _requires: True)
+
+    def _capture_workspace(**kwargs: object) -> None:
+        workspace_calls.append(kwargs)
+
+    monkeypatch.setattr(
+        SUMMARY_MODULE, "_render_summary_workspace_tabs", _capture_workspace
+    )
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "render_brief",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("brief rendered inline")
+        ),
+    )
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "_render_artifact_launcher_cards",
+        lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("artifact cards rendered inline")
+        ),
+    )
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "_render_summary_facts_section",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("facts rendered inline")
+        ),
+    )
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "_render_summary_results_workspace",
+        lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("results rendered inline")
+        ),
+    )
+
+    SUMMARY_MODULE._render_readiness_tab(
+        vm=vm,
+        action_registry=[action],
+        resolved_brief_model="gpt-5-mini",
+        brief=SimpleNamespace(),
+    )
+
+    assert len(workspace_calls) == 1
+    assert workspace_calls[0]["vm"] is vm
 
 
 def test_resolve_next_best_action_keeps_brief_for_missing_core_context(monkeypatch) -> None:

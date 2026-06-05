@@ -3448,9 +3448,14 @@ def _parse_scale_bounds(text: str) -> tuple[int | None, int | None]:
 
 
 def render_brief(
-    brief: VacancyBrief, *, structured_data_payload: Any | None = None
+    brief: VacancyBrief,
+    *,
+    structured_data_payload: Any | None = None,
+    show_title: bool = True,
+    show_structured_data: bool = True,
 ) -> None:
-    st.subheader("Recruiting Brief")
+    if show_title:
+        st.subheader("Recruiting Brief")
     st.markdown(f"**One-liner:** {brief.one_liner}")
     st.markdown("**Hiring Context**")
     st.write(brief.hiring_context)
@@ -3488,32 +3493,33 @@ def render_brief(
     st.markdown("**Job Ad Draft (DE)**")
     st.write(brief.job_ad_draft)
 
-    payload = (
-        structured_data_payload
-        if structured_data_payload is not None
-        else brief.structured_data
-    )
-    structured_data_json = json.dumps(
-        payload,
-        ensure_ascii=False,
-        indent=2,
-    )
-
-    st.markdown("**Structured Data**")
-    st.caption(
-        "Kompakte Preview. Der vollständige Export-JSON steht im Bereich „Export“ bereit."
-    )
-    show_col, download_col = st.columns([1, 1])
-    with show_col:
-        st.markdown("**JSON anzeigen**")
-        st.json(payload, expanded=False)
-    with download_col:
-        st.download_button(
-            "JSON herunterladen",
-            data=structured_data_json.encode("utf-8"),
-            file_name="vacancy_brief_structured_data.json",
-            mime="application/json",
+    if show_structured_data:
+        payload = (
+            structured_data_payload
+            if structured_data_payload is not None
+            else brief.structured_data
         )
+        structured_data_json = json.dumps(
+            payload,
+            ensure_ascii=False,
+            indent=2,
+        )
+
+        st.markdown("**Structured Data**")
+        st.caption(
+            "Kompakte Preview. Der vollständige Export-JSON steht im Bereich „Export“ bereit."
+        )
+        show_col, download_col = st.columns([1, 1])
+        with show_col:
+            st.markdown("**JSON anzeigen**")
+            st.json(payload, expanded=False)
+        with download_col:
+            st.download_button(
+                "JSON herunterladen",
+                data=structured_data_json.encode("utf-8"),
+                file_name="vacancy_brief_structured_data.json",
+                mime="application/json",
+            )
 
 
 def render_interview_prep_hr(sheet: InterviewPrepSheetHR) -> None:

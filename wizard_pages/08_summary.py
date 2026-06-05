@@ -9,6 +9,7 @@ import hashlib
 from contextlib import nullcontext
 from dataclasses import dataclass
 from collections import defaultdict
+from html import escape
 from typing import Any, Callable, Protocol, Sequence, TypedDict
 
 import streamlit as st
@@ -2643,6 +2644,158 @@ def _resolve_next_best_action(
     return recommendation.action if recommendation is not None else None
 
 
+def _render_summary_dashboard_css() -> None:
+    st.markdown(
+        """
+        <style>
+        .cs-summary-dashboard-intro {
+            margin: 0.2rem 0 0.85rem 0;
+            color: rgba(226, 232, 240, 0.72);
+            font-size: 0.95rem;
+            line-height: 1.45;
+        }
+        .cs-summary-pipeline {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.55rem;
+        }
+        .cs-summary-pipeline-item {
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 8px;
+            padding: 0.6rem 0.65rem;
+            background: rgba(255, 255, 255, 0.035);
+            min-height: 4.6rem;
+        }
+        .cs-summary-pipeline-item strong {
+            display: block;
+            overflow-wrap: anywhere;
+            font-size: 0.9rem;
+            line-height: 1.24;
+        }
+        .cs-summary-pipeline-item span {
+            display: inline-flex;
+            margin-top: 0.35rem;
+            border-radius: 999px;
+            padding: 0.16rem 0.46rem;
+            font-size: 0.76rem;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .cs-summary-pipeline-item[data-status="current"] span {
+            background: rgba(22, 163, 74, 0.2);
+            color: #bbf7d0;
+            border: 1px solid rgba(74, 222, 128, 0.25);
+        }
+        .cs-summary-pipeline-item[data-status="ready"] span {
+            background: rgba(37, 99, 235, 0.18);
+            color: #bfdbfe;
+            border: 1px solid rgba(96, 165, 250, 0.24);
+        }
+        .cs-summary-pipeline-item[data-status="blocked"] span {
+            background: rgba(113, 63, 18, 0.22);
+            color: #fde68a;
+            border: 1px solid rgba(250, 204, 21, 0.22);
+        }
+        .cs-summary-pipeline-item[data-status="stale"] span {
+            background: rgba(154, 52, 18, 0.24);
+            color: #fed7aa;
+            border: 1px solid rgba(251, 146, 60, 0.25);
+        }
+        .cs-summary-pipeline-item[data-status="open"] span {
+            background: rgba(51, 65, 85, 0.42);
+            color: #cbd5e1;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+        }
+        .cs-summary-section-note {
+            color: rgba(226, 232, 240, 0.68);
+            margin: -0.2rem 0 0.85rem 0;
+            font-size: 0.9rem;
+        }
+        @media (max-width: 900px) {
+            .cs-summary-pipeline {
+                grid-template-columns: minmax(0, 1fr);
+            }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _artifact_pipeline_status(
+    action: SummaryAction, *, resolved_brief_model: str
+) -> tuple[str, str]:
+    if action["id"] == "brief":
+        state, _, _ = _get_brief_status(
+            primary_action=action,
+            resolved_brief_model=resolved_brief_model,
+        )
+        return {
+            "current": ("current", "Aktuell"),
+            "stale": ("stale", "Veraltet"),
+            "missing": ("open", "Fehlt"),
+            "invalid": ("blocked", "Ungültig"),
+            "blocked": ("blocked", "Wartet"),
+        }.get(state, ("open", "Offen"))
+
+    has_result = bool(st.session_state.get(action["result_key"].value))
+    if has_result:
+        return "current", "Aktuell"
+
+    requirements_ok = _has_required_state(action["requires"])
+    requirement_ok = True
+    requirement_check_fn = action.get("requirement_check_fn")
+    if requirement_check_fn is not None:
+        requirement_ok, _ = requirement_check_fn()
+    if requirements_ok and requirement_ok and action["generator_fn"] is not None:
+        return "ready", "Bereit"
+    if not requirements_ok or not requirement_ok:
+        return "blocked", "Wartet"
+    return "open", "Offen"
+
+
+def _render_artifact_pipeline(
+    action_registry: list[SummaryAction], *, resolved_brief_model: str
+) -> None:
+    st.markdown("#### Artefakt-Pipeline")
+    st.caption("Status der wichtigsten Folge-Outputs auf einen Blick.")
+    pipeline_items: list[str] = []
+    for action in action_registry:
+        status_key, status_label = _artifact_pipeline_status(
+            action,
+            resolved_brief_model=resolved_brief_model,
+        )
+        pipeline_items.append(
+            textwrap.dedent(
+                f"""
+                <div class="cs-summary-pipeline-item" data-status="{escape(status_key)}">
+                    <strong>{escape(action["title"])}</strong>
+                    <span>{escape(status_label)}</span>
+                </div>
+                """
+            ).strip()
+        )
+    st.markdown(
+        f'<div class="cs-summary-pipeline">{"".join(pipeline_items)}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def _render_summary_readiness_metrics(vm: SummaryViewModel) -> None:
+    brief_label = {
+        "current": "Aktuell",
+        "stale": "Veraltet",
+        "missing": "Fehlt",
+        "invalid": "Ungültig",
+        "blocked": "Blockiert",
+    }.get(vm.status.brief_state, vm.status.brief_status_label)
+    metric_columns = st.columns(4)
+    metric_columns[0].metric("Readiness", f"{vm.status.readiness_percent}%")
+    metric_columns[1].metric("Antworten", vm.status.completion_text)
+    metric_columns[2].metric("ESCO", "Bestätigt" if vm.status.esco_ready else "Offen")
+    metric_columns[3].metric("Brief", brief_label)
+
+
 def _render_readiness_tab(
     *,
     vm: SummaryViewModel,
@@ -2650,39 +2803,47 @@ def _render_readiness_tab(
     resolved_brief_model: str,
     brief: VacancyBrief | None = None,
 ) -> None:
+    _render_summary_dashboard_css()
     render_output_header(
-        "Readiness",
-        "Recruiting Brief, nächste beste Aktion und kritische Lücken auf einen Blick.",
+        "Zusammenfassung",
+        "Readiness, nächste Aktion und verwertbare Artefakte ohne doppelte Detailblöcke.",
+    )
+    st.markdown(
+        '<p class="cs-summary-dashboard-intro">'
+        "Nutze das Dashboard für die Entscheidung, und öffne Details gezielt in den Workspaces darunter."
+        "</p>",
+        unsafe_allow_html=True,
     )
     _render_readiness_dashboard_header(vm)
 
     recommendation = _resolve_next_best_action_recommendation(
         action_registry, resolved_brief_model=resolved_brief_model, vm=vm
     )
-    _render_next_best_action_card(recommendation=recommendation)
-    _render_critical_gaps_card(vm)
-    if brief is None:
-        st.info("Noch kein gültiger Recruiting Brief verfügbar.")
-    else:
-        st.markdown("#### Recruiting Brief (Vorschau)")
-        render_brief(
-            brief,
-            structured_data_payload=_build_brief_structured_preview_payload(brief),
+    action_col, pipeline_col = st.columns([1.12, 0.88], gap="large")
+    with action_col:
+        _render_next_best_action_card(recommendation=recommendation)
+    with pipeline_col:
+        _render_artifact_pipeline(
+            action_registry,
+            resolved_brief_model=resolved_brief_model,
         )
-    _render_artifact_launcher_cards(
-        action_registry=action_registry, resolved_brief_model=resolved_brief_model
-    )
-    _render_summary_facts_section(vm)
 
-    if brief is not None:
-        st.markdown("---")
-        _render_summary_results_workspace(brief=brief)
+    _render_critical_gaps_card(vm)
+    _render_summary_workspace_tabs(
+        vm=vm,
+        action_registry=action_registry,
+        resolved_brief_model=resolved_brief_model,
+        brief=brief,
+    )
 
 
 def _render_readiness_dashboard_header(vm: SummaryViewModel) -> None:
     with st.container(border=True):
         st.markdown("### Readiness-Übersicht")
-        st.caption(vm.status.completion_text)
+        _render_summary_readiness_metrics(vm)
+        st.caption(
+            "Diese Kennzahlen steuern die nächsten Artefakte; Detailwerte stehen im Fakten-Workspace."
+        )
 
 
 def _render_next_best_action_card(*, recommendation: NextBestActionRecommendation | None) -> None:
@@ -2782,7 +2943,7 @@ def _render_artifact_launcher_cards(
 
 
 def _build_summary_tabs() -> SummaryTabs:
-    tab_labels = ["Readiness", "Fakten", "Artefakte", "Export", "Advanced"]
+    tab_labels = ["Brief", "Artefakte", "Fakten", "Export", "Advanced"]
     if hasattr(st, "tabs"):
         tabs = st.tabs(tab_labels)
         if len(tabs) == 5:
@@ -2802,6 +2963,73 @@ def _build_summary_tabs() -> SummaryTabs:
         nullcontext(),
         nullcontext(),
     )
+
+
+def _render_summary_workspace_tabs(
+    *,
+    vm: SummaryViewModel,
+    action_registry: list[SummaryAction],
+    resolved_brief_model: str,
+    brief: VacancyBrief | None,
+) -> None:
+    st.markdown("### Workspaces")
+    st.markdown(
+        '<p class="cs-summary-section-note">'
+        "Details sind nach Aufgabe getrennt, damit Fakten, Artefakte und Exporte nicht doppelt erscheinen."
+        "</p>",
+        unsafe_allow_html=True,
+    )
+    brief_tab, artifacts_tab, facts_tab, export_tab, advanced_tab = _build_summary_tabs()
+
+    with brief_tab:
+        if brief is None:
+            st.info("Noch kein gültiger Recruiting Brief verfügbar.")
+        else:
+            render_output_header(
+                "Recruiting Brief",
+                "Kompakte Vorschau ohne Export-JSON. Downloads liegen im Export-Workspace.",
+            )
+            render_brief(
+                brief,
+                structured_data_payload=_build_brief_structured_preview_payload(brief),
+                show_title=False,
+                show_structured_data=False,
+            )
+
+    with artifacts_tab:
+        render_output_header(
+            "Artefakte",
+            "Brief und Folgeartefakte starten oder vorhandene Ergebnisse fokussieren.",
+        )
+        _render_artifact_launcher_cards(
+            action_registry=action_registry,
+            resolved_brief_model=resolved_brief_model,
+        )
+        if brief is not None:
+            st.markdown("---")
+            _render_summary_results_workspace(brief=brief)
+
+    with facts_tab:
+        _render_summary_facts_section(vm)
+
+    with export_tab:
+        if brief is None:
+            st.info("Export ist verfügbar, sobald ein gültiger Recruiting Brief vorhanden ist.")
+        else:
+            _render_summary_export_workspace(brief=brief)
+
+    with advanced_tab:
+        st.subheader("Advanced")
+        st.caption("Technische Vorschauen und Statusdaten bleiben hier gebündelt.")
+        if brief is not None:
+            with st.expander("Structured Export Preview", expanded=False):
+                st.json(_build_brief_structured_preview_payload(brief), expanded=False)
+        with st.expander("Artifact Status", expanded=False):
+            st.dataframe(
+                _build_artifact_status_rows(action_registry=action_registry),
+                width="stretch",
+                hide_index=True,
+            )
 
 
 def _build_action_registry(
