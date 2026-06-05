@@ -10,11 +10,14 @@ from __future__ import annotations
 
 import importlib.util
 import re
+import sys
 from pathlib import Path
-from typing import List
+from typing import TYPE_CHECKING
 
 from constants import STEPS
-from wizard_pages.base import WizardPage
+
+if TYPE_CHECKING:
+    from wizard_pages.base import WizardPage
 
 
 def _load_module_from_path(path: Path, module_name: str):
@@ -22,11 +25,16 @@ def _load_module_from_path(path: Path, module_name: str):
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Could not load module spec for {path}")
     mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)  # type: ignore[attr-defined]
+    sys.modules[module_name] = mod
+    try:
+        spec.loader.exec_module(mod)  # type: ignore[attr-defined]
+    except Exception:
+        sys.modules.pop(module_name, None)
+        raise
     return mod
 
 
-def load_pages() -> List[WizardPage]:
+def load_pages() -> list["WizardPage"]:
     pages_dir = Path(__file__).parent
     # Keep this list explicit so detached/legacy modules never become routable by
     # filename pattern alone.
@@ -50,7 +58,7 @@ def load_pages() -> List[WizardPage]:
         ]
     )
 
-    pages: List[WizardPage] = []
+    pages: list[WizardPage] = []
     for p in py_files:
         safe_name = f"wizard_pages.page_{p.stem.replace('-', '_')}"
         mod = _load_module_from_path(p, safe_name)
@@ -62,6 +70,8 @@ def load_pages() -> List[WizardPage]:
             raise RuntimeError(
                 f"Wizard page {p.name} must define `PAGE` or `get_page()`."
             )
+        from wizard_pages.base import WizardPage
+
         if not isinstance(page, WizardPage):
             raise TypeError(f"{p.name}: PAGE must be a WizardPage, got {type(page)}")
         pages.append(page)
