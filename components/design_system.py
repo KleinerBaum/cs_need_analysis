@@ -72,8 +72,10 @@ def render_ui_styles() -> None:
             min-height: 2rem;
             padding: 0.28rem 0.55rem;
             border: 1px solid #D9E2EC;
+            border: 1px solid #D9E2EC;
             border-radius: 999px;
             background: #ffffff;
+            color: #334155;
             color: #334155;
             font-size: 0.82rem;
             line-height: 1.2;
@@ -84,31 +86,36 @@ def render_ui_styles() -> None:
             height: 0.55rem;
             border-radius: 999px;
             border: 1px solid #D9E2EC;
+            border: 1px solid #D9E2EC;
             background: #ffffff;
         }
         .cs-process-progress-item[data-status="complete"]::before {
+            border-color: #0F766E;
+            background: #0F766E;
             border-color: #0F766E;
             background: #0F766E;
         }
         .cs-process-progress-item[data-status="partial"]::before {
             border-color: #F59E0B;
             background: #F59E0B;
+            border-color: #F59E0B;
+            background: #F59E0B;
         }
         .cs-process-progress-item[data-current="true"] {
-            border-color: #0F766E;
-            background: #ECFDF5;
+            border-color: #2563EB;
+            background: #DBEAFE;
             color: #16324F;
             font-weight: 700;
         }
         .cs-process-progress-item[data-current="true"]::before {
-            border-color: #0F766E;
-            background: #0F766E;
+            border-color: #1D4ED8;
+            background: #2563EB;
         }
         .cs-process-progress-label {
             overflow-wrap: anywhere;
         }
         .cs-process-progress-count {
-            color: inherit;
+            color: #64748B;
             font-weight: 600;
             white-space: nowrap;
         }
@@ -119,7 +126,7 @@ def render_ui_styles() -> None:
         }
         .cs-step-subtitle, .cs-output-context {
             margin: 0.25rem 0 0;
-            color: #4b5563;
+            color: #334155;
         }
         .cs-meta-list {
             margin: 0.75rem 0 0;
@@ -136,7 +143,7 @@ def render_ui_styles() -> None:
             font-size: 0.9rem;
         }
         .cs-meta-icon { opacity: 0.75; }
-        .cs-meta-label { color: #4b5563; }
+        .cs-meta-label { color: #64748B; }
         .cs-meta-value { font-weight: 600; }
         .cs-step-topline, .cs-output-topline {
             display: flex;

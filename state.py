@@ -16,9 +16,12 @@ import streamlit as st
 from constants import (
     DEFAULT_ESCO_DATA_SOURCE_MODE,
     DEFAULT_ESCO_INDEX_STORAGE_PATH,
+    DEFAULT_ESCO_RELEASE_LANE,
     DEFAULT_ESCO_SELECTED_VERSION,
     DEFAULT_LANGUAGE,
+    ESCO_ANCHOR_STATE_DEGRADED,
     ESCO_DATA_SOURCE_MODES,
+    ESCO_SEMANTIC_EXPORT_MODE_DEGRADED,
     SSKey,
     UI_PREFERENCE_ANSWER_MODE,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
@@ -33,9 +36,19 @@ from constants import (
     STEPS,
     SUMMARY_SESSION_KEY_LEGACY_ALIASES,
 )
+from esco_semantics import (
+    normalize_release_lane,
+    selected_version_for_release_lane,
+    sync_esco_semantic_state,
+)
 from interview_process import INTERVIEW_INTERNAL_FLOW_DEFAULT
 from question_progress import AnswerMeta, AnswerMetaMap, value_hash
-from schemas import EscoConceptRef, EscoMappingReport, EscoSuggestionItem
+from schemas import (
+    EscoConceptRef,
+    EscoMappingReport,
+    EscoSemanticContext,
+    EscoSuggestionItem,
+)
 from settings_openai import load_openai_settings
 
 DEFAULT_ESCO_API_BASE_URL = "https://ec.europa.eu/esco/api/"
@@ -169,6 +182,22 @@ def init_session_state() -> None:
     configured_esco_base_url = os.getenv("ESCO_API_BASE_URL", "").strip()
     if not configured_esco_base_url:
         configured_esco_base_url = DEFAULT_ESCO_API_BASE_URL
+    configured_esco_release_lane = normalize_release_lane(
+        os.getenv("ESCO_RELEASE_LANE", DEFAULT_ESCO_RELEASE_LANE)
+    )
+    configured_esco_selected_version = (
+        os.getenv("ESCO_SELECTED_VERSION", "").strip()
+        or selected_version_for_release_lane(configured_esco_release_lane)
+    )
+    configured_esco_data_source_mode = os.getenv(
+        "ESCO_DATA_SOURCE_MODE", DEFAULT_ESCO_DATA_SOURCE_MODE
+    ).strip().lower()
+    if configured_esco_data_source_mode not in ESCO_DATA_SOURCE_MODES:
+        configured_esco_data_source_mode = DEFAULT_ESCO_DATA_SOURCE_MODE
+    configured_esco_fallback_language = (
+        os.getenv("ESCO_FALLBACK_LANGUAGE", "").strip().lower()
+        or ("en" if configured_language != "en" else "de")
+    )
 
     defaults: Dict[str, Any] = {
         SSKey.CURRENT_STEP.value: STEPS[0].key,
@@ -243,23 +272,26 @@ def init_session_state() -> None:
         SSKey.EMPLOYMENT_CONTRACT_LAST_MODELS.value: {},
         SSKey.ESCO_CONFIG.value: {
             "base_url": configured_esco_base_url,
-            "selected_version": os.getenv(
-                "ESCO_SELECTED_VERSION", DEFAULT_ESCO_SELECTED_VERSION
-            ).strip()
-            or DEFAULT_ESCO_SELECTED_VERSION,
+            "release_lane": configured_esco_release_lane,
+            "selected_version": configured_esco_selected_version,
             "language": configured_language,
+            "fallback_language": configured_esco_fallback_language,
             "view_obsolete": False,
             "api_mode": os.getenv("ESCO_API_MODE", "hosted").strip().lower()
             or "hosted",
-            "data_source_mode": os.getenv("ESCO_DATA_SOURCE_MODE", DEFAULT_ESCO_DATA_SOURCE_MODE).strip().lower()
-            if os.getenv("ESCO_DATA_SOURCE_MODE", DEFAULT_ESCO_DATA_SOURCE_MODE).strip().lower() in ESCO_DATA_SOURCE_MODES else DEFAULT_ESCO_DATA_SOURCE_MODE,
+            "data_source_mode": configured_esco_data_source_mode,
             "index_storage_path": os.getenv("ESCO_INDEX_STORAGE_PATH", DEFAULT_ESCO_INDEX_STORAGE_PATH).strip() or DEFAULT_ESCO_INDEX_STORAGE_PATH,
             "index_version": os.getenv("ESCO_INDEX_VERSION", "").strip() or (
-                os.getenv("ESCO_SELECTED_VERSION", DEFAULT_ESCO_SELECTED_VERSION).strip()
-                or DEFAULT_ESCO_SELECTED_VERSION
+                configured_esco_selected_version
             ),
         },
         SSKey.ESCO_LAST_DATA_SOURCE.value: "",
+        SSKey.ESCO_RELEASE_LANE.value: configured_esco_release_lane,
+        SSKey.ESCO_ANCHOR_STATE.value: ESCO_ANCHOR_STATE_DEGRADED,
+        SSKey.ESCO_PRIMARY_ANCHOR.value: None,
+        SSKey.ESCO_SECONDARY_ANCHORS.value: [],
+        SSKey.ESCO_SEMANTIC_EXPORT_MODE.value: ESCO_SEMANTIC_EXPORT_MODE_DEGRADED,
+        SSKey.ESCO_CAPABILITY_SNAPSHOT.value: {},
         SSKey.ESCO_OCCUPATION_SELECTED.value: None,
         SSKey.ESCO_SELECTED_OCCUPATION_URI.value: "",
         SSKey.ESCO_OCCUPATION_PAYLOAD.value: None,
@@ -347,6 +379,7 @@ def init_session_state() -> None:
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
+    sync_esco_semantic_state(st.session_state)
     st.session_state[SSKey.UI_PREFERENCES.value] = normalize_ui_preferences(
         st.session_state.get(SSKey.UI_PREFERENCES.value)
     )
@@ -439,6 +472,13 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.ESCO_MIGRATION_LOG.value] = []
     st.session_state[SSKey.ESCO_MIGRATION_PENDING.value] = None
     st.session_state[SSKey.ESCO_LAST_DATA_SOURCE.value] = ""
+    st.session_state[SSKey.ESCO_ANCHOR_STATE.value] = ESCO_ANCHOR_STATE_DEGRADED
+    st.session_state[SSKey.ESCO_PRIMARY_ANCHOR.value] = None
+    st.session_state[SSKey.ESCO_SECONDARY_ANCHORS.value] = []
+    st.session_state[SSKey.ESCO_SEMANTIC_EXPORT_MODE.value] = (
+        ESCO_SEMANTIC_EXPORT_MODE_DEGRADED
+    )
+    st.session_state[SSKey.ESCO_CAPABILITY_SNAPSHOT.value] = {}
     st.session_state[SSKey.ESCO_MATRIX_METADATA.value] = {
         "source": "",
         "version": "",
@@ -501,6 +541,7 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.SALARY_SCENARIO_APPLY_PENDING_UPDATE.value] = False
     st.session_state[SSKey.SALARY_SCENARIO_PENDING_SELECTED_ROW_ID.value] = None
     st.session_state[SSKey.SALARY_FORECAST_SELECTED_SCENARIO.value] = "base"
+    sync_esco_semantic_state(st.session_state)
     _clear_stale_redesign_state()
     st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {}
     st.session_state[SSKey.LAST_ERROR.value] = None
@@ -638,30 +679,42 @@ def get_esco_occupation_selected() -> Dict[str, Any] | None:
         st.session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] = str(
             validated.get("uri") or ""
         ).strip()
+        if not st.session_state.get(SSKey.ESCO_PRIMARY_ANCHOR.value):
+            st.session_state[SSKey.ESCO_PRIMARY_ANCHOR.value] = {
+                **validated,
+                "reason": None,
+                "selected_as": "primary",
+            }
+        sync_esco_semantic_state(st.session_state)
         return validated
     except Exception:
         return None
 
 
+def get_esco_semantic_context() -> EscoSemanticContext:
+    """Return and synchronize the canonical ESCO semantic context."""
+
+    return sync_esco_semantic_state(st.session_state)
+
+
 def has_confirmed_esco_anchor() -> bool:
     """Return True when an ESCO occupation anchor URI is confirmed in session state."""
 
-    selected = get_esco_occupation_selected() or {}
+    context = get_esco_semantic_context()
     selected_uri = str(
-        st.session_state.get(SSKey.ESCO_SELECTED_OCCUPATION_URI.value)
-        or selected.get("uri")
-        or ""
+        getattr(context.primary_anchor, "uri", "") if context.primary_anchor else ""
     ).strip()
-    st.session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] = selected_uri
     return bool(selected_uri)
 
 
 def get_esco_anchor_status() -> EscoAnchorStatus:
     """Resolve ESCO anchor state atomically for consistent UI decisions."""
 
+    context = get_esco_semantic_context()
     selected_occupation = get_esco_occupation_selected()
     selected_uri = str(
         st.session_state.get(SSKey.ESCO_SELECTED_OCCUPATION_URI.value)
+        or (getattr(context.primary_anchor, "uri", "") if context.primary_anchor else "")
         or (selected_occupation or {}).get("uri")
         or ""
     ).strip()

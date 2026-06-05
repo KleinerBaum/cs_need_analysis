@@ -6,7 +6,16 @@ from typing import Any, Final
 
 import streamlit as st
 
-from constants import AnswerType, SSKey
+from constants import (
+    AnswerType,
+    DEFAULT_ESCO_DATA_SOURCE_MODE,
+    ESCO_API_MODES,
+    ESCO_DATA_SOURCE_MODES,
+    ESCO_RELEASE_LANE_PREVIEW,
+    ESCO_RELEASE_LANE_SELECTED_VERSION,
+    ESCO_RELEASE_LANE_STABLE,
+    SSKey,
+)
 from llm_client import (
     OpenAICallError,
     TASK_EXTRACT_JOB_AD,
@@ -42,6 +51,8 @@ from ui_components import (
 from usage_utils import usage_has_cache_hit
 from wizard_pages.base import (
     WizardContext,
+    _get_esco_config,
+    _set_esco_config,
     render_ui_mode_selector,
 )
 from wizard_pages.esco_occupation_ui import render_esco_occupation_confirmation
@@ -372,6 +383,7 @@ def _render_phase_a_source_and_privacy_controls() -> bool:
                     update_text_widget=True,
                 )
         render_ui_mode_selector(show_label=False)
+        _render_esco_operating_block()
     with text_col:
         manual_text = str(st.session_state.get(SOURCE_TEXT_INPUT_KEY, ""))
         st.text_area(
@@ -408,6 +420,113 @@ def _render_phase_a_source_and_privacy_controls() -> bool:
         )
 
     return do_extract
+
+
+def _render_esco_operating_block() -> None:
+    if not all(hasattr(st, name) for name in ("radio", "selectbox", "caption")):
+        if hasattr(st, "caption"):
+            st.caption("ESCO-Betrieb: Stable · hosted/live_api · Sprache DE/EN")
+        return
+
+    config = _get_esco_config()
+    ui_mode = str(st.session_state.get(SSKey.UI_MODE.value, "standard")).strip().lower()
+    is_expert = ui_mode == "expert"
+    language_options = ("de", "en")
+    selected_language = str(config.get("language") or "de").strip().lower()
+    if selected_language not in language_options:
+        selected_language = "de"
+    fallback_language = str(config.get("fallback_language") or "en").strip().lower()
+    if fallback_language not in language_options or fallback_language == selected_language:
+        fallback_language = "en" if selected_language == "de" else "de"
+
+    with st.container(border=True):
+        st.markdown("#### ESCO-Betrieb")
+        lang_col, fallback_col = st.columns([1, 1], gap="small")
+        with lang_col:
+            selected_language = st.radio(
+                "Arbeitssprache",
+                options=language_options,
+                index=language_options.index(selected_language),
+                horizontal=True,
+                key=f"{SSKey.ESCO_CONFIG.value}.phase_a.language",
+            )
+        with fallback_col:
+            fallback_language = st.selectbox(
+                "Fallback-Sprache",
+                options=[value for value in language_options if value != selected_language],
+                index=0,
+                key=f"{SSKey.ESCO_CONFIG.value}.phase_a.fallback_language",
+            )
+
+        release_lane = str(config.get("release_lane") or ESCO_RELEASE_LANE_STABLE)
+        selected_version = str(config.get("selected_version") or "").strip()
+        api_mode = str(config.get("api_mode") or "hosted").strip().lower()
+        data_source_mode = str(
+            config.get("data_source_mode") or DEFAULT_ESCO_DATA_SOURCE_MODE
+        ).strip().lower()
+        view_obsolete = bool(config.get("view_obsolete", False))
+        if is_expert:
+            release_lane_options = (ESCO_RELEASE_LANE_STABLE, ESCO_RELEASE_LANE_PREVIEW)
+            release_lane = st.selectbox(
+                "Semantik-Lane",
+                options=release_lane_options,
+                index=(
+                    release_lane_options.index(release_lane)
+                    if release_lane in release_lane_options
+                    else 0
+                ),
+                format_func=lambda lane: (
+                    f"Stable ({ESCO_RELEASE_LANE_SELECTED_VERSION[ESCO_RELEASE_LANE_STABLE]})"
+                    if lane == ESCO_RELEASE_LANE_STABLE
+                    else f"Preview ({ESCO_RELEASE_LANE_SELECTED_VERSION[ESCO_RELEASE_LANE_PREVIEW]})"
+                ),
+                key=f"{SSKey.ESCO_CONFIG.value}.phase_a.release_lane",
+            )
+            selected_version = ESCO_RELEASE_LANE_SELECTED_VERSION[release_lane]
+            api_mode = st.selectbox(
+                "API-Modus",
+                options=ESCO_API_MODES,
+                index=ESCO_API_MODES.index(api_mode) if api_mode in ESCO_API_MODES else 0,
+                key=f"{SSKey.ESCO_CONFIG.value}.phase_a.api_mode",
+            )
+            data_source_mode = st.selectbox(
+                "Runtime-Lane",
+                options=ESCO_DATA_SOURCE_MODES,
+                index=(
+                    ESCO_DATA_SOURCE_MODES.index(data_source_mode)
+                    if data_source_mode in ESCO_DATA_SOURCE_MODES
+                    else 0
+                ),
+                key=f"{SSKey.ESCO_CONFIG.value}.phase_a.data_source_mode",
+            )
+            if hasattr(st, "toggle"):
+                view_obsolete = st.toggle(
+                    "Obsolete anzeigen",
+                    value=view_obsolete,
+                    key=f"{SSKey.ESCO_CONFIG.value}.phase_a.view_obsolete",
+                )
+        else:
+            release_lane = ESCO_RELEASE_LANE_STABLE
+            selected_version = (
+                selected_version
+                or ESCO_RELEASE_LANE_SELECTED_VERSION[ESCO_RELEASE_LANE_STABLE]
+            )
+
+        _set_esco_config(
+            release_lane=release_lane,
+            selected_version=selected_version,
+            view_obsolete=view_obsolete,
+            language=selected_language,
+            fallback_language=fallback_language,
+            api_mode=api_mode,
+            data_source_mode=data_source_mode,
+        )
+        st.caption(
+            "Diagnose: "
+            f"lane={release_lane} · version={selected_version} · "
+            f"api={api_mode} · runtime={data_source_mode} · "
+            f"language={selected_language}/{fallback_language}"
+        )
 
 
 

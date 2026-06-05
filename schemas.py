@@ -98,6 +98,72 @@ class EscoSuggestionItem(StrictSchemaModel):
     )
 
 
+class EscoDisplayLanguageMetadata(StrictSchemaModel):
+    display_language: str = Field(description="Language requested by the UI.")
+    source_language: Optional[str] = Field(
+        default=None,
+        description="Language that supplied the displayed field value.",
+    )
+    fallback_used: bool = Field(
+        default=False,
+        description="Whether display used a fallback language.",
+    )
+    field_state: Literal[
+        "available",
+        "fallback",
+        "missing",
+        "not_loaded",
+        "unsupported",
+    ] = Field(default="available", description="Canonical display field state.")
+    preferred_label: Optional[str] = Field(
+        default=None,
+        description="Preferred label used for display, if available.",
+    )
+
+
+class EscoCapabilitySnapshot(StrictSchemaModel):
+    release_lane: Literal["stable", "preview"] = "stable"
+    selected_version: str = Field(description="Resolved ESCO selectedVersion.")
+    api_mode: Literal["hosted", "local"] = "hosted"
+    data_source_mode: Literal["live_api", "offline_index", "hybrid"] = "live_api"
+    language: str = "de"
+    fallback_language: str = "en"
+    view_obsolete: bool = False
+    last_data_source: Optional[str] = None
+    supports_occupation_skills: bool = False
+    supports_occupation_knowledge: bool = False
+    supports_skill_group_share: bool = False
+
+
+class EscoAnchorRef(StrictSchemaModel):
+    uri: str = Field(description="Canonical ESCO occupation URI.")
+    title: str = Field(description="Preferred occupation label.")
+    type: str = Field(default="occupation", description="ESCO concept type.")
+    code: Optional[str] = Field(default=None, description="Optional ESCO code.")
+    reason: Optional[str] = Field(
+        default=None,
+        description="Reason for secondary anchors or manual confirmation context.",
+    )
+    selected_as: Literal["primary", "secondary"] = "primary"
+
+
+class EscoSemanticContext(StrictSchemaModel):
+    anchor_state: Literal[
+        "degraded_unconfirmed",
+        "anchored",
+        "anchored_with_context",
+    ] = "degraded_unconfirmed"
+    semantic_export_mode: Literal["degraded", "anchored"] = "degraded"
+    primary_anchor: Optional[EscoAnchorRef] = None
+    secondary_anchors: List[EscoAnchorRef] = Field(default_factory=list, max_length=2)
+    capability_snapshot: Optional[EscoCapabilitySnapshot] = None
+    can_use_esco_normalization: bool = False
+    can_use_matrix_coverage: bool = False
+    can_use_semantic_exports: bool = False
+    can_use_esco_interview_prioritization: bool = False
+    can_use_task_suggestions: bool = False
+
+
 class EscoMappingReport(StrictSchemaModel):
     mapped_count: int = Field(ge=0, description="Count of terms successfully mapped.")
     unmapped_terms: List[str] = Field(

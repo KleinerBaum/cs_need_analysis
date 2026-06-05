@@ -24,6 +24,7 @@ from constants import (
     WIDGET_KEY_PREFIX,
 )
 from esco_client import EscoClient, EscoClientError
+from esco_semantics import sync_esco_semantic_state
 from llm_client import OpenAICallError
 from question_dependencies import should_show_question
 from question_progress import (
@@ -1014,6 +1015,16 @@ def render_esco_picker_card(
             st.session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] = (
                 str(validated[0].get("uri") or "").strip() if validated else ""
             )
+            st.session_state[SSKey.ESCO_PRIMARY_ANCHOR.value] = (
+                {
+                    **validated[0],
+                    "reason": None,
+                    "selected_as": "primary",
+                }
+                if validated
+                else None
+            )
+            sync_esco_semantic_state(st.session_state)
 
         st.session_state[applied_meta_key] = {
             "version": (st.session_state.get(SSKey.ESCO_CONFIG.value, {}) or {}).get(
@@ -1255,11 +1266,12 @@ def render_intake_process_animation(*, state: Literal["idle", "running", "done"]
             f"""
             <style>
             .cs-process-banner {{
-                border: 1px solid rgba(94, 234, 212, 0.24);
-                background: linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(6, 78, 59, 0.18));
+                border: 1px solid #D9E2EC;
+                background: #FFFFFF;
                 border-radius: 0.5rem;
                 padding: 0.9rem;
                 margin: 0.45rem 0 0.8rem 0;
+                box-shadow: 0 10px 28px rgba(22, 50, 79, 0.07);
             }}
             .cs-process-title {{
                 font-weight: 700;
@@ -1267,7 +1279,7 @@ def render_intake_process_animation(*, state: Literal["idle", "running", "done"]
                 margin-bottom: 0.15rem;
             }}
             .cs-process-subtitle {{
-                color: rgba(233, 238, 255, 0.72);
+                color: #334155;
                 font-size: 0.88rem;
                 margin-bottom: 0.8rem;
             }}
@@ -1282,28 +1294,28 @@ def render_intake_process_animation(*, state: Literal["idle", "running", "done"]
                 gap: 0.65rem;
                 padding: 0.7rem 0.75rem;
                 border-radius: 0.5rem;
-                border: 1px solid rgba(148, 163, 184, 0.18);
-                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid #D9E2EC;
+                background: #F8FAFC;
                 min-height: 3.2rem;
             }}
             .cs-process-banner.cs-process-running .cs-process-step {{
-                box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.12);
+                box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.18);
             }}
             .cs-process-banner.cs-process-done .cs-process-step {{
-                box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.12);
+                box-shadow: inset 0 0 0 1px rgba(15, 118, 110, 0.18);
             }}
             .cs-process-dot {{
                 width: 0.7rem;
                 height: 0.7rem;
                 margin-top: 0.3rem;
                 border-radius: 999px;
-                background: rgba(94, 234, 212, 0.95);
-                box-shadow: 0 0 0 0 rgba(94, 234, 212, 0.36);
+                background: #0F766E;
+                box-shadow: 0 0 0 0 rgba(15, 118, 110, 0.28);
                 animation: csProcessPulse 1.8s ease-in-out infinite;
             }}
             .cs-process-banner.cs-process-done .cs-process-dot {{
-                background: rgba(34, 197, 94, 0.95);
-                box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.38);
+                background: #0F766E;
+                box-shadow: 0 0 0 0 rgba(15, 118, 110, 0.28);
             }}
             .cs-process-step-1 .cs-process-dot {{ animation-delay: 0s; }}
             .cs-process-step-2 .cs-process-dot {{ animation-delay: 0.2s; }}
@@ -1314,7 +1326,7 @@ def render_intake_process_animation(*, state: Literal["idle", "running", "done"]
                 line-height: 1.2;
             }}
             .cs-process-detail {{
-                color: rgba(233, 238, 255, 0.72);
+                color: #64748B;
                 font-size: 0.82rem;
                 line-height: 1.25;
                 margin-top: 0.18rem;

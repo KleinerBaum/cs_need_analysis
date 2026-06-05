@@ -21,9 +21,36 @@ APP_TAGLINE: Final[str] = "AI-gestützte Kompetenz- und Matching-Workflows"
 APP_TITLE: Final[str] = f"{APP_NAME} – Vacancy Intake Wizard"
 DEFAULT_LANGUAGE: Final[str] = "de"
 DEFAULT_ESCO_SELECTED_VERSION: Final[str] = "v1.2.0"
+ESCO_RELEASE_LANE_STABLE: Final[str] = "stable"
+ESCO_RELEASE_LANE_PREVIEW: Final[str] = "preview"
+DEFAULT_ESCO_RELEASE_LANE: Final[str] = ESCO_RELEASE_LANE_STABLE
+ESCO_RELEASE_LANES: Final[tuple[str, str]] = (
+    ESCO_RELEASE_LANE_STABLE,
+    ESCO_RELEASE_LANE_PREVIEW,
+)
+ESCO_RELEASE_LANE_SELECTED_VERSION: Final[dict[str, str]] = {
+    ESCO_RELEASE_LANE_STABLE: "v1.2.0",
+    ESCO_RELEASE_LANE_PREVIEW: "v1.2.1",
+}
 DEFAULT_ESCO_INDEX_STORAGE_PATH: Final[str] = "data/esco_index"
 DEFAULT_ESCO_DATA_SOURCE_MODE: Final[str] = "live_api"
 ESCO_DATA_SOURCE_MODES: Final[tuple[str, str, str]] = ("live_api", "offline_index", "hybrid")
+ESCO_API_MODES: Final[tuple[str, str]] = ("hosted", "local")
+ESCO_ANCHOR_STATE_DEGRADED: Final[str] = "degraded_unconfirmed"
+ESCO_ANCHOR_STATE_ANCHORED: Final[str] = "anchored"
+ESCO_ANCHOR_STATE_ANCHORED_WITH_CONTEXT: Final[str] = "anchored_with_context"
+ESCO_ANCHOR_STATES: Final[tuple[str, str, str]] = (
+    ESCO_ANCHOR_STATE_DEGRADED,
+    ESCO_ANCHOR_STATE_ANCHORED,
+    ESCO_ANCHOR_STATE_ANCHORED_WITH_CONTEXT,
+)
+ESCO_SEMANTIC_EXPORT_MODE_DEGRADED: Final[str] = "degraded"
+ESCO_SEMANTIC_EXPORT_MODE_ANCHORED: Final[str] = "anchored"
+ESCO_SEMANTIC_EXPORT_MODES: Final[tuple[str, str]] = (
+    ESCO_SEMANTIC_EXPORT_MODE_DEGRADED,
+    ESCO_SEMANTIC_EXPORT_MODE_ANCHORED,
+)
+ESCO_SECONDARY_ANCHOR_MAX: Final[int] = 2
 UI_MODE_VALUES: Final[tuple[str, str, str]] = ("quick", "standard", "expert")
 UI_MODE_DISPLAY_LABELS: Final[dict[str, str]] = {
     "quick": "schnell",
@@ -319,6 +346,12 @@ class SSKey(str, Enum):
     EMPLOYMENT_CONTRACT_LAST_MODELS = "cs.summary.employment_contract_last_models"
     ESCO_CONFIG = "cs.esco_config"
     ESCO_LAST_DATA_SOURCE = "cs.esco_last_data_source"
+    ESCO_RELEASE_LANE = "cs.esco_release_lane"
+    ESCO_ANCHOR_STATE = "cs.esco_anchor_state"
+    ESCO_PRIMARY_ANCHOR = "cs.esco_primary_anchor"
+    ESCO_SECONDARY_ANCHORS = "cs.esco_secondary_anchors"
+    ESCO_SEMANTIC_EXPORT_MODE = "cs.esco_semantic_export_mode"
+    ESCO_CAPABILITY_SNAPSHOT = "cs.esco_capability_snapshot"
     ESCO_OCCUPATION_SELECTED = "cs.esco_occupation_selected"
     ESCO_SELECTED_OCCUPATION_URI = "cs.esco_selected_occupation_uri"
     ESCO_OCCUPATION_PAYLOAD = "cs.esco_occupation_payload"
