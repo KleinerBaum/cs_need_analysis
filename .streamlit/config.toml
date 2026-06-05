@@ -17,17 +17,17 @@ baseRadius = "0.75rem"
 showSidebarBorder = true
 
 [theme.light]
-primaryColor = "#0F4C81"
-backgroundColor = "#F7F9FC"
+primaryColor = "#2563EB"
+backgroundColor = "#F4F7FB"
 secondaryBackgroundColor = "#FFFFFF"
-textColor = "#111827"
+textColor = "#334155"
 borderColor = "#D9E2EC"
 
 [theme.light.sidebar]
-primaryColor = "#0F4C81"
-backgroundColor = "#EEF2F7"
+primaryColor = "#2563EB"
+backgroundColor = "#16324F"
 secondaryBackgroundColor = "#FFFFFF"
-textColor = "#111827"
+textColor = "#FFFFFF"
 
 [theme.dark]
 primaryColor = "#7CC4FF"
