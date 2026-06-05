@@ -432,7 +432,7 @@ def render_esco_explainability(
             badge_html = " ".join(
                 (
                     "<span style='display:inline-block;padding:0.15rem 0.45rem;"
-                    "border-radius:0.6rem;border:1px solid #d1d5db;font-size:0.78rem;'>"
+                    "border-radius:0.6rem;border:1px solid #D9E2EC;font-size:0.78rem;'>"
                     f"{badge}</span>"
                 )
                 for badge in entries
@@ -2707,7 +2707,7 @@ def render_compare_adopt_intro(
     badge_html = " ".join(
         (
             "<span style='display:inline-block;padding:0.15rem 0.45rem;border-radius:0.6rem;"
-            "border:1px solid #d1d5db;font-size:0.78rem;'>"
+            "border:1px solid #D9E2EC;font-size:0.78rem;'>"
             f"{badge}</span>"
         )
         for badge in ([f"{'/'.join(source_labels)} = Vorschläge"] if source_labels else [])
