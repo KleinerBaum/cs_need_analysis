@@ -77,20 +77,38 @@ def _dedupe_selected_skills_across_buckets(
     nice_selected: list[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     seen_uris: set[str] = set()
+    seen_labels: set[str] = set()
     deduped_must: list[dict[str, Any]] = []
     deduped_nice: list[dict[str, Any]] = []
-    for item in must_selected:
+
+    def _is_duplicate(item: dict[str, Any]) -> bool:
         uri = str(item.get("uri") or "").strip()
-        if not uri or uri in seen_uris:
+        normalized_label = _normalize_term(
+            str(
+                item.get("title")
+                or item.get("label")
+                or item.get("preferredLabel")
+                or ""
+            )
+        )
+        duplicate_uri = uri and uri in seen_uris
+        duplicate_label = normalized_label and normalized_label in seen_labels
+        if duplicate_uri or duplicate_label:
+            return True
+        if uri:
+            seen_uris.add(uri)
+        if normalized_label:
+            seen_labels.add(normalized_label)
+        return False
+
+    for item in must_selected:
+        if _is_duplicate(item):
             continue
         deduped_must.append(item)
-        seen_uris.add(uri)
     for item in nice_selected:
-        uri = str(item.get("uri") or "").strip()
-        if not uri or uri in seen_uris:
+        if _is_duplicate(item):
             continue
         deduped_nice.append(item)
-        seen_uris.add(uri)
     return deduped_must, deduped_nice
 
 
@@ -140,14 +158,29 @@ def _merge_suggested_skills_by_uri(
         for item in (must_selected + nice_selected)
         if str(item.get("uri") or "").strip()
     }
+    existing_labels = {
+        _normalize_term(str(item.get("title") or item.get("label") or ""))
+        for item in (must_selected + nice_selected)
+        if _normalize_term(str(item.get("title") or item.get("label") or ""))
+    }
     merged: list[dict[str, Any]] = list(must_selected)
     added_count = 0
     for item in suggested_skills:
         uri = str(item.get("uri") or "").strip()
-        if not uri or uri in existing_uris:
+        normalized_label = _normalize_term(
+            str(item.get("title") or item.get("label") or "")
+        )
+        duplicate_uri = uri and uri in existing_uris
+        duplicate_label = normalized_label and normalized_label in existing_labels
+        if duplicate_uri or duplicate_label:
+            continue
+        if not uri and not normalized_label:
             continue
         merged.append(item)
-        existing_uris.add(uri)
+        if uri:
+            existing_uris.add(uri)
+        if normalized_label:
+            existing_labels.add(normalized_label)
         added_count += 1
     return merged, added_count
 
@@ -633,13 +666,26 @@ def _render_skill_action_row(
     show_status_caption: bool = True,
     group_hint: str = "",
 ) -> None:
-    status = _selection_status(label, uri)
-    status_label = _selection_status_label(status)
-    compact_label = f"{label} · {status_label}"
-    if st.button(compact_label, key=f"{key_prefix}.cycle", width="stretch"):
-        _cycle_skill_selection(label, uri, source, group_hint)
-    if show_status_caption:
-        st.caption(f"{source} · Status: {status_label}")
+    item_col, adopt_col, optional_col, remove_col = st.columns([4.4, 1.3, 1.8, 1.2])
+    with item_col:
+        st.markdown(f"**{label}**")
+    with adopt_col:
+        if st.button("Übernehmen", key=f"{key_prefix}.adopt", width="stretch"):
+            _save_selected_skill_suggestions([label])
+    with optional_col:
+        if st.button(
+            "Als optional markieren",
+            key=f"{key_prefix}.optional",
+            width="stretch",
+            disabled=not can_mark_optional,
+        ):
+            _mark_esco_skill_optional(uri, label)
+    with remove_col:
+        if st.button("Entfernen", key=f"{key_prefix}.remove", width="stretch"):
+            if uri:
+                _remove_esco_skill(uri, label)
+            else:
+                _remove_selected_skill_label(label)
 
 
 def _build_skills_source_view_data(
@@ -1835,7 +1881,9 @@ def _render_skills_source_comparison_block(
         len(deduped_must) + len(deduped_nice)
     )
     if duplicate_count > 0:
-        notes = [f"{duplicate_count} Duplikat(e) über Must/Nice anhand URI entfernt."]
+        notes = [
+            f"{duplicate_count} Duplikat(e) über Must/Nice anhand Label/URI entfernt."
+        ]
     else:
         notes = []
 
