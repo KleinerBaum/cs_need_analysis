@@ -21,6 +21,15 @@ import streamlit as st
 from constants import (
     COMPLETION_STATE_NOT_STARTED,
     COMPLETION_STATE_PREFIX_TOKENS,
+    DEFAULT_ESCO_DATA_SOURCE_MODE,
+    DEFAULT_ESCO_RELEASE_LANE,
+    DEFAULT_ESCO_SELECTED_VERSION,
+    ESCO_API_MODES,
+    ESCO_DATA_SOURCE_MODES,
+    ESCO_RELEASE_LANE_PREVIEW,
+    ESCO_RELEASE_LANE_SELECTED_VERSION,
+    ESCO_RELEASE_LANE_STABLE,
+    ESCO_RELEASE_LANES,
     SSKey,
     STEPS,
     UI_PREFERENCE_ANSWER_MODE,
@@ -29,6 +38,12 @@ from constants import (
     UI_MODE_VALUES,
 )
 from esco_client import EscoClient, EscoClientError, clear_esco_cache
+from esco_semantics import (
+    normalize_release_lane,
+    resolve_fallback_language,
+    selected_version_for_release_lane,
+    sync_esco_semantic_state,
+)
 from question_dependencies import should_show_question
 from question_limits import sync_adaptive_question_limits
 from question_progress import AnswerMetaMap
@@ -404,37 +419,94 @@ def _get_esco_config() -> dict[str, object]:
         view_obsolete = normalized in {"true", "1", "yes", "on"}
     else:
         view_obsolete = bool(raw_view_obsolete)
+    release_lane = normalize_release_lane(
+        st.session_state.get(SSKey.ESCO_RELEASE_LANE.value)
+        or config.get("release_lane")
+        or DEFAULT_ESCO_RELEASE_LANE
+    )
+    selected_version = str(
+        config.get("selected_version") or selected_version_for_release_lane(release_lane)
+    ).strip() or DEFAULT_ESCO_SELECTED_VERSION
+    language = str(config.get("language") or "de").strip().lower() or "de"
+    fallback_language = resolve_fallback_language(
+        language,
+        config.get("fallback_language"),
+    )
+    api_mode = str(config.get("api_mode") or "hosted").strip().lower()
+    if api_mode not in ESCO_API_MODES:
+        api_mode = "hosted"
+    data_source_mode = str(
+        config.get("data_source_mode") or DEFAULT_ESCO_DATA_SOURCE_MODE
+    ).strip().lower()
+    if data_source_mode not in ESCO_DATA_SOURCE_MODES:
+        data_source_mode = DEFAULT_ESCO_DATA_SOURCE_MODE
     return {
         "base_url": str(config.get("base_url") or "https://ec.europa.eu/esco/api/"),
-        "selected_version": str(config.get("selected_version") or "latest"),
-        "language": str(config.get("language") or "de"),
+        "release_lane": release_lane,
+        "selected_version": selected_version,
+        "language": language,
+        "fallback_language": fallback_language,
         "view_obsolete": view_obsolete,
+        "api_mode": api_mode,
+        "data_source_mode": data_source_mode,
+        "index_storage_path": str(config.get("index_storage_path") or "data/esco_index"),
+        "index_version": str(config.get("index_version") or selected_version),
     }
 
 
 def _set_esco_config(
     *,
+    release_lane: str,
     selected_version: str,
     view_obsolete: bool,
     language: str,
+    fallback_language: str | None = None,
+    api_mode: str | None = None,
+    data_source_mode: str | None = None,
 ) -> bool:
     current_config = _get_esco_config()
-    normalized_version = selected_version.strip() or "latest"
+    normalized_release_lane = normalize_release_lane(release_lane)
+    normalized_version = (
+        selected_version.strip()
+        or selected_version_for_release_lane(normalized_release_lane)
+    )
     normalized_language = language.strip().lower() or "de"
+    normalized_fallback_language = resolve_fallback_language(
+        normalized_language,
+        fallback_language or current_config.get("fallback_language"),
+    )
+    normalized_api_mode = (api_mode or str(current_config.get("api_mode") or "hosted")).strip().lower()
+    if normalized_api_mode not in ESCO_API_MODES:
+        normalized_api_mode = "hosted"
+    normalized_data_source_mode = (
+        data_source_mode or str(current_config.get("data_source_mode") or DEFAULT_ESCO_DATA_SOURCE_MODE)
+    ).strip().lower()
+    if normalized_data_source_mode not in ESCO_DATA_SOURCE_MODES:
+        normalized_data_source_mode = DEFAULT_ESCO_DATA_SOURCE_MODE
     changed = (
+        current_config["release_lane"] != normalized_release_lane
         current_config["selected_version"] != normalized_version
         or current_config["language"] != normalized_language
+        or current_config["fallback_language"] != normalized_fallback_language
         or bool(current_config["view_obsolete"]) != view_obsolete
+        or current_config["api_mode"] != normalized_api_mode
+        or current_config["data_source_mode"] != normalized_data_source_mode
     )
     if not changed:
         return False
 
     st.session_state[SSKey.ESCO_CONFIG.value] = {
         **current_config,
+        "release_lane": normalized_release_lane,
         "selected_version": normalized_version,
         "language": normalized_language,
+        "fallback_language": normalized_fallback_language,
         "view_obsolete": view_obsolete,
+        "api_mode": normalized_api_mode,
+        "data_source_mode": normalized_data_source_mode,
     }
+    st.session_state[SSKey.ESCO_RELEASE_LANE.value] = normalized_release_lane
+    sync_esco_semantic_state(st.session_state)
     clear_esco_cache()
     return True
 
@@ -725,13 +797,28 @@ def _render_esco_migration_trigger(legacy_payload: EscoMigrationPendingPayload) 
 
 def _render_esco_sidebar_status_block(ui_mode: str) -> None:
     config = _get_esco_config()
+    release_lane = str(config["release_lane"])
     selected_version = str(config["selected_version"])
     view_obsolete = bool(config["view_obsolete"])
     selected_language = str(config["language"]).strip().lower() or "de"
+    fallback_language = str(config["fallback_language"]).strip().lower() or "en"
     if selected_language not in {"de", "en"}:
         selected_language = "de"
 
     if ui_mode == "expert":
+        lane_options = (ESCO_RELEASE_LANE_STABLE, ESCO_RELEASE_LANE_PREVIEW)
+        release_lane = st.sidebar.selectbox(
+            "ESCO Release Lane",
+            options=lane_options,
+            index=lane_options.index(release_lane) if release_lane in lane_options else 0,
+            format_func=lambda lane: (
+                f"Stable ({ESCO_RELEASE_LANE_SELECTED_VERSION[ESCO_RELEASE_LANE_STABLE]})"
+                if lane == ESCO_RELEASE_LANE_STABLE
+                else f"Preview ({ESCO_RELEASE_LANE_SELECTED_VERSION[ESCO_RELEASE_LANE_PREVIEW]})"
+            ),
+            key=f"{SSKey.ESCO_CONFIG.value}.release_lane_select",
+        )
+        selected_version = selected_version_for_release_lane(release_lane)
         view_obsolete = st.sidebar.toggle(
             "Obsolete anzeigen (Expert only)",
             value=view_obsolete,
@@ -739,9 +826,11 @@ def _render_esco_sidebar_status_block(ui_mode: str) -> None:
         )
 
     config_changed = _set_esco_config(
+        release_lane=release_lane,
         selected_version=selected_version,
         view_obsolete=view_obsolete,
         language=selected_language,
+        fallback_language=fallback_language,
     )
     if config_changed:
         st.sidebar.success("ESCO-Konfiguration aktualisiert. Cache wurde invalidiert.")
@@ -749,9 +838,11 @@ def _render_esco_sidebar_status_block(ui_mode: str) -> None:
 
 def render_esco_language_toggle() -> None:
     config = _get_esco_config()
+    release_lane = str(config["release_lane"])
     selected_version = str(config["selected_version"])
     view_obsolete = bool(config["view_obsolete"])
     language = str(config["language"]).strip().lower() or "de"
+    fallback_language = str(config["fallback_language"]).strip().lower() or "en"
     if language not in {"de", "en"}:
         language = "de"
 
@@ -766,9 +857,11 @@ def render_esco_language_toggle() -> None:
         label_visibility="collapsed",
     )
     _set_esco_config(
+        release_lane=release_lane,
         selected_version=selected_version,
         view_obsolete=view_obsolete,
         language=selected_language,
+        fallback_language=fallback_language,
     )
 
 
@@ -984,9 +1077,9 @@ def guard_job_and_plan(
 LANDING_STYLE_TOKENS: dict[str, str] = {
     "card_radius": "14px",
     "section_spacing": "1.2rem 0 1.4rem 0",
-    "muted_text_color": "rgba(220, 233, 255, 0.9)",
-    "emphasis_border": "4px solid rgba(138, 184, 255, 0.95)",
-    "emphasis_background": "linear-gradient(135deg, rgba(22, 58, 112, 0.56), rgba(14, 34, 67, 0.4))",
+    "muted_text_color": "#334155",
+    "emphasis_border": "4px solid #0F766E",
+    "emphasis_background": "#ECFDF5",
 }
 
 
@@ -1016,11 +1109,11 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
             }}
 
             .landing-hero {{
-                background: linear-gradient(145deg, rgba(10, 27, 52, 0.9), rgba(8, 20, 40, 0.85));
-                border: 1px solid rgba(167, 201, 255, 0.34);
+                background: #FFFFFF;
+                border: 1px solid #D9E2EC;
                 border-radius: 18px;
                 padding: 1.6rem 1.45rem;
-                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+                box-shadow: 0 16px 40px rgba(22, 50, 79, 0.08);
             }}
 
             .landing-hero h1 {{
@@ -1028,6 +1121,7 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
                 font-size: clamp(1.6rem, 2.3vw, 2.45rem);
                 line-height: 1.18;
                 letter-spacing: 0.01em;
+                color: #16324F;
             }}
 
             .landing-hero-copy {{
@@ -1036,14 +1130,14 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
 
             .landing-subhead {{
                 margin-top: 0.9rem;
-                color: rgba(247, 249, 253, 0.95);
+                color: #334155;
                 line-height: 1.58;
                 font-size: 1.05rem;
             }}
 
             .landing-card {{
-                background: rgba(12, 27, 52, 0.78);
-                border: 1px solid rgba(228, 236, 252, 0.2);
+                background: #FFFFFF;
+                border: 1px solid #D9E2EC;
                 border-radius: {style_tokens["card_radius"]};
                 padding: 0.8rem 0.75rem;
                 height: 100%;
@@ -1052,11 +1146,12 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
             .landing-card h4 {{
                 margin: 0 0 0.45rem 0;
                 font-size: 1rem;
+                color: #16324F;
             }}
 
             .landing-card p {{
                 margin: 0;
-                color: rgba(245, 247, 251, 0.92);
+                color: #334155;
                 line-height: 1.5;
             }}
 
@@ -1070,22 +1165,22 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
 
             .landing-emphasis p {{
                 margin: 0;
-                color: rgba(247, 251, 255, 0.97);
+                color: #16324F;
                 line-height: 1.5;
                 font-size: 1.02rem;
                 font-weight: 650;
             }}
 
             .landing-emphasis--subtle {{
-                background: rgba(11, 26, 50, 0.42);
-                border-left: 3px solid rgba(158, 189, 240, 0.45);
+                background: #F8FAFC;
+                border-left: 3px solid #D9E2EC;
                 padding-bottom: 0.65rem;
                 margin-bottom: 0.65rem;
             }}
 
             .landing-problem-panel {{
-                background: rgba(8, 19, 38, 0.28);
-                border: 1px solid rgba(202, 219, 247, 0.16);
+                background: #F8FAFC;
+                border: 1px solid #D9E2EC;
                 border-radius: {style_tokens["card_radius"]};
                 padding: 0.65rem 0.85rem;
                 margin-top: 0.65rem;
@@ -1094,7 +1189,7 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
             .landing-problem-list {{
                 margin: 0.1rem 0 0 0;
                 padding-left: 1rem;
-                color: rgba(236, 243, 255, 0.88);
+                color: #334155;
             }}
 
             .landing-problem-list li {{
@@ -1103,14 +1198,14 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
             }}
 
             .landing-problem-list strong {{
-                color: rgba(244, 249, 255, 0.94);
+                color: #16324F;
             }}
 
             .landing-problem-heading {{
                 margin: 0 0 0.5rem 0;
                 font-size: 0.9rem;
                 letter-spacing: 0.01em;
-                color: rgba(226, 239, 255, 0.92);
+                color: #16324F;
             }}
 
             .landing-section-stack {{
@@ -1121,8 +1216,8 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
             .landing-outcome-callout {{
                 margin-top: 0.9rem;
                 border-radius: {style_tokens["card_radius"]};
-                border: 1px solid rgba(154, 197, 255, 0.38);
-                background: linear-gradient(145deg, rgba(16, 40, 77, 0.8), rgba(12, 30, 56, 0.72));
+                border: 1px solid #0F766E;
+                background: #ECFDF5;
                 padding: 0.75rem 0.85rem;
             }}
 
@@ -1130,27 +1225,27 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
                 display: inline-flex;
                 align-items: center;
                 gap: 0.35rem;
-                border: 1px solid rgba(180, 212, 255, 0.45);
+                border: 1px solid #0F766E;
                 border-radius: 999px;
                 padding: 0.13rem 0.48rem;
                 font-size: 0.76rem;
                 font-weight: 650;
                 text-transform: uppercase;
                 letter-spacing: 0.02em;
-                color: rgba(232, 244, 255, 0.96);
-                background: rgba(10, 25, 48, 0.56);
+                color: #16324F;
+                background: #FFFFFF;
             }}
 
             .landing-outcome-text {{
                 margin: 0.5rem 0 0 0;
-                color: rgba(241, 248, 255, 0.95);
+                color: #16324F;
                 line-height: 1.42;
                 font-size: 0.95rem;
             }}
 
             .landing-flow-step {{
-                background: rgba(9, 20, 42, 0.66);
-                border: 1px solid rgba(227, 235, 251, 0.18);
+                background: #FFFFFF;
+                border: 1px solid #D9E2EC;
                 border-radius: 12px;
                 padding: 0.75rem;
                 min-height: 124px;
@@ -1167,8 +1262,8 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
             }}
 
             .landing-output-panel {{
-                background: rgba(8, 19, 38, 0.28);
-                border: 1px solid rgba(202, 219, 247, 0.16);
+                background: #FFFFFF;
+                border: 1px solid #D9E2EC;
                 border-radius: {style_tokens["card_radius"]};
                 padding: 0.65rem 0.85rem;
                 min-height: 100%;
@@ -1190,7 +1285,7 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
             }}
 
             .landing-app-title {{
-                color: rgba(226, 239, 255, 0.82);
+                color: #16324F;
                 font-size: 0.84rem;
                 letter-spacing: 0.02em;
                 text-transform: uppercase;
@@ -1211,10 +1306,10 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
                 gap: 0.35rem;
                 padding: 0.34rem 0.75rem;
                 border-radius: 999px;
-                border: 1px solid rgba(174, 211, 255, 0.55);
-                background: linear-gradient(135deg, rgba(20, 74, 142, 0.68), rgba(16, 49, 95, 0.76));
+                border: 1px solid #2563EB;
+                background: #2563EB;
                 text-decoration: none !important;
-                color: #edf5ff !important;
+                color: #FFFFFF !important;
                 font-size: 0.82rem;
                 font-weight: 620;
                 transition: transform 130ms ease, box-shadow 130ms ease, border-color 130ms ease;
@@ -1222,24 +1317,24 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
 
             .landing-app-link-pill:hover {{
                 transform: translateY(-1px);
-                box-shadow: 0 8px 20px rgba(3, 11, 24, 0.35);
-                border-color: rgba(216, 236, 255, 0.9);
-                color: #ffffff !important;
+                box-shadow: 0 8px 20px rgba(37, 99, 235, 0.18);
+                border-color: #1D4ED8;
+                color: #FFFFFF !important;
             }}
 
             .landing-app-link-pill:visited,
             .landing-app-link-pill:focus,
             .landing-app-link-pill:active {{
                 text-decoration: none !important;
-                color: #edf5ff !important;
+                color: #FFFFFF !important;
             }}
 
             .landing-security-note {{
-                background: rgba(8, 19, 40, 0.5);
-                border: 1px solid rgba(225, 235, 252, 0.14);
+                background: #FEF3C7;
+                border: 1px solid #F59E0B;
                 border-radius: {style_tokens["card_radius"]};
                 padding: 0.8rem 0.95rem;
-                color: rgba(229, 239, 255, 0.82);
+                color: #16324F;
                 font-size: 0.9rem;
             }}
 

@@ -1,19 +1,24 @@
 :root {
-  --cs-bg: #06090d;
-  --cs-surface: #11161d;
-  --cs-surface-raised: #171f29;
-  --cs-surface-muted: #0d131a;
+  --cs-primary-navy: #16324F;
+  --cs-primary-blue: #2563EB;
+  --cs-guidance-teal: #0F766E;
+  --cs-bg: #F4F7FB;
+  --cs-surface: #FFFFFF;
+  --cs-surface-raised: #FFFFFF;
+  --cs-surface-muted: #F8FAFC;
   --cs-surface-2: var(--cs-surface-raised);
-  --cs-border: #2a3542;
-  --cs-border-soft: #1b2531;
-  --cs-text: #edf6ff;
-  --cs-text-muted: #b7c5d4;
-  --cs-text-subtle: #8ea1b3;
-  --cs-primary: #58d3ff;
-  --cs-primary-soft: #18354a;
-  --cs-success: #2ccf86;
-  --cs-warning: #f4b74b;
-  --cs-danger: #ff6a72;
+  --cs-border: #D9E2EC;
+  --cs-border-soft: #E2E8F0;
+  --cs-text: #16324F;
+  --cs-text-muted: #334155;
+  --cs-text-subtle: #64748B;
+  --cs-primary: var(--cs-primary-blue);
+  --cs-primary-soft: #DBEAFE;
+  --cs-success: var(--cs-guidance-teal);
+  --cs-success-soft: #ECFDF5;
+  --cs-warning: #F59E0B;
+  --cs-warning-soft: #FEF3C7;
+  --cs-danger: #DC2626;
   --cs-radius-sm: 8px;
   --cs-radius-md: 12px;
   --cs-radius-lg: 16px;
@@ -31,11 +36,12 @@
 
 html, body, [data-testid="stAppViewContainer"] {
   background: var(--cs-bg);
+  color: var(--cs-text-muted);
 }
 
 section[data-testid="stSidebar"] {
-  background: #05080c;
-  border-right: 1px solid var(--cs-border);
+  background: var(--cs-primary-navy);
+  border-right: 1px solid color-mix(in srgb, #FFFFFF 18%, transparent);
 }
 
 .block-container {
@@ -46,11 +52,12 @@ section[data-testid="stSidebar"] {
 
 .cs-hero,
 .cs-section {
-  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  background: var(--cs-surface);
   border: 1px solid var(--cs-border);
   border-radius: var(--cs-radius);
   padding: 1.25rem 1.25rem;
   margin-bottom: 1rem;
+  box-shadow: 0 16px 40px rgba(22, 50, 79, 0.08);
 }
 
 .cs-hero h1,
@@ -76,7 +83,7 @@ section[data-testid="stSidebar"] {
 
 .cs-sidebar-title,
 .cs-sidebar-subnav {
-  color: var(--cs-text-muted);
+  color: rgba(255, 255, 255, 0.84);
   font-size: 0.8rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -94,6 +101,7 @@ section[data-testid="stSidebar"] {
 [data-testid="stSidebar"] [data-testid="stPageLink"] a {
   padding-top: 0.2rem;
   padding-bottom: 0.2rem;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 [data-testid="stExpander"] {
@@ -169,24 +177,24 @@ section[data-testid="stSidebar"] {
 
 .cs-pill-warning {
   border-color: color-mix(in srgb, var(--cs-warning) 58%, var(--cs-border));
-  background: color-mix(in srgb, var(--cs-warning) 20%, var(--cs-surface-muted));
-  color: #ffe8bf;
+  background: var(--cs-warning-soft);
+  color: var(--cs-primary-navy);
 }
 .cs-pill--warning {
   border-color: color-mix(in srgb, var(--cs-warning) 58%, var(--cs-border));
-  background: color-mix(in srgb, var(--cs-warning) 20%, var(--cs-surface-muted));
-  color: #ffe8bf;
+  background: var(--cs-warning-soft);
+  color: var(--cs-primary-navy);
 }
 
 .cs-pill-success {
   border-color: color-mix(in srgb, var(--cs-success) 58%, var(--cs-border));
-  background: color-mix(in srgb, var(--cs-success) 18%, var(--cs-surface-muted));
-  color: #d9ffe9;
+  background: var(--cs-success-soft);
+  color: var(--cs-primary-navy);
 }
 .cs-pill--success {
   border-color: color-mix(in srgb, var(--cs-success) 58%, var(--cs-border));
-  background: color-mix(in srgb, var(--cs-success) 18%, var(--cs-surface-muted));
-  color: #d9ffe9;
+  background: var(--cs-success-soft);
+  color: var(--cs-primary-navy);
 }
 
 .cs-pill--neutral {
@@ -205,7 +213,7 @@ section[data-testid="stSidebar"] {
 }
 
 .cs-code-card {
-  background: #0c1219;
+  background: #F8FAFC;
   border-color: var(--cs-border-soft);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }

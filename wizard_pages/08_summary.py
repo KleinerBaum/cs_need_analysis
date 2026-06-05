@@ -2757,7 +2757,7 @@ def _render_summary_dashboard_css() -> None:
         <style>
         .cs-summary-dashboard-intro {
             margin: 0.2rem 0 0.85rem 0;
-            color: rgba(226, 232, 240, 0.72);
+            color: #334155;
             font-size: 0.95rem;
             line-height: 1.45;
         }
@@ -2767,10 +2767,10 @@ def _render_summary_dashboard_css() -> None:
             gap: 0.55rem;
         }
         .cs-summary-pipeline-item {
-            border: 1px solid rgba(148, 163, 184, 0.18);
+            border: 1px solid #D9E2EC;
             border-radius: 8px;
             padding: 0.6rem 0.65rem;
-            background: rgba(255, 255, 255, 0.035);
+            background: #FFFFFF;
             min-height: 4.6rem;
         }
         .cs-summary-pipeline-item strong {
@@ -2789,32 +2789,32 @@ def _render_summary_dashboard_css() -> None:
             line-height: 1.2;
         }
         .cs-summary-pipeline-item[data-status="current"] span {
-            background: rgba(22, 163, 74, 0.2);
-            color: #bbf7d0;
-            border: 1px solid rgba(74, 222, 128, 0.25);
+            background: #ECFDF5;
+            color: #16324F;
+            border: 1px solid #0F766E;
         }
         .cs-summary-pipeline-item[data-status="ready"] span {
-            background: rgba(37, 99, 235, 0.18);
-            color: #bfdbfe;
-            border: 1px solid rgba(96, 165, 250, 0.24);
+            background: #DBEAFE;
+            color: #16324F;
+            border: 1px solid #2563EB;
         }
         .cs-summary-pipeline-item[data-status="blocked"] span {
-            background: rgba(113, 63, 18, 0.22);
-            color: #fde68a;
-            border: 1px solid rgba(250, 204, 21, 0.22);
+            background: #FEF3C7;
+            color: #16324F;
+            border: 1px solid #F59E0B;
         }
         .cs-summary-pipeline-item[data-status="stale"] span {
-            background: rgba(154, 52, 18, 0.24);
-            color: #fed7aa;
-            border: 1px solid rgba(251, 146, 60, 0.25);
+            background: #FEF3C7;
+            color: #16324F;
+            border: 1px solid #F59E0B;
         }
         .cs-summary-pipeline-item[data-status="open"] span {
-            background: rgba(51, 65, 85, 0.42);
-            color: #cbd5e1;
-            border: 1px solid rgba(148, 163, 184, 0.18);
+            background: #F8FAFC;
+            color: #334155;
+            border: 1px solid #D9E2EC;
         }
         .cs-summary-section-note {
-            color: rgba(226, 232, 240, 0.68);
+            color: #64748B;
             margin: -0.2rem 0 0.85rem 0;
             font-size: 0.9rem;
         }

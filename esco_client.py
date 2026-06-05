@@ -16,11 +16,19 @@ import streamlit as st
 from pathlib import Path
 
 from constants import (
+    ESCO_API_MODES,
     DEFAULT_ESCO_DATA_SOURCE_MODE,
     DEFAULT_ESCO_INDEX_STORAGE_PATH,
+    DEFAULT_ESCO_RELEASE_LANE,
     DEFAULT_ESCO_SELECTED_VERSION,
     ESCO_DATA_SOURCE_MODES,
     SSKey,
+)
+from esco_semantics import (
+    infer_release_lane_from_version,
+    normalize_release_lane,
+    resolve_fallback_language,
+    selected_version_for_release_lane,
 )
 from esco_offline_index import OfflineEscoIndex
 
@@ -36,7 +44,7 @@ DEFAULT_ESCO_API_BASE_URL = "https://ec.europa.eu/esco/api/"
 RETRYABLE_HTTP_STATUS_CODES = frozenset({500, 502, 503, 504})
 MAX_RETRIES = 2
 RETRY_BACKOFF_SECONDS = 0.25
-SUPPORTED_API_MODES = frozenset({"hosted", "local"})
+SUPPORTED_API_MODES = frozenset(ESCO_API_MODES)
 SAFE_HTTP_ERROR_HINT_KEYS = ("message", "error", "detail", "title", "reason")
 SAFE_LOG_QUERY_KEYS = frozenset(
     {"language", "selectedVersion", "type", "viewObsolete", "limit", "offset", "page"}
@@ -675,9 +683,18 @@ class EscoClient:
 
         session_selected_version = str(config.get("selected_version") or "").strip()
         env_selected_version = os.getenv("ESCO_SELECTED_VERSION", "").strip()
+        release_lane = normalize_release_lane(
+            config.get("release_lane")
+            or self._session_state.get(SSKey.ESCO_RELEASE_LANE.value)
+            or os.getenv("ESCO_RELEASE_LANE", DEFAULT_ESCO_RELEASE_LANE)
+            or infer_release_lane_from_version(
+                session_selected_version or env_selected_version
+            )
+        )
         resolved_selected_version = (
             session_selected_version
             or env_selected_version
+            or selected_version_for_release_lane(release_lane)
             or DEFAULT_ESCO_SELECTED_VERSION
         )
         api_mode = (
@@ -687,14 +704,27 @@ class EscoClient:
         )
         if api_mode not in SUPPORTED_API_MODES:
             api_mode = "hosted"
+        data_source_mode = str(
+            config.get("data_source_mode")
+            or os.getenv("ESCO_DATA_SOURCE_MODE", DEFAULT_ESCO_DATA_SOURCE_MODE)
+        ).strip().lower()
+        if data_source_mode not in ESCO_DATA_SOURCE_MODES:
+            data_source_mode = DEFAULT_ESCO_DATA_SOURCE_MODE
+        language = str(config.get("language") or "de").strip().lower() or "de"
 
         return {
             "base_url": resolved_base_url,
+            "release_lane": release_lane,
             "selected_version": resolved_selected_version,
-            "language": str(config.get("language") or "de"),
+            "language": language,
+            "fallback_language": resolve_fallback_language(
+                language,
+                config.get("fallback_language")
+                or os.getenv("ESCO_FALLBACK_LANGUAGE", ""),
+            ),
             "view_obsolete": _coerce_bool(config.get("view_obsolete"), default=False),
             "api_mode": api_mode,
-            "data_source_mode": str(config.get("data_source_mode") or os.getenv("ESCO_DATA_SOURCE_MODE", DEFAULT_ESCO_DATA_SOURCE_MODE)).strip().lower(),
+            "data_source_mode": data_source_mode,
             "index_storage_path": str(config.get("index_storage_path") or os.getenv("ESCO_INDEX_STORAGE_PATH", DEFAULT_ESCO_INDEX_STORAGE_PATH)).strip() or DEFAULT_ESCO_INDEX_STORAGE_PATH,
             "index_version": str(config.get("index_version") or os.getenv("ESCO_INDEX_VERSION", resolved_selected_version)).strip() or resolved_selected_version,
         }

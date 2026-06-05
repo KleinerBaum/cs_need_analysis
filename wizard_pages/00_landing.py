@@ -34,10 +34,10 @@ def _render_landing_responsive_overrides() -> None:
                 margin-top: 0.85rem;
             }
             .landing-resource-links a {
-                color: #ecfdf5 !important;
+                color: #FFFFFF !important;
                 text-decoration: none !important;
-                border: 1px solid rgba(94, 234, 212, 0.42);
-                background: rgba(20, 83, 75, 0.42);
+                border: 1px solid #0F766E;
+                background: #0F766E;
                 border-radius: 999px;
                 padding: 0.38rem 0.78rem;
                 font-size: 0.86rem;
@@ -45,8 +45,8 @@ def _render_landing_responsive_overrides() -> None:
             }
             .landing-resource-links a:hover,
             .landing-resource-links a:focus-visible {
-                border-color: rgba(94, 234, 212, 0.78);
-                background: rgba(20, 184, 166, 0.26);
+                border-color: #0B5F58;
+                background: #0B5F58;
                 outline: none;
             }
             .landing-signal-row {
@@ -56,8 +56,8 @@ def _render_landing_responsive_overrides() -> None:
                 margin-top: 1.1rem;
             }
             .landing-signal {
-                border: 1px solid rgba(229, 231, 235, 0.16);
-                background: rgba(255, 255, 255, 0.045);
+                border: 1px solid #D9E2EC;
+                background: #F8FAFC;
                 border-radius: 8px;
                 padding: 0.72rem 0.78rem;
             }
@@ -67,7 +67,7 @@ def _render_landing_responsive_overrides() -> None:
             }
             .landing-signal span {
                 display: block;
-                color: rgba(229, 231, 235, 0.76);
+                color: #334155;
                 font-size: 0.82rem;
                 line-height: 1.35;
                 margin-top: 0.18rem;
@@ -80,8 +80,8 @@ def _render_landing_responsive_overrides() -> None:
                 margin-top: 1rem;
             }
             .landing-compare-panel {
-                border: 1px solid rgba(229, 231, 235, 0.16);
-                background: rgba(255, 255, 255, 0.04);
+                border: 1px solid #D9E2EC;
+                background: #FFFFFF;
                 border-radius: 8px;
                 padding: 0.85rem 0.9rem;
             }
@@ -92,7 +92,7 @@ def _render_landing_responsive_overrides() -> None:
                 font-size: 1rem;
             }
             .landing-compare-panel p {
-                color: rgba(229, 231, 235, 0.78);
+                color: #334155;
                 line-height: 1.45;
                 margin: 0 0 0.65rem 0;
             }
@@ -105,17 +105,17 @@ def _render_landing_responsive_overrides() -> None:
                 line-height: 1.38;
             }
             .landing-compare-panel--classic {
-                border-color: rgba(251, 191, 36, 0.34);
-                background: linear-gradient(180deg, rgba(120, 53, 15, 0.22), rgba(255, 255, 255, 0.03));
+                border-color: #F59E0B;
+                background: #FEF3C7;
             }
             .landing-compare-panel--ai {
-                border-color: rgba(94, 234, 212, 0.36);
-                background: linear-gradient(180deg, rgba(20, 83, 75, 0.28), rgba(255, 255, 255, 0.03));
+                border-color: #0F766E;
+                background: #ECFDF5;
             }
             .landing-iceberg-panel {
                 margin-top: 0.85rem;
-                border: 1px solid rgba(229, 231, 235, 0.16);
-                background: linear-gradient(180deg, rgba(7, 18, 35, 0.94), rgba(8, 47, 73, 0.58));
+                border: 1px solid #D9E2EC;
+                background: #FFFFFF;
                 border-radius: 8px;
                 padding: 0.9rem;
             }
@@ -131,9 +131,9 @@ def _render_landing_responsive_overrides() -> None:
                 min-height: 320px;
                 aspect-ratio: 16 / 9;
                 overflow: hidden;
-                border: 1px solid rgba(125, 211, 252, 0.24);
+                border: 1px solid #D9E2EC;
                 border-radius: 8px;
-                background: rgba(2, 6, 23, 0.88);
+                background: #16324F;
             }
             .landing-iceberg-visual img {
                 width: 100%;
@@ -147,30 +147,58 @@ def _render_landing_responsive_overrides() -> None:
                 position: absolute;
                 inset: 0;
                 background:
-                    linear-gradient(90deg, rgba(2, 6, 23, 0.26), transparent 34%, rgba(2, 6, 23, 0.18)),
-                    linear-gradient(180deg, rgba(2, 6, 23, 0.1), rgba(2, 6, 23, 0.18));
+                    linear-gradient(90deg, rgba(22, 50, 79, 0.72), rgba(22, 50, 79, 0.18) 46%, rgba(22, 50, 79, 0.54)),
+                    linear-gradient(180deg, rgba(22, 50, 79, 0.16), rgba(22, 50, 79, 0.28));
                 pointer-events: none;
             }
-            .landing-iceberg-label {
+            .landing-iceberg-overlay {
                 position: absolute;
                 z-index: 1;
-                left: 0.85rem;
-                top: 0.8rem;
-                max-width: min(360px, 70%);
-                color: #f8fafc;
-                font-size: clamp(1rem, 1.5vw, 1.34rem);
-                font-weight: 800;
-                line-height: 1.18;
-                text-shadow: 0 2px 14px rgba(2, 6, 23, 0.72);
+                inset: 0.85rem;
+                display: grid;
+                grid-template-rows: minmax(0, 0.78fr) minmax(0, 1.22fr);
+                gap: 0.75rem;
+                pointer-events: none;
+            }
+            .landing-iceberg-overlay-card {
+                max-width: min(330px, 52%);
+                color: #FFFFFF;
+                text-shadow: 0 2px 14px rgba(22, 50, 79, 0.72);
+            }
+            .landing-iceberg-overlay-card--classic {
+                align-self: start;
+            }
+            .landing-iceberg-overlay-card--ai {
+                align-self: end;
+                max-width: min(380px, 58%);
+            }
+            .landing-iceberg-overlay-card strong {
+                display: block;
+                font-size: clamp(0.9rem, 1.25vw, 1.06rem);
+                line-height: 1.2;
+                margin-bottom: 0.32rem;
+            }
+            .landing-iceberg-overlay-card ul {
+                margin: 0;
+                padding-left: 1rem;
+            }
+            .landing-iceberg-overlay-card li {
+                font-size: clamp(0.74rem, 1vw, 0.88rem);
+                line-height: 1.25;
+                margin-bottom: 0.2rem;
+            }
+            .landing-iceberg-risk {
+                color: #FEF3C7;
+                font-weight: 700;
             }
             .landing-waterline-badge {
                 position: absolute;
                 z-index: 1;
-                top: 38%;
+                top: 39%;
                 right: 0.85rem;
-                color: rgba(186, 230, 253, 0.92);
-                background: rgba(8, 47, 73, 0.95);
-                border: 1px solid rgba(125, 211, 252, 0.42);
+                color: #FFFFFF;
+                background: #0F766E;
+                border: 1px solid #0F766E;
                 padding: 0.16rem 0.48rem;
                 border-radius: 999px;
                 font-size: 0.72rem;
@@ -184,13 +212,13 @@ def _render_landing_responsive_overrides() -> None:
                 align-content: start;
             }
             .landing-iceberg-detail {
-                border: 1px solid rgba(229, 231, 235, 0.16);
+                border: 1px solid #D9E2EC;
                 border-radius: 8px;
-                background: rgba(15, 23, 42, 0.72);
+                background: #F8FAFC;
             }
             .landing-iceberg-detail[open] {
-                border-color: rgba(94, 234, 212, 0.34);
-                background: rgba(15, 23, 42, 0.84);
+                border-color: #0F766E;
+                background: #ECFDF5;
             }
             .landing-iceberg-detail summary {
                 cursor: pointer;
@@ -199,7 +227,7 @@ def _render_landing_responsive_overrides() -> None:
                 list-style-position: inside;
             }
             .landing-iceberg-detail summary:focus-visible {
-                outline: 2px solid rgba(94, 234, 212, 0.72);
+                outline: 2px solid #0F766E;
                 outline-offset: 2px;
             }
             .landing-iceberg-detail ul {
@@ -212,8 +240,8 @@ def _render_landing_responsive_overrides() -> None:
                 line-height: 1.34;
             }
             .landing-process-diagram {
-                border: 1px solid rgba(94, 234, 212, 0.28);
-                background: linear-gradient(180deg, rgba(6, 78, 59, 0.22), rgba(15, 23, 42, 0.62));
+                border: 1px solid #0F766E;
+                background: #ECFDF5;
                 border-radius: 8px;
                 padding: 0.95rem;
             }
@@ -225,8 +253,8 @@ def _render_landing_responsive_overrides() -> None:
             }
             .landing-process-step {
                 position: relative;
-                border: 1px solid rgba(229, 231, 235, 0.16);
-                background: rgba(15, 23, 42, 0.72);
+                border: 1px solid #D9E2EC;
+                background: #FFFFFF;
                 border-radius: 8px;
                 padding: 0.74rem 0.75rem;
                 min-height: 112px;
@@ -238,8 +266,8 @@ def _render_landing_responsive_overrides() -> None:
                 right: -0.52rem;
                 width: 0.34rem;
                 height: 0.34rem;
-                border-top: 2px solid rgba(94, 234, 212, 0.8);
-                border-right: 2px solid rgba(94, 234, 212, 0.8);
+                border-top: 2px solid #0F766E;
+                border-right: 2px solid #0F766E;
                 transform: translateY(-50%) rotate(45deg);
             }
             .landing-process-step:last-child::after {
@@ -252,8 +280,8 @@ def _render_landing_responsive_overrides() -> None:
                 width: 1.55rem;
                 height: 1.55rem;
                 border-radius: 999px;
-                color: #022c22;
-                background: #5eead4;
+                color: #FFFFFF;
+                background: #0F766E;
                 font-weight: 800;
                 font-size: 0.84rem;
                 margin-bottom: 0.5rem;
@@ -265,21 +293,34 @@ def _render_landing_responsive_overrides() -> None:
             }
             .landing-process-step p {
                 margin: 0.25rem 0 0 0;
-                color: rgba(229, 231, 235, 0.76);
+                color: #334155;
                 font-size: 0.82rem;
                 line-height: 1.34;
             }
             .landing-process-result {
                 margin-top: 0.8rem;
-                border-left: 3px solid rgba(94, 234, 212, 0.9);
+                border-left: 3px solid #0F766E;
                 padding: 0.55rem 0.7rem;
-                background: rgba(20, 83, 45, 0.26);
+                background: #FFFFFF;
                 border-radius: 8px;
-                color: rgba(236, 253, 245, 0.96);
+                color: #16324F;
                 font-weight: 650;
+            }
+            .landing-process-resources {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 0.55rem;
+                margin-top: 0.8rem;
+            }
+            .landing-process-resources span {
+                color: #334155;
+                font-size: 0.86rem;
+                font-weight: 700;
             }
             .landing-compare-panel,
             .landing-iceberg-panel,
+            .landing-iceberg-overlay-card,
             .landing-process-step,
             .landing-signal,
             .landing-resource-links a {
@@ -299,10 +340,17 @@ def _render_landing_responsive_overrides() -> None:
                     display: none;
                 }
                 .landing-iceberg-visual {
-                    min-height: 240px;
+                    min-height: 440px;
+                }
+                .landing-iceberg-overlay {
+                    grid-template-rows: auto 1fr;
+                }
+                .landing-iceberg-overlay-card,
+                .landing-iceberg-overlay-card--ai {
+                    max-width: min(390px, 78%);
                 }
                 .landing-waterline-badge {
-                    top: 40%;
+                    top: 43%;
                     right: 0.55rem;
                 }
             }
@@ -389,6 +437,14 @@ def _render_landing_flow_cards() -> None:
             <div class="landing-process-result">
                 Ergebnis: weniger manuelle Sortierarbeit und eine bessere Grundlage für alle Recruiting-Aktivitäten.
             </div>
+            <div class="landing-process-resources">
+                <span>Mehr Kontext:</span>
+                <div class="landing-resource-links">
+                    <a href="https://employment-social-affairs.ec.europa.eu/policies-and-activities/skills-and-qualifications/skills-jobs/european-skillscompetences-qualifications-and-occupations-esco_en" target="_blank" rel="noopener noreferrer">Was ist ESCO?</a>
+                    <a href="https://developers.openai.com/api/docs/guides/retrieval" target="_blank" rel="noopener noreferrer">Was bedeutet RAG?</a>
+                    <a href="https://developers.openai.com/api/docs" target="_blank" rel="noopener noreferrer">OpenAI API Docs</a>
+                </div>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -423,56 +479,55 @@ def _render_landing_explainer_sections() -> None:
         <div class="landing-compare-grid">
             <div class="landing-compare-panel landing-compare-panel--classic">
                 <h4>Klassisch: sichtbar, aber lückenhaft</h4>
-                <p>Am Anfang werden meist nur die offensichtlichen Angaben erfasst.</p>
-                <ul>
-                    <li>Jobtitel, Aufgaben, Qualifikationen</li>
-                    <li>Standort, Vertragsart, Benefits</li>
-                    <li>erste Must-haves und Nice-to-haves</li>
-                    <li>Risiko: unklare Begriffe bleiben unbemerkt</li>
-                </ul>
+                <p>Die Jobspec zeigt den Startpunkt, aber selten den vollständigen Recruiting-Bedarf.</p>
             </div>
             <div class="landing-compare-panel landing-compare-panel--ai">
                 <h4>AI-unterstützt: Kontext wird sichtbar</h4>
-                <p>Die App erkennt, welche Informationen für genau diese Vakanz noch fehlen.</p>
-                <ul>
-                    <li>eindeutiger ESCO-Beruf und passende Skill-Familien</li>
-                    <li>Team-, Prozess- und Erwartungskontext</li>
-                    <li>fehlende Anforderungen, Widersprüche und offene Entscheidungen</li>
-                    <li>strukturierte Basis für Summary, Interview, Hiring-Team und Export</li>
-                </ul>
+                <p>Die App ergänzt den Rollenanker, priorisiert offene Fragen und macht Folgeartefakte belastbarer.</p>
             </div>
         </div>
         <div class="landing-iceberg-panel">
-            <h4>Der eigentliche Bedarf liegt oft unter der Oberfläche</h4>
+            <h4>Was oberhalb und unterhalb der Wasserlinie liegt</h4>
             <div class="landing-iceberg">
                 <div class="landing-iceberg-visual">
                     <img src="{iceberg_image_uri}" alt="Naturalistische Eisbergdarstellung: sichtbare Anforderungen über der Wasserlinie, verborgene Bedarfstreiber darunter.">
-                    <div class="landing-iceberg-label">Der eigentliche Bedarf liegt oft unter der Oberfläche</div>
                     <div class="landing-waterline-badge">sichtbar in der Jobspec</div>
+                    <div class="landing-iceberg-overlay">
+                        <div class="landing-iceberg-overlay-card landing-iceberg-overlay-card--classic">
+                            <strong>Klassisch: sichtbar, aber meist lückenhaft</strong>
+                            <ul>
+                                <li>Rollenbezeichnung, Aufgaben und Anforderungen</li>
+                                <li>Rahmendaten wie Einsatzort, Vertrag und Angebot</li>
+                                <li>erste Must-haves und Nice-to-haves</li>
+                                <li class="landing-iceberg-risk">Risiko: unklare Begriffe bleiben unbemerkt</li>
+                            </ul>
+                        </div>
+                        <div class="landing-iceberg-overlay-card landing-iceberg-overlay-card--ai">
+                            <strong>AI-unterstützt: durch die App klärbar</strong>
+                            <ul>
+                                <li>fachliche Rolle hinter uneindeutigen Titeln</li>
+                                <li>relevante Skills durch Abgleich mit der Marktsituation</li>
+                                <li>Team-, Prozess- und Erwartungskontext</li>
+                                <li>fehlende Anforderungen, Widersprüche und offene Entscheidungen</li>
+                            </ul>
+                        </div>
+                    </div>
                 </div>
                 <div class="landing-iceberg-lists">
                     <details class="landing-iceberg-detail" open>
-                        <summary>Oben: schnell erfassbar</summary>
+                        <summary>Oben: schnell sichtbar</summary>
                         <ul>
-                            <li>Titel, Aufgaben, Qualifikationen</li>
-                            <li>Standort, Vertragsart, Benefits</li>
-                            <li>erste Skills und Verantwortungen</li>
+                            <li>Die Jobspec liefert den Ausgangspunkt.</li>
+                            <li>Der Kontext bleibt ohne Nachfragen oft unscharf.</li>
                         </ul>
                     </details>
                     <details class="landing-iceberg-detail" open>
-                        <summary>Unten: durch die App klärbar</summary>
+                        <summary>Unten: systematisch klärbar</summary>
                         <ul>
-                            <li>fachliche Rolle hinter uneindeutigen Titeln</li>
-                            <li>relevante Skills, Skill-Gruppen und offene Lücken</li>
-                            <li>Teamumfeld, Führung, Prozess und Interview-Fokus</li>
-                            <li>konkrete Folgeartefakte für bessere Recruiting-Aktivitäten</li>
+                            <li>ESCO, Skills und offene Entscheidungen werden zusammengeführt.</li>
+                            <li>Summary, Interview und Hiring-Team erhalten dieselbe Grundlage.</li>
                         </ul>
                     </details>
-                    <div class="landing-resource-links">
-                        <a href="https://employment-social-affairs.ec.europa.eu/policies-and-activities/skills-and-qualifications/skills-jobs/european-skillscompetences-qualifications-and-occupations-esco_en" target="_blank" rel="noopener noreferrer">Was ist ESCO?</a>
-                        <a href="https://developers.openai.com/api/docs/guides/retrieval" target="_blank" rel="noopener noreferrer">Was bedeutet RAG?</a>
-                        <a href="https://developers.openai.com/api/docs" target="_blank" rel="noopener noreferrer">OpenAI API Docs</a>
-                    </div>
                 </div>
             </div>
         </div>
