@@ -101,7 +101,7 @@ def _slot_order_from_render_kwargs(render_kwargs: dict[str, Any]) -> list[str]:
     ]
 
 
-def test_role_skills_benefits_use_identical_step_shell_block_order() -> None:
+def test_role_skills_benefits_use_expected_step_shell_block_order() -> None:
     role_tasks = _load_module(
         "wizard_pages.page_04_role_tasks", "wizard_pages/04_role_tasks.py"
     )
@@ -125,10 +125,10 @@ def test_role_skills_benefits_use_identical_step_shell_block_order() -> None:
         "after_review_slot",
     ]
     assert skills_slots == [
-        "extracted_from_jobspec_slot",
+        "source_comparison_slot",
+        "salary_forecast_slot",
         "open_questions_slot",
         "review_slot",
-        "after_review_slot",
     ]
     assert benefits_slots == [
         "extracted_from_jobspec_slot",
@@ -139,7 +139,7 @@ def test_role_skills_benefits_use_identical_step_shell_block_order() -> None:
     ]
 
     assert callable(role_kwargs["after_review_slot"])
-    assert callable(skills_kwargs["after_review_slot"])
+    assert callable(skills_kwargs["salary_forecast_slot"])
     assert callable(benefits_kwargs["salary_forecast_slot"])
 
 
@@ -227,6 +227,66 @@ def test_salary_forecast_slots_keep_canonical_result_key_wiring() -> None:
         benefits.st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value]["source"]
         == "benefits"
     )
+
+
+def test_benefits_extracted_slot_renders_jobspec_benefits() -> None:
+    benefits = _load_module(
+        "wizard_pages.page_06_benefits_extract", "wizard_pages/06_benefits.py"
+    )
+    captured_kwargs: dict[str, Any] = {}
+    fake_st = _ShellFakeStreamlit()
+
+    class _Column:
+        def __enter__(self) -> "_Column":
+            return self
+
+        def __exit__(self, *_args: Any) -> None:
+            return None
+
+    benefits.st = fake_st
+    benefits.render_error_banner = lambda: None
+    benefits.guard_job_and_plan = lambda _ctx: (
+        JobAdExtract(
+            benefits=[
+                "State-of-the-art Trainings und Tools",
+                "Flexible Arbeitsmodelle",
+            ]
+        ),
+        SimpleNamespace(steps=[SimpleNamespace(step_key="benefits")]),
+    )
+    benefits.nav_buttons = lambda _ctx: None
+    benefits.responsive_three_columns = lambda **_kwargs: (_Column(), _Column(), _Column())
+    benefits.render_step_shell = lambda **kwargs: captured_kwargs.update(kwargs)
+
+    benefits.render(SimpleNamespace())
+    captured_kwargs["extracted_from_jobspec_slot"]()
+
+    rendered = "\n".join(text for _kind, text in fake_st.events)
+    assert "Benefits (Auszug)" in rendered
+    assert "State-of-the-art Trainings und Tools" in rendered
+    assert "Flexible Arbeitsmodelle" in rendered
+
+
+def test_benefits_render_migrates_legacy_selected_state() -> None:
+    benefits = _load_module(
+        "wizard_pages.page_06_benefits_legacy", "wizard_pages/06_benefits.py"
+    )
+    fake_st = _FakeStreamlit()
+    fake_st.session_state["benefits.compare.selected"] = ["Mentoring", "Mentoring"]
+
+    benefits.st = fake_st
+    benefits.render_error_banner = lambda: None
+    benefits.guard_job_and_plan = lambda _ctx: (
+        JobAdExtract(),
+        SimpleNamespace(steps=[SimpleNamespace(step_key="benefits")]),
+    )
+    benefits.nav_buttons = lambda _ctx: None
+    benefits.render_step_shell = lambda **_kwargs: None
+
+    benefits.render(SimpleNamespace())
+
+    assert fake_st.session_state[SSKey.BENEFITS_SELECTED.value] == ["Mentoring"]
+    assert "benefits.compare.selected" not in fake_st.session_state
 
 
 def test_primary_step_pages_use_compact_review_render_mode() -> None:

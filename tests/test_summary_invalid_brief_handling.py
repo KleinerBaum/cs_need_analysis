@@ -29,6 +29,7 @@ def test_build_summary_artifact_state_handles_invalid_brief_payload(
     artifacts = SUMMARY_MODULE._build_summary_artifact_state(
         selected_role_tasks=["Task"],
         selected_skills=["Skill"],
+        selected_benefits=["Benefit"],
         input_fingerprint="fp-new",
     )
 

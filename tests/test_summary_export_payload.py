@@ -56,6 +56,7 @@ def _brief_with_saved_selections() -> VacancyBrief:
             answers={},
             selected_role_tasks=["Build ETL pipelines"],
             selected_skills=["Python", "SQL"],
+            selected_benefits=["Mentoring"],
         ),
     )
 
@@ -97,6 +98,7 @@ def test_build_structured_export_payload_preserves_saved_tasks_and_skills(
                 SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
                 SSKey.ROLE_TASKS_SELECTED.value: [],
                 SSKey.SKILLS_SELECTED.value: [],
+                SSKey.BENEFITS_SELECTED.value: [],
             }
         ),
     )
@@ -108,6 +110,29 @@ def test_build_structured_export_payload_preserves_saved_tasks_and_skills(
 
     assert payload["selected_role_tasks"] == ["Build ETL pipelines"]
     assert payload["selected_skills"] == ["Python", "SQL"]
+    assert payload["selected_benefits"] == ["Mentoring"]
+
+
+def test_build_structured_export_payload_includes_session_selected_benefits(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.ESCO_CONFIG.value: {},
+                SSKey.ESCO_SKILLS_SELECTED_MUST.value: [],
+                SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
+                SSKey.BENEFITS_SELECTED.value: ["Flexible Arbeitsmodelle"],
+            }
+        ),
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "get_esco_occupation_selected", lambda: None)
+
+    payload = SUMMARY_MODULE._build_structured_export_payload(_brief())
+
+    assert payload["selected_benefits"] == ["Flexible Arbeitsmodelle"]
 
 
 def test_build_structured_export_payload_includes_occupation_context(
@@ -176,9 +201,11 @@ def test_build_brief_structured_preview_payload_uses_export_subset(monkeypatch) 
         "answers": {},
         "selected_role_tasks": ["Build ETL pipelines"],
         "selected_skills": ["Python", "SQL"],
+        "selected_benefits": ["Mentoring"],
     }
     assert export_payload["selected_role_tasks"] == preview_payload["selected_role_tasks"]
     assert export_payload["selected_skills"] == preview_payload["selected_skills"]
+    assert export_payload["selected_benefits"] == preview_payload["selected_benefits"]
 
 
 def test_build_structured_export_payload_keeps_rag_provenance_for_suggestions(

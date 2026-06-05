@@ -54,6 +54,7 @@ def _fingerprint(
         answers=answers or {"team_size": 5},
         selected_role_tasks=["Build data products"],
         selected_skills=["Python", "SQL"],
+        selected_benefits=["Mentoring"],
         esco_occupation_selected=SUMMARY_MODULE._read_selected_esco_occupation(),
         esco_match_explainability=SUMMARY_MODULE._read_esco_match_explainability(),
         esco_selected_skills_must=SUMMARY_MODULE._read_esco_skill_refs(
@@ -110,6 +111,7 @@ def test_summary_dirty_false_after_explicit_brief_regeneration(monkeypatch) -> N
     artifacts = SUMMARY_MODULE._build_summary_artifact_state(
         selected_role_tasks=["Build data products"],
         selected_skills=["Python", "SQL"],
+        selected_benefits=["Mentoring"],
         input_fingerprint=current_fingerprint,
     )
 

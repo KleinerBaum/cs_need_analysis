@@ -867,7 +867,7 @@ def render_benefits_salary_forecast_panel(
 
     def _render_influence_factors() -> None:
         nonlocal selected_benefits
-        selected_count = len([item for item in benefit_candidates if str(item).strip()])
+        selected_count = len([item for item in selected_benefits if str(item).strip()])
         st.caption("Diese Faktoren werden in der Prognose berücksichtigt.")
         st.caption(f"Gewählte Benefits: {selected_count}")
         if not benefit_candidates:

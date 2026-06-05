@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from llm_client import (
     TASK_EXTRACT_JOB_AD,
+    TASK_GENERATE_BENEFIT_SUGGESTIONS,
     TASK_GENERATE_QUESTION_PLAN,
     TASK_GENERATE_VACANCY_BRIEF,
     _build_llm_cache_key,
@@ -214,6 +215,20 @@ def test_extract_messages_prioritize_job_title_and_no_hallucinated_requirements(
     assert "Erfinde keine Skills, Zertifikate, Success Metrics" in combined
 
 
+def test_extract_messages_map_offer_sections_to_benefits() -> None:
+    messages = build_extract_job_ad_messages(
+        "Was wir dir bieten: Trainings, Mentoring und flexible Arbeitsmodelle",
+        language="de",
+        model="gpt-5-mini",
+    )
+
+    combined = "\n".join(message["content"] for message in messages)
+
+    assert "Was wir dir bieten" in combined
+    assert "explizit nach benefits[]" in combined
+    assert "flexible Arbeitsmodelle" in combined
+
+
 def test_supports_temperature_for_gpt54_depends_on_none_reasoning() -> None:
     assert supports_temperature("gpt-5.4-mini", "none")
     assert not supports_temperature("gpt-5.4-mini", "low")
@@ -299,6 +314,14 @@ def test_model_routing_uses_task_specific_models_without_openai_override() -> No
     assert (
         resolve_model_for_task(
             task_kind=TASK_GENERATE_VACANCY_BRIEF,
+            session_override="",
+            settings=settings,
+        )
+        == "gpt-4.1-mini"
+    )
+    assert (
+        resolve_model_for_task(
+            task_kind=TASK_GENERATE_BENEFIT_SUGGESTIONS,
             session_override="",
             settings=settings,
         )

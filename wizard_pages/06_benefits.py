@@ -12,7 +12,7 @@ from llm_client import (
 )
 from schemas import JobAdExtract, QuestionStep
 from settings_openai import load_openai_settings
-from state import get_answers
+from state import get_answers, get_esco_occupation_selected
 from ui_layout import render_step_shell, responsive_three_columns
 from ui_components import (
     build_step_review_payload,
@@ -28,7 +28,6 @@ from ui_components import (
     render_standard_step_review,
 )
 from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
-from wizard_pages.esco_occupation_ui import get_esco_occupation_selected
 from wizard_pages.salary_forecast_panel import render_benefits_salary_forecast_panel
 
 LOGGER = logging.getLogger(__name__)

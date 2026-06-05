@@ -1156,6 +1156,10 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
         if recommended_titles:
             payload["recommended_titles"] = recommended_titles
 
+    selected_benefits = _read_saved_selection_labels(SSKey.BENEFITS_SELECTED)
+    if selected_benefits:
+        payload["selected_benefits"] = selected_benefits
+
     salary_forecast = st.session_state.get(SSKey.SALARY_FORECAST_LAST_RESULT.value)
     if isinstance(salary_forecast, dict):
         payload["salary_forecast"] = salary_forecast
@@ -1199,6 +1203,12 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
     )
     if skill_suggestions:
         payload["skill_suggestions"] = skill_suggestions
+
+    benefit_suggestions = _normalized_provenance_rows(
+        st.session_state.get(SSKey.BENEFITS_LLM_SUGGESTED.value, [])
+    )
+    if benefit_suggestions:
+        payload["benefit_suggestions"] = benefit_suggestions
     return payload
 
 
@@ -2252,6 +2262,16 @@ def _build_summary_fact_rows(
                 "Jobspec-Review",
                 _status_for_classification_value(meta.selected_occupation_title),
             ),
+        )
+    if artifacts.selected_benefits:
+        rows.append(
+            SummaryFactsRow(
+                "Benefits",
+                "Ausgewählte Benefits",
+                " | ".join(artifacts.selected_benefits),
+                "Auswahl",
+                "Vollständig",
+            )
         )
 
     internal_flow = normalize_interview_internal_flow(
@@ -3797,6 +3817,7 @@ def render(ctx: WizardContext) -> None:
                     model=resolved_brief_model,
                     selected_role_tasks=vm.artifacts.selected_role_tasks,
                     selected_skills=vm.artifacts.selected_skills,
+                    selected_benefits=vm.artifacts.selected_benefits,
                     company_website_research=company_website_research,
                     store=store,
                 )

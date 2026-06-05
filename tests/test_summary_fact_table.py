@@ -34,6 +34,7 @@ def _artifacts(*, with_brief: bool = False) -> object:
         brief=brief,
         selected_role_tasks=[],
         selected_skills=[],
+        selected_benefits=[],
         input_fingerprint="in",
         last_brief_fingerprint="out",
         is_dirty=True,
@@ -96,6 +97,29 @@ def test_build_summary_fact_rows_include_answer_rows() -> None:
     assert team_row["Wert"] == "7"
     assert team_row["Quelle"] == "Intake-Antwort"
     assert team_row["Status"] == "Vollständig"
+
+
+def test_build_summary_fact_rows_include_selected_benefits() -> None:
+    rows = SUMMARY_MODULE._build_summary_fact_rows(
+        job=JobAdExtract(job_title="Data Engineer"),
+        answers={},
+        plan=None,
+        artifacts=SUMMARY_MODULE.SummaryArtifactState(
+            brief=None,
+            selected_role_tasks=[],
+            selected_skills=[],
+            selected_benefits=["Mentoring", "Flexible Arbeitsmodelle"],
+            input_fingerprint="in",
+            last_brief_fingerprint="out",
+            is_dirty=True,
+        ),
+        meta=_meta(selected_occupation_title=None),
+    )
+
+    benefit_row = next(row.to_dict() for row in rows if row.feld == "Ausgewählte Benefits")
+    assert benefit_row["Bereich"] == "Benefits"
+    assert benefit_row["Wert"] == "Mentoring | Flexible Arbeitsmodelle"
+    assert benefit_row["Quelle"] == "Auswahl"
 
 
 def test_build_summary_fact_rows_include_interview_phases_from_jobspec(
@@ -222,7 +246,7 @@ def test_build_summary_fact_rows_have_deterministic_ordering() -> None:
         meta=_meta(selected_occupation_title=None),
     )
 
-    ordered_fields = [row.feld for row in rows[:6]]
+    ordered_fields = [row.feld for row in rows[:5]]
     assert ordered_fields == [
         "Rolle",
         "Unternehmen",

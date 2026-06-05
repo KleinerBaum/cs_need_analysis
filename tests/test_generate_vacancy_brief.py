@@ -87,10 +87,11 @@ def test_generate_vacancy_brief_uses_llm_parse_model_and_injects_structured_data
     assert structured_data["answers"] == answers
     assert structured_data["selected_role_tasks"] is None
     assert structured_data["selected_skills"] is None
+    assert structured_data["selected_benefits"] is None
     assert structured_data["company_website_research"] is None
 
 
-def test_generate_vacancy_brief_includes_selected_role_tasks_and_skills(
+def test_generate_vacancy_brief_includes_selected_role_tasks_skills_and_benefits(
     monkeypatch,
 ) -> None:
     def fake_parse_with_structured_outputs(**kwargs: Any):
@@ -126,10 +127,12 @@ def test_generate_vacancy_brief_includes_selected_role_tasks_and_skills(
         model="gpt-5-mini",
         selected_role_tasks=["Build ETL pipelines"],
         selected_skills=["Python", "SQL"],
+        selected_benefits=["Mentoring"],
     )
 
     assert brief.structured_data.selected_role_tasks == ["Build ETL pipelines"]
     assert brief.structured_data.selected_skills == ["Python", "SQL"]
+    assert brief.structured_data.selected_benefits == ["Mentoring"]
 
 
 
