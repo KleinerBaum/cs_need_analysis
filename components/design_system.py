@@ -71,10 +71,10 @@ def render_ui_styles() -> None:
             gap: 0.35rem;
             min-height: 2rem;
             padding: 0.28rem 0.55rem;
-            border: 1px solid #d1d5db;
+            border: 1px solid #D9E2EC;
             border-radius: 999px;
             background: #ffffff;
-            color: #374151;
+            color: #334155;
             font-size: 0.82rem;
             line-height: 1.2;
         }
@@ -83,32 +83,32 @@ def render_ui_styles() -> None:
             width: 0.55rem;
             height: 0.55rem;
             border-radius: 999px;
-            border: 1px solid #9ca3af;
+            border: 1px solid #D9E2EC;
             background: #ffffff;
         }
         .cs-process-progress-item[data-status="complete"]::before {
-            border-color: #15803d;
-            background: #22c55e;
+            border-color: #0F766E;
+            background: #0F766E;
         }
         .cs-process-progress-item[data-status="partial"]::before {
-            border-color: #a16207;
-            background: #facc15;
+            border-color: #F59E0B;
+            background: #F59E0B;
         }
         .cs-process-progress-item[data-current="true"] {
-            border-color: #2563eb;
-            background: #eff6ff;
-            color: #111827;
+            border-color: #0F766E;
+            background: #ECFDF5;
+            color: #16324F;
             font-weight: 700;
         }
         .cs-process-progress-item[data-current="true"]::before {
-            border-color: #1d4ed8;
-            background: #2563eb;
+            border-color: #0F766E;
+            background: #0F766E;
         }
         .cs-process-progress-label {
             overflow-wrap: anywhere;
         }
         .cs-process-progress-count {
-            color: #6b7280;
+            color: inherit;
             font-weight: 600;
             white-space: nowrap;
         }
