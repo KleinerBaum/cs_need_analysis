@@ -4,7 +4,7 @@ from typing import Any
 from typing import Literal
 
 import ui_components
-from schemas import AnswerType, Question, QuestionStep
+from schemas import AnswerType, JobAdExtract, Question, QuestionStep
 
 
 class _NoopContext:
@@ -181,6 +181,79 @@ def test_render_step_review_card_truncates_long_answer_previews(monkeypatch) -> 
 
     expected = ui_components._truncate_for_review(long_text, limit=140)
     assert f"Lange Antwort: {expected}" in fake_st.captions
+
+
+def test_render_step_review_card_displays_jobspec_covered_answer(monkeypatch) -> None:
+    fake_st = _FakeStreamlitRecorder()
+    monkeypatch.setattr(ui_components, "st", fake_st)
+
+    company_question = _question(
+        question_id="company_context_name",
+        label="Wie heißt das Unternehmen?",
+        group_key="company_info",
+    )
+    step = _step_with_questions([company_question])
+
+    ui_components.render_step_review_card(
+        step=step,
+        visible_questions=step.questions,
+        answers={},
+        answer_meta={},
+        answered_lookup={"company_context_name": True},
+        render_mode=ui_components.ReviewRenderMode.FULL,
+        step_status={
+            "answered": 1,
+            "total": 1,
+            "completion_state": "complete",
+            "essentials_answered": 1,
+            "essentials_total": 1,
+            "missing_essentials": [],
+            "missing_essential_ids": [],
+        },
+        job_extract=JobAdExtract(company_name="Rheinbahn"),
+    )
+
+    assert any(
+        "Wie heißt das Unternehmen? (Jobspec): Rheinbahn" in caption
+        for caption in fake_st.captions
+    )
+
+
+def test_render_step_review_card_prefers_user_answer_over_jobspec(monkeypatch) -> None:
+    fake_st = _FakeStreamlitRecorder()
+    monkeypatch.setattr(ui_components, "st", fake_st)
+
+    company_question = _question(
+        question_id="company_name",
+        label="Wie heißt das Unternehmen?",
+        group_key="company_info",
+    )
+    step = _step_with_questions([company_question])
+
+    ui_components.render_step_review_card(
+        step=step,
+        visible_questions=step.questions,
+        answers={"company_name": "Manuell GmbH"},
+        answer_meta={"company_name": {"touched": True}},
+        answered_lookup={"company_name": True},
+        render_mode=ui_components.ReviewRenderMode.FULL,
+        step_status={
+            "answered": 1,
+            "total": 1,
+            "completion_state": "complete",
+            "essentials_answered": 1,
+            "essentials_total": 1,
+            "missing_essentials": [],
+            "missing_essential_ids": [],
+        },
+        job_extract=JobAdExtract(company_name="Rheinbahn"),
+    )
+
+    assert any(
+        "Wie heißt das Unternehmen?: Manuell GmbH" in caption
+        for caption in fake_st.captions
+    )
+    assert not any("Rheinbahn" in caption for caption in fake_st.captions)
 
 
 def test_render_step_review_card_maps_missing_essentials_by_id_with_duplicate_labels(

@@ -495,15 +495,11 @@ def test_render_esco_occupation_confirmation_keeps_chart_before_title_variants(
     title_variant_index = fake_st.events.index("button::Titel-Varianten laden")
 
     assert skills_index < chart_index < title_variant_index
-    assert "Data Engineer" in fake_st.write_messages
-    assert any(message == "Confidence: High" for message in fake_st.caption_messages)
-    assert any(
-        ("Match reason:" in message) or ("Grund:" in message)
-        for message in fake_st.caption_messages
-    )
+    assert any("Sicherheit: hoch" in event for event in fake_st.events)
+    assert any("passt direkt zur Rolle" in event for event in fake_st.events)
     assert fake_st.expander_calls[:5] == [
         ("Warum ESCO?", False),
-        ("Taxonomie/Breadcrumb", False),
+        ("Warum dieser Vorschlag?", False),
         ("Technische Details", False),
         ("ESCO Capability Status", False),
         ("ESCO Debug", False),
@@ -594,7 +590,10 @@ def test_render_esco_occupation_confirmation_compact_mode_keeps_decision_first(
         show_start_context_panels=True,
     )
 
-    assert any("ESCO verankert die Rolle" in message for message in fake_st.info_messages)
+    assert any(
+        "Der ESCO-Beruf ist der gemeinsame Bezugspunkt" in message
+        for message in fake_st.info_messages
+    )
     assert any("Portal öffnen" in message for message in fake_st.markdown_messages)
     assert ("Mehr Details", False) in fake_st.expander_calls
     assert ("Beruf im Detail", False) not in fake_st.expander_calls
@@ -730,7 +729,7 @@ def test_render_esco_occupation_confirmation_can_hide_start_detail_panels(
     assert "Taxonomie/Breadcrumb" not in rendered_text
     assert "Portal öffnen" not in rendered_text
     assert "Warum ESCO" not in rendered_text
-    assert "Data Engineer" in fake_st.write_messages
+    assert any("Sicherheit: hoch" in message for message in fake_st.markdown_messages)
     assert fake_st.session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] == (
         "http://data.europa.eu/esco/occupation/123"
     )

@@ -12,26 +12,271 @@ from wizard_pages.base import (
     render_esco_language_toggle,
     render_landing_css,
 )
-from ui_components import render_intake_process_animation
 
 
 def _render_landing_responsive_overrides() -> None:
     st.markdown(
         """
         <style>
-            .landing-flow-grid {
+            .landing-resource-links {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.55rem;
+                margin-top: 0.95rem;
+            }
+            .landing-resource-links a {
+                color: #ecfdf5 !important;
+                text-decoration: none !important;
+                border: 1px solid rgba(94, 234, 212, 0.42);
+                background: rgba(20, 83, 75, 0.42);
+                border-radius: 999px;
+                padding: 0.38rem 0.78rem;
+                font-size: 0.86rem;
+                font-weight: 650;
+            }
+            .landing-signal-row {
                 display: grid;
                 grid-template-columns: repeat(3, minmax(0, 1fr));
-                gap: 0.85rem;
+                gap: 0.65rem;
+                margin-top: 1.1rem;
+            }
+            .landing-signal {
+                border: 1px solid rgba(229, 231, 235, 0.16);
+                background: rgba(255, 255, 255, 0.045);
+                border-radius: 8px;
+                padding: 0.72rem 0.78rem;
+            }
+            .landing-signal strong {
+                display: block;
+                font-size: 0.9rem;
+            }
+            .landing-signal span {
+                display: block;
+                color: rgba(229, 231, 235, 0.76);
+                font-size: 0.82rem;
+                line-height: 1.35;
+                margin-top: 0.18rem;
+            }
+            .landing-compare-grid {
+                display: grid;
+                grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+                gap: 0.8rem;
+                align-items: stretch;
+                margin-top: 1rem;
+            }
+            .landing-compare-panel {
+                border: 1px solid rgba(229, 231, 235, 0.16);
+                background: rgba(255, 255, 255, 0.04);
+                border-radius: 8px;
+                padding: 0.85rem 0.9rem;
+            }
+            .landing-compare-panel h4,
+            .landing-iceberg-panel h4,
+            .landing-process-diagram h4 {
+                margin: 0 0 0.5rem 0;
+                font-size: 1rem;
+            }
+            .landing-compare-panel p {
+                color: rgba(229, 231, 235, 0.78);
+                line-height: 1.45;
+                margin: 0 0 0.65rem 0;
+            }
+            .landing-compare-panel ul {
+                margin: 0;
+                padding-left: 1.05rem;
+            }
+            .landing-compare-panel li {
+                margin-bottom: 0.42rem;
+                line-height: 1.38;
+            }
+            .landing-compare-panel--classic {
+                border-color: rgba(251, 191, 36, 0.34);
+                background: linear-gradient(180deg, rgba(120, 53, 15, 0.22), rgba(255, 255, 255, 0.03));
+            }
+            .landing-compare-panel--ai {
+                border-color: rgba(94, 234, 212, 0.36);
+                background: linear-gradient(180deg, rgba(20, 83, 75, 0.28), rgba(255, 255, 255, 0.03));
+            }
+            .landing-iceberg-panel {
+                margin-top: 0.85rem;
+                border: 1px solid rgba(229, 231, 235, 0.16);
+                background: linear-gradient(180deg, rgba(15, 23, 42, 0.82), rgba(8, 47, 73, 0.42));
+                border-radius: 8px;
+                padding: 0.9rem;
+            }
+            .landing-iceberg {
+                position: relative;
+                display: grid;
+                grid-template-columns: minmax(0, 0.9fr) minmax(220px, 1.1fr);
+                gap: 1rem;
+                align-items: center;
+                min-height: 340px;
+                overflow: hidden;
+            }
+            .landing-waterline {
+                position: absolute;
+                left: 0;
+                right: 0;
+                top: 38%;
+                border-top: 2px solid rgba(125, 211, 252, 0.85);
+                box-shadow: 0 6px 18px rgba(14, 165, 233, 0.22);
+            }
+            .landing-waterline span {
+                position: absolute;
+                top: -0.78rem;
+                right: 0.25rem;
+                color: rgba(186, 230, 253, 0.92);
+                background: rgba(8, 47, 73, 0.95);
+                padding: 0.12rem 0.42rem;
+                border-radius: 999px;
+                font-size: 0.72rem;
+                font-weight: 650;
+            }
+            .landing-iceberg-shape {
+                position: relative;
+                min-height: 320px;
+            }
+            .landing-iceberg-top,
+            .landing-iceberg-bottom {
+                position: absolute;
+                left: 50%;
+                transform: translateX(-50%);
+                width: min(78%, 300px);
+                background: linear-gradient(135deg, rgba(240, 249, 255, 0.98), rgba(125, 211, 252, 0.72));
+                clip-path: polygon(50% 0, 92% 100%, 8% 100%);
+                filter: drop-shadow(0 14px 22px rgba(15, 23, 42, 0.32));
+            }
+            .landing-iceberg-top {
+                top: 6%;
+                height: 36%;
+            }
+            .landing-iceberg-bottom {
+                top: 38%;
+                height: 58%;
+                width: min(94%, 360px);
+                opacity: 0.92;
+                background: linear-gradient(165deg, rgba(186, 230, 253, 0.88), rgba(34, 211, 238, 0.52) 45%, rgba(14, 116, 144, 0.58));
+                clip-path: polygon(8% 0, 92% 0, 68% 100%, 40% 82%, 20% 100%);
+            }
+            .landing-iceberg-lists {
+                position: relative;
+                z-index: 1;
+                display: grid;
+                gap: 0.8rem;
+            }
+            .landing-iceberg-list {
+                border: 1px solid rgba(229, 231, 235, 0.16);
+                border-radius: 8px;
+                padding: 0.75rem 0.82rem;
+                background: rgba(15, 23, 42, 0.72);
+            }
+            .landing-iceberg-list strong {
+                display: block;
+                margin-bottom: 0.4rem;
+            }
+            .landing-iceberg-list ul {
+                margin: 0;
+                padding-left: 1rem;
+            }
+            .landing-iceberg-list li {
+                margin-bottom: 0.32rem;
+                line-height: 1.34;
+            }
+            .landing-process-diagram {
+                border: 1px solid rgba(94, 234, 212, 0.28);
+                background: linear-gradient(180deg, rgba(6, 78, 59, 0.22), rgba(15, 23, 42, 0.62));
+                border-radius: 8px;
+                padding: 0.95rem;
+            }
+            .landing-process-track {
+                display: grid;
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                gap: 0.7rem;
                 max-width: 100%;
             }
-            .landing-flow-grid p,
-            .landing-flow-grid strong {
+            .landing-process-step {
+                position: relative;
+                border: 1px solid rgba(229, 231, 235, 0.16);
+                background: rgba(15, 23, 42, 0.72);
+                border-radius: 8px;
+                padding: 0.74rem 0.75rem;
+                min-height: 112px;
+            }
+            .landing-process-step::after {
+                content: "";
+                position: absolute;
+                top: 50%;
+                right: -0.52rem;
+                width: 0.34rem;
+                height: 0.34rem;
+                border-top: 2px solid rgba(94, 234, 212, 0.8);
+                border-right: 2px solid rgba(94, 234, 212, 0.8);
+                transform: translateY(-50%) rotate(45deg);
+            }
+            .landing-process-step:last-child::after {
+                display: none;
+            }
+            .landing-process-step span {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 1.55rem;
+                height: 1.55rem;
+                border-radius: 999px;
+                color: #022c22;
+                background: #5eead4;
+                font-weight: 800;
+                font-size: 0.84rem;
+                margin-bottom: 0.5rem;
+            }
+            .landing-process-step strong {
+                display: block;
+                font-size: 0.92rem;
+                line-height: 1.25;
+            }
+            .landing-process-step p {
+                margin: 0.25rem 0 0 0;
+                color: rgba(229, 231, 235, 0.76);
+                font-size: 0.82rem;
+                line-height: 1.34;
+            }
+            .landing-process-result {
+                margin-top: 0.8rem;
+                border-left: 3px solid rgba(94, 234, 212, 0.9);
+                padding: 0.55rem 0.7rem;
+                background: rgba(20, 83, 45, 0.26);
+                border-radius: 8px;
+                color: rgba(236, 253, 245, 0.96);
+                font-weight: 650;
+            }
+            .landing-compare-panel,
+            .landing-iceberg-panel,
+            .landing-process-step,
+            .landing-signal,
+            .landing-resource-links a {
                 overflow-wrap: anywhere;
             }
             @media (max-width: 900px) {
-                .landing-flow-grid {
+                .landing-signal-row,
+                .landing-compare-grid,
+                .landing-process-track {
                     grid-template-columns: minmax(0, 1fr);
+                }
+                .landing-process-step {
+                    min-height: 0;
+                }
+                .landing-process-step::after {
+                    display: none;
+                }
+                .landing-iceberg {
+                    grid-template-columns: minmax(0, 1fr);
+                    min-height: auto;
+                }
+                .landing-iceberg-shape {
+                    min-height: 260px;
+                }
+                .landing-waterline {
+                    top: 34%;
                 }
             }
         </style>
@@ -53,12 +298,6 @@ def _render_landing_hero() -> None:
     render_esco_language_toggle()
     st.markdown("</div>", unsafe_allow_html=True)
 
-    _, logo_col, _ = st.columns((1, 2, 1))
-    with logo_col:
-        _, centered_logo_col, _ = st.columns((1, 1, 1))
-        with centered_logo_col:
-            st.image("images/white_logo_color1_background.png", width=320)
-
     st.title(str(START_PAGE_COPY["hero_headline"]))
     hero_subheadline = str(START_PAGE_COPY["hero_subheadline"])
     if hero_subheadline:
@@ -66,6 +305,25 @@ def _render_landing_hero() -> None:
     hero_supporting = str(START_PAGE_COPY["hero_supporting_paragraph"])
     if hero_supporting:
         st.markdown(hero_supporting)
+    st.markdown(
+        """
+        <div class="landing-signal-row">
+            <div class="landing-signal">
+                <strong>Weniger Rückfragen</strong>
+                <span>Der Wizard fragt gezielt nach, statt ein starres Formular abzuarbeiten.</span>
+            </div>
+            <div class="landing-signal">
+                <strong>Klarer Rollenanker</strong>
+                <span>Jobtitel werden mit ESCO abgeglichen, damit alle Folgeschritte denselben Berufskontext nutzen.</span>
+            </div>
+            <div class="landing-signal">
+                <strong>Direkt nutzbare Outputs</strong>
+                <span>Aus dem Intake entstehen strukturierte Informationen für Recruiting, Hiring-Team und Summary.</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.markdown("</section>", unsafe_allow_html=True)
 
 
@@ -75,8 +333,39 @@ def _render_landing_flow_cards() -> None:
         unsafe_allow_html=True,
     )
     st.subheader(str(START_PAGE_COPY["flow_title"]))
-    st.caption("Die wichtigen Hintergrundschritte bleiben sichtbar, ohne den Start zu überladen.")
-    render_intake_process_animation(state="idle")
+    st.markdown(
+        """
+        <div class="landing-process-diagram">
+            <h4>Nach dem Klick auf "Jetzt analysieren"</h4>
+            <div class="landing-process-track">
+                <div class="landing-process-step">
+                    <span>1</span>
+                    <strong>Text verstehen</strong>
+                    <p>Upload oder Freitext wird gelesen und in ein sauberes Rollenprofil überführt.</p>
+                </div>
+                <div class="landing-process-step">
+                    <span>2</span>
+                    <strong>Beruf verankern</strong>
+                    <p>Die App sucht den passenden ESCO-Beruf als gemeinsame Referenz.</p>
+                </div>
+                <div class="landing-process-step">
+                    <span>3</span>
+                    <strong>Fragen priorisieren</strong>
+                    <p>Nur fehlende oder unsichere Punkte werden für den Wizard vorbereitet.</p>
+                </div>
+                <div class="landing-process-step">
+                    <span>4</span>
+                    <strong>Weiterverarbeiten</strong>
+                    <p>Aufgaben, Skills, Benefits, Interview- und Summary-Artefakte bauen darauf auf.</p>
+                </div>
+            </div>
+            <div class="landing-process-result">
+                Ergebnis: weniger manuelle Sortierarbeit und eine bessere Grundlage für alle Recruiting-Aktivitäten.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.markdown("</section>", unsafe_allow_html=True)
 
 
@@ -87,49 +376,85 @@ def _render_landing_explainer_sections() -> None:
     )
     st.subheader(str(START_PAGE_COPY["importance_title"]))
     st.markdown(
-        "Wir reduzieren Mehrdeutigkeit am Anfang des Prozesses, damit die Analyse "
-        "später präziser, nachvollziehbarer und für Recruiting besser nutzbar wird."
+        """
+        Klassischer Intake sammelt oft nur das, was in der Jobspec sofort sichtbar ist.
+        Dieser Wizard nutzt AI, ESCO und Retrieval-Augmented Generation, um den Bedarf
+        schrittweise zu vervollständigen und später besser verwertbar zu machen.
+        """.strip()
     )
-
-    left_col, right_col = st.columns(2, gap="large")
-    with left_col:
-        st.markdown("#### Was ist ESCO?")
-        st.markdown(
-            "ESCO ist die europäische Klassifikation für Berufe und Skills. "
-            "Die App nutzt sie, um unterschiedliche Jobtitel konsistent zu verankern."
-        )
-        st.markdown("#### Welche Artefakte entstehen?")
-        st.markdown(
-            "- Präzise Formulierungen für Aufgaben, Must-haves und Nice-to-haves.\n"
-            "- Erwartungsmanagement durch belastbarere Zusammenfassungen und Prognosen.\n"
-            "- Verwertbare Outputs für Recruiting, Hiring-Team und interne Abstimmung."
-        )
-    with right_col:
-        st.markdown("#### Wie nutzt die App RAG?")
-        st.markdown(
-            "- Berufserkennung: ähnliche Jobtitel werden auf einen eindeutigen ESCO-Beruf zusammengeführt.\n"
-            "- Skill-Vorschläge: bestätigte ESCO-Berufe liefern passende Essential- und Optional-Skills.\n"
-            "- Kontextnutzung: relevante ESCO-Beschreibungen fließen als Faktenbasis in die Generierung ein.\n"
-            "- Anforderungsnormalisierung: freie Stichworte können ergänzt oder als unternehmensspezifisch belassen werden."
-        )
-        st.caption(
-            "Dieser Dienst stützt sich auf die ESCO-Klassifikation der Europäischen Kommission."
-        )
+    st.markdown(
+        """
+        <div class="landing-resource-links">
+            <a href="https://employment-social-affairs.ec.europa.eu/policies-and-activities/skills-and-qualifications/skills-jobs/european-skillscompetences-qualifications-and-occupations-esco_en" target="_blank" rel="noopener noreferrer">Was ist ESCO?</a>
+            <a href="https://developers.openai.com/api/docs/guides/retrieval" target="_blank" rel="noopener noreferrer">Was bedeutet RAG?</a>
+            <a href="https://developers.openai.com/api/docs" target="_blank" rel="noopener noreferrer">OpenAI API Docs</a>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.markdown("</section>", unsafe_allow_html=True)
 
     st.markdown(
         f'<section id="{LANDING_SECTION_IDS["value_cards"]}" class="landing-section">',
         unsafe_allow_html=True,
     )
-    st.subheader("Klassische Bedarfsanalyse")
+    st.subheader("Klassische Bedarfsanalyse vs. AI-unterstützter Intake")
     st.markdown(
-        "Die Herausforderung ist selten ein Mangel an Informationen, sondern ihre "
-        "Struktur: Ohne sauberen Intake werden Anforderungen schnell unscharf, "
-        "unvollständig oder missverständlich."
+        """
+        <div class="landing-compare-grid">
+            <div class="landing-compare-panel landing-compare-panel--classic">
+                <h4>Klassisch: sichtbar, aber lückenhaft</h4>
+                <p>Am Anfang werden meist nur die offensichtlichen Angaben erfasst.</p>
+                <ul>
+                    <li>Jobtitel, Aufgaben, Qualifikationen</li>
+                    <li>Standort, Vertragsart, Benefits</li>
+                    <li>erste Must-haves und Nice-to-haves</li>
+                    <li>Risiko: unklare Begriffe bleiben unbemerkt</li>
+                </ul>
+            </div>
+            <div class="landing-compare-panel landing-compare-panel--ai">
+                <h4>AI-unterstützt: Kontext wird sichtbar</h4>
+                <p>Die App erkennt, welche Informationen für genau diese Vakanz noch fehlen.</p>
+                <ul>
+                    <li>eindeutiger ESCO-Beruf und passende Skill-Familien</li>
+                    <li>Team-, Prozess- und Erwartungskontext</li>
+                    <li>fehlende Anforderungen, Widersprüche und offene Entscheidungen</li>
+                    <li>strukturierte Basis für Summary, Interview, Hiring-Team und Export</li>
+                </ul>
+            </div>
+        </div>
+        <div class="landing-iceberg-panel">
+            <h4>Der eigentliche Bedarf liegt oft unter der Oberfläche</h4>
+            <div class="landing-iceberg">
+                <div class="landing-iceberg-shape" aria-hidden="true">
+                    <div class="landing-iceberg-top"></div>
+                    <div class="landing-iceberg-bottom"></div>
+                    <div class="landing-waterline"><span>sichtbar in der Jobspec</span></div>
+                </div>
+                <div class="landing-iceberg-lists">
+                    <div class="landing-iceberg-list">
+                        <strong>Oben: schnell erfassbar</strong>
+                        <ul>
+                            <li>Titel, Aufgaben, Qualifikationen</li>
+                            <li>Standort, Vertragsart, Benefits</li>
+                            <li>erste Skills und Verantwortungen</li>
+                        </ul>
+                    </div>
+                    <div class="landing-iceberg-list">
+                        <strong>Unten: durch die App klärbar</strong>
+                        <ul>
+                            <li>fachliche Rolle hinter uneindeutigen Titeln</li>
+                            <li>relevante Skills, Skill-Gruppen und offene Lücken</li>
+                            <li>Teamumfeld, Führung, Prozess und Interview-Fokus</li>
+                            <li>konkrete Folgeartefakte für bessere Recruiting-Aktivitäten</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
-    _, image_col, _ = st.columns((1, 3, 1))
-    with image_col:
-        st.image("images/iceberg v1.png", width="stretch")
     st.markdown("</section>", unsafe_allow_html=True)
 
 

@@ -70,6 +70,7 @@ def _process_progress_status(
     questions: list[Question],
     answers: dict[str, object],
     answer_meta: dict[str, object],
+    job_extract: JobAdExtract | None,
 ) -> tuple[str, str]:
     status = build_step_status_payload(
         step=QuestionStep(step_key=step_key, title_de=title_de, questions=questions),
@@ -77,6 +78,7 @@ def _process_progress_status(
         answer_meta=answer_meta,
         should_show_question=should_show_question,
         step_key=step_key,
+        job_extract=job_extract,
     )
     if status["total"] > 0:
         return status["completion_state"], f"{status['answered']}/{status['total']}"
@@ -99,6 +101,7 @@ def render_intake_process_progress(current_step_key: str) -> None:
     plan = _load_question_plan_from_state()
     answers = get_answers()
     answer_meta = get_answer_meta()
+    job_extract = _load_job_extract_from_state()
     items: list[dict[str, object]] = []
     for step in process_steps:
         questions = _get_step_questions_from_plan(plan, step.key)
@@ -108,6 +111,7 @@ def render_intake_process_progress(current_step_key: str) -> None:
             questions=questions,
             answers=answers,
             answer_meta=answer_meta,
+            job_extract=job_extract,
         )
         title = f"{step.title_de}: {count} beantwortet" if count else step.title_de
         items.append(
@@ -394,12 +398,14 @@ def render_step_shell(
 ) -> None:
     answers = get_answers()
     answer_meta = get_answer_meta()
+    job_extract = _load_job_extract_from_state()
     status = build_step_status_payload(
         step=step,
         answers=answers,
         answer_meta=answer_meta,
         should_show_question=should_show_question,
         step_key=step.step_key if step is not None else None,
+        job_extract=job_extract,
     )
     header_meta: list[tuple[str, str, str]] = []
     if status_position == "header":
@@ -419,9 +425,6 @@ def render_step_shell(
     render_step_header(title, subtitle, outcome=outcome_text, meta_items=header_meta)
     if outcome_slot is not None:
         outcome_slot()
-
-    if status_position == "header":
-        _render_step_status(status)
 
     if extracted_from_jobspec_slot is not None:
         st.markdown(f"### {extracted_from_jobspec_label}")

@@ -10,7 +10,12 @@ import streamlit as st
 
 from constants import SSKey
 from question_dependencies import should_show_question
-from question_progress import AnswerMetaMap, is_answered
+from question_progress import (
+    AnswerMetaMap,
+    build_answers_with_job_extract_coverage,
+    is_answered,
+    is_question_covered_by_job_extract,
+)
 from schemas import JobAdExtract, Question, QuestionPlan
 
 
@@ -37,33 +42,6 @@ def _resolve_mode_profile(ui_mode: str) -> ModeLimitProfile:
     return _MODE_LIMIT_PROFILES.get(normalized, _MODE_LIMIT_PROFILES["standard"])
 
 
-def _is_meaningful(value: Any) -> bool:
-    if value is None:
-        return False
-    if isinstance(value, str):
-        return bool(value.strip())
-    if isinstance(value, (list, tuple, set, dict)):
-        return len(value) > 0
-    return True
-
-
-def _extract_value_by_target_path(
-    job_extract: JobAdExtract | None, target_path: str
-) -> Any:
-    if job_extract is None:
-        return None
-
-    data: dict[str, Any] = job_extract.model_dump()
-    current: Any = data
-    for segment in (part for part in target_path.split(".") if part):
-        if not isinstance(current, dict):
-            return None
-        if segment not in current:
-            return None
-        current = current.get(segment)
-    return current
-
-
 def _question_is_covered(
     question: Question,
     *,
@@ -73,12 +51,7 @@ def _question_is_covered(
 ) -> bool:
     if is_answered(question, answers.get(question.id), answer_meta.get(question.id)):
         return True
-    target_path = question.target_path
-    if not isinstance(target_path, str) or not target_path.strip():
-        return False
-    return _is_meaningful(
-        _extract_value_by_target_path(job_extract, target_path.strip())
-    )
+    return is_question_covered_by_job_extract(question, job_extract)
 
 
 def compute_adaptive_question_limits(
@@ -95,10 +68,21 @@ def compute_adaptive_question_limits(
     for step in plan.steps:
         if not step.questions:
             continue
+        effective_answers = build_answers_with_job_extract_coverage(
+            step.questions,
+            answers,
+            answer_meta,
+            job_extract=job_extract,
+        )
         visible_questions = [
             question
             for question in step.questions
-            if should_show_question(question, answers, answer_meta, step.step_key)
+            if should_show_question(
+                question,
+                effective_answers,
+                answer_meta,
+                step.step_key,
+            )
         ]
         total = len(visible_questions)
         if total == 0:

@@ -115,10 +115,9 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
     has_confirmed_anchor = has_confirmed_esco_anchor()
     selected_occupation_title = str(selected_occupation.get("title") or "").strip()
 
-    st.success("Analyse abgeschlossen")
     st.caption(
-        "Extrahierte Werte und dynamische Rückfragen wurden vorbereitet. "
-        "Prüfen Sie die Angaben und bestätigen Sie anschließend den ESCO-Anker."
+        "Die wichtigsten Angaben sind vorbereitet. Prüfen Sie kurz die Basisdaten "
+        "und bestätigen Sie anschließend den passenden ESCO-Beruf."
     )
     render_job_extract_overview(
         job,
@@ -271,11 +270,9 @@ def _render_phase_a_source_and_privacy_controls() -> bool:
     with status_col:
         file_name = str(upload_meta.get("name") or getattr(upload, "name", "") or "")
         if upload is not None:
-            st.info(f"Datei ausgewählt: {file_name or 'Unbekannt'}")
+            st.info(f"Datei bereit: {file_name or 'Unbekannt'}")
 
-        if uploaded_text:
-            st.success("Text extrahiert.")
-        elif upload is not None and last_error:
+        if upload is not None and not uploaded_text and last_error:
             st.error(f"Extraktion fehlgeschlagen: {last_error}")
     with chars_col:
         active_source_text = str(st.session_state.get(SSKey.SOURCE_TEXT.value, ""))

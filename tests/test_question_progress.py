@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from constants import AnswerType
 from question_progress import (
+    build_answered_lookup,
+    build_answers_with_job_extract_coverage,
     build_step_scope_progress_labels,
     compute_question_progress,
     is_answered,
 )
-from schemas import Question
+from schemas import JobAdExtract, Question
 
 
 def _question(answer_type: AnswerType) -> Question:
@@ -98,6 +100,70 @@ def test_compute_question_progress_counts_answered_and_required_open() -> None:
     )
 
     assert progress == {"total": 4, "answered": 3, "required_unanswered": 1}
+
+
+def test_jobspec_extract_covers_company_alias_questions_without_answers() -> None:
+    questions = [
+        Question(
+            id="company_q_1",
+            label="Wie heißt das Unternehmen?",
+            answer_type=AnswerType.SHORT_TEXT,
+            required=True,
+        ),
+        Question(
+            id="company_website",
+            label="Welche Website hat das Unternehmen?",
+            answer_type=AnswerType.SHORT_TEXT,
+            required=True,
+        ),
+        Question(
+            id="contract_kind",
+            label="Was ist die Art des Arbeitsvertrags?",
+            answer_type=AnswerType.SHORT_TEXT,
+            required=True,
+        ),
+    ]
+    job_extract = JobAdExtract(
+        company_name="Rheinbahn",
+        employment_type="Unbefristeter Arbeitsvertrag",
+    )
+
+    answered_lookup = build_answered_lookup(
+        questions,
+        answers={},
+        answer_meta={},
+        job_extract=job_extract,
+    )
+    progress = compute_question_progress(
+        questions,
+        answers={},
+        answer_meta={},
+        answered_lookup=answered_lookup,
+    )
+
+    assert answered_lookup == {
+        "company_q_1": True,
+        "company_website": False,
+        "contract_kind": True,
+    }
+    assert progress == {"total": 3, "answered": 2, "required_unanswered": 1}
+
+
+def test_effective_answers_include_jobspec_values_for_dependency_visibility() -> None:
+    remote_question = Question(
+        id="work_mode",
+        label="Welche Remote-Regelung gilt?",
+        answer_type=AnswerType.SHORT_TEXT,
+        target_path="remote_policy",
+    )
+    effective_answers = build_answers_with_job_extract_coverage(
+        [remote_question],
+        answers={},
+        answer_meta={},
+        job_extract=JobAdExtract(remote_policy="Mobiles Arbeiten"),
+    )
+
+    assert effective_answers["work_mode"] == "Mobiles Arbeiten"
 
 
 def test_build_step_scope_progress_labels_marks_scope_difference() -> None:

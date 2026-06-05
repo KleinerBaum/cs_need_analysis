@@ -2,10 +2,10 @@ from __future__ import annotations
 
 START_PAGE_COPY: dict[str, object] = {
     "hero_headline": "Cognitive Staffing",
-    "hero_subheadline": "KI-gestützte Bedarfsanalyse für präzisere Recruiting-Entscheidungen.",
+    "hero_subheadline": "Von der Jobspec zum klaren Recruiting-Bild.",
     "hero_supporting_paragraph": (
-        "Jobspec einlesen, semantisch verankern, Anforderungen strukturieren und "
-        "direkt verwertbare Recruiting-Artefakte erzeugen."
+        "Die App liest eine Stellenanzeige ein, erkennt den fachlichen Kontext und "
+        "fragt nur dort nach, wo Informationen für gute Recruiting-Entscheidungen fehlen."
     ),
     "primary_cta": "Jobspec erfassen",
     "secondary_cta_hint": "",
@@ -16,7 +16,7 @@ START_PAGE_COPY: dict[str, object] = {
     "cta_helper": "",
     "cta_microcopy": "",
     "value_cards": (),
-    "importance_title": "Hintergrund",
+    "importance_title": "Warum der Intake mehr sieht",
     "flow_title": "Was passiert danach?",
     "flow_steps": (
         (

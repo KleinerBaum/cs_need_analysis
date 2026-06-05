@@ -27,9 +27,12 @@ from esco_client import EscoClient, EscoClientError
 from llm_client import OpenAICallError
 from question_dependencies import should_show_question
 from question_progress import (
+    build_answers_with_job_extract_coverage,
     build_answered_lookup,
     build_step_scope_progress_labels,
     compute_question_progress,
+    is_answered,
+    resolve_question_job_extract_value,
 )
 from schemas import (
     BooleanSearchPack,
@@ -200,6 +203,7 @@ class StepReviewPayload(TypedDict):
     answer_meta: dict[str, Any]
     answered_lookup: dict[str, bool]
     step_status: StepStatusPayload
+    job_extract: JobAdExtract | None
 
 
 class ReviewRenderMode(str, Enum):
@@ -242,15 +246,32 @@ def _resolve_review_render_mode(
     return render_mode or ReviewRenderMode.DIRECT_ANSWERS
 
 
+def _load_job_extract_from_state() -> JobAdExtract | None:
+    try:
+        raw_job = st.session_state.get(SSKey.JOB_EXTRACT.value)
+    except Exception:
+        return None
+    if isinstance(raw_job, JobAdExtract):
+        return raw_job
+    if not isinstance(raw_job, dict):
+        return None
+    try:
+        return JobAdExtract.model_validate(raw_job)
+    except Exception:
+        return None
+
+
 def build_step_review_payload(step: QuestionStep | None) -> StepReviewPayload:
     answers = get_answers()
     answer_meta = get_answer_meta()
+    job_extract = _load_job_extract_from_state()
     step_status = build_step_status_payload(
         step=step,
         answers=answers,
         answer_meta=answer_meta,
         should_show_question=should_show_question,
         step_key=step.step_key if step is not None else None,
+        job_extract=job_extract,
     )
     if step is None or not step.questions:
         return {
@@ -259,21 +280,32 @@ def build_step_review_payload(step: QuestionStep | None) -> StepReviewPayload:
             "answer_meta": answer_meta,
             "answered_lookup": {},
             "step_status": step_status,
+            "job_extract": job_extract,
         }
 
+    effective_answers = build_answers_with_job_extract_coverage(
+        step.questions,
+        answers,
+        answer_meta,
+        job_extract=job_extract,
+    )
     visible_questions = [
         question
         for question in step.questions
-        if should_show_question(question, answers, answer_meta, step.step_key)
+        if should_show_question(question, effective_answers, answer_meta, step.step_key)
     ]
     return {
         "visible_questions": visible_questions,
         "answers": answers,
         "answer_meta": answer_meta,
         "answered_lookup": build_answered_lookup(
-            visible_questions, answers, answer_meta
+            visible_questions,
+            answers,
+            answer_meta,
+            job_extract=job_extract,
         ),
         "step_status": step_status,
+        "job_extract": job_extract,
     }
 
 
@@ -291,6 +323,7 @@ def render_standard_step_review(
         answer_meta=review_payload["answer_meta"],
         answered_lookup=review_payload["answered_lookup"],
         step_status=review_payload["step_status"],
+        job_extract=review_payload["job_extract"],
         render_mode=_resolve_review_render_mode(render_mode),
     )
 
@@ -643,6 +676,9 @@ def _render_esco_taxonomy_breadcrumb(
     session_key: str,
     concept: dict[str, Any],
     concept_id: str,
+    auto_load: bool = False,
+    in_expander: bool = True,
+    title: str = "Taxonomie/Breadcrumb",
 ) -> None:
     concept_uri = str(concept.get("uri") or "").strip()
     concept_title = str(concept.get("title") or "—").strip()
@@ -654,11 +690,28 @@ def _render_esco_taxonomy_breadcrumb(
     error_key = f"{session_key}.esco_picker.taxonomy.error.{concept_id}"
     uri_key = f"{session_key}.esco_picker.taxonomy.uri.{concept_id}"
 
-    with st.expander(
-        "Taxonomie/Breadcrumb", expanded=bool(st.session_state.get(expander_key, False))
-    ):
-        st.session_state[expander_key] = True
+    def _load_taxonomy() -> None:
+        if not concept_uri:
+            st.session_state[error_key] = "ESCO-URI fehlt für dieses Konzept."
+            st.session_state[loaded_key] = False
+            st.session_state.pop(cache_key, None)
+            return
+        try:
+            payload = EscoClient().resource_related(
+                uri=concept_uri,
+                relation="hasBroaderTransitive",
+            )
+            normalized_nodes = _normalize_esco_breadcrumb_nodes(payload)
+            st.session_state[cache_key] = [
+                node.model_dump() for node in normalized_nodes
+            ]
+            st.session_state[loaded_key] = True
+            st.session_state.pop(error_key, None)
+        except EscoClientError as exc:
+            st.session_state[error_key] = str(exc)
+            st.session_state[loaded_key] = False
 
+    def _render_content() -> None:
         cache_hit_for_uri = st.session_state.get(uri_key) == concept_uri
         if not cache_hit_for_uri:
             st.session_state.pop(cache_key, None)
@@ -666,26 +719,15 @@ def _render_esco_taxonomy_breadcrumb(
             st.session_state[loaded_key] = False
             st.session_state[uri_key] = concept_uri
 
-        if st.button("Taxonomie laden", key=fetch_key):
+        if auto_load and not bool(st.session_state.get(loaded_key, False)):
+            _load_taxonomy()
+        elif not auto_load and st.button("Taxonomie laden", key=fetch_key):
             if not concept_uri:
                 st.session_state[error_key] = "ESCO-URI fehlt für dieses Konzept."
                 st.session_state[loaded_key] = False
                 st.session_state.pop(cache_key, None)
                 return
-            try:
-                payload = EscoClient().resource_related(
-                    uri=concept_uri,
-                    relation="hasBroaderTransitive",
-                )
-                normalized_nodes = _normalize_esco_breadcrumb_nodes(payload)
-                st.session_state[cache_key] = [
-                    node.model_dump() for node in normalized_nodes
-                ]
-                st.session_state[loaded_key] = True
-                st.session_state.pop(error_key, None)
-            except EscoClientError as exc:
-                st.session_state[error_key] = str(exc)
-                st.session_state[loaded_key] = False
+            _load_taxonomy()
 
         cached_nodes_raw = st.session_state.get(cache_key, [])
         cached_nodes: list[EscoBreadcrumbNode] = []
@@ -708,7 +750,7 @@ def _render_esco_taxonomy_breadcrumb(
                 )
                 return
             st.caption(
-                "Keine Taxonomie geladen. Öffne den Expander und klicke auf „Taxonomie laden“."
+                "Taxonomie ist noch nicht geladen."
             )
             return
 
@@ -731,6 +773,16 @@ def _render_esco_taxonomy_breadcrumb(
 
         st.write(" → ".join(titles))
 
+    if in_expander:
+        with st.expander(
+            title, expanded=bool(st.session_state.get(expander_key, False))
+        ):
+            st.session_state[expander_key] = True
+            _render_content()
+    else:
+        st.markdown(f"**{title}**")
+        _render_content()
+
 
 def render_esco_picker_card(
     *,
@@ -749,6 +801,13 @@ def render_esco_picker_card(
     show_results_overview: bool = True,
     auto_apply_single_select: bool = False,
     show_apply_button: bool = True,
+    query_label: str = "ESCO Suche",
+    query_placeholder: str = "Begriff eingeben (z. B. Data Engineer)",
+    confirmed_summary_label: str = "Bestätigte ESCO-Auswahl",
+    show_confirmed_summary: bool = True,
+    taxonomy_auto_load: bool = False,
+    taxonomy_in_expander: bool = True,
+    taxonomy_title: str = "Taxonomie/Breadcrumb",
 ) -> None:
     session_key = _normalize_target_state_key(target_state_key)
     if not session_key:
@@ -770,9 +829,9 @@ def render_esco_picker_card(
         ui_mode = "standard"
 
     query_text = st.text_input(
-        "ESCO Suche",
+        query_label,
         key=query_key,
-        placeholder="Begriff eingeben (z. B. Data Engineer)",
+        placeholder=query_placeholder,
         on_change=_set_session_flag_true,
         args=(submit_flag_key,),
     ).strip()
@@ -977,7 +1036,7 @@ def render_esco_picker_card(
         except Exception:
             current_entries = []
 
-    if not current_entries:
+    if not current_entries or not show_confirmed_summary:
         return
 
     applied_meta = st.session_state.get(applied_meta_key, {})
@@ -990,7 +1049,7 @@ def render_esco_picker_card(
         applied_meta.get("source", "auto") if isinstance(applied_meta, dict) else "auto"
     )
 
-    st.markdown("**Confirmed selection · ESCO concepts**")
+    st.markdown(f"**{confirmed_summary_label}**")
     for idx, concept in enumerate(current_entries):
         concept_id = _build_esco_concept_id(concept, idx)
         if ui_mode == "expert":
@@ -1003,6 +1062,9 @@ def render_esco_picker_card(
             session_key=session_key,
             concept=concept,
             concept_id=concept_id,
+            auto_load=taxonomy_auto_load,
+            in_expander=taxonomy_in_expander,
+            title=taxonomy_title,
         )
 
 
@@ -1143,15 +1205,20 @@ def _render_note_block(title: str, notes: Sequence[str], *, tone: str) -> None:
 def render_intake_process_animation(*, state: Literal["idle", "running", "done"]) -> None:
     state = state if state in {"idle", "running", "done"} else "idle"
     state_class = f"cs-process-{state}"
+    title = {
+        "idle": "So entsteht dein Fragenplan",
+        "running": "Analyse läuft",
+        "done": "Vorbereitung für den Wizard",
+    }[state]
     subtitle = {
-        "idle": "Nach dem Klick laufen die Schritte automatisch im Hintergrund.",
-        "running": "Die Analyse verarbeitet gerade Text, Kontext und Fragenplan.",
-        "done": "Die Hintergrundschritte sind abgeschlossen und die Ergebnisse sind bereit.",
+        "idle": "Aus der Jobspec werden Rollenprofil, Berufskontext und gezielte Rückfragen.",
+        "running": "Die App liest den Text, setzt Kontext und bereitet die nächsten Schritte vor.",
+        "done": "Rollenprofil, ESCO-Kontext und dynamische Rückfragen sind vorbereitet.",
     }[state]
     steps = (
-        ("Text extrahieren", "Jobspec wird gelesen und normalisiert."),
-        ("ESCO verankern", "Der passende Berufskontext wird gesetzt."),
-        ("Fragenplan bauen", "Dynamische Fragen und Limits werden vorbereitet."),
+        ("Jobspec verstehen", "Upload oder Freitext wird in ein Rollenprofil überführt."),
+        ("Berufskontext setzen", "Der passende ESCO-Beruf dient als gemeinsame Referenz."),
+        ("Fragen fokussieren", "Der Wizard fragt gezielt nach fehlenden Informationen."),
     )
     step_items = []
     for idx, (label, detail) in enumerate(steps):
@@ -1173,10 +1240,10 @@ def render_intake_process_animation(*, state: Literal["idle", "running", "done"]
             f"""
             <style>
             .cs-process-banner {{
-                border: 1px solid rgba(59, 130, 246, 0.22);
-                background: linear-gradient(180deg, rgba(10, 14, 24, 0.95), rgba(9, 14, 22, 0.88));
-                border-radius: 0.75rem;
-                padding: 0.85rem 1rem;
+                border: 1px solid rgba(94, 234, 212, 0.24);
+                background: linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(6, 78, 59, 0.18));
+                border-radius: 0.5rem;
+                padding: 0.9rem;
                 margin: 0.45rem 0 0.8rem 0;
             }}
             .cs-process-title {{
@@ -1199,7 +1266,7 @@ def render_intake_process_animation(*, state: Literal["idle", "running", "done"]
                 align-items: flex-start;
                 gap: 0.65rem;
                 padding: 0.7rem 0.75rem;
-                border-radius: 0.65rem;
+                border-radius: 0.5rem;
                 border: 1px solid rgba(148, 163, 184, 0.18);
                 background: rgba(255, 255, 255, 0.03);
                 min-height: 3.2rem;
@@ -1215,8 +1282,8 @@ def render_intake_process_animation(*, state: Literal["idle", "running", "done"]
                 height: 0.7rem;
                 margin-top: 0.3rem;
                 border-radius: 999px;
-                background: rgba(59, 130, 246, 0.95);
-                box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.38);
+                background: rgba(94, 234, 212, 0.95);
+                box-shadow: 0 0 0 0 rgba(94, 234, 212, 0.36);
                 animation: csProcessPulse 1.8s ease-in-out infinite;
             }}
             .cs-process-banner.cs-process-done .cs-process-dot {{
@@ -1254,7 +1321,7 @@ def render_intake_process_animation(*, state: Literal["idle", "running", "done"]
             }}
             </style>
             <div class="cs-process-banner {state_class}">
-                <div class="cs-process-title">Was passiert im Hintergrund?</div>
+                <div class="cs-process-title">{title}</div>
                 <div class="cs-process-subtitle">{subtitle}</div>
                 <div class="cs-process-track">
                     {''.join(step_items)}
@@ -2094,6 +2161,7 @@ def _split_core_and_detail_questions(
 def render_question_step(step: QuestionStep) -> None:
     answers = get_answers()
     answer_meta = get_answer_meta()
+    job_extract = _load_job_extract_from_state()
     ui_mode_raw = st.session_state.get(SSKey.UI_MODE.value, "standard")
     ui_mode = str(ui_mode_raw).strip().lower()
     if ui_mode not in {"quick", "standard", "expert"}:
@@ -2116,18 +2184,34 @@ def render_question_step(step: QuestionStep) -> None:
     questions = _sort_questions_for_progressive_disclosure(step.questions)
     if step_limit is not None and step_limit > 0:
         questions = questions[:step_limit]
+    effective_answers = build_answers_with_job_extract_coverage(
+        questions,
+        answers,
+        answer_meta,
+        job_extract=job_extract,
+    )
     visible_questions = [
         question
         for question in questions
-        if should_show_question(question, answers, answer_meta, step.step_key)
+        if should_show_question(question, effective_answers, answer_meta, step.step_key)
     ]
     hidden_questions_count = len(questions) - len(visible_questions)
 
-    answered_lookup = build_answered_lookup(visible_questions, answers, answer_meta)
+    answered_lookup = build_answered_lookup(
+        visible_questions,
+        answers,
+        answer_meta,
+        job_extract=job_extract,
+    )
     visible_progress = compute_question_progress(
         visible_questions, answers, answer_meta, answered_lookup=answered_lookup
     )
-    overall_answered_lookup = build_answered_lookup(questions, answers, answer_meta)
+    overall_answered_lookup = build_answered_lookup(
+        questions,
+        answers,
+        answer_meta,
+        job_extract=job_extract,
+    )
     overall_progress = compute_question_progress(
         questions,
         answers,
@@ -2191,6 +2275,7 @@ def render_step_review_card(
     answered_lookup: dict[str, bool] | None = None,
     step_status: StepStatusPayload | None = None,
     render_mode: ReviewRenderMode | None = None,
+    job_extract: JobAdExtract | None = None,
 ) -> None:
     resolved_render_mode = _resolve_review_render_mode(render_mode)
     missing_essentials_display_max = 4
@@ -2239,7 +2324,10 @@ def render_step_review_card(
     missing_essential_id_set = set(missing_essential_ids)
 
     resolved_lookup = answered_lookup or build_answered_lookup(
-        visible_questions, answers, answer_meta
+        visible_questions,
+        answers,
+        answer_meta,
+        job_extract=job_extract,
     )
     total_groups = len(grouped_questions)
     complete_groups = 0
@@ -2264,9 +2352,22 @@ def render_step_review_card(
                     group_missing_essential = True
                 continue
             value = answers.get(question.id)
+            source_label = question.label
+            if not is_answered(
+                question,
+                value,
+                answer_meta.get(question.id),
+            ):
+                extracted_value = resolve_question_job_extract_value(
+                    question,
+                    job_extract,
+                )
+                if has_meaningful_value(extracted_value):
+                    value = extracted_value
+                    source_label = f"{question.label} (Jobspec)"
             formatted = _format_answer_for_review(question, value)
             if formatted:
-                answered_items.append((question.label, formatted))
+                answered_items.append((source_label, formatted))
         if group_complete:
             complete_groups += 1
 

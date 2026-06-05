@@ -7,10 +7,11 @@ from typing import Any, Literal, TypedDict
 
 from question_progress import (
     AnswerMetaMap,
+    build_answers_with_job_extract_coverage,
     build_answered_lookup,
     compute_question_progress,
 )
-from schemas import Question, QuestionStep
+from schemas import JobAdExtract, Question, QuestionStep
 
 CompletionState = Literal["not_started", "partial", "complete"]
 QuestionVisibilityPredicate = Callable[
@@ -41,6 +42,7 @@ def build_step_status_payload(
     should_show_question: QuestionVisibilityPredicate,
     step_key: str | None = None,
     missing_essentials_max: int = 5,
+    job_extract: JobAdExtract | None = None,
 ) -> StepStatusPayload:
     answers_dict = dict(answers)
     resolved_step_key = step_key or (step.step_key if step is not None else "")
@@ -56,13 +58,27 @@ def build_step_status_payload(
             "missing_essential_ids": [],
         }
 
+    effective_answers = build_answers_with_job_extract_coverage(
+        step.questions,
+        answers_dict,
+        answer_meta,
+        job_extract=job_extract,
+    )
     visible_questions = [
         question
         for question in step.questions
-        if should_show_question(question, answers_dict, answer_meta, resolved_step_key)
+        if should_show_question(
+            question,
+            effective_answers,
+            answer_meta,
+            resolved_step_key,
+        )
     ]
     answered_lookup = build_answered_lookup(
-        visible_questions, answers_dict, answer_meta
+        visible_questions,
+        answers_dict,
+        answer_meta,
+        job_extract=job_extract,
     )
     progress = compute_question_progress(
         visible_questions,

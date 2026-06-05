@@ -7,7 +7,7 @@ import sys
 
 from constants import AnswerType, SSKey, STEP_KEY_SUMMARY
 from question_progress import build_step_scope_progress_labels
-from schemas import Question, QuestionDependency, QuestionPlan, QuestionStep
+from schemas import JobAdExtract, Question, QuestionDependency, QuestionPlan, QuestionStep
 
 
 BASE_PATH = Path(__file__).resolve().parents[1] / "wizard_pages" / "base.py"
@@ -106,6 +106,66 @@ def test_sidebar_progress_keeps_visible_scope_explicit_when_overall_differs(
     assert labels["visible_label"].endswith("1/1")
     assert labels["overall_label"].endswith("1/3")
     assert labels["has_different_denominator"] is True
+
+
+def test_sidebar_progress_counts_jobspec_covered_company_questions(monkeypatch) -> None:
+    company_question = Question(
+        id="company_q_name",
+        label="Wie heißt das Unternehmen?",
+        answer_type=AnswerType.SHORT_TEXT,
+        required=True,
+    )
+    employment_question = Question(
+        id="company_q_contract",
+        label="Was ist die Art des Arbeitsvertrags?",
+        answer_type=AnswerType.SHORT_TEXT,
+        required=True,
+    )
+    city_question = Question(
+        id="company_q_city",
+        label="In welcher Stadt befindet sich das Unternehmen?",
+        answer_type=AnswerType.SHORT_TEXT,
+        required=True,
+    )
+    plan = QuestionPlan(
+        steps=[
+            QuestionStep(
+                step_key="company",
+                title_de="Company",
+                questions=[company_question, employment_question, city_question],
+            )
+        ]
+    )
+    monkeypatch.setattr(
+        BASE_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.QUESTION_PLAN.value: plan.model_dump(mode="json"),
+                SSKey.ANSWERS.value: {},
+                SSKey.ANSWER_META.value: {},
+                SSKey.JOB_EXTRACT.value: JobAdExtract(
+                    company_name="Rheinbahn",
+                    employment_type="Unbefristeter Arbeitsvertrag",
+                ).model_dump(mode="json"),
+                SSKey.BRIEF.value: None,
+            }
+        ),
+    )
+    pages = [
+        BASE_MODULE.WizardPage(
+            key="company",
+            title_de="Company",
+            icon="",
+            render=_noop_render,
+        )
+    ]
+
+    statuses = BASE_MODULE._compute_step_statuses(pages)
+
+    assert statuses[0]["answered"] == 2
+    assert statuses[0]["total"] == 3
+    assert statuses[0]["payload"]["missing_essential_ids"] == ["company_q_city"]
 
 
 def test_intake_process_progress_excludes_start_and_marks_summary_from_brief(

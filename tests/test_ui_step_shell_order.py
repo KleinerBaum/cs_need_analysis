@@ -341,6 +341,48 @@ def test_step_shell_renders_jobspec_notes_after_extracted_slot(monkeypatch) -> N
     )
 
 
+def test_step_shell_header_status_does_not_render_duplicate_status_captions(
+    monkeypatch,
+) -> None:
+    import ui_layout
+
+    fake_st = _ShellFakeStreamlit()
+    fake_st.session_state = {
+        SSKey.JOB_EXTRACT.value: None,
+        SSKey.ANSWERS.value: {},
+        SSKey.ANSWER_META.value: {},
+    }
+    header_meta: list[tuple[str, str, str]] = []
+    monkeypatch.setattr(ui_layout, "st", fake_st)
+    monkeypatch.setattr(
+        ui_layout,
+        "render_step_header",
+        lambda *_args, meta_items=None, **_kwargs: header_meta.extend(
+            list(meta_items or [])
+        ),
+    )
+
+    ui_layout.render_step_shell(
+        title="Company",
+        subtitle="Kontext",
+        step=QuestionStep(
+            step_key="company",
+            title_de="Company",
+            questions=[
+                Question(
+                    id="company_name",
+                    label="Wie heißt das Unternehmen?",
+                    answer_type=AnswerType.SHORT_TEXT,
+                    required=True,
+                )
+            ],
+        ),
+    )
+
+    assert ("📊", "Fortschritt", "0/1 beantwortet") in header_meta
+    assert not any(name == "caption" for name, _value in fake_st.events)
+
+
 def test_landing_and_summary_do_not_render_jobspec_step_notes(monkeypatch) -> None:
     import ui_layout
 

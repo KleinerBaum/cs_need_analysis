@@ -4,14 +4,111 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from typing import Any, Literal, TypedDict
 
 from constants import AnswerType
-from schemas import Question
+from schemas import JobAdExtract, Question
 
 WizardUIMode = Literal["quick", "standard", "expert"]
 
 SINGLE_SELECT_PLACEHOLDERS = frozenset({"", "— Bitte wählen —"})
+_JOB_EXTRACT_FIELDS = frozenset(JobAdExtract.model_fields)
+
+_JOB_EXTRACT_ALIAS_RULES: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
+    (
+        ("company_name",),
+        (
+            "company_name",
+            "company name",
+            "employer name",
+            "arbeitgebername",
+            "firmenname",
+            "name der firma",
+            "unternehmensname",
+            "wie heisst das unternehmen",
+            "wie heist das unternehmen",
+            "wie heißt das unternehmen",
+        ),
+    ),
+    (
+        ("company_website",),
+        (
+            "company_website",
+            "company website",
+            "homepage",
+            "website",
+            "karriereseite",
+            "career site",
+            "url",
+        ),
+    ),
+    (
+        ("brand_name",),
+        (
+            "brand_name",
+            "brand name",
+            "marke",
+            "arbeitgebermarke",
+        ),
+    ),
+    (
+        ("location_city",),
+        (
+            "location_city",
+            "location city",
+            "stadt",
+            "standort der firma",
+            "ort der firma",
+            "in welcher stadt",
+        ),
+    ),
+    (
+        ("location_country",),
+        (
+            "location_country",
+            "location country",
+            "country",
+            "land",
+            "in welchem land",
+        ),
+    ),
+    (
+        ("place_of_work", "location_city"),
+        (
+            "place_of_work",
+            "place of work",
+            "arbeitsort",
+            "einsatzort",
+        ),
+    ),
+    (
+        ("remote_policy",),
+        (
+            "remote_policy",
+            "remote policy",
+            "remote-regelung",
+            "remote regelung",
+            "hybrid",
+            "mobiles arbeiten",
+        ),
+    ),
+    (
+        ("employment_type", "contract_type"),
+        (
+            "employment_type",
+            "employment type",
+            "beschaeftigungsart",
+            "beschäftigungsart",
+            "anstellungsart",
+            "arbeitsvertrag",
+            "art des arbeitsvertrags",
+            "vertragsart",
+            "contract_type",
+            "contract type",
+        ),
+    ),
+)
 
 
 class AnswerMeta(TypedDict, total=False):
@@ -61,6 +158,8 @@ def build_answered_lookup(
     questions: list[Question],
     answers: dict[str, Any],
     answer_meta: AnswerMetaMap,
+    *,
+    job_extract: JobAdExtract | None = None,
 ) -> dict[str, bool]:
     """Return a per-question answered lookup for reuse across render sections."""
 
@@ -70,6 +169,7 @@ def build_answered_lookup(
             answers.get(question.id),
             answer_meta.get(question.id),
         )
+        or is_question_covered_by_job_extract(question, job_extract)
         for question in questions
     }
 
@@ -111,11 +211,146 @@ def is_answered(question: Question, value: Any, meta: AnswerMeta | None) -> bool
     return value is not None
 
 
+def build_answers_with_job_extract_coverage(
+    questions: list[Question],
+    answers: dict[str, Any],
+    answer_meta: AnswerMetaMap,
+    *,
+    job_extract: JobAdExtract | None = None,
+) -> dict[str, Any]:
+    """Return answers plus inferred extract values for dependency evaluation only."""
+
+    if job_extract is None:
+        return dict(answers)
+
+    effective_answers = dict(answers)
+    for question in questions:
+        if is_answered(
+            question,
+            effective_answers.get(question.id),
+            answer_meta.get(question.id),
+        ):
+            continue
+        extracted_value = resolve_question_job_extract_value(question, job_extract)
+        if _has_meaningful_extract_value(extracted_value):
+            effective_answers[question.id] = extracted_value
+    return effective_answers
+
+
+def is_question_covered_by_job_extract(
+    question: Question,
+    job_extract: JobAdExtract | None,
+) -> bool:
+    return _has_meaningful_extract_value(
+        resolve_question_job_extract_value(question, job_extract)
+    )
+
+
+def resolve_question_job_extract_value(
+    question: Question,
+    job_extract: JobAdExtract | None,
+) -> Any:
+    """Resolve a question to a canonical JobAdExtract value when possible."""
+
+    if job_extract is None:
+        return None
+
+    target_path = question.target_path or ""
+    target_value = extract_job_extract_value_by_path(job_extract, target_path)
+    if _has_meaningful_extract_value(target_value):
+        return target_value
+
+    for raw_key in (question.id, target_path):
+        tail = _normalize_path_tail(raw_key)
+        if tail in _JOB_EXTRACT_FIELDS:
+            field_value = extract_job_extract_value_by_path(job_extract, tail)
+            if _has_meaningful_extract_value(field_value):
+                return field_value
+
+    search_text = _question_search_text(question)
+    for candidate_fields, aliases in _JOB_EXTRACT_ALIAS_RULES:
+        if not any(alias in search_text for alias in aliases):
+            continue
+        for field in candidate_fields:
+            field_value = extract_job_extract_value_by_path(job_extract, field)
+            if _has_meaningful_extract_value(field_value):
+                return field_value
+    return None
+
+
+def extract_job_extract_value_by_path(
+    job_extract: JobAdExtract | None,
+    target_path: str,
+) -> Any:
+    """Read a value from JobAdExtract for canonical field paths only."""
+
+    if job_extract is None or not isinstance(target_path, str):
+        return None
+
+    segments = [segment for segment in target_path.strip().split(".") if segment]
+    if not segments:
+        return None
+    if segments[0] in {"job", "job_extract"}:
+        segments = segments[1:]
+    if not segments or segments[0] == "answers":
+        return None
+    if segments[0] not in _JOB_EXTRACT_FIELDS:
+        return None
+
+    current: Any = job_extract.model_dump(mode="json")
+    for segment in segments:
+        if not isinstance(current, dict) or segment not in current:
+            return None
+        current = current.get(segment)
+    return current
+
+
+def _has_meaningful_extract_value(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, dict):
+        return any(_has_meaningful_extract_value(item) for item in value.values())
+    if isinstance(value, (list, tuple, set)):
+        return any(_has_meaningful_extract_value(item) for item in value)
+    return True
+
+
+def _normalize_path_tail(value: str | None) -> str:
+    if not isinstance(value, str):
+        return ""
+    return value.strip().split(".")[-1].strip()
+
+
+def _question_search_text(question: Question) -> str:
+    raw = " ".join(
+        str(part or "")
+        for part in (
+            question.id,
+            question.label,
+            question.help,
+            question.rationale,
+            question.target_path,
+            question.group_key,
+        )
+    ).casefold()
+    normalized = (
+        raw.replace("ä", "ae")
+        .replace("ö", "oe")
+        .replace("ü", "ue")
+        .replace("ß", "ss")
+    )
+    return re.sub(r"[^a-z0-9_]+", " ", normalized)
+
+
 def compute_question_progress(
     questions: list[Question],
     answers: dict[str, Any],
     answer_meta: AnswerMetaMap,
     answered_lookup: dict[str, bool] | None = None,
+    *,
+    job_extract: JobAdExtract | None = None,
 ) -> QuestionProgress:
     """Compute answered/total and open required counts for a question list."""
 
@@ -132,6 +367,7 @@ def compute_question_progress(
                 answers.get(question.id),
                 answer_meta.get(question.id),
             )
+            or is_question_covered_by_job_extract(question, job_extract)
         )
         if question_answered:
             answered += 1

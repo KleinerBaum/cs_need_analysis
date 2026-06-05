@@ -121,10 +121,10 @@ def test_identified_info_next_is_enabled_without_esco_anchor(monkeypatch) -> Non
 
     jobad_intake._render_identified_information_block(ctx)
 
-    assert "Analyse abgeschlossen" in fake_st.successes
+    assert "Analyse abgeschlossen" not in fake_st.successes
     assert (
-        "Extrahierte Werte und dynamische Rückfragen wurden vorbereitet. "
-        "Prüfen Sie die Angaben und bestätigen Sie anschließend den ESCO-Anker."
+        "Die wichtigsten Angaben sind vorbereitet. Prüfen Sie kurz die Basisdaten "
+        "und bestätigen Sie anschließend den passenden ESCO-Beruf."
         in fake_st.captions
     )
     assert "Technische Details zur Analyse" not in fake_st.expanders

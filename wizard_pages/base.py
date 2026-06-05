@@ -271,7 +271,16 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
     answers = answers_raw if isinstance(answers_raw, dict) else {}
     answer_meta_raw = st.session_state.get(SSKey.ANSWER_META.value, {})
     answer_meta = answer_meta_raw if isinstance(answer_meta_raw, dict) else {}
-    has_job_extract = bool(st.session_state.get(SSKey.JOB_EXTRACT.value))
+    job_extract_raw = st.session_state.get(SSKey.JOB_EXTRACT.value)
+    has_job_extract = bool(job_extract_raw)
+    job_extract: JobAdExtract | None = None
+    if isinstance(job_extract_raw, JobAdExtract):
+        job_extract = job_extract_raw
+    elif isinstance(job_extract_raw, dict):
+        try:
+            job_extract = JobAdExtract.model_validate(job_extract_raw)
+        except Exception:
+            job_extract = None
     has_brief = bool(st.session_state.get(SSKey.BRIEF.value))
 
     statuses: list[SidebarStepProgress] = []
@@ -282,6 +291,7 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
             questions=questions,
             answers=answers,
             answer_meta=answer_meta,
+            job_extract=job_extract,
         )
         payload: SidebarStepDetailStatus = {
             "answered": int(step_status["answered"]),
@@ -299,7 +309,10 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
             ),
         }
         overall_lookup = build_answered_lookup(
-            questions, answers, cast(AnswerMetaMap, answer_meta)
+            questions,
+            answers,
+            cast(AnswerMetaMap, answer_meta),
+            job_extract=job_extract,
         )
         overall_progress = compute_question_progress(
             questions,
@@ -346,6 +359,7 @@ def _build_step_status_payload_for_page(
     questions: list[Question],
     answers: dict[str, object],
     answer_meta: dict[str, object],
+    job_extract: JobAdExtract | None = None,
 ) -> StepStatusPayload:
     step = QuestionStep(step_key=page_key, title_de=page_key, questions=questions)
     return build_step_status_payload(
@@ -354,6 +368,7 @@ def _build_step_status_payload_for_page(
         answer_meta=cast(AnswerMetaMap, answer_meta),
         should_show_question=should_show_question,
         step_key=page_key,
+        job_extract=job_extract,
     )
 
 

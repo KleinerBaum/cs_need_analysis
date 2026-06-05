@@ -137,7 +137,7 @@ def test_phase_a_shows_failed_extraction_status_without_no_file_caption(
 
     jobad_intake._render_phase_a_source_and_privacy_controls()
 
-    assert "Datei ausgewählt: scan.pdf" in fake_st.infos
+    assert "Datei bereit: scan.pdf" in fake_st.infos
     assert (
         "Extraktion fehlgeschlagen: Datei enthält keinen auslesbaren Inhalt."
         in fake_st.errors

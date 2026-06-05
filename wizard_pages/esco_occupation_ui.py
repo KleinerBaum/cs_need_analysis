@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 from difflib import SequenceMatcher
 from typing import Callable, Mapping, TypedDict
 
@@ -1205,6 +1206,83 @@ class _EscoExplainability(TypedDict):
     provenance_categories: list[str]
 
 
+def _render_match_confidence_note(*, confidence: str, reason: str) -> None:
+    normalized = confidence.strip().lower()
+    label_by_confidence = {
+        "high": "Sicherheit: hoch",
+        "medium": "Sicherheit: mittel",
+        "low": "Sicherheit: niedrig",
+    }
+    guidance_by_confidence = {
+        "high": "passt direkt zur Rolle",
+        "medium": "kurz prüfen",
+        "low": "bitte aktiv bestätigen oder Alternative wählen",
+    }
+    tone_class = normalized if normalized in label_by_confidence else "medium"
+    label = label_by_confidence.get(tone_class, "Sicherheit: mittel")
+    guidance = guidance_by_confidence.get(tone_class, "kurz prüfen")
+    escaped_reason = html.escape(reason.strip())
+    reason_markup = (
+        f'<span class="cs-esco-match-reason">{escaped_reason}</span>'
+        if escaped_reason
+        else ""
+    )
+    st.markdown(
+        f"""
+        <style>
+        .cs-esco-match-note {{
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            flex-wrap: wrap;
+            max-width: 100%;
+            margin: 0.25rem 0 0.45rem 0;
+            padding: 0.35rem 0.55rem;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            background: rgba(15, 23, 42, 0.46);
+            color: rgba(241, 245, 249, 0.92);
+            font-size: 0.84rem;
+            line-height: 1.25;
+        }}
+        .cs-esco-match-note strong {{
+            font-size: 0.82rem;
+            white-space: nowrap;
+        }}
+        .cs-esco-match-note.high {{
+            border-color: rgba(74, 222, 128, 0.3);
+            background: rgba(20, 83, 45, 0.28);
+        }}
+        .cs-esco-match-note.medium {{
+            border-color: rgba(96, 165, 250, 0.3);
+            background: rgba(30, 64, 175, 0.22);
+        }}
+        .cs-esco-match-note.low {{
+            border-color: rgba(250, 204, 21, 0.35);
+            background: rgba(113, 63, 18, 0.3);
+        }}
+        .cs-esco-match-reason {{
+            color: rgba(226, 232, 240, 0.74);
+        }}
+        @media (max-width: 700px) {{
+            .cs-esco-match-note {{
+                border-radius: 0.5rem;
+            }}
+            .cs-esco-match-note strong {{
+                white-space: normal;
+            }}
+        }}
+        </style>
+        <div class="cs-esco-match-note {tone_class}">
+            <strong>{html.escape(label)}</strong>
+            <span>{html.escape(guidance)}</span>
+            {reason_markup}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def _infer_esco_match_explainability(
     *,
     query_text: str,
@@ -1319,10 +1397,19 @@ def render_esco_occupation_confirmation(
         target_state_key=SSKey.ESCO_OCCUPATION_SELECTED,
         enable_preview=False,
         apply_label=None,
-        confirmation_helper_text="Beruf für nachgelagerte Vorschläge bestätigen",
+        selection_label="Passenden ESCO-Beruf auswählen",
+        confirmation_helper_text=(
+            "Diese Auswahl gibt Aufgaben, Skills und Summary einen eindeutigen fachlichen Bezug."
+        ),
         auto_apply_single_select=True,
         show_apply_button=False,
-        show_results_overview=False,
+        show_results_overview=True,
+        query_label="Rollenbegriff für ESCO-Suche",
+        query_placeholder="Jobtitel oder Rollenbegriff eingeben",
+        confirmed_summary_label="Bestätigter ESCO-Beruf",
+        taxonomy_auto_load=True,
+        taxonomy_in_expander=False,
+        taxonomy_title="Taxonomie im Berufsbaum",
     )
     options_state_key = f"{SSKey.ESCO_OCCUPATION_SELECTED.value}.esco_picker.options"
     options = st.session_state.get(options_state_key, [])
@@ -1485,18 +1572,9 @@ def render_esco_occupation_confirmation(
             st.markdown("### ESCO-Anker bestätigen")
             st.caption(f"Suche mit: `{query_text}`")
             st.info(
-                "ESCO verankert die Rolle auf einen eindeutigen Beruf und nutzt diesen Kontext "
-                "für Aufgaben, Skills und Zusammenfassung."
+                "Der ESCO-Beruf ist der gemeinsame Bezugspunkt für Aufgaben, Skills und Zusammenfassung."
             )
-            st.markdown(f"**Gefundene Occupation:** {selected_title}")
-            if confidence == "low":
-                st.warning(
-                    "Confidence: Low — Bitte aktiv entscheiden: Übernehmen oder Alternative suchen."
-                )
-            else:
-                st.caption(f"Confidence: {confidence.title()}")
-            if reason:
-                st.caption(f"Grund: {reason}")
+            _render_match_confidence_note(confidence=confidence, reason=reason)
             st.markdown(f"[Portal öffnen]({occupation_uri})")
             with st.expander("Mehr Details", expanded=False):
                 st.caption(
@@ -1528,19 +1606,10 @@ def render_esco_occupation_confirmation(
                     ),
                 )
         else:
-            st.markdown("**Gefundene Occupation**")
-            st.write(selected_title)
-            if confidence == "low":
-                st.warning(
-                    "Confidence: Low — Bitte aktiv entscheiden: Übernehmen oder Alternative suchen."
-                )
-            else:
-                st.caption(f"Confidence: {confidence.title()}")
-            if reason:
-                st.caption(f"Grund: {reason}")
+            _render_match_confidence_note(confidence=confidence, reason=reason)
             if show_detail_panels:
                 st.caption(
-                    "Details anzeigen: Taxonomie, technische Daten und Occupation-Details."
+                    "Weitere Details sind in den aufklappbaren ESCO-Bereichen verfügbar."
                 )
     if show_start_context_panels and show_detail_panels and not compact:
         st.markdown("[Portal öffnen]({})".format(occupation_uri))
@@ -1560,9 +1629,9 @@ def render_esco_occupation_confirmation(
                 "Skills & Competences pillar, Skills–Occupations Matrix Tables"
             )
 
-        with st.expander("Taxonomie/Breadcrumb", expanded=False):
+        with st.expander("Warum dieser Vorschlag?", expanded=False):
             st.caption(
-                "Taxonomie- und Relationshinweise stammen aus den geladenen ESCO-Relationen."
+                "Diese Hinweise erklären, warum der ESCO-Beruf zur Jobspec passt."
             )
             render_esco_explainability(
                 labels=explainability["provenance_categories"],
