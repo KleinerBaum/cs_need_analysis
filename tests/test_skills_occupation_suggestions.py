@@ -72,6 +72,81 @@ def test_merge_suggested_skills_dedupes_against_existing_must_and_nice() -> None
     ]
 
 
+def test_merge_suggested_skills_dedupes_by_normalized_title_when_uri_differs() -> None:
+    merged, added_count = SKILLS_MODULE._merge_suggested_skills_by_uri(
+        suggested_skills=[
+            {"uri": "uri:skill:duplicate", "title": "python", "type": "skill"},
+            {"uri": "uri:skill:new", "title": "Data Contracts", "type": "skill"},
+        ],
+        must_selected=[{"uri": "uri:skill:python", "title": "Python", "type": "skill"}],
+        nice_selected=[],
+    )
+
+    assert added_count == 1
+    assert merged == [
+        {"uri": "uri:skill:python", "title": "Python", "type": "skill"},
+        {"uri": "uri:skill:new", "title": "Data Contracts", "type": "skill"},
+    ]
+
+
+def test_dedupe_selected_skills_across_buckets_uses_uri_and_normalized_label() -> None:
+    must, nice = SKILLS_MODULE._dedupe_selected_skills_across_buckets(
+        must_selected=[
+            {"uri": "uri:skill:python", "title": "Python"},
+            {"uri": "uri:skill:sql", "title": "SQL"},
+        ],
+        nice_selected=[
+            {"uri": "uri:skill:python", "title": "Python duplicate URI"},
+            {"uri": "uri:skill:other-python", "title": " python "},
+            {"uri": "uri:skill:git", "title": "Git"},
+        ],
+    )
+
+    assert must == [
+        {"uri": "uri:skill:python", "title": "Python"},
+        {"uri": "uri:skill:sql", "title": "SQL"},
+    ]
+    assert nice == [{"uri": "uri:skill:git", "title": "Git"}]
+
+
+def test_render_skill_action_row_does_not_emit_per_row_source_caption() -> None:
+    class DummyColumn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    class DummyStreamlit:
+        def __init__(self) -> None:
+            self.session_state = {SSKey.SKILLS_SELECTED.value: []}
+            self.captions: list[str] = []
+
+        def columns(self, spec):
+            return [DummyColumn(), DummyColumn(), DummyColumn(), DummyColumn()]
+
+        def markdown(self, *args, **kwargs) -> None:
+            return None
+
+        def caption(self, value: str) -> None:
+            self.captions.append(value)
+
+        def button(self, *args, **kwargs) -> bool:
+            return False
+
+    dummy_st = DummyStreamlit()
+    setattr(SKILLS_MODULE, "st", dummy_st)
+
+    SKILLS_MODULE._render_skill_action_row(
+        label="Python",
+        source="ESCO",
+        key_prefix="test.skill",
+        show_status_caption=True,
+    )
+
+    assert dummy_st.captions == []
+
+
 def test_build_skill_suggestion_context_normalizes_jobspec_and_esco_titles() -> None:
     setattr(
         SKILLS_MODULE,
