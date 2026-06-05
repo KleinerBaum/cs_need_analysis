@@ -311,6 +311,7 @@ def init_session_state() -> None:
         SSKey.ESCO_UNMAPPED_TERM_ACTIONS.value: {},
         SSKey.ESCO_UNRESOLVED_TERM_DECISIONS.value: [],
         SSKey.ESCO_SKILLS_MAPPING_REPORT.value: None,
+        SSKey.ESCO_SKILL_DETAIL_CACHE.value: {},
         SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value: {},
         SSKey.ESCO_NEGATIVE_CACHE.value: {},
         SSKey.ESCO_MIGRATION_LOG.value: [],
@@ -467,6 +468,7 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.ESCO_UNMAPPED_TERM_ACTIONS.value] = {}
     st.session_state[SSKey.ESCO_UNRESOLVED_TERM_DECISIONS.value] = []
     st.session_state[SSKey.ESCO_SKILLS_MAPPING_REPORT.value] = None
+    st.session_state[SSKey.ESCO_SKILL_DETAIL_CACHE.value] = {}
     st.session_state[SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value] = {}
     st.session_state[SSKey.ESCO_NEGATIVE_CACHE.value] = {}
     st.session_state[SSKey.ESCO_MIGRATION_LOG.value] = []

@@ -8,7 +8,7 @@ import streamlit as st
 from constants import AnswerType, SSKey
 from esco_client import EscoClient, EscoClientError
 from schemas import Question, QuestionStep
-from state import get_answers, has_confirmed_esco_anchor, mark_answer_touched, set_answer
+from state import get_answers, get_esco_semantic_context, mark_answer_touched, set_answer
 from ui_components import (
     has_meaningful_value,
     render_error_banner,
@@ -181,9 +181,11 @@ def render_role_context_enrichment(
     st.markdown(ROLE_CONTEXT_TITLE)
     st.caption(ROLE_CONTEXT_HELP)
 
-    occupation = st.session_state.get(SSKey.ESCO_OCCUPATION_SELECTED.value)
+    semantic_context = get_esco_semantic_context()
     occupation_uri = (
-        str(occupation.get("uri") or "").strip() if isinstance(occupation, dict) else ""
+        semantic_context.primary_anchor.uri
+        if semantic_context.primary_anchor is not None
+        else ""
     )
     if not occupation_uri:
         st.info(
@@ -296,7 +298,7 @@ def render_team_questions_with_optional_esco_context(
     if show_error_banner:
         render_error_banner()
 
-    show_esco_context = has_confirmed_esco_anchor()
+    show_esco_context = get_esco_semantic_context().can_use_task_suggestions
     if step is None or not step.questions:
         st.info(
             "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."

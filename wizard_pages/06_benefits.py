@@ -12,7 +12,7 @@ from llm_client import (
 )
 from schemas import JobAdExtract, QuestionStep
 from settings_openai import load_openai_settings
-from state import get_answers, get_esco_occupation_selected
+from state import get_answers, get_esco_semantic_context
 from ui_layout import render_step_shell, responsive_three_columns
 from ui_components import (
     build_step_review_payload,
@@ -286,11 +286,16 @@ def render(ctx: WizardContext) -> None:
         else:
             st.caption("Noch keine Benefits ausgewählt.")
 
-        selected_occupation = get_esco_occupation_selected()
-        if isinstance(selected_occupation, dict) and selected_occupation.get("title"):
+        semantic_context = get_esco_semantic_context()
+        selected_occupation = semantic_context.primary_anchor
+        if (
+            semantic_context.can_use_semantic_exports
+            and selected_occupation is not None
+            and selected_occupation.title
+        ):
             st.caption(
                 "ESCO-Kontext: "
-                f"{selected_occupation.get('title')} hilft bei der Plausibilisierung, "
+                f"{selected_occupation.title} hilft bei der Plausibilisierung, "
                 "liefert aber keine kanonische Benefit-Taxonomie."
             )
 

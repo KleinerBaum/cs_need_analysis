@@ -670,10 +670,15 @@ def test_build_structured_export_payload_normalizes_legacy_unresolved_action_fie
             }
         ),
     )
-    monkeypatch.setattr(SUMMARY_MODULE, "get_esco_occupation_selected", lambda: None)
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "get_esco_occupation_selected",
+        lambda: {"uri": "uri:occ:1", "title": "Data Engineer", "type": "occupation"},
+    )
 
     payload = SUMMARY_MODULE._build_structured_export_payload(_brief())
 
+    assert payload["semantic_export_mode"] == "anchored"
     assert payload["esco_unresolved_term_decisions"] == [
         {
             "raw_term": "PySpark",
@@ -682,3 +687,43 @@ def test_build_structured_export_payload_normalizes_legacy_unresolved_action_fie
             "mapped_title": "Apache Spark",
         }
     ]
+
+
+def test_build_structured_export_payload_omits_esco_uri_exports_when_degraded(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.ESCO_CONFIG.value: {},
+                SSKey.ESCO_SKILLS_SELECTED_MUST.value: [
+                    {"uri": "uri:skill:python", "title": "Python", "type": "skill"}
+                ],
+                SSKey.ESCO_SKILLS_SELECTED_NICE.value: [
+                    {"uri": "uri:skill:dbt", "title": "dbt", "type": "skill"}
+                ],
+                SSKey.ESCO_UNRESOLVED_TERM_DECISIONS.value: [
+                    {
+                        "raw_term": "PySpark",
+                        "esco_uri": "uri:skill:pyspark",
+                        "matched_label": "Apache Spark",
+                        "match_method": "retry_query",
+                        "status": "retried",
+                    }
+                ],
+            }
+        ),
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "get_esco_occupation_selected", lambda: None)
+
+    payload = SUMMARY_MODULE._build_structured_export_payload(_brief())
+
+    assert payload["semantic_export_mode"] == "degraded"
+    assert payload["esco_anchor_state"] == "degraded_unconfirmed"
+    assert "esco_occupations" not in payload
+    assert "esco_primary_anchor" not in payload
+    assert "esco_skills_must" not in payload
+    assert "esco_skills_nice" not in payload
+    assert "esco_unresolved_term_decisions" not in payload
