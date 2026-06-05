@@ -271,6 +271,7 @@ def init_session_state() -> None:
         SSKey.ESCO_MATCH_PROVENANCE.value: [],
         SSKey.ESCO_SKILLS_SELECTED_MUST.value: [],
         SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
+        SSKey.ESCO_SKILLS_REMOVED.value: [],
         SSKey.ESCO_CONFIRMED_ESSENTIAL_SKILLS.value: [],
         SSKey.ESCO_CONFIRMED_OPTIONAL_SKILLS.value: [],
         SSKey.ESCO_UNMAPPED_REQUIREMENT_TERMS.value: [],
@@ -305,6 +306,7 @@ def init_session_state() -> None:
         SSKey.SKILLS_JOBSPEC_SUGGESTED.value: [],
         SSKey.SKILLS_LLM_SUGGESTED.value: [],
         SSKey.SKILLS_SELECTED.value: [],
+        SSKey.SKILLS_SELECTED_STATUS.value: {},
         SSKey.SKILLS_SUGGEST_COUNT.value: 5,
         SSKey.SKILLS_JOBSPEC_PILLS.value: [],
         SSKey.SKILLS_ESCO_PILLS.value: [],
@@ -423,6 +425,7 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.ESCO_MATCH_PROVENANCE.value] = []
     st.session_state[SSKey.ESCO_SKILLS_SELECTED_MUST.value] = []
     st.session_state[SSKey.ESCO_SKILLS_SELECTED_NICE.value] = []
+    st.session_state[SSKey.ESCO_SKILLS_REMOVED.value] = []
     st.session_state[SSKey.ESCO_CONFIRMED_ESSENTIAL_SKILLS.value] = []
     st.session_state[SSKey.ESCO_CONFIRMED_OPTIONAL_SKILLS.value] = []
     st.session_state[SSKey.ESCO_UNMAPPED_REQUIREMENT_TERMS.value] = []
@@ -461,6 +464,7 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.SKILLS_JOBSPEC_SUGGESTED.value] = []
     st.session_state[SSKey.SKILLS_LLM_SUGGESTED.value] = []
     st.session_state[SSKey.SKILLS_SELECTED.value] = []
+    st.session_state[SSKey.SKILLS_SELECTED_STATUS.value] = {}
     st.session_state[SSKey.SKILLS_SUGGEST_COUNT.value] = 5
     st.session_state[SSKey.SKILLS_JOBSPEC_PILLS.value] = []
     st.session_state[SSKey.SKILLS_ESCO_PILLS.value] = []
