@@ -4,7 +4,12 @@ import logging
 import streamlit as st
 
 from constants import SSKey
-from llm_client import TASK_GENERATE_ROLE_TASKS_SALARY_FORECAST, resolve_model_for_task
+from llm_client import (
+    TASK_GENERATE_BENEFIT_SUGGESTIONS,
+    TASK_GENERATE_ROLE_TASKS_SALARY_FORECAST,
+    generate_benefit_suggestions,
+    resolve_model_for_task,
+)
 from schemas import JobAdExtract, QuestionStep
 from settings_openai import load_openai_settings
 from state import get_answers
@@ -23,12 +28,13 @@ from ui_components import (
     render_standard_step_review,
 )
 from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
+from wizard_pages.esco_occupation_ui import get_esco_occupation_selected
 from wizard_pages.salary_forecast_panel import render_benefits_salary_forecast_panel
 
 LOGGER = logging.getLogger(__name__)
 
-_BENEFITS_SELECTED_COMPARE_KEY = "benefits.compare.selected"
-_BENEFITS_AI_SUGGESTED_KEY = "benefits.ai_suggested"
+_LEGACY_BENEFITS_SELECTED_COMPARE_KEY = "benefits.compare.selected"
+_LEGACY_BENEFITS_AI_SUGGESTED_KEY = "benefits.ai_suggested"
 
 
 def _render_benefits_consistency_checklist(
@@ -113,6 +119,64 @@ def _dedupe_benefit_terms(values: list[str]) -> list[str]:
     return deduped
 
 
+def _benefit_labels_from_suggestions(raw_items: object) -> list[str]:
+    if not isinstance(raw_items, list):
+        return []
+    labels: list[str] = []
+    for item in raw_items:
+        if isinstance(item, dict):
+            label = str(item.get("label") or "").strip()
+        else:
+            label = str(item or "").strip()
+        if label:
+            labels.append(label)
+    return _dedupe_benefit_terms(labels)
+
+
+def _migrate_legacy_benefit_state() -> None:
+    selected = st.session_state.get(SSKey.BENEFITS_SELECTED.value, [])
+    legacy_selected = st.session_state.get(_LEGACY_BENEFITS_SELECTED_COMPARE_KEY, [])
+    if (
+        not selected
+        and isinstance(legacy_selected, list)
+        and _benefit_labels_from_suggestions(legacy_selected)
+    ):
+        st.session_state[SSKey.BENEFITS_SELECTED.value] = (
+            _benefit_labels_from_suggestions(legacy_selected)
+        )
+    st.session_state.pop(_LEGACY_BENEFITS_SELECTED_COMPARE_KEY, None)
+
+    llm_suggested = st.session_state.get(SSKey.BENEFITS_LLM_SUGGESTED.value, [])
+    legacy_ai = st.session_state.get(_LEGACY_BENEFITS_AI_SUGGESTED_KEY, [])
+    if not llm_suggested and isinstance(legacy_ai, list):
+        migrated = [
+            {
+                "label": label,
+                "source_hint": "llm",
+                "rationale": "Aus Legacy Benefits-Vorschlägen übernommen.",
+                "evidence": "",
+                "importance": "medium",
+            }
+            for label in _benefit_labels_from_suggestions(legacy_ai)
+        ]
+        if migrated:
+            st.session_state[SSKey.BENEFITS_LLM_SUGGESTED.value] = migrated
+    st.session_state.pop(_LEGACY_BENEFITS_AI_SUGGESTED_KEY, None)
+
+
+def _read_selected_benefits() -> list[str]:
+    raw = st.session_state.get(SSKey.BENEFITS_SELECTED.value, [])
+    if not isinstance(raw, list):
+        return []
+    return _dedupe_benefit_terms(
+        [str(item).strip() for item in raw if has_meaningful_value(item)]
+    )
+
+
+def _suggestion_dicts_from_labels(labels: list[str], *, source: str) -> list[dict[str, str]]:
+    return [{"label": label, "source": source} for label in labels if label.strip()]
+
+
 def render(ctx: WizardContext) -> None:
     render_error_banner()
 
@@ -123,10 +187,18 @@ def render(ctx: WizardContext) -> None:
     job, plan = preflight
 
     step = next((s for s in plan.steps if s.step_key == "benefits"), None)
+    _migrate_legacy_benefit_state()
+    jobspec_benefit_terms = _dedupe_benefit_terms(
+        [value.strip() for value in job.benefits if has_meaningful_value(value)]
+    )
+    jobspec_suggestions = _suggestion_dicts_from_labels(
+        jobspec_benefit_terms, source="Jobspec"
+    )
+    st.session_state[SSKey.BENEFITS_JOBSPEC_SUGGESTED.value] = jobspec_suggestions
 
     def _render_extracted_slot() -> None:
         shown = False
-        col_salary, _, col_remote = responsive_three_columns(gap="large")
+        col_salary, col_benefits, col_remote = responsive_three_columns(gap="large")
         with col_salary:
             if job.salary_range:
                 min_salary = job.salary_range.min
@@ -139,6 +211,12 @@ def render(ctx: WizardContext) -> None:
                 if has_meaningful_value(job.salary_range.notes):
                     st.write(f"**Notes:** {job.salary_range.notes}")
                     shown = True
+        with col_benefits:
+            if jobspec_benefit_terms:
+                st.write("**Benefits (Auszug):**")
+                for benefit in jobspec_benefit_terms[:12]:
+                    st.write(f"- {benefit}")
+                shown = True
         with col_remote:
             if has_meaningful_value(job.remote_policy):
                 st.write("**Arbeitsmodell (Auszug):**")
@@ -168,13 +246,6 @@ def render(ctx: WizardContext) -> None:
                     values.append(f"{question.label}: {formatted}")
             return values
 
-        jobspec_suggested = [
-            {"label": value, "source": "Jobspec"}
-            for value in _dedupe_benefit_terms(
-                [value.strip() for value in job.benefits if has_meaningful_value(value)]
-            )
-        ]
-
         contextual_suggested = [
             {"label": value, "source": "Kontext"}
             for value in _dedupe_benefit_terms(
@@ -182,16 +253,20 @@ def render(ctx: WizardContext) -> None:
                     *_confirmed_values_for_keywords(
                         ("benefit", "perk", "zusatz", "budget")
                     ),
-                    *_confirmed_values_for_keywords(
-                        ("remote", "hybrid", "onsite", "homeoffice", "arbeitsmodell")
-                    ),
                 ]
             )
         ]
-        ai_suggested_raw = st.session_state.get(_BENEFITS_AI_SUGGESTED_KEY, [])
+        ai_suggested_raw = st.session_state.get(SSKey.BENEFITS_LLM_SUGGESTED.value, [])
         ai_suggested = (
             [
-                {"label": str(item.get("label") or "").strip(), "source": "AI"}
+                {
+                    "label": str(item.get("label") or "").strip(),
+                    "source": "AI",
+                    "source_hint": str(item.get("source_hint") or "llm").strip(),
+                    "rationale": str(item.get("rationale") or "").strip(),
+                    "evidence": str(item.get("evidence") or "").strip(),
+                    "importance": str(item.get("importance") or "").strip(),
+                }
                 for item in ai_suggested_raw
                 if isinstance(item, dict)
                 and has_meaningful_value(str(item.get("label") or ""))
@@ -200,42 +275,126 @@ def render(ctx: WizardContext) -> None:
             else []
         )
 
-        selected_raw = st.session_state.get(_BENEFITS_SELECTED_COMPARE_KEY, [])
-        selected_labels = _dedupe_benefit_terms(
-            [str(item).strip() for item in selected_raw if has_meaningful_value(item)]
-            if isinstance(selected_raw, list)
-            else []
-        )
+        selected_labels = _read_selected_benefits()
 
-        st.markdown("### Einflussfaktoren")
-        st.caption("Gewählte Benefits werden in der Gehaltsprognose berücksichtigt.")
+        st.markdown("### Erkannte und ausgewählte Benefits")
+        st.caption(
+            "Gewählte Benefits werden in Folgeartefakten und in der Gehaltsprognose berücksichtigt."
+        )
         st.caption(f"{len(selected_labels)} ausgewählt")
         if selected_labels:
             st.markdown(" ".join(f"`{label}`" for label in selected_labels))
         else:
             st.caption("Noch keine Benefits ausgewählt.")
 
+        selected_occupation = get_esco_occupation_selected()
+        if isinstance(selected_occupation, dict) and selected_occupation.get("title"):
+            st.caption(
+                "ESCO-Kontext: "
+                f"{selected_occupation.get('title')} hilft bei der Plausibilisierung, "
+                "liefert aber keine kanonische Benefit-Taxonomie."
+            )
+
         render_compare_adopt_intro(
             adopt_target="Benefits",
-            canonical_target=_BENEFITS_SELECTED_COMPARE_KEY,
-            source_labels=("Jobspec", "Kontext", "AI")
-            if ai_suggested
-            else ("Jobspec", "Kontext"),
+            canonical_target="SSKey.BENEFITS_SELECTED",
+            source_labels=("Jobspec", "Kontext", "AI"),
+        )
+        st.number_input(
+            "Anzahl AI-Benefit-Vorschläge",
+            min_value=1,
+            max_value=8,
+            step=1,
+            key=SSKey.BENEFITS_SUGGEST_COUNT.value,
+        )
+        if st.button(
+            "AI-Benefit-Vorschläge generieren",
+            key=SSKey.BENEFITS_AI_GENERATE_CLICKED.value,
+        ):
+            existing_benefits = _dedupe_benefit_terms(
+                [
+                    *jobspec_benefit_terms,
+                    *_benefit_labels_from_suggestions(contextual_suggested),
+                    *selected_labels,
+                ]
+            )
+            settings = load_openai_settings()
+            suggestion_model = resolve_model_for_task(
+                task_kind=TASK_GENERATE_BENEFIT_SUGGESTIONS,
+                session_override=None,
+                settings=settings,
+            )
+            with st.spinner("Generiere Benefit-Vorschläge …"):
+                try:
+                    suggestion_pack, _usage = generate_benefit_suggestions(
+                        job=job,
+                        answers=get_answers(),
+                        existing_benefits=existing_benefits,
+                        target_benefit_count=int(
+                            st.session_state.get(SSKey.BENEFITS_SUGGEST_COUNT.value, 5)
+                        ),
+                        model=suggestion_model,
+                        language=str(
+                            st.session_state.get(SSKey.LANGUAGE.value, "de")
+                        ),
+                        store=bool(
+                            st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)
+                        ),
+                    )
+                except Exception:
+                    LOGGER.exception("Benefit suggestions could not be generated.")
+                    st.warning("AI-Benefit-Vorschläge konnten nicht erzeugt werden.")
+                else:
+                    blocked = {
+                        _normalize_benefit_term(label) for label in existing_benefits
+                    }
+                    merged_llm: list[dict[str, str]] = []
+                    seen: set[str] = set(blocked)
+                    for item in suggestion_pack.benefits:
+                        label = item.label.strip()
+                        normalized = _normalize_benefit_term(label)
+                        if not normalized or normalized in seen:
+                            continue
+                        merged_llm.append(item.model_dump(mode="json"))
+                        seen.add(normalized)
+                    st.session_state[SSKey.BENEFITS_LLM_SUGGESTED.value] = merged_llm
+                    if merged_llm:
+                        st.success(f"{len(merged_llm)} AI-Benefit(s) übernommen.")
+                    else:
+                        st.info("Keine zusätzlichen AI-Benefits gefunden.")
+
+        ai_suggested_raw = st.session_state.get(SSKey.BENEFITS_LLM_SUGGESTED.value, [])
+        ai_suggested = (
+            [
+                {
+                    "label": str(item.get("label") or "").strip(),
+                    "source": "AI",
+                    "source_hint": str(item.get("source_hint") or "llm").strip(),
+                    "rationale": str(item.get("rationale") or "").strip(),
+                    "evidence": str(item.get("evidence") or "").strip(),
+                    "importance": str(item.get("importance") or "").strip(),
+                }
+                for item in ai_suggested_raw
+                if isinstance(item, dict)
+                and has_meaningful_value(str(item.get("label") or ""))
+            ]
+            if isinstance(ai_suggested_raw, list)
+            else []
         )
         bulk_buffer = render_compact_requirement_board(
             title_jobspec="Aus Jobspec extrahiert",
-            jobspec_items=jobspec_suggested,
+            jobspec_items=jobspec_suggestions,
             title_esco="Bereits bestätigt / Kontext",
             esco_items=contextual_suggested,
             title_llm="AI-Vorschläge",
             llm_items=ai_suggested,
             selected_labels=selected_labels,
-            selection_state_key=f"{_BENEFITS_SELECTED_COMPARE_KEY}.bulk_buffer",
+            selection_state_key=SSKey.BENEFITS_SELECTED_BULK_BUFFER.value,
             key_prefix="benefits.board",
         )
         if st.button("Ausgewählte Benefits übernehmen", width="stretch"):
             merged = _dedupe_benefit_terms([*selected_labels, *bulk_buffer])
-            st.session_state[_BENEFITS_SELECTED_COMPARE_KEY] = merged
+            st.session_state[SSKey.BENEFITS_SELECTED.value] = merged
             st.success(f"{len(merged)} Benefit(s) gespeichert.")
 
         confirmed_salary = _confirmed_values_for_keywords(
@@ -268,15 +427,13 @@ def render(ctx: WizardContext) -> None:
         selected_benefits_for_forecast = _dedupe_benefit_terms(
             [
                 str(item)
-                for item in st.session_state.get(_BENEFITS_SELECTED_COMPARE_KEY, [])
+                for item in st.session_state.get(SSKey.BENEFITS_SELECTED.value, [])
                 if has_meaningful_value(item)
             ]
-            if isinstance(st.session_state.get(_BENEFITS_SELECTED_COMPARE_KEY, []), list)
+            if isinstance(st.session_state.get(SSKey.BENEFITS_SELECTED.value, []), list)
             else []
         )
-        benefits_for_forecast = selected_benefits_for_forecast or [
-            value.strip() for value in job.benefits if has_meaningful_value(value)
-        ]
+        benefits_for_forecast = selected_benefits_for_forecast or jobspec_benefit_terms
         if not benefits_for_forecast:
             st.caption(
                 "Keine Benefits aus der Anzeige erkannt – Prognose wird ohne Benefit-Filter berechnet."

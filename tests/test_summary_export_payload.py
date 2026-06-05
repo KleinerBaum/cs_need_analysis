@@ -78,7 +78,10 @@ def test_build_structured_export_payload_keeps_legacy_export_without_esco(
 
     payload = SUMMARY_MODULE._build_structured_export_payload(_brief())
 
-    assert payload == {"job_extract": {"job_title": "Engineer"}, "answers": {}}
+    assert payload["job_extract"] == {"job_title": "Engineer"}
+    assert payload["answers"] == {}
+    assert payload["interview_process"]["candidate_stages"] == []
+    assert payload["interview_process"]["selected_values"] == []
 
 
 def test_build_structured_export_payload_preserves_saved_tasks_and_skills(
@@ -444,6 +447,80 @@ def test_build_structured_export_payload_includes_salary_artifacts_when_availabl
     assert payload["salary_forecast"] == salary_forecast
     assert payload["salary_scenarios"] == scenario_rows[:100]
     assert len(payload["salary_scenarios"]) == 100
+
+
+def test_build_structured_export_payload_includes_interview_process(
+    monkeypatch,
+) -> None:
+    flow = {
+        "contacts": [
+            {
+                "role": "Authority",
+                "name": "A. Example",
+                "phone": "",
+                "email": "a.example@example.com",
+                "participates_in_interview": True,
+                "interview_datetime": "2026-06-05T09:00:00",
+            }
+        ],
+        "info_loop_items": ["Interview-Feedback bündeln"],
+        "earliest_start_date": "2026-07-01",
+        "latest_start_date": "2026-08-01",
+        "selected_value_ids": [],
+    }
+    brief = VacancyBrief(
+        one_liner="One line",
+        hiring_context="Context",
+        role_summary="Summary",
+        top_responsibilities=[],
+        must_have=[],
+        nice_to_have=[],
+        dealbreakers=[],
+        interview_plan=[],
+        evaluation_rubric=[],
+        sourcing_channels=[],
+        risks_open_questions=[],
+        job_ad_draft="Draft",
+        structured_data=VacancyStructuredData(
+            job_extract={
+                "job_title": "Engineer",
+                "recruitment_steps": [
+                    {"name": "HR Screen", "details": "30 Minuten"},
+                    {"name": "Fachinterview"},
+                ],
+            },
+            answers={},
+        ),
+    )
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.ESCO_CONFIG.value: {},
+                SSKey.ESCO_SKILLS_SELECTED_MUST.value: [],
+                SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
+                SSKey.INTERVIEW_INTERNAL_FLOW.value: flow,
+            }
+        ),
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "get_esco_occupation_selected", lambda: None)
+
+    payload = SUMMARY_MODULE._build_structured_export_payload(brief)
+
+    interview_process = payload["interview_process"]
+    assert interview_process["candidate_stages"] == [
+        "HR Screen: 30 Minuten",
+        "Fachinterview",
+    ]
+    assert interview_process["internal_flow"]["info_loop_items"] == [
+        "Interview-Feedback bündeln"
+    ]
+    assert any(
+        row["Feld"] == "Authority Ansprechpartner"
+        and row["Wert"] == "A. Example"
+        for row in interview_process["selected_values"]
+    )
 
 
 def test_build_esco_mapping_report_rows_uses_expected_fields_and_sorting(

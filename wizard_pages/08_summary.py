@@ -22,6 +22,13 @@ from constants import (
     SUMMARY_ARTIFACT_IDS,
     SUMMARY_ARTIFACT_LEGACY_ALIASES,
 )
+from interview_process import (
+    build_candidate_stage_values,
+    build_interview_export_payload,
+    build_interview_value_rows,
+    default_selected_interview_value_ids,
+    normalize_interview_internal_flow,
+)
 from esco_client import EscoClient, EscoClientError
 from llm_client import (
     TASK_GENERATE_EMPLOYMENT_CONTRACT,
@@ -266,6 +273,7 @@ class SummaryArtifactState:
     brief: VacancyBrief | None
     selected_role_tasks: list[str]
     selected_skills: list[str]
+    selected_benefits: list[str]
     input_fingerprint: str
     last_brief_fingerprint: str
     is_dirty: bool
@@ -560,6 +568,7 @@ def _build_summary_input_fingerprint(
     answers: dict[str, Any],
     selected_role_tasks: list[str],
     selected_skills: list[str],
+    selected_benefits: list[str],
     esco_occupation_selected: dict[str, str],
     esco_match_explainability: EscoMatchExplainability,
     esco_selected_skills_must: list[dict[str, str]],
@@ -570,6 +579,7 @@ def _build_summary_input_fingerprint(
         "answers": answers,
         "selected_role_tasks": selected_role_tasks,
         "selected_skills": selected_skills,
+        "selected_benefits": selected_benefits,
         "esco_occupation_selected": esco_occupation_selected,
         "esco_match_explainability": esco_match_explainability,
         "esco_selected_skills_must": esco_selected_skills_must,
@@ -982,6 +992,26 @@ def _build_esco_mapping_report_csv(rows: list[dict[str, str]]) -> bytes:
 
 def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
     payload = dict(brief.structured_data.model_dump(mode="json", exclude_none=True))
+    try:
+        export_job = JobAdExtract.model_validate(brief.structured_data.job_extract)
+    except Exception:
+        export_job = JobAdExtract()
+    export_answers = dict(brief.structured_data.answers)
+    plan_payload = st.session_state.get(SSKey.QUESTION_PLAN.value)
+    export_plan: QuestionPlan | None = None
+    if isinstance(plan_payload, dict):
+        try:
+            export_plan = QuestionPlan.model_validate(plan_payload)
+        except Exception:
+            export_plan = None
+    payload["interview_process"] = build_interview_export_payload(
+        job=export_job,
+        answers=export_answers,
+        plan=export_plan,
+        internal_flow=normalize_interview_internal_flow(
+            st.session_state.get(SSKey.INTERVIEW_INTERNAL_FLOW.value, {})
+        ),
+    )
     occupation_profile_raw = st.session_state.get(SSKey.OCCUPATION_PROFILE.value)
     if isinstance(occupation_profile_raw, dict):
         try:
@@ -1180,6 +1210,7 @@ def _build_brief_structured_preview_payload(brief: VacancyBrief) -> dict[str, An
         "answers",
         "selected_role_tasks",
         "selected_skills",
+        "selected_benefits",
     )
     return {
         key: export_payload[key]
@@ -1314,6 +1345,8 @@ def _build_selection_rows(
         add_row("Skills", "Nice-to-have", value, "Jobspec", False)
     for value in job.benefits:
         add_row("Benefits", "Benefit", value, "Jobspec", False)
+    for value in _read_saved_selection_labels(SSKey.BENEFITS_SELECTED):
+        add_row("Benefits", "Ausgewählter Benefit", value, "Auswahl", False)
     for contact in job.contacts:
         add_row("Kontakt", "Ansprechpartner", contact.name or "", "Jobspec", True)
         add_row("Kontakt", "Kontaktrolle", contact.role or "", "Jobspec", False)
@@ -1880,6 +1913,7 @@ def _build_summary_view_model() -> SummaryViewModel | None:
 
     selected_role_tasks = _read_saved_selection_labels(SSKey.ROLE_TASKS_SELECTED)
     selected_skills = _read_saved_selection_labels(SSKey.SKILLS_SELECTED)
+    selected_benefits = _read_saved_selection_labels(SSKey.BENEFITS_SELECTED)
     meta = _build_summary_meta(job)
     session_override = get_model_override()
     settings = load_openai_settings()
@@ -1893,6 +1927,7 @@ def _build_summary_view_model() -> SummaryViewModel | None:
         answers=answers,
         selected_role_tasks=selected_role_tasks,
         selected_skills=selected_skills,
+        selected_benefits=selected_benefits,
         esco_occupation_selected=_read_selected_esco_occupation(),
         esco_match_explainability=_read_esco_match_explainability(),
         esco_selected_skills_must=_read_esco_skill_refs(
@@ -1905,6 +1940,7 @@ def _build_summary_view_model() -> SummaryViewModel | None:
     artifacts = _build_summary_artifact_state(
         selected_role_tasks=selected_role_tasks,
         selected_skills=selected_skills,
+        selected_benefits=selected_benefits,
         input_fingerprint=input_fingerprint,
     )
     status = _build_summary_status(
@@ -1994,6 +2030,7 @@ def _build_summary_artifact_state(
     *,
     selected_role_tasks: list[str],
     selected_skills: list[str],
+    selected_benefits: list[str],
     input_fingerprint: str,
 ) -> SummaryArtifactState:
     brief_dict = st.session_state.get(SSKey.BRIEF.value)
@@ -2013,6 +2050,7 @@ def _build_summary_artifact_state(
         brief=brief_for_snapshot,
         selected_role_tasks=selected_role_tasks,
         selected_skills=selected_skills,
+        selected_benefits=selected_benefits,
         input_fingerprint=input_fingerprint,
         last_brief_fingerprint=last_brief_fingerprint,
         is_dirty=is_dirty,
@@ -2215,6 +2253,56 @@ def _build_summary_fact_rows(
                 _status_for_classification_value(meta.selected_occupation_title),
             ),
         )
+
+    internal_flow = normalize_interview_internal_flow(
+        st.session_state.get(SSKey.INTERVIEW_INTERNAL_FLOW.value, {})
+    )
+    candidate_stages = build_candidate_stage_values(
+        job=job,
+        answers=answers,
+        plan=plan,
+    )
+    rows.append(
+        SummaryFactsRow(
+            "Interview",
+            "Interviewphasen",
+            " | ".join(candidate_stages) if candidate_stages else "Nicht beantwortet",
+            "Jobspec" if job.recruitment_steps else "Intake-Antwort",
+            _status_for_value(candidate_stages),
+        )
+    )
+
+    interview_value_rows = build_interview_value_rows(
+        job=job,
+        answers=answers,
+        plan=plan,
+        internal_flow=internal_flow,
+    )
+    selected_ids = internal_flow["selected_value_ids"] or default_selected_interview_value_ids(
+        interview_value_rows
+    )
+    selected_id_set = set(selected_ids)
+    existing_fact_keys = {(row.bereich, row.feld, row.quelle) for row in rows}
+    for value_row in interview_value_rows:
+        if value_row["id"] not in selected_id_set:
+            continue
+        row_key = (
+            value_row["Bereich"],
+            value_row["Feld"],
+            f"{value_row['Quelle']} / Interview-Wert",
+        )
+        if row_key in existing_fact_keys:
+            continue
+        rows.append(
+            SummaryFactsRow(
+                value_row["Bereich"],
+                value_row["Feld"],
+                value_row["Wert"],
+                row_key[2],
+                value_row["Status"],
+            )
+        )
+        existing_fact_keys.add(row_key)
 
     if plan is None:
         return rows

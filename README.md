@@ -30,6 +30,7 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 - Unternehmensschritt mit Homepage-Enrichment (Beta): Die aus dem Jobspec extrahierte Arbeitgeber-URL kann per Buttons für **Über uns**, **Impressum** und **Vision/Mission** analysiert werden; essenzielle Textausschnitte werden rechts angezeigt, mit offenen Wizard-Fragen abgeglichen, im Session-State gespeichert und in die Brief-Generierung im Summary-Schritt eingespeist.
 - Der Unternehmensschritt umfasst neben dem Unternehmenskontext auch den Teamkontext inkl. Team-Fragen und enthält dafür ein zweizoniges **Role-context enrichment (ESCO)**-Muster: links klar als **Inferred suggestion/context** markierte Hinweise (inkl. Match-Provenance/-Confidence, falls vorhanden), rechts der Bereich **Confirmed input** aus der kanonischen Team-Notiz. Die Übernahme erfolgt gesammelt über eine eindeutige Aktion „Ausgewählte Vorschläge als confirmed selection übernehmen“.
 - Primäre Fakten-Tabelle in der Summary (Bereich/Feld/Wert/Quelle/Status) unterhalb des Recruiting Briefs mit 2/3-Tabellenbereich und 1/3 Filterspalte (Suche/Status), plus sekundärer Kompaktüberblick und ESCO Mapping Report (JSON/CSV-Export).
+- Der Schritt **Interviewprozess** ist als Workflow Board organisiert: identifizierte Interview-Werte, kandidatinnen-/kandidatenorientierter Prozess, Candidate Communication, interne Rollen/Timing und Konsistenzcheck. Relevante Werte können für Summary und Export selektiv markiert werden.
 - In den Schritten **Rolle & Aufgaben** sowie **Skills & Anforderungen** läuft die Übernahme über „**Vergleichen & übernehmen**“-Tabellen: Vorschläge aus Jobspec, ESCO und AI werden nebeneinander gestellt und selektiv übernommen; im Skills-Schritt zusätzlich mit Quellen-Badges (`Jobspec`, `ESCO essential`, `ESCO optional`, `AI suggestion`) und kanonischer Semantik mit **Inferred suggestion/context** und **confirmed selection** (`Confirm essential as confirmed selection`, `Confirm optional as confirmed selection`).
 - Für **Rolle & Aufgaben**, **Skills & Anforderungen** und **Benefits & Rahmenbedingungen** gilt dieselbe Blockreihenfolge im Step-Shell: **(1) Aus Jobspec extrahiert → (2) Quellenvergleich → (3) Salary Forecast → (4) Offene Fragen → (5) Review**. Diese Reihenfolge ist bewusst vereinheitlicht und per UI-Contract-Tests abgesichert.
 - Session-basiertes LLM-Response-Caching mit Cache-Hinweisen in Intake/Summary (DE/EN), inkl. Cache-Status für Folgeartefakte.
@@ -44,6 +45,8 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 4. **Skills & Anforderungen**
 5. **Benefits & Rahmenbedingungen**
 6. **Interviewprozess**
+   - Identifizierte Interview-Werte prüfen und für Summary/Export markieren
+   - Prozessfragen, Candidate Communication sowie interne Rollen/Timing erfassen
 7. **Zusammenfassung** (integrierte Readiness-Ansicht mit Fakten, Aktionen, Ergebnissen und Export)
 
 Hinweis: Der frühere Schritt `jobspec_review` ist nur noch als Legacy-Modul vorhanden und nicht routbar.
@@ -341,6 +344,7 @@ Dieser Smoke-Test ist der bevorzugte Verifikationspfad für Änderungen an Model
 - Boolean Search Pack: JSON, Markdown
 - Arbeitsvertrag (Template Draft): JSON, DOCX
 - ESCO Mapping Report: CSV (UTF-8), JSON
+- Strukturierter Summary-Export enthält `interview_process` mit Kandidat:innen-Stages, ausgewählten Interview-Werten und normalisiertem internem Flow.
 
 ### Strukturierter Export (Summary)
 

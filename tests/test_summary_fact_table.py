@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from constants import AnswerType, SSKey
-from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
+from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep, RecruitmentStep
 
 
 SUMMARY_PATH = Path(__file__).resolve().parents[1] / "wizard_pages" / "08_summary.py"
@@ -96,6 +96,75 @@ def test_build_summary_fact_rows_include_answer_rows() -> None:
     assert team_row["Wert"] == "7"
     assert team_row["Quelle"] == "Intake-Antwort"
     assert team_row["Status"] == "Vollständig"
+
+
+def test_build_summary_fact_rows_include_interview_phases_from_jobspec(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(session_state={SSKey.INTERVIEW_INTERNAL_FLOW.value: {}}),
+    )
+    job = JobAdExtract(
+        job_title="Data Engineer",
+        recruitment_steps=[
+            RecruitmentStep(name="HR Screen", details="30 Minuten"),
+            RecruitmentStep(name="Fachinterview"),
+        ],
+    )
+
+    rows = SUMMARY_MODULE._build_summary_fact_rows(
+        job=job,
+        answers={},
+        plan=None,
+        artifacts=_artifacts(),
+        meta=_meta(selected_occupation_title=None),
+    )
+
+    interview_row = next(row.to_dict() for row in rows if row.feld == "Interviewphasen")
+    assert interview_row["Bereich"] == "Interview"
+    assert interview_row["Wert"] == "HR Screen: 30 Minuten | Fachinterview"
+    assert interview_row["Status"] == "Vollständig"
+
+
+def test_build_summary_fact_rows_include_selected_interview_flow_values(
+    monkeypatch,
+) -> None:
+    flow = {
+        "contacts": [
+            {
+                "role": "Money",
+                "name": "M. Example",
+                "phone": "01234",
+                "email": "m.example@example.com",
+                "participates_in_interview": True,
+                "interview_datetime": "2026-06-05T09:00:00",
+            }
+        ],
+        "info_loop_items": ["Interviewtag abstimmen"],
+        "earliest_start_date": "2026-07-01",
+        "latest_start_date": "2026-08-01",
+        "selected_value_ids": [],
+    }
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(session_state={SSKey.INTERVIEW_INTERNAL_FLOW.value: flow}),
+    )
+
+    rows = SUMMARY_MODULE._build_summary_fact_rows(
+        job=JobAdExtract(job_title="Data Engineer"),
+        answers={},
+        plan=None,
+        artifacts=_artifacts(),
+        meta=_meta(selected_occupation_title=None),
+    )
+
+    fields = {row.feld: row.to_dict() for row in rows}
+    assert fields["Recruiting-Infoloop"]["Bereich"] == "Candidate Communication"
+    assert fields["Money Ansprechpartner"]["Wert"] == "M. Example"
+    assert fields["Frühestmöglicher Startzeitpunkt"]["Wert"] == "2026-07-01"
 
 
 def test_build_summary_fact_rows_marks_missing_values_as_fehlend() -> None:

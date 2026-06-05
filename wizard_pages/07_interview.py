@@ -8,7 +8,13 @@ from typing import Any
 import streamlit as st
 
 from constants import SSKey
+from interview_process import (
+    build_interview_value_rows,
+    default_selected_interview_value_ids,
+    normalize_interview_internal_flow,
+)
 from schemas import JobAdExtract, QuestionStep, RecruitmentStep
+from state import get_answers
 from ui_layout import render_step_shell, responsive_three_columns, responsive_two_columns
 from ui_components import (
     build_step_review_payload,
@@ -38,20 +44,9 @@ def _normalize_values(values: list[str]) -> list[str]:
 
 
 def _read_internal_flow_state() -> dict[str, Any]:
-    raw = st.session_state.get(SSKey.INTERVIEW_INTERNAL_FLOW.value, {})
-    if not isinstance(raw, dict):
-        return {
-            "contacts": [],
-            "info_loop_items": [],
-            "earliest_start_date": None,
-            "latest_start_date": None,
-        }
-    return {
-        "contacts": raw.get("contacts", []),
-        "info_loop_items": raw.get("info_loop_items", []),
-        "earliest_start_date": raw.get("earliest_start_date"),
-        "latest_start_date": raw.get("latest_start_date"),
-    }
+    return normalize_interview_internal_flow(
+        st.session_state.get(SSKey.INTERVIEW_INTERNAL_FLOW.value, {})
+    )
 
 
 def _extract_contact_names(recruitment_steps: list[RecruitmentStep]) -> list[str]:
@@ -325,10 +320,76 @@ def _render_internal_process_container(
                     st.caption(", ".join(selected_pills))
 
     st.session_state[SSKey.INTERVIEW_INTERNAL_FLOW.value] = {
-        "contacts": updated_contacts,
-        "info_loop_items": selected_pills,
-        "earliest_start_date": earliest_start.isoformat(),
-        "latest_start_date": latest_start.isoformat(),
+        **internal_flow,
+        "contacts": updated_contacts if show_internal_roles else existing_contacts,
+        "info_loop_items": (
+            selected_pills if show_info_loop else internal_flow["info_loop_items"]
+        ),
+        "earliest_start_date": (
+            earliest_start.isoformat()
+            if show_internal_roles
+            else internal_flow["earliest_start_date"]
+        ),
+        "latest_start_date": (
+            latest_start.isoformat()
+            if show_internal_roles
+            else internal_flow["latest_start_date"]
+        ),
+    }
+
+
+def _render_interview_value_board(
+    *,
+    job: JobAdExtract,
+    plan: Any,
+) -> None:
+    rows = build_interview_value_rows(
+        job=job,
+        answers=get_answers(),
+        plan=plan,
+        internal_flow=_read_internal_flow_state(),
+    )
+    if not rows:
+        st.info("Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions.")
+        return
+
+    st.dataframe(
+        [
+            {
+                "Bereich": row["Bereich"],
+                "Feld": row["Feld"],
+                "Wert": row["Wert"],
+                "Quelle": row["Quelle"],
+                "Status": row["Status"],
+            }
+            for row in rows
+        ],
+        width="stretch",
+        hide_index=True,
+        column_order=["Bereich", "Feld", "Wert", "Quelle", "Status"],
+    )
+
+    option_by_label = {
+        f"{row['Bereich']} · {row['Feld']} — {row['Wert']}": row["id"]
+        for row in rows
+    }
+    label_by_id = {row_id: label for label, row_id in option_by_label.items()}
+    default_ids = default_selected_interview_value_ids(rows)
+    internal_flow = _read_internal_flow_state()
+    selected_ids = [
+        row_id
+        for row_id in internal_flow["selected_value_ids"]
+        if row_id in label_by_id
+    ] or default_ids
+    selected_labels = st.multiselect(
+        "Für Summary/Export verwenden",
+        options=list(option_by_label),
+        default=[label_by_id[row_id] for row_id in selected_ids],
+        key="interview.internal.selected_value_labels",
+    )
+    st.session_state[SSKey.INTERVIEW_INTERNAL_FLOW.value] = {
+        **internal_flow,
+        "selected_value_ids": [option_by_label[label] for label in selected_labels],
     }
 
 
@@ -452,18 +513,7 @@ def render(ctx: WizardContext) -> None:
     step = next((s for s in plan.steps if s.step_key == "interview"), None)
 
     def _render_extracted_slot() -> None:
-        shown = False
-        if job.recruitment_steps:
-            for s in job.recruitment_steps:
-                if not has_meaningful_value(s.name):
-                    continue
-                details = f"– {s.details}" if has_meaningful_value(s.details) else ""
-                st.write(f"- **{s.name}** {details}")
-                shown = True
-        if not shown:
-            st.info(
-                "Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions."
-            )
+        _render_interview_value_board(job=job, plan=plan)
 
     def _render_main_slot() -> None:
         if hasattr(st, "markdown"):
@@ -475,17 +525,8 @@ def render(ctx: WizardContext) -> None:
             st.info(
                 "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
             )
-            return
-
-        render_question_step(step)
-
-    def _render_review_slot() -> None:
-        render_standard_step_review(
-            step,
-            render_mode=resolve_standard_review_mode(context=ReviewRenderContext.STEP_FORM),
-        )
-        if not hasattr(st, "container"):
-            return
+        else:
+            render_question_step(step)
 
         if hasattr(st, "markdown"):
             st.markdown("#### Candidate Communication")
@@ -493,6 +534,11 @@ def render(ctx: WizardContext) -> None:
 
         _render_internal_roles_container(job)
 
+    def _render_review_slot() -> None:
+        render_standard_step_review(
+            step,
+            render_mode=resolve_standard_review_mode(context=ReviewRenderContext.STEP_FORM),
+        )
         _render_interview_consistency_checklist(job=job, step=step)
 
     shell_kwargs: dict[str, Any] = {
@@ -508,7 +554,7 @@ def render(ctx: WizardContext) -> None:
         ),
         "step": step,
         "extracted_from_jobspec_slot": _render_extracted_slot,
-        "extracted_from_jobspec_label": "Details",
+        "extracted_from_jobspec_label": "Identifizierte Interview-Werte",
         "extracted_from_jobspec_use_expander": False,
         "open_questions_slot": _render_main_slot,
         "review_slot": _render_review_slot,

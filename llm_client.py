@@ -54,6 +54,7 @@ from model_capabilities import (
     supports_verbosity,
 )
 from schemas import (
+    BenefitSuggestionPack,
     BooleanSearchPack,
     EmploymentContractDraft,
     InterviewPrepSheetHR,
@@ -92,6 +93,7 @@ TASK_GENERATE_INTERVIEW_SHEET_HM = "generate_interview_sheet_hm"
 TASK_GENERATE_BOOLEAN_SEARCH = "generate_boolean_search"
 TASK_GENERATE_EMPLOYMENT_CONTRACT = "generate_employment_contract"
 TASK_GENERATE_REQUIREMENT_GAP_SUGGESTIONS = "generate_requirement_gap_suggestions"
+TASK_GENERATE_BENEFIT_SUGGESTIONS = "generate_benefit_suggestions"
 TASK_GENERATE_ROLE_TASKS_SALARY_FORECAST = "generate_role_tasks_salary_forecast"
 
 _OTHER_OPTION = "Sonstiges"
@@ -326,6 +328,11 @@ def build_extract_job_ad_messages(
         "Priorität 1: finde den Jobtitel auch dann, wenn er in einer Headline, "
         "einem Linktitel oder einer tabellarischen Kopfzeile steht. "
         "Erkenne insbesondere die Arbeitgeber-Homepage (company_website), falls vorhanden. "
+        "Mappe Abschnitte wie 'Was wir dir bieten', 'Benefits', 'Unser Angebot', "
+        "'Das bieten wir' und 'Rahmenbedingungen' explizit nach benefits[]. "
+        "Dazu gehören unter anderem Trainings, Mentoring, persönliche Entwicklung, "
+        "Tools und GenAI-/Tech-Zugang, flexible Arbeitsmodelle, Corporate Benefits, "
+        "Vielfalt/Arbeitsumfeld sowie Gestaltungsspielraum oder Thought Leadership. "
         "Behalte Formulierungen aus dem Original, wo sinnvoll.\n\n"
         "=== JOBSPEC START ===\n"
         f"{job_text}\n"
@@ -870,6 +877,7 @@ def resolve_model_for_task(
         TASK_GENERATE_BOOLEAN_SEARCH: resolved_settings.medium_reasoning_model,
         TASK_GENERATE_EMPLOYMENT_CONTRACT: resolved_settings.high_reasoning_model,
         TASK_GENERATE_REQUIREMENT_GAP_SUGGESTIONS: resolved_settings.medium_reasoning_model,
+        TASK_GENERATE_BENEFIT_SUGGESTIONS: resolved_settings.medium_reasoning_model,
         TASK_GENERATE_ROLE_TASKS_SALARY_FORECAST: resolved_settings.medium_reasoning_model,
     }
     routed_model = model_by_task.get(task_kind, "").strip()
@@ -1445,6 +1453,7 @@ def generate_vacancy_brief(
     model: str,
     selected_role_tasks: Optional[List[str]] = None,
     selected_skills: Optional[List[str]] = None,
+    selected_benefits: Optional[List[str]] = None,
     company_website_research: Optional[CompanyWebsiteResearch] = None,
     language: str = DEFAULT_LANGUAGE,
     store: bool = False,
@@ -1475,6 +1484,8 @@ def generate_vacancy_brief(
         f"{json.dumps(job.model_dump(mode='json'), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
         "Manager-Antworten (JSON):\n"
         f"{json.dumps(answers, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
+        "Explizit ausgewählte Benefits (JSON):\n"
+        f"{json.dumps(selected_benefits or [], ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
         "Firmen-Homepage-Research (JSON):\n"
         f"{json.dumps((company_website_research.model_dump(mode='json') if company_website_research is not None else {}), ensure_ascii=False, sort_keys=True, separators=(',',':'))}\n\n"
         "Wichtig: Falls wichtige Informationen fehlen, schreibe sie unter risks_open_questions."
@@ -1486,6 +1497,7 @@ def generate_vacancy_brief(
             "answers": answers,
             "selected_role_tasks": selected_role_tasks or [],
             "selected_skills": selected_skills or [],
+            "selected_benefits": selected_benefits or [],
             "company_website_research": (
                 company_website_research.model_dump(mode="json")
                 if company_website_research is not None
@@ -1538,6 +1550,7 @@ def generate_vacancy_brief(
         "answers": answers,
         "selected_role_tasks": selected_role_tasks or None,
         "selected_skills": selected_skills or None,
+        "selected_benefits": selected_benefits or None,
         "company_website_research": (
             company_website_research.model_dump(mode="json")
             if company_website_research is not None
@@ -2192,6 +2205,110 @@ def generate_requirement_gap_suggestions(
     result = cast(RequirementSuggestionPack, parsed)
     result.skills = result.skills[:capped_skill_count]
     result.tasks = result.tasks[:capped_task_count]
+    cache[cache_key] = {"result": result.model_dump(mode="json")}
+    return result, usage
+
+
+def generate_benefit_suggestions(
+    *,
+    job: JobAdExtract,
+    answers: Dict[str, Any],
+    existing_benefits: list[str],
+    target_benefit_count: int,
+    model: str,
+    language: str = DEFAULT_LANGUAGE,
+    store: bool = False,
+    temperature: float | None = None,
+) -> tuple[BenefitSuggestionPack, dict[str, Any]]:
+    """Suggest missing Benefits/Rahmenbedingungen using strict structured outputs."""
+
+    runtime_config = _resolve_runtime_config(
+        task_kind=TASK_GENERATE_BENEFIT_SUGGESTIONS,
+        session_override=model,
+    )
+    task_limits_suffix = build_task_prompt_limits_suffix(
+        max_bullets_per_field=runtime_config.task_max_bullets_per_field,
+        max_sentences_per_field=runtime_config.task_max_sentences_per_field,
+        max_output_tokens=runtime_config.task_max_output_tokens,
+    )
+    capped_benefit_count = max(0, min(target_benefit_count, 8))
+    system = (
+        "Du bist ein Senior Recruiting Analyst. "
+        "Identifiziere fehlende oder noch unklare Benefits und Rahmenbedingungen "
+        "für das Offer-Narrativ auf Basis von Jobspec und bisherigen Antworten. "
+        "Liefere ausschließlich strukturierte Ausgabe entsprechend Schema. "
+        "Keine Duplikate, keine bereits vorhandenen Einträge und maximal die geforderte Anzahl. "
+        "Setze source_hint immer auf 'llm'. "
+        "Halte rationale und evidence kurz, präzise und belegbar aus dem Kontext. "
+        f"Sprache: {language}."
+        f"{task_limits_suffix}"
+    )
+    user = (
+        "Erzeuge ein BenefitSuggestionPack.\n\n"
+        f"Zielanzahl Benefits: {capped_benefit_count}\n\n"
+        "Regeln:\n"
+        "- label als kurzer, konkreter Benefit- oder Rahmenbedingungsbegriff.\n"
+        "- importance nur high/medium/low.\n"
+        "- source_hint immer 'llm'.\n"
+        "- Nur Vorschläge, die im Kontext fehlen oder als Klärpunkt sinnvoll sind.\n"
+        "- Keine Gehaltszahlen erfinden.\n\n"
+        "Jobspec-Extraktion (JSON):\n"
+        f"{json.dumps(job.model_dump(mode='json'), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
+        "Manager-Antworten (JSON):\n"
+        f"{json.dumps(answers, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
+        "Vorhandene Benefits (JSON):\n"
+        f"{json.dumps(existing_benefits, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}"
+    )
+
+    normalized_content = _canonicalize_for_cache(
+        {
+            "job": job.model_dump(mode="json"),
+            "answers": answers,
+            "existing_benefits": existing_benefits,
+            "target_benefit_count": capped_benefit_count,
+        }
+    )
+    cache_key = _build_llm_cache_key(
+        task_kind=TASK_GENERATE_BENEFIT_SUGGESTIONS,
+        resolved_model=runtime_config.resolved_model,
+        language=language,
+        reasoning_effort=runtime_config.reasoning_effort,
+        verbosity=runtime_config.verbosity,
+        store=store,
+        normalized_content=normalized_content,
+        schema_version=VACANCY_SCHEMA_VERSION,
+    )
+    cache = _get_session_response_cache()
+    cached_entry = cache.get(cache_key)
+    if isinstance(cached_entry, dict):
+        cached_result = cached_entry.get("result")
+        if isinstance(cached_result, dict):
+            try:
+                parsed_cached = BenefitSuggestionPack.model_validate(cached_result)
+            except ValidationError:
+                _invalidate_cache_entry_for_validation_error(
+                    cache=cache,
+                    cache_key=cache_key,
+                    task_kind=TASK_GENERATE_BENEFIT_SUGGESTIONS,
+                    model_name=runtime_config.resolved_model,
+                )
+            else:
+                return parsed_cached, _cached_usage(cache_key=cache_key)
+
+    parsed, usage = _generate_structured_with_fallback(
+        task_kind=TASK_GENERATE_BENEFIT_SUGGESTIONS,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        out_model=BenefitSuggestionPack,
+        fallback_payload={"benefits": []},
+        model=model,
+        store=store,
+        temperature=temperature,
+    )
+    result = cast(BenefitSuggestionPack, parsed)
+    result.benefits = result.benefits[:capped_benefit_count]
     cache[cache_key] = {"result": result.model_dump(mode="json")}
     return result, usage
 

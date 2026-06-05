@@ -108,6 +108,13 @@ RESET_EXPECTATIONS: dict[SSKey, object] = {
     SSKey.ROLE_TASKS_LLM_SUGGESTED: [],
     SSKey.ROLE_TASKS_SELECTED: [],
     SSKey.ROLE_TASKS_SUGGEST_COUNT: 5,
+    SSKey.INTERVIEW_INTERNAL_FLOW: {
+        "contacts": [],
+        "info_loop_items": [],
+        "earliest_start_date": None,
+        "latest_start_date": None,
+        "selected_value_ids": [],
+    },
     SSKey.SKILLS_JOBSPEC_SUGGESTED: [],
     SSKey.SKILLS_LLM_SUGGESTED: [],
     SSKey.SKILLS_SELECTED: [],
@@ -152,6 +159,13 @@ def test_reset_vacancy_clears_progressive_disclosure_state(
         SSKey.JOB_AD_DRAFT_CUSTOM.value: "draft",
         SSKey.JOB_AD_LAST_USAGE.value: {"tokens": 12},
         SSKey.ESCO_SELECTED_OCCUPATION_URI.value: "http://data.europa.eu/esco/occupation/123",
+        SSKey.INTERVIEW_INTERNAL_FLOW.value: {
+            "contacts": [{"role": "Money", "name": "M. Example"}],
+            "info_loop_items": ["Interviewtag abstimmen"],
+            "earliest_start_date": "2026-06-01",
+            "latest_start_date": "2026-07-01",
+            "selected_value_ids": ["abc"],
+        },
         SSKey.LAST_ERROR.value: "error",
         SSKey.CURRENT_STEP.value: "summary",
     }

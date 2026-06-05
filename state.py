@@ -33,6 +33,7 @@ from constants import (
     STEPS,
     SUMMARY_SESSION_KEY_LEGACY_ALIASES,
 )
+from interview_process import INTERVIEW_INTERNAL_FLOW_DEFAULT
 from question_progress import AnswerMeta, AnswerMetaMap, value_hash
 from schemas import EscoConceptRef, EscoMappingReport, EscoSuggestionItem
 from settings_openai import load_openai_settings
@@ -300,12 +301,7 @@ def init_session_state() -> None:
         SSKey.ROLE_TASKS_LLM_SUGGESTED.value: [],
         SSKey.ROLE_TASKS_SELECTED.value: [],
         SSKey.ROLE_TASKS_SUGGEST_COUNT.value: 5,
-        SSKey.INTERVIEW_INTERNAL_FLOW.value: {
-            "contacts": [],
-            "info_loop_items": [],
-            "earliest_start_date": None,
-            "latest_start_date": None,
-        },
+        SSKey.INTERVIEW_INTERNAL_FLOW.value: dict(INTERVIEW_INTERNAL_FLOW_DEFAULT),
         SSKey.SKILLS_JOBSPEC_SUGGESTED.value: [],
         SSKey.SKILLS_LLM_SUGGESTED.value: [],
         SSKey.SKILLS_SELECTED.value: [],
@@ -453,12 +449,9 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.ROLE_TASKS_LLM_SUGGESTED.value] = []
     st.session_state[SSKey.ROLE_TASKS_SELECTED.value] = []
     st.session_state[SSKey.ROLE_TASKS_SUGGEST_COUNT.value] = 5
-    st.session_state[SSKey.INTERVIEW_INTERNAL_FLOW.value] = {
-        "contacts": [],
-        "info_loop_items": [],
-        "earliest_start_date": None,
-        "latest_start_date": None,
-    }
+    st.session_state[SSKey.INTERVIEW_INTERNAL_FLOW.value] = dict(
+        INTERVIEW_INTERNAL_FLOW_DEFAULT
+    )
     st.session_state[SSKey.SKILLS_JOBSPEC_SUGGESTED.value] = []
     st.session_state[SSKey.SKILLS_LLM_SUGGESTED.value] = []
     st.session_state[SSKey.SKILLS_SELECTED.value] = []

@@ -305,6 +305,18 @@ class RequirementSuggestionPack(StrictSchemaModel):
     tasks: list[RequirementSuggestionItem] = Field(default_factory=list)
 
 
+class BenefitSuggestionItem(StrictSchemaModel):
+    label: str
+    source_hint: Literal["llm"]
+    rationale: str
+    evidence: str
+    importance: Literal["high", "medium", "low"]
+
+
+class BenefitSuggestionPack(StrictSchemaModel):
+    benefits: list[BenefitSuggestionItem] = Field(default_factory=list)
+
+
 class RoleTaskSalaryForecast(StrictSchemaModel):
     yearly_salary_eur: int = Field(
         ge=0,
@@ -651,6 +663,10 @@ class VacancyStructuredData(StrictSchemaModel):
     selected_skills: Optional[List[str]] = Field(
         default=None,
         description="Optional skill labels explicitly selected in the wizard.",
+    )
+    selected_benefits: Optional[List[str]] = Field(
+        default=None,
+        description="Optional benefit labels explicitly selected in the wizard.",
     )
     company_website_research: Optional[CompanyWebsiteResearch] = Field(
         default=None,
