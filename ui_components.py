@@ -158,6 +158,21 @@ JOB_EXTRACT_TAB_FIELDS: dict[str, tuple[str, ...]] = {
     "Prozess": ("recruitment_steps", "contacts"),
 }
 
+JOB_EXTRACT_REVIEW_EMPTY_FIELDS: frozenset[str] = frozenset(
+    {
+        "job_title",
+        "company_name",
+        "location_city",
+        "location_country",
+        "place_of_work",
+        "remote_policy",
+        "employment_type",
+        "contract_type",
+        "seniority_level",
+        "role_overview",
+    }
+)
+
 JOB_EXTRACT_TAB_NOTE_KEYWORDS: dict[str, tuple[str, ...]] = {
     "Basis": (
         "job_title",
@@ -1454,10 +1469,14 @@ def _render_editable_job_extract(job: JobAdExtract, *, show_notes: bool = True) 
             {
                 "field": field,
                 "label": JOB_EXTRACT_DISPLAY_LABELS.get(field, field),
-                "value": values.get(field),
+                "value": values.get(field) or "",
             }
             for field in core_fields
-            if field in values and has_meaningful_value(values.get(field))
+            if field in values
+            and (
+                has_meaningful_value(values.get(field))
+                or field in JOB_EXTRACT_REVIEW_EMPTY_FIELDS
+            )
         ]
         if core_rows:
             core_edit = st.data_editor(
@@ -1496,10 +1515,14 @@ def _render_editable_job_extract(job: JobAdExtract, *, show_notes: bool = True) 
             {
                 "field": field,
                 "label": JOB_EXTRACT_DISPLAY_LABELS.get(field, field),
-                "value": values.get(field),
+                "value": values.get(field) or "",
             }
             for field in location_fields
-            if field in values and has_meaningful_value(values.get(field))
+            if field in values
+            and (
+                has_meaningful_value(values.get(field))
+                or field in JOB_EXTRACT_REVIEW_EMPTY_FIELDS
+            )
         ]
         if location_rows:
             location_edit = st.data_editor(
@@ -1535,7 +1558,10 @@ def _render_editable_job_extract(job: JobAdExtract, *, show_notes: bool = True) 
             _render_note_block("Annahmen", assumption_notes_by_tab["Rolle"], tone="info")
         text_fields = JOB_EXTRACT_TAB_FIELDS["Rolle"]
         for field in text_fields:
-            if has_meaningful_value(values.get(field)):
+            if (
+                has_meaningful_value(values.get(field))
+                or field in JOB_EXTRACT_REVIEW_EMPTY_FIELDS
+            ):
                 values[field] = (
                     st.text_area(
                         JOB_EXTRACT_DISPLAY_LABELS.get(field, field),

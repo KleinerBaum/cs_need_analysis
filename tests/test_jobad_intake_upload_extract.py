@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from constants import SSKey
+from constants import AnswerType, SSKey
+from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
 import wizard_pages.jobad_intake as jobad_intake
 
 
@@ -349,3 +350,77 @@ def test_render_jobad_intake_uses_manual_text_when_upload_empty(monkeypatch) -> 
     jobad_intake.render_jobad_intake(ctx)
 
     assert captured["submitted"] == manual_text
+
+
+def test_promote_reviewed_job_extract_fills_confirmed_state_without_overwriting_touched(
+    monkeypatch,
+) -> None:
+    fake_st = _FakeStreamlitRender(
+        {
+            SSKey.ANSWERS.value: {"company_name": "Manual GmbH"},
+            SSKey.ANSWER_META.value: {"company_name": {"touched": True}},
+            SSKey.ROLE_TASKS_SELECTED.value: [],
+            SSKey.SKILLS_SELECTED.value: [],
+        }
+    )
+    monkeypatch.setattr(jobad_intake, "st", fake_st)
+    plan = QuestionPlan(
+        steps=[
+            QuestionStep(
+                step_key="company",
+                title_de="Unternehmen",
+                questions=[
+                    Question(
+                        id="job_title",
+                        label="Jobtitel",
+                        answer_type=AnswerType.SHORT_TEXT,
+                        target_path="job_title",
+                    ),
+                    Question(
+                        id="company_name",
+                        label="Unternehmen",
+                        answer_type=AnswerType.SHORT_TEXT,
+                        target_path="company_name",
+                    ),
+                ],
+            ),
+            QuestionStep(
+                step_key="skills",
+                title_de="Skills",
+                questions=[
+                    Question(
+                        id="must_have_skills",
+                        label="Must-have Skills",
+                        answer_type=AnswerType.MULTI_SELECT,
+                        target_path="must_have_skills",
+                    )
+                ],
+            ),
+        ]
+    )
+    job = JobAdExtract(
+        job_title="AI Transformation Consultant",
+        company_name="Acme",
+        responsibilities=["Service Cluster vorbereiten"],
+        deliverables=["Mini-Pitch-Deck vorbereiten"],
+        must_have_skills=["AI-Kompetenzen"],
+        tech_stack=["myConcerto"],
+    )
+
+    jobad_intake._promote_reviewed_job_extract(job, plan)
+
+    answers = fake_st.session_state[SSKey.ANSWERS.value]
+    meta = fake_st.session_state[SSKey.ANSWER_META.value]
+    assert answers["job_title"] == "AI Transformation Consultant"
+    assert answers["company_name"] == "Manual GmbH"
+    assert answers["must_have_skills"] == ["AI-Kompetenzen"]
+    assert meta["job_title"]["confirmed"] is True
+    assert meta["company_name"]["touched"] is True
+    assert fake_st.session_state[SSKey.ROLE_TASKS_SELECTED.value] == [
+        "Service Cluster vorbereiten",
+        "Mini-Pitch-Deck vorbereiten",
+    ]
+    assert fake_st.session_state[SSKey.SKILLS_SELECTED.value] == [
+        "AI-Kompetenzen",
+        "myConcerto",
+    ]

@@ -5,8 +5,10 @@ from __future__ import annotations
 
 import io
 import re
+import zipfile
 from pathlib import Path
 from typing import Any, Dict, Tuple
+from xml.etree import ElementTree
 
 import docx  # python-docx
 import pdfplumber
@@ -86,14 +88,63 @@ def extract_text_from_path(path: str | Path) -> str:
 
 def _extract_docx(raw: bytes) -> str:
     doc = docx.Document(io.BytesIO(raw))
-    out_lines = [p.text for p in doc.paragraphs if (p.text or "").strip()]
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                out_lines.extend(
-                    p.text for p in cell.paragraphs if (p.text or "").strip()
-                )
-    return "\n".join(out_lines)
+    out_lines: list[str] = []
+
+    def _append_text(value: str | None) -> None:
+        text = (value or "").strip()
+        if text:
+            out_lines.append(text)
+
+    def _append_table_text(tables: Any) -> None:
+        for table in tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for paragraph in cell.paragraphs:
+                        _append_text(paragraph.text)
+                    _append_table_text(cell.tables)
+
+    for paragraph in doc.paragraphs:
+        _append_text(paragraph.text)
+    _append_table_text(doc.tables)
+    for section in doc.sections:
+        for part in (section.header, section.footer):
+            for paragraph in part.paragraphs:
+                _append_text(paragraph.text)
+            _append_table_text(part.tables)
+
+    for text in _extract_docx_ooxml_text(raw):
+        _append_text(text)
+
+    return "\n".join(dict.fromkeys(out_lines))
+
+
+def _extract_docx_ooxml_text(raw: bytes) -> list[str]:
+    """Read text nodes that python-docx can miss, e.g. text boxes."""
+
+    lines: list[str] = []
+    namespace = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    try:
+        with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+            xml_names = [
+                name
+                for name in archive.namelist()
+                if name.startswith("word/")
+                and name.endswith(".xml")
+                and not name.startswith("word/_rels/")
+            ]
+            for name in xml_names:
+                root = ElementTree.fromstring(archive.read(name))
+                for text_box in root.iter(f"{namespace}txbxContent"):
+                    texts = [
+                        node.text.strip()
+                        for node in text_box.iter(f"{namespace}t")
+                        if node.text and node.text.strip()
+                    ]
+                    if texts:
+                        lines.append(" ".join(texts))
+    except (ElementTree.ParseError, KeyError, zipfile.BadZipFile):
+        return []
+    return lines
 
 
 def _extract_pdf(raw: bytes) -> tuple[str, bool]:

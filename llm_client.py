@@ -310,14 +310,21 @@ def build_extract_job_ad_messages(
         "Du bist ein Senior HR / Recruiting Analyst. "
         "Extrahiere aus einem Jobspec/Job Ad alle recruitment-relevanten Informationen "
         "und normalisiere sie in ein strukturiertes JSON, ohne Halluzinationen. "
+        "Setze job_title auf die kandidatensichtbare Rollenbezeichnung aus Überschrift, "
+        "Stellentitel oder eindeutigem Rollenlabel; nutze nicht den Arbeitgeber-, "
+        "Abteilungs- oder Projektnamen als Jobtitel. "
         "Wenn etwas nicht explizit vorkommt oder nicht sicher ableitbar ist: setze null/leer und schreibe es in 'gaps'. "
         "Wenn du Annahmen triffst: dokumentiere sie in 'assumptions'. "
+        "Erfinde keine Skills, Zertifikate, Success Metrics, Tools oder Prozessschritte; "
+        "übernimm sie nur, wenn sie im Text genannt oder eindeutig formuliert sind. "
         f"Antworte in der Sprache: {language}."
         f"{guardrails}"
     )
 
     user = (
         "Analysiere folgenden Text (Jobspec/Job Ad). "
+        "Priorität 1: finde den Jobtitel auch dann, wenn er in einer Headline, "
+        "einem Linktitel oder einer tabellarischen Kopfzeile steht. "
         "Erkenne insbesondere die Arbeitgeber-Homepage (company_website), falls vorhanden. "
         "Behalte Formulierungen aus dem Original, wo sinnvoll.\n\n"
         "=== JOBSPEC START ===\n"

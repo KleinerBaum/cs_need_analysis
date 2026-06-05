@@ -324,6 +324,8 @@ def _reset_scroll_on_step_change() -> None:
             window.requestAnimationFrame(scrollTop);
         }
         window.setTimeout(scrollTop, 0);
+        window.setTimeout(scrollTop, 50);
+        window.setTimeout(scrollTop, 150);
         </script>
         """
     )
@@ -355,11 +357,11 @@ def main() -> None:
 
     current = sidebar_navigation(ctx)
     step_changed = bool(previous_step and previous_step != current.key)
-    if step_changed:
-        _reset_scroll_on_step_change()
 
     render_intake_process_progress(current.key)
     current.render(ctx)
+    if step_changed:
+        _reset_scroll_on_step_change()
     _render_sidebar_actions()
     st.session_state[SSKey.LAST_RENDERED_STEP.value] = current.key
 

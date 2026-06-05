@@ -407,7 +407,7 @@ class AnswerType(str, Enum):
 
 QUESTION_SCHEMA_VERSION: Final[str] = "2026-04-09"
 VACANCY_SCHEMA_VERSION: Final[str] = "2026-04-14"
-JOB_AD_SCHEMA_VERSION: Final[str] = "2026-04-07"
+JOB_AD_SCHEMA_VERSION: Final[str] = "2026-06-05"
 OCCUPATION_CONTEXT_SCHEMA_VERSION: Final[str] = "2026-06-03"
 SUMMARY_ARTIFACT_IDS: Final[tuple[str, ...]] = (
     "brief",

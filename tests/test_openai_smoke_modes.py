@@ -200,6 +200,20 @@ def test_extract_messages_include_guardrails_for_selected_nano_models() -> None:
     )
 
 
+def test_extract_messages_prioritize_job_title_and_no_hallucinated_requirements() -> None:
+    messages = build_extract_job_ad_messages(
+        "sample",
+        language="de",
+        model="gpt-5-mini",
+    )
+
+    combined = "\n".join(message["content"] for message in messages)
+
+    assert "Setze job_title auf die kandidatensichtbare Rollenbezeichnung" in combined
+    assert "Priorität 1: finde den Jobtitel" in combined
+    assert "Erfinde keine Skills, Zertifikate, Success Metrics" in combined
+
+
 def test_supports_temperature_for_gpt54_depends_on_none_reasoning() -> None:
     assert supports_temperature("gpt-5.4-mini", "none")
     assert not supports_temperature("gpt-5.4-mini", "low")

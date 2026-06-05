@@ -5,7 +5,61 @@ from typing import cast
 
 from constants import SSKey
 from esco_client import EscoApiCapabilities, EscoClient, EscoClientError
+from schemas import JobAdExtract
 from wizard_pages import esco_occupation_ui
+
+
+def test_build_esco_query_falls_back_to_role_context_without_job_title() -> None:
+    query = esco_occupation_ui._build_esco_query(
+        JobAdExtract(
+            role_overview="HR Transformation Consultant for AI adoption",
+            department_name="Talent",
+            location_city="Kronberg",
+        )
+    )
+
+    assert query == "HR Transformation Consultant for AI adoption (Talent, Kronberg)"
+
+
+def test_render_esco_occupation_confirmation_allows_manual_query_without_title(
+    monkeypatch,
+) -> None:
+    class _FakeStreamlit:
+        def __init__(self) -> None:
+            self.session_state: dict[str, object] = {
+                f"{SSKey.ESCO_OCCUPATION_SELECTED.value}.esco_picker.options": [],
+                SSKey.ESCO_OCCUPATION_SELECTED.value: None,
+            }
+            self.infos: list[str] = []
+
+        def info(self, message: str) -> None:
+            self.infos.append(message)
+
+        def button(self, *_args: object, **_kwargs: object) -> bool:
+            return False
+
+    fake_st = _FakeStreamlit()
+    picker_calls: list[dict[str, object]] = []
+    monkeypatch.setattr(esco_occupation_ui, "st", fake_st)
+    monkeypatch.setattr(
+        esco_occupation_ui,
+        "render_esco_picker_card",
+        lambda **kwargs: picker_calls.append(kwargs),
+    )
+
+    esco_occupation_ui.render_esco_occupation_confirmation(
+        JobAdExtract(),
+        compact=True,
+        show_start_context_panels=True,
+        show_detail_panels=False,
+    )
+
+    assert picker_calls
+    assert fake_st.infos == [
+        "Kein Jobtitel vorhanden. Gib einen Rollenbegriff ein, um die "
+        "ESCO-Zuordnung manuell zu starten."
+    ]
+    assert fake_st.session_state[SSKey.ESCO_UNMAPPED_ROLE_TERMS.value] == []
 
 
 def test_build_capability_status_rows_with_capabilities() -> None:

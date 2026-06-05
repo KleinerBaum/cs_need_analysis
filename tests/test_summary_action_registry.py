@@ -66,6 +66,32 @@ class _LauncherFakeStreamlit:
         return False
 
 
+class _PipelineFakeStreamlit:
+    def __init__(self, session_state: dict[str, Any], *, clicked_label: str):
+        self.session_state = session_state
+        self.clicked_label = clicked_label
+        self.rerun_count = 0
+
+    def columns(self, spec: Any, **_kwargs: Any) -> list[_NoopContext]:
+        count = spec if isinstance(spec, int) else len(spec)
+        return [_NoopContext() for _ in range(count)]
+
+    def container(self, **_: Any) -> _NoopContext:
+        return _NoopContext()
+
+    def markdown(self, *_: Any, **__: Any) -> None:
+        return None
+
+    def caption(self, *_: Any, **__: Any) -> None:
+        return None
+
+    def button(self, label: str, **__: Any) -> bool:
+        return label == self.clicked_label
+
+    def rerun(self) -> None:
+        self.rerun_count += 1
+
+
 def test_build_action_registry_contains_expected_actions_and_requirements() -> None:
     action_registry = SUMMARY_MODULE._build_action_registry(
         resolved_brief_model="gpt-5-mini",
@@ -351,3 +377,42 @@ def test_render_artifact_launcher_cards_prefers_blocked_label_when_requirements_
     assert fake_st.button_labels == [
         "Recruiting Brief erstellen und danach Boolean String erstellen"
     ]
+
+
+def test_render_artifact_pipeline_click_generates_selected_artifact(monkeypatch) -> None:
+    generator_calls: list[str] = []
+    fake_st = _PipelineFakeStreamlit(
+        session_state={
+            SSKey.JOB_EXTRACT.value: {"job_title": "Engineer"},
+            SSKey.QUESTION_PLAN.value: {"questions": []},
+        },
+        clicked_label="Stellenanzeige erstellen",
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
+    monkeypatch.setattr(SUMMARY_MODULE, "_has_required_state", lambda _requires: True)
+
+    action_registry = [
+        {
+            "id": "job_ad",
+            "title": "Stellenanzeige",
+            "benefit": "desc",
+            "cta_label": "Stellenanzeige erstellen",
+            "blocked_cta_label": None,
+            "requires": (SSKey.JOB_EXTRACT,),
+            "requirement_text": "Jobspec vorhanden",
+            "requirement_check_fn": None,
+            "generator_fn": lambda: generator_calls.append("job_ad"),
+            "result_key": SSKey.JOB_AD_DRAFT_CUSTOM,
+            "input_hints": (),
+            "input_renderer": None,
+        }
+    ]
+
+    SUMMARY_MODULE._render_artifact_pipeline(
+        action_registry=action_registry,
+        resolved_brief_model="gpt-5-mini",
+    )
+
+    assert generator_calls == ["job_ad"]
+    assert fake_st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] == "job_ad"
+    assert fake_st.rerun_count == 1

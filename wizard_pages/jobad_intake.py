@@ -6,7 +6,7 @@ from typing import Any, Final
 
 import streamlit as st
 
-from constants import SSKey
+from constants import AnswerType, SSKey
 from llm_client import (
     OpenAICallError,
     TASK_EXTRACT_JOB_AD,
@@ -17,8 +17,13 @@ from llm_client import (
 )
 from occupation_context import classify_occupation_context
 from parsing import extract_text_from_uploaded_file, redact_pii
+from question_progress import (
+    is_answered,
+    resolve_question_job_extract_value,
+    value_hash,
+)
 from question_plan_compiler import compile_question_plan
-from schemas import JobAdExtract, QuestionPlan
+from schemas import JobAdExtract, Question, QuestionPlan
 from settings_openai import load_openai_settings
 from state import (
     clear_error,
@@ -81,6 +86,123 @@ def _sync_deterministic_question_flow(job: JobAdExtract, base_plan: QuestionPlan
         compiled.provenance.profile_fingerprint
     )
     st.session_state[SSKey.QUESTION_PLAN.value] = compiled.plan.model_dump(mode="json")
+
+
+def _has_promotable_value(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, dict):
+        return any(_has_promotable_value(item) for item in value.values())
+    if isinstance(value, (list, tuple, set)):
+        return any(_has_promotable_value(item) for item in value)
+    return True
+
+
+def _dedupe_strings(values: list[Any]) -> list[str]:
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = str(value or "").strip()
+        key = text.casefold()
+        if not text or key in seen:
+            continue
+        deduped.append(text)
+        seen.add(key)
+    return deduped
+
+
+def _coerce_extract_value_for_question(question: Question, value: Any) -> Any:
+    if not _has_promotable_value(value):
+        return None
+    if question.answer_type == AnswerType.MULTI_SELECT:
+        if isinstance(value, list):
+            return _dedupe_strings(value)
+        return [str(value).strip()]
+    if question.answer_type in (AnswerType.SHORT_TEXT, AnswerType.LONG_TEXT):
+        if isinstance(value, list):
+            return "\n".join(_dedupe_strings(value))
+        if isinstance(value, dict):
+            return None
+        return str(value).strip()
+    if question.answer_type == AnswerType.SINGLE_SELECT:
+        text = str(value).strip()
+        option_values = {
+            str(getattr(option, "value", option)).strip()
+            for option in question.options or []
+            if str(getattr(option, "value", option)).strip()
+        }
+        if option_values and text not in option_values:
+            return None
+        return text
+    if question.answer_type == AnswerType.NUMBER:
+        if isinstance(value, (int, float)):
+            return value
+        try:
+            return float(str(value).strip())
+        except ValueError:
+            return None
+    if question.answer_type == AnswerType.BOOLEAN:
+        return value if isinstance(value, bool) else None
+    if question.answer_type == AnswerType.DATE:
+        return str(value).strip()
+    return value
+
+
+def _seed_list_state_from_jobspec(state_key: SSKey, values: list[Any]) -> None:
+    current = st.session_state.get(state_key.value, [])
+    if isinstance(current, list) and current:
+        return
+    deduped = _dedupe_strings(values)
+    if deduped:
+        st.session_state[state_key.value] = deduped
+
+
+def _promote_reviewed_job_extract(job: JobAdExtract, plan: QuestionPlan) -> None:
+    answers_raw = st.session_state.get(SSKey.ANSWERS.value, {})
+    answers = dict(answers_raw) if isinstance(answers_raw, dict) else {}
+    meta_raw = st.session_state.get(SSKey.ANSWER_META.value, {})
+    meta = dict(meta_raw) if isinstance(meta_raw, dict) else {}
+
+    for step in plan.steps:
+        for question in step.questions:
+            question_meta = meta.get(question.id, {})
+            if isinstance(question_meta, dict) and question_meta.get("touched"):
+                continue
+            if is_answered(
+                question,
+                answers.get(question.id),
+                question_meta if isinstance(question_meta, dict) else {},
+            ):
+                continue
+            extracted_value = resolve_question_job_extract_value(question, job)
+            answer_value = _coerce_extract_value_for_question(question, extracted_value)
+            if not _has_promotable_value(answer_value):
+                continue
+            answers[question.id] = answer_value
+            meta[question.id] = {
+                **(question_meta if isinstance(question_meta, dict) else {}),
+                "confirmed": True,
+                "touched": False,
+                "last_value_hash": value_hash(answer_value),
+            }
+
+    st.session_state[SSKey.ANSWERS.value] = answers
+    st.session_state[SSKey.ANSWER_META.value] = meta
+    _seed_list_state_from_jobspec(
+        SSKey.ROLE_TASKS_SELECTED,
+        [*job.responsibilities, *job.deliverables, *job.success_metrics],
+    )
+    _seed_list_state_from_jobspec(
+        SSKey.SKILLS_SELECTED,
+        [
+            *job.must_have_skills,
+            *job.nice_to_have_skills,
+            *job.tech_stack,
+            *job.domain_expertise,
+        ],
+    )
 
 
 def _preview_height_for_text(text: str) -> int:
@@ -301,7 +423,7 @@ def _render_source_summary() -> None:
     job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
     if isinstance(job_dict, dict):
         job_title = str(job_dict.get("job_title") or "").strip()
-        company_name = str(job_dict.get("employer_name") or "").strip()
+        company_name = str(job_dict.get("company_name") or "").strip()
 
     summary_parts = [
         f"Quelle: **{source_label}**",
@@ -379,6 +501,13 @@ def _render_phase_c_esco_anchor(ctx: WizardContext) -> None:
     _, _, next_col = st.columns([1, 1, 1], gap="small")
     with next_col:
         if st.button("Weiter →", key="cs.start.next_step", width="stretch"):
+            active_plan_raw = st.session_state.get(SSKey.QUESTION_PLAN.value, {})
+            active_plan = (
+                QuestionPlan.model_validate(active_plan_raw)
+                if isinstance(active_plan_raw, dict)
+                else base_plan
+            )
+            _promote_reviewed_job_extract(job, active_plan)
             ctx.next()
             st.rerun()
 

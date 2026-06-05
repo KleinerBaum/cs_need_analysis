@@ -67,6 +67,21 @@ def test_extract_text_from_uploaded_file_reads_docx_tables() -> None:
     assert text == "Nur\nTabelle"
 
 
+def test_extract_text_from_uploaded_file_reads_docx_headers_and_footers() -> None:
+    def _build(document: docx.Document) -> None:
+        document.sections[0].header.paragraphs[0].text = "Senior AI Consultant"
+        document.add_paragraph("Main body requirements")
+        document.sections[0].footer.paragraphs[0].text = "Reference R001"
+
+    upload = _FakeUpload(_docx_payload(_build), name="jobspec.docx")
+
+    text, _meta = extract_text_from_uploaded_file(upload)
+
+    assert "Senior AI Consultant" in text
+    assert "Main body requirements" in text
+    assert "Reference R001" in text
+
+
 def test_extract_text_from_uploaded_file_pdf_without_ocr_has_specific_error(
     monkeypatch,
 ) -> None:

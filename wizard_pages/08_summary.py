@@ -164,7 +164,6 @@ SummaryTabs = tuple[
     RenderableContainer,
     RenderableContainer,
     RenderableContainer,
-    RenderableContainer,
 ]
 
 
@@ -2759,26 +2758,55 @@ def _render_artifact_pipeline(
 ) -> None:
     st.markdown("#### Artefakt-Pipeline")
     st.caption("Status der wichtigsten Folge-Outputs auf einen Blick.")
-    pipeline_items: list[str] = []
-    for action in action_registry:
+    card_columns = st.columns(2)
+    for index, action in enumerate(action_registry):
         status_key, status_label = _artifact_pipeline_status(
             action,
             resolved_brief_model=resolved_brief_model,
         )
-        pipeline_items.append(
-            textwrap.dedent(
-                f"""
-                <div class="cs-summary-pipeline-item" data-status="{escape(status_key)}">
-                    <strong>{escape(action["title"])}</strong>
-                    <span>{escape(status_label)}</span>
-                </div>
-                """
-            ).strip()
-        )
-    st.markdown(
-        f'<div class="cs-summary-pipeline">{"".join(pipeline_items)}</div>',
-        unsafe_allow_html=True,
-    )
+        requirements_ok = _has_required_state(action["requires"])
+        requirement_ok = True
+        requirement_message = ""
+        requirement_check_fn = action.get("requirement_check_fn")
+        if requirement_check_fn is not None:
+            requirement_ok, requirement_message = requirement_check_fn()
+
+        cta_label = action["cta_label"]
+        if action["id"] == "brief":
+            _, _, cta_label = _get_brief_status(
+                primary_action=action, resolved_brief_model=resolved_brief_model
+            )
+        if not (requirements_ok and requirement_ok) and action.get("blocked_cta_label"):
+            cta_label = str(action["blocked_cta_label"])
+
+        with card_columns[index % 2]:
+            with st.container(border=True):
+                st.markdown(f"**{action['title']}**")
+                st.caption(action["benefit"])
+                st.caption(f"Status: {status_label}")
+                requirement_text = action["requirement_text"]
+                if requirement_message:
+                    requirement_text = f"{requirement_text} — {requirement_message}"
+                st.caption(f"Voraussetzungen: {requirement_text}")
+                if st.button(
+                    cta_label,
+                    width="stretch",
+                    key=_widget_key(
+                        SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
+                        f"readiness.pipeline.{action['id']}",
+                    ),
+                    disabled=(
+                        not (requirements_ok and requirement_ok)
+                        or action["generator_fn"] is None
+                    ),
+                ):
+                    st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = (
+                        _to_canonical_artifact_id(action["id"])
+                    )
+                    if action["generator_fn"] is not None:
+                        action["generator_fn"]()
+                    st.rerun()
+
 
 
 def _render_summary_readiness_metrics(vm: SummaryViewModel) -> None:
@@ -2827,6 +2855,8 @@ def _render_readiness_tab(
             action_registry,
             resolved_brief_model=resolved_brief_model,
         )
+    if brief is not None:
+        _render_summary_results_workspace(brief=brief)
 
     _render_critical_gaps_card(vm)
     _render_summary_workspace_tabs(
@@ -2943,21 +2973,19 @@ def _render_artifact_launcher_cards(
 
 
 def _build_summary_tabs() -> SummaryTabs:
-    tab_labels = ["Brief", "Artefakte", "Fakten", "Export", "Advanced"]
+    tab_labels = ["Brief", "Fakten", "Export", "Advanced"]
     if hasattr(st, "tabs"):
         tabs = st.tabs(tab_labels)
-        if len(tabs) == 5:
-            return tabs[0], tabs[1], tabs[2], tabs[3], tabs[4]
+        if len(tabs) == 4:
+            return tabs[0], tabs[1], tabs[2], tabs[3]
     if hasattr(st, "container"):
         return (
             st.container(),
             st.container(),
             st.container(),
             st.container(),
-            st.container(),
         )
     return (
-        nullcontext(),
         nullcontext(),
         nullcontext(),
         nullcontext(),
@@ -2975,11 +3003,11 @@ def _render_summary_workspace_tabs(
     st.markdown("### Workspaces")
     st.markdown(
         '<p class="cs-summary-section-note">'
-        "Details sind nach Aufgabe getrennt, damit Fakten, Artefakte und Exporte nicht doppelt erscheinen."
+        "Details sind nach Aufgabe getrennt, damit Fakten und Exporte nicht doppelt erscheinen."
         "</p>",
         unsafe_allow_html=True,
     )
-    brief_tab, artifacts_tab, facts_tab, export_tab, advanced_tab = _build_summary_tabs()
+    brief_tab, facts_tab, export_tab, advanced_tab = _build_summary_tabs()
 
     with brief_tab:
         if brief is None:
@@ -2995,19 +3023,6 @@ def _render_summary_workspace_tabs(
                 show_title=False,
                 show_structured_data=False,
             )
-
-    with artifacts_tab:
-        render_output_header(
-            "Artefakte",
-            "Brief und Folgeartefakte starten oder vorhandene Ergebnisse fokussieren.",
-        )
-        _render_artifact_launcher_cards(
-            action_registry=action_registry,
-            resolved_brief_model=resolved_brief_model,
-        )
-        if brief is not None:
-            st.markdown("---")
-            _render_summary_results_workspace(brief=brief)
 
     with facts_tab:
         _render_summary_facts_section(vm)

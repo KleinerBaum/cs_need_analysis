@@ -76,8 +76,8 @@ def test_build_summary_tabs_uses_dashboard_workspace_labels(monkeypatch) -> None
 
     tabs = SUMMARY_MODULE._build_summary_tabs()
 
-    assert len(tabs) == 5
-    assert captured_labels == ["Brief", "Artefakte", "Fakten", "Export", "Advanced"]
+    assert len(tabs) == 4
+    assert captured_labels == ["Brief", "Fakten", "Export", "Advanced"]
 
 
 def test_artifact_pipeline_status_uses_brief_freshness(monkeypatch) -> None:
@@ -203,7 +203,7 @@ def test_readiness_tab_delegates_detail_sections_to_workspaces(monkeypatch) -> N
         SUMMARY_MODULE,
         "_render_artifact_launcher_cards",
         lambda **_kwargs: (_ for _ in ()).throw(
-            AssertionError("artifact cards rendered inline")
+            AssertionError("artifact launcher rendered inline")
         ),
     )
     monkeypatch.setattr(
@@ -213,12 +213,11 @@ def test_readiness_tab_delegates_detail_sections_to_workspaces(monkeypatch) -> N
             AssertionError("facts rendered inline")
         ),
     )
+    results_calls: list[dict[str, object]] = []
     monkeypatch.setattr(
         SUMMARY_MODULE,
         "_render_summary_results_workspace",
-        lambda **_kwargs: (_ for _ in ()).throw(
-            AssertionError("results rendered inline")
-        ),
+        lambda **kwargs: results_calls.append(kwargs),
     )
 
     SUMMARY_MODULE._render_readiness_tab(
@@ -230,6 +229,7 @@ def test_readiness_tab_delegates_detail_sections_to_workspaces(monkeypatch) -> N
 
     assert len(workspace_calls) == 1
     assert workspace_calls[0]["vm"] is vm
+    assert len(results_calls) == 1
 
 
 def test_resolve_next_best_action_keeps_brief_for_missing_core_context(monkeypatch) -> None:

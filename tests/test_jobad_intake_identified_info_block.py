@@ -34,6 +34,8 @@ class _FakeStreamlit:
         self.writes: list[str] = []
         self.markdowns: list[str] = []
         self.tables: list[object] = []
+        self.editor_rows_by_key: dict[str, list[dict[str, object]]] = {}
+        self.text_areas: dict[str, str] = {}
         self.column_config = SimpleNamespace(
             TextColumn=lambda *args, **kwargs: None,
         )
@@ -47,7 +49,17 @@ class _FakeStreamlit:
         self.captions.append(text)
 
     def data_editor(self, rows, **_kwargs):
+        key = str(_kwargs.get("key") or "")
+        if key:
+            self.editor_rows_by_key[key] = rows
         return rows
+
+    def tabs(self, labels):
+        return tuple(_DummyColumn() for _label in labels)
+
+    def text_area(self, label: str, *, value: str, key: str, **_kwargs) -> str:
+        self.text_areas[key] = label
+        return value
 
     def columns(self, spec, **_kwargs):
         if isinstance(spec, int):
@@ -67,6 +79,9 @@ class _FakeStreamlit:
         return None
 
     def info(self, *_args, **_kwargs) -> None:
+        return None
+
+    def warning(self, *_args, **_kwargs) -> None:
         return None
 
     def success(self, text: str, *_args, **_kwargs) -> None:
@@ -221,3 +236,22 @@ def test_job_extract_overview_maps_gap_labels_to_german(monkeypatch) -> None:
     assert {"Attribut": "Salary Range", "Wert": "—"} in table_rows
     assert {"Attribut": "Recruitment Steps", "Wert": "—"} in table_rows
     assert all("Feld" not in row for row in table_rows)
+
+
+def test_editable_job_extract_renders_empty_job_title_for_review(
+    monkeypatch,
+) -> None:
+    fake_st = _FakeStreamlit(session_state={})
+    monkeypatch.setattr(ui_components, "st", fake_st)
+
+    ui_components._render_editable_job_extract(
+        JobAdExtract(company_name="Acme"),
+        show_notes=False,
+    )
+
+    core_rows = fake_st.editor_rows_by_key["cs.job_extract.core"]
+    assert {
+        "field": "job_title",
+        "label": "Jobtitel",
+        "value": "",
+    } in core_rows

@@ -59,7 +59,23 @@ class _CapabilityStatusRow(TypedDict):
 def _build_esco_query(job: JobAdExtract) -> str:
     title = (job.job_title or "").strip()
     if not title:
+        fallback_terms = [
+            job.role_overview,
+            *(
+                job.responsibilities[:2]
+                if isinstance(job.responsibilities, list)
+                else []
+            ),
+            *(job.deliverables[:2] if isinstance(job.deliverables, list) else []),
+        ]
+        title = next(
+            (str(term).strip() for term in fallback_terms if str(term or "").strip()),
+            "",
+        )
+    if not title:
         return ""
+    if len(title) > 140:
+        title = title[:140].rsplit(" ", 1)[0].strip() or title[:140].strip()
     context_parts = [job.seniority_level, job.department_name, job.location_city]
     context = ", ".join(part.strip() for part in context_parts if part and part.strip())
     if not context:
@@ -1375,12 +1391,10 @@ def render_esco_occupation_confirmation(
     # - Explainability-Chips kompakt halten; Zusatzinfos in "Mehr Infos" auslagern.
     query_text = _build_esco_query(job)
     if not query_text:
-        st.info("Kein Jobtitel vorhanden. ESCO-Zuordnung aktuell nicht möglich.")
-        st.session_state[SSKey.ESCO_OCCUPATION_CANDIDATES.value] = []
-        st.session_state[SSKey.ESCO_OCCUPATION_SELECTED.value] = None
-        st.session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] = ""
-        st.session_state[SSKey.ESCO_UNMAPPED_ROLE_TERMS.value] = []
-        return
+        st.info(
+            "Kein Jobtitel vorhanden. Gib einen Rollenbegriff ein, um die "
+            "ESCO-Zuordnung manuell zu starten."
+        )
 
     if show_start_context_panels and show_detail_panels:
         st.markdown("### ESCO-Anker bestätigen")
@@ -1390,7 +1404,7 @@ def render_esco_occupation_confirmation(
             "wird in den nächsten Schritten für Aufgaben, Skills und Summary weiterverwendet."
         )
     query_state_key = f"{SSKey.ESCO_OCCUPATION_SELECTED.value}.esco_picker.query"
-    if not st.session_state.get(query_state_key):
+    if query_text and not st.session_state.get(query_state_key):
         st.session_state[query_state_key] = query_text
     render_esco_picker_card(
         concept_type="occupation",
@@ -1436,7 +1450,9 @@ def render_esco_occupation_confirmation(
         st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = {}
         st.session_state[SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value] = []
         st.session_state[SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value] = {}
-        st.session_state[SSKey.ESCO_UNMAPPED_ROLE_TERMS.value] = [query_text]
+        st.session_state[SSKey.ESCO_UNMAPPED_ROLE_TERMS.value] = (
+            [query_text] if query_text else []
+        )
         return
     st.session_state[SSKey.ESCO_UNMAPPED_ROLE_TERMS.value] = []
     st.session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] = occupation_uri
