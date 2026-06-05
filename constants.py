@@ -360,6 +360,7 @@ class SSKey(str, Enum):
     INTERVIEW_INTERNAL_FLOW = "cs.interview.internal_flow"
     SKILLS_JOBSPEC_SUGGESTED = "cs.skills.jobspec_suggested"
     SKILLS_LLM_SUGGESTED = "cs.skills.llm_suggested"
+    SKILLS_AI_INITIAL_GENERATED = "cs.skills.ai_initial_generated"
     SKILLS_SELECTED = "cs.skills.selected"
     SKILLS_SELECTED_STATUS = "cs.skills.selected_status"
     SKILLS_SUGGEST_COUNT = "cs.skills.suggest_count"

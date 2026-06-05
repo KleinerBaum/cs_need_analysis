@@ -562,7 +562,7 @@ def _render_skill_status_surface(
     jobspec_count: int,
     esco_count: int,
     selected_count: int,
-) -> None:
+) -> bool:
     render_output_header(
         "Skills & Anforderungen schärfen",
         "Aus Stellenanzeige, ESCO und AI-Vorschlägen entsteht eine prüfbare "
@@ -572,6 +572,27 @@ def _render_skill_status_surface(
         f"{jobspec_count} aus der Anzeige erkannt · "
         f"{esco_count} durch ESCO/AI ergänzt · {selected_count} übernommen"
     )
+    with st.expander("Weitere AI-Vorschläge", expanded=False):
+        st.caption(
+            "Die ersten 5 AI-Vorschläge werden automatisch einmalig erzeugt. "
+            "Diese Steuerung ergänzt bei zusätzlichem Bedarf weitere Vorschläge."
+        )
+        count_col, action_col = st.columns([1, 2], gap="small")
+        with count_col:
+            st.number_input(
+                "Anzahl",
+                key=SSKey.SKILLS_SUGGEST_COUNT.value,
+                min_value=1,
+                max_value=12,
+                step=1,
+                label_visibility="collapsed",
+            )
+        with action_col:
+            return st.button(
+                "+ AI-Vorschläge",
+                key=SSKey.SKILLS_AI_GENERATE_CLICKED.value,
+                width="stretch",
+            )
 
 
 def _render_term_group(title: str, values: list[str], *, limit: int = 10) -> None:
@@ -761,7 +782,7 @@ def _render_skills_source_columns(
     deduped_must: list[dict[str, Any]],
     deduped_nice: list[dict[str, Any]],
     show_esco_sections: bool,
-) -> bool:
+) -> None:
     jobspec_groups = _build_jobspec_skill_groups(job)
     jobspec_count = len(
         _dedupe_terms([term for terms in jobspec_groups.values() for term in terms])
@@ -812,7 +833,6 @@ def _render_skills_source_columns(
         for title, values in jobspec_groups.items():
             _render_term_group(title, values)
 
-    generate_ai_clicked = False
     with col_esco:
         st.metric("ESCO ergänzt", esco_count)
         if show_esco_sections:
@@ -840,18 +860,6 @@ def _render_skills_source_columns(
             key_prefix="skills.recommend.tech_stack",
             can_mark_optional=True,
         )
-        st.number_input(
-            "Anzahl AI-Skill-Vorschläge",
-            key=SSKey.SKILLS_SUGGEST_COUNT.value,
-            min_value=1,
-            max_value=12,
-            step=1,
-        )
-        generate_ai_clicked = st.button(
-            "AI-Skill-Vorschläge generieren",
-            key=SSKey.SKILLS_AI_GENERATE_CLICKED.value,
-        )
-
     with col_selected:
         st.metric("Übernommen", selected_count)
         st.caption("Finaler Warenkorb für Brief, Matching und Interview.")
@@ -878,7 +886,6 @@ def _render_skills_source_columns(
         )
 
     st.session_state[SSKey.SKILLS_SELECTED_BULK_BUFFER.value] = selected_labels
-    return generate_ai_clicked
 
 
 def _safe_text(value: str | None) -> str:
@@ -1328,6 +1335,74 @@ def _render_matrix_coverage_section(snapshot: dict[str, Any], *, ui_mode: str) -
             for row in rows
         ]
         st.dataframe(compact_rows, width="stretch", hide_index=True)
+
+
+def _generate_ai_skill_suggestions(
+    *,
+    job: JobAdExtract,
+    suggestion_context: dict[str, list[str]],
+    target_skill_count: int,
+) -> list[dict[str, Any]] | None:
+    existing_llm_raw = st.session_state.get(SSKey.SKILLS_LLM_SUGGESTED.value, [])
+    existing_llm = existing_llm_raw if isinstance(existing_llm_raw, list) else []
+    existing_llm_labels = _dedupe_terms(
+        [
+            _llm_skill_label(item)
+            for item in existing_llm
+            if isinstance(item, dict)
+        ]
+    )
+    blocked_labels = [
+        *suggestion_context["jobspec_terms"],
+        *suggestion_context["esco_titles"],
+        *suggestion_context["selected_labels"],
+        *existing_llm_labels,
+    ]
+    try:
+        suggestion_pack, _usage = generate_requirement_gap_suggestions(
+            job=job,
+            answers=get_answers(),
+            existing_skills=blocked_labels,
+            existing_tasks=[],
+            esco_skill_titles=suggestion_context["esco_titles"],
+            target_skill_count=target_skill_count,
+            target_task_count=0,
+            model=get_active_model(),
+        )
+    except Exception:
+        st.warning("AI-Vorschläge konnten nicht erzeugt werden.")
+        return None
+
+    llm_skill_payload = [
+        item.model_dump(mode="json")
+        for item in suggestion_pack.skills
+        if str(item.type) == "skill"
+    ]
+    rag_query = " | ".join(
+        [
+            job.job_title,
+            ", ".join(suggestion_context["jobspec_terms"]),
+        ]
+    ).strip(" |")
+    rag_payload: list[dict[str, Any]] = []
+    if rag_query:
+        rag_result = retrieve_esco_context(
+            rag_query,
+            purpose="skills",
+        )
+        if rag_result.reason is None:
+            rag_payload = extract_skill_suggestions(rag_result)
+    merged_llm = _merge_llm_skill_suggestions(
+        llm_skills=[*llm_skill_payload, *rag_payload],
+        blocked_labels=blocked_labels,
+    )
+    combined_llm = [*existing_llm, *merged_llm]
+    st.session_state[SSKey.SKILLS_LLM_SUGGESTED.value] = combined_llm
+    if merged_llm:
+        st.success(f"{len(merged_llm)} AI-Skill(s) übernommen.")
+    else:
+        st.info("Keine zusätzlichen AI-Skills gefunden.")
+    return combined_llm
 
 
 def _render_unmapped_term_workflow(flagged_terms: list[str]) -> None:
@@ -1790,7 +1865,7 @@ def _render_skills_source_comparison_block(
             *_get_selected_skill_labels(),
         ]
     )
-    _render_skill_status_surface(
+    generate_ai_clicked = _render_skill_status_surface(
         jobspec_count=len(_dedupe_terms(jobspec_labels)),
         esco_count=len(
             _dedupe_terms(
@@ -1801,14 +1876,6 @@ def _render_skills_source_comparison_block(
             )
         ),
         selected_count=len(selected_status_labels),
-    )
-    generate_ai_clicked = _render_skills_source_columns(
-        job=job,
-        jobspec_labels=jobspec_labels,
-        llm_labels=llm_labels,
-        deduped_must=deduped_must,
-        deduped_nice=deduped_nice,
-        show_esco_sections=show_esco_sections,
     )
 
     mapped_titles = {
@@ -1873,61 +1940,38 @@ def _render_skills_source_comparison_block(
         esco_must_selected=deduped_must,
         esco_nice_selected=deduped_nice,
     )
-    if generate_ai_clicked:
+    initial_ai_generated = bool(
+        st.session_state.get(SSKey.SKILLS_AI_INITIAL_GENERATED.value, False)
+    )
+    existing_llm_raw = st.session_state.get(SSKey.SKILLS_LLM_SUGGESTED.value, [])
+    existing_llm = existing_llm_raw if isinstance(existing_llm_raw, list) else []
+    should_auto_generate_ai = not initial_ai_generated and not existing_llm
+    if not initial_ai_generated and existing_llm:
+        st.session_state[SSKey.SKILLS_AI_INITIAL_GENERATED.value] = True
+    if should_auto_generate_ai or generate_ai_clicked:
+        st.session_state[SSKey.SKILLS_AI_INITIAL_GENERATED.value] = True
+        target_skill_count = 5 if should_auto_generate_ai else int(
+            st.session_state.get(SSKey.SKILLS_SUGGEST_COUNT.value, 5)
+        )
         with st.spinner("Generiere Skill-Vorschläge …"):
-            try:
-                suggestion_pack, _usage = generate_requirement_gap_suggestions(
-                    job=job,
-                    answers=get_answers(),
-                    existing_skills=[
-                        *suggestion_context["jobspec_terms"],
-                        *suggestion_context["esco_titles"],
-                        *suggestion_context["selected_labels"],
-                    ],
-                    existing_tasks=[],
-                    esco_skill_titles=suggestion_context["esco_titles"],
-                    target_skill_count=int(
-                        st.session_state.get(SSKey.SKILLS_SUGGEST_COUNT.value, 5)
-                    ),
-                    target_task_count=0,
-                    model=get_active_model(),
-                )
-            except Exception:
-                st.warning("AI-Vorschläge konnten nicht erzeugt werden.")
-            else:
-                llm_skill_payload = [
-                    item.model_dump(mode="json")
-                    for item in suggestion_pack.skills
-                    if str(item.type) == "skill"
-                ]
-                rag_query = " | ".join(
-                    [
-                        job.job_title,
-                        ", ".join(suggestion_context["jobspec_terms"]),
-                    ]
-                ).strip(" |")
-                rag_payload: list[dict[str, Any]] = []
-                if rag_query:
-                    rag_result = retrieve_esco_context(
-                        rag_query,
-                        purpose="skills",
-                    )
-                    if rag_result.reason is None:
-                        rag_payload = extract_skill_suggestions(rag_result)
-                merged_llm = _merge_llm_skill_suggestions(
-                    llm_skills=[*llm_skill_payload, *rag_payload],
-                    blocked_labels=[
-                        *suggestion_context["jobspec_terms"],
-                        *suggestion_context["esco_titles"],
-                        *suggestion_context["selected_labels"],
-                    ],
-                )
-                st.session_state[SSKey.SKILLS_LLM_SUGGESTED.value] = merged_llm
-                llm_suggested = merged_llm
-                if merged_llm:
-                    st.success(f"{len(merged_llm)} AI-Skill(s) übernommen.")
-                else:
-                    st.info("Keine zusätzlichen AI-Skills gefunden.")
+            _generate_ai_skill_suggestions(
+                job=job,
+                suggestion_context=suggestion_context,
+                target_skill_count=target_skill_count,
+            )
+
+    jobspec_labels, llm_labels, _esco_labels, deduped_must, deduped_nice, llm_suggested = _build_skills_source_view_data(
+        job=job,
+        show_esco_sections=show_esco_sections,
+    )
+    _render_skills_source_columns(
+        job=job,
+        jobspec_labels=jobspec_labels,
+        llm_labels=llm_labels,
+        deduped_must=deduped_must,
+        deduped_nice=deduped_nice,
+        show_esco_sections=show_esco_sections,
+    )
 
     ambiguous_terms = sorted(
         {
