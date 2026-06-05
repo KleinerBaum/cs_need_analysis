@@ -170,6 +170,74 @@ def test_build_skill_suggestion_context_normalizes_jobspec_and_esco_titles() -> 
     assert context["selected_labels"] == ["Python"]
 
 
+def test_cycle_free_skill_selection_tracks_status_and_legacy_labels(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = {
+        SSKey.SKILLS_SELECTED.value: [],
+        SSKey.SKILLS_SELECTED_STATUS.value: {},
+    }
+    monkeypatch.setattr(SKILLS_MODULE, "st", SimpleNamespace(session_state=state))
+
+    SKILLS_MODULE._cycle_skill_selection("Python", "", "AI", "Must-have")
+    assert state[SSKey.SKILLS_SELECTED.value] == ["Python"]
+    assert state[SSKey.SKILLS_SELECTED_STATUS.value]["label:python"]["status"] == "nice"
+
+    SKILLS_MODULE._cycle_skill_selection("Python", "", "AI", "Must-have")
+    assert state[SSKey.SKILLS_SELECTED.value] == ["Python"]
+    assert state[SSKey.SKILLS_SELECTED_STATUS.value]["label:python"]["status"] == "must"
+
+    SKILLS_MODULE._cycle_skill_selection("Python", "", "AI", "Must-have")
+    assert state[SSKey.SKILLS_SELECTED.value] == []
+    assert state[SSKey.SKILLS_SELECTED_STATUS.value] == {}
+
+
+def test_cycle_esco_skill_selection_moves_between_nice_must_and_removed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = {
+        SSKey.SKILLS_SELECTED.value: [],
+        SSKey.SKILLS_SELECTED_STATUS.value: {},
+        SSKey.ESCO_SKILLS_SELECTED_MUST.value: [],
+        SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
+        SSKey.ESCO_SKILLS_REMOVED.value: [],
+        SSKey.ESCO_CONFIRMED_ESSENTIAL_SKILLS.value: [],
+        SSKey.ESCO_CONFIRMED_OPTIONAL_SKILLS.value: [],
+    }
+    monkeypatch.setattr(SKILLS_MODULE, "st", SimpleNamespace(session_state=state))
+    monkeypatch.setattr(SKILLS_MODULE, "sync_esco_shared_state", lambda: None)
+
+    SKILLS_MODULE._cycle_skill_selection(
+        "Datenmodellierung", "uri:skill:1", "ESCO", "Must-have"
+    )
+    assert state[SSKey.ESCO_SKILLS_SELECTED_NICE.value] == [
+        {
+            "uri": "uri:skill:1",
+            "title": "Datenmodellierung",
+            "type": "skill",
+            "relation": "hasOptionalSkill",
+            "source": "ESCO",
+            "group_hint": "Must-have",
+        }
+    ]
+    assert state[SSKey.ESCO_SKILLS_SELECTED_MUST.value] == []
+
+    SKILLS_MODULE._cycle_skill_selection(
+        "Datenmodellierung", "uri:skill:1", "ESCO", "Must-have"
+    )
+    assert (
+        state[SSKey.ESCO_SKILLS_SELECTED_MUST.value][0]["relation"]
+        == "hasEssentialSkill"
+    )
+    assert state[SSKey.ESCO_SKILLS_SELECTED_NICE.value] == []
+
+    SKILLS_MODULE._cycle_skill_selection(
+        "Datenmodellierung", "uri:skill:1", "ESCO", "Must-have"
+    )
+    assert state[SSKey.ESCO_SKILLS_SELECTED_MUST.value] == []
+    assert state[SSKey.ESCO_SKILLS_SELECTED_NICE.value] == []
+    assert state[SSKey.ESCO_SKILLS_REMOVED.value] == ["uri:skill:1"]
+
 def test_load_related_skills_returns_friendly_error_when_related_endpoint_unsupported(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

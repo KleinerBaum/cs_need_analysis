@@ -282,6 +282,64 @@ def _get_selected_skill_labels() -> list[str]:
     return _dedupe_terms([str(item) for item in selected_raw])
 
 
+def _free_skill_status_key(label: str, uri: str = "") -> str:
+    normalized_uri = str(uri or "").strip()
+    if normalized_uri:
+        return f"uri:{normalized_uri}"
+    return f"label:{_normalize_term(label)}"
+
+
+def _get_free_skill_statuses() -> dict[str, dict[str, str]]:
+    raw_statuses = st.session_state.get(SSKey.SKILLS_SELECTED_STATUS.value, {})
+    statuses = raw_statuses if isinstance(raw_statuses, dict) else {}
+    normalized_statuses: dict[str, dict[str, str]] = {}
+    for key, value in statuses.items():
+        key_text = str(key or "").strip()
+        if not key_text or not isinstance(value, dict):
+            continue
+        label = str(value.get("label") or "").strip()
+        status = str(value.get("status") or "").strip().lower()
+        if status not in {"nice", "must"} or not label:
+            continue
+        normalized_statuses[key_text] = {
+            "label": label,
+            "status": status,
+            "source": str(value.get("source") or "").strip(),
+            "group_hint": str(value.get("group_hint") or "").strip(),
+            "uri": str(value.get("uri") or "").strip(),
+        }
+    st.session_state[SSKey.SKILLS_SELECTED_STATUS.value] = normalized_statuses
+    return normalized_statuses
+
+
+def _set_free_skill_status(
+    *,
+    label: str,
+    uri: str,
+    source: str,
+    group_hint: str,
+    status: str | None,
+) -> None:
+    normalized_label = _normalize_term(label)
+    if not normalized_label:
+        return
+    statuses = _get_free_skill_statuses()
+    status_key = _free_skill_status_key(label, uri)
+    if status is None:
+        statuses.pop(status_key, None)
+        _remove_selected_skill_label(label)
+    else:
+        _save_selected_skill_suggestions([label])
+        statuses[status_key] = {
+            "label": label.strip(),
+            "status": status,
+            "source": source.strip(),
+            "group_hint": group_hint.strip(),
+            "uri": uri.strip(),
+        }
+    st.session_state[SSKey.SKILLS_SELECTED_STATUS.value] = statuses
+
+
 def _remove_selected_skill_label(label: str) -> None:
     normalized_label = _normalize_term(label)
     if not normalized_label:
@@ -291,6 +349,11 @@ def _remove_selected_skill_label(label: str) -> None:
         for item in _get_selected_skill_labels()
         if _normalize_term(item) != normalized_label
     ]
+    statuses = _get_free_skill_statuses()
+    for key, value in list(statuses.items()):
+        if _normalize_term(str(value.get("label") or "")) == normalized_label:
+            statuses.pop(key, None)
+    st.session_state[SSKey.SKILLS_SELECTED_STATUS.value] = statuses
 
 
 def _skill_title(item: dict[str, Any]) -> str:
@@ -302,6 +365,103 @@ def _skill_title(item: dict[str, Any]) -> str:
 
 def _skill_uri(item: dict[str, Any]) -> str:
     return str(item.get("uri") or item.get("concept_uri") or "").strip()
+
+
+def _find_esco_skill(uri: str, label: str) -> tuple[str | None, dict[str, Any] | None]:
+    normalized_label = _normalize_term(label)
+    for status, state_key in (
+        ("must", SSKey.ESCO_SKILLS_SELECTED_MUST.value),
+        ("nice", SSKey.ESCO_SKILLS_SELECTED_NICE.value),
+    ):
+        existing_raw = st.session_state.get(state_key, [])
+        existing = existing_raw if isinstance(existing_raw, list) else []
+        for item in existing:
+            if not isinstance(item, dict):
+                continue
+            item_uri = _skill_uri(item)
+            if (uri and item_uri == uri) or (
+                normalized_label and _normalize_term(_skill_title(item)) == normalized_label
+            ):
+                return status, item
+    return None, None
+
+
+
+def _esco_skill_removed_key(uri: str, label: str) -> str:
+    uri = str(uri or "").strip()
+    if uri:
+        return uri
+    return f"label:{_normalize_term(label)}"
+
+
+def _get_removed_esco_skill_keys() -> list[str]:
+    raw_removed = st.session_state.get(SSKey.ESCO_SKILLS_REMOVED.value, [])
+    removed = raw_removed if isinstance(raw_removed, list) else []
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for item in removed:
+        key = str(item or "").strip()
+        if not key or key in seen:
+            continue
+        deduped.append(key)
+        seen.add(key)
+    st.session_state[SSKey.ESCO_SKILLS_REMOVED.value] = deduped
+    return deduped
+
+
+def _remember_removed_esco_skill(uri: str, label: str) -> None:
+    key = _esco_skill_removed_key(uri, label)
+    if not key.endswith(":") and key not in _get_removed_esco_skill_keys():
+        st.session_state[SSKey.ESCO_SKILLS_REMOVED.value] = [
+            *_get_removed_esco_skill_keys(),
+            key,
+        ]
+
+
+def _restore_removed_esco_skill(uri: str, label: str) -> None:
+    keys_to_restore = {
+        _esco_skill_removed_key(uri, label),
+        _esco_skill_removed_key("", label),
+    }
+    st.session_state[SSKey.ESCO_SKILLS_REMOVED.value] = [
+        key for key in _get_removed_esco_skill_keys() if key not in keys_to_restore
+    ]
+
+
+def _is_removed_esco_skill(item: dict[str, Any]) -> bool:
+    removed = set(_get_removed_esco_skill_keys())
+    uri = _skill_uri(item)
+    title = _skill_title(item)
+    return (
+        _esco_skill_removed_key(uri, title) in removed
+        or _esco_skill_removed_key("", title) in removed
+    )
+
+
+def _build_skill_item(
+    *,
+    label: str,
+    uri: str,
+    source: str,
+    group_hint: str,
+    status: str,
+    existing_item: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    relation = "hasEssentialSkill" if status == "must" else "hasOptionalSkill"
+    base = dict(existing_item or {})
+    base.update(
+        {
+            "uri": uri.strip(),
+            "title": label.strip(),
+            "type": str(base.get("type") or "skill").strip() or "skill",
+            "relation": relation,
+        }
+    )
+    if source.strip() and not str(base.get("source") or "").strip():
+        base["source"] = source.strip()
+    if group_hint.strip() and not str(base.get("group_hint") or "").strip():
+        base["group_hint"] = group_hint.strip()
+    return base
 
 
 def _remove_esco_skill(uri: str, label: str) -> None:
@@ -327,32 +487,107 @@ def _remove_esco_skill(uri: str, label: str) -> None:
             )
         ]
     _remove_selected_skill_label(label)
+    _remember_removed_esco_skill(uri, label)
+    sync_esco_shared_state()
 
 
-def _mark_esco_skill_optional(uri: str, label: str) -> None:
-    if not uri:
-        _save_selected_skill_suggestions([label])
+def _set_esco_skill_status(
+    *,
+    label: str,
+    uri: str,
+    source: str,
+    group_hint: str,
+    status: str | None,
+) -> None:
+    current_status, existing_item = _find_esco_skill(uri, label)
+    _remove_esco_skill(uri, label)
+    if status is None:
         return
-
-    must_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
-    nice_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
-    must_items = must_raw if isinstance(must_raw, list) else []
-    nice_items = nice_raw if isinstance(nice_raw, list) else []
-    moved_item: dict[str, Any] | None = None
-    remaining_must: list[dict[str, Any]] = []
-    for item in must_items:
-        if isinstance(item, dict) and _skill_uri(item) == uri:
-            moved_item = {**item, "relation": "hasOptionalSkill"}
-            continue
-        if isinstance(item, dict):
-            remaining_must.append(item)
-    if moved_item is not None and not any(
-        isinstance(item, dict) and _skill_uri(item) == uri for item in nice_items
+    _restore_removed_esco_skill(uri, label)
+    target_key = (
+        SSKey.ESCO_SKILLS_SELECTED_MUST.value
+        if status == "must"
+        else SSKey.ESCO_SKILLS_SELECTED_NICE.value
+    )
+    existing_raw = st.session_state.get(target_key, [])
+    existing = existing_raw if isinstance(existing_raw, list) else []
+    item = _build_skill_item(
+        label=label,
+        uri=uri,
+        source=source,
+        group_hint=group_hint,
+        status=status,
+        existing_item=existing_item if current_status else None,
+    )
+    item_key = uri or _normalize_term(label)
+    if item_key and not any(
+        isinstance(existing_item, dict)
+        and (
+            (_skill_uri(existing_item) or _normalize_term(_skill_title(existing_item)))
+            == item_key
+        )
+        for existing_item in existing
     ):
-        nice_items = [*nice_items, moved_item]
-    st.session_state[SSKey.ESCO_SKILLS_SELECTED_MUST.value] = remaining_must
-    st.session_state[SSKey.ESCO_SKILLS_SELECTED_NICE.value] = nice_items
-    _save_selected_skill_suggestions([label])
+        existing = [*existing, item]
+    st.session_state[target_key] = existing
+    sync_esco_shared_state()
+
+
+def _selection_status(label: str, uri: str = "") -> str | None:
+    if uri:
+        status, _item = _find_esco_skill(uri, label)
+        return status
+    statuses = _get_free_skill_statuses()
+    status_key = _free_skill_status_key(label, uri)
+    if status_key in statuses:
+        return statuses[status_key]["status"]
+    normalized_label = _normalize_term(label)
+    if normalized_label in {
+        _normalize_term(item) for item in _get_selected_skill_labels()
+    }:
+        return "nice"
+    return None
+
+
+def _selection_status_label(status: str | None) -> str:
+    if status == "must":
+        return "Must-have"
+    if status == "nice":
+        return "Nice-to-have"
+    return "Nicht übernommen"
+
+
+def _cycle_skill_selection(label: str, uri: str, source: str, group_hint: str) -> None:
+    """Cycle one skill through: absent → nice-to-have → must-have → removed."""
+
+    label = str(label or "").strip()
+    uri = str(uri or "").strip()
+    if not label:
+        return
+    current_status = _selection_status(label, uri)
+    next_status = (
+        "nice"
+        if current_status is None
+        else "must"
+        if current_status == "nice"
+        else None
+    )
+    if uri:
+        _set_esco_skill_status(
+            label=label,
+            uri=uri,
+            source=source,
+            group_hint=group_hint,
+            status=next_status,
+        )
+    else:
+        _set_free_skill_status(
+            label=label,
+            uri=uri,
+            source=source,
+            group_hint=group_hint,
+            status=next_status,
+        )
 
 
 def _render_skill_status_surface(
@@ -360,7 +595,7 @@ def _render_skill_status_surface(
     jobspec_count: int,
     esco_count: int,
     selected_count: int,
-) -> None:
+) -> bool:
     render_output_header(
         "Skills & Anforderungen schärfen",
         "Aus Stellenanzeige, ESCO und AI-Vorschlägen entsteht eine prüfbare "
@@ -370,6 +605,27 @@ def _render_skill_status_surface(
         f"{jobspec_count} aus der Anzeige erkannt · "
         f"{esco_count} durch ESCO/AI ergänzt · {selected_count} übernommen"
     )
+    with st.expander("Weitere AI-Vorschläge", expanded=False):
+        st.caption(
+            "Die ersten 5 AI-Vorschläge werden automatisch einmalig erzeugt. "
+            "Diese Steuerung ergänzt bei zusätzlichem Bedarf weitere Vorschläge."
+        )
+        count_col, action_col = st.columns([1, 2], gap="small")
+        with count_col:
+            st.number_input(
+                "Anzahl",
+                key=SSKey.SKILLS_SUGGEST_COUNT.value,
+                min_value=1,
+                max_value=12,
+                step=1,
+                label_visibility="collapsed",
+            )
+        with action_col:
+            return st.button(
+                "+ AI-Vorschläge",
+                key=SSKey.SKILLS_AI_GENERATE_CLICKED.value,
+                width="stretch",
+            )
 
 
 def _render_term_group(title: str, values: list[str], *, limit: int = 10) -> None:
@@ -408,6 +664,7 @@ def _render_skill_action_row(
     uri: str = "",
     can_mark_optional: bool = True,
     show_status_caption: bool = True,
+    group_hint: str = "",
 ) -> None:
     item_col, adopt_col, optional_col, remove_col = st.columns([4.4, 1.3, 1.8, 1.2])
     with item_col:
@@ -518,6 +775,7 @@ def _render_suggestion_group(
             uri=uri,
             key_prefix=f"{key_prefix}.esco.{index}.{_normalize_term(label)}",
             can_mark_optional=can_mark_optional,
+            group_hint=title,
         )
     for index, label in enumerate(ai_labels):
         _render_skill_action_row(
@@ -525,7 +783,8 @@ def _render_suggestion_group(
             source="AI",
             key_prefix=f"{key_prefix}.ai.{index}.{_normalize_term(label)}",
             can_mark_optional=can_mark_optional,
-            show_status_caption=False,
+            show_status_caption=True,
+            group_hint=title,
         )
 
 
@@ -556,7 +815,8 @@ def _render_selected_group(
             uri=_skill_uri(matching_item) if isinstance(matching_item, dict) else "",
             key_prefix=f"{key_prefix}.{index}.{_normalize_term(label)}",
             can_mark_optional=can_mark_optional,
-            show_status_caption=False,
+            show_status_caption=True,
+            group_hint=title,
         )
 
 
@@ -568,7 +828,7 @@ def _render_skills_source_columns(
     deduped_must: list[dict[str, Any]],
     deduped_nice: list[dict[str, Any]],
     show_esco_sections: bool,
-) -> bool:
+) -> None:
     jobspec_groups = _build_jobspec_skill_groups(job)
     jobspec_count = len(
         _dedupe_terms([term for terms in jobspec_groups.values() for term in terms])
@@ -619,7 +879,6 @@ def _render_skills_source_columns(
         for title, values in jobspec_groups.items():
             _render_term_group(title, values)
 
-    generate_ai_clicked = False
     with col_esco:
         st.metric("ESCO ergänzt", esco_count)
         if show_esco_sections:
@@ -647,18 +906,6 @@ def _render_skills_source_columns(
             key_prefix="skills.recommend.tech_stack",
             can_mark_optional=True,
         )
-        st.number_input(
-            "Anzahl AI-Skill-Vorschläge",
-            key=SSKey.SKILLS_SUGGEST_COUNT.value,
-            min_value=1,
-            max_value=12,
-            step=1,
-        )
-        generate_ai_clicked = st.button(
-            "AI-Skill-Vorschläge generieren",
-            key=SSKey.SKILLS_AI_GENERATE_CLICKED.value,
-        )
-
     with col_selected:
         st.metric("Übernommen", selected_count)
         st.caption("Finaler Warenkorb für Brief, Matching und Interview.")
@@ -685,7 +932,6 @@ def _render_skills_source_columns(
         )
 
     st.session_state[SSKey.SKILLS_SELECTED_BULK_BUFFER.value] = selected_labels
-    return generate_ai_clicked
 
 
 def _safe_text(value: str | None) -> str:
@@ -1137,6 +1383,74 @@ def _render_matrix_coverage_section(snapshot: dict[str, Any], *, ui_mode: str) -
         st.dataframe(compact_rows, width="stretch", hide_index=True)
 
 
+def _generate_ai_skill_suggestions(
+    *,
+    job: JobAdExtract,
+    suggestion_context: dict[str, list[str]],
+    target_skill_count: int,
+) -> list[dict[str, Any]] | None:
+    existing_llm_raw = st.session_state.get(SSKey.SKILLS_LLM_SUGGESTED.value, [])
+    existing_llm = existing_llm_raw if isinstance(existing_llm_raw, list) else []
+    existing_llm_labels = _dedupe_terms(
+        [
+            _llm_skill_label(item)
+            for item in existing_llm
+            if isinstance(item, dict)
+        ]
+    )
+    blocked_labels = [
+        *suggestion_context["jobspec_terms"],
+        *suggestion_context["esco_titles"],
+        *suggestion_context["selected_labels"],
+        *existing_llm_labels,
+    ]
+    try:
+        suggestion_pack, _usage = generate_requirement_gap_suggestions(
+            job=job,
+            answers=get_answers(),
+            existing_skills=blocked_labels,
+            existing_tasks=[],
+            esco_skill_titles=suggestion_context["esco_titles"],
+            target_skill_count=target_skill_count,
+            target_task_count=0,
+            model=get_active_model(),
+        )
+    except Exception:
+        st.warning("AI-Vorschläge konnten nicht erzeugt werden.")
+        return None
+
+    llm_skill_payload = [
+        item.model_dump(mode="json")
+        for item in suggestion_pack.skills
+        if str(item.type) == "skill"
+    ]
+    rag_query = " | ".join(
+        [
+            job.job_title,
+            ", ".join(suggestion_context["jobspec_terms"]),
+        ]
+    ).strip(" |")
+    rag_payload: list[dict[str, Any]] = []
+    if rag_query:
+        rag_result = retrieve_esco_context(
+            rag_query,
+            purpose="skills",
+        )
+        if rag_result.reason is None:
+            rag_payload = extract_skill_suggestions(rag_result)
+    merged_llm = _merge_llm_skill_suggestions(
+        llm_skills=[*llm_skill_payload, *rag_payload],
+        blocked_labels=blocked_labels,
+    )
+    combined_llm = [*existing_llm, *merged_llm]
+    st.session_state[SSKey.SKILLS_LLM_SUGGESTED.value] = combined_llm
+    if merged_llm:
+        st.success(f"{len(merged_llm)} AI-Skill(s) übernommen.")
+    else:
+        st.info("Keine zusätzlichen AI-Skills gefunden.")
+    return combined_llm
+
+
 def _render_unmapped_term_workflow(flagged_terms: list[str]) -> None:
     st.markdown("#### Offene Begriffe")
     st.caption("Für jeden Begriff: ESCO mappen, Freitext behalten, ignorieren oder erneut suchen.")
@@ -1491,6 +1805,7 @@ def _maybe_autoload_esco_skill_suggestions(
                 "related_occupation_uri": occupation_uri,
             }
             for item in [*suggested_must, *matrix_must]
+            if not _is_removed_esco_skill(item)
         ],
         must_selected=selected_must,
         nice_selected=selected_nice,
@@ -1503,6 +1818,7 @@ def _maybe_autoload_esco_skill_suggestions(
                 "related_occupation_uri": occupation_uri,
             }
             for item in [*suggested_nice, *matrix_nice]
+            if not _is_removed_esco_skill(item)
         ],
         must_selected=selected_nice,
         nice_selected=merged_must,
@@ -1597,7 +1913,7 @@ def _render_skills_source_comparison_block(
             *_get_selected_skill_labels(),
         ]
     )
-    _render_skill_status_surface(
+    generate_ai_clicked = _render_skill_status_surface(
         jobspec_count=len(_dedupe_terms(jobspec_labels)),
         esco_count=len(
             _dedupe_terms(
@@ -1608,14 +1924,6 @@ def _render_skills_source_comparison_block(
             )
         ),
         selected_count=len(selected_status_labels),
-    )
-    generate_ai_clicked = _render_skills_source_columns(
-        job=job,
-        jobspec_labels=jobspec_labels,
-        llm_labels=llm_labels,
-        deduped_must=deduped_must,
-        deduped_nice=deduped_nice,
-        show_esco_sections=show_esco_sections,
     )
 
     mapped_titles = {
@@ -1680,61 +1988,38 @@ def _render_skills_source_comparison_block(
         esco_must_selected=deduped_must,
         esco_nice_selected=deduped_nice,
     )
-    if generate_ai_clicked:
+    initial_ai_generated = bool(
+        st.session_state.get(SSKey.SKILLS_AI_INITIAL_GENERATED.value, False)
+    )
+    existing_llm_raw = st.session_state.get(SSKey.SKILLS_LLM_SUGGESTED.value, [])
+    existing_llm = existing_llm_raw if isinstance(existing_llm_raw, list) else []
+    should_auto_generate_ai = not initial_ai_generated and not existing_llm
+    if not initial_ai_generated and existing_llm:
+        st.session_state[SSKey.SKILLS_AI_INITIAL_GENERATED.value] = True
+    if should_auto_generate_ai or generate_ai_clicked:
+        st.session_state[SSKey.SKILLS_AI_INITIAL_GENERATED.value] = True
+        target_skill_count = 5 if should_auto_generate_ai else int(
+            st.session_state.get(SSKey.SKILLS_SUGGEST_COUNT.value, 5)
+        )
         with st.spinner("Generiere Skill-Vorschläge …"):
-            try:
-                suggestion_pack, _usage = generate_requirement_gap_suggestions(
-                    job=job,
-                    answers=get_answers(),
-                    existing_skills=[
-                        *suggestion_context["jobspec_terms"],
-                        *suggestion_context["esco_titles"],
-                        *suggestion_context["selected_labels"],
-                    ],
-                    existing_tasks=[],
-                    esco_skill_titles=suggestion_context["esco_titles"],
-                    target_skill_count=int(
-                        st.session_state.get(SSKey.SKILLS_SUGGEST_COUNT.value, 5)
-                    ),
-                    target_task_count=0,
-                    model=get_active_model(),
-                )
-            except Exception:
-                st.warning("AI-Vorschläge konnten nicht erzeugt werden.")
-            else:
-                llm_skill_payload = [
-                    item.model_dump(mode="json")
-                    for item in suggestion_pack.skills
-                    if str(item.type) == "skill"
-                ]
-                rag_query = " | ".join(
-                    [
-                        job.job_title,
-                        ", ".join(suggestion_context["jobspec_terms"]),
-                    ]
-                ).strip(" |")
-                rag_payload: list[dict[str, Any]] = []
-                if rag_query:
-                    rag_result = retrieve_esco_context(
-                        rag_query,
-                        purpose="skills",
-                    )
-                    if rag_result.reason is None:
-                        rag_payload = extract_skill_suggestions(rag_result)
-                merged_llm = _merge_llm_skill_suggestions(
-                    llm_skills=[*llm_skill_payload, *rag_payload],
-                    blocked_labels=[
-                        *suggestion_context["jobspec_terms"],
-                        *suggestion_context["esco_titles"],
-                        *suggestion_context["selected_labels"],
-                    ],
-                )
-                st.session_state[SSKey.SKILLS_LLM_SUGGESTED.value] = merged_llm
-                llm_suggested = merged_llm
-                if merged_llm:
-                    st.success(f"{len(merged_llm)} AI-Skill(s) übernommen.")
-                else:
-                    st.info("Keine zusätzlichen AI-Skills gefunden.")
+            _generate_ai_skill_suggestions(
+                job=job,
+                suggestion_context=suggestion_context,
+                target_skill_count=target_skill_count,
+            )
+
+    jobspec_labels, llm_labels, _esco_labels, deduped_must, deduped_nice, llm_suggested = _build_skills_source_view_data(
+        job=job,
+        show_esco_sections=show_esco_sections,
+    )
+    _render_skills_source_columns(
+        job=job,
+        jobspec_labels=jobspec_labels,
+        llm_labels=llm_labels,
+        deduped_must=deduped_must,
+        deduped_nice=deduped_nice,
+        show_esco_sections=show_esco_sections,
+    )
 
     ambiguous_terms = sorted(
         {
