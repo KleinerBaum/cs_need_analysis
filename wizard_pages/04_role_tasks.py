@@ -15,8 +15,7 @@ from components.design_system import render_output_header
 from state import (
     get_active_model,
     get_answers,
-    get_esco_occupation_selected,
-    has_confirmed_esco_anchor,
+    get_esco_semantic_context,
     sync_esco_shared_state,
 )
 from ui_components import (
@@ -291,10 +290,15 @@ def render(ctx: WizardContext) -> None:
 
     def _render_source_comparison_slot() -> None:
         coverage = sync_esco_shared_state()
-        show_esco_sections = has_confirmed_esco_anchor()
+        semantic_context = get_esco_semantic_context()
+        show_esco_sections = semantic_context.can_use_task_suggestions
         render_error_banner()
 
-        selected_occupation = get_esco_occupation_selected()
+        selected_occupation = (
+            semantic_context.primary_anchor.model_dump(mode="json")
+            if semantic_context.primary_anchor is not None
+            else None
+        )
         esco_suggestions: list[dict[str, str]] = []
         occupation_uri = (
             (

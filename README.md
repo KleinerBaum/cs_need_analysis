@@ -24,8 +24,8 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 - Beim Job-Ad-Generator liegen **Selection Matrix** und **Job-Ad-Editor** gebündelt im erweiterten Bereich (UI-Modus `expert`), inkl. optionalem Logo-Upload sowie Styleguide-/Change-Request-Bausteinen.
 - Der Salary Forecast ist in **Rolle & Aufgaben** als kompakte Seitenleiste rechts neben der Vergleichstabelle umgesetzt: Dort können **Suchradius (km)**, **Remote Share (%)** und **Erfahrung** gesetzt werden; per **„Prognose aktualisieren“** wird eine schlichte LLM-basierte EUR-Gehaltsprognose auf Basis von Jobtitel, Seniorität, Standort und aktuell ausgewählten Rollen/Aufgaben erzeugt.
 - In **Benefits & Rahmenbedingungen** werden aus der Anzeige erkannte Benefits sichtbar angezeigt, mit bestätigtem Kontext und AI-Vorschlägen verglichen und als kanonische Auswahl gespeichert. Diese ausgewählten Benefits fließen in Summary/Export, Recruiting-Brief-Strukturdaten und zusammen mit Suchradius, Remote-Anteil und Erfahrung per **„Prognose aktualisieren“** in die Gehaltsprognose ein; ESCO dient hier nur als Berufs-/Arbeitskontext, nicht als Benefit-Taxonomie.
-- ESCO-Integration in **Start · Phase C (ESCO-Suche)** ohne Expander mit Occupation-Picker, direkter Bestätigung via **„Speichern“** und 3-spaltiger Trefferübersicht; bei fehlendem Jobtitel kann der Rollenbegriff manuell eingegeben werden. Die Bestätigung dient in den Folgeschritten als Downstream-Grundlage. Zusätzlich gibt es einen expandierbaren Occupation-Detailbereich (u. a. Preferred/Alternative Labels, Description, Scope Note, ISCO-08, Regulated Profession sowie Skill-/Knowledge-Relationen) sowie optionales Laden von Occupation-Titelvarianten in mehreren Sprachen.
-- Degradiertes Verhalten bei ESCO-Ausfall: Bei temporären ESCO-Fehlern (z. B. 5xx/Netzwerk) bleibt der Wizard bedienbar, zeigt verständliche Hinweise und bietet „manuell fortfahren“ sowie „später erneut versuchen“ statt eines harten Abbruchs.
+- ESCO-Integration in **Start · Phase C (ESCO-Suche)** mit Primäranker, optional bis zu zwei sekundären Kontextankern und 3-spaltiger Trefferübersicht; bei fehlendem Jobtitel kann der Rollenbegriff manuell eingegeben werden. Der Primäranker dient in den Folgeschritten als Downstream-Grundlage; sekundäre Anchors bleiben Kontext/Rationale und mischen keine Skills in Kernexports.
+- Degradiertes Verhalten bei ESCO-Ausfall oder bewusstem Weitergehen ohne bestätigten ESCO-Anker: Der Wizard bleibt bedienbar, speichert `degraded_unconfirmed` und erlaubt Jobspec-/AI-Flows; ESCO-Normalisierung, Matrix-Coverage, ESCO-basierte Interview-Priorisierung und URI-Exports bleiben gesperrt.
 - Skills-Mapping als geführter 4-Schritt-Flow: (1) extrahierte Jobspec-Phrasen, (2) ESCO-Normalisierung über Occupation-Relationen, (3) sichtbare Essential/Optional-Bestätigung, (4) dedizierter Bereich „Not normalized yet“ mit Optionen „Keep free text“, Retry-Suche und Attach an Occupation.
 - Unternehmensschritt mit Homepage-Enrichment (Beta): Die aus dem Jobspec extrahierte Arbeitgeber-URL kann per Buttons für **Über uns**, **Impressum** und **Vision/Mission** analysiert werden; essenzielle Textausschnitte werden rechts angezeigt, mit offenen Wizard-Fragen abgeglichen, im Session-State gespeichert und in die Brief-Generierung im Summary-Schritt eingespeist.
 - Der Unternehmensschritt umfasst neben dem Unternehmenskontext auch den Teamkontext inkl. Team-Fragen und enthält dafür ein zweizoniges **Role-context enrichment (ESCO)**-Muster: links klar als **Inferred suggestion/context** markierte Hinweise (inkl. Match-Provenance/-Confidence, falls vorhanden), rechts der Bereich **Confirmed input** aus der kanonischen Team-Notiz. Die Übernahme erfolgt gesammelt über eine eindeutige Aktion „Ausgewählte Vorschläge als confirmed selection übernehmen“.
@@ -38,7 +38,7 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 ## Wizard-Flow (implementiert)
 
 1. **Start**
-   - Phase A: Quelle, Consent, optionale PII-Redaktion, UI-Modus (global zusätzlich über Sidebar-Präferenz-Center steuerbar)
+   - Phase A: Quelle, Consent, optionale PII-Redaktion, UI-Modus sowie ESCO-Betriebsblock (Stable/Preview im Expert-Modus, Runtime-Lane, Arbeits-/Fallback-Sprache, Diagnose)
    - Phase B: editierbare „Identifizierte Informationen“
    - Phase C: ESCO-Suche mit bestätigbarem oder manuell eingebbarem Rollenbegriff
 3. **Rolle & Aufgaben**
@@ -92,8 +92,8 @@ Falls du ohne Constraints arbeiten willst, bleibt auch `pip install -r requireme
 ## ESCO API Konfiguration
 
 Die ESCO-Basis-URL kann optional über `ESCO_API_BASE_URL` gesetzt werden (z. B. für lokale Mirror/Proxy-Setups).
-Die ESCO-Version ist standardmäßig auf `v1.2.0` gepinnt und kann über `ESCO_SELECTED_VERSION` gesetzt werden.
-Optional kann `ESCO_API_MODE` (`hosted` / `local`) gesetzt werden; die Client-Abstraktion bleibt für beide Modi gleich.
+Die Semantik-Lane ist standardmäßig `stable` und damit auf `v1.2.0` gepinnt. `preview` zielt auf `v1.2.1` und ist im Produkt zunächst Expert-/QA-Modus, bis die ESCO-Smoke-Matrix stabil ist. `ESCO_SELECTED_VERSION` bleibt als expliziter Override kompatibel.
+Optional kann `ESCO_API_MODE` (`hosted` / `local`) gesetzt werden; die Client-Abstraktion bleibt für beide Modi gleich. `ESCO_DATA_SOURCE_MODE` (`live_api`, `offline_index`, `hybrid`) steuert die Runtime-Lane.
 
 ### Auflösungsreihenfolge
 
@@ -105,14 +105,17 @@ Versionauflösung:
 
 1. explizite Session-Konfiguration (`st.session_state[SSKey.ESCO_CONFIG]["selected_version"]`)
 2. Umgebungsvariable `ESCO_SELECTED_VERSION`
-3. Default: `v1.2.0`
+3. Version aus `ESCO_RELEASE_LANE` (`stable -> v1.2.0`, `preview -> v1.2.1`)
+4. Default: `v1.2.0`
 
 ### Beispiel (Local Deployment)
 
 ```bash
 export ESCO_API_BASE_URL="http://localhost:9000/esco/api/"
+export ESCO_RELEASE_LANE="stable"
 export ESCO_SELECTED_VERSION="v1.2.0"
 export ESCO_API_MODE="local"
+export ESCO_DATA_SOURCE_MODE="hybrid"
 streamlit run app.py
 ```
 
@@ -122,6 +125,7 @@ streamlit run app.py
 pip check
 python -c "import openai; print(openai.__version__)"
 python -c "from eures_mapping import load_national_code_lookup_from_file as f; print('ok' if callable(f) else 'fail')"
+python scripts/esco_smoke_test.py --mode all --ci-dry-run-if-unavailable --json-only
 ```
 
 ## ESCO Matrix Priors (optional)
@@ -164,6 +168,7 @@ Output-Verhalten (aktuell):
 
 - Live-ESCO-Skills bleiben die primäre Quelle.
 - Matrix-Priors werden als **zusätzliche Must-/Nice-Kandidaten** eingeblendet.
+- Matrix-Priors und Coverage laufen nur bei bestätigtem ESCO-Primäranker (`anchored` / `anchored_with_context`).
 - Kandidaten aus der Matrix sind mit Badge `ESCO matrix prior` markiert.
 - Merge/Dedupe erfolgt deterministisch per ESCO-URI; Must/Nice-Semantik bleibt erhalten.
 - Für bestätigte Skills wird zusätzlich eine kompakte **ISCO Skill-Group Coverage** aus Matrix-Metadaten berechnet (deterministisch, ohne ESCO-API/LLM), inklusive Status `covered|missing|partial|overrepresented`.
@@ -350,6 +355,11 @@ Dieser Smoke-Test ist der bevorzugte Verifikationspfad für Änderungen an Model
 
 Der strukturierte Summary-Export enthält – sofern vorhanden – folgende ESCO-bezogene Felder:
 
+- `semantic_export_mode`: `degraded` oder `anchored`
+- `esco_anchor_state`: `degraded_unconfirmed`, `anchored` oder `anchored_with_context`
+- `esco_release_lane`, `esco_version`, `esco_data_source_mode`, `esco_data_source`
+- `esco_capability_snapshot`: aufgelöste Runtime-/Capability-Metadaten
+- `esco_primary_anchor` / `esco_secondary_anchors`: Primäranker und reine Kontextanker
 - `esco_occupations`: bestätigte ESCO Occupation(s) mit `uri` und `label`
 - `esco_occupation_provenance`: Explainability/Provenance zur bestätigten Occupation (`reason`, `confidence`, `provenance_categories`)
 - `recommended_titles`: geladene Occupation-Titelvarianten pro Sprache
@@ -358,6 +368,10 @@ Der strukturierte Summary-Export enthält – sofern vorhanden – folgende ESCO
 - `esco_unmapped_term_actions`: dokumentierte Nutzerentscheidung je offenem Begriff
 - `occupation_context_profile`: deterministisches Berufs-/Kontextprofil fuer die Question-Pack-Auswahl
 - `question_flow_provenance`: deterministische Provenance zum kompilierten Fragenflow
+
+Bei `semantic_export_mode=degraded` werden keine URI-basierten ESCO-Kernexports (`esco_occupations`, `esco_skills_must`, `esco_skills_nice`, Matrix-Coverage) ausgegeben.
+
+Qualifications sind bewusst **post-MVP**. Die ESCO-Qualifications-Domain ist relevant für Lernpfade, Guidance und Talent Mobility, aber nicht Teil des aktuellen Recruitment-Need-Analysis-Kernflows.
 
 
 ## ESCO Offline Index Build

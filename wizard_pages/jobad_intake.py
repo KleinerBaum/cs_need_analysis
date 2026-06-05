@@ -37,6 +37,7 @@ from settings_openai import load_openai_settings
 from state import (
     clear_error,
     get_esco_occupation_selected,
+    get_esco_semantic_context,
     has_confirmed_esco_anchor,
     get_model_override,
     handle_unexpected_exception,
@@ -73,15 +74,22 @@ def _model_dump_json_compatible(model: Any) -> dict[str, Any]:
 
 
 def _sync_deterministic_question_flow(job: JobAdExtract, base_plan: QuestionPlan) -> None:
-    esco_config_raw = st.session_state.get(SSKey.ESCO_CONFIG.value, {})
-    esco_config = esco_config_raw if isinstance(esco_config_raw, dict) else {}
+    semantic_context = get_esco_semantic_context()
     answers_raw = st.session_state.get(SSKey.ANSWERS.value, {})
     answers = answers_raw if isinstance(answers_raw, dict) else {}
+    primary_anchor = (
+        semantic_context.primary_anchor.model_dump(mode="json")
+        if semantic_context.primary_anchor is not None
+        else None
+    )
+    capability_snapshot = semantic_context.capability_snapshot
     profile = classify_occupation_context(
         job=job,
-        esco_selected=get_esco_occupation_selected(),
+        esco_selected=primary_anchor,
         esco_payload=st.session_state.get(SSKey.ESCO_OCCUPATION_PAYLOAD.value),
-        esco_version=str(esco_config.get("selected_version") or "").strip() or None,
+        esco_version=(
+            capability_snapshot.selected_version if capability_snapshot else None
+        ),
         answers=answers,
     )
     compiled = compile_question_plan(base_plan=base_plan, profile=profile)

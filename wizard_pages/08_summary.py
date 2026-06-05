@@ -30,6 +30,7 @@ from interview_process import (
     normalize_interview_internal_flow,
 )
 from esco_client import EscoClient, EscoClientError
+from esco_semantics import normalize_anchor_ref, sync_esco_semantic_state
 from llm_client import (
     TASK_GENERATE_EMPLOYMENT_CONTRACT,
     JobAdGenerationResult,
@@ -52,6 +53,7 @@ from schemas import (
     EscoConceptRef,
     EscoMatrixCoverageRow,
     EscoMappingReport,
+    EscoSemanticContext,
     EscoUnresolvedTermDecision,
     EmploymentContractDraft,
     InterviewPrepSheetHiringManager,
@@ -702,6 +704,26 @@ def _read_esco_shared_fields() -> EscoSharedFields:
     }
 
 
+def _read_esco_semantic_context() -> EscoSemanticContext:
+    selected_occupation = get_esco_occupation_selected()
+    if isinstance(selected_occupation, dict):
+        anchor = normalize_anchor_ref(selected_occupation)
+        if anchor is not None:
+            st.session_state[SSKey.ESCO_PRIMARY_ANCHOR.value] = anchor
+    return sync_esco_semantic_state(st.session_state)
+
+
+def _show_semantic_esco_sections() -> bool:
+    try:
+        semantic_context = _read_esco_semantic_context()
+    except Exception:
+        semantic_context = None
+    return bool(
+        semantic_context is not None
+        and semantic_context.can_use_semantic_exports
+    ) or has_confirmed_esco_anchor()
+
+
 def _count_skill_relation_traces(skills: list[dict[str, Any]]) -> int:
     relation_traces = 0
     for item in skills:
@@ -1032,60 +1054,103 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
             )
         except Exception:
             pass
+    semantic_context = _read_esco_semantic_context()
+    payload["semantic_export_mode"] = semantic_context.semantic_export_mode
+    payload["esco_anchor_state"] = semantic_context.anchor_state
+    if semantic_context.capability_snapshot is not None:
+        payload["esco_capability_snapshot"] = (
+            semantic_context.capability_snapshot.model_dump(
+                mode="json",
+                exclude_none=True,
+            )
+        )
+
     selected_occupation = get_esco_occupation_selected()
-    if isinstance(selected_occupation, dict):
-        try:
-            parsed_occupation = EscoConceptRef.model_validate(selected_occupation)
-        except Exception:
-            pass
-        else:
+    if semantic_context.can_use_semantic_exports:
+        if semantic_context.primary_anchor is not None:
+            primary_anchor = semantic_context.primary_anchor.model_dump(
+                mode="json",
+                exclude_none=True,
+            )
+            payload["esco_primary_anchor"] = primary_anchor
             payload["esco_occupations"] = [
-                {"uri": parsed_occupation.uri, "label": parsed_occupation.title}
+                {
+                    "uri": semantic_context.primary_anchor.uri,
+                    "label": semantic_context.primary_anchor.title,
+                }
             ]
             explainability = _read_esco_match_explainability()
             if explainability:
                 payload["esco_occupation_provenance"] = explainability
-
-    shared_esco = _read_esco_shared_fields()
-    must_skills = _to_esco_export_concepts(shared_esco["essential_skills"])
-    if must_skills:
-        payload["esco_skills_must"] = must_skills
-
-    nice_skills = _to_esco_export_concepts(shared_esco["optional_skills"])
-    if nice_skills:
-        payload["esco_skills_nice"] = nice_skills
-    if shared_esco["unmapped_terms"]:
-        payload["esco_unmapped_requirement_terms"] = shared_esco["unmapped_terms"]
-    if shared_esco["unmapped_roles"]:
-        payload["esco_unmapped_role_terms"] = shared_esco["unmapped_roles"]
-    unresolved_decisions_raw = _session_list(SSKey.ESCO_UNRESOLVED_TERM_DECISIONS)
-    if shared_esco["unmapped_actions"]:
-        payload["esco_unmapped_term_actions"] = shared_esco["unmapped_actions"]
-    unresolved_decisions: list[dict[str, Any]] = []
-    if isinstance(unresolved_decisions_raw, list):
-        for entry in unresolved_decisions_raw:
-            if not isinstance(entry, dict):
-                continue
+        elif isinstance(selected_occupation, dict):
             try:
-                parsed = EscoUnresolvedTermDecision.model_validate(entry)
-            except ValueError:
-                continue
-            unresolved_decisions.append(parsed.model_dump(mode="json", exclude_none=True))
-    if not unresolved_decisions and shared_esco["unmapped_actions"]:
-        for raw_term, action_payload in shared_esco["unmapped_actions"].items():
-            if not isinstance(action_payload, dict):
-                continue
-            candidate = dict(action_payload)
-            candidate.setdefault("raw_term", str(raw_term))
-            try:
-                parsed = EscoUnresolvedTermDecision.model_validate(candidate)
-            except ValueError:
-                continue
-            unresolved_decisions.append(parsed.model_dump(mode="json", exclude_none=True))
-    if unresolved_decisions:
-        payload["esco_unresolved_term_decisions"] = unresolved_decisions
+                parsed_occupation = EscoConceptRef.model_validate(selected_occupation)
+            except Exception:
+                pass
+            else:
+                payload["esco_occupations"] = [
+                    {"uri": parsed_occupation.uri, "label": parsed_occupation.title}
+                ]
+                explainability = _read_esco_match_explainability()
+                if explainability:
+                    payload["esco_occupation_provenance"] = explainability
+        if semantic_context.secondary_anchors:
+            payload["esco_secondary_anchors"] = [
+                anchor.model_dump(mode="json", exclude_none=True)
+                for anchor in semantic_context.secondary_anchors
+            ]
+
+        shared_esco = _read_esco_shared_fields()
+        must_skills = _to_esco_export_concepts(shared_esco["essential_skills"])
+        if must_skills:
+            payload["esco_skills_must"] = must_skills
+
+        nice_skills = _to_esco_export_concepts(shared_esco["optional_skills"])
+        if nice_skills:
+            payload["esco_skills_nice"] = nice_skills
+        if shared_esco["unmapped_terms"]:
+            payload["esco_unmapped_requirement_terms"] = shared_esco["unmapped_terms"]
+        if shared_esco["unmapped_roles"]:
+            payload["esco_unmapped_role_terms"] = shared_esco["unmapped_roles"]
+        unresolved_decisions_raw = _session_list(SSKey.ESCO_UNRESOLVED_TERM_DECISIONS)
+        if shared_esco["unmapped_actions"]:
+            payload["esco_unmapped_term_actions"] = shared_esco["unmapped_actions"]
+        unresolved_decisions: list[dict[str, Any]] = []
+        if isinstance(unresolved_decisions_raw, list):
+            for entry in unresolved_decisions_raw:
+                if not isinstance(entry, dict):
+                    continue
+                try:
+                    parsed = EscoUnresolvedTermDecision.model_validate(entry)
+                except ValueError:
+                    continue
+                unresolved_decisions.append(
+                    parsed.model_dump(mode="json", exclude_none=True)
+                )
+        if not unresolved_decisions and shared_esco["unmapped_actions"]:
+            for raw_term, action_payload in shared_esco["unmapped_actions"].items():
+                if not isinstance(action_payload, dict):
+                    continue
+                candidate = dict(action_payload)
+                candidate.setdefault("raw_term", str(raw_term))
+                try:
+                    parsed = EscoUnresolvedTermDecision.model_validate(candidate)
+                except ValueError:
+                    continue
+                unresolved_decisions.append(
+                    parsed.model_dump(mode="json", exclude_none=True)
+                )
+        if unresolved_decisions:
+            payload["esco_unresolved_term_decisions"] = unresolved_decisions
 
     esco_config = _session_dict(SSKey.ESCO_CONFIG)
+    release_lane = str(
+        esco_config.get("release_lane")
+        or st.session_state.get(SSKey.ESCO_RELEASE_LANE.value)
+        or ""
+    ).strip()
+    if release_lane:
+        payload["esco_release_lane"] = release_lane
     selected_version = str(esco_config.get("selected_version") or "").strip()
     if selected_version:
         payload["esco_version"] = selected_version
@@ -1095,66 +1160,67 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
     data_source_mode = str(esco_config.get("data_source_mode") or "").strip()
     if data_source_mode:
         payload["esco_data_source_mode"] = data_source_mode
-    matrix_metadata = st.session_state.get(SSKey.ESCO_MATRIX_METADATA.value, {})
-    matrix_loaded = bool(st.session_state.get(SSKey.ESCO_MATRIX_LOADED.value, False))
-    if isinstance(matrix_metadata, dict) and (matrix_loaded or matrix_metadata):
-        payload["esco_matrix"] = {
-            "enabled": bool(
-                st.session_state.get(SSKey.ESCO_MATRIX_ENABLED.value, False)
-            ),
-            "loaded": matrix_loaded,
-            "source": str(matrix_metadata.get("source") or "").strip(),
-            "version": str(matrix_metadata.get("version") or "").strip(),
-            "records": int(matrix_metadata.get("records") or 0),
-        }
-    matrix_coverage_rows_raw = _session_list(SSKey.ESCO_MATRIX_COVERAGE_ROWS)
-    matrix_coverage_rows: list[dict[str, Any]] = []
-    for row in matrix_coverage_rows_raw:
-        if not isinstance(row, dict):
-            continue
-        try:
-            matrix_coverage_rows.append(
-                EscoMatrixCoverageRow.model_validate(row).model_dump(mode="json")
-            )
-        except Exception:
-            continue
-    if matrix_coverage_rows:
-        payload["esco_matrix_coverage"] = matrix_coverage_rows
-        if isinstance(payload.get("esco_matrix"), dict):
-            payload["esco_matrix"]["coverage_rows"] = len(matrix_coverage_rows)
-    matrix_coverage_context = _session_dict(SSKey.ESCO_MATRIX_COVERAGE_CONTEXT)
-    if matrix_coverage_context:
-        context_payload = {
-            "reason": str(matrix_coverage_context.get("reason") or "").strip(),
-            "occupation_group": str(
-                matrix_coverage_context.get("occupation_group") or ""
-            ).strip(),
-            "rows": int(matrix_coverage_context.get("rows") or 0),
-        }
-        if any(context_payload.values()):
-            payload["esco_matrix_coverage_context"] = context_payload
-
-    title_variants_raw = _session_dict(SSKey.ESCO_OCCUPATION_TITLE_VARIANTS)
-    variants_uri = str(title_variants_raw.get("uri") or "").strip()
-    recommended_titles_raw = title_variants_raw.get("recommended_titles", {})
-    if (
-        isinstance(selected_occupation, dict)
-        and variants_uri == str(selected_occupation.get("uri") or "").strip()
-        and isinstance(recommended_titles_raw, dict)
-    ):
-        recommended_titles: dict[str, list[str]] = {}
-        for language, labels_raw in recommended_titles_raw.items():
-            if not isinstance(language, str) or not isinstance(labels_raw, list):
+    if semantic_context.can_use_matrix_coverage:
+        matrix_metadata = st.session_state.get(SSKey.ESCO_MATRIX_METADATA.value, {})
+        matrix_loaded = bool(st.session_state.get(SSKey.ESCO_MATRIX_LOADED.value, False))
+        if isinstance(matrix_metadata, dict) and (matrix_loaded or matrix_metadata):
+            payload["esco_matrix"] = {
+                "enabled": bool(
+                    st.session_state.get(SSKey.ESCO_MATRIX_ENABLED.value, False)
+                ),
+                "loaded": matrix_loaded,
+                "source": str(matrix_metadata.get("source") or "").strip(),
+                "version": str(matrix_metadata.get("version") or "").strip(),
+                "records": int(matrix_metadata.get("records") or 0),
+            }
+        matrix_coverage_rows_raw = _session_list(SSKey.ESCO_MATRIX_COVERAGE_ROWS)
+        matrix_coverage_rows: list[dict[str, Any]] = []
+        for row in matrix_coverage_rows_raw:
+            if not isinstance(row, dict):
                 continue
-            labels = [
-                str(label).strip()
-                for label in labels_raw
-                if isinstance(label, str) and str(label).strip()
-            ]
-            if labels:
-                recommended_titles[language] = labels
-        if recommended_titles:
-            payload["recommended_titles"] = recommended_titles
+            try:
+                matrix_coverage_rows.append(
+                    EscoMatrixCoverageRow.model_validate(row).model_dump(mode="json")
+                )
+            except Exception:
+                continue
+        if matrix_coverage_rows:
+            payload["esco_matrix_coverage"] = matrix_coverage_rows
+            if isinstance(payload.get("esco_matrix"), dict):
+                payload["esco_matrix"]["coverage_rows"] = len(matrix_coverage_rows)
+        matrix_coverage_context = _session_dict(SSKey.ESCO_MATRIX_COVERAGE_CONTEXT)
+        if matrix_coverage_context:
+            context_payload = {
+                "reason": str(matrix_coverage_context.get("reason") or "").strip(),
+                "occupation_group": str(
+                    matrix_coverage_context.get("occupation_group") or ""
+                ).strip(),
+                "rows": int(matrix_coverage_context.get("rows") or 0),
+            }
+            if any(context_payload.values()):
+                payload["esco_matrix_coverage_context"] = context_payload
+
+        title_variants_raw = _session_dict(SSKey.ESCO_OCCUPATION_TITLE_VARIANTS)
+        variants_uri = str(title_variants_raw.get("uri") or "").strip()
+        recommended_titles_raw = title_variants_raw.get("recommended_titles", {})
+        if (
+            isinstance(selected_occupation, dict)
+            and variants_uri == str(selected_occupation.get("uri") or "").strip()
+            and isinstance(recommended_titles_raw, dict)
+        ):
+            recommended_titles: dict[str, list[str]] = {}
+            for language, labels_raw in recommended_titles_raw.items():
+                if not isinstance(language, str) or not isinstance(labels_raw, list):
+                    continue
+                labels = [
+                    str(label).strip()
+                    for label in labels_raw
+                    if isinstance(label, str) and str(label).strip()
+                ]
+                if labels:
+                    recommended_titles[language] = labels
+            if recommended_titles:
+                payload["recommended_titles"] = recommended_titles
 
     selected_benefits = _read_saved_selection_labels(SSKey.BENEFITS_SELECTED)
     if selected_benefits:
@@ -2069,7 +2135,7 @@ def _build_summary_artifact_state(
 
 def _build_country_readiness_items(job: JobAdExtract) -> list[tuple[str, str, bool]]:
     selected_occupation = get_esco_occupation_selected()
-    show_esco_sections = has_confirmed_esco_anchor()
+    show_esco_sections = _show_semantic_esco_sections()
     rows: list[tuple[str, str, bool]] = [
         (
             "Land vorhanden",
@@ -2214,7 +2280,7 @@ def _build_summary_fact_rows(
     artifacts: SummaryArtifactState,
     meta: SummaryMeta,
 ) -> list[SummaryFactsRow]:
-    show_esco_sections = has_confirmed_esco_anchor()
+    show_esco_sections = _show_semantic_esco_sections()
     rows: list[SummaryFactsRow] = [
         SummaryFactsRow(
             "Kernprofil",

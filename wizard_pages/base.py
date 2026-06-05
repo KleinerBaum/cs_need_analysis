@@ -485,7 +485,7 @@ def _set_esco_config(
         normalized_data_source_mode = DEFAULT_ESCO_DATA_SOURCE_MODE
     changed = (
         current_config["release_lane"] != normalized_release_lane
-        current_config["selected_version"] != normalized_version
+        or current_config["selected_version"] != normalized_version
         or current_config["language"] != normalized_language
         or current_config["fallback_language"] != normalized_fallback_language
         or bool(current_config["view_obsolete"]) != view_obsolete

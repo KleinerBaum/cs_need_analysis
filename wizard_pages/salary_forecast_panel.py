@@ -8,6 +8,7 @@ import plotly.graph_objects as go  # type: ignore[import-untyped]
 import streamlit as st
 
 from constants import SSKey
+from esco_semantics import resolve_esco_semantic_context
 from llm_client import generate_role_tasks_salary_forecast
 from salary.engine import compute_salary_forecast
 from salary.scenario_lab_builders import (
@@ -268,6 +269,7 @@ def _apply_pending_salary_scenario_update() -> None:
 
 
 def _apply_salary_scenario_inputs(job: JobAdExtract) -> tuple[JobAdExtract, list[str]]:
+    semantic_context = resolve_esco_semantic_context(st.session_state)
     esco_titles = unique_skills(
         [
             *_extract_esco_skill_titles(
@@ -277,7 +279,7 @@ def _apply_salary_scenario_inputs(job: JobAdExtract) -> tuple[JobAdExtract, list
                 st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
             ),
         ]
-    )
+    ) if semantic_context.can_use_esco_normalization else []
     candidate_skills = build_candidate_skill_pool(
         job=job, esco_skill_titles=esco_titles
     )

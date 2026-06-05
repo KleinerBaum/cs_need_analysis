@@ -6,7 +6,11 @@ from typing import Callable, Mapping, TypedDict
 
 import streamlit as st
 
-from constants import SSKey
+from constants import (
+    ESCO_ANCHOR_STATE_DEGRADED,
+    ESCO_SECONDARY_ANCHOR_MAX,
+    SSKey,
+)
 from esco_client import (
     EscoClient,
     EscoApiCapabilities,
@@ -20,6 +24,7 @@ from esco_client import (
     is_retryable_server_status,
 )
 from schemas import JobAdExtract
+from esco_semantics import normalize_anchor_ref, sync_esco_semantic_state
 from ui_components import render_esco_explainability, render_esco_picker_card
 
 _OCCUPATION_DETAIL_RELATIONS: tuple[str, ...] = (
@@ -1377,6 +1382,111 @@ def _infer_esco_match_explainability(
     }
 
 
+def _set_degraded_anchor_state(*, query_text: str) -> None:
+    st.session_state[SSKey.ESCO_ANCHOR_STATE.value] = ESCO_ANCHOR_STATE_DEGRADED
+    st.session_state[SSKey.ESCO_PRIMARY_ANCHOR.value] = None
+    st.session_state[SSKey.ESCO_SECONDARY_ANCHORS.value] = []
+    st.session_state[SSKey.ESCO_OCCUPATION_SELECTED.value] = None
+    st.session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] = ""
+    st.session_state[SSKey.ESCO_MATCH_REASON.value] = None
+    st.session_state[SSKey.ESCO_MATCH_CONFIDENCE.value] = None
+    st.session_state[SSKey.ESCO_MATCH_PROVENANCE.value] = []
+    st.session_state[SSKey.ESCO_OCCUPATION_PAYLOAD.value] = None
+    st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = {}
+    st.session_state[SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value] = []
+    st.session_state[SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value] = {}
+    st.session_state[SSKey.ESCO_UNMAPPED_ROLE_TERMS.value] = (
+        [query_text] if query_text else []
+    )
+    sync_esco_semantic_state(st.session_state)
+
+
+def _sync_primary_anchor(selected: dict[str, object]) -> None:
+    anchor = normalize_anchor_ref(selected)
+    if anchor is None:
+        return
+    st.session_state[SSKey.ESCO_PRIMARY_ANCHOR.value] = anchor
+    sync_esco_semantic_state(st.session_state)
+
+
+def _render_secondary_anchor_controls(*, primary_uri: str) -> None:
+    if not all(hasattr(st, name) for name in ("expander", "selectbox", "button")):
+        return
+    ui_mode = str(st.session_state.get(SSKey.UI_MODE.value, "standard")).strip().lower()
+    if ui_mode not in {"standard", "expert"}:
+        return
+
+    current_raw = st.session_state.get(SSKey.ESCO_SECONDARY_ANCHORS.value, [])
+    current = current_raw if isinstance(current_raw, list) else []
+    with st.expander("Sekundäre Kontextanker", expanded=False):
+        st.caption(
+            "Sekundäre Anchors erklären Grenzrollen oder Mischprofile. "
+            "Sie überschreiben den Primäranker nicht und fließen nicht in den Kernexport ein."
+        )
+        if current:
+            for index, anchor in enumerate(current[:ESCO_SECONDARY_ANCHOR_MAX], start=1):
+                if not isinstance(anchor, dict):
+                    continue
+                title = str(anchor.get("title") or anchor.get("uri") or "—").strip()
+                reason = str(anchor.get("reason") or "context").strip()
+                st.caption(f"{index}. {title} · {reason}")
+        if len(current) >= ESCO_SECONDARY_ANCHOR_MAX:
+            st.info("Maximal zwei sekundäre Kontextanker sind hinterlegt.")
+            return
+
+        secondary_key = "cs.esco_secondary_anchor_picker"
+        render_esco_picker_card(
+            concept_type="occupation",
+            target_state_key=secondary_key,
+            enable_preview=False,
+            apply_label="Kontextanker auswählen",
+            selection_label="Sekundären ESCO-Beruf auswählen",
+            query_label="Rollenbegriff für Kontextanker",
+            query_placeholder="Benachbarte Rolle oder Alternativtitel eingeben",
+            confirmed_summary_label="Ausgewählter Kontextanker",
+            show_results_overview=True,
+        )
+        reason = st.selectbox(
+            "Grund",
+            options=[
+                "benachbarte Rolle",
+                "spezialisierende Variante",
+                "arbeitsmarktüblicher Alternativtitel",
+            ],
+            key="cs.esco_secondary_anchor.reason",
+        )
+        picked_raw = st.session_state.get(secondary_key)
+        picked = picked_raw if isinstance(picked_raw, dict) else None
+        picked_uri = str((picked or {}).get("uri") or "").strip()
+        disabled = not picked_uri or picked_uri == primary_uri
+        if st.button(
+            "Als Kontextanker hinzufügen",
+            key="cs.esco_secondary_anchor.add",
+            disabled=disabled,
+        ):
+            anchor = normalize_anchor_ref(
+                {**(picked or {}), "reason": reason},
+                selected_as="secondary",
+                default_reason=reason,
+            )
+            if anchor is None:
+                st.warning("Kontextanker konnte nicht validiert werden.")
+                return
+            existing = [
+                item
+                for item in current
+                if isinstance(item, dict)
+                and str(item.get("uri") or "").strip()
+                and str(item.get("uri") or "").strip() != picked_uri
+            ]
+            st.session_state[SSKey.ESCO_SECONDARY_ANCHORS.value] = [
+                *existing,
+                anchor,
+            ][:ESCO_SECONDARY_ANCHOR_MAX]
+            sync_esco_semantic_state(st.session_state)
+            st.success("Kontextanker hinzugefügt.")
+
+
 def render_esco_occupation_confirmation(
     job: JobAdExtract,
     *,
@@ -1442,20 +1552,23 @@ def render_esco_occupation_confirmation(
     selected = selected_raw if isinstance(selected_raw, dict) else {}
     occupation_uri = str(selected.get("uri") or "").strip()
     if not occupation_uri:
-        st.session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] = ""
-        st.session_state[SSKey.ESCO_MATCH_REASON.value] = None
-        st.session_state[SSKey.ESCO_MATCH_CONFIDENCE.value] = None
-        st.session_state[SSKey.ESCO_MATCH_PROVENANCE.value] = []
-        st.session_state[SSKey.ESCO_OCCUPATION_PAYLOAD.value] = None
-        st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = {}
-        st.session_state[SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value] = []
-        st.session_state[SSKey.ESCO_OCCUPATION_TITLE_VARIANTS.value] = {}
-        st.session_state[SSKey.ESCO_UNMAPPED_ROLE_TERMS.value] = (
-            [query_text] if query_text else []
-        )
+        if st.button(
+            "Ohne bestätigten ESCO-Anker fortfahren",
+            key="esco.occupation.continue_degraded",
+        ):
+            _set_degraded_anchor_state(query_text=query_text)
+            st.info(
+                "Degradierter Modus aktiv: Jobspec- und AI-Schritte bleiben nutzbar; "
+                "ESCO-Normalisierung, Matrix-Coverage und URI-Exporte bleiben gesperrt."
+            )
+        else:
+            st.session_state[SSKey.ESCO_UNMAPPED_ROLE_TERMS.value] = (
+                [query_text] if query_text else []
+            )
         return
     st.session_state[SSKey.ESCO_UNMAPPED_ROLE_TERMS.value] = []
     st.session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] = occupation_uri
+    _sync_primary_anchor(selected)
 
     applied_meta_key = (
         f"{SSKey.ESCO_OCCUPATION_SELECTED.value}.esco_picker.applied_meta"
@@ -1477,6 +1590,7 @@ def render_esco_occupation_confirmation(
     client = EscoClient()
     supported_relations = _supported_occupation_relations(client)
     capabilities = _occupation_capabilities(client, supported_relations)
+    sync_esco_semantic_state(st.session_state, capabilities=capabilities)
     capabilities_badge = _capabilities_badge_text(
         capabilities=capabilities,
     )
@@ -1695,6 +1809,9 @@ def render_esco_occupation_confirmation(
                     SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value
                 ),
             )
+
+    if show_start_context_panels:
+        _render_secondary_anchor_controls(primary_uri=occupation_uri)
 
     if show_start_context_panels and show_detail_panels:
         configured_language = (

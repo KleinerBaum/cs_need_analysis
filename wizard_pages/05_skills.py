@@ -27,6 +27,7 @@ from state import (
     get_active_model,
     get_answers,
     get_esco_anchor_status,
+    get_esco_semantic_context,
     sync_esco_shared_state,
 )
 from ui_layout import render_step_shell, responsive_three_columns
@@ -2095,9 +2096,14 @@ def render(ctx: WizardContext) -> None:
         return
 
     job, plan = preflight
+    semantic_context = get_esco_semantic_context()
     esco_anchor_status = get_esco_anchor_status()
-    selected_occupation = esco_anchor_status.selected_occupation
-    show_esco_sections = esco_anchor_status.anchor_confirmed
+    selected_occupation = (
+        semantic_context.primary_anchor.model_dump(mode="json")
+        if semantic_context.primary_anchor is not None
+        else esco_anchor_status.selected_occupation
+    )
+    show_esco_sections = semantic_context.can_use_esco_normalization
     coverage_snapshot = sync_esco_shared_state()
     step = next((value for value in plan.steps if value.step_key == "skills"), None)
 
