@@ -333,13 +333,10 @@ def _render_skill_status_surface(
         "Aus Stellenanzeige, ESCO und AI-Vorschlägen entsteht eine prüfbare "
         "Skill-Liste für Brief, Matching und Interview.",
     )
-    col_jobspec, col_esco, col_selected = st.columns(3, gap="medium")
-    with col_jobspec:
-        st.metric("Aus Anzeige erkannt", jobspec_count)
-    with col_esco:
-        st.metric("ESCO ergänzt", esco_count)
-    with col_selected:
-        st.metric("Übernommen", selected_count)
+    st.caption(
+        f"{jobspec_count} aus der Anzeige erkannt · "
+        f"{esco_count} durch ESCO/AI ergänzt · {selected_count} übernommen"
+    )
 
 
 def _render_term_group(title: str, values: list[str], *, limit: int = 10) -> None:
@@ -356,22 +353,18 @@ def _render_term_group(title: str, values: list[str], *, limit: int = 10) -> Non
                 st.caption(f"- {value}")
 
 
-def _render_jobspec_terms_tab(job: JobAdExtract) -> None:
-    must_have = _dedupe_terms(
-        [x for x in job.must_have_skills if has_meaningful_value(x)]
-    )
-    nice_to_have = _dedupe_terms(
-        [x for x in job.nice_to_have_skills if has_meaningful_value(x)]
-    )
-    tech_stack = _dedupe_terms([x for x in job.tech_stack if has_meaningful_value(x)])
-    st.caption("Rohbegriffe aus der Jobspec, kurz gruppiert.")
-    col_must, col_nice, col_stack = responsive_three_columns(gap="large")
-    with col_must:
-        _render_term_group("Must-have", must_have)
-    with col_nice:
-        _render_term_group("Nice-to-have", nice_to_have)
-    with col_stack:
-        _render_term_group("Tech Stack", tech_stack)
+def _build_jobspec_skill_groups(job: JobAdExtract) -> dict[str, list[str]]:
+    return {
+        "Must-have": _dedupe_terms(
+            [x for x in job.must_have_skills if has_meaningful_value(x)]
+        ),
+        "Nice-to-have": _dedupe_terms(
+            [x for x in job.nice_to_have_skills if has_meaningful_value(x)]
+        ),
+        "Tech Stack": _dedupe_terms(
+            [x for x in job.tech_stack if has_meaningful_value(x)]
+        ),
+    }
 
 
 def _render_skill_action_row(
@@ -381,6 +374,7 @@ def _render_skill_action_row(
     key_prefix: str,
     uri: str = "",
     can_mark_optional: bool = True,
+    show_status_caption: bool = True,
 ) -> None:
     selected_labels = _get_selected_skill_labels()
     is_selected = _normalize_term(label) in {
@@ -389,7 +383,8 @@ def _render_skill_action_row(
     item_col, adopt_col, optional_col, remove_col = st.columns([4.4, 1.3, 1.8, 1.2])
     with item_col:
         st.markdown(f"**{label}**")
-        st.caption(f"{source} · {'übernommen' if is_selected else 'Vorschlag'}")
+        if show_status_caption:
+            st.caption(f"{source} · {'übernommen' if is_selected else 'Vorschlag'}")
     with adopt_col:
         if st.button("Übernehmen", key=f"{key_prefix}.adopt", width="stretch"):
             _save_selected_skill_suggestions([label])
@@ -407,64 +402,6 @@ def _render_skill_action_row(
                 _remove_esco_skill(uri, label)
             else:
                 _remove_selected_skill_label(label)
-
-
-def _filter_recommendations(
-    *,
-    filter_mode: str,
-    must_items: list[dict[str, Any]],
-    nice_items: list[dict[str, Any]],
-    review_labels: list[str],
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
-    if filter_mode == "Fachlich":
-        return must_items, [], []
-    if filter_mode == "Optional":
-        return [], nice_items, []
-    if filter_mode == "Unklar":
-        return [], [], review_labels
-    return must_items, nice_items, review_labels
-
-
-def _render_recommendation_group(
-    *,
-    title: str,
-    items: list[dict[str, Any]],
-    key_prefix: str,
-    can_mark_optional: bool,
-) -> None:
-    st.markdown(f"**{title}** · {len(items)}")
-    if not items:
-        st.caption("Keine Vorschläge.")
-        return
-    for index, item in enumerate(items):
-        label = _skill_title(item)
-        uri = _skill_uri(item)
-        source = str(item.get("source") or "ESCO").strip() or "ESCO"
-        _render_skill_action_row(
-            label=label,
-            source=source,
-            uri=uri,
-            key_prefix=f"{key_prefix}.{index}.{_normalize_term(label)}",
-            can_mark_optional=can_mark_optional,
-        )
-
-
-def _render_review_recommendations(
-    *,
-    labels: list[str],
-    key_prefix: str,
-) -> None:
-    st.markdown(f"**Bitte prüfen** · {len(labels)}")
-    if not labels:
-        st.caption("Keine offenen Empfehlungen.")
-        return
-    for index, label in enumerate(labels):
-        _render_skill_action_row(
-            label=label,
-            source="Jobspec/AI",
-            key_prefix=f"{key_prefix}.{index}.{_normalize_term(label)}",
-            can_mark_optional=True,
-        )
 
 
 def _build_skills_source_view_data(
@@ -499,6 +436,103 @@ def _build_skills_source_view_data(
     return jobspec_terms, llm_labels, esco_labels, deduped_must, deduped_nice, llm_suggested
 
 
+def _llm_skill_label(item: dict[str, Any]) -> str:
+    return str(item.get("label") or item.get("title") or "").strip()
+
+
+def _build_llm_skill_groups(
+    *,
+    llm_suggested: list[dict[str, Any]],
+    tech_stack_terms: list[str],
+    blocked_labels: set[str],
+) -> dict[str, list[str]]:
+    tech_stack_normalized = {_normalize_term(term) for term in tech_stack_terms}
+    groups: dict[str, list[str]] = {
+        "Must-have": [],
+        "Nice-to-have": [],
+        "Tech Stack": [],
+    }
+    for item in llm_suggested:
+        if not isinstance(item, dict):
+            continue
+        label = _llm_skill_label(item)
+        normalized = _normalize_term(label)
+        if not normalized or normalized in blocked_labels:
+            continue
+        if normalized in tech_stack_normalized:
+            groups["Tech Stack"].append(label)
+            continue
+        importance = str(item.get("importance") or "").strip().casefold()
+        target_group = "Must-have" if importance == "high" else "Nice-to-have"
+        groups[target_group].append(label)
+    return {title: _dedupe_terms(values) for title, values in groups.items()}
+
+
+def _render_suggestion_group(
+    *,
+    title: str,
+    esco_items: list[dict[str, Any]],
+    ai_labels: list[str],
+    key_prefix: str,
+    can_mark_optional: bool,
+) -> None:
+    total_count = len(esco_items) + len(ai_labels)
+    st.markdown(f"**{title}** · {total_count}")
+    if total_count == 0:
+        st.caption("Keine Vorschläge.")
+        return
+    for index, item in enumerate(esco_items):
+        label = _skill_title(item)
+        uri = _skill_uri(item)
+        source = str(item.get("source") or "ESCO").strip() or "ESCO"
+        _render_skill_action_row(
+            label=label,
+            source=source,
+            uri=uri,
+            key_prefix=f"{key_prefix}.esco.{index}.{_normalize_term(label)}",
+            can_mark_optional=can_mark_optional,
+        )
+    for index, label in enumerate(ai_labels):
+        _render_skill_action_row(
+            label=label,
+            source="AI",
+            key_prefix=f"{key_prefix}.ai.{index}.{_normalize_term(label)}",
+            can_mark_optional=can_mark_optional,
+            show_status_caption=False,
+        )
+
+
+def _render_selected_group(
+    *,
+    title: str,
+    labels: list[str],
+    esco_items: list[dict[str, Any]],
+    key_prefix: str,
+    can_mark_optional: bool,
+) -> None:
+    st.markdown(f"**{title}** · {len(labels)}")
+    if not labels:
+        st.caption("Keine Einträge.")
+        return
+    for index, label in enumerate(labels):
+        matching_item = next(
+            (
+                item
+                for item in esco_items
+                if _normalize_term(_skill_title(item)) == _normalize_term(label)
+            ),
+            {},
+        )
+        _render_skill_action_row(
+            label=label,
+            source="Übernommen",
+            uri=_skill_uri(matching_item) if isinstance(matching_item, dict) else "",
+            key_prefix=f"{key_prefix}.{index}.{_normalize_term(label)}",
+            can_mark_optional=can_mark_optional,
+            show_status_caption=False,
+        )
+
+
 def _render_skills_source_columns(
     *,
     job: JobAdExtract,
@@ -508,63 +542,83 @@ def _render_skills_source_columns(
     deduped_nice: list[dict[str, Any]],
     show_esco_sections: bool,
 ) -> bool:
+    jobspec_groups = _build_jobspec_skill_groups(job)
+    jobspec_count = len(
+        _dedupe_terms([term for terms in jobspec_groups.values() for term in terms])
+    )
+
+    llm_raw = st.session_state.get(SSKey.SKILLS_LLM_SUGGESTED.value, [])
+    llm_suggested = llm_raw if isinstance(llm_raw, list) else []
     selected_labels = _get_selected_skill_labels()
     selected_normalized = {_normalize_term(item) for item in selected_labels}
-    esco_normalized = {
-        _normalize_term(_skill_title(item)) for item in [*deduped_must, *deduped_nice]
-    }
-    llm_review_labels = [
-        label
-        for label in llm_labels
-        if _normalize_term(label) not in selected_normalized
-        and _normalize_term(label) not in esco_normalized
-    ]
-    jobspec_review_labels = [
-        label
-        for label in jobspec_labels
-        if _normalize_term(label) not in selected_normalized
-        and _normalize_term(label) not in esco_normalized
-    ]
-    review_labels = _dedupe_terms([*jobspec_review_labels, *llm_review_labels])
-
-    tab_jobspec, tab_suggestions, tab_selection = st.tabs(
-        ["Anzeige", "Vorschläge", "Auswahl"]
+    esco_titles = _dedupe_terms(
+        [_skill_title(item) for item in [*deduped_must, *deduped_nice]]
     )
-    with tab_jobspec:
-        _render_jobspec_terms_tab(job)
+    esco_normalized = {_normalize_term(title) for title in esco_titles}
+    llm_label_set = _dedupe_terms(
+        [
+            label
+            for label in llm_labels
+            if _normalize_term(label) not in esco_normalized
+        ]
+    )
+    esco_count = len(_dedupe_terms([*esco_titles, *llm_label_set]))
+
+    llm_groups = _build_llm_skill_groups(
+        llm_suggested=llm_suggested,
+        tech_stack_terms=jobspec_groups["Tech Stack"],
+        blocked_labels=selected_normalized | esco_normalized,
+    )
+
+    must_titles = _dedupe_terms([_skill_title(item) for item in deduped_must])
+    nice_titles = _dedupe_terms([_skill_title(item) for item in deduped_nice])
+    esco_selected_normalized = {
+        _normalize_term(item) for item in [*must_titles, *nice_titles]
+    }
+    selected_tech_stack = _dedupe_terms(
+        [
+            label
+            for label in selected_labels
+            if _normalize_term(label) not in esco_selected_normalized
+        ]
+    )
+    selected_count = len(
+        _dedupe_terms([*must_titles, *nice_titles, *selected_tech_stack])
+    )
+
+    col_jobspec, col_esco, col_selected = st.columns(3, gap="medium")
+    with col_jobspec:
+        st.metric("Aus Anzeige erkannt", jobspec_count)
+        for title, values in jobspec_groups.items():
+            _render_term_group(title, values)
 
     generate_ai_clicked = False
-    with tab_suggestions:
+    with col_esco:
+        st.metric("ESCO ergänzt", esco_count)
         if show_esco_sections:
             st.caption("ESCO + AI als gemeinsame Empfehlungsliste.")
         else:
             st.caption("ESCO-Vorschläge erscheinen nach bestätigtem ESCO-Anker.")
-        filter_mode = st.radio(
-            "Filter",
-            options=["Relevant", "Fachlich", "Optional", "Unklar"],
-            horizontal=True,
-        )
-        filtered_must, filtered_nice, filtered_review = _filter_recommendations(
-            filter_mode=filter_mode,
-            must_items=deduped_must,
-            nice_items=deduped_nice,
-            review_labels=review_labels,
-        )
-        _render_recommendation_group(
-            title="Empfohlen als Must-have",
-            items=filtered_must,
+        _render_suggestion_group(
+            title="Must-have",
+            esco_items=deduped_must if show_esco_sections else [],
+            ai_labels=llm_groups["Must-have"],
             key_prefix="skills.recommend.must",
             can_mark_optional=True,
         )
-        _render_recommendation_group(
-            title="Empfohlen als Nice-to-have",
-            items=filtered_nice,
+        _render_suggestion_group(
+            title="Nice-to-have",
+            esco_items=deduped_nice if show_esco_sections else [],
+            ai_labels=llm_groups["Nice-to-have"],
             key_prefix="skills.recommend.nice",
             can_mark_optional=False,
         )
-        _render_review_recommendations(
-            labels=filtered_review,
-            key_prefix="skills.recommend.review",
+        _render_suggestion_group(
+            title="Tech Stack",
+            esco_items=[],
+            ai_labels=llm_groups["Tech Stack"],
+            key_prefix="skills.recommend.tech_stack",
+            can_mark_optional=True,
         )
         st.number_input(
             "Anzahl AI-Skill-Vorschläge",
@@ -578,14 +632,29 @@ def _render_skills_source_columns(
             key=SSKey.SKILLS_AI_GENERATE_CLICKED.value,
         )
 
-    with tab_selection:
-        _render_confirmed_selection_block(
-            deduped_must=deduped_must,
-            deduped_nice=deduped_nice,
-            detail_cache={},
-            llm_suggested=[],
-            is_expert_mode=False,
-            include_details=False,
+    with col_selected:
+        st.metric("Übernommen", selected_count)
+        st.caption("Finaler Warenkorb für Brief, Matching und Interview.")
+        _render_selected_group(
+            title="Must-have",
+            labels=must_titles,
+            esco_items=deduped_must,
+            key_prefix="skills.selection.must",
+            can_mark_optional=True,
+        )
+        _render_selected_group(
+            title="Nice-to-have",
+            labels=nice_titles,
+            esco_items=deduped_nice,
+            key_prefix="skills.selection.nice",
+            can_mark_optional=False,
+        )
+        _render_selected_group(
+            title="Tech Stack",
+            labels=selected_tech_stack,
+            esco_items=[],
+            key_prefix="skills.selection.tech_stack",
+            can_mark_optional=True,
         )
 
     st.session_state[SSKey.SKILLS_SELECTED_BULK_BUFFER.value] = selected_labels
@@ -1481,12 +1550,35 @@ def _render_skills_source_comparison_block(
     detail_cache = raw_detail_cache if isinstance(raw_detail_cache, dict) else {}
     st.session_state[SSKey.ESCO_SKILL_DETAIL_CACHE.value] = detail_cache
     ui_mode = get_current_ui_mode()
-    is_expert_mode = ui_mode == "expert"
 
+    llm_count_labels = _dedupe_terms(
+        [
+            label
+            for label in llm_labels
+            if _normalize_term(label)
+            not in {
+                _normalize_term(_skill_title(item))
+                for item in [*deduped_must, *deduped_nice]
+            }
+        ]
+    )
+    selected_status_labels = _dedupe_terms(
+        [
+            *[_skill_title(item) for item in [*deduped_must, *deduped_nice]],
+            *_get_selected_skill_labels(),
+        ]
+    )
     _render_skill_status_surface(
-        jobspec_count=len(jobspec_labels),
-        esco_count=len(deduped_must) + len(deduped_nice),
-        selected_count=len(_get_selected_skill_labels()),
+        jobspec_count=len(_dedupe_terms(jobspec_labels)),
+        esco_count=len(
+            _dedupe_terms(
+                [
+                    *[_skill_title(item) for item in [*deduped_must, *deduped_nice]],
+                    *llm_count_labels,
+                ]
+            )
+        ),
+        selected_count=len(selected_status_labels),
     )
     generate_ai_clicked = _render_skills_source_columns(
         job=job,
