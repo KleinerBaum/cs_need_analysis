@@ -6,21 +6,17 @@ from pathlib import Path
 
 from app import SIDEBAR_PAGE_LINKS
 from components.sidebar import render_sidebar
-from constants import PAGE_DEFS
+from config.preferences import PAGE_DEFS
 
 
-def test_app_sidebar_links_include_public_and_legal_pages() -> None:
+def test_app_sidebar_links_hide_requested_public_and_legal_pages() -> None:
     labels = [label for _, label in SIDEBAR_PAGE_LINKS]
 
     assert labels == [
         "Unsere Kompetenzen",
         "Über Cognitive Staffing",
-        "Kontakt",
         "Impressum",
-        "Datenschutzrichtlinie",
-        "Nutzungsbedingungen",
         "Cookie Policy/Settings",
-        "Erklärung zur Barrierefreiheit",
     ]
 
 
@@ -37,20 +33,21 @@ def test_public_sidebar_links_exclude_legal_pages() -> None:
     labels = [
         page.title
         for page in PAGE_DEFS
-        if page.key in {"competencies", "about", "contact"}
+        if page.key in {"competencies", "about", "imprint", "cookies"}
     ]
 
     assert labels == [
         "Unsere Kompetenzen",
         "Über Cognitive Staffing",
-        "Kontakt",
+        "Impressum",
+        "Cookie Policy/Settings",
     ]
 
 
 def test_public_sidebar_link_targets_exist_and_are_allowed() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     for page in PAGE_DEFS:
-        if page.key not in {"competencies", "about", "contact"}:
+        if page.key not in {"competencies", "about", "imprint", "cookies"}:
             continue
         page_path = page.path
         assert page_path == "app.py" or page_path.startswith("pages/")
@@ -58,7 +55,7 @@ def test_public_sidebar_link_targets_exist_and_are_allowed() -> None:
         assert (repo_root / page_path).is_file(), f"Missing public sidebar target: {page_path}"
 
 
-def test_sidebar_renders_preference_center_before_public_links(monkeypatch) -> None:
+def test_sidebar_renders_preference_center_after_public_links(monkeypatch) -> None:
     events: list[str] = []
 
     class _FakeExpander:
@@ -134,9 +131,17 @@ def test_sidebar_renders_preference_center_before_public_links(monkeypatch) -> N
     public_links_idx = min(
         events.index("page_link:Unsere Kompetenzen"),
         events.index("page_link:Über Cognitive Staffing"),
-        events.index("page_link:Kontakt"),
+        events.index("page_link:Impressum"),
+        events.index("page_link:Cookie Policy/Settings"),
     )
-    assert preference_exit_idx < public_links_idx
+    assert public_links_idx < preference_exit_idx
+    hidden_labels = {
+        "Kontakt",
+        "Datenschutzrichtlinie",
+        "Nutzungsbedingungen",
+        "Erklärung zur Barrierefreiheit",
+    }
+    assert not any(event in {f"page_link:{label}" for label in hidden_labels} for event in events)
 
 
 def test_kontakt_legal_links_cover_all_policy_pages() -> None:

@@ -48,37 +48,159 @@ def render_ui_styles() -> None:
     _render_html_block(
         """
         <style>
+        :root {
+            --cs-primary-navy: #16324F;
+            --cs-primary-blue: #2563EB;
+            --cs-guidance-teal: #0F766E;
+            --cs-bg: #F3F6FA;
+            --cs-surface: #FFFFFF;
+            --cs-surface-muted: #F8FAFC;
+            --cs-border: #D9E2EC;
+            --cs-border-soft: #E2E8F0;
+            --cs-text: #16324F;
+            --cs-text-muted: #334155;
+            --cs-text-subtle: #64748B;
+            --cs-primary: var(--cs-primary-blue);
+            --cs-primary-soft: #DBEAFE;
+            --cs-success: var(--cs-guidance-teal);
+            --cs-success-soft: #ECFDF5;
+            --cs-warning: #F59E0B;
+            --cs-warning-soft: #FEF3C7;
+            --cs-danger: #DC2626;
+            --cs-radius-sm: 8px;
+            --cs-radius-md: 12px;
+        }
+        html, body, [data-testid="stAppViewContainer"] {
+            background: var(--cs-bg);
+            color: var(--cs-text-muted);
+        }
+        [data-testid="stVerticalBlockBorderWrapper"] {
+            border-color: var(--cs-border);
+            border-radius: var(--cs-radius-md);
+            box-shadow: 0 8px 22px rgba(22, 50, 79, 0.05);
+        }
+        [data-testid="stMetric"] {
+            background: var(--cs-surface);
+            border: 1px solid var(--cs-border);
+            border-radius: var(--cs-radius-sm);
+            padding: 0.8rem 0.85rem;
+            min-height: 100%;
+        }
+        .cs-card,
+        .cs-step-header,
+        .cs-output-header,
+        .cs-next-best-action,
+        .cs-critical-gaps,
+        .cs-next-action,
+        .cs-critical,
+        .cs-boolean-card,
+        .cs-code-card,
+        .cs-salary-card {
+            background: var(--cs-surface);
+            border: 1px solid var(--cs-border);
+            border-radius: var(--cs-radius-md);
+            color: var(--cs-text);
+            box-shadow: 0 8px 22px rgba(22, 50, 79, 0.05);
+        }
+        .cs-card,
+        .cs-next-best-action,
+        .cs-critical-gaps,
+        .cs-next-action,
+        .cs-critical,
+        .cs-boolean-card,
+        .cs-code-card,
+        .cs-salary-card {
+            padding: 1rem 1.1rem;
+        }
+        .cs-step-header,
+        .cs-output-header {
+            padding: 1.05rem 1.1rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(180deg, #FFFFFF, #FBFDFF);
+        }
+        .cs-step-header {
+            border-left: 4px solid var(--cs-success);
+        }
+        .cs-output-header,
+        .cs-next-action {
+            border-left: 4px solid var(--cs-primary);
+        }
+        .cs-critical {
+            border-left: 4px solid var(--cs-danger);
+        }
+        .cs-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.22rem 0.58rem;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 650;
+            line-height: 1.2;
+            border: 1px solid var(--cs-border);
+            background: var(--cs-surface-muted);
+            color: var(--cs-text-muted);
+            max-width: 100%;
+            overflow-wrap: anywhere;
+        }
+        .cs-pill--primary,
+        .cs-pill-primary {
+            border-color: color-mix(in srgb, var(--cs-primary) 55%, var(--cs-border));
+            background: color-mix(in srgb, var(--cs-primary) 15%, var(--cs-surface-muted));
+            color: var(--cs-text);
+        }
+        .cs-pill--warning,
+        .cs-pill-warning {
+            border-color: color-mix(in srgb, var(--cs-warning) 58%, var(--cs-border));
+            background: var(--cs-warning-soft);
+            color: var(--cs-primary-navy);
+        }
+        .cs-pill--success,
+        .cs-pill-success {
+            border-color: color-mix(in srgb, var(--cs-success) 58%, var(--cs-border));
+            background: var(--cs-success-soft);
+            color: var(--cs-primary-navy);
+        }
+        .cs-pill--neutral {
+            border-color: var(--cs-border);
+            background: var(--cs-surface-muted);
+            color: var(--cs-text-muted);
+        }
         .cs-process-progress {
             display: flex;
-            justify-content: center;
-            margin: 0.15rem auto 0.85rem;
+            justify-content: flex-start;
+            margin: 0.25rem auto 1rem;
+            width: 100%;
+            overflow-x: auto;
+            padding-bottom: 0.15rem;
         }
         .cs-process-progress-list {
             display: flex;
-            align-items: flex-start;
-            justify-content: center;
-            flex-wrap: wrap;
-            gap: 0.45rem;
+            align-items: stretch;
+            justify-content: flex-start;
+            flex-wrap: nowrap;
+            gap: 0.5rem;
             margin: 0;
             padding: 0;
             list-style: none;
-            max-width: min(100%, 980px);
+            min-width: min-content;
+            width: 100%;
         }
         .cs-process-progress-item {
             display: grid;
             grid-template-columns: auto minmax(0, 1fr);
             align-items: center;
-            gap: 0.35rem;
-            min-height: 2rem;
-            padding: 0.28rem 0.55rem;
+            gap: 0.4rem;
+            min-height: 2.35rem;
+            min-width: 10.5rem;
+            padding: 0.42rem 0.65rem;
             border: 1px solid #D9E2EC;
-            border: 1px solid #D9E2EC;
-            border-radius: 999px;
+            border-radius: 8px;
             background: #ffffff;
             color: #334155;
-            color: #334155;
-            font-size: 0.82rem;
+            font-size: 0.84rem;
             line-height: 1.2;
+            box-shadow: 0 6px 18px rgba(22, 50, 79, 0.05);
         }
         .cs-process-progress-item::before {
             content: "";
@@ -86,33 +208,29 @@ def render_ui_styles() -> None:
             height: 0.55rem;
             border-radius: 999px;
             border: 1px solid #D9E2EC;
-            border: 1px solid #D9E2EC;
             background: #ffffff;
         }
         .cs-process-progress-item[data-status="complete"]::before {
-            border-color: #0F766E;
-            background: #0F766E;
             border-color: #0F766E;
             background: #0F766E;
         }
         .cs-process-progress-item[data-status="partial"]::before {
             border-color: #F59E0B;
             background: #F59E0B;
-            border-color: #F59E0B;
-            background: #F59E0B;
         }
         .cs-process-progress-item[data-current="true"] {
-            border-color: #2563EB;
-            background: #DBEAFE;
+            border-color: #0F766E;
+            background: #ECFDF5;
             color: #16324F;
             font-weight: 700;
+            box-shadow: 0 8px 24px rgba(15, 118, 110, 0.14);
         }
         .cs-process-progress-item[data-current="true"]::before {
-            border-color: #1D4ED8;
-            background: #2563EB;
+            border-color: #0F766E;
+            background: #0F766E;
         }
         .cs-process-progress-label {
-            overflow-wrap: anywhere;
+            overflow-wrap: break-word;
         }
         .cs-process-progress-count {
             color: #64748B;
@@ -121,30 +239,49 @@ def render_ui_styles() -> None:
         }
         .cs-step-title, .cs-output-title {
             margin: 0;
-            font-size: 1.2rem;
-            line-height: 1.4;
+            color: #16324F;
+            font-size: clamp(1.28rem, 1.8vw, 1.65rem);
+            line-height: 1.22;
         }
         .cs-step-subtitle, .cs-output-context {
-            margin: 0.25rem 0 0;
+            margin: 0.45rem 0 0;
             color: #334155;
+            line-height: 1.55;
+            max-width: 76rem;
         }
         .cs-meta-list {
-            margin: 0.75rem 0 0;
+            margin: 0.95rem 0 0;
             padding: 0;
             list-style: none;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
             gap: 0.5rem;
         }
         .cs-meta-item {
-            display: flex;
-            gap: 0.4rem;
-            align-items: baseline;
-            font-size: 0.9rem;
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            column-gap: 0.4rem;
+            row-gap: 0.05rem;
+            align-items: center;
+            padding: 0.5rem 0.6rem;
+            border: 1px solid #E2E8F0;
+            border-radius: 8px;
+            background: #F8FAFC;
+            font-size: 0.86rem;
         }
         .cs-meta-icon { opacity: 0.75; }
-        .cs-meta-label { color: #64748B; }
-        .cs-meta-value { font-weight: 600; }
+        .cs-meta-label {
+            color: #64748B;
+            font-size: 0.76rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .cs-meta-value {
+            grid-column: 2;
+            color: #16324F;
+            font-weight: 650;
+            overflow-wrap: anywhere;
+        }
         .cs-step-topline, .cs-output-topline {
             display: flex;
             justify-content: space-between;
@@ -156,6 +293,7 @@ def render_ui_styles() -> None:
             min-width: 0;
         }
         .cs-step-meta {
+            max-width: 44rem;
             display: flex;
             align-items: center;
             justify-content: flex-end;
@@ -172,6 +310,49 @@ def render_ui_styles() -> None:
         .cs-next-best-action .cs-next-cta {
             margin-top: 0.65rem;
             font-weight: 600;
+        }
+        .cs-step-section-heading {
+            margin: 1.1rem 0 0.45rem;
+            color: var(--cs-text);
+            font-size: 1rem;
+            font-weight: 750;
+            line-height: 1.3;
+        }
+        .cs-question-group-title,
+        .cs-review-card-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            margin-bottom: 0.45rem;
+        }
+        .cs-question-group-title strong,
+        .cs-review-card-title strong {
+            color: var(--cs-text);
+            font-size: 1rem;
+            line-height: 1.3;
+        }
+        .cs-question-group-meta,
+        .cs-review-card-meta {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            color: var(--cs-text-muted);
+            background: var(--cs-surface-muted);
+            border: 1px solid var(--cs-border-soft);
+            border-radius: 999px;
+            padding: 0.18rem 0.5rem;
+            font-size: 0.78rem;
+            font-weight: 650;
+        }
+        .cs-review-essential-list {
+            margin: 0.35rem 0 0;
+            padding-left: 1.1rem;
+        }
+        .cs-review-essential-list li {
+            margin-bottom: 0.25rem;
+            color: var(--cs-text-muted);
         }
         @media (max-width: 960px) {
             .cs-grid-2, .cs-grid-3 {
@@ -197,7 +378,10 @@ def render_ui_styles() -> None:
                 justify-content: flex-start;
             }
             .cs-process-progress-item {
-                border-radius: 8px;
+                min-width: min(78vw, 18rem);
+            }
+            .cs-meta-list {
+                grid-template-columns: minmax(0, 1fr);
             }
         }
         </style>

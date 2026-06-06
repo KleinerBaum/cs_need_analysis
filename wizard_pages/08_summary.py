@@ -2822,28 +2822,30 @@ def _render_summary_dashboard_css() -> None:
         """
         <style>
         .cs-summary-dashboard-intro {
-            margin: 0.2rem 0 0.85rem 0;
+            margin: 0.15rem 0 1rem 0;
             color: #334155;
             font-size: 0.95rem;
-            line-height: 1.45;
+            line-height: 1.55;
         }
         .cs-summary-pipeline {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 0.55rem;
+            gap: 0.65rem;
         }
         .cs-summary-pipeline-item {
             border: 1px solid #D9E2EC;
             border-radius: 8px;
-            padding: 0.6rem 0.65rem;
+            padding: 0.72rem 0.75rem;
             background: #FFFFFF;
             min-height: 4.6rem;
+            box-shadow: 0 8px 22px rgba(22, 50, 79, 0.05);
         }
         .cs-summary-pipeline-item strong {
             display: block;
             overflow-wrap: anywhere;
             font-size: 0.9rem;
             line-height: 1.24;
+            color: #16324F;
         }
         .cs-summary-pipeline-item span {
             display: inline-flex;
@@ -2881,8 +2883,13 @@ def _render_summary_dashboard_css() -> None:
         }
         .cs-summary-section-note {
             color: #64748B;
-            margin: -0.2rem 0 0.85rem 0;
+            margin: -0.1rem 0 0.9rem 0;
             font-size: 0.9rem;
+            line-height: 1.45;
+        }
+        .cs-summary-dashboard-intro + [data-testid="stVerticalBlockBorderWrapper"],
+        .cs-summary-section-note + [data-testid="stVerticalBlockBorderWrapper"] {
+            margin-top: 0.35rem;
         }
         @media (max-width: 900px) {
             .cs-summary-pipeline {

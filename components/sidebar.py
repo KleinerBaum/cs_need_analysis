@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import streamlit as st
 
-from constants import COOKIE_CATEGORIES, PAGE_DEFS, PREFERENCE_KEYS
 from config.preferences import (
+    COOKIE_CATEGORIES,
+    PAGE_DEFS,
+    PREFERENCE_KEYS,
     build_runtime_context,
     ensure_preference_state,
     get_cookie_consent,
@@ -14,6 +16,17 @@ from config.preferences import (
 from wizard_pages.base import render_ui_mode_selector
 
 
+SIDEBAR_HIDDEN_PAGE_KEYS = frozenset(
+    {
+        "preference_center",
+        "privacy",
+        "terms",
+        "accessibility",
+        "contact",
+    }
+)
+
+
 def render_sidebar(current_page_key: str) -> None:
     ensure_preference_state()
     prefs = get_preferences()
@@ -22,8 +35,9 @@ def render_sidebar(current_page_key: str) -> None:
     with st.sidebar:
         st.markdown('<div class="cs-sidebar-title">Navigation</div>', unsafe_allow_html=True)
 
+        st.markdown("#### Seiten")
         for page in PAGE_DEFS:
-            if page.key != "preference_center":
+            if page.key not in SIDEBAR_HIDDEN_PAGE_KEYS:
                 st.page_link(page.path, label=page.title)
 
         st.markdown('<div class="cs-sidebar-gap"></div>', unsafe_allow_html=True)
@@ -121,8 +135,3 @@ def render_sidebar(current_page_key: str) -> None:
 
         with st.expander("Aktiver Runtime-Kontext"):
             st.json(build_runtime_context())
-
-        st.markdown("#### Seiten")
-        for page in PAGE_DEFS:
-            if page.key != "preference_center":
-                st.page_link(page.path, label=page.title)

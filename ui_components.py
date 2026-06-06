@@ -10,11 +10,11 @@ import textwrap
 from datetime import date
 from collections.abc import Callable, Sequence
 from enum import Enum
+from html import escape
 from typing import Any, Dict, Literal, Optional, TypedDict
 
 import streamlit as st
 
-from components.design_system import _render_html_block
 from constants import (
     AnswerType,
     SSKey,
@@ -71,6 +71,15 @@ ESCO_EXPLAINABILITY_LABELS: tuple[str, ...] = (
 )
 ESCO_CONFIDENCE_BUCKETS: tuple[str, ...] = ("high", "medium", "low")
 REVIEW_WIDGET_KEY_PREFIX = f"{WIDGET_KEY_PREFIX}review."
+
+
+def _render_html_block(html: str) -> None:
+    render_html = getattr(st, "html", None)
+    if callable(render_html):
+        render_html(html)
+        return
+    st.markdown(html, unsafe_allow_html=True)
+
 
 JOB_EXTRACT_DISPLAY_LABELS: dict[str, str] = {
     "job_title": "Jobtitel",
@@ -2282,11 +2291,26 @@ def render_question_step(step: QuestionStep) -> None:
             answered_lookup=answered_lookup,
         )
         with st.container(border=True):
+            required_note = (
+                f"{progress['required_unanswered']} Pflichtfragen offen"
+                if progress["required_unanswered"] > 0
+                else "vollständig beantwortet"
+            )
             st.markdown(
-                f"**{group_title}** · {progress['answered']}/{progress['total']} beantwortet"
+                """
+                <div class="cs-question-group-title">
+                    <strong>{group_title}</strong>
+                    <span class="cs-question-group-meta">{answered}/{total} beantwortet</span>
+                </div>
+                """.format(
+                    group_title=escape(group_title),
+                    answered=progress["answered"],
+                    total=progress["total"],
+                ),
+                unsafe_allow_html=True,
             )
             if progress["required_unanswered"] > 0:
-                st.caption(f"{progress['required_unanswered']} Pflichtfragen offen")
+                st.caption(required_note)
             _render_questions_two_columns(group_questions, answers)
 
     return
@@ -2320,7 +2344,10 @@ def render_step_review_card(
     max_inline_unanswered = 2
     if not visible_questions:
         with st.container(border=True):
-            st.markdown("#### ✅ Check answers")
+            st.markdown(
+                '<div class="cs-review-card-title"><strong>Check answers</strong></div>',
+                unsafe_allow_html=True,
+            )
             st.caption("Keine sichtbaren Fragen in diesem Schritt.")
             st.caption(
                 "Hinweis: Abhängigkeiten können Detailfragen ausblenden, bis die vorausgesetzten Antworten gesetzt sind."
@@ -2427,7 +2454,10 @@ def render_step_review_card(
             incomplete_group_titles.append(group_title)
 
     with st.container(border=True):
-        st.markdown("#### ✅ Check answers")
+        st.markdown(
+            '<div class="cs-review-card-title"><strong>Check answers</strong></div>',
+            unsafe_allow_html=True,
+        )
         if step_status is not None:
             answered = int(step_status.get("answered", 0))
             total = int(step_status.get("total", 0))
@@ -2461,8 +2491,14 @@ def render_step_review_card(
         if missing_essential_id_set:
             with st.container(border=True):
                 st.markdown("##### ⚠️ Essentials offen")
-                for label in missing_essential_labels_display:
-                    st.markdown(f"- {label}")
+                essential_items = "".join(
+                    f"<li>{escape(label)}</li>"
+                    for label in missing_essential_labels_display
+                )
+                st.markdown(
+                    f'<ul class="cs-review-essential-list">{essential_items}</ul>',
+                    unsafe_allow_html=True,
+                )
                 if additional_missing_essentials > 0:
                     st.caption(f"+{additional_missing_essentials} weitere")
                 missing_groups = ", ".join(dict.fromkeys(incomplete_group_titles))

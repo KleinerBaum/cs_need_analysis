@@ -213,6 +213,13 @@ def _render_step_status(status: StepStatusPayload | None) -> None:
         st.caption(f"Fehlt (essentiell): {missing_summary}")
 
 
+def _render_step_section_heading(label: str) -> None:
+    st.markdown(
+        f'<div class="cs-step-section-heading">{label}</div>',
+        unsafe_allow_html=True,
+    )
+
+
 def _normalize_jobspec_note(note: Any) -> str:
     return " ".join(str(note or "").strip().split())
 
@@ -427,7 +434,7 @@ def render_step_shell(
         outcome_slot()
 
     if extracted_from_jobspec_slot is not None:
-        st.markdown(f"### {extracted_from_jobspec_label}")
+        _render_step_section_heading(extracted_from_jobspec_label)
         extracted_from_jobspec_slot()
         render_jobspec_step_notes(step.step_key if step is not None else None)
 
