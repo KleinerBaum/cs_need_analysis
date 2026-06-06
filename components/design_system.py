@@ -74,6 +74,26 @@ def render_ui_styles() -> None:
             --cs-radius-sm: 8px;
             --cs-radius-md: 12px;
         }
+        :root[data-theme="dark"] {
+            --cs-primary-navy: #0B1726;
+            --cs-primary-blue: #2563EB;
+            --cs-guidance-teal: #0F766E;
+            --cs-bg: #0B1726;
+            --cs-surface: #152640;
+            --cs-surface-muted: #0F2141;
+            --cs-border: #1E3A63;
+            --cs-border-soft: #24466F;
+            --cs-text: #E2E8F0;
+            --cs-text-muted: #A6B4C8;
+            --cs-text-subtle: #8EA0B8;
+            --cs-primary: #2563EB;
+            --cs-primary-soft: #1E40AF;
+            --cs-success: #0F766E;
+            --cs-success-soft: #063F3A;
+            --cs-warning: #F59E0B;
+            --cs-warning-soft: #593000;
+            --cs-danger: #F87171;
+        }
         html,
         body,
         .stApp,
@@ -83,6 +103,55 @@ def render_ui_styles() -> None:
         [data-testid="stAppViewContainer"] {
             background: var(--cs-bg);
             color: var(--cs-text-muted);
+        }
+        :root[data-theme="dark"] h1,
+        :root[data-theme="dark"] h2,
+        :root[data-theme="dark"] h3,
+        :root[data-theme="dark"] h4,
+        :root[data-theme="dark"] h5,
+        :root[data-theme="dark"] h6,
+        :root[data-theme="dark"] label,
+        :root[data-theme="dark"] p,
+        :root[data-theme="dark"] li,
+        :root[data-theme="dark"] [data-testid="stMarkdownContainer"],
+        :root[data-theme="dark"] [data-testid="stWidgetLabel"],
+        :root[data-theme="dark"] [data-testid="stDataFrame"],
+        :root[data-theme="dark"] [data-testid="stTable"] {
+            color: var(--cs-text) !important;
+        }
+        :root[data-theme="dark"] [data-testid="stCaptionContainer"],
+        :root[data-theme="dark"] small {
+            color: var(--cs-text-muted) !important;
+        }
+        :root[data-theme="dark"] [data-testid="stButton"] button[kind="primary"],
+        :root[data-theme="dark"] [data-testid="stFormSubmitButton"] button[kind="primary"],
+        :root[data-theme="dark"] [data-testid="stDownloadButton"] button[kind="primary"] {
+            background: var(--cs-primary) !important;
+            border-color: var(--cs-primary) !important;
+            color: #F9FAFB !important;
+        }
+        :root[data-theme="dark"] [data-testid="stButton"] button[kind="primary"]:hover,
+        :root[data-theme="dark"] [data-testid="stFormSubmitButton"] button[kind="primary"]:hover,
+        :root[data-theme="dark"] [data-testid="stDownloadButton"] button[kind="primary"]:hover {
+            background: #1D4ED8 !important;
+            border-color: #1D4ED8 !important;
+            color: #F9FAFB !important;
+        }
+        :root[data-theme="dark"] input,
+        :root[data-theme="dark"] textarea,
+        :root[data-theme="dark"] [data-baseweb="select"] > div,
+        :root[data-theme="dark"] [data-baseweb="textarea"] textarea {
+            background: var(--cs-surface) !important;
+            border-color: var(--cs-border) !important;
+            color: var(--cs-text) !important;
+        }
+        :root[data-theme="dark"] input::placeholder,
+        :root[data-theme="dark"] textarea::placeholder {
+            color: var(--cs-text-subtle) !important;
+        }
+        :root[data-theme="dark"] [data-testid="stDataFrame"] tbody tr,
+        :root[data-theme="dark"] [data-testid="stTable"] tbody tr {
+            background: var(--cs-surface-muted) !important;
         }
         [data-testid="stVerticalBlockBorderWrapper"] {
             border-color: var(--cs-border);

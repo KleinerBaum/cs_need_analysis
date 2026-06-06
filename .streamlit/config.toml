@@ -30,14 +30,14 @@ secondaryBackgroundColor = "#FFFFFF"
 textColor = "#FFFFFF"
 
 [theme.dark]
-primaryColor = "#7CC4FF"
-backgroundColor = "#0A0A0A"
-secondaryBackgroundColor = "#121212"
-textColor = "#F5F5F5"
-borderColor = "#232323"
+primaryColor = "#2563EB"
+backgroundColor = "#0B1726"
+secondaryBackgroundColor = "#152640"
+textColor = "#E2E8F0"
+borderColor = "#1E3A63"
 
 [theme.dark.sidebar]
-primaryColor = "#7CC4FF"
-backgroundColor = "#050505"
-secondaryBackgroundColor = "#121212"
-textColor = "#F5F5F5"
+primaryColor = "#2563EB"
+backgroundColor = "#0B1726"
+secondaryBackgroundColor = "#152640"
+textColor = "#F9FAFB"

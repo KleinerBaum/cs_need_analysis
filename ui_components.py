@@ -1373,8 +1373,8 @@ def render_intake_process_animation(*, state: Literal["idle", "running", "done"]
             f"""
             <style>
             .cs-process-banner {{
-                border: 1px solid #D9E2EC;
-                background: #FFFFFF;
+                border: 1px solid var(--cs-border);
+                background: var(--cs-surface);
                 border-radius: 0.5rem;
                 padding: 0.9rem;
                 margin: 0.45rem 0 0.8rem 0;
@@ -1386,7 +1386,7 @@ def render_intake_process_animation(*, state: Literal["idle", "running", "done"]
                 margin-bottom: 0.15rem;
             }}
             .cs-process-subtitle {{
-                color: #334155;
+                color: var(--cs-text-muted);
                 font-size: 0.88rem;
                 margin-bottom: 0.8rem;
             }}
@@ -1401,8 +1401,8 @@ def render_intake_process_animation(*, state: Literal["idle", "running", "done"]
                 gap: 0.65rem;
                 padding: 0.7rem 0.75rem;
                 border-radius: 0.5rem;
-                border: 1px solid #D9E2EC;
-                background: #F8FAFC;
+                border: 1px solid var(--cs-border);
+                background: var(--cs-surface-muted);
                 min-height: 3.2rem;
             }}
             .cs-process-banner.cs-process-running .cs-process-step {{
@@ -1433,7 +1433,7 @@ def render_intake_process_animation(*, state: Literal["idle", "running", "done"]
                 line-height: 1.2;
             }}
             .cs-process-detail {{
-                color: #64748B;
+                color: var(--cs-text-subtle);
                 font-size: 0.82rem;
                 line-height: 1.25;
                 margin-top: 0.18rem;

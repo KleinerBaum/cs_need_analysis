@@ -2823,7 +2823,7 @@ def _render_summary_dashboard_css() -> None:
         <style>
         .cs-summary-dashboard-intro {
             margin: 0.15rem 0 1rem 0;
-            color: #334155;
+            color: var(--cs-text-muted);
             font-size: 0.95rem;
             line-height: 1.55;
         }
@@ -2833,10 +2833,10 @@ def _render_summary_dashboard_css() -> None:
             gap: 0.65rem;
         }
         .cs-summary-pipeline-item {
-            border: 1px solid #D9E2EC;
+            border: 1px solid var(--cs-border);
             border-radius: 8px;
             padding: 0.72rem 0.75rem;
-            background: #FFFFFF;
+            background: var(--cs-surface);
             min-height: 4.6rem;
             box-shadow: 0 8px 22px rgba(22, 50, 79, 0.05);
         }
@@ -2845,7 +2845,7 @@ def _render_summary_dashboard_css() -> None:
             overflow-wrap: anywhere;
             font-size: 0.9rem;
             line-height: 1.24;
-            color: #16324F;
+            color: var(--cs-text);
         }
         .cs-summary-pipeline-item span {
             display: inline-flex;
@@ -2857,32 +2857,32 @@ def _render_summary_dashboard_css() -> None:
             line-height: 1.2;
         }
         .cs-summary-pipeline-item[data-status="current"] span {
-            background: #ECFDF5;
-            color: #16324F;
+            background: var(--cs-success-soft);
+            color: var(--cs-text);
             border: 1px solid #0F766E;
         }
         .cs-summary-pipeline-item[data-status="ready"] span {
-            background: #DBEAFE;
-            color: #16324F;
+            background: var(--cs-primary-soft);
+            color: var(--cs-text);
             border: 1px solid #2563EB;
         }
         .cs-summary-pipeline-item[data-status="blocked"] span {
-            background: #FEF3C7;
-            color: #16324F;
+            background: var(--cs-warning-soft);
+            color: var(--cs-text);
             border: 1px solid #F59E0B;
         }
         .cs-summary-pipeline-item[data-status="stale"] span {
-            background: #FEF3C7;
-            color: #16324F;
+            background: var(--cs-warning-soft);
+            color: var(--cs-text);
             border: 1px solid #F59E0B;
         }
         .cs-summary-pipeline-item[data-status="open"] span {
-            background: #F8FAFC;
-            color: #334155;
-            border: 1px solid #D9E2EC;
+            background: var(--cs-surface-muted);
+            color: var(--cs-text-muted);
+            border: 1px solid var(--cs-border);
         }
         .cs-summary-section-note {
-            color: #64748B;
+            color: var(--cs-text-subtle);
             margin: -0.1rem 0 0.9rem 0;
             font-size: 0.9rem;
             line-height: 1.45;
