@@ -72,6 +72,12 @@ def test_sidebar_renders_preference_center_after_public_links(monkeypatch) -> No
             return False
 
     class _FakeSidebar:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
         def markdown(self, text: str, **_kwargs) -> None:
             events.append(f"markdown:{text}")
 
@@ -100,7 +106,14 @@ def test_sidebar_renders_preference_center_after_public_links(monkeypatch) -> No
 
     fake_st = type("FakeStreamlit", (), {})()
     fake_st.sidebar = _FakeSidebar()
+    fake_st.markdown = fake_st.sidebar.markdown
+    fake_st.expander = fake_st.sidebar.expander
     fake_st.page_link = fake_st.sidebar.page_link
+    fake_st.selectbox = fake_st.sidebar.selectbox
+    fake_st.select_slider = fake_st.sidebar.select_slider
+    fake_st.slider = fake_st.sidebar.slider
+    fake_st.toggle = fake_st.sidebar.toggle
+    fake_st.json = fake_st.sidebar.json
 
     monkeypatch.setattr("components.sidebar.st", fake_st)
     monkeypatch.setattr("components.sidebar.ensure_preference_state", lambda: None)

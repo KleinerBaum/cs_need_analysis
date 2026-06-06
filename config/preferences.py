@@ -76,7 +76,7 @@ class PageDef:
 
 PAGE_DEFS: List[PageDef] = [
     PageDef("competencies", "Unsere Kompetenzen", "pages/01_Unsere_Kompetenzen.py", "main", True),
-    PageDef("about", "Über Cognitive Staffing", "pages/02_Ueber_Cognitive_Staffing.py", "main", True),
+    PageDef("about", "Über Cognitive Staffing", "pages/02_Über_Cognitive_Staffing.py", "main", True),
     PageDef("imprint", "Impressum", "pages/03_Impressum.py", "main", True),
     PageDef("preference_center", "Präferenz-Center", "pages/10_Praeferenz_Center.py", "preferences", False),
     PageDef("privacy", "Datenschutzrichtlinie", "pages/11_Datenschutzrichtlinie.py", "legal", False),
