@@ -47,20 +47,20 @@ def _render_landing_responsive_overrides() -> None:
                 margin-top: 1.1rem;
             }
             .landing-signal {
-                border: 1px solid #D9E2EC;
-                background: #FFFFFF;
+                border: 1px solid var(--cs-border);
+                background: var(--cs-surface);
                 border-radius: 8px;
                 padding: 0.85rem 0.9rem;
                 box-shadow: 0 8px 22px rgba(22, 50, 79, 0.06);
             }
             .landing-signal strong {
                 display: block;
-                color: #16324F;
+                color: var(--cs-text);
                 font-size: 0.94rem;
             }
             .landing-signal span {
                 display: block;
-                color: #334155;
+                color: var(--cs-text-muted);
                 font-size: 0.82rem;
                 line-height: 1.35;
                 margin-top: 0.18rem;
@@ -73,8 +73,8 @@ def _render_landing_responsive_overrides() -> None:
                 margin-top: 1rem;
             }
             .landing-compare-panel {
-                border: 1px solid #D9E2EC;
-                background: #FFFFFF;
+                border: 1px solid var(--cs-border);
+                background: var(--cs-surface);
                 border-radius: 8px;
                 padding: 0.85rem 0.9rem;
             }
@@ -84,10 +84,10 @@ def _render_landing_responsive_overrides() -> None:
             .landing-process-diagram h4 {
                 margin: 0 0 0.5rem 0;
                 font-size: 1rem;
-                color: #16324F;
+                color: var(--cs-text);
             }
             .landing-compare-panel p {
-                color: #334155;
+                color: var(--cs-text-muted);
                 line-height: 1.45;
                 margin: 0 0 0.65rem 0;
             }
@@ -101,16 +101,16 @@ def _render_landing_responsive_overrides() -> None:
             }
             .landing-compare-panel--classic {
                 border-color: #F59E0B;
-                background: #FEF3C7;
+                background: var(--cs-warning-soft);
             }
             .landing-compare-panel--ai {
                 border-color: #0F766E;
-                background: #ECFDF5;
+                background: var(--cs-success-soft);
             }
             .landing-context-panel {
                 margin-top: 0.85rem;
-                border: 1px solid #D9E2EC;
-                background: #FFFFFF;
+                border: 1px solid var(--cs-border);
+                background: var(--cs-surface);
                 border-radius: 8px;
                 padding: 0.9rem;
             }
@@ -121,27 +121,27 @@ def _render_landing_responsive_overrides() -> None:
                 align-items: stretch;
             }
             .landing-context-card {
-                border: 1px solid #D9E2EC;
+                border: 1px solid var(--cs-border);
                 border-radius: 8px;
-                background: #F8FAFC;
+                background: var(--cs-surface-muted);
                 padding: 0.9rem;
                 min-height: 100%;
             }
             .landing-context-card--source {
                 border-color: #F59E0B;
-                background: #FFF7D6;
+                background: var(--cs-warning-soft);
             }
             .landing-context-card--ai {
                 border-color: #0F766E;
-                background: #ECFDF5;
+                background: var(--cs-success-soft);
             }
             .landing-context-card--output {
                 border-color: #2563EB;
-                background: #EFF6FF;
+                background: var(--cs-primary-soft);
             }
             .landing-context-card strong {
                 display: block;
-                color: #16324F;
+                color: var(--cs-text);
                 margin-bottom: 0.45rem;
             }
             .landing-context-card ul {
@@ -151,11 +151,11 @@ def _render_landing_responsive_overrides() -> None:
             .landing-context-card li {
                 margin-bottom: 0.32rem;
                 line-height: 1.34;
-                color: #334155;
+                color: var(--cs-text-muted);
             }
             .landing-process-diagram {
                 border: 1px solid #0F766E;
-                background: #F0FDF9;
+                background: var(--cs-success-soft);
                 border-radius: 8px;
                 padding: 0.95rem;
             }
@@ -167,8 +167,8 @@ def _render_landing_responsive_overrides() -> None:
             }
             .landing-process-step {
                 position: relative;
-                border: 1px solid #D9E2EC;
-                background: #FFFFFF;
+                border: 1px solid var(--cs-border);
+                background: var(--cs-surface);
                 border-radius: 8px;
                 padding: 0.74rem 0.75rem;
                 min-height: 112px;
@@ -207,7 +207,7 @@ def _render_landing_responsive_overrides() -> None:
             }
             .landing-process-step p {
                 margin: 0.25rem 0 0 0;
-                color: #334155;
+                color: var(--cs-text-muted);
                 font-size: 0.82rem;
                 line-height: 1.34;
             }
@@ -215,9 +215,9 @@ def _render_landing_responsive_overrides() -> None:
                 margin-top: 0.8rem;
                 border-left: 3px solid #0F766E;
                 padding: 0.55rem 0.7rem;
-                background: #FFFFFF;
+                background: var(--cs-surface);
                 border-radius: 8px;
-                color: #16324F;
+                color: var(--cs-text);
                 font-weight: 650;
             }
             .landing-process-resources {
@@ -228,7 +228,7 @@ def _render_landing_responsive_overrides() -> None:
                 margin-top: 0.8rem;
             }
             .landing-process-resources span {
-                color: #334155;
+                color: var(--cs-text-muted);
                 font-size: 0.86rem;
                 font-weight: 700;
             }

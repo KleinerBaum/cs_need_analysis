@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import hashlib
+import json
 import logging
 from typing import Any
 
@@ -37,6 +39,94 @@ def _safe_int(value: Any) -> int:
     except (TypeError, ValueError):
         return 0
 
+
+def _selected_clean(values: list[str]) -> list[str]:
+    return list(dict.fromkeys(str(item).strip() for item in values if str(item).strip()))
+
+
+def _current_step_forecast_fingerprint(
+    *,
+    step_key: str,
+    job: JobAdExtract,
+    selected_inputs: list[str],
+    model: str,
+    language: str,
+    store: bool,
+) -> str:
+    payload = {
+        "step_key": step_key,
+        "selected_inputs": _selected_clean(selected_inputs),
+        "job_title": str(job.job_title or "").strip(),
+        "location_city": str(job.location_city or "").strip(),
+        "location_country": str(job.location_country or "").strip(),
+        "job_seniority": str(job.seniority_level or "").strip(),
+        "radius_km": _safe_int(
+            st.session_state.get(SSKey.SALARY_SCENARIO_RADIUS_KM.value, 50)
+        ),
+        "remote_share_percent": _safe_int(
+            st.session_state.get(SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value, 0)
+        ),
+        "seniority_override": str(
+            st.session_state.get(SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value, "")
+        ).strip(),
+        "model": model,
+        "language": language,
+        "store": bool(store),
+    }
+    serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _should_refresh_step_forecast(*, step_key: str, fingerprint: str) -> bool:
+    raw_fingerprints = st.session_state.get(
+        SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value, {}
+    )
+    fingerprints = raw_fingerprints if isinstance(raw_fingerprints, dict) else {}
+    last_result = st.session_state.get(SSKey.SALARY_FORECAST_LAST_RESULT.value, {})
+    last_step_key = (
+        str(last_result.get("step_key") or "").strip()
+        if isinstance(last_result, dict)
+        else ""
+    )
+    return fingerprints.get(step_key) != fingerprint or last_step_key != step_key
+
+
+def _remember_step_forecast_fingerprint(*, step_key: str, fingerprint: str) -> None:
+    raw_fingerprints = st.session_state.get(
+        SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value, {}
+    )
+    fingerprints = dict(raw_fingerprints) if isinstance(raw_fingerprints, dict) else {}
+    fingerprints[step_key] = fingerprint
+    st.session_state[SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value] = fingerprints
+
+
+def _render_source_mix_pie(
+    *, source_counts: dict[str, int] | None, chart_key: str
+) -> None:
+    counts = {
+        str(label).strip(): _safe_int(count)
+        for label, count in (source_counts or {}).items()
+        if str(label).strip() and _safe_int(count) > 0
+    }
+    if not counts:
+        st.caption("Quellenmix erscheint, sobald Elemente ausgewählt sind.")
+        return
+    fig = go.Figure(
+        go.Pie(
+            labels=list(counts.keys()),
+            values=list(counts.values()),
+            hole=0.42,
+            textinfo="label+percent",
+            hovertemplate="%{label}: %{value} ausgewählt<extra></extra>",
+        )
+    )
+    fig.update_layout(
+        height=260,
+        margin=dict(l=8, r=8, t=12, b=8),
+        showlegend=True,
+    )
+    st.plotly_chart(fig, width="stretch", key=chart_key)
+    st.caption("Das Diagramm zeigt den Quellenmix der aktuell ausgewählten Elemente.")
 
 
 
@@ -764,6 +854,8 @@ def render_salary_forecast_step_sections(
     influence_factors_slot: Callable[[], None],
     scenario_controls_slot: Callable[[], None],
     forecast_result_slot: Callable[[], None],
+    source_counts: dict[str, int] | None = None,
+    source_mix_chart_key: str = "salary_source_mix_chart",
 ) -> None:
     """Render the shared three-section salary forecast layout for wizard steps."""
 
@@ -775,6 +867,12 @@ def render_salary_forecast_step_sections(
 
     with right_col:
         with st.container(border=True):
+            st.markdown("#### Quellenmix")
+            _render_source_mix_pie(
+                source_counts=source_counts,
+                chart_key=source_mix_chart_key,
+            )
+            st.markdown("---")
             st.markdown("#### Szenario-Steuerung")
             scenario_controls_slot()
             st.markdown("---")
@@ -789,15 +887,29 @@ def render_role_tasks_salary_forecast_panel(
     model: str,
     language: str,
     store: bool,
+    source_counts: dict[str, int] | None = None,
 ) -> None:
     selected_count = len([item for item in selected_tasks if str(item).strip()])
 
     def _render_influence_factors() -> None:
+        _render_influence_factor_header(
+            title="Ausgewählte Aufgaben",
+            items=selected_tasks,
+            empty_caption="Keine Aufgaben ausgewählt.",
+        )
         st.caption(f"Ausgewählte Rollen/Aufgaben: {selected_count}")
 
     def _render_scenario_controls() -> None:
         _render_common_scenario_inputs()
-        if st.button("Prognose aktualisieren", width="stretch"):
+        fingerprint = _current_step_forecast_fingerprint(
+            step_key="role_tasks",
+            job=job,
+            selected_inputs=selected_tasks,
+            model=model,
+            language=language,
+            store=store,
+        )
+        if _should_refresh_step_forecast(step_key="role_tasks", fingerprint=fingerprint):
             with st.spinner("Berechne Gehaltsprognose …"):
                 p50, confidence_note, usage = _run_step_salary_forecast_generation(
                     job=job,
@@ -807,6 +919,7 @@ def render_role_tasks_salary_forecast_panel(
                     store=store,
                 )
             st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {
+                "step_key": "role_tasks",
                 "forecast": {"p50": p50},
                 "currency": "EUR",
                 "period": "year",
@@ -829,13 +942,19 @@ def render_role_tasks_salary_forecast_panel(
                 },
                 "usage": usage or {},
             }
+            _remember_step_forecast_fingerprint(
+                step_key="role_tasks", fingerprint=fingerprint
+            )
+            st.caption("Prognose automatisch aktualisiert.")
+        else:
+            st.caption("Prognose ist für die aktuellen Eingaben aktuell.")
 
     def _render_forecast_result() -> None:
         render_salary_forecast_result_card(
             salary_result=st.session_state.get(
                 SSKey.SALARY_FORECAST_LAST_RESULT.value, {}
             ),
-            empty_message="Noch keine Gehaltsprognose vorhanden. Bitte Prognose aktualisieren.",
+            empty_message="Noch keine Gehaltsprognose vorhanden.",
             headline="Gehaltsprognose (Jahr)",
         )
 
@@ -843,6 +962,8 @@ def render_role_tasks_salary_forecast_panel(
         influence_factors_slot=_render_influence_factors,
         scenario_controls_slot=_render_scenario_controls,
         forecast_result_slot=_render_forecast_result,
+        source_counts=source_counts,
+        source_mix_chart_key="role_tasks.salary.source_mix",
     )
 
 
@@ -854,6 +975,7 @@ def render_benefits_salary_forecast_panel(
     model: str,
     language: str,
     store: bool,
+    source_counts: dict[str, int] | None = None,
 ) -> None:
     """Render salary forecast for the Benefits step using shared section layout."""
     selected_benefits = list(benefit_candidates)
@@ -868,35 +990,30 @@ def render_benefits_salary_forecast_panel(
         ]
 
     def _render_influence_factors() -> None:
-        nonlocal selected_benefits
         selected_count = len([item for item in selected_benefits if str(item).strip()])
+        _render_influence_factor_header(
+            title="Ausgewählte Benefits",
+            items=selected_benefits,
+            empty_caption="Keine Benefits ausgewählt.",
+        )
         st.caption("Diese Faktoren werden in der Prognose berücksichtigt.")
         st.caption(f"Gewählte Benefits: {selected_count}")
         if not benefit_candidates:
             st.caption(
                 "Keine Benefits ausgewählt – Prognose wird ohne Benefit-Einflussfaktoren berechnet."
             )
-        else:
-            st.caption(
-                "Die konkrete Benefits-Liste wird oben im Abschnitt „Einflussfaktoren“ gepflegt."
-            )
-
-        with st.expander("Bearbeiten", expanded=False):
-            selected_benefits = st.multiselect(
-                "Benefits auswählen",
-                options=benefit_candidates,
-                default=benefit_candidates,
-                help=(
-                    "Nur bei Bedarf anpassen. Standardmäßig fließen alle gewählten "
-                    "Benefits als Einflussfaktoren ein."
-                ),
-            )
 
     def _render_scenario_controls() -> None:
         _render_common_scenario_inputs()
-        if st.button(
-            "Prognose aktualisieren", width="stretch", key="benefits.salary.update"
-        ):
+        fingerprint = _current_step_forecast_fingerprint(
+            step_key="benefits",
+            job=job,
+            selected_inputs=selected_benefits,
+            model=model,
+            language=language,
+            store=store,
+        )
+        if _should_refresh_step_forecast(step_key="benefits", fingerprint=fingerprint):
             with st.spinner("Berechne Gehaltsprognose …"):
                 scenario_inputs = SalaryScenarioInputs(
                     location_city_override=str(
@@ -929,6 +1046,7 @@ def render_benefits_salary_forecast_panel(
                 )
             try:
                 st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {
+                    "step_key": "benefits",
                     "forecast": forecast_result.forecast.model_dump(mode="json"),
                     "currency": forecast_result.currency,
                     "period": forecast_result.period,
@@ -954,6 +1072,10 @@ def render_benefits_salary_forecast_panel(
                         ).strip(),
                     },
                 }
+                _remember_step_forecast_fingerprint(
+                    step_key="benefits", fingerprint=fingerprint
+                )
+                st.caption("Prognose automatisch aktualisiert.")
             except AttributeError as exc:
                 LOGGER.warning(
                     "Salary forecast serialization unavailable: missing expected SalaryForecastResult.quality field (%s).",
@@ -962,13 +1084,15 @@ def render_benefits_salary_forecast_panel(
                 st.warning(
                     "Die Gehaltsprognose ist vorübergehend nicht verfügbar. Bitte versuche es in Kürze erneut."
                 )
+        else:
+            st.caption("Prognose ist für die aktuellen Eingaben aktuell.")
 
     def _render_forecast_result() -> None:
         render_salary_forecast_result_card(
             salary_result=st.session_state.get(
                 SSKey.SALARY_FORECAST_LAST_RESULT.value, {}
             ),
-            empty_message="Noch keine Gehaltsprognose vorhanden. Bitte Prognose aktualisieren.",
+            empty_message="Noch keine Gehaltsprognose vorhanden.",
             headline="Gehaltsprognose (Jahr)",
             use_main_card_layout=True,
         )
@@ -977,6 +1101,8 @@ def render_benefits_salary_forecast_panel(
         influence_factors_slot=_render_influence_factors,
         scenario_controls_slot=_render_scenario_controls,
         forecast_result_slot=_render_forecast_result,
+        source_counts=source_counts,
+        source_mix_chart_key="benefits.salary.source_mix",
     )
 
 
@@ -988,6 +1114,7 @@ def render_skills_salary_forecast_panel(
     model: str,
     language: str,
     store: bool,
+    source_counts: dict[str, int] | None = None,
 ) -> None:
     """Render salary forecast for Skills step using shared section layout."""
 
@@ -1053,13 +1180,21 @@ def render_skills_salary_forecast_panel(
     def _render_scenario_controls() -> None:
         st.caption("Szenario-Parameter")
         _render_common_scenario_inputs()
-        if st.button("Gehaltsprognose für Skills berechnen", width="stretch", type="primary"):
-            must_priority, nice_priority = _read_priority_selection()
-            selected_inputs = [
-                *(f"Must-have: {skill}" for skill in must_priority),
-                *(f"Nice-to-have: {skill}" for skill in nice_priority),
-                *selected_role_tasks,
-            ]
+        must_priority, nice_priority = _read_priority_selection()
+        selected_inputs = [
+            *(f"Must-have: {skill}" for skill in must_priority),
+            *(f"Nice-to-have: {skill}" for skill in nice_priority),
+            *selected_role_tasks,
+        ]
+        fingerprint = _current_step_forecast_fingerprint(
+            step_key="skills",
+            job=job,
+            selected_inputs=selected_inputs,
+            model=model,
+            language=language,
+            store=store,
+        )
+        if _should_refresh_step_forecast(step_key="skills", fingerprint=fingerprint):
             with st.spinner("Berechne Gehaltsprognose …"):
                 p50, confidence_note, usage = _run_step_salary_forecast_generation(
                     job=job,
@@ -1069,6 +1204,7 @@ def render_skills_salary_forecast_panel(
                     store=store,
                 )
             st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {
+                "step_key": "skills",
                 "forecast": {"p50": p50},
                 "currency": "EUR",
                 "period": "year",
@@ -1080,6 +1216,10 @@ def render_skills_salary_forecast_panel(
                 },
                 "usage": usage or {},
             }
+            _remember_step_forecast_fingerprint(step_key="skills", fingerprint=fingerprint)
+            st.caption("Prognose automatisch aktualisiert.")
+        else:
+            st.caption("Prognose ist für die aktuellen Eingaben aktuell.")
 
     def _render_forecast_result() -> None:
         render_salary_forecast_result_card(
@@ -1094,4 +1234,6 @@ def render_skills_salary_forecast_panel(
         influence_factors_slot=_render_influence_factors,
         scenario_controls_slot=_render_scenario_controls,
         forecast_result_slot=_render_forecast_result,
+        source_counts=source_counts,
+        source_mix_chart_key="skills.salary.source_mix",
     )

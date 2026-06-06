@@ -52,25 +52,35 @@ def render_ui_styles() -> None:
             --cs-primary-navy: #16324F;
             --cs-primary-blue: #2563EB;
             --cs-guidance-teal: #0F766E;
-            --cs-bg: #F3F6FA;
-            --cs-surface: #FFFFFF;
-            --cs-surface-muted: #F8FAFC;
-            --cs-border: #D9E2EC;
-            --cs-border-soft: #E2E8F0;
-            --cs-text: #16324F;
-            --cs-text-muted: #334155;
-            --cs-text-subtle: #64748B;
-            --cs-primary: var(--cs-primary-blue);
-            --cs-primary-soft: #DBEAFE;
+            --cs-bg: var(--background-color, #F3F6FA);
+            --cs-surface: var(--secondary-background-color, #FFFFFF);
+            --cs-surface-muted: color-mix(
+                in srgb,
+                var(--secondary-background-color, #FFFFFF) 88%,
+                var(--background-color, #F3F6FA)
+            );
+            --cs-border: var(--border-color, #D9E2EC);
+            --cs-border-soft: color-mix(in srgb, var(--border-color, #D9E2EC) 72%, transparent);
+            --cs-text: var(--text-color, #16324F);
+            --cs-text-muted: color-mix(in srgb, var(--text-color, #334155) 86%, transparent);
+            --cs-text-subtle: color-mix(in srgb, var(--text-color, #64748B) 66%, transparent);
+            --cs-primary: var(--primary-color, var(--cs-primary-blue));
+            --cs-primary-soft: color-mix(in srgb, var(--cs-primary) 18%, var(--cs-surface));
             --cs-success: var(--cs-guidance-teal);
-            --cs-success-soft: #ECFDF5;
+            --cs-success-soft: color-mix(in srgb, var(--cs-success) 16%, var(--cs-surface));
             --cs-warning: #F59E0B;
-            --cs-warning-soft: #FEF3C7;
+            --cs-warning-soft: color-mix(in srgb, var(--cs-warning) 24%, var(--cs-surface));
             --cs-danger: #DC2626;
             --cs-radius-sm: 8px;
             --cs-radius-md: 12px;
         }
-        html, body, [data-testid="stAppViewContainer"] {
+        html,
+        body,
+        .stApp,
+        .stMain,
+        .stMainBlockContainer,
+        .block-container,
+        [data-testid="stAppViewContainer"] {
             background: var(--cs-bg);
             color: var(--cs-text-muted);
         }
@@ -116,7 +126,11 @@ def render_ui_styles() -> None:
         .cs-output-header {
             padding: 1.05rem 1.1rem;
             margin-bottom: 1rem;
-            background: linear-gradient(180deg, #FFFFFF, #FBFDFF);
+            background: linear-gradient(
+                180deg,
+                var(--cs-surface),
+                color-mix(in srgb, var(--cs-surface) 88%, var(--cs-bg))
+            );
         }
         .cs-step-header {
             border-left: 4px solid var(--cs-success);
@@ -194,10 +208,10 @@ def render_ui_styles() -> None:
             min-height: 2.35rem;
             min-width: 10.5rem;
             padding: 0.42rem 0.65rem;
-            border: 1px solid #D9E2EC;
+            border: 1px solid var(--cs-border);
             border-radius: 8px;
-            background: #ffffff;
-            color: #334155;
+            background: var(--cs-surface);
+            color: var(--cs-text-muted);
             font-size: 0.84rem;
             line-height: 1.2;
             box-shadow: 0 6px 18px rgba(22, 50, 79, 0.05);
@@ -207,8 +221,8 @@ def render_ui_styles() -> None:
             width: 0.55rem;
             height: 0.55rem;
             border-radius: 999px;
-            border: 1px solid #D9E2EC;
-            background: #ffffff;
+            border: 1px solid var(--cs-border);
+            background: var(--cs-surface);
         }
         .cs-process-progress-item[data-status="complete"]::before {
             border-color: #0F766E;
@@ -220,8 +234,8 @@ def render_ui_styles() -> None:
         }
         .cs-process-progress-item[data-current="true"] {
             border-color: #0F766E;
-            background: #ECFDF5;
-            color: #16324F;
+            background: var(--cs-success-soft);
+            color: var(--cs-text);
             font-weight: 700;
             box-shadow: 0 8px 24px rgba(15, 118, 110, 0.14);
         }
@@ -233,19 +247,19 @@ def render_ui_styles() -> None:
             overflow-wrap: break-word;
         }
         .cs-process-progress-count {
-            color: #64748B;
+            color: var(--cs-text-subtle);
             font-weight: 600;
             white-space: nowrap;
         }
         .cs-step-title, .cs-output-title {
             margin: 0;
-            color: #16324F;
+            color: var(--cs-text);
             font-size: clamp(1.28rem, 1.8vw, 1.65rem);
             line-height: 1.22;
         }
         .cs-step-subtitle, .cs-output-context {
             margin: 0.45rem 0 0;
-            color: #334155;
+            color: var(--cs-text-muted);
             line-height: 1.55;
             max-width: 76rem;
         }
@@ -264,21 +278,21 @@ def render_ui_styles() -> None:
             row-gap: 0.05rem;
             align-items: center;
             padding: 0.5rem 0.6rem;
-            border: 1px solid #E2E8F0;
+            border: 1px solid var(--cs-border-soft);
             border-radius: 8px;
-            background: #F8FAFC;
+            background: var(--cs-surface-muted);
             font-size: 0.86rem;
         }
         .cs-meta-icon { opacity: 0.75; }
         .cs-meta-label {
-            color: #64748B;
+            color: var(--cs-text-subtle);
             font-size: 0.76rem;
             font-weight: 700;
             text-transform: uppercase;
         }
         .cs-meta-value {
             grid-column: 2;
-            color: #16324F;
+            color: var(--cs-text);
             font-weight: 650;
             overflow-wrap: anywhere;
         }

@@ -20,7 +20,7 @@ from state import (
 )
 from ui_components import (
     has_meaningful_value,
-    render_multi_select_pills,
+    render_source_pill_selection,
     render_compare_adopt_intro,
     render_esco_explainability,
     render_error_banner,
@@ -235,6 +235,7 @@ def _render_role_tasks_salary_block(
     *,
     job: JobAdExtract,
     selected_tasks: list[str],
+    source_counts: dict[str, int] | None = None,
 ) -> None:
     render_role_tasks_salary_forecast_panel(
         job=job,
@@ -242,6 +243,7 @@ def _render_role_tasks_salary_block(
         model=get_active_model(),
         language=str(st.session_state.get(SSKey.LANGUAGE.value, "de")),
         store=bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)),
+        source_counts=source_counts,
     )
 
 
@@ -263,6 +265,7 @@ def render(ctx: WizardContext) -> None:
         {"label": label, "source": "Jobspec"} for label in jobspec_terms
     ]
     st.session_state[SSKey.ROLE_TASKS_JOBSPEC_SUGGESTED.value] = jobspec_suggestions
+    source_counts: dict[str, int] = {"Jobspec": 0, "ESCO / Kontext": 0, "AI": 0}
 
     def _render_extracted_slot() -> None:
         st.markdown('<div class="cs-grid-3">', unsafe_allow_html=True)
@@ -289,6 +292,7 @@ def render(ctx: WizardContext) -> None:
         st.markdown("</div>", unsafe_allow_html=True)
 
     def _render_source_comparison_slot() -> None:
+        nonlocal source_counts
         coverage = sync_esco_shared_state()
         semantic_context = get_esco_semantic_context()
         show_esco_sections = semantic_context.can_use_task_suggestions
@@ -343,112 +347,97 @@ def render(ctx: WizardContext) -> None:
         render_compare_adopt_intro(
             adopt_target="Aufgaben",
             canonical_target="SSKey.ROLE_TASKS_SELECTED",
-            source_labels=("Jobspec", "AI")
-            if not show_esco_sections
-            else ("Jobspec", "ESCO", "AI"),
+            source_labels=("Jobspec", "ESCO/Kontext", "AI"),
         )
         render_output_header(
             "Aufgaben auswählen",
             "Wählen Sie die Aufgaben aus, die im Recruiting-Brief, in der Gehaltsprognose und in Folgeartefakten verwendet werden sollen.",
         )
-        st.markdown('<div class="cs-grid-3">', unsafe_allow_html=True)
-        col_jobspec, col_ai, col_esco = responsive_three_columns(gap="large")
-        with col_jobspec:
-            st.markdown("#### Aus der Anzeige extrahiert")
-            render_multi_select_pills(
-                " ",
-                options=jobspec_labels,
-                key="role_tasks.jobspec.pills",
-                default=[
-                    item
-                    for item in selected
-                    if _normalize_task_term(item)
-                    in {_normalize_task_term(v) for v in jobspec_labels}
-                ],
-            )
-        with col_ai:
-            st.markdown("#### AI-Vorschläge")
+        ai_control_col, ai_action_col = st.columns([1, 2], gap="small")
+        with ai_control_col:
             st.number_input(
-                "Anzahl Vorschläge",
+                "Anzahl AI-Vorschläge",
                 min_value=1,
                 max_value=12,
                 key=SSKey.ROLE_TASKS_SUGGEST_COUNT.value,
             )
-            if st.button("AI-Vorschläge ergänzen"):
-                context = _build_task_suggestion_context(
+        with ai_action_col:
+            generate_ai = st.button("AI-Vorschläge ergänzen", width="stretch")
+        if generate_ai:
+            context = _build_task_suggestion_context(
+                job=job,
+                include_esco_titles=show_esco_sections,
+            )
+            existing_tasks = _dedupe_task_terms(
+                [
+                    *context["jobspec_terms"],
+                    *[str(item.get("label") or "") for item in esco_suggestions],
+                    *context["selected_terms"],
+                ]
+            )
+            target_task_count = int(
+                st.session_state.get(SSKey.ROLE_TASKS_SUGGEST_COUNT.value, 5)
+            )
+
+            with st.spinner("Generiere Aufgaben-Vorschläge …"):
+                pack, _usage = generate_requirement_gap_suggestions(
                     job=job,
-                    include_esco_titles=show_esco_sections,
-                )
-                existing_tasks = _dedupe_task_terms(
-                    [
-                        *context["jobspec_terms"],
-                        *[str(item.get("label") or "") for item in esco_suggestions],
-                        *context["selected_terms"],
-                    ]
-                )
-                target_task_count = int(
-                    st.session_state.get(SSKey.ROLE_TASKS_SUGGEST_COUNT.value, 5)
+                    answers=get_answers(),
+                    existing_skills=[],
+                    existing_tasks=existing_tasks,
+                    esco_skill_titles=context["esco_skill_titles"],
+                    target_skill_count=0,
+                    target_task_count=target_task_count,
+                    task_rag_context=_build_task_rag_context(job),
+                    model=get_active_model(),
+                    language=str(st.session_state.get(SSKey.LANGUAGE.value, "de")),
+                    store=bool(
+                        st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)
+                    ),
                 )
 
-                with st.spinner("Generiere Aufgaben-Vorschläge …"):
-                    pack, _usage = generate_requirement_gap_suggestions(
-                        job=job,
-                        answers=get_answers(),
-                        existing_skills=[],
-                        existing_tasks=existing_tasks,
-                        esco_skill_titles=context["esco_skill_titles"],
-                        target_skill_count=0,
-                        target_task_count=target_task_count,
-                        task_rag_context=_build_task_rag_context(job),
-                        model=get_active_model(),
-                        language=str(st.session_state.get(SSKey.LANGUAGE.value, "de")),
-                        store=bool(
-                            st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)
-                        ),
-                    )
-
-                merged_llm = _merge_llm_task_suggestions(
-                    llm_tasks=[item.model_dump(mode="json") for item in pack.tasks],
-                    blocked_labels=existing_tasks,
-                )
-                st.session_state[SSKey.ROLE_TASKS_LLM_SUGGESTED.value] = merged_llm
-            llm_after = st.session_state.get(SSKey.ROLE_TASKS_LLM_SUGGESTED.value, [])
-            llm_after_labels = [str(item.get("label") or "").strip() for item in llm_after if isinstance(item, dict) and has_meaningful_value(item.get("label"))]
-            render_multi_select_pills(
-                "  ",
-                options=llm_after_labels,
-                key="role_tasks.ai.pills",
-                default=[
-                    item
-                    for item in selected
-                    if _normalize_task_term(item)
-                    in {_normalize_task_term(v) for v in llm_after_labels}
-                ],
+            merged_llm = _merge_llm_task_suggestions(
+                llm_tasks=[item.model_dump(mode="json") for item in pack.tasks],
+                blocked_labels=existing_tasks,
             )
-        with col_esco:
-            st.markdown("#### ESCO")
-            render_multi_select_pills(
-                "   ",
-                options=esco_labels,
-                key="role_tasks.esco.pills",
-                default=[
-                    item
-                    for item in selected
-                    if _normalize_task_term(item)
-                    in {_normalize_task_term(v) for v in esco_labels}
-                ],
-            )
+            st.session_state[SSKey.ROLE_TASKS_LLM_SUGGESTED.value] = merged_llm
 
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        selected_jobspec = st.session_state.get("role_tasks.jobspec.pills", []) or []
-        selected_ai = st.session_state.get("role_tasks.ai.pills", []) or []
-        selected_esco = st.session_state.get("role_tasks.esco.pills", []) or []
-        st.session_state[f"{SSKey.ROLE_TASKS_SELECTED.value}.bulk_buffer"] = _dedupe_task_terms([*selected_jobspec, *selected_ai, *selected_esco])
-        if st.button("Ausgewählte Aufgaben übernehmen", width="stretch"):
-            _save_selected_task_suggestions(st.session_state[f"{SSKey.ROLE_TASKS_SELECTED.value}.bulk_buffer"])
-        selected_now = st.session_state.get(SSKey.ROLE_TASKS_SELECTED.value, [])
-        st.caption(f"Übernommen: {len(selected_now) if isinstance(selected_now, list) else 0} Aufgaben")
+        llm_after = st.session_state.get(SSKey.ROLE_TASKS_LLM_SUGGESTED.value, [])
+        llm_after_labels = [
+            str(item.get("label") or "").strip()
+            for item in llm_after
+            if isinstance(item, dict) and has_meaningful_value(item.get("label"))
+        ]
+        selection_result = render_source_pill_selection(
+            columns=[
+                {
+                    "title": "Aus der Anzeige extrahiert",
+                    "source_key": "Jobspec",
+                    "options": jobspec_labels,
+                    "state_key": SSKey.ROLE_TASKS_JOBSPEC_PILLS.value,
+                },
+                {
+                    "title": "ESCO / Kontext",
+                    "source_key": "ESCO / Kontext",
+                    "options": esco_labels,
+                    "state_key": SSKey.ROLE_TASKS_ESCO_PILLS.value,
+                },
+                {
+                    "title": "AI-Vorschläge",
+                    "source_key": "AI",
+                    "options": llm_after_labels,
+                    "state_key": SSKey.ROLE_TASKS_AI_PILLS.value,
+                },
+            ],
+            selected_labels=selected,
+            selected_state_key=SSKey.ROLE_TASKS_SELECTED.value,
+            key_prefix="role_tasks.sources",
+        )
+        source_counts = selection_result["source_counts"]
+        st.session_state[SSKey.ROLE_TASKS_SELECTED_BULK_BUFFER.value] = (
+            selection_result["selected_labels"]
+        )
+        st.caption(f"Ausgewählt: {len(selection_result['selected_labels'])} Aufgaben")
 
     def _render_salary_forecast_slot() -> None:
         selected_tasks_raw = st.session_state.get(SSKey.ROLE_TASKS_SELECTED.value, [])
@@ -469,11 +458,8 @@ def render(ctx: WizardContext) -> None:
         _render_role_tasks_salary_block(
             job=job,
             selected_tasks=canonical_tasks,
+            source_counts=source_counts,
         )
-
-    def _render_decision_and_salary_slot() -> None:
-        _render_source_comparison_slot()
-        _render_salary_forecast_slot()
 
     def _render_open_questions_slot() -> None:
         if step is None or not step.questions:
@@ -495,12 +481,13 @@ def render(ctx: WizardContext) -> None:
         extracted_from_jobspec_slot=_render_extracted_slot,
         extracted_from_jobspec_label="Aufgaben aus der Anzeige",
         extracted_from_jobspec_use_expander=False,
+        source_comparison_slot=_render_source_comparison_slot,
+        salary_forecast_slot=_render_salary_forecast_slot,
         open_questions_slot=_render_open_questions_slot,
         review_slot=lambda: render_standard_step_review(
             step,
             render_mode=resolve_standard_review_mode(context=ReviewRenderContext.STEP_FORM),
         ),
-        after_review_slot=_render_decision_and_salary_slot,
         footer_slot=lambda: nav_buttons(ctx),
     )
 

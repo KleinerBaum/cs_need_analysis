@@ -335,6 +335,10 @@ def init_session_state() -> None:
         SSKey.ROLE_TASKS_LLM_SUGGESTED.value: [],
         SSKey.ROLE_TASKS_SELECTED.value: [],
         SSKey.ROLE_TASKS_SUGGEST_COUNT.value: 5,
+        SSKey.ROLE_TASKS_JOBSPEC_PILLS.value: [],
+        SSKey.ROLE_TASKS_ESCO_PILLS.value: [],
+        SSKey.ROLE_TASKS_AI_PILLS.value: [],
+        SSKey.ROLE_TASKS_SELECTED_BULK_BUFFER.value: [],
         SSKey.INTERVIEW_INTERNAL_FLOW.value: dict(INTERVIEW_INTERNAL_FLOW_DEFAULT),
         SSKey.SKILLS_JOBSPEC_SUGGESTED.value: [],
         SSKey.SKILLS_LLM_SUGGESTED.value: [],
@@ -354,6 +358,9 @@ def init_session_state() -> None:
         SSKey.BENEFITS_LLM_SUGGESTED.value: [],
         SSKey.BENEFITS_SELECTED.value: [],
         SSKey.BENEFITS_SELECTED_BULK_BUFFER.value: [],
+        SSKey.BENEFITS_JOBSPEC_PILLS.value: [],
+        SSKey.BENEFITS_CONTEXT_PILLS.value: [],
+        SSKey.BENEFITS_AI_PILLS.value: [],
         SSKey.BENEFITS_SUGGEST_COUNT.value: 5,
         SSKey.BENEFITS_AI_GENERATE_CLICKED.value: False,
         SSKey.SALARY_SCENARIO_SKILLS_ADD.value: [],
@@ -376,6 +383,7 @@ def init_session_state() -> None:
         SSKey.SALARY_SCENARIO_PENDING_SELECTED_ROW_ID.value: None,
         SSKey.SALARY_FORECAST_SELECTED_SCENARIO.value: "base",
         SSKey.SALARY_FORECAST_LAST_RESULT.value: {},
+        SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value: {},
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -501,6 +509,10 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.ROLE_TASKS_LLM_SUGGESTED.value] = []
     st.session_state[SSKey.ROLE_TASKS_SELECTED.value] = []
     st.session_state[SSKey.ROLE_TASKS_SUGGEST_COUNT.value] = 5
+    st.session_state[SSKey.ROLE_TASKS_JOBSPEC_PILLS.value] = []
+    st.session_state[SSKey.ROLE_TASKS_ESCO_PILLS.value] = []
+    st.session_state[SSKey.ROLE_TASKS_AI_PILLS.value] = []
+    st.session_state[SSKey.ROLE_TASKS_SELECTED_BULK_BUFFER.value] = []
     st.session_state[SSKey.INTERVIEW_INTERNAL_FLOW.value] = dict(
         INTERVIEW_INTERNAL_FLOW_DEFAULT
     )
@@ -522,6 +534,9 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.BENEFITS_LLM_SUGGESTED.value] = []
     st.session_state[SSKey.BENEFITS_SELECTED.value] = []
     st.session_state[SSKey.BENEFITS_SELECTED_BULK_BUFFER.value] = []
+    st.session_state[SSKey.BENEFITS_JOBSPEC_PILLS.value] = []
+    st.session_state[SSKey.BENEFITS_CONTEXT_PILLS.value] = []
+    st.session_state[SSKey.BENEFITS_AI_PILLS.value] = []
     st.session_state[SSKey.BENEFITS_SUGGEST_COUNT.value] = 5
     st.session_state[SSKey.BENEFITS_AI_GENERATE_CLICKED.value] = False
     st.session_state[SSKey.SALARY_SCENARIO_SKILLS_ADD.value] = []
@@ -546,6 +561,7 @@ def reset_vacancy() -> None:
     sync_esco_semantic_state(st.session_state)
     _clear_stale_redesign_state()
     st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {}
+    st.session_state[SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value] = {}
     st.session_state[SSKey.LAST_ERROR.value] = None
     st.session_state[SSKey.CURRENT_STEP.value] = STEPS[0].key
     st.session_state[SSKey.LAST_RENDERED_STEP.value] = STEPS[0].key

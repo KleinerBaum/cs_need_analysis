@@ -1,4 +1,5 @@
 from components import design_system
+from wizard_pages import base
 
 
 def test_build_step_header_html_is_single_safe_block() -> None:
@@ -32,6 +33,42 @@ def test_render_html_block_prefers_streamlit_html(monkeypatch) -> None:
     design_system._render_html_block("<div>ok</div>")
 
     assert calls == ["<div>ok</div>"]
+
+
+def test_render_ui_styles_uses_streamlit_theme_tokens(monkeypatch) -> None:
+    calls: list[str] = []
+
+    class _FakeStreamlit:
+        def html(self, html: str) -> None:
+            calls.append(html)
+
+    monkeypatch.setattr(design_system, "st", _FakeStreamlit())
+
+    design_system.render_ui_styles()
+
+    css = calls[0]
+    assert "--cs-bg: var(--background-color, #F3F6FA);" in css
+    assert "--cs-surface: var(--secondary-background-color, #FFFFFF);" in css
+    assert ".stMainBlockContainer" in css
+    assert "background: var(--cs-bg);" in css
+
+
+def test_render_landing_css_uses_theme_tokens(monkeypatch) -> None:
+    calls: list[str] = []
+
+    class _FakeStreamlit:
+        def markdown(self, html: str, **_: object) -> None:
+            calls.append(html)
+
+    monkeypatch.setattr(base, "st", _FakeStreamlit())
+
+    base.render_landing_css(base.LANDING_STYLE_TOKENS)
+
+    css = calls[0]
+    assert ".landing-hero" in css
+    assert "background: var(--cs-surface);" in css
+    assert "border: 1px solid var(--cs-border);" in css
+    assert "color: var(--cs-text-muted);" in css
 
 
 def test_build_process_progress_html_escapes_labels_and_starts_with_company() -> None:

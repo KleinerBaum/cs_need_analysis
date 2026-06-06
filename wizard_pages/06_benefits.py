@@ -19,10 +19,10 @@ from ui_components import (
     has_answered_question_with_keywords,
     has_meaningful_value,
     render_compare_adopt_intro,
-    render_compact_requirement_board,
     render_error_banner,
     render_question_step,
     render_recruiting_consistency_checklist,
+    render_source_pill_selection,
     ReviewRenderContext,
     resolve_standard_review_mode,
     render_standard_step_review,
@@ -194,6 +194,7 @@ def render(ctx: WizardContext) -> None:
         jobspec_benefit_terms, source="Jobspec"
     )
     st.session_state[SSKey.BENEFITS_JOBSPEC_SUGGESTED.value] = jobspec_suggestions
+    source_counts: dict[str, int] = {"Jobspec": 0, "ESCO / Kontext": 0, "AI": 0}
 
     def _render_extracted_slot() -> None:
         shown = False
@@ -227,6 +228,7 @@ def render(ctx: WizardContext) -> None:
             )
 
     def _render_source_comparison_slot() -> None:
+        nonlocal source_counts
         review_payload = build_step_review_payload(step)
         visible_questions = review_payload["visible_questions"]
         answers = review_payload["answers"]
@@ -255,36 +257,12 @@ def render(ctx: WizardContext) -> None:
                 ]
             )
         ]
-        ai_suggested_raw = st.session_state.get(SSKey.BENEFITS_LLM_SUGGESTED.value, [])
-        ai_suggested = (
-            [
-                {
-                    "label": str(item.get("label") or "").strip(),
-                    "source": "AI",
-                    "source_hint": str(item.get("source_hint") or "llm").strip(),
-                    "rationale": str(item.get("rationale") or "").strip(),
-                    "evidence": str(item.get("evidence") or "").strip(),
-                    "importance": str(item.get("importance") or "").strip(),
-                }
-                for item in ai_suggested_raw
-                if isinstance(item, dict)
-                and has_meaningful_value(str(item.get("label") or ""))
-            ]
-            if isinstance(ai_suggested_raw, list)
-            else []
-        )
-
         selected_labels = _read_selected_benefits()
 
         st.markdown("### Erkannte und ausgewählte Benefits")
         st.caption(
             "Gewählte Benefits werden in Folgeartefakten und in der Gehaltsprognose berücksichtigt."
         )
-        st.caption(f"{len(selected_labels)} ausgewählt")
-        if selected_labels:
-            st.markdown(" ".join(f"`{label}`" for label in selected_labels))
-        else:
-            st.caption("Noch keine Benefits ausgewählt.")
 
         semantic_context = get_esco_semantic_context()
         selected_occupation = semantic_context.primary_anchor
@@ -302,7 +280,7 @@ def render(ctx: WizardContext) -> None:
         render_compare_adopt_intro(
             adopt_target="Benefits",
             canonical_target="SSKey.BENEFITS_SELECTED",
-            source_labels=("Jobspec", "Kontext", "AI"),
+            source_labels=("Jobspec", "ESCO/Kontext", "AI"),
         )
         st.number_input(
             "Anzahl AI-Benefit-Vorschläge",
@@ -368,38 +346,45 @@ def render(ctx: WizardContext) -> None:
                         st.info("Keine zusätzlichen AI-Benefits gefunden.")
 
         ai_suggested_raw = st.session_state.get(SSKey.BENEFITS_LLM_SUGGESTED.value, [])
-        ai_suggested = (
-            [
+        ai_labels = _benefit_labels_from_suggestions(ai_suggested_raw)
+        selection_result = render_source_pill_selection(
+            columns=[
                 {
-                    "label": str(item.get("label") or "").strip(),
-                    "source": "AI",
-                    "source_hint": str(item.get("source_hint") or "llm").strip(),
-                    "rationale": str(item.get("rationale") or "").strip(),
-                    "evidence": str(item.get("evidence") or "").strip(),
-                    "importance": str(item.get("importance") or "").strip(),
-                }
-                for item in ai_suggested_raw
-                if isinstance(item, dict)
-                and has_meaningful_value(str(item.get("label") or ""))
-            ]
-            if isinstance(ai_suggested_raw, list)
-            else []
-        )
-        bulk_buffer = render_compact_requirement_board(
-            title_jobspec="Aus Jobspec extrahiert",
-            jobspec_items=jobspec_suggestions,
-            title_esco="Bereits bestätigt / Kontext",
-            esco_items=contextual_suggested,
-            title_llm="AI-Vorschläge",
-            llm_items=ai_suggested,
+                    "title": "Aus der Anzeige extrahiert",
+                    "source_key": "Jobspec",
+                    "options": jobspec_benefit_terms,
+                    "state_key": SSKey.BENEFITS_JOBSPEC_PILLS.value,
+                },
+                {
+                    "title": "ESCO / Kontext",
+                    "source_key": "ESCO / Kontext",
+                    "options": _benefit_labels_from_suggestions(contextual_suggested),
+                    "state_key": SSKey.BENEFITS_CONTEXT_PILLS.value,
+                },
+                {
+                    "title": "AI-Vorschläge",
+                    "source_key": "AI",
+                    "options": ai_labels,
+                    "state_key": SSKey.BENEFITS_AI_PILLS.value,
+                },
+            ],
             selected_labels=selected_labels,
-            selection_state_key=SSKey.BENEFITS_SELECTED_BULK_BUFFER.value,
-            key_prefix="benefits.board",
+            selected_state_key=SSKey.BENEFITS_SELECTED.value,
+            key_prefix="benefits.sources",
         )
-        if st.button("Ausgewählte Benefits übernehmen", width="stretch"):
-            merged = _dedupe_benefit_terms([*selected_labels, *bulk_buffer])
-            st.session_state[SSKey.BENEFITS_SELECTED.value] = merged
-            st.success(f"{len(merged)} Benefit(s) gespeichert.")
+        source_counts = selection_result["source_counts"]
+        st.session_state[SSKey.BENEFITS_SELECTED_BULK_BUFFER.value] = (
+            selection_result["selected_labels"]
+        )
+        st.caption(
+            f"Ausgewählt: {len(selection_result['selected_labels'])} Benefit(s)"
+        )
+        if selection_result["selected_labels"]:
+            st.markdown(
+                " ".join(f"`{label}`" for label in selection_result["selected_labels"])
+            )
+        else:
+            st.caption("Noch keine Benefits ausgewählt.")
 
         confirmed_salary = _confirmed_values_for_keywords(
             ("gehalt", "salary", "vergütung", "compensation")
@@ -457,6 +442,7 @@ def render(ctx: WizardContext) -> None:
                 model=resolved_model,
                 language="de",
                 store=bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)),
+                source_counts=source_counts,
             )
         except AttributeError as exc:
             LOGGER.warning(

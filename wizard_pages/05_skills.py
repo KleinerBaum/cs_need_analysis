@@ -36,6 +36,7 @@ from ui_components import (
     render_esco_picker_card,
     render_error_banner,
     render_question_step,
+    render_source_pill_selection,
     ReviewRenderContext,
     resolve_standard_review_mode,
     render_standard_step_review,
@@ -1839,7 +1840,7 @@ def _render_skills_source_comparison_block(
     coverage_snapshot: EscoCoverageSnapshot,
     show_esco_sections: bool,
     esco_anchor_status: EscoAnchorStatus,
-) -> None:
+) -> dict[str, int]:
     must_have_skills = [x for x in job.must_have_skills if has_meaningful_value(x)]
     nice_to_have_skills = [x for x in job.nice_to_have_skills if has_meaningful_value(x)]
     jobspec_labels, llm_labels, _esco_labels, deduped_must, deduped_nice, llm_suggested = _build_skills_source_view_data(
@@ -2013,14 +2014,104 @@ def _render_skills_source_comparison_block(
         job=job,
         show_esco_sections=show_esco_sections,
     )
-    _render_skills_source_columns(
-        job=job,
-        jobspec_labels=jobspec_labels,
-        llm_labels=llm_labels,
-        deduped_must=deduped_must,
-        deduped_nice=deduped_nice,
-        show_esco_sections=show_esco_sections,
+    esco_titles = _dedupe_terms([_skill_title(item) for item in [*deduped_must, *deduped_nice]])
+    selected_for_pills = _dedupe_terms([*esco_titles, *_get_selected_skill_labels()])
+    previous_free_labels = _dedupe_terms(
+        [
+            label
+            for label in _get_selected_skill_labels()
+            if _normalize_term(label) not in {_normalize_term(item) for item in esco_titles}
+        ]
     )
+    llm_label_options = _dedupe_terms(
+        [
+            label
+            for label in llm_labels
+            if _normalize_term(label)
+            not in {
+                _normalize_term(_skill_title(item))
+                for item in [*deduped_must, *deduped_nice]
+            }
+        ]
+    )
+    selection_result = render_source_pill_selection(
+        columns=[
+            {
+                "title": "Aus der Anzeige extrahiert",
+                "source_key": "Jobspec",
+                "options": jobspec_labels,
+                "state_key": SSKey.SKILLS_JOBSPEC_PILLS.value,
+            },
+            {
+                "title": "ESCO / Kontext",
+                "source_key": "ESCO / Kontext",
+                "options": esco_titles if show_esco_sections else [],
+                "state_key": SSKey.SKILLS_ESCO_PILLS.value,
+            },
+            {
+                "title": "AI-Vorschläge",
+                "source_key": "AI",
+                "options": llm_label_options,
+                "state_key": SSKey.SKILLS_AI_PILLS.value,
+            },
+        ],
+        selected_labels=selected_for_pills,
+        selected_state_key=SSKey.SKILLS_SELECTED.value,
+        key_prefix="skills.sources",
+    )
+    selected_after = _dedupe_terms(selection_result["selected_labels"])
+    selected_after_normalized = {_normalize_term(label) for label in selected_after}
+    selected_esco_normalized = {
+        _normalize_term(label)
+        for label in selection_result["selected_by_source"].get("ESCO / Kontext", [])
+    }
+    for item in [*deduped_must, *deduped_nice]:
+        label = _skill_title(item)
+        if _normalize_term(label) not in selected_esco_normalized:
+            _remove_esco_skill(_skill_uri(item), label)
+
+    jobspec_status_by_label: dict[str, str] = {}
+    for label in _build_jobspec_skill_groups(job)["Must-have"]:
+        jobspec_status_by_label[_normalize_term(label)] = "must"
+    for label in [
+        *_build_jobspec_skill_groups(job)["Nice-to-have"],
+        *_build_jobspec_skill_groups(job)["Tech Stack"],
+    ]:
+        jobspec_status_by_label.setdefault(_normalize_term(label), "nice")
+    llm_status_by_label = {
+        _normalize_term(_llm_skill_label(item)): (
+            "must"
+            if str(item.get("importance") or "").strip().casefold() == "high"
+            else "nice"
+        )
+        for item in llm_suggested
+        if isinstance(item, dict) and _llm_skill_label(item)
+    }
+    esco_label_set = {_normalize_term(label) for label in esco_titles}
+    for label in previous_free_labels:
+        if _normalize_term(label) not in selected_after_normalized:
+            _remove_selected_skill_label(label)
+    for label in selection_result["selected_by_source"].get("Jobspec", []):
+        if _normalize_term(label) not in esco_label_set:
+            _set_free_skill_status(
+                label=label,
+                uri="",
+                source="Jobspec",
+                group_hint="Jobspec",
+                status=jobspec_status_by_label.get(_normalize_term(label), "nice"),
+            )
+    for label in selection_result["selected_by_source"].get("AI", []):
+        if _normalize_term(label) not in esco_label_set:
+            _set_free_skill_status(
+                label=label,
+                uri="",
+                source="AI",
+                group_hint="AI-Vorschläge",
+                status=llm_status_by_label.get(_normalize_term(label), "nice"),
+            )
+    st.session_state[SSKey.SKILLS_SELECTED.value] = selected_after
+    st.session_state[SSKey.SKILLS_SELECTED_BULK_BUFFER.value] = selected_after
+    st.caption(f"Ausgewählt: {len(selected_after)} Skills")
 
     ambiguous_terms = sorted(
         {
@@ -2058,9 +2149,12 @@ def _render_skills_source_comparison_block(
                 if show_esco_sections
                 else "ESCO-spezifische Normalisierung ist ohne bestätigten ESCO-Anker ausgeblendet."
             )
+    return selection_result["source_counts"]
 
 
-def _render_salary_forecast_slot(job: JobAdExtract) -> None:
+def _render_salary_forecast_slot(
+    job: JobAdExtract, source_counts: dict[str, int] | None = None
+) -> None:
     selected_skills_raw = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
     selected_skills = (
         _dedupe_terms([str(item) for item in selected_skills_raw])
@@ -2080,6 +2174,7 @@ def _render_salary_forecast_slot(job: JobAdExtract) -> None:
         model=get_active_model(),
         language=str(st.session_state.get(SSKey.LANGUAGE.value, "de")),
         store=bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)),
+        source_counts=source_counts,
     )
 
 
@@ -2106,11 +2201,22 @@ def render(ctx: WizardContext) -> None:
     show_esco_sections = semantic_context.can_use_esco_normalization
     coverage_snapshot = sync_esco_shared_state()
     step = next((value for value in plan.steps if value.step_key == "skills"), None)
+    source_counts: dict[str, int] = {"Jobspec": 0, "ESCO / Kontext": 0, "AI": 0}
 
     if show_esco_sections and selected_occupation:
         st.caption(
             "ESCO Occupation aus Start → Phase C: Semantischen Anker bestätigen: "
             f"{selected_occupation.get('title', '—')}"
+        )
+
+    def _render_source_comparison_slot() -> None:
+        nonlocal source_counts
+        source_counts = _render_skills_source_comparison_block(
+            job=job,
+            selected_occupation=selected_occupation,
+            coverage_snapshot=coverage_snapshot,
+            show_esco_sections=show_esco_sections,
+            esco_anchor_status=esco_anchor_status,
         )
 
     render_step_shell(
@@ -2123,14 +2229,8 @@ def render(ctx: WizardContext) -> None:
             "Eine prüfbare Skill-Liste für Recruiting Brief, Matching und Interviewfragen."
         ),
         step=step,
-        source_comparison_slot=lambda: _render_skills_source_comparison_block(
-            job=job,
-            selected_occupation=selected_occupation,
-            coverage_snapshot=coverage_snapshot,
-            show_esco_sections=show_esco_sections,
-            esco_anchor_status=esco_anchor_status,
-        ),
-        salary_forecast_slot=lambda: _render_salary_forecast_slot(job),
+        source_comparison_slot=_render_source_comparison_slot,
+        salary_forecast_slot=lambda: _render_salary_forecast_slot(job, source_counts),
         open_questions_slot=lambda: _render_open_questions_slot(step),
         review_slot=lambda: render_standard_step_review(
             step,

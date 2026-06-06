@@ -522,6 +522,104 @@ def render_multi_select_pills(
     )
 
 
+class SourcePillColumn(TypedDict):
+    title: str
+    source_key: str
+    options: Sequence[str]
+    state_key: str
+
+
+class SourcePillSelectionResult(TypedDict):
+    selected_labels: list[str]
+    selected_by_source: dict[str, list[str]]
+    source_counts: dict[str, int]
+
+
+def normalize_source_pill_label(value: str) -> str:
+    return " ".join(str(value or "").strip().casefold().split())
+
+
+def dedupe_source_pill_labels(values: Sequence[str]) -> list[str]:
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        label = str(value or "").strip()
+        normalized = normalize_source_pill_label(label)
+        if not normalized or normalized in seen:
+            continue
+        deduped.append(label)
+        seen.add(normalized)
+    return deduped
+
+
+def render_source_pill_selection(
+    *,
+    columns: Sequence[SourcePillColumn],
+    selected_labels: Sequence[str],
+    selected_state_key: str,
+    key_prefix: str,
+    empty_caption: str = "Keine Vorschläge.",
+) -> SourcePillSelectionResult:
+    """Render source columns as multi-select pills and persist canonical selection."""
+
+    canonical_selected = dedupe_source_pill_labels(selected_labels)
+    selected_normalized = {
+        normalize_source_pill_label(label) for label in canonical_selected
+    }
+    selected_by_source: dict[str, list[str]] = {}
+    source_counts: dict[str, int] = {}
+    merged_selected: list[str] = []
+    merged_seen: set[str] = set()
+
+    rendered_columns = st.columns(len(columns), gap="large")
+    for index, (column, source_column) in enumerate(zip(rendered_columns, columns)):
+        title = str(source_column["title"]).strip()
+        source_key = str(source_column["source_key"]).strip()
+        state_key = str(source_column["state_key"]).strip()
+        options = dedupe_source_pill_labels(source_column["options"])
+        option_lookup = {normalize_source_pill_label(option): option for option in options}
+        default = [
+            option_lookup[normalized]
+            for normalized in selected_normalized
+            if normalized in option_lookup
+        ]
+        with column:
+            st.markdown(f"#### {title}")
+            if options:
+                picked = render_multi_select_pills(
+                    " ",
+                    options=options,
+                    default=default,
+                    key=state_key,
+                )
+            else:
+                st.session_state[state_key] = []
+                st.caption(empty_caption)
+                picked = []
+
+        cleaned_picked = dedupe_source_pill_labels(picked)
+        selected_by_source[source_key] = cleaned_picked
+        for label in cleaned_picked:
+            normalized = normalize_source_pill_label(label)
+            if not normalized or normalized in merged_seen:
+                continue
+            merged_selected.append(label)
+            merged_seen.add(normalized)
+            source_counts[source_key] = source_counts.get(source_key, 0) + 1
+
+    for source_column in columns:
+        source_key = str(source_column["source_key"]).strip()
+        selected_by_source.setdefault(source_key, [])
+        source_counts.setdefault(source_key, 0)
+
+    st.session_state[selected_state_key] = merged_selected
+    return {
+        "selected_labels": merged_selected,
+        "selected_by_source": selected_by_source,
+        "source_counts": source_counts,
+    }
+
+
 def _normalize_target_state_key(target_state_key: SSKey | str) -> str:
     if isinstance(target_state_key, SSKey):
         return target_state_key.value
