@@ -658,6 +658,70 @@ def _build_jobspec_skill_groups(job: JobAdExtract) -> dict[str, list[str]]:
     }
 
 
+
+def _mark_esco_skill_optional(uri: str, label: str) -> None:
+    """Move an ESCO skill from must-have to nice-to-have."""
+    normalized_uri = str(uri or "").strip()
+    normalized_label = str(label or "").strip()
+    if not normalized_uri and not normalized_label:
+        return
+
+    must_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
+    nice_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
+
+    must_selected = must_raw if isinstance(must_raw, list) else []
+    nice_selected = nice_raw if isinstance(nice_raw, list) else []
+
+    def _matches(item: Any) -> bool:
+        if not isinstance(item, dict):
+            return False
+        item_uri = str(item.get("uri") or "").strip()
+        item_title = str(item.get("title") or item.get("label") or "").strip()
+        if normalized_uri and item_uri == normalized_uri:
+            return True
+        return bool(normalized_label and item_title == normalized_label)
+
+    moved_item: dict[str, Any] | None = None
+    remaining_must: list[Any] = []
+
+    for item in must_selected:
+        if isinstance(item, dict) and _matches(item):
+            if moved_item is None:
+                moved_item = dict(item)
+            continue
+        remaining_must.append(item)
+
+    if moved_item is None:
+        moved_item = {
+            "uri": normalized_uri,
+            "title": normalized_label,
+            "label": normalized_label,
+            "source": "ESCO",
+        }
+
+    if normalized_uri:
+        moved_item["uri"] = normalized_uri
+    if normalized_label:
+        title = str(moved_item.get("title") or normalized_label).strip() or normalized_label
+        moved_item["title"] = title
+        moved_item["label"] = str(moved_item.get("label") or title).strip() or title
+
+    moved_item["status"] = "nice"
+    moved_item["relation"] = "hasOptionalSkill"
+
+    nice_without_duplicate: list[Any] = [
+        item
+        for item in nice_selected
+        if not (isinstance(item, dict) and _matches(item))
+    ]
+    nice_without_duplicate.append(moved_item)
+
+    st.session_state[SSKey.ESCO_SKILLS_SELECTED_MUST.value] = remaining_must
+    st.session_state[SSKey.ESCO_SKILLS_SELECTED_NICE.value] = nice_without_duplicate
+    st.session_state[SSKey.ESCO_CONFIRMED_ESSENTIAL_SKILLS.value] = remaining_must
+    st.session_state[SSKey.ESCO_CONFIRMED_OPTIONAL_SKILLS.value] = nice_without_duplicate
+
+
 def _render_skill_action_row(
     *,
     label: str,
