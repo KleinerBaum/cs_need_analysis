@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import socket
 import time
 from dataclasses import dataclass
 from functools import lru_cache
@@ -291,7 +292,7 @@ def _cached_get_json(
                     else "ESCO service returned an error response."
                 ),
             ) from exc
-        except URLError as exc:
+        except (URLError, TimeoutError, socket.timeout) as exc:
             elapsed_ms = int((time.perf_counter() - started) * 1000)
             should_retry = attempt < max_attempts
             LOGGER.warning(
@@ -380,7 +381,7 @@ def _cached_endpoint_support(
         if exc.code == 404:
             return False
         return True
-    except URLError:
+    except (URLError, TimeoutError, socket.timeout):
         return True
 
 

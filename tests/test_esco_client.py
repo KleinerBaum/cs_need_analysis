@@ -190,6 +190,40 @@ def test_cached_get_json_raises_controlled_error_after_last_retry_on_5xx(
     )
 
 
+def test_cached_get_json_raises_controlled_error_after_timeout(monkeypatch) -> None:
+    attempts = {"count": 0}
+    sleeps: list[float] = []
+
+    def fake_urlopen(_request, timeout):
+        del timeout
+        attempts["count"] += 1
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(esco_client, "urlopen", fake_urlopen)
+    monkeypatch.setattr(
+        esco_client.time, "sleep", lambda seconds: sleeps.append(seconds)
+    )
+    esco_client.clear_esco_cache()
+
+    with pytest.raises(esco_client.EscoClientError) as exc_info:
+        esco_client._cached_get_json(
+            base_url="https://example.test/esco/",
+            endpoint="terms",
+            query_items=(("type", "occupation"),),
+            cache_selected_version="latest",
+            cache_language="de",
+            cache_view_obsolete=False,
+            timeout_seconds=1.0,
+        )
+
+    err = exc_info.value
+    assert err.status_code is None
+    assert err.endpoint == "terms"
+    assert str(err) == "ESCO service is currently unreachable."
+    assert attempts["count"] == 3
+    assert sleeps == [0.25, 0.5]
+
+
 def test_cached_get_json_handles_400_as_request_error_without_retries(
     monkeypatch, caplog
 ) -> None:
@@ -360,6 +394,25 @@ def test_supports_endpoint_returns_false_for_404(monkeypatch) -> None:
     client = esco_client.EscoClient(session_state={SSKey.ESCO_CONFIG.value: {}})
 
     assert client.supports_endpoint("resource/occupationSkillsGroupShare") is False
+
+
+def test_supports_endpoint_returns_true_for_timeout(monkeypatch) -> None:
+    def fake_urlopen(_request, timeout):
+        del timeout
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(esco_client, "urlopen", fake_urlopen)
+    esco_client.clear_esco_cache()
+    client = esco_client.EscoClient(
+        session_state={
+            SSKey.ESCO_CONFIG.value: {
+                "api_mode": "local",
+                "base_url": "https://example.test/esco/",
+            }
+        }
+    )
+
+    assert client.supports_endpoint("search") is True
 
 
 def test_supports_endpoint_returns_false_for_hosted_blocklist_without_probe(
