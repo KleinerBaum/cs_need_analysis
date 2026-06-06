@@ -501,6 +501,7 @@ class FactKey(str, Enum):
 class FactValueType(str, Enum):
     STRING = "string"
     STRING_LIST = "string_list"
+    BOOLEAN = "boolean"
     INTEGER = "integer"
     DATE_STRING = "date_string"
     MONEY_RANGE = "money_range"
@@ -678,13 +679,13 @@ INTAKE_FACTS: Final[tuple[IntakeFactDef, ...]] = (
         FactKey.ROLE_TRAVEL_REQUIRED,
         "Travel required",
         STEP_KEY_ROLE_TASKS,
-        FactValueType.STRING,
+        FactValueType.BOOLEAN,
     ),
     _intake_fact(
         FactKey.ROLE_ON_CALL,
         "On-call requirement",
         STEP_KEY_ROLE_TASKS,
-        FactValueType.STRING,
+        FactValueType.BOOLEAN,
     ),
     _intake_fact(
         FactKey.ROLE_ONBOARDING_NOTES,

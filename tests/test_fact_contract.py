@@ -59,6 +59,10 @@ EXPECTED_FACT_KEYS = [
 ]
 
 
+def _facts_by_key():
+    return {fact.fact_key: fact for fact in INTAKE_FACTS}
+
+
 def test_fact_key_values_are_unique_and_dot_style() -> None:
     values = [fact_key.value for fact_key in FactKey]
 
@@ -98,6 +102,72 @@ def test_fact_definitions_have_valid_metadata() -> None:
         isinstance(fact.persistence_intent, FactPersistenceIntent)
         for fact in INTAKE_FACTS
     )
+
+
+def test_fact_value_type_contract_values() -> None:
+    assert [value_type.value for value_type in FactValueType] == [
+        "string",
+        "string_list",
+        "boolean",
+        "integer",
+        "date_string",
+        "money_range",
+        "object_list",
+    ]
+
+
+def test_fact_persistence_intent_contract_values() -> None:
+    assert [intent.value for intent in FactPersistenceIntent] == ["legacy_compatible"]
+
+
+def test_fact_definitions_use_semantic_value_types() -> None:
+    facts_by_key = _facts_by_key()
+
+    expected_types = {
+        FactKey.COMPANY_LANGUAGE_GUESS: FactValueType.STRING,
+        FactKey.COMPANY_COMPANY_NAME: FactValueType.STRING,
+        FactKey.COMPANY_BRAND_NAME: FactValueType.STRING,
+        FactKey.COMPANY_COMPANY_WEBSITE: FactValueType.STRING,
+        FactKey.COMPANY_LOCATION_CITY: FactValueType.STRING,
+        FactKey.COMPANY_LOCATION_COUNTRY: FactValueType.STRING,
+        FactKey.COMPANY_PLACE_OF_WORK: FactValueType.STRING,
+        FactKey.COMPANY_REMOTE_POLICY: FactValueType.STRING,
+        FactKey.COMPANY_DEPARTMENT_NAME: FactValueType.STRING,
+        FactKey.COMPANY_REPORTS_TO: FactValueType.STRING,
+        FactKey.COMPANY_DIRECT_REPORTS_COUNT: FactValueType.INTEGER,
+        FactKey.ROLE_JOB_TITLE: FactValueType.STRING,
+        FactKey.ROLE_EMPLOYMENT_TYPE: FactValueType.STRING,
+        FactKey.ROLE_CONTRACT_TYPE: FactValueType.STRING,
+        FactKey.ROLE_SENIORITY_LEVEL: FactValueType.STRING,
+        FactKey.ROLE_JOB_REF_NUMBER: FactValueType.STRING,
+        FactKey.ROLE_ROLE_OVERVIEW: FactValueType.STRING,
+        FactKey.ROLE_RESPONSIBILITIES: FactValueType.STRING_LIST,
+        FactKey.ROLE_DELIVERABLES: FactValueType.STRING_LIST,
+        FactKey.ROLE_SUCCESS_METRICS: FactValueType.STRING_LIST,
+        FactKey.ROLE_TECH_STACK: FactValueType.STRING_LIST,
+        FactKey.ROLE_DOMAIN_EXPERTISE: FactValueType.STRING_LIST,
+        FactKey.ROLE_TRAVEL_REQUIRED: FactValueType.BOOLEAN,
+        FactKey.ROLE_ON_CALL: FactValueType.BOOLEAN,
+        FactKey.ROLE_ONBOARDING_NOTES: FactValueType.STRING,
+        FactKey.ROLE_GAPS: FactValueType.STRING_LIST,
+        FactKey.ROLE_ASSUMPTIONS: FactValueType.STRING_LIST,
+        FactKey.SKILLS_MUST_HAVE_SKILLS: FactValueType.STRING_LIST,
+        FactKey.SKILLS_NICE_TO_HAVE_SKILLS: FactValueType.STRING_LIST,
+        FactKey.SKILLS_SOFT_SKILLS: FactValueType.STRING_LIST,
+        FactKey.SKILLS_EDUCATION: FactValueType.STRING_LIST,
+        FactKey.SKILLS_CERTIFICATIONS: FactValueType.STRING_LIST,
+        FactKey.SKILLS_LANGUAGES: FactValueType.STRING_LIST,
+        FactKey.BENEFITS_SALARY_RANGE: FactValueType.MONEY_RANGE,
+        FactKey.BENEFITS_BENEFITS: FactValueType.STRING_LIST,
+        FactKey.INTERVIEW_START_DATE: FactValueType.DATE_STRING,
+        FactKey.INTERVIEW_APPLICATION_DEADLINE: FactValueType.DATE_STRING,
+        FactKey.INTERVIEW_RECRUITMENT_STEPS: FactValueType.OBJECT_LIST,
+        FactKey.INTERVIEW_CONTACTS: FactValueType.OBJECT_LIST,
+    }
+
+    assert {
+        fact_key: fact.value_type for fact_key, fact in facts_by_key.items()
+    } == expected_types
 
 
 def test_fact_key_stability_snapshot() -> None:
