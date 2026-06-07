@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-from constants import AnswerType, SSKey
+from constants import AnswerType, FactKey, SSKey
 from schemas import JobAdExtract, Question, QuestionStep
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -184,8 +184,8 @@ def test_salary_forecast_slots_keep_canonical_result_key_wiring() -> None:
         "wizard_pages.page_06_benefits", "wizard_pages/06_benefits.py"
     )
 
-    role_kwargs = _capture_step_shell_kwargs(role_tasks, step_key="role_tasks")
-    skills_kwargs = _capture_step_shell_kwargs(skills, step_key="skills")
+    _capture_step_shell_kwargs(role_tasks, step_key="role_tasks")
+    _capture_step_shell_kwargs(skills, step_key="skills")
     benefits_kwargs = _capture_step_shell_kwargs(benefits, step_key="benefits")
 
     role_tasks.st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {}
@@ -288,6 +288,57 @@ def test_benefits_render_migrates_legacy_selected_state() -> None:
 
     assert fake_st.session_state[SSKey.BENEFITS_SELECTED.value] == ["Mentoring"]
     assert "benefits.compare.selected" not in fake_st.session_state
+
+
+def test_benefits_selected_state_syncs_intake_fact() -> None:
+    benefits = _load_module(
+        "wizard_pages.page_06_benefits_fact_sync", "wizard_pages/06_benefits.py"
+    )
+    fake_st = _FakeStreamlit()
+    fake_st.session_state = {
+        SSKey.BENEFITS_SELECTED.value: [" Mentoring ", " ", "Mentoring"],
+        SSKey.INTAKE_FACTS.value: {},
+    }
+    benefits.st = fake_st
+
+    benefits._sync_selected_benefit_intake_facts()
+
+    assert fake_st.session_state[SSKey.INTAKE_FACTS.value] == {
+        FactKey.BENEFITS_BENEFITS.value: ["Mentoring"]
+    }
+
+
+def test_interview_contact_state_syncs_intake_fact() -> None:
+    interview = _load_module(
+        "wizard_pages.page_07_interview_fact_sync", "wizard_pages/07_interview.py"
+    )
+    fake_st = _FakeStreamlit()
+    fake_st.session_state = {
+        SSKey.INTERVIEW_INTERNAL_FLOW.value: {
+            "contacts": [
+                {
+                    "name": " Hiring Team ",
+                    "role": "Recruiting",
+                    "email": "",
+                    "phone": None,
+                }
+            ],
+            "info_loop_items": [],
+            "earliest_start_date": None,
+            "latest_start_date": None,
+            "selected_value_ids": [],
+        },
+        SSKey.INTAKE_FACTS.value: {},
+    }
+    interview.st = fake_st
+
+    interview._sync_interview_contact_intake_facts()
+
+    assert fake_st.session_state[SSKey.INTAKE_FACTS.value] == {
+        FactKey.INTERVIEW_CONTACTS.value: [
+            {"name": "Hiring Team", "role": "Recruiting"}
+        ]
+    }
 
 
 def test_primary_step_pages_use_compact_review_render_mode() -> None:
