@@ -9,6 +9,7 @@ import streamlit as st
 from pydantic import ValidationError
 
 from constants import SSKey
+from intake_facts import sync_selected_skill_intake_facts
 from esco_client import (
     EscoClient,
     EscoClientError,
@@ -340,6 +341,7 @@ def _set_free_skill_status(
             "uri": uri.strip(),
         }
     st.session_state[SSKey.SKILLS_SELECTED_STATUS.value] = statuses
+    sync_selected_skill_intake_facts(st.session_state)
 
 
 def _remove_selected_skill_label(label: str) -> None:
@@ -356,6 +358,7 @@ def _remove_selected_skill_label(label: str) -> None:
         if _normalize_term(str(value.get("label") or "")) == normalized_label:
             statuses.pop(key, None)
     st.session_state[SSKey.SKILLS_SELECTED_STATUS.value] = statuses
+    sync_selected_skill_intake_facts(st.session_state)
 
 
 def _skill_title(item: dict[str, Any]) -> str:

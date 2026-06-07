@@ -40,7 +40,7 @@ from esco_semantics import (
     selected_version_for_release_lane,
     sync_esco_semantic_state,
 )
-from intake_facts import reset_intake_fact_state
+from intake_facts import reset_intake_fact_state, write_intake_fact_by_legacy_field
 from interview_process import INTERVIEW_INTERNAL_FLOW_DEFAULT
 from question_progress import AnswerMeta, AnswerMetaMap, value_hash
 from schemas import (
@@ -579,6 +579,7 @@ def set_answer(question_id: str, value: Any) -> None:
     answers = get_answers()
     answers[question_id] = value
     st.session_state[SSKey.ANSWERS.value] = answers
+    write_intake_fact_by_legacy_field(st.session_state, question_id, value)
 
 
 def get_answer_meta() -> AnswerMetaMap:

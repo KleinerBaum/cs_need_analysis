@@ -1,4 +1,4 @@
-"""Read-only intake fact adapters for legacy session state."""
+"""Intake fact adapters for legacy session state."""
 
 from __future__ import annotations
 
@@ -27,6 +27,19 @@ _JOB_EXTRACT_FACT_FIELDS: dict[FactKey, str] = {
 
 _SUPPORTED_LEGACY_FACTS: tuple[FactKey, ...] = tuple(_JOB_EXTRACT_FACT_FIELDS)
 
+_WRITE_THROUGH_FACT_FIELDS: dict[str, FactKey] = {
+    "company_name": FactKey.COMPANY_COMPANY_NAME,
+    "company_website": FactKey.COMPANY_COMPANY_WEBSITE,
+    "location_city": FactKey.COMPANY_LOCATION_CITY,
+    "job_title": FactKey.ROLE_JOB_TITLE,
+    "must_have_skills": FactKey.SKILLS_MUST_HAVE_SKILLS,
+    "nice_to_have_skills": FactKey.SKILLS_NICE_TO_HAVE_SKILLS,
+}
+
+_WRITE_THROUGH_FACTS: frozenset[FactKey] = frozenset(
+    _WRITE_THROUGH_FACT_FIELDS.values()
+)
+
 
 def get_intake_fact_state(session_state: Mapping[str, Any]) -> dict[str, Any]:
     """Return the additive fact registry state without creating it."""
@@ -39,6 +52,71 @@ def reset_intake_fact_state(session_state: MutableMapping[str, Any]) -> None:
     """Reset additive fact registry state; legacy state remains untouched."""
 
     session_state[SSKey.INTAKE_FACTS.value] = {}
+
+
+def write_intake_fact(
+    session_state: MutableMapping[str, Any],
+    fact_key: FactKey | str,
+    value: Any,
+) -> None:
+    """Mirror one supported canonical fact into additive fact state."""
+
+    resolved_key = _coerce_fact_key(fact_key)
+    if resolved_key is None or resolved_key not in _WRITE_THROUGH_FACTS:
+        return
+
+    normalized_value = _normalize_fact_value(value)
+    fact_state = _mutable_fact_state(session_state)
+    if normalized_value is None:
+        fact_state.pop(resolved_key.value, None)
+    else:
+        fact_state[resolved_key.value] = normalized_value
+    session_state[SSKey.INTAKE_FACTS.value] = fact_state
+
+
+def write_intake_fact_by_legacy_field(
+    session_state: MutableMapping[str, Any],
+    legacy_field: str,
+    value: Any,
+) -> None:
+    """Mirror a supported legacy field name into additive fact state."""
+
+    fact_key = _WRITE_THROUGH_FACT_FIELDS.get(str(legacy_field or "").strip())
+    if fact_key is not None:
+        write_intake_fact(session_state, fact_key, value)
+
+
+def write_job_extract_intake_facts(
+    session_state: MutableMapping[str, Any],
+    job_extract: JobAdExtract | Mapping[str, Any],
+) -> None:
+    """Mirror PR3a-supported fields from a reviewed job extract."""
+
+    try:
+        payload = JobAdExtract.model_validate(job_extract).model_dump(mode="json")
+    except Exception:
+        return
+    for field_name in _WRITE_THROUGH_FACT_FIELDS:
+        write_intake_fact_by_legacy_field(
+            session_state,
+            field_name,
+            payload.get(field_name),
+        )
+
+
+def sync_selected_skill_intake_facts(session_state: MutableMapping[str, Any]) -> None:
+    """Mirror selected free-skill status buckets into PR3a skill facts."""
+
+    write_intake_fact(
+        session_state,
+        FactKey.SKILLS_MUST_HAVE_SKILLS,
+        _selected_skills_by_status(session_state, "must"),
+    )
+    write_intake_fact(
+        session_state,
+        FactKey.SKILLS_NICE_TO_HAVE_SKILLS,
+        _selected_skills_by_status(session_state, "nice"),
+    )
 
 
 def resolve_legacy_fact(
@@ -76,6 +154,11 @@ def _coerce_fact_key(raw_fact_key: FactKey | str) -> FactKey | None:
         return FactKey(raw_fact_key)
     except ValueError:
         return None
+
+
+def _mutable_fact_state(session_state: Mapping[str, Any]) -> dict[str, Any]:
+    raw_state = session_state.get(SSKey.INTAKE_FACTS.value)
+    return dict(raw_state) if isinstance(raw_state, dict) else {}
 
 
 def _job_extract_facts(session_state: Mapping[str, Any]) -> dict[FactKey, Any]:
