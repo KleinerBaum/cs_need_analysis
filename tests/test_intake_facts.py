@@ -9,6 +9,9 @@ from intake_facts import (
     get_intake_fact_state,
     reset_intake_fact_state,
     resolve_legacy_fact,
+    sync_selected_skill_intake_facts,
+    write_intake_fact_by_legacy_field,
+    write_job_extract_intake_facts,
 )
 from schemas import Contact, JobAdExtract, MoneyRange, RecruitmentStep
 import state
@@ -180,3 +183,114 @@ def test_adapters_do_not_mutate_session_state() -> None:
     assert collect_legacy_facts(session_state)[FactKey.ROLE_JOB_TITLE] == "Engineer"
 
     assert session_state == before
+
+
+def test_write_intake_fact_by_legacy_field_updates_fact_state_only() -> None:
+    session_state = {
+        SSKey.ANSWERS.value: {},
+        SSKey.INTAKE_FACTS.value: {},
+    }
+
+    write_intake_fact_by_legacy_field(session_state, "company_name", " Example GmbH ")
+
+    assert session_state[SSKey.ANSWERS.value] == {}
+    assert session_state[SSKey.INTAKE_FACTS.value] == {
+        FactKey.COMPANY_COMPANY_NAME.value: "Example GmbH"
+    }
+
+
+def test_write_job_extract_intake_facts_mirrors_pr3a_supported_fields() -> None:
+    session_state = {
+        SSKey.JOB_EXTRACT.value: {
+            "company_name": "Legacy GmbH",
+            "job_title": "Legacy title",
+        },
+        SSKey.INTAKE_FACTS.value: {},
+    }
+    job = JobAdExtract(
+        company_name=" Acme GmbH ",
+        company_website=" https://example.test ",
+        location_city=" Berlin ",
+        job_title=" Data Engineer ",
+        must_have_skills=[" Python ", ""],
+        nice_to_have_skills=["Airflow"],
+    )
+
+    write_job_extract_intake_facts(session_state, job)
+
+    assert session_state[SSKey.JOB_EXTRACT.value] == {
+        "company_name": "Legacy GmbH",
+        "job_title": "Legacy title",
+    }
+    assert session_state[SSKey.INTAKE_FACTS.value] == {
+        FactKey.COMPANY_COMPANY_NAME.value: "Acme GmbH",
+        FactKey.COMPANY_COMPANY_WEBSITE.value: "https://example.test",
+        FactKey.COMPANY_LOCATION_CITY.value: "Berlin",
+        FactKey.ROLE_JOB_TITLE.value: "Data Engineer",
+        FactKey.SKILLS_MUST_HAVE_SKILLS.value: ["Python"],
+        FactKey.SKILLS_NICE_TO_HAVE_SKILLS.value: ["Airflow"],
+    }
+
+
+def test_empty_write_through_values_are_not_meaningful_facts() -> None:
+    session_state = {
+        SSKey.INTAKE_FACTS.value: {
+            FactKey.COMPANY_COMPANY_NAME.value: "Acme GmbH",
+            FactKey.SKILLS_MUST_HAVE_SKILLS.value: ["Python"],
+        }
+    }
+
+    write_intake_fact_by_legacy_field(session_state, "company_name", " ")
+    write_intake_fact_by_legacy_field(session_state, "must_have_skills", [" "])
+    write_intake_fact_by_legacy_field(session_state, "job_title", "")
+
+    assert session_state[SSKey.INTAKE_FACTS.value] == {}
+
+
+def test_sync_selected_skill_intake_facts_preserves_legacy_skill_state() -> None:
+    session_state = {
+        SSKey.SKILLS_SELECTED.value: ["Python", "SQL", "Go"],
+        SSKey.SKILLS_SELECTED_STATUS.value: {
+            "label:python": {"label": "Python", "status": "must"},
+            "label:sql": {"label": "SQL", "status": "nice"},
+            "label:go": {"label": "Go", "status": "ignored"},
+        },
+        SSKey.INTAKE_FACTS.value: {},
+    }
+
+    sync_selected_skill_intake_facts(session_state)
+
+    assert session_state[SSKey.SKILLS_SELECTED.value] == ["Python", "SQL", "Go"]
+    assert session_state[SSKey.SKILLS_SELECTED_STATUS.value]["label:python"] == {
+        "label": "Python",
+        "status": "must",
+    }
+    assert session_state[SSKey.INTAKE_FACTS.value] == {
+        FactKey.SKILLS_MUST_HAVE_SKILLS.value: ["Python"],
+        FactKey.SKILLS_NICE_TO_HAVE_SKILLS.value: ["SQL"],
+    }
+
+
+def test_state_set_answer_writes_through_supported_fact_and_legacy_answer(
+    monkeypatch,
+) -> None:
+    fake_session_state = {
+        SSKey.ANSWERS.value: {},
+        SSKey.INTAKE_FACTS.value: {},
+    }
+    monkeypatch.setattr(
+        state,
+        "st",
+        SimpleNamespace(session_state=fake_session_state),
+    )
+
+    state.set_answer("job_title", " Data Engineer ")
+    state.set_answer("unmapped_question", "kept legacy-only")
+
+    assert fake_session_state[SSKey.ANSWERS.value] == {
+        "job_title": " Data Engineer ",
+        "unmapped_question": "kept legacy-only",
+    }
+    assert fake_session_state[SSKey.INTAKE_FACTS.value] == {
+        FactKey.ROLE_JOB_TITLE.value: "Data Engineer"
+    }

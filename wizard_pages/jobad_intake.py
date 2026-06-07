@@ -24,6 +24,10 @@ from llm_client import (
     generate_question_plan,
     resolve_model_for_task,
 )
+from intake_facts import (
+    write_intake_fact_by_legacy_field,
+    write_job_extract_intake_facts,
+)
 from occupation_context import classify_occupation_context
 from parsing import extract_text_from_uploaded_file, redact_pii
 from question_progress import (
@@ -209,6 +213,13 @@ def _promote_reviewed_job_extract(job: JobAdExtract, plan: QuestionPlan) -> None
 
     st.session_state[SSKey.ANSWERS.value] = answers
     st.session_state[SSKey.ANSWER_META.value] = meta
+    write_job_extract_intake_facts(st.session_state, job)
+    for question_id, answer_value in answers.items():
+        write_intake_fact_by_legacy_field(
+            st.session_state,
+            str(question_id),
+            answer_value,
+        )
     _seed_list_state_from_jobspec(
         SSKey.ROLE_TASKS_SELECTED,
         [*job.responsibilities, *job.deliverables, *job.success_metrics],
@@ -716,6 +727,7 @@ def render_jobad_intake(
             st.session_state[SSKey.JOB_EXTRACT.value] = _model_dump_json_compatible(
                 job
             )
+            write_job_extract_intake_facts(st.session_state, job)
             st.session_state[SSKey.QUESTION_PLAN_BASE.value] = (
                 _model_dump_json_compatible(plan)
             )
