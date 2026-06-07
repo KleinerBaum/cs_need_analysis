@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Callable
 
+from constants import FactKey
 from schemas import Question
 
-TriggerEvaluator = Callable[[dict[str, Any], dict[str, dict[str, Any]]], bool]
+TriggerEvaluator = Callable[
+    [dict[str, Any], dict[str, dict[str, Any]], Mapping[str, Any] | None],
+    bool,
+]
 QuestionMatcher = Callable[[str], bool]
 
 
@@ -128,6 +133,46 @@ def _answer_matches(
     return False
 
 
+def _has_meaningful_fact_value(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, Mapping):
+        return any(_has_meaningful_fact_value(item) for item in value.values())
+    if isinstance(value, (list, tuple, set)):
+        return any(_has_meaningful_fact_value(item) for item in value)
+    return True
+
+
+def _fact_matches(
+    intake_facts: Mapping[str, Any] | None,
+    fact_keys: tuple[FactKey, ...],
+    *,
+    predicate: Callable[[Any], bool],
+) -> bool:
+    if not isinstance(intake_facts, Mapping):
+        return False
+    for fact_key in fact_keys:
+        value = intake_facts.get(fact_key.value)
+        if _has_meaningful_fact_value(value) and predicate(value):
+            return True
+    return False
+
+
+def _is_positive_number(value: Any) -> bool:
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, (int, float)):
+        return value > 0
+    if isinstance(value, str):
+        try:
+            return float(value.strip()) > 0
+        except ValueError:
+            return False
+    return False
+
+
 def _depends_on_leadership_detail(question: Question) -> bool:
     blob = _question_blob(question)
     return _depends_on_leadership_detail_blob(blob)
@@ -237,18 +282,30 @@ def _depends_on_oncall_blob(blob: str) -> bool:
 
 
 def _leadership_trigger(
-    answers: dict[str, Any], answer_meta: dict[str, dict[str, Any]]
+    answers: dict[str, Any],
+    answer_meta: dict[str, dict[str, Any]],
+    intake_facts: Mapping[str, Any] | None,
 ) -> bool:
     del answer_meta
     return _answer_matches(
         answers,
         id_keywords=("lead", "manage", "führung", "fuehrung", "reports_to"),
         predicate=_is_yes_like,
+    ) or _fact_matches(
+        intake_facts,
+        (FactKey.COMPANY_REPORTS_TO,),
+        predicate=_has_non_empty_answer,
+    ) or _fact_matches(
+        intake_facts,
+        (FactKey.COMPANY_DIRECT_REPORTS_COUNT,),
+        predicate=_is_positive_number,
     )
 
 
 def _remote_trigger(
-    answers: dict[str, Any], answer_meta: dict[str, dict[str, Any]]
+    answers: dict[str, Any],
+    answer_meta: dict[str, dict[str, Any]],
+    intake_facts: Mapping[str, Any] | None,
 ) -> bool:
     del answer_meta
     return _answer_matches(
@@ -257,11 +314,22 @@ def _remote_trigger(
         predicate=lambda value: _contains_any(
             _normalize_text(value), ("remote", "hybrid")
         ),
+    ) or _fact_matches(
+        intake_facts,
+        (
+            FactKey.COMPANY_REMOTE_POLICY,
+            FactKey.COMPANY_PLACE_OF_WORK,
+        ),
+        predicate=lambda value: _contains_any(
+            _normalize_text(value), ("remote", "hybrid")
+        ),
     )
 
 
 def _salary_trigger(
-    answers: dict[str, Any], answer_meta: dict[str, dict[str, Any]]
+    answers: dict[str, Any],
+    answer_meta: dict[str, dict[str, Any]],
+    intake_facts: Mapping[str, Any] | None,
 ) -> bool:
     del answer_meta
     return _answer_matches(
@@ -275,27 +343,43 @@ def _salary_trigger(
             "verguetung",
         ),
         predicate=_has_non_empty_answer,
+    ) or _fact_matches(
+        intake_facts,
+        (FactKey.BENEFITS_SALARY_RANGE,),
+        predicate=_has_meaningful_fact_value,
     )
 
 
 def _travel_trigger(
-    answers: dict[str, Any], answer_meta: dict[str, dict[str, Any]]
+    answers: dict[str, Any],
+    answer_meta: dict[str, dict[str, Any]],
+    intake_facts: Mapping[str, Any] | None,
 ) -> bool:
     del answer_meta
     return _answer_matches(
         answers,
         id_keywords=("travel", "reise"),
         predicate=_is_yes_like,
+    ) or _fact_matches(
+        intake_facts,
+        (FactKey.ROLE_TRAVEL_REQUIRED,),
+        predicate=_is_yes_like,
     )
 
 
 def _oncall_trigger(
-    answers: dict[str, Any], answer_meta: dict[str, dict[str, Any]]
+    answers: dict[str, Any],
+    answer_meta: dict[str, dict[str, Any]],
+    intake_facts: Mapping[str, Any] | None,
 ) -> bool:
     del answer_meta
     return _answer_matches(
         answers,
         id_keywords=("on_call", "oncall", "rufbereitschaft"),
+        predicate=_is_yes_like,
+    ) or _fact_matches(
+        intake_facts,
+        (FactKey.ROLE_ON_CALL,),
         predicate=_is_yes_like,
     )
 
@@ -339,6 +423,8 @@ def should_show_question(
     answers: dict[str, Any],
     answer_meta: dict[str, Any],
     step_key: str,
+    *,
+    intake_facts: Mapping[str, Any] | None = None,
 ) -> bool:
     """Return question visibility based on deterministic dependency rules.
 
@@ -358,4 +444,7 @@ def should_show_question(
     if not matching_rules:
         return True
 
-    return any(rule.trigger_evaluator(answers, answer_meta) for rule in matching_rules)
+    return any(
+        rule.trigger_evaluator(answers, answer_meta, intake_facts)
+        for rule in matching_rules
+    )
