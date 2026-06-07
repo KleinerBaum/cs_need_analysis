@@ -8,7 +8,7 @@ import json
 import hashlib
 import textwrap
 from datetime import date
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from enum import Enum
 from html import escape
 from typing import Any, Dict, Literal, Optional, TypedDict
@@ -19,8 +19,6 @@ from constants import (
     AnswerType,
     SSKey,
     UI_DETAILS_DEFAULT_BY_MODE_TEXT,
-    UI_STEP_COMPACT_TOGGLE_HELP,
-    UI_STEP_COMPACT_TOGGLE_LABEL,
     WIDGET_KEY_PREFIX,
 )
 from esco_client import EscoClient, EscoClientError
@@ -229,6 +227,7 @@ class StepReviewPayload(TypedDict):
     answered_lookup: dict[str, bool]
     step_status: StepStatusPayload
     job_extract: JobAdExtract | None
+    intake_facts: dict[str, Any]
 
 
 class ReviewRenderMode(str, Enum):
@@ -290,6 +289,8 @@ def build_step_review_payload(step: QuestionStep | None) -> StepReviewPayload:
     answers = get_answers()
     answer_meta = get_answer_meta()
     job_extract = _load_job_extract_from_state()
+    intake_facts_raw = st.session_state.get(SSKey.INTAKE_FACTS.value)
+    intake_facts = intake_facts_raw if isinstance(intake_facts_raw, dict) else {}
     step_status = build_step_status_payload(
         step=step,
         answers=answers,
@@ -297,6 +298,7 @@ def build_step_review_payload(step: QuestionStep | None) -> StepReviewPayload:
         should_show_question=should_show_question,
         step_key=step.step_key if step is not None else None,
         job_extract=job_extract,
+        intake_facts=intake_facts,
     )
     if step is None or not step.questions:
         return {
@@ -306,6 +308,7 @@ def build_step_review_payload(step: QuestionStep | None) -> StepReviewPayload:
             "answered_lookup": {},
             "step_status": step_status,
             "job_extract": job_extract,
+            "intake_facts": intake_facts,
         }
 
     effective_answers = build_answers_with_job_extract_coverage(
@@ -313,6 +316,7 @@ def build_step_review_payload(step: QuestionStep | None) -> StepReviewPayload:
         answers,
         answer_meta,
         job_extract=job_extract,
+        intake_facts=intake_facts,
     )
     visible_questions = [
         question
@@ -328,9 +332,11 @@ def build_step_review_payload(step: QuestionStep | None) -> StepReviewPayload:
             answers,
             answer_meta,
             job_extract=job_extract,
+            intake_facts=intake_facts,
         ),
         "step_status": step_status,
         "job_extract": job_extract,
+        "intake_facts": intake_facts,
     }
 
 
@@ -349,6 +355,7 @@ def render_standard_step_review(
         answered_lookup=review_payload["answered_lookup"],
         step_status=review_payload["step_status"],
         job_extract=review_payload["job_extract"],
+        intake_facts=review_payload["intake_facts"],
         render_mode=_resolve_review_render_mode(render_mode),
     )
 
@@ -2307,6 +2314,8 @@ def render_question_step(step: QuestionStep) -> None:
     answers = get_answers()
     answer_meta = get_answer_meta()
     job_extract = _load_job_extract_from_state()
+    intake_facts_raw = st.session_state.get(SSKey.INTAKE_FACTS.value)
+    intake_facts = intake_facts_raw if isinstance(intake_facts_raw, dict) else {}
     ui_mode_raw = st.session_state.get(SSKey.UI_MODE.value, "standard")
     ui_mode = str(ui_mode_raw).strip().lower()
     if ui_mode not in {"quick", "standard", "expert"}:
@@ -2334,6 +2343,7 @@ def render_question_step(step: QuestionStep) -> None:
         answers,
         answer_meta,
         job_extract=job_extract,
+        intake_facts=intake_facts,
     )
     visible_questions = [
         question
@@ -2347,6 +2357,7 @@ def render_question_step(step: QuestionStep) -> None:
         answers,
         answer_meta,
         job_extract=job_extract,
+        intake_facts=intake_facts,
     )
     visible_progress = compute_question_progress(
         visible_questions, answers, answer_meta, answered_lookup=answered_lookup
@@ -2356,6 +2367,7 @@ def render_question_step(step: QuestionStep) -> None:
         answers,
         answer_meta,
         job_extract=job_extract,
+        intake_facts=intake_facts,
     )
     overall_progress = compute_question_progress(
         questions,
@@ -2363,7 +2375,7 @@ def render_question_step(step: QuestionStep) -> None:
         answer_meta,
         answered_lookup=overall_answered_lookup,
     )
-    scope_labels = build_step_scope_progress_labels(
+    build_step_scope_progress_labels(
         visible_answered=visible_progress["answered"],
         visible_total=visible_progress["total"],
         overall_answered=overall_progress["answered"],
@@ -2436,6 +2448,7 @@ def render_step_review_card(
     step_status: StepStatusPayload | None = None,
     render_mode: ReviewRenderMode | None = None,
     job_extract: JobAdExtract | None = None,
+    intake_facts: Mapping[str, Any] | None = None,
 ) -> None:
     resolved_render_mode = _resolve_review_render_mode(render_mode)
     missing_essentials_display_max = 4
@@ -2491,6 +2504,7 @@ def render_step_review_card(
         answers,
         answer_meta,
         job_extract=job_extract,
+        intake_facts=intake_facts,
     )
     total_groups = len(grouped_questions)
     complete_groups = 0
@@ -2524,6 +2538,7 @@ def render_step_review_card(
                 extracted_value = resolve_question_job_extract_value(
                     question,
                     job_extract,
+                    intake_facts=intake_facts,
                 )
                 if has_meaningful_value(extracted_value):
                     value = extracted_value

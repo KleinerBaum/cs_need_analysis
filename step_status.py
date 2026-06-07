@@ -43,6 +43,7 @@ def build_step_status_payload(
     step_key: str | None = None,
     missing_essentials_max: int = 5,
     job_extract: JobAdExtract | None = None,
+    intake_facts: Mapping[str, Any] | None = None,
 ) -> StepStatusPayload:
     answers_dict = dict(answers)
     resolved_step_key = step_key or (step.step_key if step is not None else "")
@@ -63,6 +64,7 @@ def build_step_status_payload(
         answers_dict,
         answer_meta,
         job_extract=job_extract,
+        intake_facts=intake_facts,
     )
     visible_questions = [
         question
@@ -79,6 +81,7 @@ def build_step_status_payload(
         answers_dict,
         answer_meta,
         job_extract=job_extract,
+        intake_facts=intake_facts,
     )
     progress = compute_question_progress(
         visible_questions,

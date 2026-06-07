@@ -29,7 +29,6 @@ from constants import (
     ESCO_RELEASE_LANE_PREVIEW,
     ESCO_RELEASE_LANE_SELECTED_VERSION,
     ESCO_RELEASE_LANE_STABLE,
-    ESCO_RELEASE_LANES,
     SSKey,
     STEPS,
     UI_PREFERENCE_ANSWER_MODE,
@@ -286,6 +285,8 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
     answers = answers_raw if isinstance(answers_raw, dict) else {}
     answer_meta_raw = st.session_state.get(SSKey.ANSWER_META.value, {})
     answer_meta = answer_meta_raw if isinstance(answer_meta_raw, dict) else {}
+    intake_facts_raw = st.session_state.get(SSKey.INTAKE_FACTS.value)
+    intake_facts = intake_facts_raw if isinstance(intake_facts_raw, dict) else {}
     job_extract_raw = st.session_state.get(SSKey.JOB_EXTRACT.value)
     has_job_extract = bool(job_extract_raw)
     job_extract: JobAdExtract | None = None
@@ -307,6 +308,7 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
             answers=answers,
             answer_meta=answer_meta,
             job_extract=job_extract,
+            intake_facts=intake_facts,
         )
         payload: SidebarStepDetailStatus = {
             "answered": int(step_status["answered"]),
@@ -328,6 +330,7 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
             answers,
             cast(AnswerMetaMap, answer_meta),
             job_extract=job_extract,
+            intake_facts=intake_facts,
         )
         overall_progress = compute_question_progress(
             questions,
@@ -375,6 +378,7 @@ def _build_step_status_payload_for_page(
     answers: dict[str, object],
     answer_meta: dict[str, object],
     job_extract: JobAdExtract | None = None,
+    intake_facts: Mapping[str, object] | None = None,
 ) -> StepStatusPayload:
     step = QuestionStep(step_key=page_key, title_de=page_key, questions=questions)
     return build_step_status_payload(
@@ -384,6 +388,7 @@ def _build_step_status_payload_for_page(
         should_show_question=should_show_question,
         step_key=page_key,
         job_extract=job_extract,
+        intake_facts=intake_facts,
     )
 
 
@@ -995,7 +1000,7 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
         st.session_state[SSKey.NAV_SYNC_PENDING.value] = False
 
     ui_preferences_key = SSKey.UI_PREFERENCES.value
-    ui_mode = get_current_ui_mode()
+    get_current_ui_mode()
     st.session_state[ui_preferences_key] = normalize_ui_preferences(
         st.session_state.get(ui_preferences_key)
     )

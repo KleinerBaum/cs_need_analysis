@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from constants import AnswerType
+from constants import AnswerType, FactKey, SSKey
 from question_progress import (
     build_answered_lookup,
     build_answers_with_job_extract_coverage,
@@ -147,6 +147,159 @@ def test_jobspec_extract_covers_company_alias_questions_without_answers() -> Non
         "contract_kind": True,
     }
     assert progress == {"total": 3, "answered": 2, "required_unanswered": 1}
+
+
+def test_legacy_target_path_question_resolves_jobspec_coverage() -> None:
+    question = Question(
+        id="legacy_role_title",
+        label="Welche Rolle wird gesucht?",
+        answer_type=AnswerType.SHORT_TEXT,
+        required=True,
+        target_path="job_title",
+    )
+
+    answered_lookup = build_answered_lookup(
+        [question],
+        answers={},
+        answer_meta={},
+        job_extract=JobAdExtract(job_title="Data Engineer"),
+    )
+
+    assert answered_lookup == {"legacy_role_title": True}
+
+
+def test_canonical_intake_facts_cover_supported_fact_keys() -> None:
+    questions = [
+        Question(
+            id="q_company",
+            label="Unternehmen",
+            answer_type=AnswerType.SHORT_TEXT,
+            target_path="company_name",
+        ),
+        Question(
+            id="q_role",
+            label="Rolle",
+            answer_type=AnswerType.SHORT_TEXT,
+            target_path=FactKey.ROLE_JOB_TITLE.value,
+        ),
+        Question(
+            id="q_must_have",
+            label="Must-have Skills",
+            answer_type=AnswerType.MULTI_SELECT,
+            target_path="job.must_have_skills",
+        ),
+    ]
+    session_state = {
+        SSKey.INTAKE_FACTS.value: {
+            FactKey.COMPANY_COMPANY_NAME.value: "Example GmbH",
+            FactKey.ROLE_JOB_TITLE.value: "Data Engineer",
+            FactKey.SKILLS_MUST_HAVE_SKILLS.value: ["Python", "SQL"],
+        }
+    }
+
+    answered_lookup = build_answered_lookup(
+        questions,
+        answers={},
+        answer_meta={},
+        intake_facts=session_state[SSKey.INTAKE_FACTS.value],
+    )
+    effective_answers = build_answers_with_job_extract_coverage(
+        questions,
+        answers={},
+        answer_meta={},
+        intake_facts=session_state[SSKey.INTAKE_FACTS.value],
+    )
+
+    assert answered_lookup == {
+        "q_company": True,
+        "q_role": True,
+        "q_must_have": True,
+    }
+    assert effective_answers == {
+        "q_company": "Example GmbH",
+        "q_role": "Data Engineer",
+        "q_must_have": ["Python", "SQL"],
+    }
+
+
+def test_empty_canonical_intake_fact_values_do_not_count_as_answered() -> None:
+    questions = [
+        Question(
+            id="q_company",
+            label="Unternehmen",
+            answer_type=AnswerType.SHORT_TEXT,
+            target_path="company_name",
+        ),
+        Question(
+            id="q_must_have",
+            label="Must-have Skills",
+            answer_type=AnswerType.MULTI_SELECT,
+            target_path="must_have_skills",
+        ),
+        Question(
+            id="q_salary",
+            label="Gehalt",
+            answer_type=AnswerType.SHORT_TEXT,
+            target_path="salary_range",
+        ),
+    ]
+    intake_facts = {
+        FactKey.COMPANY_COMPANY_NAME.value: "   ",
+        FactKey.SKILLS_MUST_HAVE_SKILLS.value: [],
+        FactKey.BENEFITS_SALARY_RANGE.value: {"min": None, "max": ""},
+    }
+
+    answered_lookup = build_answered_lookup(
+        questions,
+        answers={},
+        answer_meta={},
+        intake_facts=intake_facts,
+    )
+
+    assert answered_lookup == {
+        "q_company": False,
+        "q_must_have": False,
+        "q_salary": False,
+    }
+
+
+def test_jobspec_fallbacks_still_work_without_canonical_facts() -> None:
+    questions = [
+        Question(
+            id="direct_website",
+            label="Website",
+            answer_type=AnswerType.SHORT_TEXT,
+            target_path="company_website",
+        ),
+        Question(
+            id="legacy.location_city",
+            label="Standort",
+            answer_type=AnswerType.SHORT_TEXT,
+        ),
+        Question(
+            id="contract_kind",
+            label="Was ist die Art des Arbeitsvertrags?",
+            answer_type=AnswerType.SHORT_TEXT,
+        ),
+    ]
+    job_extract = JobAdExtract(
+        company_website="https://example.test",
+        location_city="Berlin",
+        employment_type="Unbefristeter Arbeitsvertrag",
+    )
+
+    answered_lookup = build_answered_lookup(
+        questions,
+        answers={},
+        answer_meta={},
+        job_extract=job_extract,
+    )
+
+    assert answered_lookup == {
+        "direct_website": True,
+        "legacy.location_city": True,
+        "contract_kind": True,
+    }
 
 
 def test_effective_answers_include_jobspec_values_for_dependency_visibility() -> None:
