@@ -321,7 +321,13 @@ def build_step_review_payload(step: QuestionStep | None) -> StepReviewPayload:
     visible_questions = [
         question
         for question in step.questions
-        if should_show_question(question, effective_answers, answer_meta, step.step_key)
+        if should_show_question(
+            question,
+            effective_answers,
+            answer_meta,
+            step.step_key,
+            intake_facts=intake_facts,
+        )
     ]
     return {
         "visible_questions": visible_questions,
@@ -2348,7 +2354,13 @@ def render_question_step(step: QuestionStep) -> None:
     visible_questions = [
         question
         for question in questions
-        if should_show_question(question, effective_answers, answer_meta, step.step_key)
+        if should_show_question(
+            question,
+            effective_answers,
+            answer_meta,
+            step.step_key,
+            intake_facts=intake_facts,
+        )
     ]
     hidden_questions_count = len(questions) - len(visible_questions)
 
