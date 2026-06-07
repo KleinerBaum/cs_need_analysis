@@ -8,6 +8,7 @@ from typing import Any
 import streamlit as st
 
 from constants import SSKey
+from intake_facts import write_intake_fact_by_legacy_field
 from interview_process import (
     build_interview_value_rows,
     default_selected_interview_value_ids,
@@ -46,6 +47,14 @@ def _normalize_values(values: list[str]) -> list[str]:
 def _read_internal_flow_state() -> dict[str, Any]:
     return normalize_interview_internal_flow(
         st.session_state.get(SSKey.INTERVIEW_INTERNAL_FLOW.value, {})
+    )
+
+
+def _sync_interview_contact_intake_facts() -> None:
+    write_intake_fact_by_legacy_field(
+        st.session_state,
+        "contacts",
+        _read_internal_flow_state().get("contacts"),
     )
 
 
@@ -336,6 +345,7 @@ def _render_internal_process_container(
             else internal_flow["latest_start_date"]
         ),
     }
+    _sync_interview_contact_intake_facts()
 
 
 def _render_interview_value_board(
@@ -391,6 +401,7 @@ def _render_interview_value_board(
         **internal_flow,
         "selected_value_ids": [option_by_label[label] for label in selected_labels],
     }
+    _sync_interview_contact_intake_facts()
 
 
 def _has_extract_for_keywords(

@@ -31,9 +31,16 @@ _WRITE_THROUGH_FACT_FIELDS: dict[str, FactKey] = {
     "company_name": FactKey.COMPANY_COMPANY_NAME,
     "company_website": FactKey.COMPANY_COMPANY_WEBSITE,
     "location_city": FactKey.COMPANY_LOCATION_CITY,
+    "remote_policy": FactKey.COMPANY_REMOTE_POLICY,
     "job_title": FactKey.ROLE_JOB_TITLE,
+    "travel_required": FactKey.ROLE_TRAVEL_REQUIRED,
+    "on_call": FactKey.ROLE_ON_CALL,
     "must_have_skills": FactKey.SKILLS_MUST_HAVE_SKILLS,
     "nice_to_have_skills": FactKey.SKILLS_NICE_TO_HAVE_SKILLS,
+    "salary_range": FactKey.BENEFITS_SALARY_RANGE,
+    "benefits": FactKey.BENEFITS_BENEFITS,
+    "recruitment_steps": FactKey.INTERVIEW_RECRUITMENT_STEPS,
+    "contacts": FactKey.INTERVIEW_CONTACTS,
 }
 
 _WRITE_THROUGH_FACTS: frozenset[FactKey] = frozenset(

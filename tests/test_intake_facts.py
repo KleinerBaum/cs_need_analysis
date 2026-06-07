@@ -192,14 +192,50 @@ def test_write_intake_fact_by_legacy_field_updates_fact_state_only() -> None:
     }
 
     write_intake_fact_by_legacy_field(session_state, "company_name", " Example GmbH ")
+    write_intake_fact_by_legacy_field(session_state, "remote_policy", " Hybrid ")
+    write_intake_fact_by_legacy_field(session_state, "travel_required", False)
+    write_intake_fact_by_legacy_field(session_state, "on_call", True)
+    write_intake_fact_by_legacy_field(
+        session_state,
+        "salary_range",
+        {"min": 60000, "max": 80000, "currency": " EUR ", "notes": ""},
+    )
+    write_intake_fact_by_legacy_field(
+        session_state,
+        "benefits",
+        [" Remote work ", " "],
+    )
+    write_intake_fact_by_legacy_field(
+        session_state,
+        "recruitment_steps",
+        [{"name": " Phone screen ", "details": ""}],
+    )
+    write_intake_fact_by_legacy_field(
+        session_state,
+        "contacts",
+        [{"name": " Hiring Team ", "role": "Recruiting", "email": ""}],
+    )
 
     assert session_state[SSKey.ANSWERS.value] == {}
     assert session_state[SSKey.INTAKE_FACTS.value] == {
-        FactKey.COMPANY_COMPANY_NAME.value: "Example GmbH"
+        FactKey.COMPANY_COMPANY_NAME.value: "Example GmbH",
+        FactKey.COMPANY_REMOTE_POLICY.value: "Hybrid",
+        FactKey.ROLE_TRAVEL_REQUIRED.value: False,
+        FactKey.ROLE_ON_CALL.value: True,
+        FactKey.BENEFITS_SALARY_RANGE.value: {
+            "min": 60000,
+            "max": 80000,
+            "currency": "EUR",
+        },
+        FactKey.BENEFITS_BENEFITS.value: ["Remote work"],
+        FactKey.INTERVIEW_RECRUITMENT_STEPS.value: [{"name": "Phone screen"}],
+        FactKey.INTERVIEW_CONTACTS.value: [
+            {"name": "Hiring Team", "role": "Recruiting"}
+        ],
     }
 
 
-def test_write_job_extract_intake_facts_mirrors_pr3a_supported_fields() -> None:
+def test_write_job_extract_intake_facts_mirrors_supported_fields() -> None:
     session_state = {
         SSKey.JOB_EXTRACT.value: {
             "company_name": "Legacy GmbH",
@@ -212,8 +248,24 @@ def test_write_job_extract_intake_facts_mirrors_pr3a_supported_fields() -> None:
         company_website=" https://example.test ",
         location_city=" Berlin ",
         job_title=" Data Engineer ",
+        remote_policy=" Hybrid ",
+        travel_required="Ja",
+        on_call="Nein",
         must_have_skills=[" Python ", ""],
         nice_to_have_skills=["Airflow"],
+        salary_range=MoneyRange(
+            min=60000,
+            max=80000,
+            currency="EUR",
+            period="yearly",
+        ),
+        benefits=[" Remote work ", " "],
+        recruitment_steps=[
+            RecruitmentStep(name="Phone screen", details="30 minutes"),
+        ],
+        contacts=[
+            Contact(name="Hiring Team", role="Recruiting"),
+        ],
     )
 
     write_job_extract_intake_facts(session_state, job)
@@ -226,9 +278,25 @@ def test_write_job_extract_intake_facts_mirrors_pr3a_supported_fields() -> None:
         FactKey.COMPANY_COMPANY_NAME.value: "Acme GmbH",
         FactKey.COMPANY_COMPANY_WEBSITE.value: "https://example.test",
         FactKey.COMPANY_LOCATION_CITY.value: "Berlin",
+        FactKey.COMPANY_REMOTE_POLICY.value: "Hybrid",
         FactKey.ROLE_JOB_TITLE.value: "Data Engineer",
+        FactKey.ROLE_TRAVEL_REQUIRED.value: "Ja",
+        FactKey.ROLE_ON_CALL.value: "Nein",
         FactKey.SKILLS_MUST_HAVE_SKILLS.value: ["Python"],
         FactKey.SKILLS_NICE_TO_HAVE_SKILLS.value: ["Airflow"],
+        FactKey.BENEFITS_SALARY_RANGE.value: {
+            "min": 60000.0,
+            "max": 80000.0,
+            "currency": "EUR",
+            "period": "yearly",
+        },
+        FactKey.BENEFITS_BENEFITS.value: ["Remote work"],
+        FactKey.INTERVIEW_RECRUITMENT_STEPS.value: [
+            {"name": "Phone screen", "details": "30 minutes"}
+        ],
+        FactKey.INTERVIEW_CONTACTS.value: [
+            {"name": "Hiring Team", "role": "Recruiting"}
+        ],
     }
 
 
@@ -237,12 +305,28 @@ def test_empty_write_through_values_are_not_meaningful_facts() -> None:
         SSKey.INTAKE_FACTS.value: {
             FactKey.COMPANY_COMPANY_NAME.value: "Acme GmbH",
             FactKey.SKILLS_MUST_HAVE_SKILLS.value: ["Python"],
+            FactKey.BENEFITS_SALARY_RANGE.value: {"min": 60000, "max": 80000},
+            FactKey.BENEFITS_BENEFITS.value: ["Remote work"],
+            FactKey.INTERVIEW_RECRUITMENT_STEPS.value: [{"name": "Phone screen"}],
+            FactKey.INTERVIEW_CONTACTS.value: [{"name": "Hiring Team"}],
         }
     }
 
     write_intake_fact_by_legacy_field(session_state, "company_name", " ")
     write_intake_fact_by_legacy_field(session_state, "must_have_skills", [" "])
     write_intake_fact_by_legacy_field(session_state, "job_title", "")
+    write_intake_fact_by_legacy_field(session_state, "salary_range", {})
+    write_intake_fact_by_legacy_field(session_state, "benefits", [" "])
+    write_intake_fact_by_legacy_field(
+        session_state,
+        "recruitment_steps",
+        [{"name": "", "details": None}],
+    )
+    write_intake_fact_by_legacy_field(
+        session_state,
+        "contacts",
+        [{"name": "", "role": None}],
+    )
 
     assert session_state[SSKey.INTAKE_FACTS.value] == {}
 
@@ -285,12 +369,15 @@ def test_state_set_answer_writes_through_supported_fact_and_legacy_answer(
     )
 
     state.set_answer("job_title", " Data Engineer ")
+    state.set_answer("travel_required", False)
     state.set_answer("unmapped_question", "kept legacy-only")
 
     assert fake_session_state[SSKey.ANSWERS.value] == {
         "job_title": " Data Engineer ",
+        "travel_required": False,
         "unmapped_question": "kept legacy-only",
     }
     assert fake_session_state[SSKey.INTAKE_FACTS.value] == {
-        FactKey.ROLE_JOB_TITLE.value: "Data Engineer"
+        FactKey.ROLE_JOB_TITLE.value: "Data Engineer",
+        FactKey.ROLE_TRAVEL_REQUIRED.value: False,
     }

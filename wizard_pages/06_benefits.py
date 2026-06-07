@@ -4,6 +4,7 @@ import logging
 import streamlit as st
 
 from constants import SSKey
+from intake_facts import write_intake_fact_by_legacy_field
 from llm_client import (
     TASK_GENERATE_BENEFIT_SUGGESTIONS,
     TASK_GENERATE_ROLE_TASKS_SALARY_FORECAST,
@@ -172,6 +173,14 @@ def _read_selected_benefits() -> list[str]:
     )
 
 
+def _sync_selected_benefit_intake_facts() -> None:
+    write_intake_fact_by_legacy_field(
+        st.session_state,
+        "benefits",
+        _read_selected_benefits(),
+    )
+
+
 def _suggestion_dicts_from_labels(labels: list[str], *, source: str) -> list[dict[str, str]]:
     return [{"label": label, "source": source} for label in labels if label.strip()]
 
@@ -187,6 +196,7 @@ def render(ctx: WizardContext) -> None:
 
     step = next((s for s in plan.steps if s.step_key == "benefits"), None)
     _migrate_legacy_benefit_state()
+    _sync_selected_benefit_intake_facts()
     jobspec_benefit_terms = _dedupe_benefit_terms(
         [value.strip() for value in job.benefits if has_meaningful_value(value)]
     )
@@ -373,6 +383,7 @@ def render(ctx: WizardContext) -> None:
             key_prefix="benefits.sources",
         )
         source_counts = selection_result["source_counts"]
+        _sync_selected_benefit_intake_facts()
         st.session_state[SSKey.BENEFITS_SELECTED_BULK_BUFFER.value] = (
             selection_result["selected_labels"]
         )
