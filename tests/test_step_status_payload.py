@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from constants import AnswerType
+from constants import AnswerType, FactKey
+from question_dependencies import should_show_question
 from schemas import JobAdExtract, Question, QuestionStep
 from step_status import build_step_status_payload
 
@@ -108,3 +109,118 @@ def test_build_step_status_payload_counts_jobspec_covered_company_essentials() -
         "company_q_city",
         "company_q_country",
     ]
+
+
+def test_build_step_status_payload_passes_canonical_facts_to_visibility() -> None:
+    step = QuestionStep(
+        step_key="company",
+        title_de="Company",
+        questions=[
+            Question(
+                id="company_q_name",
+                label="Wie heißt das Unternehmen?",
+                answer_type=AnswerType.SHORT_TEXT,
+                required=True,
+                priority="core",
+            ),
+            Question(
+                id="remote_policy_detail",
+                label="Wie viele On-site Tage pro Woche?",
+                help="Remote policy und Onsite-Erwartungen beschreiben.",
+                answer_type=AnswerType.SHORT_TEXT,
+                required=True,
+                priority="core",
+            ),
+        ],
+    )
+
+    without_facts = build_step_status_payload(
+        step=step,
+        answers={"company_q_name": "Example GmbH"},
+        answer_meta={},
+        should_show_question=should_show_question,
+        step_key=step.step_key,
+    )
+    with_facts = build_step_status_payload(
+        step=step,
+        answers={"company_q_name": "Example GmbH"},
+        answer_meta={},
+        should_show_question=should_show_question,
+        step_key=step.step_key,
+        intake_facts={FactKey.COMPANY_REMOTE_POLICY.value: "Hybrid"},
+    )
+
+    assert without_facts["total"] == 1
+    assert without_facts["missing_essential_ids"] == []
+    assert with_facts["total"] == 2
+    assert with_facts["missing_essential_ids"] == ["remote_policy_detail"]
+
+
+def test_build_step_status_payload_keeps_legacy_visibility_predicates() -> None:
+    step = QuestionStep(
+        step_key="company",
+        title_de="Company",
+        questions=[
+            Question(
+                id="company_q_name",
+                label="Wie heißt das Unternehmen?",
+                answer_type=AnswerType.SHORT_TEXT,
+                target_path="company_name",
+                required=True,
+                priority="core",
+            )
+        ],
+    )
+
+    def legacy_visibility(
+        question: Question,
+        answers: dict[str, object],
+        answer_meta: dict[str, object],
+        step_key: str,
+    ) -> bool:
+        assert question.id == "company_q_name"
+        assert answers == {"company_q_name": "Example GmbH"}
+        assert answer_meta == {}
+        assert step_key == "company"
+        return True
+
+    payload = build_step_status_payload(
+        step=step,
+        answers={},
+        answer_meta={},
+        should_show_question=legacy_visibility,
+        step_key=step.step_key,
+        intake_facts={FactKey.COMPANY_COMPANY_NAME.value: "Example GmbH"},
+    )
+
+    assert payload["total"] == 1
+    assert payload["answered"] == 1
+
+
+def test_build_step_status_payload_keeps_jobspec_fallback_without_facts() -> None:
+    step = QuestionStep(
+        step_key="company",
+        title_de="Company",
+        questions=[
+            Question(
+                id="company_q_name",
+                label="Wie heißt das Unternehmen?",
+                answer_type=AnswerType.SHORT_TEXT,
+                required=True,
+                priority="core",
+            )
+        ],
+    )
+
+    payload = build_step_status_payload(
+        step=step,
+        answers={},
+        answer_meta={},
+        should_show_question=_always_visible,
+        step_key=step.step_key,
+        job_extract=JobAdExtract(company_name="Example GmbH"),
+    )
+
+    assert payload["total"] == 1
+    assert payload["answered"] == 1
+    assert payload["missing_essential_ids"] == []

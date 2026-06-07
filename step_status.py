@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Callable, Mapping
 from typing import Any, Literal, TypedDict
 
@@ -32,6 +33,42 @@ class StepStatusPayload(TypedDict):
 
 def _is_essential_question(question: Question) -> bool:
     return question.priority == "core" or question.required
+
+
+def _should_show_question_accepts_intake_facts(
+    should_show_question: QuestionVisibilityPredicate,
+) -> bool:
+    try:
+        signature = inspect.signature(should_show_question)
+    except (TypeError, ValueError):
+        return False
+    return (
+        "intake_facts" in signature.parameters
+        or any(
+            parameter.kind is inspect.Parameter.VAR_KEYWORD
+            for parameter in signature.parameters.values()
+        )
+    )
+
+
+def _call_should_show_question(
+    should_show_question: QuestionVisibilityPredicate,
+    accepts_intake_facts: bool,
+    question: Question,
+    answers: dict[str, Any],
+    answer_meta: AnswerMetaMap,
+    step_key: str,
+    intake_facts: Mapping[str, Any] | None,
+) -> bool:
+    if accepts_intake_facts:
+        return should_show_question(
+            question,
+            answers,
+            answer_meta,
+            step_key,
+            intake_facts=intake_facts,
+        )
+    return should_show_question(question, answers, answer_meta, step_key)
 
 
 def build_step_status_payload(
@@ -66,14 +103,20 @@ def build_step_status_payload(
         job_extract=job_extract,
         intake_facts=intake_facts,
     )
+    accepts_intake_facts = _should_show_question_accepts_intake_facts(
+        should_show_question
+    )
     visible_questions = [
         question
         for question in step.questions
-        if should_show_question(
+        if _call_should_show_question(
+            should_show_question,
+            accepts_intake_facts,
             question,
             effective_answers,
             answer_meta,
             resolved_step_key,
+            intake_facts,
         )
     ]
     answered_lookup = build_answered_lookup(

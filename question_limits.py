@@ -90,6 +90,7 @@ def compute_adaptive_question_limits(
                 effective_answers,
                 answer_meta,
                 step.step_key,
+                intake_facts=intake_facts,
             )
         ]
         total = len(visible_questions)
