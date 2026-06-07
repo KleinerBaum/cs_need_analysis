@@ -17,7 +17,6 @@ from constants import (
     DEFAULT_ESCO_DATA_SOURCE_MODE,
     DEFAULT_ESCO_INDEX_STORAGE_PATH,
     DEFAULT_ESCO_RELEASE_LANE,
-    DEFAULT_ESCO_SELECTED_VERSION,
     DEFAULT_LANGUAGE,
     ESCO_ANCHOR_STATE_DEGRADED,
     ESCO_DATA_SOURCE_MODES,
@@ -41,6 +40,7 @@ from esco_semantics import (
     selected_version_for_release_lane,
     sync_esco_semantic_state,
 )
+from intake_facts import reset_intake_fact_state
 from interview_process import INTERVIEW_INTERNAL_FLOW_DEFAULT
 from question_progress import AnswerMeta, AnswerMetaMap, value_hash
 from schemas import (
@@ -211,6 +211,7 @@ def init_session_state() -> None:
         SSKey.SOURCE_FILE_META.value: {},
         SSKey.SOURCE_REDACT_PII.value: False,
         SSKey.JOB_EXTRACT.value: None,
+        SSKey.INTAKE_FACTS.value: {},
         SSKey.QUESTION_PLAN_BASE.value: None,
         SSKey.QUESTION_PLAN.value: None,
         SSKey.QUESTION_LIMITS.value: {},
@@ -399,6 +400,7 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.SOURCE_TEXT.value] = ""
     st.session_state[SSKey.SOURCE_FILE_META.value] = {}
     st.session_state[SSKey.JOB_EXTRACT.value] = None
+    reset_intake_fact_state(st.session_state)
     st.session_state[SSKey.QUESTION_PLAN_BASE.value] = None
     st.session_state[SSKey.QUESTION_PLAN.value] = None
     st.session_state[SSKey.QUESTION_LIMITS.value] = {}

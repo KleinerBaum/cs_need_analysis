@@ -250,6 +250,7 @@ class SSKey(str, Enum):
     SOURCE_REDACT_PII = "cs.source_redact_pii"
 
     JOB_EXTRACT = "cs.job_extract"
+    INTAKE_FACTS = "cs.intake_facts"
     QUESTION_PLAN_BASE = "cs.question_plan_base"
     QUESTION_PLAN = "cs.question_plan"
     QUESTION_LIMITS = "cs.question_limits"
@@ -453,6 +454,331 @@ class AnswerType(str, Enum):
     NUMBER = "number"
     BOOLEAN = "boolean"
     DATE = "date"
+
+
+# ---- Canonical intake fact contract ----
+class FactKey(str, Enum):
+    COMPANY_LANGUAGE_GUESS = "company.language_guess"
+    COMPANY_COMPANY_NAME = "company.company_name"
+    COMPANY_BRAND_NAME = "company.brand_name"
+    COMPANY_COMPANY_WEBSITE = "company.company_website"
+    COMPANY_LOCATION_CITY = "company.location_city"
+    COMPANY_LOCATION_COUNTRY = "company.location_country"
+    COMPANY_PLACE_OF_WORK = "company.place_of_work"
+    COMPANY_REMOTE_POLICY = "company.remote_policy"
+    COMPANY_DEPARTMENT_NAME = "company.department_name"
+    COMPANY_REPORTS_TO = "company.reports_to"
+    COMPANY_DIRECT_REPORTS_COUNT = "company.direct_reports_count"
+    ROLE_JOB_TITLE = "role.job_title"
+    ROLE_EMPLOYMENT_TYPE = "role.employment_type"
+    ROLE_CONTRACT_TYPE = "role.contract_type"
+    ROLE_SENIORITY_LEVEL = "role.seniority_level"
+    ROLE_JOB_REF_NUMBER = "role.job_ref_number"
+    ROLE_ROLE_OVERVIEW = "role.role_overview"
+    ROLE_RESPONSIBILITIES = "role.responsibilities"
+    ROLE_DELIVERABLES = "role.deliverables"
+    ROLE_SUCCESS_METRICS = "role.success_metrics"
+    ROLE_TECH_STACK = "role.tech_stack"
+    ROLE_DOMAIN_EXPERTISE = "role.domain_expertise"
+    ROLE_TRAVEL_REQUIRED = "role.travel_required"
+    ROLE_ON_CALL = "role.on_call"
+    ROLE_ONBOARDING_NOTES = "role.onboarding_notes"
+    ROLE_GAPS = "role.gaps"
+    ROLE_ASSUMPTIONS = "role.assumptions"
+    SKILLS_MUST_HAVE_SKILLS = "skills.must_have_skills"
+    SKILLS_NICE_TO_HAVE_SKILLS = "skills.nice_to_have_skills"
+    SKILLS_SOFT_SKILLS = "skills.soft_skills"
+    SKILLS_EDUCATION = "skills.education"
+    SKILLS_CERTIFICATIONS = "skills.certifications"
+    SKILLS_LANGUAGES = "skills.languages"
+    BENEFITS_SALARY_RANGE = "benefits.salary_range"
+    BENEFITS_BENEFITS = "benefits.benefits"
+    INTERVIEW_START_DATE = "interview.start_date"
+    INTERVIEW_APPLICATION_DEADLINE = "interview.application_deadline"
+    INTERVIEW_RECRUITMENT_STEPS = "interview.recruitment_steps"
+    INTERVIEW_CONTACTS = "interview.contacts"
+
+
+class FactValueType(str, Enum):
+    STRING = "string"
+    STRING_LIST = "string_list"
+    BOOLEAN = "boolean"
+    INTEGER = "integer"
+    DATE_STRING = "date_string"
+    MONEY_RANGE = "money_range"
+    OBJECT_LIST = "object_list"
+
+
+class FactPersistenceIntent(str, Enum):
+    LEGACY_COMPATIBLE = "legacy_compatible"
+
+
+@dataclass(frozen=True)
+class IntakeFactDef:
+    fact_key: FactKey
+    label: str
+    step_key: str
+    value_type: FactValueType
+    persistence_intent: FactPersistenceIntent
+
+
+_FACT_PERSISTENCE_LEGACY_COMPATIBLE: Final[FactPersistenceIntent] = (
+    FactPersistenceIntent.LEGACY_COMPATIBLE
+)
+
+
+def _intake_fact(
+    fact_key: FactKey,
+    label: str,
+    step_key: str,
+    value_type: FactValueType,
+) -> IntakeFactDef:
+    return IntakeFactDef(
+        fact_key=fact_key,
+        label=label,
+        step_key=step_key,
+        value_type=value_type,
+        persistence_intent=_FACT_PERSISTENCE_LEGACY_COMPATIBLE,
+    )
+
+
+# FACT_REGISTRY: canonical intake fact definitions, not wired into runtime yet.
+INTAKE_FACTS: Final[tuple[IntakeFactDef, ...]] = (
+    _intake_fact(
+        FactKey.COMPANY_LANGUAGE_GUESS,
+        "Detected language",
+        STEP_KEY_COMPANY,
+        FactValueType.STRING,
+    ),
+    _intake_fact(
+        FactKey.COMPANY_COMPANY_NAME,
+        "Company name",
+        STEP_KEY_COMPANY,
+        FactValueType.STRING,
+    ),
+    _intake_fact(
+        FactKey.COMPANY_BRAND_NAME,
+        "Brand name",
+        STEP_KEY_COMPANY,
+        FactValueType.STRING,
+    ),
+    _intake_fact(
+        FactKey.COMPANY_COMPANY_WEBSITE,
+        "Company website",
+        STEP_KEY_COMPANY,
+        FactValueType.STRING,
+    ),
+    _intake_fact(
+        FactKey.COMPANY_LOCATION_CITY,
+        "Location city",
+        STEP_KEY_COMPANY,
+        FactValueType.STRING,
+    ),
+    _intake_fact(
+        FactKey.COMPANY_LOCATION_COUNTRY,
+        "Location country",
+        STEP_KEY_COMPANY,
+        FactValueType.STRING,
+    ),
+    _intake_fact(
+        FactKey.COMPANY_PLACE_OF_WORK,
+        "Place of work",
+        STEP_KEY_COMPANY,
+        FactValueType.STRING,
+    ),
+    _intake_fact(
+        FactKey.COMPANY_REMOTE_POLICY,
+        "Remote policy",
+        STEP_KEY_COMPANY,
+        FactValueType.STRING,
+    ),
+    _intake_fact(
+        FactKey.COMPANY_DEPARTMENT_NAME,
+        "Department name",
+        STEP_KEY_COMPANY,
+        FactValueType.STRING,
+    ),
+    _intake_fact(
+        FactKey.COMPANY_REPORTS_TO,
+        "Reports to",
+        STEP_KEY_COMPANY,
+        FactValueType.STRING,
+    ),
+    _intake_fact(
+        FactKey.COMPANY_DIRECT_REPORTS_COUNT,
+        "Direct reports count",
+        STEP_KEY_COMPANY,
+        FactValueType.INTEGER,
+    ),
+    _intake_fact(
+        FactKey.ROLE_JOB_TITLE,
+        "Job title",
+        STEP_KEY_ROLE_TASKS,
+        FactValueType.STRING,
+    ),
+    _intake_fact(
+        FactKey.ROLE_EMPLOYMENT_TYPE,
+        "Employment type",
+        STEP_KEY_ROLE_TASKS,
+        FactValueType.STRING,
+    ),
+    _intake_fact(
+        FactKey.ROLE_CONTRACT_TYPE,
+        "Contract type",
+        STEP_KEY_ROLE_TASKS,
+        FactValueType.STRING,
+    ),
+    _intake_fact(
+        FactKey.ROLE_SENIORITY_LEVEL,
+        "Seniority level",
+        STEP_KEY_ROLE_TASKS,
+        FactValueType.STRING,
+    ),
+    _intake_fact(
+        FactKey.ROLE_JOB_REF_NUMBER,
+        "Job reference number",
+        STEP_KEY_ROLE_TASKS,
+        FactValueType.STRING,
+    ),
+    _intake_fact(
+        FactKey.ROLE_ROLE_OVERVIEW,
+        "Role overview",
+        STEP_KEY_ROLE_TASKS,
+        FactValueType.STRING,
+    ),
+    _intake_fact(
+        FactKey.ROLE_RESPONSIBILITIES,
+        "Responsibilities",
+        STEP_KEY_ROLE_TASKS,
+        FactValueType.STRING_LIST,
+    ),
+    _intake_fact(
+        FactKey.ROLE_DELIVERABLES,
+        "Deliverables",
+        STEP_KEY_ROLE_TASKS,
+        FactValueType.STRING_LIST,
+    ),
+    _intake_fact(
+        FactKey.ROLE_SUCCESS_METRICS,
+        "Success metrics",
+        STEP_KEY_ROLE_TASKS,
+        FactValueType.STRING_LIST,
+    ),
+    _intake_fact(
+        FactKey.ROLE_TECH_STACK,
+        "Tech stack",
+        STEP_KEY_ROLE_TASKS,
+        FactValueType.STRING_LIST,
+    ),
+    _intake_fact(
+        FactKey.ROLE_DOMAIN_EXPERTISE,
+        "Domain expertise",
+        STEP_KEY_ROLE_TASKS,
+        FactValueType.STRING_LIST,
+    ),
+    _intake_fact(
+        FactKey.ROLE_TRAVEL_REQUIRED,
+        "Travel required",
+        STEP_KEY_ROLE_TASKS,
+        FactValueType.BOOLEAN,
+    ),
+    _intake_fact(
+        FactKey.ROLE_ON_CALL,
+        "On-call requirement",
+        STEP_KEY_ROLE_TASKS,
+        FactValueType.BOOLEAN,
+    ),
+    _intake_fact(
+        FactKey.ROLE_ONBOARDING_NOTES,
+        "Onboarding notes",
+        STEP_KEY_ROLE_TASKS,
+        FactValueType.STRING,
+    ),
+    _intake_fact(
+        FactKey.ROLE_GAPS,
+        "Extraction gaps",
+        STEP_KEY_ROLE_TASKS,
+        FactValueType.STRING_LIST,
+    ),
+    _intake_fact(
+        FactKey.ROLE_ASSUMPTIONS,
+        "Extraction assumptions",
+        STEP_KEY_ROLE_TASKS,
+        FactValueType.STRING_LIST,
+    ),
+    _intake_fact(
+        FactKey.SKILLS_MUST_HAVE_SKILLS,
+        "Must-have skills",
+        STEP_KEY_SKILLS,
+        FactValueType.STRING_LIST,
+    ),
+    _intake_fact(
+        FactKey.SKILLS_NICE_TO_HAVE_SKILLS,
+        "Nice-to-have skills",
+        STEP_KEY_SKILLS,
+        FactValueType.STRING_LIST,
+    ),
+    _intake_fact(
+        FactKey.SKILLS_SOFT_SKILLS,
+        "Soft skills",
+        STEP_KEY_SKILLS,
+        FactValueType.STRING_LIST,
+    ),
+    _intake_fact(
+        FactKey.SKILLS_EDUCATION,
+        "Education",
+        STEP_KEY_SKILLS,
+        FactValueType.STRING_LIST,
+    ),
+    _intake_fact(
+        FactKey.SKILLS_CERTIFICATIONS,
+        "Certifications",
+        STEP_KEY_SKILLS,
+        FactValueType.STRING_LIST,
+    ),
+    _intake_fact(
+        FactKey.SKILLS_LANGUAGES,
+        "Languages",
+        STEP_KEY_SKILLS,
+        FactValueType.STRING_LIST,
+    ),
+    _intake_fact(
+        FactKey.BENEFITS_SALARY_RANGE,
+        "Salary range",
+        STEP_KEY_BENEFITS,
+        FactValueType.MONEY_RANGE,
+    ),
+    _intake_fact(
+        FactKey.BENEFITS_BENEFITS,
+        "Benefits",
+        STEP_KEY_BENEFITS,
+        FactValueType.STRING_LIST,
+    ),
+    _intake_fact(
+        FactKey.INTERVIEW_START_DATE,
+        "Start date",
+        STEP_KEY_INTERVIEW,
+        FactValueType.DATE_STRING,
+    ),
+    _intake_fact(
+        FactKey.INTERVIEW_APPLICATION_DEADLINE,
+        "Application deadline",
+        STEP_KEY_INTERVIEW,
+        FactValueType.DATE_STRING,
+    ),
+    _intake_fact(
+        FactKey.INTERVIEW_RECRUITMENT_STEPS,
+        "Recruitment steps",
+        STEP_KEY_INTERVIEW,
+        FactValueType.OBJECT_LIST,
+    ),
+    _intake_fact(
+        FactKey.INTERVIEW_CONTACTS,
+        "Contacts",
+        STEP_KEY_INTERVIEW,
+        FactValueType.OBJECT_LIST,
+    ),
+)
 
 
 QUESTION_SCHEMA_VERSION: Final[str] = "2026-04-09"
