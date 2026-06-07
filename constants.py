@@ -250,6 +250,7 @@ class SSKey(str, Enum):
     SOURCE_REDACT_PII = "cs.source_redact_pii"
 
     JOB_EXTRACT = "cs.job_extract"
+    INTAKE_FACTS = "cs.intake_facts"
     QUESTION_PLAN_BASE = "cs.question_plan_base"
     QUESTION_PLAN = "cs.question_plan"
     QUESTION_LIMITS = "cs.question_limits"
