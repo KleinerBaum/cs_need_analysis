@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -48,10 +49,15 @@ def _question_is_covered(
     answers: dict[str, Any],
     answer_meta: AnswerMetaMap,
     job_extract: JobAdExtract | None,
+    intake_facts: Mapping[str, Any] | None,
 ) -> bool:
     if is_answered(question, answers.get(question.id), answer_meta.get(question.id)):
         return True
-    return is_question_covered_by_job_extract(question, job_extract)
+    return is_question_covered_by_job_extract(
+        question,
+        job_extract,
+        intake_facts=intake_facts,
+    )
 
 
 def compute_adaptive_question_limits(
@@ -61,6 +67,7 @@ def compute_adaptive_question_limits(
     answers: dict[str, Any],
     answer_meta: AnswerMetaMap,
     job_extract: JobAdExtract | None,
+    intake_facts: Mapping[str, Any] | None = None,
 ) -> dict[str, int]:
     profile = _resolve_mode_profile(ui_mode)
     limits: dict[str, int] = {}
@@ -73,6 +80,7 @@ def compute_adaptive_question_limits(
             answers,
             answer_meta,
             job_extract=job_extract,
+            intake_facts=intake_facts,
         )
         visible_questions = [
             question
@@ -96,6 +104,7 @@ def compute_adaptive_question_limits(
                 answers=answers,
                 answer_meta=answer_meta,
                 job_extract=job_extract,
+                intake_facts=intake_facts,
             )
         )
         missing = max(total - covered, 0)
@@ -140,4 +149,5 @@ def sync_adaptive_question_limits() -> None:
         answers=answers,
         answer_meta=answer_meta,
         job_extract=job_extract,
+        intake_facts=st.session_state.get(SSKey.INTAKE_FACTS.value),
     )

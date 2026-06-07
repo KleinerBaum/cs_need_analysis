@@ -5,15 +5,43 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Mapping
 from typing import Any, Literal, TypedDict
 
-from constants import AnswerType
+from constants import INTAKE_FACTS, AnswerType, FactKey
 from schemas import JobAdExtract, Question
 
 WizardUIMode = Literal["quick", "standard", "expert"]
 
 SINGLE_SELECT_PLACEHOLDERS = frozenset({"", "— Bitte wählen —"})
 _JOB_EXTRACT_FIELDS = frozenset(JobAdExtract.model_fields)
+_VALID_FACT_KEYS = frozenset(fact.fact_key for fact in INTAKE_FACTS)
+_FACT_JOB_EXTRACT_FIELDS: dict[FactKey, str] = {
+    FactKey.COMPANY_COMPANY_NAME: "company_name",
+    FactKey.COMPANY_COMPANY_WEBSITE: "company_website",
+    FactKey.COMPANY_BRAND_NAME: "brand_name",
+    FactKey.COMPANY_LOCATION_CITY: "location_city",
+    FactKey.COMPANY_LOCATION_COUNTRY: "location_country",
+    FactKey.COMPANY_PLACE_OF_WORK: "place_of_work",
+    FactKey.COMPANY_REMOTE_POLICY: "remote_policy",
+    FactKey.ROLE_JOB_TITLE: "job_title",
+    FactKey.ROLE_EMPLOYMENT_TYPE: "employment_type",
+    FactKey.ROLE_CONTRACT_TYPE: "contract_type",
+    FactKey.ROLE_RESPONSIBILITIES: "responsibilities",
+    FactKey.ROLE_SUCCESS_METRICS: "success_metrics",
+    FactKey.SKILLS_MUST_HAVE_SKILLS: "must_have_skills",
+    FactKey.SKILLS_NICE_TO_HAVE_SKILLS: "nice_to_have_skills",
+    FactKey.SKILLS_LANGUAGES: "languages",
+    FactKey.BENEFITS_SALARY_RANGE: "salary_range",
+    FactKey.BENEFITS_BENEFITS: "benefits",
+    FactKey.INTERVIEW_RECRUITMENT_STEPS: "recruitment_steps",
+    FactKey.INTERVIEW_CONTACTS: "contacts",
+}
+_JOB_EXTRACT_FIELD_FACTS = {
+    field_name: fact_key
+    for fact_key, field_name in _FACT_JOB_EXTRACT_FIELDS.items()
+    if field_name in _JOB_EXTRACT_FIELDS
+}
 
 _JOB_EXTRACT_ALIAS_RULES: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (
@@ -160,6 +188,7 @@ def build_answered_lookup(
     answer_meta: AnswerMetaMap,
     *,
     job_extract: JobAdExtract | None = None,
+    intake_facts: Mapping[str, Any] | None = None,
 ) -> dict[str, bool]:
     """Return a per-question answered lookup for reuse across render sections."""
 
@@ -169,7 +198,11 @@ def build_answered_lookup(
             answers.get(question.id),
             answer_meta.get(question.id),
         )
-        or is_question_covered_by_job_extract(question, job_extract)
+        or is_question_covered_by_job_extract(
+            question,
+            job_extract,
+            intake_facts=intake_facts,
+        )
         for question in questions
     }
 
@@ -217,10 +250,11 @@ def build_answers_with_job_extract_coverage(
     answer_meta: AnswerMetaMap,
     *,
     job_extract: JobAdExtract | None = None,
+    intake_facts: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return answers plus inferred extract values for dependency evaluation only."""
 
-    if job_extract is None:
+    if job_extract is None and not intake_facts:
         return dict(answers)
 
     effective_answers = dict(answers)
@@ -231,7 +265,11 @@ def build_answers_with_job_extract_coverage(
             answer_meta.get(question.id),
         ):
             continue
-        extracted_value = resolve_question_job_extract_value(question, job_extract)
+        extracted_value = resolve_question_job_extract_value(
+            question,
+            job_extract,
+            intake_facts=intake_facts,
+        )
         if _has_meaningful_extract_value(extracted_value):
             effective_answers[question.id] = extracted_value
     return effective_answers
@@ -240,17 +278,29 @@ def build_answers_with_job_extract_coverage(
 def is_question_covered_by_job_extract(
     question: Question,
     job_extract: JobAdExtract | None,
+    *,
+    intake_facts: Mapping[str, Any] | None = None,
 ) -> bool:
     return _has_meaningful_extract_value(
-        resolve_question_job_extract_value(question, job_extract)
+        resolve_question_job_extract_value(
+            question,
+            job_extract,
+            intake_facts=intake_facts,
+        )
     )
 
 
 def resolve_question_job_extract_value(
     question: Question,
     job_extract: JobAdExtract | None,
+    *,
+    intake_facts: Mapping[str, Any] | None = None,
 ) -> Any:
     """Resolve a question to a canonical JobAdExtract value when possible."""
+
+    fact_value = _resolve_question_intake_fact_value(question, intake_facts)
+    if _has_meaningful_extract_value(fact_value):
+        return fact_value
 
     if job_extract is None:
         return None
@@ -276,6 +326,47 @@ def resolve_question_job_extract_value(
             if _has_meaningful_extract_value(field_value):
                 return field_value
     return None
+
+
+def _resolve_question_intake_fact_value(
+    question: Question,
+    intake_facts: Mapping[str, Any] | None,
+) -> Any:
+    if not isinstance(intake_facts, Mapping):
+        return None
+
+    for fact_key in _candidate_question_fact_keys(question):
+        value = intake_facts.get(fact_key.value)
+        if _has_meaningful_extract_value(value):
+            return value
+    return None
+
+
+def _candidate_question_fact_keys(question: Question) -> tuple[FactKey, ...]:
+    candidates: list[FactKey] = []
+    for raw_key in (
+        question.target_path,
+        _normalize_path_tail(question.target_path),
+        question.id,
+        _normalize_path_tail(question.id),
+    ):
+        fact_key = _coerce_fact_key(raw_key)
+        if fact_key is None:
+            fact_key = _JOB_EXTRACT_FIELD_FACTS.get(str(raw_key or "").strip())
+        if fact_key is None or fact_key in candidates:
+            continue
+        candidates.append(fact_key)
+    return tuple(candidates)
+
+
+def _coerce_fact_key(raw_key: Any) -> FactKey | None:
+    if not isinstance(raw_key, str):
+        return None
+    try:
+        fact_key = FactKey(raw_key.strip())
+    except ValueError:
+        return None
+    return fact_key if fact_key in _VALID_FACT_KEYS else None
 
 
 def extract_job_extract_value_by_path(
@@ -351,6 +442,7 @@ def compute_question_progress(
     answered_lookup: dict[str, bool] | None = None,
     *,
     job_extract: JobAdExtract | None = None,
+    intake_facts: Mapping[str, Any] | None = None,
 ) -> QuestionProgress:
     """Compute answered/total and open required counts for a question list."""
 
@@ -367,7 +459,11 @@ def compute_question_progress(
                 answers.get(question.id),
                 answer_meta.get(question.id),
             )
-            or is_question_covered_by_job_extract(question, job_extract)
+            or is_question_covered_by_job_extract(
+                question,
+                job_extract,
+                intake_facts=intake_facts,
+            )
         )
         if question_answered:
             answered += 1

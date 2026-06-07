@@ -187,6 +187,8 @@ def _promote_reviewed_job_extract(job: JobAdExtract, plan: QuestionPlan) -> None
     answers = dict(answers_raw) if isinstance(answers_raw, dict) else {}
     meta_raw = st.session_state.get(SSKey.ANSWER_META.value, {})
     meta = dict(meta_raw) if isinstance(meta_raw, dict) else {}
+    intake_facts_raw = st.session_state.get(SSKey.INTAKE_FACTS.value)
+    intake_facts = intake_facts_raw if isinstance(intake_facts_raw, dict) else {}
 
     for step in plan.steps:
         for question in step.questions:
@@ -199,7 +201,11 @@ def _promote_reviewed_job_extract(job: JobAdExtract, plan: QuestionPlan) -> None
                 question_meta if isinstance(question_meta, dict) else {},
             ):
                 continue
-            extracted_value = resolve_question_job_extract_value(question, job)
+            extracted_value = resolve_question_job_extract_value(
+                question,
+                job,
+                intake_facts=intake_facts,
+            )
             answer_value = _coerce_extract_value_for_question(question, extracted_value)
             if not _has_promotable_value(answer_value):
                 continue
