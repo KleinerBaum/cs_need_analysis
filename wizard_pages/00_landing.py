@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import base64
+from pathlib import Path
+
 import streamlit as st
 from content.start_page import START_PAGE_COPY
 from constants import APP_TITLE
@@ -65,93 +68,19 @@ def _render_landing_responsive_overrides() -> None:
                 line-height: 1.35;
                 margin-top: 0.18rem;
             }
-            .landing-compare-grid {
-                display: grid;
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-                gap: 0.8rem;
-                align-items: stretch;
-                margin-top: 1rem;
-            }
-            .landing-compare-panel {
+            .landing-iceberg-card {
                 border: 1px solid var(--cs-border);
                 background: var(--cs-surface);
                 border-radius: 8px;
-                padding: 0.85rem 0.9rem;
+                box-shadow: 0 8px 22px rgba(22, 50, 79, 0.06);
+                overflow: hidden;
+                padding: clamp(0.55rem, 1.5vw, 1rem);
             }
-            .landing-compare-panel h4,
-            .landing-context-panel h4,
-            .landing-context-card h4,
-            .landing-process-diagram h4 {
-                margin: 0 0 0.5rem 0;
-                font-size: 1rem;
-                color: var(--cs-text);
-            }
-            .landing-compare-panel p {
-                color: var(--cs-text-muted);
-                line-height: 1.45;
-                margin: 0 0 0.65rem 0;
-            }
-            .landing-compare-panel ul {
-                margin: 0;
-                padding-left: 1.05rem;
-            }
-            .landing-compare-panel li {
-                margin-bottom: 0.42rem;
-                line-height: 1.38;
-            }
-            .landing-compare-panel--classic {
-                border-color: #F59E0B;
-                background: var(--cs-warning-soft);
-            }
-            .landing-compare-panel--ai {
-                border-color: #0F766E;
-                background: var(--cs-success-soft);
-            }
-            .landing-context-panel {
-                margin-top: 0.85rem;
-                border: 1px solid var(--cs-border);
-                background: var(--cs-surface);
-                border-radius: 8px;
-                padding: 0.9rem;
-            }
-            .landing-context-grid {
-                display: grid;
-                grid-template-columns: repeat(3, minmax(0, 1fr));
-                gap: 0.75rem;
-                align-items: stretch;
-            }
-            .landing-context-card {
-                border: 1px solid var(--cs-border);
-                border-radius: 8px;
-                background: var(--cs-surface-muted);
-                padding: 0.9rem;
-                min-height: 100%;
-            }
-            .landing-context-card--source {
-                border-color: #F59E0B;
-                background: var(--cs-warning-soft);
-            }
-            .landing-context-card--ai {
-                border-color: #0F766E;
-                background: var(--cs-success-soft);
-            }
-            .landing-context-card--output {
-                border-color: #2563EB;
-                background: var(--cs-primary-soft);
-            }
-            .landing-context-card strong {
+            .landing-iceberg-card img {
                 display: block;
-                color: var(--cs-text);
-                margin-bottom: 0.45rem;
-            }
-            .landing-context-card ul {
-                margin: 0;
-                padding-left: 1.05rem;
-            }
-            .landing-context-card li {
-                margin-bottom: 0.32rem;
-                line-height: 1.34;
-                color: var(--cs-text-muted);
+                width: 100%;
+                height: auto;
+                border-radius: 6px;
             }
             .landing-process-diagram {
                 border: 1px solid #0F766E;
@@ -205,6 +134,11 @@ def _render_landing_responsive_overrides() -> None:
                 font-size: 0.92rem;
                 line-height: 1.25;
             }
+            .landing-process-diagram h4 {
+                margin: 0 0 0.5rem 0;
+                font-size: 1rem;
+                color: var(--cs-text);
+            }
             .landing-process-step p {
                 margin: 0.25rem 0 0 0;
                 color: var(--cs-text-muted);
@@ -232,9 +166,7 @@ def _render_landing_responsive_overrides() -> None:
                 font-size: 0.86rem;
                 font-weight: 700;
             }
-            .landing-compare-panel,
-            .landing-context-panel,
-            .landing-context-card,
+            .landing-iceberg-card,
             .landing-process-step,
             .landing-signal,
             .landing-resource-links a {
@@ -242,8 +174,6 @@ def _render_landing_responsive_overrides() -> None:
             }
             @media (max-width: 900px) {
                 .landing-signal-row,
-                .landing-compare-grid,
-                .landing-context-grid,
                 .landing-process-track {
                     grid-template-columns: minmax(0, 1fr);
                 }
@@ -258,6 +188,13 @@ def _render_landing_responsive_overrides() -> None:
         """,
         unsafe_allow_html=True,
     )
+
+
+def _image_uri(filename: str) -> str:
+    image_path = Path(__file__).resolve().parents[1] / "images" / filename
+    image_bytes = image_path.read_bytes()
+    encoded_image = base64.b64encode(image_bytes).decode("utf-8")
+    return f"data:image/png;base64,{encoded_image}"
 
 
 def _render_landing_hero() -> None:
@@ -353,70 +290,17 @@ def _render_landing_flow_cards() -> None:
 
 
 def _render_landing_explainer_sections() -> None:
+    iceberg_uri = _image_uri("Eisberg.png")
     st.markdown(
-        f'<section id="{LANDING_SECTION_IDS["importance"]}" class="landing-section landing-card">',
-        unsafe_allow_html=True,
-    )
-    st.subheader(str(START_PAGE_COPY["importance_title"]))
-    st.markdown(
-        """
-        Klassischer Intake sammelt oft nur das, was in der Jobspec sofort sichtbar ist.
-        Dieser Wizard nutzt AI, ESCO und Retrieval-Augmented Generation, um den Bedarf
-        schrittweise zu vervollständigen und später besser verwertbar zu machen.
-        """.strip()
-    )
-    st.markdown("</section>", unsafe_allow_html=True)
-
-    st.markdown(
-        f'<section id="{LANDING_SECTION_IDS["value_cards"]}" class="landing-section">',
-        unsafe_allow_html=True,
-    )
-    st.subheader("Klassische Bedarfsanalyse vs. AI-unterstützter Intake")
-    st.markdown(
-        """
-        <div class="landing-compare-grid">
-            <div class="landing-compare-panel landing-compare-panel--classic">
-                <h4>Klassisch: sichtbar, aber lückenhaft</h4>
-                <p>Die Jobspec zeigt den Startpunkt, aber selten den vollständigen Recruiting-Bedarf.</p>
+        f"""
+        <section id="{LANDING_SECTION_IDS["importance"]}" class="landing-section">
+            <div class="landing-iceberg-card">
+                <img src="{iceberg_uri}" alt="{START_PAGE_COPY["importance_title"]}">
             </div>
-            <div class="landing-compare-panel landing-compare-panel--ai">
-                <h4>AI-unterstützt: Kontext wird sichtbar</h4>
-                <p>Die App ergänzt den Rollenanker, priorisiert offene Fragen und macht Folgeartefakte belastbarer.</p>
-            </div>
-        </div>
-        <div class="landing-context-panel">
-            <h4>Vom sichtbaren Text zur belastbaren Entscheidungsgrundlage</h4>
-            <div class="landing-context-grid">
-                <div class="landing-context-card landing-context-card--source">
-                    <strong>Sichtbar in der Jobspec</strong>
-                    <ul>
-                        <li>Rollenbezeichnung, Aufgaben und Anforderungen</li>
-                        <li>Rahmendaten wie Einsatzort, Vertrag und Angebot</li>
-                        <li>erste Must-haves und Nice-to-haves</li>
-                    </ul>
-                </div>
-                <div class="landing-context-card landing-context-card--ai">
-                    <strong>Durch AI/ESCO klärbar</strong>
-                    <ul>
-                        <li>fachliche Rolle hinter uneindeutigen Titeln</li>
-                        <li>relevante Skills durch Abgleich mit dem Berufskontext</li>
-                        <li>fehlende Anforderungen, Widersprüche und offene Entscheidungen</li>
-                    </ul>
-                </div>
-                <div class="landing-context-card landing-context-card--output">
-                    <strong>Ergebnis für Recruiting</strong>
-                    <ul>
-                        <li>gemeinsamer Rollenanker für Hiring-Team und Recruiting</li>
-                        <li>priorisierte Rückfragen statt langer Pflichtformulare</li>
-                        <li>saubere Basis für Summary, Interview und Folgeartefakte</li>
-                    </ul>
-                </div>
-            </div>
-        </div>
+        </section>
         """,
         unsafe_allow_html=True,
     )
-    st.markdown("</section>", unsafe_allow_html=True)
 
 
 def render(ctx: WizardContext) -> None:

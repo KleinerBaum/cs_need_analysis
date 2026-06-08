@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+from pathlib import Path
 import streamlit as st
 
 from components.design_system import render_ui_styles
@@ -46,12 +47,19 @@ def _inject_theme_styles() -> None:
 
     render_ui_styles()
 
-    from pathlib import Path
-
     root_dir = Path(__file__).resolve().parent
     logo_path = root_dir / "images" / "animation_pulse_SingleColorHex1_7kigl22lw.gif"
-    image_bytes = logo_path.read_bytes()
-    logo_uri = f"data:image/gif;base64,{base64.b64encode(image_bytes).decode('utf-8')}"
+    light_bg_path = root_dir / "images" / "light.png"
+    dark_bg_path = root_dir / "images" / "dark.png"
+
+    def _image_uri(path: Path, mime_type: str) -> str:
+        image_bytes = path.read_bytes()
+        encoded_image = base64.b64encode(image_bytes).decode("utf-8")
+        return f"data:{mime_type};base64,{encoded_image}"
+
+    logo_uri = _image_uri(logo_path, "image/gif")
+    light_bg_uri = _image_uri(light_bg_path, "image/png")
+    dark_bg_uri = _image_uri(dark_bg_path, "image/png")
 
     # App-shell specific styles (logo/header/sidebar spacing/layout quirks).
     st.markdown(
@@ -59,6 +67,33 @@ def _inject_theme_styles() -> None:
         <style>
             [data-testid="stHeader"] {{
                 background: transparent;
+            }}
+
+            .stApp,
+            .stMain,
+            [data-testid="stAppViewContainer"] {{
+                background:
+                    linear-gradient(
+                        color-mix(in srgb, var(--cs-bg) 84%, transparent),
+                        color-mix(in srgb, var(--cs-bg) 84%, transparent)
+                    ),
+                    url("{light_bg_uri}") center / cover fixed no-repeat !important;
+            }}
+
+            :root[data-theme="dark"] .stApp,
+            :root[data-theme="dark"] .stMain,
+            :root[data-theme="dark"] [data-testid="stAppViewContainer"] {{
+                background:
+                    linear-gradient(
+                        color-mix(in srgb, var(--cs-bg) 78%, transparent),
+                        color-mix(in srgb, var(--cs-bg) 78%, transparent)
+                    ),
+                    url("{dark_bg_uri}") center / cover fixed no-repeat !important;
+            }}
+
+            .stMainBlockContainer,
+            .block-container {{
+                background: transparent !important;
             }}
 
             [data-testid="stSidebarContent"]::before {{
