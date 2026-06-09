@@ -944,6 +944,7 @@ def render_esco_picker_card(
     taxonomy_auto_load: bool = False,
     taxonomy_in_expander: bool = True,
     taxonomy_title: str = "Taxonomie/Breadcrumb",
+    layout_variant: Literal["default", "anchor_card"] = "default",
 ) -> None:
     session_key = _normalize_target_state_key(target_state_key)
     if not session_key:
@@ -964,13 +965,26 @@ def render_esco_picker_card(
     if ui_mode not in {"quick", "standard", "expert"}:
         ui_mode = "standard"
 
+    use_anchor_card = (
+        layout_variant == "anchor_card"
+        and concept_type == "occupation"
+        and not allow_multi
+    )
+    resolved_query_label = (
+        "Suchbegriff für Berufsabgleich" if use_anchor_card else query_label
+    )
     query_text = st.text_input(
-        query_label,
+        resolved_query_label,
         key=query_key,
         placeholder=query_placeholder,
         on_change=_set_session_flag_true,
         args=(submit_flag_key,),
     ).strip()
+    if use_anchor_card:
+        st.caption(
+            "Der Begriff steuert nur die ESCO-Suche; deine Rollenbeschreibung "
+            "und spätere Antworten bleiben unverändert."
+        )
 
     suggestions: list[dict[str, str]] = []
     used_fallback_path = False
@@ -1021,19 +1035,25 @@ def render_esco_picker_card(
     option_labels = [_label_for_option(item) for item in options]
     selected_payload: list[dict[str, str]] = []
     selected_index: int | None = None
-    if allow_multi:
-        resolved_selection_label = selection_label or "Vorschläge"
-        selected_indices = st.multiselect(
-            resolved_selection_label,
-            options=list(range(len(options))),
-            format_func=lambda idx: option_labels[idx],
-            key=selected_key,
+
+    def _render_selection_controls() -> None:
+        nonlocal selected_payload, selected_index
+        if allow_multi:
+            resolved_selection_label = selection_label or "Vorschläge"
+            selected_indices = st.multiselect(
+                resolved_selection_label,
+                options=list(range(len(options))),
+                format_func=lambda idx: option_labels[idx],
+                key=selected_key,
+            )
+            selected_payload = [
+                options[idx] for idx in selected_indices if idx < len(options)
+            ]
+            return
+
+        resolved_selection_label = selection_label or (
+            "ESCO-Beruf auswählen" if use_anchor_card else "Top-Vorschlag auswählen"
         )
-        selected_payload = [
-            options[idx] for idx in selected_indices if idx < len(options)
-        ]
-    else:
-        resolved_selection_label = selection_label or "Top-Vorschlag auswählen"
         selected_index = st.selectbox(
             resolved_selection_label,
             options=list(range(len(options))),
@@ -1045,13 +1065,19 @@ def render_esco_picker_card(
         if selected_index is not None and selected_index < len(options):
             selected_payload = [options[selected_index]]
         if options and show_results_overview:
-            st.caption("Trefferübersicht")
+            st.caption("Top-Treffer" if use_anchor_card else "Trefferübersicht")
             preview_columns = st.columns(3, gap="small")
             for idx, concept in enumerate(options[:3]):
                 with preview_columns[idx]:
                     concept_title = str(concept.get("title") or "—").strip() or "—"
                     marker = "✅" if idx == selected_index else "•"
                     st.write(f"{marker} {concept_title}")
+
+    if use_anchor_card:
+        with st.container(border=True):
+            _render_selection_controls()
+    else:
+        _render_selection_controls()
 
     enter_submit = bool(st.session_state.get(submit_flag_key, False))
     if enter_submit:

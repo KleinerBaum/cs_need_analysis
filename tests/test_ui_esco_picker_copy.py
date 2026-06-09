@@ -17,13 +17,16 @@ class _NoopContext:
 class _FakeStreamlit:
     def __init__(self) -> None:
         self.session_state: dict[str, Any] = {}
+        self.text_input_labels: list[str] = []
         self.selectbox_labels: list[str] = []
         self.button_labels: list[str] = []
         self.expander_labels: list[str] = []
         self.expander_calls: list[tuple[str, bool | None]] = []
         self.captions: list[str] = []
+        self.container_calls: list[dict[str, Any]] = []
 
-    def text_input(self, _: str, **__: Any) -> str:
+    def text_input(self, label: str, **__: Any) -> str:
+        self.text_input_labels.append(label)
         return ""
 
     def selectbox(self, label: str, **__: Any) -> int | None:
@@ -37,6 +40,10 @@ class _FakeStreamlit:
     def expander(self, label: str, **__: Any) -> _NoopContext:
         self.expander_labels.append(label)
         self.expander_calls.append((label, __.get("expanded")))
+        return _NoopContext()
+
+    def container(self, **kwargs: Any) -> _NoopContext:
+        self.container_calls.append(kwargs)
         return _NoopContext()
 
     def caption(self, message: str) -> None:
@@ -72,7 +79,9 @@ def test_render_esco_picker_card_uses_default_copy(monkeypatch) -> None:
         enable_preview=True,
     )
 
+    assert fake_st.text_input_labels == ["ESCO Suche"]
     assert fake_st.selectbox_labels == ["Top-Vorschlag auswählen"]
+    assert fake_st.container_calls == []
     assert fake_st.expander_labels == ["Preview vor Apply"]
     assert fake_st.expander_calls == [("Preview vor Apply", False)]
     assert fake_st.button_labels == ["Apply"]
@@ -92,8 +101,48 @@ def test_render_esco_picker_card_uses_copy_overrides(monkeypatch) -> None:
         confirmation_helper_text="Confirm occupation for downstream suggestions",
     )
 
+    assert fake_st.text_input_labels == ["ESCO Suche"]
     assert fake_st.selectbox_labels == ["Choose semantic occupation"]
+    assert fake_st.container_calls == []
     assert fake_st.expander_labels == ["Preview semantic anchor"]
     assert fake_st.expander_calls == [("Preview semantic anchor", False)]
     assert fake_st.button_labels == ["Use as semantic anchor"]
     assert "Confirm occupation for downstream suggestions" in fake_st.captions
+
+
+def test_render_esco_picker_card_anchor_card_uses_compact_occupation_copy(
+    monkeypatch,
+) -> None:
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(ui_components, "st", fake_st)
+
+    ui_components.render_esco_picker_card(
+        concept_type="occupation",
+        target_state_key="esco.occupation",
+        layout_variant="anchor_card",
+    )
+
+    assert fake_st.text_input_labels == ["Suchbegriff für Berufsabgleich"]
+    assert fake_st.selectbox_labels == ["ESCO-Beruf auswählen"]
+    assert fake_st.container_calls == [{"border": True}]
+    assert (
+        "Der Begriff steuert nur die ESCO-Suche; deine Rollenbeschreibung "
+        "und spätere Antworten bleiben unverändert."
+    ) in fake_st.captions
+
+
+def test_render_esco_picker_card_anchor_card_does_not_change_skill_picker(
+    monkeypatch,
+) -> None:
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(ui_components, "st", fake_st)
+
+    ui_components.render_esco_picker_card(
+        concept_type="skill",
+        target_state_key="esco.skill",
+        layout_variant="anchor_card",
+    )
+
+    assert fake_st.text_input_labels == ["ESCO Suche"]
+    assert fake_st.selectbox_labels == ["Top-Vorschlag auswählen"]
+    assert fake_st.container_calls == []
