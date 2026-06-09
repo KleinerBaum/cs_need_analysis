@@ -69,31 +69,53 @@ def _inject_theme_styles() -> None:
                 background: transparent;
             }}
 
-            .stApp,
-            .stMain,
-            [data-testid="stAppViewContainer"] {{
-                --cs-app-bg: var(--background-color, #F3F6FA);
+            .stApp {{
+                --cs-app-bg: var(--background-color, Canvas);
+                --cs-app-text: var(--text-color, CanvasText);
+                --cs-app-surface: var(
+                    --secondary-background-color,
+                    color-mix(in srgb, var(--cs-app-bg) 92%, var(--cs-app-text) 8%)
+                );
+                --cs-app-border: var(
+                    --border-color,
+                    color-mix(in srgb, var(--cs-app-text) 18%, transparent)
+                );
+                --cs-bg: var(--cs-app-bg);
+                --cs-surface: var(--cs-app-surface);
+                --cs-surface-muted: color-mix(
+                    in srgb,
+                    var(--cs-app-surface) 88%,
+                    var(--cs-app-bg)
+                );
+                --cs-border: var(--cs-app-border);
+                --cs-border-soft: color-mix(in srgb, var(--cs-app-border) 72%, transparent);
+                --cs-text: var(--cs-app-text);
+                --cs-text-muted: color-mix(in srgb, var(--cs-app-text) 86%, transparent);
+                --cs-text-subtle: color-mix(in srgb, var(--cs-app-text) 66%, transparent);
                 background:
                     linear-gradient(
                         color-mix(in srgb, var(--cs-app-bg) 84%, transparent),
                         color-mix(in srgb, var(--cs-app-bg) 84%, transparent)
                     ),
                     url("{light_bg_uri}") center / cover fixed no-repeat !important;
+                color: var(--cs-app-text);
             }}
 
-            [data-theme="dark"] .stApp,
-            [data-theme="dark"] .stMain,
-            [data-theme="dark"] [data-testid="stAppViewContainer"],
-            .stApp[data-theme="dark"],
-            .stMain[data-theme="dark"],
-            [data-testid="stAppViewContainer"][data-theme="dark"] {{
-                --cs-app-bg: #0B1726;
-                background:
-                    linear-gradient(
-                        color-mix(in srgb, var(--cs-app-bg) 66%, transparent),
-                        color-mix(in srgb, var(--cs-app-bg) 66%, transparent)
-                    ),
-                    url("{dark_bg_uri}") center / cover fixed no-repeat !important;
+            [data-testid="stAppViewContainer"],
+            .stMain {{
+                background: transparent !important;
+                color: var(--cs-text);
+            }}
+
+            @media (prefers-color-scheme: dark) {{
+                .stApp {{
+                    background:
+                        linear-gradient(
+                            color-mix(in srgb, var(--cs-app-bg) 66%, transparent),
+                            color-mix(in srgb, var(--cs-app-bg) 66%, transparent)
+                        ),
+                        url("{dark_bg_uri}") center / cover fixed no-repeat !important;
+                }}
             }}
 
             .stMainBlockContainer,
