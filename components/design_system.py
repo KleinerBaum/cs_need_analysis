@@ -64,6 +64,14 @@ def render_ui_styles() -> None:
             --cs-text: var(--text-color, #16324F);
             --cs-text-muted: color-mix(in srgb, var(--text-color, #334155) 86%, transparent);
             --cs-text-subtle: color-mix(in srgb, var(--text-color, #64748B) 66%, transparent);
+            --cs-sidebar-surface: color-mix(
+                in srgb,
+                var(--secondary-background-color, #FFFFFF) 92%,
+                var(--background-color, #F3F6FA)
+            );
+            --cs-sidebar-border: color-mix(in srgb, var(--border-color, #D9E2EC) 82%, transparent);
+            --cs-sidebar-text: var(--text-color, #16324F);
+            --cs-sidebar-text-muted: color-mix(in srgb, var(--text-color, #334155) 78%, transparent);
             --cs-primary: var(--primary-color, var(--cs-primary-blue));
             --cs-primary-soft: color-mix(in srgb, var(--cs-primary) 18%, var(--cs-surface));
             --cs-success: var(--cs-guidance-teal);
@@ -89,6 +97,10 @@ def render_ui_styles() -> None:
             --cs-text: #E2E8F0;
             --cs-text-muted: #A6B4C8;
             --cs-text-subtle: #8EA0B8;
+            --cs-sidebar-surface: #152640;
+            --cs-sidebar-border: #24466F;
+            --cs-sidebar-text: #E2E8F0;
+            --cs-sidebar-text-muted: #A6B4C8;
             --cs-primary: #2563EB;
             --cs-primary-soft: #1E40AF;
             --cs-success: #0F766E;
@@ -167,6 +179,21 @@ def render_ui_styles() -> None:
             border-radius: var(--cs-radius-sm);
             padding: 0.8rem 0.85rem;
             min-height: 100%;
+        }
+        [data-testid="stSidebar"] [data-testid="stMetric"] {
+            background: var(--cs-sidebar-surface);
+            border: 1px solid var(--cs-sidebar-border);
+            color: var(--cs-sidebar-text);
+            box-shadow: none;
+        }
+        [data-testid="stSidebar"] [data-testid="stMetric"] label,
+        [data-testid="stSidebar"] [data-testid="stMetric"] [data-testid="stMetricLabel"],
+        [data-testid="stSidebar"] [data-testid="stMetric"] [data-testid="stMetricValue"],
+        [data-testid="stSidebar"] [data-testid="stMetric"] [data-testid="stMetricDelta"] {
+            color: var(--cs-sidebar-text) !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stMetric"] [data-testid="stMetricDelta"] svg {
+            fill: currentColor;
         }
         .cs-card,
         .cs-step-header,
