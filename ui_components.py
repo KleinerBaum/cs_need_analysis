@@ -1065,13 +1065,15 @@ def render_esco_picker_card(
         if selected_index is not None and selected_index < len(options):
             selected_payload = [options[selected_index]]
         if options and show_results_overview:
-            st.caption("Top-Treffer" if use_anchor_card else "Trefferübersicht")
-            preview_columns = st.columns(3, gap="small")
+            st.markdown("**Vorschläge**")
             for idx, concept in enumerate(options[:3]):
-                with preview_columns[idx]:
-                    concept_title = str(concept.get("title") or "—").strip() or "—"
-                    marker = "✅" if idx == selected_index else "•"
-                    st.write(f"{marker} {concept_title}")
+                concept_title = str(concept.get("title") or "—").strip() or "—"
+                status_label = "Ausgewählt" if idx == selected_index else "Alternative"
+                with st.container(border=True):
+                    st.markdown(f"**{idx + 1}. {concept_title}**")
+                    st.caption(status_label)
+                    if ui_mode == "expert":
+                        st.caption(_label_for_option(concept))
 
     if use_anchor_card:
         with st.container(border=True):

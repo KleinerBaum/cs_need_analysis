@@ -24,14 +24,17 @@ class _FakeStreamlit:
         self.expander_calls: list[tuple[str, bool | None]] = []
         self.captions: list[str] = []
         self.container_calls: list[dict[str, Any]] = []
+        self.markdown_calls: list[str] = []
+        self.text_input_value = ""
+        self.selectbox_value: int | None = None
 
     def text_input(self, label: str, **__: Any) -> str:
         self.text_input_labels.append(label)
-        return ""
+        return self.text_input_value
 
     def selectbox(self, label: str, **__: Any) -> int | None:
         self.selectbox_labels.append(label)
-        return None
+        return self.selectbox_value
 
     def multiselect(self, label: str, **__: Any) -> list[int]:
         self.selectbox_labels.append(label)
@@ -49,8 +52,8 @@ class _FakeStreamlit:
     def caption(self, message: str) -> None:
         self.captions.append(message)
 
-    def markdown(self, *_: Any, **__: Any) -> None:
-        return None
+    def markdown(self, message: str, *_: Any, **__: Any) -> None:
+        self.markdown_calls.append(message)
 
     def write(self, *_: Any, **__: Any) -> None:
         return None
@@ -146,3 +149,67 @@ def test_render_esco_picker_card_anchor_card_does_not_change_skill_picker(
     assert fake_st.text_input_labels == ["ESCO Suche"]
     assert fake_st.selectbox_labels == ["Top-Vorschlag auswählen"]
     assert fake_st.container_calls == []
+
+
+class _FakeEscoClient:
+    def suggest2(self, **__: Any) -> dict[str, Any]:
+        return {}
+
+    def search(self, **__: Any) -> dict[str, Any]:
+        return {}
+
+
+def test_render_esco_picker_card_results_overview_uses_candidate_cards(
+    monkeypatch,
+) -> None:
+    fake_st = _FakeStreamlit()
+    fake_st.text_input_value = "Data"
+    fake_st.selectbox_value = 1
+    fake_st.session_state[ui_components.SSKey.UI_MODE.value] = "expert"
+    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_components, "EscoClient", _FakeEscoClient)
+    monkeypatch.setattr(
+        ui_components,
+        "_extract_esco_suggestions",
+        lambda *_args, **_kwargs: [
+            {
+                "title": "Data Engineer",
+                "uri": "https://example.test/occupation/1",
+                "type": "occupation",
+                "source": "auto",
+            },
+            {
+                "title": "Data Analyst",
+                "uri": "https://example.test/occupation/2",
+                "type": "occupation",
+                "source": "manual",
+            },
+            {
+                "title": "Business Analyst",
+                "uri": "https://example.test/occupation/3",
+                "type": "occupation",
+                "source": "auto",
+            },
+        ],
+    )
+
+    ui_components.render_esco_picker_card(
+        concept_type="occupation",
+        target_state_key="esco.occupation",
+        show_apply_button=False,
+    )
+
+    assert "**Vorschläge**" in fake_st.markdown_calls
+    assert "**1. Data Engineer**" in fake_st.markdown_calls
+    assert "**2. Data Analyst**" in fake_st.markdown_calls
+    assert fake_st.captions.count("Alternative") == 2
+    assert fake_st.captions.count("Ausgewählt") == 1
+    assert any(
+        "Data Analyst · https://example.test/occupation/2 · manual" in caption
+        for caption in fake_st.captions
+    )
+    assert fake_st.container_calls == [
+        {"border": True},
+        {"border": True},
+        {"border": True},
+    ]
