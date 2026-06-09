@@ -25,6 +25,7 @@ class _FakeStreamlit:
         self.captions: list[str] = []
         self.container_calls: list[dict[str, Any]] = []
         self.markdown_calls: list[str] = []
+        self.write_calls: list[Any] = []
         self.text_input_value = ""
         self.selectbox_value: int | None = None
 
@@ -55,8 +56,8 @@ class _FakeStreamlit:
     def markdown(self, message: str, *_: Any, **__: Any) -> None:
         self.markdown_calls.append(message)
 
-    def write(self, *_: Any, **__: Any) -> None:
-        return None
+    def write(self, *messages: Any, **__: Any) -> None:
+        self.write_calls.extend(messages)
 
     def warning(self, *_: Any, **__: Any) -> None:
         return None
@@ -132,6 +133,61 @@ def test_render_esco_picker_card_anchor_card_uses_compact_occupation_copy(
         "Der Begriff steuert nur die ESCO-Suche; deine Rollenbeschreibung "
         "und spätere Antworten bleiben unverändert."
     ) in fake_st.captions
+
+
+def test_render_esco_picker_card_anchor_card_bundles_confirmed_summary_and_breadcrumb(
+    monkeypatch,
+) -> None:
+    fake_st = _FakeStreamlit()
+    fake_st.session_state["esco.occupation"] = {
+        "uri": "https://example.test/occupation/1",
+        "title": "Data Engineer",
+        "type": "occupation",
+    }
+    monkeypatch.setattr(ui_components, "st", fake_st)
+
+    ui_components.render_esco_picker_card(
+        concept_type="occupation",
+        target_state_key="esco.occupation",
+        layout_variant="anchor_card",
+    )
+
+    assert fake_st.container_calls == [{"border": True}, {"border": True}]
+    assert "**Bestätigter ESCO-Beruf**" in fake_st.markdown_calls
+    assert "### Data Engineer" in fake_st.markdown_calls
+    assert "**Position im ESCO-Berufsbaum**" in fake_st.markdown_calls
+    assert "**Bestätigte ESCO-Auswahl**" not in fake_st.markdown_calls
+    assert "**Taxonomie/Breadcrumb**" not in fake_st.markdown_calls
+    assert "- Data Engineer" not in fake_st.write_calls
+    assert not any("URI:" in caption for caption in fake_st.captions)
+
+
+def test_render_esco_picker_card_anchor_card_shows_metadata_only_in_expert(
+    monkeypatch,
+) -> None:
+    fake_st = _FakeStreamlit()
+    fake_st.session_state[ui_components.SSKey.UI_MODE.value] = "expert"
+    fake_st.session_state["esco.occupation"] = {
+        "uri": "https://example.test/occupation/1",
+        "title": "Data Engineer",
+        "type": "occupation",
+    }
+    fake_st.session_state["esco.occupation.esco_picker.applied_meta"] = {
+        "version": "v1.2.3",
+        "source": "manual",
+    }
+    monkeypatch.setattr(ui_components, "st", fake_st)
+
+    ui_components.render_esco_picker_card(
+        concept_type="occupation",
+        target_state_key="esco.occupation",
+        layout_variant="anchor_card",
+    )
+
+    assert (
+        "URI: https://example.test/occupation/1 · Version: v1.2.3 · Quelle: manual"
+        in fake_st.captions
+    )
 
 
 def test_render_esco_picker_card_anchor_card_does_not_change_skill_picker(

@@ -815,6 +815,7 @@ def _render_esco_taxonomy_breadcrumb(
     auto_load: bool = False,
     in_expander: bool = True,
     title: str = "Taxonomie/Breadcrumb",
+    show_title: bool = True,
 ) -> None:
     concept_uri = str(concept.get("uri") or "").strip()
     concept_title = str(concept.get("title") or "—").strip()
@@ -909,14 +910,15 @@ def _render_esco_taxonomy_breadcrumb(
 
         st.write(" → ".join(titles))
 
-    if in_expander:
+    if in_expander and show_title:
         with st.expander(
             title, expanded=bool(st.session_state.get(expander_key, False))
         ):
             st.session_state[expander_key] = True
             _render_content()
     else:
-        st.markdown(f"**{title}**")
+        if show_title:
+            st.markdown(f"**{title}**")
         _render_content()
 
 
@@ -1222,6 +1224,28 @@ def render_esco_picker_card(
     source = (
         applied_meta.get("source", "auto") if isinstance(applied_meta, dict) else "auto"
     )
+
+    if use_anchor_card:
+        for idx, concept in enumerate(current_entries):
+            concept_id = _build_esco_concept_id(concept, idx)
+            with st.container(border=True):
+                st.markdown("**Bestätigter ESCO-Beruf**")
+                st.markdown(f"### {concept['title']}")
+                if ui_mode == "expert":
+                    st.caption(
+                        f"URI: {concept['uri']} · Version: {version} · Quelle: {source}"
+                    )
+                st.markdown("**Position im ESCO-Berufsbaum**")
+                _render_esco_taxonomy_breadcrumb(
+                    session_key=session_key,
+                    concept=concept,
+                    concept_id=concept_id,
+                    auto_load=taxonomy_auto_load,
+                    in_expander=False,
+                    title=taxonomy_title,
+                    show_title=False,
+                )
+        return
 
     st.markdown(f"**{confirmed_summary_label}**")
     for idx, concept in enumerate(current_entries):
