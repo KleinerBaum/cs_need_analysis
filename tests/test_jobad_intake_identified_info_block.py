@@ -34,6 +34,7 @@ class _FakeStreamlit:
         self.writes: list[str] = []
         self.markdowns: list[str] = []
         self.tables: list[object] = []
+        self.dataframes: list[tuple[object, dict[str, object]]] = []
         self.editor_rows_by_key: dict[str, list[dict[str, object]]] = {}
         self.text_areas: dict[str, str] = {}
         self.column_config = SimpleNamespace(
@@ -76,6 +77,11 @@ class _FakeStreamlit:
     def table(self, *args, **_kwargs) -> None:
         if args:
             self.tables.append(args[0])
+        return None
+
+    def dataframe(self, *args, **_kwargs) -> None:
+        if args:
+            self.dataframes.append((args[0], dict(_kwargs)))
         return None
 
     def info(self, *_args, **_kwargs) -> None:
@@ -229,8 +235,11 @@ def test_job_extract_overview_maps_gap_labels_to_german(monkeypatch) -> None:
 
     ui_components.render_job_extract_overview(extract, mode="compact")
 
-    assert fake_st.tables
-    table_rows = fake_st.tables[0]
+    assert not fake_st.tables
+    assert fake_st.dataframes
+    table_rows, dataframe_kwargs = fake_st.dataframes[0]
+    assert dataframe_kwargs["hide_index"] is True
+    assert dataframe_kwargs["width"] == "stretch"
     assert {"Attribut": "Location City", "Wert": "—"} in table_rows
     assert {"Attribut": "Start Date", "Wert": "—"} in table_rows
     assert {"Attribut": "Salary Range", "Wert": "—"} in table_rows
