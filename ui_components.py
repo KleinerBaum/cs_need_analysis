@@ -946,7 +946,7 @@ def render_esco_picker_card(
     taxonomy_auto_load: bool = False,
     taxonomy_in_expander: bool = True,
     taxonomy_title: str = "Taxonomie/Breadcrumb",
-    layout_variant: Literal["default", "anchor_card"] = "default",
+    layout_variant: Literal["default", "anchor_card", "secondary_anchor"] = "default",
 ) -> None:
     session_key = _normalize_target_state_key(target_state_key)
     if not session_key:
@@ -972,8 +972,19 @@ def render_esco_picker_card(
         and concept_type == "occupation"
         and not allow_multi
     )
+    use_secondary_anchor_card = (
+        layout_variant == "secondary_anchor"
+        and concept_type == "occupation"
+        and not allow_multi
+    )
     resolved_query_label = (
-        "Suchbegriff für Berufsabgleich" if use_anchor_card else query_label
+        "Suchbegriff für Berufsabgleich"
+        if use_anchor_card
+        else (
+            "Suchbegriff für Kontextrolle"
+            if use_secondary_anchor_card
+            else query_label
+        )
     )
     query_text = st.text_input(
         resolved_query_label,
@@ -986,6 +997,11 @@ def render_esco_picker_card(
         st.caption(
             "Der Begriff steuert nur die ESCO-Suche; deine Rollenbeschreibung "
             "und spätere Antworten bleiben unverändert."
+        )
+    elif use_secondary_anchor_card:
+        st.caption(
+            "Diese Auswahl dokumentiert Kontextrollen; Primäranker und "
+            "Kernexport bleiben unverändert."
         )
 
     suggestions: list[dict[str, str]] = []
@@ -1054,7 +1070,13 @@ def render_esco_picker_card(
             return
 
         resolved_selection_label = selection_label or (
-            "ESCO-Beruf auswählen" if use_anchor_card else "Top-Vorschlag auswählen"
+            "ESCO-Beruf auswählen"
+            if use_anchor_card
+            else (
+                "Kontextrolle auswählen"
+                if use_secondary_anchor_card
+                else "Top-Vorschlag auswählen"
+            )
         )
         selected_index = st.selectbox(
             resolved_selection_label,

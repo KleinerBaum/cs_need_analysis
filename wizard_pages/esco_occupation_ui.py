@@ -1418,10 +1418,10 @@ def _render_secondary_anchor_controls(*, primary_uri: str) -> None:
 
     current_raw = st.session_state.get(SSKey.ESCO_SECONDARY_ANCHORS.value, [])
     current = current_raw if isinstance(current_raw, list) else []
-    with st.expander("Sekundäre Kontextanker", expanded=False):
+    with st.expander("Optionale Kontextanker", expanded=False):
         st.caption(
-            "Sekundäre Anchors erklären Grenzrollen oder Mischprofile. "
-            "Sie überschreiben den Primäranker nicht und fließen nicht in den Kernexport ein."
+            "Dokumentiert Grenzrollen oder Mischprofile; ohne Einfluss auf "
+            "Primäranker und Kernexport."
         )
         if current:
             for index, anchor in enumerate(current[:ESCO_SECONDARY_ANCHOR_MAX], start=1):
@@ -1429,7 +1429,7 @@ def _render_secondary_anchor_controls(*, primary_uri: str) -> None:
                     continue
                 title = str(anchor.get("title") or anchor.get("uri") or "—").strip()
                 reason = str(anchor.get("reason") or "context").strip()
-                st.caption(f"{index}. {title} · {reason}")
+                st.markdown(f"- **{index}. {title}**  \n  Grund: {reason}")
         if len(current) >= ESCO_SECONDARY_ANCHOR_MAX:
             st.info("Maximal zwei sekundäre Kontextanker sind hinterlegt.")
             return
@@ -1439,12 +1439,13 @@ def _render_secondary_anchor_controls(*, primary_uri: str) -> None:
             concept_type="occupation",
             target_state_key=secondary_key,
             enable_preview=False,
-            apply_label="Kontextanker auswählen",
-            selection_label="Sekundären ESCO-Beruf auswählen",
-            query_label="Rollenbegriff für Kontextanker",
+            apply_label="Kontextrolle auswählen",
+            selection_label="Kontextrolle auswählen",
+            query_label="Suchbegriff für Kontextrolle",
             query_placeholder="Benachbarte Rolle oder Alternativtitel eingeben",
-            confirmed_summary_label="Ausgewählter Kontextanker",
+            confirmed_summary_label="Ausgewählte Kontextrolle",
             show_results_overview=True,
+            layout_variant="secondary_anchor",
         )
         reason = st.selectbox(
             "Grund",
