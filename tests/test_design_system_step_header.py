@@ -53,6 +53,26 @@ def test_render_ui_styles_uses_streamlit_theme_tokens(monkeypatch) -> None:
     assert "background: var(--cs-bg);" in css
 
 
+def test_render_ui_styles_scopes_metric_styles_for_sidebar(monkeypatch) -> None:
+    calls: list[str] = []
+
+    class _FakeStreamlit:
+        def html(self, html: str) -> None:
+            calls.append(html)
+
+    monkeypatch.setattr(design_system, "st", _FakeStreamlit())
+
+    design_system.render_ui_styles()
+
+    css = calls[0]
+    assert '[data-testid="stMetric"] {' in css
+    assert '[data-testid="stSidebar"] [data-testid="stMetric"] {' in css
+    assert "--cs-sidebar-surface:" in css
+    assert "background: var(--cs-sidebar-surface);" in css
+    assert "border: 1px solid var(--cs-sidebar-border);" in css
+    assert "color: var(--cs-sidebar-text) !important;" in css
+
+
 def test_render_landing_css_uses_theme_tokens(monkeypatch) -> None:
     calls: list[str] = []
 
