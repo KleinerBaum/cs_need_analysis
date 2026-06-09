@@ -64,14 +64,14 @@ def render_ui_styles() -> None:
             --cs-text: var(--text-color, #16324F);
             --cs-text-muted: color-mix(in srgb, var(--text-color, #334155) 86%, transparent);
             --cs-text-subtle: color-mix(in srgb, var(--text-color, #64748B) 66%, transparent);
-            --cs-sidebar-surface: color-mix(
-                in srgb,
-                var(--secondary-background-color, #FFFFFF) 92%,
-                var(--background-color, #F3F6FA)
-            );
-            --cs-sidebar-border: color-mix(in srgb, var(--border-color, #D9E2EC) 82%, transparent);
-            --cs-sidebar-text: var(--text-color, #16324F);
-            --cs-sidebar-text-muted: color-mix(in srgb, var(--text-color, #334155) 78%, transparent);
+            --cs-sidebar-bg: #16324F;
+            --cs-sidebar-surface: #FFFFFF;
+            --cs-sidebar-surface-muted: color-mix(in srgb, var(--cs-sidebar-surface) 92%, var(--cs-sidebar-bg));
+            --cs-sidebar-border: var(--border-color, #D9E2EC);
+            --cs-sidebar-text: #FFFFFF;
+            --cs-sidebar-text-muted: color-mix(in srgb, var(--cs-sidebar-text) 78%, transparent);
+            --cs-sidebar-surface-text: var(--cs-primary-navy);
+            --cs-sidebar-surface-text-muted: color-mix(in srgb, var(--cs-sidebar-surface-text) 72%, transparent);
             --cs-primary: var(--primary-color, var(--cs-primary-blue));
             --cs-primary-soft: color-mix(in srgb, var(--cs-primary) 18%, var(--cs-surface));
             --cs-success: var(--cs-guidance-teal);
@@ -97,10 +97,14 @@ def render_ui_styles() -> None:
             --cs-text: #E2E8F0;
             --cs-text-muted: #A6B4C8;
             --cs-text-subtle: #8EA0B8;
+            --cs-sidebar-bg: #0B1726;
             --cs-sidebar-surface: #152640;
-            --cs-sidebar-border: #24466F;
-            --cs-sidebar-text: #E2E8F0;
+            --cs-sidebar-surface-muted: #0F2141;
+            --cs-sidebar-border: #1E3A63;
+            --cs-sidebar-text: #F9FAFB;
             --cs-sidebar-text-muted: #A6B4C8;
+            --cs-sidebar-surface-text: #E2E8F0;
+            --cs-sidebar-surface-text-muted: #A6B4C8;
             --cs-primary: #2563EB;
             --cs-primary-soft: #1E40AF;
             --cs-success: #0F766E;
@@ -137,6 +141,58 @@ def render_ui_styles() -> None:
         [data-theme="dark"] [data-testid="stCaptionContainer"],
         [data-theme="dark"] small {
             color: var(--cs-text-muted) !important;
+        }
+        [data-testid="stSidebar"] {
+            background: var(--cs-sidebar-bg) !important;
+            border-color: var(--cs-sidebar-border) !important;
+            color: var(--cs-sidebar-text);
+        }
+        [data-testid="stSidebarContent"] {
+            background: var(--cs-sidebar-bg) !important;
+            color: var(--cs-sidebar-text);
+        }
+        [data-testid="stSidebar"] h1,
+        [data-testid="stSidebar"] h2,
+        [data-testid="stSidebar"] h3,
+        [data-testid="stSidebar"] h4,
+        [data-testid="stSidebar"] h5,
+        [data-testid="stSidebar"] h6,
+        [data-testid="stSidebar"] p,
+        [data-testid="stSidebar"] li,
+        [data-testid="stSidebar"] label,
+        [data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
+        [data-testid="stSidebar"] [data-testid="stWidgetLabel"],
+        [data-testid="stSidebar"] .cs-sidebar-title {
+            color: var(--cs-sidebar-text) !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stCaptionContainer"],
+        [data-testid="stSidebar"] small,
+        [data-testid="stSidebar"] .caption {
+            color: var(--cs-sidebar-text-muted) !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stExpander"] {
+            background: var(--cs-sidebar-surface) !important;
+            border: 1px solid var(--cs-sidebar-border) !important;
+            border-radius: var(--cs-radius-md);
+            color: var(--cs-sidebar-surface-text);
+        }
+        [data-testid="stSidebar"] [data-testid="stExpander"] summary,
+        [data-testid="stSidebar"] [data-testid="stExpander"] summary p,
+        [data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stMarkdownContainer"],
+        [data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stWidgetLabel"] {
+            color: var(--cs-sidebar-surface-text) !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stCaptionContainer"] {
+            color: var(--cs-sidebar-surface-text-muted) !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stProgress"] > div > div {
+            background: var(--cs-sidebar-surface-muted) !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stProgress"] [role="progressbar"] > div {
+            background: var(--cs-primary) !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stProgress"] [data-testid="stMarkdownContainer"] {
+            color: var(--cs-sidebar-text-muted) !important;
         }
         [data-theme="dark"] [data-testid="stButton"] button[kind="primary"],
         [data-theme="dark"] [data-testid="stFormSubmitButton"] button[kind="primary"],
@@ -183,14 +239,16 @@ def render_ui_styles() -> None:
         [data-testid="stSidebar"] [data-testid="stMetric"] {
             background: var(--cs-sidebar-surface);
             border: 1px solid var(--cs-sidebar-border);
-            color: var(--cs-sidebar-text);
+            color: var(--cs-sidebar-surface-text);
             box-shadow: none;
         }
         [data-testid="stSidebar"] [data-testid="stMetric"] label,
         [data-testid="stSidebar"] [data-testid="stMetric"] [data-testid="stMetricLabel"],
-        [data-testid="stSidebar"] [data-testid="stMetric"] [data-testid="stMetricValue"],
         [data-testid="stSidebar"] [data-testid="stMetric"] [data-testid="stMetricDelta"] {
-            color: var(--cs-sidebar-text) !important;
+            color: var(--cs-sidebar-surface-text-muted) !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stMetric"] [data-testid="stMetricValue"] {
+            color: var(--cs-sidebar-surface-text) !important;
         }
         [data-testid="stSidebar"] [data-testid="stMetric"] [data-testid="stMetricDelta"] svg {
             fill: currentColor;
@@ -324,23 +382,23 @@ def render_ui_styles() -> None:
             background: var(--cs-surface);
         }
         .cs-process-progress-item[data-status="complete"]::before {
-            border-color: #0F766E;
-            background: #0F766E;
+            border-color: var(--cs-success);
+            background: var(--cs-success);
         }
         .cs-process-progress-item[data-status="partial"]::before {
-            border-color: #F59E0B;
-            background: #F59E0B;
+            border-color: var(--cs-warning);
+            background: var(--cs-warning);
         }
         .cs-process-progress-item[data-current="true"] {
-            border-color: #0F766E;
+            border-color: var(--cs-success);
             background: var(--cs-success-soft);
             color: var(--cs-text);
             font-weight: 700;
             box-shadow: 0 8px 24px rgba(15, 118, 110, 0.14);
         }
         .cs-process-progress-item[data-current="true"]::before {
-            border-color: #0F766E;
-            background: #0F766E;
+            border-color: var(--cs-success);
+            background: var(--cs-success);
         }
         .cs-process-progress-label {
             overflow-wrap: break-word;
@@ -349,6 +407,24 @@ def render_ui_styles() -> None:
             color: var(--cs-text-subtle);
             font-weight: 600;
             white-space: nowrap;
+        }
+        [data-testid="stSidebar"] .cs-process-progress-item {
+            background: var(--cs-sidebar-surface);
+            border-color: var(--cs-sidebar-border);
+            color: var(--cs-sidebar-surface-text-muted);
+            box-shadow: none;
+        }
+        [data-testid="stSidebar"] .cs-process-progress-item::before {
+            background: var(--cs-sidebar-surface);
+            border-color: var(--cs-sidebar-border);
+        }
+        [data-testid="stSidebar"] .cs-process-progress-item[data-current="true"] {
+            background: var(--cs-sidebar-surface-muted);
+            border-color: var(--cs-success);
+            color: var(--cs-sidebar-surface-text);
+        }
+        [data-testid="stSidebar"] .cs-process-progress-count {
+            color: var(--cs-sidebar-surface-text-muted);
         }
         .cs-step-title, .cs-output-title {
             margin: 0;

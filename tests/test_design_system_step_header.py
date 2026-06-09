@@ -67,10 +67,17 @@ def test_render_ui_styles_scopes_metric_styles_for_sidebar(monkeypatch) -> None:
     css = calls[0]
     assert '[data-testid="stMetric"] {' in css
     assert '[data-testid="stSidebar"] [data-testid="stMetric"] {' in css
+    assert "--cs-sidebar-bg:" in css
     assert "--cs-sidebar-surface:" in css
+    assert "--cs-sidebar-text:" in css
+    assert "--cs-sidebar-text-muted:" in css
+    assert '[data-testid="stSidebarContent"] {' in css
+    assert "background: var(--cs-sidebar-bg) !important;" in css
     assert "background: var(--cs-sidebar-surface);" in css
     assert "border: 1px solid var(--cs-sidebar-border);" in css
-    assert "color: var(--cs-sidebar-text) !important;" in css
+    assert "color: var(--cs-sidebar-surface-text) !important;" in css
+    assert '[data-testid="stSidebar"] [data-testid="stExpander"] {' in css
+    assert '[data-testid="stSidebar"] [data-testid="stProgress"] > div > div {' in css
 
 
 def test_render_landing_css_uses_theme_tokens(monkeypatch) -> None:
