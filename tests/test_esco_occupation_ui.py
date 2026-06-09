@@ -62,6 +62,160 @@ def test_render_esco_occupation_confirmation_allows_manual_query_without_title(
     assert fake_st.session_state[SSKey.ESCO_UNMAPPED_ROLE_TERMS.value] == []
 
 
+def test_render_secondary_anchor_controls_uses_friendly_expander_and_labels(
+    monkeypatch,
+) -> None:
+    class _DummyContext:
+        def __enter__(self) -> "_DummyContext":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> bool:
+            del exc_type, exc, tb
+            return False
+
+    class _FakeStreamlit:
+        def __init__(self) -> None:
+            self.session_state: dict[str, object] = {
+                SSKey.UI_MODE.value: "standard",
+                SSKey.ESCO_SECONDARY_ANCHORS.value: [
+                    {
+                        "uri": "uri:occ:secondary",
+                        "title": "Product Analyst",
+                        "reason": "benachbarte Rolle",
+                    }
+                ],
+            }
+            self.caption_messages: list[str] = []
+            self.expander_calls: list[tuple[str, bool | None]] = []
+            self.markdown_messages: list[str] = []
+            self.selectbox_labels: list[str] = []
+            self.button_labels: list[str] = []
+
+        def expander(self, label: str, **kwargs: object) -> _DummyContext:
+            self.expander_calls.append((label, kwargs.get("expanded")))
+            return _DummyContext()
+
+        def caption(self, message: str) -> None:
+            self.caption_messages.append(message)
+
+        def markdown(self, message: str, **_kwargs: object) -> None:
+            self.markdown_messages.append(message)
+
+        def selectbox(self, label: str, **kwargs: object) -> str:
+            self.selectbox_labels.append(label)
+            options = kwargs.get("options")
+            return list(options)[0] if options else ""
+
+        def button(self, label: str, **_kwargs: object) -> bool:
+            self.button_labels.append(label)
+            return False
+
+        def info(self, _message: str) -> None:
+            return None
+
+    picker_calls: list[dict[str, object]] = []
+
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(esco_occupation_ui, "st", fake_st)
+    monkeypatch.setattr(
+        esco_occupation_ui,
+        "render_esco_picker_card",
+        lambda **kwargs: picker_calls.append(kwargs),
+    )
+
+    esco_occupation_ui._render_secondary_anchor_controls(primary_uri="uri:occ:primary")
+
+    assert ("Optionale Kontextanker", False) in fake_st.expander_calls
+    assert any(
+        "Grenzrollen oder Mischprofile" in message
+        and "Primäranker und Kernexport" in message
+        for message in fake_st.caption_messages
+    )
+    assert any(
+        "Product Analyst" in message and "Grund: benachbarte Rolle" in message
+        for message in fake_st.markdown_messages
+    )
+    assert picker_calls == [
+        {
+            "concept_type": "occupation",
+            "target_state_key": "cs.esco_secondary_anchor_picker",
+            "enable_preview": False,
+            "apply_label": "Kontextrolle auswählen",
+            "selection_label": "Kontextrolle auswählen",
+            "query_label": "Suchbegriff für Kontextrolle",
+            "query_placeholder": "Benachbarte Rolle oder Alternativtitel eingeben",
+            "confirmed_summary_label": "Ausgewählte Kontextrolle",
+            "show_results_overview": True,
+            "layout_variant": "secondary_anchor",
+        }
+    ]
+    assert "Grund" in fake_st.selectbox_labels
+    assert "Als Kontextanker hinzufügen" in fake_st.button_labels
+
+
+def test_render_secondary_anchor_controls_keeps_expander_when_anchor_limit_reached(
+    monkeypatch,
+) -> None:
+    class _DummyContext:
+        def __enter__(self) -> "_DummyContext":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> bool:
+            del exc_type, exc, tb
+            return False
+
+    class _FakeStreamlit:
+        def __init__(self) -> None:
+            self.session_state: dict[str, object] = {
+                SSKey.UI_MODE.value: "expert",
+                SSKey.ESCO_SECONDARY_ANCHORS.value: [
+                    {"uri": "uri:1", "title": "Rolle 1", "reason": "benachbarte Rolle"},
+                    {"uri": "uri:2", "title": "Rolle 2", "reason": "Alternativtitel"},
+                ],
+            }
+            self.expander_labels: list[str] = []
+            self.markdown_messages: list[str] = []
+            self.info_messages: list[str] = []
+
+        def expander(self, label: str, **_kwargs: object) -> _DummyContext:
+            self.expander_labels.append(label)
+            return _DummyContext()
+
+        def caption(self, _message: str) -> None:
+            return None
+
+        def markdown(self, message: str, **_kwargs: object) -> None:
+            self.markdown_messages.append(message)
+
+        def selectbox(self, _label: str, **_kwargs: object) -> str:
+            raise AssertionError("selectbox should not render after anchor limit")
+
+        def button(self, _label: str, **_kwargs: object) -> bool:
+            raise AssertionError("button should not render after anchor limit")
+
+        def info(self, message: str) -> None:
+            self.info_messages.append(message)
+
+    picker_calls: list[dict[str, object]] = []
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(esco_occupation_ui, "st", fake_st)
+    monkeypatch.setattr(
+        esco_occupation_ui,
+        "render_esco_picker_card",
+        lambda **kwargs: picker_calls.append(kwargs),
+    )
+
+    esco_occupation_ui._render_secondary_anchor_controls(primary_uri="uri:primary")
+
+    assert "Optionale Kontextanker" in fake_st.expander_labels
+    assert any("Rolle 1" in message for message in fake_st.markdown_messages)
+    assert any("Rolle 2" in message for message in fake_st.markdown_messages)
+    assert fake_st.info_messages == [
+        "Maximal zwei sekundäre Kontextanker sind hinterlegt."
+    ]
+    assert picker_calls == []
+
+
 def test_build_capability_status_rows_with_capabilities() -> None:
     capabilities = EscoApiCapabilities(
         supported_occupation_relations=("hasEssentialSkill", "hasOptionalSkill"),
