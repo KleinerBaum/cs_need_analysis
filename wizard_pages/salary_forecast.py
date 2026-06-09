@@ -9,6 +9,99 @@ from constants import SSKey
 from salary.types import SalaryForecastDriver, SalaryForecastResult
 
 
+def _hex_luminance(hex_color: str) -> float | None:
+    normalized = hex_color.strip().lstrip("#")
+    if len(normalized) == 3:
+        normalized = "".join(char * 2 for char in normalized)
+    if len(normalized) != 6:
+        return None
+    try:
+        channels = [int(normalized[index : index + 2], 16) / 255 for index in (0, 2, 4)]
+    except ValueError:
+        return None
+
+    linear_channels = [
+        channel / 12.92
+        if channel <= 0.03928
+        else ((channel + 0.055) / 1.055) ** 2.4
+        for channel in channels
+    ]
+    return (
+        0.2126 * linear_channels[0]
+        + 0.7152 * linear_channels[1]
+        + 0.0722 * linear_channels[2]
+    )
+
+
+def _theme_option(*option_names: str) -> str | None:
+    for option_name in option_names:
+        try:
+            option_value = st.get_option(option_name)
+        except Exception:
+            continue
+        if option_value:
+            return str(option_value)
+    return None
+
+
+def _plot_axis_theme_colors() -> dict[str, str]:
+    theme_base = (_theme_option("theme.base") or "light").lower()
+    sidebar_background = _theme_option(
+        f"theme.{theme_base}.sidebar.backgroundColor",
+        "theme.sidebar.backgroundColor",
+        f"theme.{theme_base}.secondaryBackgroundColor",
+        "theme.secondaryBackgroundColor",
+        f"theme.{theme_base}.backgroundColor",
+        "theme.backgroundColor",
+    )
+    text_color = _theme_option(
+        f"theme.{theme_base}.sidebar.textColor",
+        "theme.sidebar.textColor",
+        f"theme.{theme_base}.textColor",
+        "theme.textColor",
+    )
+    is_dark_background = (_hex_luminance(sidebar_background or "") or 1) < 0.45
+    axis_color = text_color or ("#F9FAFB" if is_dark_background else "#262730")
+    return {
+        "axis": axis_color,
+        "grid": "rgba(249, 250, 251, 0.28)"
+        if is_dark_background
+        else "rgba(38, 39, 48, 0.22)",
+        "zero": "#F9FAFB" if is_dark_background else "#262730",
+    }
+
+
+def _apply_driver_chart_theme(fig: go.Figure) -> None:
+    axis_theme = _plot_axis_theme_colors()
+    fig.update_layout(
+        xaxis_title=None,
+        yaxis_title=None,
+        margin=dict(l=4, r=4, t=4, b=4),
+        height=220,
+        showlegend=False,
+        paper_bgcolor="rgba(0, 0, 0, 0)",
+        plot_bgcolor="rgba(0, 0, 0, 0)",
+        font_color=axis_theme["axis"],
+    )
+    fig.update_xaxes(
+        tickformat=",.0f",
+        tickfont=dict(color=axis_theme["axis"]),
+        tickcolor=axis_theme["axis"],
+        linecolor=axis_theme["axis"],
+        gridcolor=axis_theme["grid"],
+        zeroline=True,
+        zerolinecolor=axis_theme["zero"],
+        zerolinewidth=1,
+    )
+    fig.update_yaxes(
+        tickfont=dict(color=axis_theme["axis"]),
+        tickcolor=axis_theme["axis"],
+        linecolor=axis_theme["axis"],
+        gridcolor=axis_theme["grid"],
+        zerolinecolor=axis_theme["zero"],
+    )
+
+
 def _format_salary(value: float, currency: str) -> str:
     return f"{int(value):,} {currency}".replace(",", ".")
 
@@ -132,14 +225,7 @@ def render_sidebar_salary_forecast(*, forecast: SalaryForecastResult) -> None:
                     ],
                 )
             )
-            fig.update_layout(
-                xaxis_title=None,
-                yaxis_title=None,
-                margin=dict(l=4, r=4, t=4, b=4),
-                height=220,
-                showlegend=False,
-            )
-            fig.update_xaxes(tickformat=",.0f", zeroline=True, zerolinewidth=1)
+            _apply_driver_chart_theme(fig)
             st.plotly_chart(
                 fig,
                 width="stretch",
