@@ -1521,19 +1521,20 @@ def render_esco_occupation_confirmation(
         target_state_key=SSKey.ESCO_OCCUPATION_SELECTED,
         enable_preview=False,
         apply_label=None,
-        selection_label="Passenden ESCO-Beruf auswählen",
+        selection_label="ESCO-Beruf auswählen",
         confirmation_helper_text=(
             "Diese Auswahl gibt Aufgaben, Skills und Summary einen eindeutigen fachlichen Bezug."
         ),
         auto_apply_single_select=True,
         show_apply_button=False,
         show_results_overview=True,
-        query_label="Rollenbegriff für ESCO-Suche",
+        query_label="Suchbegriff für Berufsabgleich",
         query_placeholder="Jobtitel oder Rollenbegriff eingeben",
         confirmed_summary_label="Bestätigter ESCO-Beruf",
         taxonomy_auto_load=True,
         taxonomy_in_expander=False,
-        taxonomy_title="Taxonomie im Berufsbaum",
+        taxonomy_title="ESCO-Einordnung",
+        layout_variant="anchor_card",
     )
     options_state_key = f"{SSKey.ESCO_OCCUPATION_SELECTED.value}.esco_picker.options"
     options = st.session_state.get(options_state_key, [])
