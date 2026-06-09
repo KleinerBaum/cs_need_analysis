@@ -74,7 +74,10 @@ def render_ui_styles() -> None:
             --cs-radius-sm: 8px;
             --cs-radius-md: 12px;
         }
-        :root[data-theme="dark"] {
+        :root[data-theme="dark"],
+        html[data-theme="dark"],
+        body[data-theme="dark"],
+        [data-theme="dark"] {
             --cs-primary-navy: #0B1726;
             --cs-primary-blue: #2563EB;
             --cs-guidance-teal: #0F766E;
@@ -104,53 +107,53 @@ def render_ui_styles() -> None:
             background: var(--cs-bg);
             color: var(--cs-text-muted);
         }
-        :root[data-theme="dark"] h1,
-        :root[data-theme="dark"] h2,
-        :root[data-theme="dark"] h3,
-        :root[data-theme="dark"] h4,
-        :root[data-theme="dark"] h5,
-        :root[data-theme="dark"] h6,
-        :root[data-theme="dark"] label,
-        :root[data-theme="dark"] p,
-        :root[data-theme="dark"] li,
-        :root[data-theme="dark"] [data-testid="stMarkdownContainer"],
-        :root[data-theme="dark"] [data-testid="stWidgetLabel"],
-        :root[data-theme="dark"] [data-testid="stDataFrame"],
-        :root[data-theme="dark"] [data-testid="stTable"] {
+        [data-theme="dark"] h1,
+        [data-theme="dark"] h2,
+        [data-theme="dark"] h3,
+        [data-theme="dark"] h4,
+        [data-theme="dark"] h5,
+        [data-theme="dark"] h6,
+        [data-theme="dark"] label,
+        [data-theme="dark"] p,
+        [data-theme="dark"] li,
+        [data-theme="dark"] [data-testid="stMarkdownContainer"],
+        [data-theme="dark"] [data-testid="stWidgetLabel"],
+        [data-theme="dark"] [data-testid="stDataFrame"],
+        [data-theme="dark"] [data-testid="stTable"] {
             color: var(--cs-text) !important;
         }
-        :root[data-theme="dark"] [data-testid="stCaptionContainer"],
-        :root[data-theme="dark"] small {
+        [data-theme="dark"] [data-testid="stCaptionContainer"],
+        [data-theme="dark"] small {
             color: var(--cs-text-muted) !important;
         }
-        :root[data-theme="dark"] [data-testid="stButton"] button[kind="primary"],
-        :root[data-theme="dark"] [data-testid="stFormSubmitButton"] button[kind="primary"],
-        :root[data-theme="dark"] [data-testid="stDownloadButton"] button[kind="primary"] {
+        [data-theme="dark"] [data-testid="stButton"] button[kind="primary"],
+        [data-theme="dark"] [data-testid="stFormSubmitButton"] button[kind="primary"],
+        [data-theme="dark"] [data-testid="stDownloadButton"] button[kind="primary"] {
             background: var(--cs-primary) !important;
             border-color: var(--cs-primary) !important;
             color: #F9FAFB !important;
         }
-        :root[data-theme="dark"] [data-testid="stButton"] button[kind="primary"]:hover,
-        :root[data-theme="dark"] [data-testid="stFormSubmitButton"] button[kind="primary"]:hover,
-        :root[data-theme="dark"] [data-testid="stDownloadButton"] button[kind="primary"]:hover {
+        [data-theme="dark"] [data-testid="stButton"] button[kind="primary"]:hover,
+        [data-theme="dark"] [data-testid="stFormSubmitButton"] button[kind="primary"]:hover,
+        [data-theme="dark"] [data-testid="stDownloadButton"] button[kind="primary"]:hover {
             background: #1D4ED8 !important;
             border-color: #1D4ED8 !important;
             color: #F9FAFB !important;
         }
-        :root[data-theme="dark"] input,
-        :root[data-theme="dark"] textarea,
-        :root[data-theme="dark"] [data-baseweb="select"] > div,
-        :root[data-theme="dark"] [data-baseweb="textarea"] textarea {
+        [data-theme="dark"] input,
+        [data-theme="dark"] textarea,
+        [data-theme="dark"] [data-baseweb="select"] > div,
+        [data-theme="dark"] [data-baseweb="textarea"] textarea {
             background: var(--cs-surface) !important;
             border-color: var(--cs-border) !important;
             color: var(--cs-text) !important;
         }
-        :root[data-theme="dark"] input::placeholder,
-        :root[data-theme="dark"] textarea::placeholder {
+        [data-theme="dark"] input::placeholder,
+        [data-theme="dark"] textarea::placeholder {
             color: var(--cs-text-subtle) !important;
         }
-        :root[data-theme="dark"] [data-testid="stDataFrame"] tbody tr,
-        :root[data-theme="dark"] [data-testid="stTable"] tbody tr {
+        [data-theme="dark"] [data-testid="stDataFrame"] tbody tr,
+        [data-theme="dark"] [data-testid="stTable"] tbody tr {
             background: var(--cs-surface-muted) !important;
         }
         [data-testid="stVerticalBlockBorderWrapper"] {

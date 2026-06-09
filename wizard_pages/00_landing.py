@@ -82,6 +82,11 @@ def _render_landing_responsive_overrides() -> None:
                 height: auto;
                 border-radius: 6px;
             }
+            [data-theme="dark"] .landing-iceberg-card {
+                border-color: #1E3A63;
+                background: #152640;
+                box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+            }
             .landing-process-diagram {
                 border: 1px solid #0F766E;
                 background: var(--cs-success-soft);

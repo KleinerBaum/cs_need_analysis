@@ -72,21 +72,26 @@ def _inject_theme_styles() -> None:
             .stApp,
             .stMain,
             [data-testid="stAppViewContainer"] {{
+                --cs-app-bg: var(--background-color, #F3F6FA);
                 background:
                     linear-gradient(
-                        color-mix(in srgb, var(--cs-bg) 84%, transparent),
-                        color-mix(in srgb, var(--cs-bg) 84%, transparent)
+                        color-mix(in srgb, var(--cs-app-bg) 84%, transparent),
+                        color-mix(in srgb, var(--cs-app-bg) 84%, transparent)
                     ),
                     url("{light_bg_uri}") center / cover fixed no-repeat !important;
             }}
 
-            :root[data-theme="dark"] .stApp,
-            :root[data-theme="dark"] .stMain,
-            :root[data-theme="dark"] [data-testid="stAppViewContainer"] {{
+            [data-theme="dark"] .stApp,
+            [data-theme="dark"] .stMain,
+            [data-theme="dark"] [data-testid="stAppViewContainer"],
+            .stApp[data-theme="dark"],
+            .stMain[data-theme="dark"],
+            [data-testid="stAppViewContainer"][data-theme="dark"] {{
+                --cs-app-bg: #0B1726;
                 background:
                     linear-gradient(
-                        color-mix(in srgb, var(--cs-bg) 78%, transparent),
-                        color-mix(in srgb, var(--cs-bg) 78%, transparent)
+                        color-mix(in srgb, var(--cs-app-bg) 66%, transparent),
+                        color-mix(in srgb, var(--cs-app-bg) 66%, transparent)
                     ),
                     url("{dark_bg_uri}") center / cover fixed no-repeat !important;
             }}
