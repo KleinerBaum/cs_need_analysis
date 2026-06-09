@@ -1547,7 +1547,11 @@ def render_job_extract_overview(
             ("Salary Range", _format_salary_range_value(job.salary_range)),
             ("Recruitment Steps", _format_recruitment_steps_value(job.recruitment_steps)),
         ]
-        st.table([{"Attribut": label, "Wert": value} for label, value in core_rows])
+        st.dataframe(
+            [{"Attribut": label, "Wert": value} for label, value in core_rows],
+            hide_index=True,
+            width="stretch",
+        )
         _render_editable_job_extract(job, show_notes=show_notes)
         return
 
