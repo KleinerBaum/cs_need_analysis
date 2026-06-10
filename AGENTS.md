@@ -1,173 +1,359 @@
 # AGENTS.md — cs_need_analysis
 
-Contributor guide for `cs_need_analysis`, a Streamlit-based vacancy intake wizard with OpenAI structured outputs, ESCO/EURES integrations, salary forecasting, and summary-stage hiring artifacts.
+Working guide for AI/coding agents in `cs_need_analysis`, a Streamlit vacancy-intake wizard with OpenAI structured outputs, ESCO/EURES enrichment, deterministic question-flow overlays, salary forecasting, summary artifacts, and export generation.
 
-## What this repo is
+This repository is a stateful workflow application. Treat changes as system changes, not isolated edits.
 
-This is not a loose Streamlit demo. It is a stateful workflow application with tight coupling between:
+## Current repo contract
 
-- canonical constants and session-state keys
-- Pydantic schemas and structured LLM outputs
-- wizard navigation, progress, limits, and completion logic
-- summary artifacts and export paths
-- ESCO / EURES / NACE enrichment
-- salary forecast logic and scenario lab state
-- README documentation that is expected to match runtime behavior
+### Active product flow
 
-Treat changes as system changes, not isolated edits.
+The visible wizard route is defined by `constants.STEPS` and enforced by `wizard_pages/__init__.py`.
 
-## Core working rules
+| Order | Step key | UI label | Page module |
+|---:|---|---|---|
+| 1 | `landing` | Start | `wizard_pages/00_landing.py` |
+| 2 | `company` | Unternehmen | `wizard_pages/02_company.py` |
+| 3 | `role_tasks` | Rolle & Aufgaben | `wizard_pages/04_role_tasks.py` |
+| 4 | `skills` | Skills & Anforderungen | `wizard_pages/05_skills.py` |
+| 5 | `benefits` | Benefits & Rahmenbedingungen | `wizard_pages/06_benefits.py` |
+| 6 | `interview` | Interviewprozess | `wizard_pages/07_interview.py` |
+| 7 | `summary` | Zusammenfassung | `wizard_pages/08_summary.py` |
 
-- Keep `constants.py` as the single source of truth for session keys, wizard step keys, schema-version-like constants, and canonical IDs.
-- Never introduce raw session-state string keys when an `SSKey` enum entry should exist.
-- Keep schema, logic, UI, summary artifacts, and exports in sync.
-- Keep OpenAI config precedence unchanged unless the task explicitly redesigns it: `nested secrets > root secrets > env > defaults`.
-- Keep model-family capability gating centralized in `model_capabilities.py`.
-- Keep OpenAI request-building, retries, parsing, and error mapping centralized in `llm_client.py`.
-- Keep README aligned with current behavior whenever workflow, routing, exports, install steps, or feature flags change.
+Legacy/non-routable modules:
+
+- `wizard_pages/01a_jobspec_review.py` — legacy hidden review step; Start phases B/C now own extraction review and ESCO anchoring.
+- `wizard_pages/03_team.py` — legacy hidden team step; team context is handled inside `company` through `wizard_pages/team_section.py`.
+
+Do not reintroduce these modules into routing unless the task explicitly redesigns the wizard contract and updates tests/docs.
+
+### Information acquisition pipeline
+
+The current intake process is intentionally staged:
+
+1. **Start / Phase A** — source selection, upload/manual text, consent, PII reduction, UI mode, ESCO operating settings.
+2. **Start / Phase B** — structured jobspec extraction review with field-level fact/evidence handling.
+3. **Start / Phase C** — ESCO occupation anchoring with primary anchor and up to two secondary context anchors.
+4. **Company** — company/team context, optional homepage enrichment, open-question matching.
+5. **Role/Skills/Benefits** — unified blocks: extracted jobspec values, source comparison, salary forecast, open questions, review.
+6. **Interview** — process board, candidate communication, internal roles/timing, export-marked values.
+7. **Summary** — readiness, fact overview, action hub, artifact generation, result workspace, export workspace.
+
+Keep this chain synchronized across `constants.py`, `state.py`, `intake_facts.py`, `job_extract_review_helpers.py`, `question_plan_compiler.py`, `question_*`, wizard pages, summary/export code, tests, and README.
+
+## Core invariants
+
+- `constants.py` is the single source of truth for session-state keys, step IDs, UI modes, ESCO modes, artifact IDs, schema-version-like constants, and canonical IDs.
+- Add new session keys to `SSKey`; do not use raw string keys when an enum entry should exist.
+- Keep schema, logic, UI, summary artifacts, exports, tests, and README in sync.
+- Keep OpenAI settings precedence unchanged unless explicitly redesigned: nested `st.secrets["openai"][KEY]` → root `st.secrets[KEY]` → environment → hard default.
+- Keep model-family capability checks centralized in `model_capabilities.py`.
+- Keep OpenAI request construction, retries, structured parsing, fallback behavior, response caching, usage metadata, and error mapping centralized in `llm_client.py`.
+- Keep privacy-sensitive logging and telemetry restricted to whitelisted, non-sensitive metadata.
 - Use minimal diffs. Avoid drive-by refactors.
 
 ## Architecture map
 
 ### App shell and navigation
-- `app.py` — Streamlit entrypoint
-- `wizard_pages/base.py` — wizard page contracts and shared helpers
-- `components/`, `ui_components.py`, `ui_layout.py`, `site_ui.py` — reusable UI/layout building blocks
+
+- `app.py` — Streamlit entry point, page config, theme injection, preferences query-param view, current-step rendering, scroll reset.
+- `wizard_pages/__init__.py` — explicit page loader and route contract against `constants.STEPS`.
+- `wizard_pages/base.py` — page/context dataclasses, sidebar navigation, UI mode helpers, progress/status rendering, ESCO sidebar/migration helpers, shared layout helpers.
+- `components/`, `ui_components.py`, `ui_layout.py`, `site_ui.py`, `styles/theme.css` — reusable UI/layout/design primitives.
 
 ### Canonical state and contracts
-- `constants.py` — authoritative keys, step IDs, canonical labels/IDs
-- `state.py` — default session state, reset behavior, loaders, derived getters
-- `schemas.py` — Pydantic contracts and question/schema helpers
-- `question_dependencies.py`, `question_limits.py`, `question_progress.py`, `step_status.py` — dynamic wizard behavior
+
+- `constants.py` — canonical state keys, wizard steps, UI modes, ESCO modes, artifact IDs, fact registry, usage event types.
+- `state.py` — session defaults, reset behavior, source redaction preference sync, ESCO semantic state sync, answer/fact adapters.
+- `schemas.py` — Pydantic contracts for structured OpenAI outputs and exports.
+- `intake_facts.py` — canonical intake fact/evidence helpers and legacy field adapters.
+- `job_extract_evidence.py`, `job_extract_review_helpers.py` — jobspec review/evidence utilities.
+- `question_dependencies.py`, `question_limits.py`, `question_progress.py`, `question_plan_compiler.py`, `step_status.py` — dynamic question rendering, overlays, limits, completion/readiness behavior.
 
 ### LLM integration
-- `llm_client.py` — task kinds, routing, request construction, structured parse, retry/error mapping, cache integration
-- `settings_openai.py` — secrets/env/default resolution and task-level settings
-- `model_capabilities.py` — model-family compatibility rules
-- `scripts/openai_smoke_test.py` — preferred verification path for routing/capability changes
+
+- `settings_openai.py` — settings/secrets/env/default resolution, task output limits, ESCO RAG settings, non-sensitive `resolved_from` provenance.
+- `model_capabilities.py` — GPT-5/GPT-5.4 compatibility rules for `reasoning`, `text.verbosity`, `temperature`, and valid `reasoning_effort` values.
+- `llm_client.py` — task routing, prompts, request kwargs, structured parse, fallback model path, response cache, retry/error handling.
+- `scripts/openai_smoke_test.py` — preferred verification path for OpenAI request-building and capability changes.
+
+Current LLM task functions in `llm_client.py`:
+
+- `extract_job_ad`
+- `generate_question_plan`
+- `generate_vacancy_brief`
+- `generate_custom_job_ad`
+- `generate_interview_sheet_hr`
+- `generate_interview_sheet_hm`
+- `generate_boolean_search_pack`
+- `generate_employment_contract_draft`
+- `generate_requirement_gap_suggestions`
+- `generate_benefit_suggestions`
+- `generate_role_tasks_salary_forecast`
 
 ### Domain modules
-- `esco_client.py`, `eures_mapping.py` — ESCO/EURES/NACE integration
-- `salary/` — salary forecast engine, mapping, benchmarks, skill premiums, scenario builders
-- `parsing.py` — upload/text extraction pipeline
+
+- `esco_client.py`, `esco_semantics.py`, `eures_mapping.py` — ESCO/EURES/NACE lookup, anchor semantics, degraded/anchored modes.
+- `esco_offline_index.py`, `scripts/build_esco_index.py` — local ESCO lookup index build/runtime path.
+- `esco_matrix.py`, `scripts/build_esco_matrix.py` — optional ESCO matrix priors and coverage inputs.
+- `esco_rag.py`, `scripts/prepare_esco_for_vectorstore.py` — optional vector-store retrieval for ESCO context.
+- `occupation_context.py`, `question_packs/` — deterministic occupation-aware question-flow overlays.
+- `homepage_research.py` — public website fetch/extraction/matching with safety constraints.
+- `salary/` — deterministic salary forecast engine, benchmark/mapping data, feature extraction, scenario lab builders.
+- `parsing.py` — PDF/DOCX/TXT upload and text extraction pipeline.
 
 ### Workflow hotspots
-- `wizard_pages/01a_jobspec_review.py` — integrated jobspec extraction review / ESCO flow
-- `wizard_pages/04_role_tasks.py` — role tasks and salary forecast interactions
-- `wizard_pages/05_skills.py` — ESCO skill mapping and AI skill suggestions
-- `wizard_pages/08_summary.py` — summary action hub, artifact generation, exports, salary forecast integration
 
-## Naming and coding conventions
+- `wizard_pages/jobad_intake.py` — Start phase A/B/C, source handling, PII controls, jobspec extraction, deterministic question-flow sync, review promotion, ESCO operating block.
+- `wizard_pages/02_company.py` and `wizard_pages/team_section.py` — company and team context, homepage enrichment, role-context suggestions.
+- `wizard_pages/04_role_tasks.py` — role/task source pills, ESCO/context suggestions, AI suggestions, salary block.
+- `wizard_pages/05_skills.py` — jobspec/ESCO/AI skill comparison, ESCO normalization, unmapped-term workflow, ESCO matrix priors, coverage.
+- `wizard_pages/06_benefits.py` — jobspec/context/AI benefit comparison and salary-relevant benefit state.
+- `wizard_pages/07_interview.py` — interview process board and export-marked interview values.
+- `wizard_pages/08_summary.py` — readiness dashboard, fact table, action registry, artifact generation, result/export workspaces, DOCX/PDF/JSON/Markdown exports.
 
-- Python names: `snake_case` for functions/variables, `PascalCase` for classes, `UPPER_CASE` for module constants.
-- Use English technical naming in code. Preserve existing German product/UI copy unless the task explicitly changes wording.
-- New session-state keys must be added to `SSKey` in `constants.py`.
-- New artifact IDs must be canonicalized in `constants.py` before use in UI or exports.
-- Prefer typed boundaries:
-  - `dataclass` / `TypedDict` for internal structured helpers
-  - Pydantic models in `schemas.py` for LLM and export contracts
-- Reuse existing helper functions before adding parallel logic.
-- Do not duplicate model capability checks outside `model_capabilities.py`.
-- Do not duplicate config precedence logic outside `settings_openai.py`.
+## Modes and runtime switches
+
+### UI modes
+
+Canonical values: `quick`, `standard`, `expert`.
+
+Display labels: `schnell`, `ausführlich`, `vollumfänglich`.
+
+Update all of these together when mode behavior changes:
+
+- `constants.UI_MODE_VALUES`, `UI_MODE_DISPLAY_LABELS`, preference constants
+- `config/preferences.py`
+- `wizard_pages/base.py` mode helpers and captions
+- `question_limits.py`
+- step pages using compact/detail behavior
+- `tests/test_ui_mode_flow.py`, `tests/test_question_limits.py`, `tests/test_progressive_disclosure_helpers.py`
+- README mode documentation
+
+### ESCO modes
+
+Canonical modes are defined in `constants.py` and interpreted through `esco_client.py` / `esco_semantics.py`.
+
+- Release lanes: `stable -> v1.2.0`, `preview -> v1.2.1`.
+- API modes: `hosted`, `local`.
+- Data-source modes: `live_api`, `offline_index`, `hybrid`.
+- Anchor states: `degraded_unconfirmed`, `anchored`, `anchored_with_context`.
+- Semantic export modes: `degraded`, `anchored`.
+
+Downstream behavior must respect anchor state. URI-based exports, ESCO skill normalization, matrix coverage, ESCO-based interview prioritization, and ESCO task suggestions require an anchored state.
+
+### Summary artifact modes
+
+Canonical artifact IDs are in `constants.SUMMARY_ARTIFACT_IDS` and labels/aliases are in `summary_artifacts.py`.
+
+Current canonical IDs:
+
+- `brief`
+- `job_ad`
+- `interview_hr`
+- `interview_fach`
+- `boolean_search`
+- `employment_contract`
+
+When adding or renaming artifacts, update constants, aliases, state initialization/reset, `wizard_pages/08_summary.py`, export functions, tests under `tests/test_summary_*`, and README export documentation in one change.
+
+## OpenAI configuration contract
+
+Settings are resolved in `settings_openai.py` with this precedence:
+
+1. nested Streamlit secret: `[openai] KEY = ...`
+2. root Streamlit secret: `KEY = ...`
+3. environment variable
+4. hard default
+
+Main keys:
+
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL`
+- `DEFAULT_MODEL`
+- `LIGHTWEIGHT_MODEL`
+- `MEDIUM_REASONING_MODEL`
+- `HIGH_REASONING_MODEL`
+- `REASONING_EFFORT`
+- `VERBOSITY`
+- `OPENAI_REQUEST_TIMEOUT`
+- `ESCO_VECTOR_STORE_ID`
+- `ESCO_RAG_ENABLED`
+- `ESCO_RAG_MAX_RESULTS`
+
+Task limit keys follow the pattern:
+
+- `<TASK_KIND_UPPER>_MAX_OUTPUT_TOKENS`
+- `<TASK_KIND_UPPER>_MAX_BULLETS_PER_FIELD`
+- `<TASK_KIND_UPPER>_MAX_SENTENCES_PER_FIELD`
+
+for task kinds listed in `settings_openai._TASK_KINDS`.
+
+Important implementation detail: `llm_client.py` currently has a `generate_role_tasks_salary_forecast` task route; if task-specific limit configuration is required for it, align `settings_openai._TASK_KINDS` and tests in the same PR.
 
 ## Synchronization rules
 
 ### 1) Session-state changes
-Whenever adding, renaming, or removing any `SSKey` or canonical state concept:
+
+When adding, renaming, or removing an `SSKey` or canonical state concept:
 
 - update `constants.py`
 - update `state.init_session_state()`
-- update reset paths in `state.py`
-- update affected wizard pages and exports
-- update tests, especially reset/default/contract tests
+- update `state.reset_vacancy()` or other reset paths
+- update any legacy alias migration if needed
+- update affected wizard pages, summary/export builders, and tests
+- update README if runtime behavior or configuration changes
 
-Do not leave dead keys, shadow keys, or implicit UI-only keys without an intentional persistence decision.
+Do not leave dead keys, shadow keys, or implicit widget-only state without an intentional persistence decision.
 
 ### 2) Wizard-step changes
-Whenever changing visible step flow, step semantics, or completion logic:
 
-- update step definitions in `constants.py`
-- verify `question_progress.py`, `step_status.py`, and `question_limits.py`
-- verify navigation and mode behavior in `wizard_pages/base.py`
+When changing visible step flow, step semantics, or completion logic:
+
+- update `constants.STEPS`
+- update `wizard_pages/__init__.py` only if routing rules intentionally change
+- verify `question_progress.py`, `step_status.py`, `question_limits.py`, and `wizard_pages/base.py`
+- update tests: `tests/test_wizard_contract.py`, `tests/test_ui_mode_flow.py`, `tests/test_ui_step_shell_order.py`, progress/status tests
 - update README wizard-flow documentation
-- run wizard contract and UI flow tests
 
-### 3) OpenAI routing or request changes
-Whenever changing task routing, kwargs, timeouts, capability gating, or structured output parsing:
+### 3) Jobspec/intake/fact changes
 
-- update `llm_client.py`
-- keep precedence logic in `settings_openai.py`
-- keep compatibility logic in `model_capabilities.py`
-- verify with `tests/test_openai_smoke_modes.py`, `tests/test_openai_error_mapping.py`, and `scripts/openai_smoke_test.py`
-- update README when runtime behavior changes
+When changing extraction, identified-information review, fact promotion, or evidence behavior:
 
-### 4) Summary artifact changes
-Whenever adding or changing summary artifacts, generation buttons, config panels, or export behavior:
+- update `schemas.JobAdExtract` or related schemas if the structured output changes
+- update `llm_client.build_extract_job_ad_messages()` and prompt limits only if needed
+- update `intake_facts.py`, `job_extract_evidence.py`, `job_extract_review_helpers.py`, and `wizard_pages/jobad_intake.py`
+- update `question_plan_compiler.py`, `occupation_context.py`, and `question_packs/` if follow-up question selection changes
+- update summary/export payloads if facts/evidence become externally visible
+- run intake/fact/question tests
 
-- update canonical IDs / state keys in `constants.py`
+### 4) OpenAI routing or request changes
+
+When changing model routing, kwargs, timeouts, capability gating, parsing, retry, fallback, cache, or error behavior:
+
+- update `settings_openai.py`, `model_capabilities.py`, and `llm_client.py` consistently
+- keep logs and debug output non-sensitive
+- update smoke-test modes in `scripts/openai_smoke_test.py` if request semantics change
+- run OpenAI tests and dry-run smoke test
+- update README configuration/smoke-test sections when behavior changes
+
+### 5) Summary artifact/export changes
+
+When adding or changing summary artifacts, generation buttons, config panels, readiness logic, exports, or structured export fields:
+
+- update canonical artifact IDs and state keys in `constants.py`
 - initialize/reset state in `state.py`
-- update action registry and render/export flow in `wizard_pages/08_summary.py`
-- update related tests under `tests/test_summary_*`
-- update README export / summary behavior
+- update action registry, active artifact handling, result rendering, and export workspace in `wizard_pages/08_summary.py`
+- update `summary_artifacts.py`, `summary_exports.py`, `summary_esco.py`, `summary_facts.py`, or `summary_job_ad.py` as needed
+- update tests under `tests/test_summary_*`
+- update README export/summary documentation
 
 Artifact work is incomplete unless state, UI, export, and docs stay aligned.
 
-### 5) ESCO / EURES / NACE changes
-Whenever changing occupation matching, skills mapping, code lookups, or readiness behavior:
+### 6) ESCO/EURES/NACE changes
 
-- review `esco_client.py`, `eures_mapping.py`, `wizard_pages/01a_jobspec_review.py`, `wizard_pages/05_skills.py`, and summary usage
-- keep structured export payloads consistent
-- verify tests covering ESCO, mapping, title variants, and readiness impacts
+When changing occupation matching, anchor semantics, skill normalization, code lookups, local index behavior, RAG, or readiness behavior:
 
-### 6) Salary forecast changes
-Whenever changing salary types, feature extraction, scenario behavior, or UI presentation:
+- review `esco_client.py`, `esco_semantics.py`, `eures_mapping.py`, `esco_offline_index.py`, `esco_rag.py`, `wizard_pages/jobad_intake.py`, `wizard_pages/04_role_tasks.py`, `wizard_pages/05_skills.py`, and summary export code
+- preserve degraded-mode behavior when no anchor exists or ESCO is unavailable
+- keep secondary anchors context-only unless explicitly redesigned
+- update structured export payloads and tests covering ESCO, mapping, title variants, offline contracts, RAG, matrix, and readiness impacts
 
-- review `salary/types.py`, `salary/engine.py`, `salary/features_esco.py`, `salary/scenario_lab_builders.py`, `wizard_pages/salary_forecast.py`, and `wizard_pages/salary_forecast_panel.py`
-- verify schema/output compatibility and scenario selection state
-- run the salary-focused tests
+### 7) Salary forecast changes
+
+When changing salary feature extraction, benchmark loading, scenario behavior, UI presentation, or exports:
+
+- review `salary/types.py`, `salary/engine.py`, `salary/benchmarks.py`, `salary/features_esco.py`, `salary/mapping.py`, `salary/scenario_lab_builders.py`, `salary/scenarios.py`, `wizard_pages/salary_forecast.py`, and `wizard_pages/salary_forecast_panel.py`
+- keep role/skills/benefits salary blocks and sidebar behavior consistent
+- update `state.py` salary scenario defaults/resets if state changes
+- run salary tests and affected summary tests
+
+### 8) Homepage research changes
+
+When changing homepage enrichment:
+
+- keep public HTTP(S)-only behavior, content-type/size checks, and fetch-cache behavior in `homepage_research.py`
+- do not log raw URLs, page text, contact data, prompts, or extracted payloads in usage events
+- keep selected matches compatible with intake facts and summary brief generation
+- update `tests/test_company_homepage_research.py` and company/team regression tests
+
+### 9) Usage/telemetry changes
+
+When changing usage events:
+
+- update `constants.UsageEventType`
+- keep metadata sanitization in `usage_events.py` restrictive
+- never store prompts, full URLs, credentials, raw response payloads, contact data, or answer values
+- update `tests/test_usage_events.py`
 
 ## Verification commands
 
-Use the smallest relevant verification set first, then broaden if the change crosses module boundaries.
+Use the smallest relevant verification set first, then broaden when the change crosses module boundaries.
 
 ### Environment / install
+
 ```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 python -m pip install --upgrade pip
 pip install -r requirements.txt -c constraints.txt
 ```
 
 ### Run app
+
 ```bash
 streamlit run app.py
 ```
 
-### Baseline checks
+### CI-equivalent baseline
+
 ```bash
 pip check
-python -m compileall app.py components config pages salary scripts tests wizard_pages
+python -m compileall app.py homepage_research.py job_extract_evidence.py job_extract_review_helpers.py summary_artifacts.py summary_esco.py summary_exports.py summary_facts.py summary_job_ad.py usage_events.py components config pages salary scripts tests wizard_pages
 python -m pytest -q
+python scripts/openai_smoke_test.py --mode all --ci-dry-run-if-no-key --json-only
 ```
 
 ### Targeted checks by area
 
-#### State / constants / wizard contracts
+State, constants, wizard contracts:
+
 ```bash
 python -m pytest -q \
   tests/test_state_reset.py \
   tests/test_wizard_contract.py \
   tests/test_ui_mode_flow.py \
   tests/test_question_limits.py \
-  tests/test_question_progress.py
+  tests/test_question_progress.py \
+  tests/test_step_status_payload.py
 ```
 
-#### Summary / artifacts / exports
+Intake, facts, jobspec extraction, question flow:
+
+```bash
+python -m pytest -q \
+  tests/test_fact_contract.py \
+  tests/test_intake_facts.py \
+  tests/test_job_extract_evidence.py \
+  tests/test_job_extract_review_helpers.py \
+  tests/test_jobad_intake_cache_usage.py \
+  tests/test_jobad_intake_identified_info_block.py \
+  tests/test_jobad_intake_upload_extract.py \
+  tests/test_question_pack_compiler.py \
+  tests/test_question_plan_normalization.py
+```
+
+Summary, artifacts, exports:
+
 ```bash
 python -m pytest -q tests/test_summary_*.py tests/test_additional_task_generators.py
 ```
 
-#### OpenAI routing / capability gating
+OpenAI routing/capability/error handling:
+
 ```bash
 python -m pytest -q \
+  tests/test_openai_settings.py \
   tests/test_openai_smoke_modes.py \
   tests/test_openai_error_mapping.py \
   tests/test_generate_vacancy_brief.py \
@@ -175,93 +361,105 @@ python -m pytest -q \
 python scripts/openai_smoke_test.py --mode all --ci-dry-run-if-no-key --json-only
 ```
 
-#### ESCO / EURES / parsing
+ESCO/EURES/RAG/matrix/offline index:
+
 ```bash
 python -m pytest -q \
   tests/test_esco_client.py \
+  tests/test_esco_metadata.py \
+  tests/test_esco_occupation_ui.py \
+  tests/test_esco_offline_contract.py \
+  tests/test_esco_rag.py \
+  tests/test_esco_matrix_loader.py \
   tests/test_eures_mapping.py \
   tests/test_jobspec_title_variants.py \
-  tests/test_parsing_upload_stream.py \
-  tests/test_skills_occupation_suggestions.py
+  tests/test_skills_occupation_suggestions.py \
+  tests/test_state_esco_loaders.py
 ```
 
-#### Salary forecast
+Salary forecast:
+
 ```bash
 python -m pytest -q tests/test_salary_*.py tests/tests_test_salary_benchmarks.py
 ```
 
+Company/team/homepage:
+
+```bash
+python -m pytest -q \
+  tests/test_company_homepage_research.py \
+  tests/test_company_team_scope_regression.py \
+  tests/test_team_section.py
+```
+
 ## Linting policy
 
-There is currently no dedicated repo-local Ruff/Mypy/Black configuration checked in.
+There is no repo-local Ruff, Black, Mypy, or Pyright configuration checked in.
 
-- Do **not** silently introduce a new lint/type toolchain in routine implementation tasks.
-- For this repo, the practical quality gate is: targeted pytest + syntax compilation + smoke tests where relevant.
-- If the task explicitly asks for lint/type tooling, propose it as a separate, small change set.
+- Do not silently introduce a lint/type toolchain in routine implementation tasks.
+- For this repo, the practical quality gate is targeted pytest, syntax compilation, and smoke tests where relevant.
+- If the task explicitly asks for lint/type tooling, propose it as a separate small PR.
 
 ## Do-not-touch areas without explicit request
 
-- `images/` — brand and static assets
+- `images/` — brand/static assets
 - `data/salary_benchmarks/` and `data/salary_skill_premiums/` — curated data inputs
 - `pages/03_Impressum.py`, `pages/11_Datenschutzrichtlinie.py`, `pages/12_Nutzungsbedingungen.py`, `pages/13_Cookie_Policy_Settings.py`, `pages/14_Erklaerung_zur_Barrierefreiheit.py` — legal/compliance pages
-- `.streamlit/config.toml` — theme/branding defaults
-- `constraints.txt` — pinned dependency constraint; change only when dependency work is part of the task
-- `constants.cpython-313.pyc` — generated artifact; do not edit, and do not rely on it as source
+- `.streamlit/config.toml` — theme defaults
+- `constraints.txt` — pinned SDK constraint; change only as dependency work
+- `constants.cpython-313.pyc` — generated artifact; do not edit or use as source
 
 ## Security and privacy rules
 
-- Never commit secrets, API keys, OAuth tokens, or copied secret values.
-- Never print raw secrets or full credential-bearing env dumps in logs, tests, or docs.
-- Keep Google and other OAuth scopes least-privilege.
-- Do not place PII into prompts, fixtures, exported examples, or debug output unless the task explicitly requires redaction-safe handling.
-- Keep OpenAI/UI debug output non-sensitive.
-- Preserve safe error mapping and user-facing fallbacks.
+- Never commit secrets, API keys, OAuth tokens, credential files, or copied secret values.
+- Never print raw secrets or full credential-bearing env dumps in logs, tests, screenshots, or docs.
+- Keep OAuth scopes least-privilege.
+- Keep PII out of prompts, fixtures, exported examples, usage events, and debug output unless the task explicitly requires redaction-safe handling.
+- Preserve safe OpenAI error mapping and user-facing fallbacks.
 - For examples and fixtures, use synthetic placeholder data.
 
 ## Diff style
 
 - Prefer the smallest working change.
-- Preserve existing file organization and naming style.
+- Preserve file organization and naming style.
 - Avoid unrelated renames, formatting churn, and broad import reshuffles.
+- Use English technical names in code. Preserve existing German product/UI copy unless the task explicitly changes wording.
 - Keep comments purposeful; do not narrate obvious code.
-- Preserve existing UX/copy tone unless content work is requested.
-- When changing labels or canonical IDs, update tests/docs in the same change.
+- When changing labels, schema fields, modes, or canonical IDs, update tests/docs in the same change.
 
 ## PR and commit conventions
 
 ### Commit style
-Use focused commits with a clear scope, for example:
 
-- `fix(state): keep summary artifact reset aligned with SSKey changes`
-- `feat(summary): add canonical export metadata for job ad drafts`
+Use focused commits with clear scope, for example:
+
+- `fix(state): reset summary artifacts with canonical SSKey defaults`
+- `feat(intake): persist reviewed jobspec facts with evidence metadata`
 - `refactor(openai): centralize GPT-5.4 temperature gating`
-- `test(esco): cover occupation fallback title variants`
-- `docs(readme): sync summary export behavior`
+- `test(esco): cover hybrid offline fallback`
+- `docs(readme): sync wizard flow and export modes`
 
 ### PR structure
+
 Every PR should include:
 
-1. **What changed** — concise summary
-2. **Why** — problem or requirement
-3. **Files / modules touched** — especially canonical source files
-4. **Verification** — exact commands run
-5. **Risk / regression notes** — state, export, routing, or schema impacts
-6. **Follow-ups** — only if intentionally deferred
+1. What changed
+2. Why
+3. Files/modules touched
+4. Verification commands run
+5. Risk/regression notes for state, exports, routing, schema, privacy, or OpenAI behavior
+6. Follow-ups only if intentionally deferred
 
 ## Prompting Codex inside this repo
 
-When asking Codex to change this repo, provide:
-
-- the exact goal
-- the affected files or likely hotspots
-- constraints (no new deps, preserve schema, keep docs in sync, etc.)
-- the definition of done
-- the verification commands to run
+Use prompts with exact scope, constraints, definition of done, and verification commands.
 
 Good prompt shape:
 
 ```text
-Goal: Fix duplicate summary artifact state after vacancy reset.
-Context: constants.py, state.py, wizard_pages/08_summary.py, tests/test_state_reset.py.
-Constraints: no new dependencies; keep canonical SSKey usage only; update README only if runtime behavior changes.
-Done when: state resets cleanly, targeted tests pass, diff stays minimal.
+Goal: Fix stale summary artifact state after vacancy reset.
+Context: constants.py, state.py, summary_artifacts.py, wizard_pages/08_summary.py, tests/test_state_reset.py.
+Constraints: no new dependencies; canonical SSKey usage only; preserve existing German UI copy; update README only if runtime behavior changes.
+Done when: state resets cleanly, targeted tests pass, diff is minimal.
+Verification: python -m pytest -q tests/test_state_reset.py tests/test_summary_active_artifact.py
 ```
