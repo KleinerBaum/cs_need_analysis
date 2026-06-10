@@ -357,7 +357,7 @@ def test_render_artifact_launcher_cards_uses_artifact_specific_labels(monkeypatc
             "title": "Boolean Search",
             "benefit": "desc",
             "cta_label": "Boolean Search erstellen",
-            "blocked_cta_label": "Recruiting Brief erstellen und danach Boolean String erstellen",
+            "blocked_cta_label": "Recruiting Brief erstellen und danach Boolean Search erstellen",
             "requires": (SSKey.JOB_EXTRACT,),
             "requirement_text": "Jobspec vorhanden",
             "requirement_check_fn": None,
@@ -391,7 +391,7 @@ def test_render_artifact_launcher_cards_prefers_blocked_label_when_requirements_
             "title": "Boolean Search",
             "benefit": "desc",
             "cta_label": "Boolean Search erstellen",
-            "blocked_cta_label": "Recruiting Brief erstellen und danach Boolean String erstellen",
+            "blocked_cta_label": "Recruiting Brief erstellen und danach Boolean Search erstellen",
             "requires": (SSKey.BRIEF,),
             "requirement_text": "Aktueller Recruiting Brief ist erforderlich",
             "requirement_check_fn": None,
@@ -408,7 +408,7 @@ def test_render_artifact_launcher_cards_prefers_blocked_label_when_requirements_
     )
 
     assert fake_st.button_labels == [
-        "Recruiting Brief erstellen und danach Boolean String erstellen"
+        "Recruiting Brief erstellen und danach Boolean Search erstellen"
     ]
 
 
