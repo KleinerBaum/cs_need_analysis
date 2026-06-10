@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from constants import AnswerType
+from constants import AnswerType, FactKey
 from question_limits import compute_adaptive_question_limits
 from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
 
@@ -113,3 +113,34 @@ def test_adaptive_limits_scale_by_mode_depth() -> None:
 
     assert quick_limits["interview"] < expert_limits["interview"]
     assert quick_limits["skills"] < expert_limits["skills"]
+
+
+def test_adaptive_limits_treat_low_confidence_fact_as_uncovered() -> None:
+    plan = _build_plan()
+    intake_facts = {
+        FactKey.SKILLS_MUST_HAVE_SKILLS.value: ["Python"],
+        FactKey.SKILLS_NICE_TO_HAVE_SKILLS.value: ["Spark"],
+        FactKey.SKILLS_SOFT_SKILLS.value: ["Kommunikation"],
+    }
+    intake_fact_evidence = {
+        FactKey.SKILLS_MUST_HAVE_SKILLS.value: {"confidence": 0.4},
+        FactKey.SKILLS_NICE_TO_HAVE_SKILLS.value: {"confidence": 0.4},
+        FactKey.SKILLS_SOFT_SKILLS.value: {"confidence": 0.4},
+    }
+
+    limits = compute_adaptive_question_limits(
+        plan=plan,
+        ui_mode="standard",
+        answers={},
+        answer_meta={},
+        job_extract=JobAdExtract(
+            must_have_skills=["Python"],
+            nice_to_have_skills=["Spark"],
+            soft_skills=["Kommunikation"],
+        ),
+        intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=0.6,
+    )
+
+    assert limits["skills"] == 3

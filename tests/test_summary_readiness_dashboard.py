@@ -168,13 +168,28 @@ def test_readiness_tab_delegates_detail_sections_to_workspaces(monkeypatch) -> N
         fact_rows=[],
     )
     workspace_calls: list[dict[str, object]] = []
+    render_events: list[str] = []
 
     monkeypatch.setattr(SUMMARY_MODULE, "st", _FakeStreamlit())
     monkeypatch.setattr(
         SUMMARY_MODULE, "render_output_header", lambda *_args, **_kwargs: None
     )
     monkeypatch.setattr(
-        SUMMARY_MODULE, "render_next_best_action", lambda *_args, **_kwargs: None
+        SUMMARY_MODULE,
+        "render_next_best_action",
+        lambda *_args, **_kwargs: render_events.append("next_action"),
+    )
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "_render_summary_facts_column_overview",
+        lambda _vm: render_events.append("facts_overview"),
+    )
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "_render_readiness_dashboard_header",
+        lambda _vm: (_ for _ in ()).throw(
+            AssertionError("readiness dashboard header rendered")
+        ),
     )
     monkeypatch.setattr(SUMMARY_MODULE, "_build_missing_critical_items", lambda _vm: [])
     monkeypatch.setattr(
@@ -187,6 +202,7 @@ def test_readiness_tab_delegates_detail_sections_to_workspaces(monkeypatch) -> N
     monkeypatch.setattr(SUMMARY_MODULE, "_has_required_state", lambda _requires: True)
 
     def _capture_workspace(**kwargs: object) -> None:
+        render_events.append("workspace")
         workspace_calls.append(kwargs)
 
     monkeypatch.setattr(
@@ -230,6 +246,8 @@ def test_readiness_tab_delegates_detail_sections_to_workspaces(monkeypatch) -> N
     assert len(workspace_calls) == 1
     assert workspace_calls[0]["vm"] is vm
     assert len(results_calls) == 1
+    assert render_events.index("facts_overview") < render_events.index("next_action")
+    assert render_events.index("facts_overview") < render_events.index("workspace")
 
 
 def test_resolve_next_best_action_keeps_brief_for_missing_core_context(monkeypatch) -> None:

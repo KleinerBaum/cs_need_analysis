@@ -7,12 +7,15 @@ from constants import (
     INTAKE_FACTS,
     FactKey,
     FactPersistenceIntent,
+    FactSensitivity,
+    FactSourceType,
     FactValueType,
     STEP_KEY_BENEFITS,
     STEP_KEY_COMPANY,
     STEP_KEY_INTERVIEW,
     STEP_KEY_ROLE_TASKS,
     STEP_KEY_SKILLS,
+    UsageEventType,
 )
 
 
@@ -118,6 +121,37 @@ def test_fact_value_type_contract_values() -> None:
 
 def test_fact_persistence_intent_contract_values() -> None:
     assert [intent.value for intent in FactPersistenceIntent] == ["legacy_compatible"]
+
+
+def test_fact_source_type_contract_values() -> None:
+    assert [source.value for source in FactSourceType] == [
+        "manual",
+        "jobspec",
+        "homepage",
+        "esco",
+        "llm",
+    ]
+
+
+def test_fact_sensitivity_contract_values() -> None:
+    assert [sensitivity.value for sensitivity in FactSensitivity] == [
+        "normal",
+        "personal",
+        "restricted",
+    ]
+
+
+def test_usage_event_type_contract_values() -> None:
+    assert [event_type.value for event_type in UsageEventType] == [
+        "step_entered",
+        "step_submitted",
+        "fact_confirmed",
+        "fact_corrected",
+        "fact_rejected",
+        "fallback_model_used",
+        "homepage_fetch_failed",
+        "artifact_generated",
+    ]
 
 
 def test_fact_definitions_use_semantic_value_types() -> None:

@@ -222,6 +222,82 @@ def test_canonical_intake_facts_cover_supported_fact_keys() -> None:
     }
 
 
+def test_low_confidence_intake_fact_does_not_cover_matching_question() -> None:
+    question = Question(
+        id="q_role",
+        label="Rolle",
+        answer_type=AnswerType.SHORT_TEXT,
+        target_path=FactKey.ROLE_JOB_TITLE.value,
+    )
+    intake_facts = {FactKey.ROLE_JOB_TITLE.value: "Data Engineer"}
+    intake_fact_evidence = {
+        FactKey.ROLE_JOB_TITLE.value: {
+            "source_type": "jobspec",
+            "confidence": 0.4,
+        }
+    }
+
+    answered_lookup = build_answered_lookup(
+        [question],
+        answers={},
+        answer_meta={},
+        job_extract=JobAdExtract(job_title="Data Engineer"),
+        intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=0.6,
+    )
+    effective_answers = build_answers_with_job_extract_coverage(
+        [question],
+        answers={},
+        answer_meta={},
+        job_extract=JobAdExtract(job_title="Data Engineer"),
+        intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=0.6,
+    )
+
+    assert answered_lookup == {"q_role": False}
+    assert effective_answers == {}
+
+
+def test_intake_fact_without_evidence_keeps_legacy_coverage_behavior() -> None:
+    question = Question(
+        id="q_role",
+        label="Rolle",
+        answer_type=AnswerType.SHORT_TEXT,
+        target_path=FactKey.ROLE_JOB_TITLE.value,
+    )
+
+    answered_lookup = build_answered_lookup(
+        [question],
+        answers={},
+        answer_meta={},
+        intake_facts={FactKey.ROLE_JOB_TITLE.value: "Data Engineer"},
+        confidence_threshold=0.95,
+    )
+
+    assert answered_lookup == {"q_role": True}
+
+
+def test_explicit_fact_key_covers_question_without_aliasable_id_or_target_path() -> None:
+    question = Question(
+        id="q_1",
+        label="Welche Rolle wird gesucht?",
+        answer_type=AnswerType.SHORT_TEXT,
+        target_path="answers.company.custom_role_question",
+        fact_key=FactKey.ROLE_JOB_TITLE.value,
+    )
+
+    answered_lookup = build_answered_lookup(
+        [question],
+        answers={},
+        answer_meta={},
+        intake_facts={FactKey.ROLE_JOB_TITLE.value: "Data Engineer"},
+    )
+
+    assert answered_lookup == {"q_1": True}
+
+
 def test_empty_canonical_intake_fact_values_do_not_count_as_answered() -> None:
     questions = [
         Question(

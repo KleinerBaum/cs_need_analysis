@@ -14,6 +14,7 @@ from constants import (
     ESCO_RELEASE_LANE_PREVIEW,
     ESCO_RELEASE_LANE_SELECTED_VERSION,
     ESCO_RELEASE_LANE_STABLE,
+    FactSourceType,
     SSKey,
 )
 from llm_client import (
@@ -221,10 +222,21 @@ def _promote_reviewed_job_extract(job: JobAdExtract, plan: QuestionPlan) -> None
     st.session_state[SSKey.ANSWER_META.value] = meta
     write_job_extract_intake_facts(st.session_state, job)
     for question_id, answer_value in answers.items():
+        answer_meta = meta.get(question_id, {})
+        is_manual_answer = isinstance(answer_meta, dict) and bool(
+            answer_meta.get("touched")
+        )
         write_intake_fact_by_legacy_field(
             st.session_state,
             str(question_id),
             answer_value,
+            source_type=(
+                FactSourceType.MANUAL if is_manual_answer else FactSourceType.JOBSPEC
+            ),
+            source_label=(
+                "Manual input" if is_manual_answer else "Jobspec extraction"
+            ),
+            confidence=1.0 if is_manual_answer else 0.75,
         )
     _seed_list_state_from_jobspec(
         SSKey.ROLE_TASKS_SELECTED,

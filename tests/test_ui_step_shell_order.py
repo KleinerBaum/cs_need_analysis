@@ -38,8 +38,35 @@ class _ShellFakeStreamlit:
     def info(self, text: str, *_args: Any, **_kwargs: Any) -> None:
         self.events.append(("info", text))
 
+    def success(self, text: str, *_args: Any, **_kwargs: Any) -> None:
+        self.events.append(("success", text))
+
     def write(self, text: str, *_args: Any, **_kwargs: Any) -> None:
         self.events.append(("write", text))
+
+    def text_input(self, *_args: Any, key: str | None = None, **_kwargs: Any) -> str:
+        if key is None:
+            return ""
+        return str(self.session_state.get(key, ""))
+
+    def number_input(
+        self,
+        *_args: Any,
+        key: str | None = None,
+        value: int | None = None,
+        **_kwargs: Any,
+    ) -> int:
+        if key is None:
+            return value or 1
+        self.session_state.setdefault(key, value or 5)
+        return int(self.session_state[key])
+
+    def button(self, *_args: Any, **_kwargs: Any) -> bool:
+        return False
+
+    def columns(self, count_or_spec: Any, *_args: Any, **_kwargs: Any) -> list[Any]:
+        count = count_or_spec if isinstance(count_or_spec, int) else len(count_or_spec)
+        return [_Column() for _index in range(count)]
 
     def segmented_control(self, *_args: Any, **_kwargs: Any) -> str | None:
         return self.selected_label
@@ -52,6 +79,18 @@ class _ShellFakeStreamlit:
 
     def divider(self) -> None:
         self.events.append(("divider", ""))
+
+    def spinner(self, text: str) -> Any:
+        self.events.append(("spinner", text))
+        return _Column()
+
+
+class _Column:
+    def __enter__(self) -> "_Column":
+        return self
+
+    def __exit__(self, *_args: Any) -> None:
+        return None
 
 
 def _load_module(alias: str, relative_path: str):
@@ -132,7 +171,6 @@ def test_role_skills_benefits_use_expected_step_shell_block_order() -> None:
         "review_slot",
     ]
     assert benefits_slots == [
-        "extracted_from_jobspec_slot",
         "source_comparison_slot",
         "salary_forecast_slot",
         "open_questions_slot",
@@ -230,19 +268,12 @@ def test_salary_forecast_slots_keep_canonical_result_key_wiring() -> None:
     )
 
 
-def test_benefits_extracted_slot_renders_jobspec_benefits() -> None:
+def test_benefits_step_shell_uses_source_comparison_without_jobspec_block() -> None:
     benefits = _load_module(
         "wizard_pages.page_06_benefits_extract", "wizard_pages/06_benefits.py"
     )
     captured_kwargs: dict[str, Any] = {}
-    fake_st = _ShellFakeStreamlit()
-
-    class _Column:
-        def __enter__(self) -> "_Column":
-            return self
-
-        def __exit__(self, *_args: Any) -> None:
-            return None
+    fake_st = _FakeStreamlit()
 
     benefits.st = fake_st
     benefits.render_error_banner = lambda: None
@@ -256,16 +287,93 @@ def test_benefits_extracted_slot_renders_jobspec_benefits() -> None:
         SimpleNamespace(steps=[SimpleNamespace(step_key="benefits")]),
     )
     benefits.nav_buttons = lambda _ctx: None
-    benefits.responsive_three_columns = lambda **_kwargs: (_Column(), _Column(), _Column())
     benefits.render_step_shell = lambda **kwargs: captured_kwargs.update(kwargs)
 
     benefits.render(SimpleNamespace())
-    captured_kwargs["extracted_from_jobspec_slot"]()
 
-    rendered = "\n".join(text for _kind, text in fake_st.events)
-    assert "Benefits (Auszug)" in rendered
-    assert "State-of-the-art Trainings und Tools" in rendered
-    assert "Flexible Arbeitsmodelle" in rendered
+    assert "extracted_from_jobspec_slot" not in captured_kwargs
+    assert captured_kwargs["source_comparison_slot"] is not None
+    assert captured_kwargs["salary_forecast_slot"] is not None
+
+
+def test_benefits_source_comparison_auto_generates_ai_and_renders_ai_controls() -> None:
+    benefits = _load_module(
+        "wizard_pages.page_06_benefits_ai", "wizard_pages/06_benefits.py"
+    )
+    fake_st = _ShellFakeStreamlit()
+    fake_st.session_state = {
+        SSKey.BENEFITS_SUGGEST_COUNT.value: 3,
+        SSKey.BENEFITS_REGION_CONTEXT.value: "Berlin",
+    }
+    captured_columns: list[dict[str, Any]] = []
+    calls: list[dict[str, Any]] = []
+
+    class _Suggestion:
+        label = "Deutschlandticket"
+
+        def model_dump(self, **_kwargs: Any) -> dict[str, str]:
+            return {
+                "label": self.label,
+                "source_hint": "llm",
+                "importance": "medium",
+            }
+
+    benefits.st = fake_st
+    benefits.render_error_banner = lambda: None
+    benefits.guard_job_and_plan = lambda _ctx: (
+        JobAdExtract(benefits=["Flexible Arbeitsmodelle"]),
+        SimpleNamespace(steps=[SimpleNamespace(step_key="benefits", questions=[])]),
+    )
+    benefits.nav_buttons = lambda _ctx: None
+    benefits.render_step_shell = lambda **kwargs: captured_columns.append(kwargs)
+    benefits.build_step_review_payload = lambda _step: {
+        "visible_questions": [],
+        "answers": {},
+        "answered_lookup": {},
+        "step_status": {"essentials_total": 0, "essentials_answered": 0},
+    }
+    benefits.render_compare_adopt_intro = lambda **_kwargs: None
+    benefits.get_esco_semantic_context = lambda: SimpleNamespace(
+        can_use_semantic_exports=False,
+        primary_anchor=None,
+    )
+    benefits.load_openai_settings = lambda: object()
+    benefits.resolve_model_for_task = lambda **_kwargs: "test-model"
+    benefits.get_answers = lambda: {"existing": "answer"}
+
+    def _generate(**kwargs: Any) -> tuple[Any, dict[str, Any]]:
+        calls.append(kwargs)
+        return SimpleNamespace(benefits=[_Suggestion()]), {}
+
+    def _capture_pills(**kwargs: Any) -> dict[str, Any]:
+        captured_columns.clear()
+        captured_columns.extend(kwargs["columns"])
+        ai_column = kwargs["columns"][2]
+        ai_column["footer"]()
+        return {
+            "selected_labels": [],
+            "selected_by_source": {},
+            "source_counts": {"Jobspec": 0, "ESCO / Kontext": 0, "AI": 0},
+        }
+
+    benefits.generate_benefit_suggestions = _generate
+    benefits.render_source_pill_selection = _capture_pills
+
+    benefits.render(SimpleNamespace())
+    captured_kwargs = captured_columns[0]
+    captured_kwargs["source_comparison_slot"]()
+
+    assert fake_st.session_state[SSKey.BENEFITS_AI_INITIAL_GENERATED.value] is True
+    assert fake_st.session_state[SSKey.BENEFITS_LLM_SUGGESTED.value] == [
+        {
+            "label": "Deutschlandticket",
+            "source_hint": "llm",
+            "importance": "medium",
+        }
+    ]
+    assert calls[0]["target_benefit_count"] == 3
+    assert calls[0]["answers"]["benefit_generation_context"]["region"] == "Berlin"
+    assert callable(captured_columns[2]["footer"])
 
 
 def test_benefits_render_migrates_legacy_selected_state() -> None:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from constants import AnswerType, FactKey, SSKey
+from constants import AnswerType, FactKey, FactSourceType, SSKey
 from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
 import wizard_pages.jobad_intake as jobad_intake
 
@@ -429,3 +429,12 @@ def test_promote_reviewed_job_extract_fills_confirmed_state_without_overwriting_
         FactKey.ROLE_JOB_TITLE.value: "AI Transformation Consultant",
         FactKey.SKILLS_MUST_HAVE_SKILLS.value: ["AI-Kompetenzen"],
     }
+    evidence = fake_st.session_state[SSKey.INTAKE_FACT_EVIDENCE.value]
+    assert evidence[FactKey.COMPANY_COMPANY_NAME.value]["source_type"] == (
+        FactSourceType.MANUAL.value
+    )
+    assert evidence[FactKey.COMPANY_COMPANY_NAME.value]["confidence"] == 1.0
+    assert evidence[FactKey.ROLE_JOB_TITLE.value]["source_type"] == (
+        FactSourceType.JOBSPEC.value
+    )
+    assert evidence[FactKey.ROLE_JOB_TITLE.value]["confidence"] == 0.75

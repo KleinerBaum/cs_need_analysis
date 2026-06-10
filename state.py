@@ -40,7 +40,11 @@ from esco_semantics import (
     selected_version_for_release_lane,
     sync_esco_semantic_state,
 )
-from intake_facts import reset_intake_fact_state, write_intake_fact_by_legacy_field
+from intake_facts import (
+    reset_intake_fact_evidence_state,
+    reset_intake_fact_state,
+    write_intake_fact_by_legacy_field,
+)
 from interview_process import INTERVIEW_INTERNAL_FLOW_DEFAULT
 from question_progress import AnswerMeta, AnswerMetaMap, value_hash
 from schemas import (
@@ -50,6 +54,7 @@ from schemas import (
     EscoSuggestionItem,
 )
 from settings_openai import load_openai_settings
+from usage_events import reset_usage_events
 
 DEFAULT_ESCO_API_BASE_URL = "https://ec.europa.eu/esco/api/"
 
@@ -137,7 +142,7 @@ def _default_ui_preferences() -> dict[str, Any]:
         UI_PREFERENCE_REGIONAL_FOCUS: "DACH",
         UI_PREFERENCE_SHOW_SOURCES_DEFAULT: True,
         UI_PREFERENCE_CONFIDENCE_THRESHOLD: 0.6,
-        UI_PREFERENCE_PII_REDUCTION: False,
+        UI_PREFERENCE_PII_REDUCTION: True,
         UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT: False,
         UI_PREFERENCE_STEP_COMPACT: {},
     }
@@ -166,6 +171,16 @@ def normalize_ui_preferences(raw_preferences: Any) -> dict[str, Any]:
     ):
         normalized[key] = bool(normalized.get(key, defaults[key]))
     return normalized
+
+
+def _sync_source_redaction_from_preferences() -> None:
+    preferences = normalize_ui_preferences(
+        st.session_state.get(SSKey.UI_PREFERENCES.value)
+    )
+    st.session_state[SSKey.UI_PREFERENCES.value] = preferences
+    st.session_state[SSKey.SOURCE_REDACT_PII.value] = bool(
+        preferences[UI_PREFERENCE_PII_REDUCTION]
+    )
 
 
 def get_active_model() -> str:
@@ -209,9 +224,10 @@ def init_session_state() -> None:
         SSKey.STORE_API_OUTPUT.value: False,
         SSKey.SOURCE_TEXT.value: "",
         SSKey.SOURCE_FILE_META.value: {},
-        SSKey.SOURCE_REDACT_PII.value: False,
+        SSKey.SOURCE_REDACT_PII.value: True,
         SSKey.JOB_EXTRACT.value: None,
         SSKey.INTAKE_FACTS.value: {},
+        SSKey.INTAKE_FACT_EVIDENCE.value: {},
         SSKey.QUESTION_PLAN_BASE.value: None,
         SSKey.QUESTION_PLAN.value: None,
         SSKey.QUESTION_LIMITS.value: {},
@@ -232,6 +248,7 @@ def init_session_state() -> None:
         SSKey.DEBUG.value: False,
         SSKey.CONTENT_SHARING_CONSENT.value: False,
         SSKey.LLM_RESPONSE_CACHE.value: {},
+        SSKey.USAGE_EVENTS.value: [],
         SSKey.JOBAD_CACHE_HIT.value: {},
         SSKey.SUMMARY_CACHE_HIT.value: False,
         SSKey.SUMMARY_DIRTY.value: False,
@@ -364,6 +381,8 @@ def init_session_state() -> None:
         SSKey.BENEFITS_AI_PILLS.value: [],
         SSKey.BENEFITS_SUGGEST_COUNT.value: 5,
         SSKey.BENEFITS_AI_GENERATE_CLICKED.value: False,
+        SSKey.BENEFITS_AI_INITIAL_GENERATED.value: False,
+        SSKey.BENEFITS_REGION_CONTEXT.value: "",
         SSKey.SALARY_SCENARIO_SKILLS_ADD.value: [],
         SSKey.SALARY_SCENARIO_SKILLS_REMOVE.value: [],
         SSKey.SALARY_SCENARIO_LOCATION_OVERRIDE.value: "",
@@ -390,9 +409,7 @@ def init_session_state() -> None:
         if k not in st.session_state:
             st.session_state[k] = v
     sync_esco_semantic_state(st.session_state)
-    st.session_state[SSKey.UI_PREFERENCES.value] = normalize_ui_preferences(
-        st.session_state.get(SSKey.UI_PREFERENCES.value)
-    )
+    _sync_source_redaction_from_preferences()
 
 
 def reset_vacancy() -> None:
@@ -401,6 +418,7 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.SOURCE_FILE_META.value] = {}
     st.session_state[SSKey.JOB_EXTRACT.value] = None
     reset_intake_fact_state(st.session_state)
+    reset_intake_fact_evidence_state(st.session_state)
     st.session_state[SSKey.QUESTION_PLAN_BASE.value] = None
     st.session_state[SSKey.QUESTION_PLAN.value] = None
     st.session_state[SSKey.QUESTION_LIMITS.value] = {}
@@ -418,8 +436,10 @@ def reset_vacancy() -> None:
         st.session_state[SSKey.UI_PREFERENCES.value] = normalize_ui_preferences(
             st.session_state.get(SSKey.UI_PREFERENCES.value)
         )
+    _sync_source_redaction_from_preferences()
     st.session_state[SSKey.OPEN_GROUPS.value] = {}
     st.session_state[SSKey.BRIEF.value] = None
+    reset_usage_events(st.session_state)
     st.session_state[SSKey.JOBAD_CACHE_HIT.value] = {}
     st.session_state[SSKey.SUMMARY_CACHE_HIT.value] = False
     st.session_state[SSKey.SUMMARY_DIRTY.value] = False
@@ -541,6 +561,8 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.BENEFITS_AI_PILLS.value] = []
     st.session_state[SSKey.BENEFITS_SUGGEST_COUNT.value] = 5
     st.session_state[SSKey.BENEFITS_AI_GENERATE_CLICKED.value] = False
+    st.session_state[SSKey.BENEFITS_AI_INITIAL_GENERATED.value] = False
+    st.session_state[SSKey.BENEFITS_REGION_CONTEXT.value] = ""
     st.session_state[SSKey.SALARY_SCENARIO_SKILLS_ADD.value] = []
     st.session_state[SSKey.SALARY_SCENARIO_SKILLS_REMOVE.value] = []
     st.session_state[SSKey.SALARY_SCENARIO_LOCATION_OVERRIDE.value] = ""

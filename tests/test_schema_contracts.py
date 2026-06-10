@@ -21,6 +21,7 @@ def test_question_default_schema_is_typed_for_openai_structured_outputs() -> Non
     assert all("type" in branch for branch in any_of), (
         "every anyOf branch must include a concrete type for OpenAI Structured Outputs"
     )
+    assert "fact_key" in schema["$defs"]["Question"]["properties"]
 
 
 def test_vacancy_brief_llm_schema_is_strict_for_structured_outputs() -> None:

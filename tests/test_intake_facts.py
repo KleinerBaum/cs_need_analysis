@@ -3,18 +3,24 @@ from __future__ import annotations
 from copy import deepcopy
 from types import SimpleNamespace
 
-from constants import FactKey, SSKey
+from constants import FactKey, FactSensitivity, FactSourceType, SSKey
 from intake_facts import (
     collect_legacy_facts,
+    get_intake_fact_evidence_state,
     get_intake_fact_state,
+    latest_fact_confidence,
+    reset_intake_fact_evidence_state,
     reset_intake_fact_state,
     resolve_legacy_fact,
     sync_selected_skill_intake_facts,
+    write_intake_fact,
     write_intake_fact_by_legacy_field,
+    write_intake_fact_evidence,
     write_job_extract_intake_facts,
 )
 from schemas import Contact, JobAdExtract, MoneyRange, RecruitmentStep
 import state
+from usage_events import get_usage_events
 
 
 def test_init_session_state_initializes_intake_fact_state(monkeypatch) -> None:
@@ -33,6 +39,7 @@ def test_init_session_state_initializes_intake_fact_state(monkeypatch) -> None:
     state.init_session_state()
 
     assert fake_session_state[SSKey.INTAKE_FACTS.value] == {}
+    assert fake_session_state[SSKey.INTAKE_FACT_EVIDENCE.value] == {}
 
 
 def test_reset_intake_fact_state_clears_existing_registry_payload() -> None:
@@ -43,11 +50,30 @@ def test_reset_intake_fact_state_clears_existing_registry_payload() -> None:
     assert session_state[SSKey.INTAKE_FACTS.value] == {}
 
 
+def test_reset_intake_fact_evidence_state_clears_existing_payload() -> None:
+    session_state = {
+        SSKey.INTAKE_FACT_EVIDENCE.value: {
+            "role.job_title": {"confidence": 0.75}
+        }
+    }
+
+    reset_intake_fact_evidence_state(session_state)
+
+    assert session_state[SSKey.INTAKE_FACT_EVIDENCE.value] == {}
+
+
 def test_get_intake_fact_state_does_not_create_missing_key() -> None:
     session_state: dict[str, object] = {}
 
     assert get_intake_fact_state(session_state) == {}
     assert SSKey.INTAKE_FACTS.value not in session_state
+
+
+def test_get_intake_fact_evidence_state_does_not_create_missing_key() -> None:
+    session_state: dict[str, object] = {}
+
+    assert get_intake_fact_evidence_state(session_state) == {}
+    assert SSKey.INTAKE_FACT_EVIDENCE.value not in session_state
 
 
 def test_collect_legacy_facts_resolves_job_extract_values() -> None:
@@ -381,3 +407,195 @@ def test_state_set_answer_writes_through_supported_fact_and_legacy_answer(
         FactKey.ROLE_JOB_TITLE.value: "Data Engineer",
         FactKey.ROLE_TRAVEL_REQUIRED.value: False,
     }
+
+
+def test_write_intake_fact_writes_manual_evidence_by_default() -> None:
+    session_state = {SSKey.INTAKE_FACTS.value: {}, SSKey.INTAKE_FACT_EVIDENCE.value: {}}
+
+    write_intake_fact(session_state, FactKey.ROLE_JOB_TITLE, " Data Engineer ")
+
+    assert session_state[SSKey.INTAKE_FACTS.value] == {
+        FactKey.ROLE_JOB_TITLE.value: "Data Engineer"
+    }
+    evidence = session_state[SSKey.INTAKE_FACT_EVIDENCE.value][
+        FactKey.ROLE_JOB_TITLE.value
+    ]
+    assert evidence["source_type"] == FactSourceType.MANUAL.value
+    assert evidence["source_label"] == "Manual input"
+    assert evidence["confidence"] == 1.0
+    assert evidence["confirmed"] is True
+    assert evidence["sensitivity"] == FactSensitivity.NORMAL.value
+    assert evidence["evidence_snippet"] is None
+    assert evidence["used_by_artifacts"] == []
+    assert isinstance(evidence["updated_at"], str)
+
+
+def test_write_job_extract_intake_facts_writes_jobspec_evidence() -> None:
+    session_state = {SSKey.INTAKE_FACTS.value: {}, SSKey.INTAKE_FACT_EVIDENCE.value: {}}
+    job = JobAdExtract(job_title="Data Engineer")
+
+    write_job_extract_intake_facts(session_state, job)
+
+    evidence = session_state[SSKey.INTAKE_FACT_EVIDENCE.value][
+        FactKey.ROLE_JOB_TITLE.value
+    ]
+    assert evidence["source_type"] == FactSourceType.JOBSPEC.value
+    assert evidence["source_label"] == "Jobspec extraction"
+    assert evidence["confidence"] == 0.75
+    assert evidence["confirmed"] is False
+    assert evidence["sensitivity"] == FactSensitivity.NORMAL.value
+    assert evidence["used_by_artifacts"] == []
+
+
+def test_empty_write_clears_fact_and_evidence() -> None:
+    session_state = {SSKey.INTAKE_FACTS.value: {}, SSKey.INTAKE_FACT_EVIDENCE.value: {}}
+    write_intake_fact(session_state, FactKey.ROLE_JOB_TITLE, "Data Engineer")
+
+    write_intake_fact(session_state, FactKey.ROLE_JOB_TITLE, " ")
+
+    assert session_state[SSKey.INTAKE_FACTS.value] == {}
+    assert session_state[SSKey.INTAKE_FACT_EVIDENCE.value] == {}
+
+
+def test_manual_fact_writes_record_lifecycle_events_without_values() -> None:
+    session_state = {SSKey.INTAKE_FACTS.value: {}, SSKey.INTAKE_FACT_EVIDENCE.value: {}}
+
+    write_intake_fact(session_state, FactKey.ROLE_JOB_TITLE, "Data Engineer")
+    write_intake_fact(session_state, FactKey.ROLE_JOB_TITLE, "Analytics Engineer")
+    write_intake_fact(session_state, FactKey.ROLE_JOB_TITLE, " ")
+
+    events = get_usage_events(session_state)
+    assert [event["event_type"] for event in events] == [
+        "fact_confirmed",
+        "fact_corrected",
+        "fact_rejected",
+    ]
+    assert [event["metadata"] for event in events] == [
+        {"fact_key": FactKey.ROLE_JOB_TITLE.value, "source_type": "manual"},
+        {"fact_key": FactKey.ROLE_JOB_TITLE.value, "source_type": "manual"},
+        {"fact_key": FactKey.ROLE_JOB_TITLE.value, "source_type": "manual"},
+    ]
+
+
+def test_jobspec_fact_writes_do_not_record_manual_lifecycle_events() -> None:
+    session_state = {SSKey.INTAKE_FACTS.value: {}, SSKey.INTAKE_FACT_EVIDENCE.value: {}}
+
+    write_intake_fact(
+        session_state,
+        FactKey.ROLE_JOB_TITLE,
+        "Data Engineer",
+        source_type=FactSourceType.JOBSPEC,
+    )
+
+    assert get_usage_events(session_state) == []
+
+
+def test_manual_confirmation_of_existing_extracted_fact_records_confirmation() -> None:
+    session_state = {SSKey.INTAKE_FACTS.value: {}, SSKey.INTAKE_FACT_EVIDENCE.value: {}}
+    write_intake_fact(
+        session_state,
+        FactKey.ROLE_JOB_TITLE,
+        "Data Engineer",
+        source_type=FactSourceType.JOBSPEC,
+    )
+
+    write_intake_fact(session_state, FactKey.ROLE_JOB_TITLE, "Data Engineer")
+
+    events = get_usage_events(session_state)
+    assert [event["event_type"] for event in events] == ["fact_confirmed"]
+    assert events[0]["metadata"] == {
+        "fact_key": FactKey.ROLE_JOB_TITLE.value,
+        "source_type": "manual",
+    }
+
+
+def test_write_intake_fact_evidence_clamps_confidence_and_latest_lookup() -> None:
+    session_state = {SSKey.INTAKE_FACT_EVIDENCE.value: {}}
+
+    write_intake_fact_evidence(
+        session_state,
+        FactKey.ROLE_JOB_TITLE,
+        source_type="llm",
+        source_label="Extraction model",
+        confidence=2.5,
+        evidence_snippet="Senior Data Engineer gesucht",
+        updated_at="2026-06-09T12:00:00+00:00",
+    )
+
+    evidence = session_state[SSKey.INTAKE_FACT_EVIDENCE.value][
+        FactKey.ROLE_JOB_TITLE.value
+    ]
+    assert evidence == {
+        "source_type": "llm",
+        "source_label": "Extraction model",
+        "confidence": 1.0,
+        "confirmed": False,
+        "sensitivity": "normal",
+        "evidence_snippet": "Senior Data Engineer gesucht",
+        "used_by_artifacts": [],
+        "updated_at": "2026-06-09T12:00:00+00:00",
+    }
+    assert latest_fact_confidence(
+        FactKey.ROLE_JOB_TITLE,
+        session_state[SSKey.INTAKE_FACT_EVIDENCE.value],
+    ) == 1.0
+
+
+def test_write_intake_fact_evidence_redacts_snippet_before_storage() -> None:
+    session_state = {SSKey.INTAKE_FACT_EVIDENCE.value: {}}
+
+    write_intake_fact_evidence(
+        session_state,
+        FactKey.INTERVIEW_CONTACTS,
+        source_type=FactSourceType.LLM,
+        evidence_snippet=(
+            "Kontakt: recruiting@example.com oder +49 30 12345678 fuer Rueckfragen."
+        ),
+    )
+
+    snippet = session_state[SSKey.INTAKE_FACT_EVIDENCE.value][
+        FactKey.INTERVIEW_CONTACTS.value
+    ]["evidence_snippet"]
+    assert "recruiting@example.com" not in snippet
+    assert "+49 30 12345678" not in snippet
+    assert snippet == "Kontakt: [REDACTED] oder [REDACTED] fuer Rueckfragen."
+
+
+def test_write_intake_fact_evidence_stores_sensitivity_and_artifact_usage() -> None:
+    session_state = {SSKey.INTAKE_FACT_EVIDENCE.value: {}}
+
+    write_intake_fact_evidence(
+        session_state,
+        FactKey.BENEFITS_SALARY_RANGE,
+        source_type=FactSourceType.HOMEPAGE,
+        confirmed=True,
+        used_by_artifacts=[
+            "brief",
+            "job_ad",
+            "invalid",
+            "brief",
+            "employment_contract",
+        ],
+    )
+    write_intake_fact_evidence(
+        session_state,
+        FactKey.INTERVIEW_CONTACTS,
+        source_type=FactSourceType.MANUAL,
+        sensitivity=FactSensitivity.PERSONAL,
+    )
+
+    salary_evidence = session_state[SSKey.INTAKE_FACT_EVIDENCE.value][
+        FactKey.BENEFITS_SALARY_RANGE.value
+    ]
+    assert salary_evidence["confirmed"] is True
+    assert salary_evidence["sensitivity"] == FactSensitivity.RESTRICTED.value
+    assert salary_evidence["used_by_artifacts"] == [
+        "brief",
+        "job_ad",
+        "employment_contract",
+    ]
+    contacts_evidence = session_state[SSKey.INTAKE_FACT_EVIDENCE.value][
+        FactKey.INTERVIEW_CONTACTS.value
+    ]
+    assert contacts_evidence["confirmed"] is True
+    assert contacts_evidence["sensitivity"] == FactSensitivity.PERSONAL.value

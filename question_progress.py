@@ -9,6 +9,7 @@ from collections.abc import Mapping
 from typing import Any, Literal, TypedDict
 
 from constants import INTAKE_FACTS, AnswerType, FactKey
+from intake_facts import latest_fact_confidence
 from schemas import JobAdExtract, Question
 
 WizardUIMode = Literal["quick", "standard", "expert"]
@@ -42,6 +43,7 @@ _JOB_EXTRACT_FIELD_FACTS = {
     for fact_key, field_name in _FACT_JOB_EXTRACT_FIELDS.items()
     if field_name in _JOB_EXTRACT_FIELDS
 }
+_LOW_CONFIDENCE_FACT = object()
 
 _JOB_EXTRACT_ALIAS_RULES: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (
@@ -189,6 +191,8 @@ def build_answered_lookup(
     *,
     job_extract: JobAdExtract | None = None,
     intake_facts: Mapping[str, Any] | None = None,
+    intake_fact_evidence: Mapping[str, Any] | None = None,
+    confidence_threshold: float | None = None,
 ) -> dict[str, bool]:
     """Return a per-question answered lookup for reuse across render sections."""
 
@@ -202,6 +206,8 @@ def build_answered_lookup(
             question,
             job_extract,
             intake_facts=intake_facts,
+            intake_fact_evidence=intake_fact_evidence,
+            confidence_threshold=confidence_threshold,
         )
         for question in questions
     }
@@ -251,6 +257,8 @@ def build_answers_with_job_extract_coverage(
     *,
     job_extract: JobAdExtract | None = None,
     intake_facts: Mapping[str, Any] | None = None,
+    intake_fact_evidence: Mapping[str, Any] | None = None,
+    confidence_threshold: float | None = None,
 ) -> dict[str, Any]:
     """Return answers plus inferred extract values for dependency evaluation only."""
 
@@ -269,6 +277,8 @@ def build_answers_with_job_extract_coverage(
             question,
             job_extract,
             intake_facts=intake_facts,
+            intake_fact_evidence=intake_fact_evidence,
+            confidence_threshold=confidence_threshold,
         )
         if _has_meaningful_extract_value(extracted_value):
             effective_answers[question.id] = extracted_value
@@ -280,12 +290,16 @@ def is_question_covered_by_job_extract(
     job_extract: JobAdExtract | None,
     *,
     intake_facts: Mapping[str, Any] | None = None,
+    intake_fact_evidence: Mapping[str, Any] | None = None,
+    confidence_threshold: float | None = None,
 ) -> bool:
     return _has_meaningful_extract_value(
         resolve_question_job_extract_value(
             question,
             job_extract,
             intake_facts=intake_facts,
+            intake_fact_evidence=intake_fact_evidence,
+            confidence_threshold=confidence_threshold,
         )
     )
 
@@ -295,10 +309,19 @@ def resolve_question_job_extract_value(
     job_extract: JobAdExtract | None,
     *,
     intake_facts: Mapping[str, Any] | None = None,
+    intake_fact_evidence: Mapping[str, Any] | None = None,
+    confidence_threshold: float | None = None,
 ) -> Any:
     """Resolve a question to a canonical JobAdExtract value when possible."""
 
-    fact_value = _resolve_question_intake_fact_value(question, intake_facts)
+    fact_value = _resolve_question_intake_fact_value(
+        question,
+        intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
+    )
+    if fact_value is _LOW_CONFIDENCE_FACT:
+        return None
     if _has_meaningful_extract_value(fact_value):
         return fact_value
 
@@ -331,6 +354,9 @@ def resolve_question_job_extract_value(
 def _resolve_question_intake_fact_value(
     question: Question,
     intake_facts: Mapping[str, Any] | None,
+    *,
+    intake_fact_evidence: Mapping[str, Any] | None = None,
+    confidence_threshold: float | None = None,
 ) -> Any:
     if not isinstance(intake_facts, Mapping):
         return None
@@ -338,13 +364,44 @@ def _resolve_question_intake_fact_value(
     for fact_key in _candidate_question_fact_keys(question):
         value = intake_facts.get(fact_key.value)
         if _has_meaningful_extract_value(value):
+            if not _fact_evidence_allows_coverage(
+                fact_key,
+                intake_fact_evidence=intake_fact_evidence,
+                confidence_threshold=confidence_threshold,
+            ):
+                return _LOW_CONFIDENCE_FACT
             return value
     return None
+
+
+def _fact_evidence_allows_coverage(
+    fact_key: FactKey,
+    *,
+    intake_fact_evidence: Mapping[str, Any] | None,
+    confidence_threshold: float | None,
+) -> bool:
+    threshold = _normalize_confidence_threshold(confidence_threshold)
+    if threshold is None or not isinstance(intake_fact_evidence, Mapping):
+        return True
+    confidence = latest_fact_confidence(fact_key, intake_fact_evidence)
+    if confidence is None:
+        return True
+    return confidence >= threshold
+
+
+def _normalize_confidence_threshold(raw_threshold: float | None) -> float | None:
+    if raw_threshold is None:
+        return None
+    try:
+        return max(0.0, min(1.0, float(raw_threshold)))
+    except (TypeError, ValueError):
+        return None
 
 
 def _candidate_question_fact_keys(question: Question) -> tuple[FactKey, ...]:
     candidates: list[FactKey] = []
     for raw_key in (
+        getattr(question, "fact_key", None),
         question.target_path,
         _normalize_path_tail(question.target_path),
         question.id,
@@ -443,6 +500,8 @@ def compute_question_progress(
     *,
     job_extract: JobAdExtract | None = None,
     intake_facts: Mapping[str, Any] | None = None,
+    intake_fact_evidence: Mapping[str, Any] | None = None,
+    confidence_threshold: float | None = None,
 ) -> QuestionProgress:
     """Compute answered/total and open required counts for a question list."""
 
@@ -463,6 +522,8 @@ def compute_question_progress(
                 question,
                 job_extract,
                 intake_facts=intake_facts,
+                intake_fact_evidence=intake_fact_evidence,
+                confidence_threshold=confidence_threshold,
             )
         )
         if question_answered:

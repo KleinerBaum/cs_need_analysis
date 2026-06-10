@@ -9,8 +9,10 @@ import state
 RESET_EXPECTATIONS: dict[SSKey, object] = {
     SSKey.SOURCE_TEXT: "",
     SSKey.SOURCE_FILE_META: {},
+    SSKey.SOURCE_REDACT_PII: True,
     SSKey.JOB_EXTRACT: None,
     SSKey.INTAKE_FACTS: {},
+    SSKey.INTAKE_FACT_EVIDENCE: {},
     SSKey.QUESTION_PLAN_BASE: None,
     SSKey.QUESTION_PLAN: None,
     SSKey.QUESTION_LIMITS: {},
@@ -29,12 +31,13 @@ RESET_EXPECTATIONS: dict[SSKey, object] = {
         "regional_focus": "DACH",
         "show_sources_default": True,
         "confidence_threshold": 0.6,
-        "pii_reduction": False,
+        "pii_reduction": True,
         "details_expanded_default": False,
         "step_compact": {},
     },
     SSKey.OPEN_GROUPS: {},
     SSKey.BRIEF: None,
+    SSKey.USAGE_EVENTS: [],
     SSKey.JOBAD_CACHE_HIT: {},
     SSKey.SUMMARY_CACHE_HIT: False,
     SSKey.SUMMARY_DIRTY: False,
@@ -173,8 +176,12 @@ def test_reset_vacancy_clears_progressive_disclosure_state(
     fake_session_state = {
         SSKey.SOURCE_TEXT.value: "Jobspec",
         SSKey.SOURCE_FILE_META.value: {"name": "input.pdf"},
+        SSKey.SOURCE_REDACT_PII.value: False,
         SSKey.JOB_EXTRACT.value: {"job_title": "Engineer"},
         SSKey.INTAKE_FACTS.value: {"role.job_title": "Engineer"},
+        SSKey.INTAKE_FACT_EVIDENCE.value: {
+            "role.job_title": {"confidence": 0.75}
+        },
         SSKey.QUESTION_PLAN_BASE.value: {"steps": []},
         SSKey.QUESTION_PLAN.value: {"steps": []},
         SSKey.QUESTION_LIMITS.value: {"company": 3},
@@ -188,6 +195,7 @@ def test_reset_vacancy_clears_progressive_disclosure_state(
         SSKey.UI_MODE.value: "expert",
         SSKey.OPEN_GROUPS.value: {"company": {"Details": True}},
         SSKey.BRIEF.value: {"one_liner": "x"},
+        SSKey.USAGE_EVENTS.value: [{"event_type": "artifact_generated"}],
         SSKey.JOBAD_CACHE_HIT.value: {"hit": True},
         SSKey.SUMMARY_CACHE_HIT.value: True,
         SSKey.SUMMARY_LAST_MODE.value: "custom",
@@ -250,6 +258,7 @@ def test_init_session_state_and_reset_vacancy_share_same_defaults(monkeypatch) -
 def test_reset_vacancy_preserves_existing_ui_preferences(monkeypatch) -> None:
     preserved_preferences = {
         "details_expanded_default": True,
+        "pii_reduction": False,
         "step_compact": {"company": False},
     }
     fake_session_state = {
@@ -270,6 +279,7 @@ def test_reset_vacancy_preserves_existing_ui_preferences(monkeypatch) -> None:
     assert resolved_preferences["step_compact"] == {"company": False}
     assert resolved_preferences["confidence_threshold"] == 0.6
     assert resolved_preferences["pii_reduction"] is False
+    assert fake_session_state[SSKey.SOURCE_REDACT_PII.value] is False
 
 
 def test_init_session_state_uses_env_esco_api_base_url(monkeypatch) -> None:

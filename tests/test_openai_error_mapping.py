@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import httpx
 import pytest
 from openai import (
@@ -16,6 +18,7 @@ from llm_client import (
     _error_from_structured_output_exception,
     _parse_with_structured_outputs,
 )
+from constants import SSKey
 from settings_openai import OpenAISettings
 
 
@@ -178,6 +181,7 @@ def _runtime_config_for_parse(
         task_max_bullets_per_field=None,
         task_max_sentences_per_field=None,
         settings=settings,
+        task_kind="test_structured_output",
     )
 
 
@@ -233,6 +237,69 @@ def test_parse_structured_outputs_retries_on_compatible_400(
     assert "text" in fake_responses.calls[0]
     assert "reasoning" not in fake_responses.calls[1]
     assert "text" not in fake_responses.calls[1]
+
+
+def test_parse_structured_outputs_records_fallback_model_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeResponse:
+        output_parsed = _MiniOut(value=9)
+        usage = {"total_tokens": 7}
+
+    class FakeResponses:
+        def __init__(self) -> None:
+            self.calls: list[dict[str, object]] = []
+
+        def parse(self, **kwargs: object) -> FakeResponse:
+            self.calls.append(kwargs)
+            if kwargs.get("model") != "gpt-4o-mini":
+                request = httpx.Request("POST", "https://api.openai.com/v1/responses")
+                response = httpx.Response(status_code=400, request=request)
+                raise APIStatusError(
+                    "bad request",
+                    response=response,
+                    body={
+                        "error": {
+                            "message": "Unsupported parameter: text_format for this model."
+                        }
+                    },
+                )
+            return FakeResponse()
+
+    fake_responses = FakeResponses()
+    fake_client = type("Client", (), {"responses": fake_responses})()
+    fake_session_state: dict[str, object] = {}
+
+    monkeypatch.setattr("llm_client.get_openai_client", lambda settings: fake_client)
+    monkeypatch.setattr("llm_client._has_any_openai_api_key", lambda settings: True)
+    monkeypatch.setattr("llm_client.st", SimpleNamespace(session_state=fake_session_state))
+
+    parsed, usage = _parse_with_structured_outputs(
+        runtime_config=_runtime_config_for_parse(),
+        messages=[{"role": "user", "content": "hi"}],
+        out_model=_MiniOut,
+        store=False,
+    )
+
+    parsed_model = _MiniOut.model_validate(parsed.model_dump())
+    assert parsed_model.value == 9
+    assert usage == {"total_tokens": 7}
+    assert [call["model"] for call in fake_responses.calls] == [
+        "gpt-5-mini",
+        "gpt-5-mini",
+        "gpt-4o-mini",
+    ]
+    assert fake_session_state[SSKey.USAGE_EVENTS.value][0]["event_type"] == (
+        "fallback_model_used"
+    )
+    assert fake_session_state[SSKey.USAGE_EVENTS.value][0]["metadata"] == {
+        "task_kind": "test_structured_output",
+        "requested_model": "gpt-5-mini",
+        "final_model": "gpt-4o-mini",
+        "fallback_kind": "fallback_model",
+        "endpoint": "responses.parse",
+        "error_code": "OPENAI_BAD_REQUEST_STRUCTURED_OUTPUT_UNSUPPORTED",
+    }
 
 
 def test_parse_structured_outputs_does_not_retry_on_non_retryable_400(

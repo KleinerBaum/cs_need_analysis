@@ -2,11 +2,24 @@
 
 from __future__ import annotations
 
-from typing import Any, Mapping, MutableMapping
+from datetime import UTC, datetime
+from typing import Any, Mapping, MutableMapping, Sequence
 
-from constants import FactKey, SSKey
+from constants import (
+    SUMMARY_ARTIFACT_IDS,
+    FactKey,
+    FactSensitivity,
+    FactSourceType,
+    SSKey,
+)
 from interview_process import normalize_interview_internal_flow
+from parsing import redact_pii
 from schemas import JobAdExtract
+from usage_events import (
+    record_fact_confirmed,
+    record_fact_corrected,
+    record_fact_rejected,
+)
 
 
 _JOB_EXTRACT_FACT_FIELDS: dict[FactKey, str] = {
@@ -46,6 +59,17 @@ _WRITE_THROUGH_FACT_FIELDS: dict[str, FactKey] = {
 _WRITE_THROUGH_FACTS: frozenset[FactKey] = frozenset(
     _WRITE_THROUGH_FACT_FIELDS.values()
 )
+_DEFAULT_CONFIDENCE_BY_SOURCE: dict[FactSourceType, float] = {
+    FactSourceType.MANUAL: 1.0,
+    FactSourceType.JOBSPEC: 0.75,
+    FactSourceType.HOMEPAGE: 0.75,
+    FactSourceType.ESCO: 0.75,
+    FactSourceType.LLM: 0.75,
+}
+_DEFAULT_SENSITIVITY_BY_FACT: dict[FactKey, FactSensitivity] = {
+    FactKey.BENEFITS_SALARY_RANGE: FactSensitivity.RESTRICTED,
+    FactKey.INTERVIEW_CONTACTS: FactSensitivity.PERSONAL,
+}
 
 
 def get_intake_fact_state(session_state: Mapping[str, Any]) -> dict[str, Any]:
@@ -61,10 +85,32 @@ def reset_intake_fact_state(session_state: MutableMapping[str, Any]) -> None:
     session_state[SSKey.INTAKE_FACTS.value] = {}
 
 
+def get_intake_fact_evidence_state(session_state: Mapping[str, Any]) -> dict[str, Any]:
+    """Return additive fact evidence state without creating it."""
+
+    raw_state = session_state.get(SSKey.INTAKE_FACT_EVIDENCE.value)
+    return raw_state if isinstance(raw_state, dict) else {}
+
+
+def reset_intake_fact_evidence_state(session_state: MutableMapping[str, Any]) -> None:
+    """Reset additive fact evidence state; legacy state remains untouched."""
+
+    session_state[SSKey.INTAKE_FACT_EVIDENCE.value] = {}
+
+
 def write_intake_fact(
     session_state: MutableMapping[str, Any],
     fact_key: FactKey | str,
     value: Any,
+    *,
+    source_type: FactSourceType | str = FactSourceType.MANUAL,
+    source_label: str | None = None,
+    confidence: float | None = None,
+    evidence_snippet: str | None = None,
+    confirmed: bool | None = None,
+    sensitivity: FactSensitivity | str | None = None,
+    used_by_artifacts: Sequence[str] | None = None,
+    updated_at: str | None = None,
 ) -> None:
     """Mirror one supported canonical fact into additive fact state."""
 
@@ -73,24 +119,145 @@ def write_intake_fact(
         return
 
     normalized_value = _normalize_fact_value(value)
+    resolved_source = _coerce_fact_source_type(source_type) or FactSourceType.MANUAL
     fact_state = _mutable_fact_state(session_state)
+    previous_value = fact_state.get(resolved_key.value)
+    previous_evidence = _mutable_fact_evidence_state(session_state).get(
+        resolved_key.value
+    )
     if normalized_value is None:
         fact_state.pop(resolved_key.value, None)
+        _clear_intake_fact_evidence(session_state, resolved_key)
+        _record_manual_fact_lifecycle_event(
+            session_state,
+            resolved_key,
+            source_type=resolved_source,
+            previous_value=previous_value,
+            normalized_value=None,
+            previous_evidence=previous_evidence,
+        )
     else:
         fact_state[resolved_key.value] = normalized_value
+        write_intake_fact_evidence(
+            session_state,
+            resolved_key,
+            source_type=resolved_source,
+            source_label=source_label,
+            confidence=confidence,
+            evidence_snippet=evidence_snippet,
+            confirmed=confirmed,
+            sensitivity=sensitivity,
+            used_by_artifacts=used_by_artifacts,
+            updated_at=updated_at,
+        )
+        _record_manual_fact_lifecycle_event(
+            session_state,
+            resolved_key,
+            source_type=resolved_source,
+            previous_value=previous_value,
+            normalized_value=normalized_value,
+            previous_evidence=previous_evidence,
+        )
     session_state[SSKey.INTAKE_FACTS.value] = fact_state
+
+
+def write_intake_fact_evidence(
+    session_state: MutableMapping[str, Any],
+    fact_key: FactKey | str,
+    *,
+    source_type: FactSourceType | str = FactSourceType.MANUAL,
+    source_label: str | None = None,
+    confidence: float | None = None,
+    evidence_snippet: str | None = None,
+    confirmed: bool | None = None,
+    sensitivity: FactSensitivity | str | None = None,
+    used_by_artifacts: Sequence[str] | None = None,
+    updated_at: str | None = None,
+) -> None:
+    """Mirror one supported canonical fact evidence record into additive state."""
+
+    resolved_key = _coerce_fact_key(fact_key)
+    if resolved_key is None or resolved_key not in _WRITE_THROUGH_FACTS:
+        return
+
+    resolved_source = _coerce_fact_source_type(source_type)
+    if resolved_source is None:
+        resolved_source = FactSourceType.MANUAL
+    resolved_confidence = _normalize_confidence(
+        confidence,
+        default=_DEFAULT_CONFIDENCE_BY_SOURCE[resolved_source],
+    )
+    resolved_sensitivity = _coerce_fact_sensitivity(sensitivity) or (
+        _DEFAULT_SENSITIVITY_BY_FACT.get(resolved_key, FactSensitivity.NORMAL)
+    )
+    evidence_state = _mutable_fact_evidence_state(session_state)
+    resolved_confirmed = (
+        confirmed if confirmed is not None else resolved_source == FactSourceType.MANUAL
+    )
+    evidence_state[resolved_key.value] = {
+        "source_type": resolved_source.value,
+        "source_label": _normalize_string(source_label)
+        or _default_source_label(resolved_source),
+        "confidence": resolved_confidence,
+        "confirmed": bool(resolved_confirmed),
+        "sensitivity": resolved_sensitivity.value,
+        "evidence_snippet": _normalize_evidence_snippet(evidence_snippet),
+        "used_by_artifacts": _normalize_used_by_artifacts(used_by_artifacts),
+        "updated_at": updated_at or datetime.now(UTC).isoformat(),
+    }
+    session_state[SSKey.INTAKE_FACT_EVIDENCE.value] = evidence_state
+
+
+def latest_fact_confidence(
+    fact_key: FactKey | str,
+    evidence_state: Mapping[str, Any] | None,
+) -> float | None:
+    """Return the latest stored confidence for a canonical fact, if available."""
+
+    resolved_key = _coerce_fact_key(fact_key)
+    if resolved_key is None or not isinstance(evidence_state, Mapping):
+        return None
+    raw_entry = evidence_state.get(resolved_key.value)
+    if not isinstance(raw_entry, Mapping):
+        return None
+    raw_confidence = raw_entry.get("confidence")
+    try:
+        return _normalize_confidence(float(raw_confidence), default=0.0)
+    except (TypeError, ValueError):
+        return None
 
 
 def write_intake_fact_by_legacy_field(
     session_state: MutableMapping[str, Any],
     legacy_field: str,
     value: Any,
+    *,
+    source_type: FactSourceType | str = FactSourceType.MANUAL,
+    source_label: str | None = None,
+    confidence: float | None = None,
+    evidence_snippet: str | None = None,
+    confirmed: bool | None = None,
+    sensitivity: FactSensitivity | str | None = None,
+    used_by_artifacts: Sequence[str] | None = None,
+    updated_at: str | None = None,
 ) -> None:
     """Mirror a supported legacy field name into additive fact state."""
 
     fact_key = _WRITE_THROUGH_FACT_FIELDS.get(str(legacy_field or "").strip())
     if fact_key is not None:
-        write_intake_fact(session_state, fact_key, value)
+        write_intake_fact(
+            session_state,
+            fact_key,
+            value,
+            source_type=source_type,
+            source_label=source_label,
+            confidence=confidence,
+            evidence_snippet=evidence_snippet,
+            confirmed=confirmed,
+            sensitivity=sensitivity,
+            used_by_artifacts=used_by_artifacts,
+            updated_at=updated_at,
+        )
 
 
 def write_job_extract_intake_facts(
@@ -108,6 +275,9 @@ def write_job_extract_intake_facts(
             session_state,
             field_name,
             payload.get(field_name),
+            source_type=FactSourceType.JOBSPEC,
+            source_label="Jobspec extraction",
+            confidence=0.75,
         )
 
 
@@ -118,11 +288,17 @@ def sync_selected_skill_intake_facts(session_state: MutableMapping[str, Any]) ->
         session_state,
         FactKey.SKILLS_MUST_HAVE_SKILLS,
         _selected_skills_by_status(session_state, "must"),
+        source_type=FactSourceType.MANUAL,
+        source_label="Manual skill selection",
+        confidence=1.0,
     )
     write_intake_fact(
         session_state,
         FactKey.SKILLS_NICE_TO_HAVE_SKILLS,
         _selected_skills_by_status(session_state, "nice"),
+        source_type=FactSourceType.MANUAL,
+        source_label="Manual skill selection",
+        confidence=1.0,
     )
 
 
@@ -166,6 +342,132 @@ def _coerce_fact_key(raw_fact_key: FactKey | str) -> FactKey | None:
 def _mutable_fact_state(session_state: Mapping[str, Any]) -> dict[str, Any]:
     raw_state = session_state.get(SSKey.INTAKE_FACTS.value)
     return dict(raw_state) if isinstance(raw_state, dict) else {}
+
+
+def _mutable_fact_evidence_state(session_state: Mapping[str, Any]) -> dict[str, Any]:
+    raw_state = session_state.get(SSKey.INTAKE_FACT_EVIDENCE.value)
+    return dict(raw_state) if isinstance(raw_state, dict) else {}
+
+
+def _clear_intake_fact_evidence(
+    session_state: MutableMapping[str, Any],
+    fact_key: FactKey,
+) -> None:
+    evidence_state = _mutable_fact_evidence_state(session_state)
+    evidence_state.pop(fact_key.value, None)
+    session_state[SSKey.INTAKE_FACT_EVIDENCE.value] = evidence_state
+
+
+def _record_manual_fact_lifecycle_event(
+    session_state: MutableMapping[str, Any],
+    fact_key: FactKey,
+    *,
+    source_type: FactSourceType,
+    previous_value: Any,
+    normalized_value: Any | None,
+    previous_evidence: Any,
+) -> None:
+    if source_type != FactSourceType.MANUAL:
+        return
+    source_value = source_type.value
+    if normalized_value is None:
+        if previous_value is not None:
+            record_fact_rejected(
+                session_state,
+                fact_key=fact_key.value,
+                source_type=source_value,
+            )
+        return
+    if previous_value is None:
+        record_fact_confirmed(
+            session_state,
+            fact_key=fact_key.value,
+            source_type=source_value,
+        )
+        return
+    if previous_value != normalized_value:
+        record_fact_corrected(
+            session_state,
+            fact_key=fact_key.value,
+            source_type=source_value,
+        )
+        return
+    if _evidence_source_type(previous_evidence) != source_value:
+        record_fact_confirmed(
+            session_state,
+            fact_key=fact_key.value,
+            source_type=source_value,
+        )
+
+
+def _evidence_source_type(raw_evidence: Any) -> str | None:
+    if not isinstance(raw_evidence, Mapping):
+        return None
+    source_type = raw_evidence.get("source_type")
+    return source_type if isinstance(source_type, str) else None
+
+
+def _coerce_fact_source_type(
+    raw_source_type: FactSourceType | str,
+) -> FactSourceType | None:
+    if isinstance(raw_source_type, FactSourceType):
+        return raw_source_type
+    try:
+        return FactSourceType(str(raw_source_type))
+    except ValueError:
+        return None
+
+
+def _coerce_fact_sensitivity(
+    raw_sensitivity: FactSensitivity | str | None,
+) -> FactSensitivity | None:
+    if isinstance(raw_sensitivity, FactSensitivity):
+        return raw_sensitivity
+    if not isinstance(raw_sensitivity, str):
+        return None
+    try:
+        return FactSensitivity(raw_sensitivity)
+    except ValueError:
+        return None
+
+
+def _normalize_confidence(value: float | None, *, default: float) -> float:
+    if value is None:
+        value = default
+    return max(0.0, min(1.0, float(value)))
+
+
+def _normalize_evidence_snippet(value: Any) -> str | None:
+    snippet = _normalize_string(value)
+    if snippet is None:
+        return None
+    return _normalize_string(redact_pii(snippet))
+
+
+def _normalize_used_by_artifacts(raw_artifacts: Sequence[str] | None) -> list[str]:
+    if raw_artifacts is None:
+        return []
+    valid_ids = set(SUMMARY_ARTIFACT_IDS)
+    normalized: list[str] = []
+    for raw_artifact in raw_artifacts:
+        artifact_id = _normalize_string(raw_artifact)
+        if artifact_id is None or artifact_id not in valid_ids:
+            continue
+        if artifact_id not in normalized:
+            normalized.append(artifact_id)
+    return normalized
+
+
+def _default_source_label(source_type: FactSourceType) -> str:
+    if source_type == FactSourceType.MANUAL:
+        return "Manual input"
+    if source_type == FactSourceType.JOBSPEC:
+        return "Jobspec extraction"
+    if source_type == FactSourceType.HOMEPAGE:
+        return "Homepage research"
+    if source_type == FactSourceType.ESCO:
+        return "ESCO enrichment"
+    return "LLM output"
 
 
 def _job_extract_facts(session_state: Mapping[str, Any]) -> dict[FactKey, Any]:

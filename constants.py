@@ -251,6 +251,7 @@ class SSKey(str, Enum):
 
     JOB_EXTRACT = "cs.job_extract"
     INTAKE_FACTS = "cs.intake_facts"
+    INTAKE_FACT_EVIDENCE = "cs.intake_fact_evidence"
     QUESTION_PLAN_BASE = "cs.question_plan_base"
     QUESTION_PLAN = "cs.question_plan"
     QUESTION_LIMITS = "cs.question_limits"
@@ -272,6 +273,7 @@ class SSKey(str, Enum):
     DEBUG = "cs.debug"
     CONTENT_SHARING_CONSENT = "cs.content_sharing_consent"
     LLM_RESPONSE_CACHE = "cs.llm_response_cache"
+    USAGE_EVENTS = "cs.usage_events"
     JOBAD_CACHE_HIT = "cs.jobad_cache_hit"
     SUMMARY_CACHE_HIT = "cs.summary_cache_hit"
     SUMMARY_DIRTY = "cs.summary_dirty"
@@ -420,6 +422,8 @@ class SSKey(str, Enum):
     BENEFITS_AI_PILLS = "cs.benefits.ai_pills"
     BENEFITS_SUGGEST_COUNT = "cs.benefits.suggest_count"
     BENEFITS_AI_GENERATE_CLICKED = "cs.benefits.ai_generate_clicked"
+    BENEFITS_AI_INITIAL_GENERATED = "cs.benefits.ai_initial_generated"
+    BENEFITS_REGION_CONTEXT = "cs.benefits.region_context"
 
 
 # ---- Wizard Steps (canonical routed/visible wizard navigation only) ----
@@ -511,6 +515,31 @@ class FactValueType(str, Enum):
 
 class FactPersistenceIntent(str, Enum):
     LEGACY_COMPATIBLE = "legacy_compatible"
+
+
+class FactSourceType(str, Enum):
+    MANUAL = "manual"
+    JOBSPEC = "jobspec"
+    HOMEPAGE = "homepage"
+    ESCO = "esco"
+    LLM = "llm"
+
+
+class FactSensitivity(str, Enum):
+    NORMAL = "normal"
+    PERSONAL = "personal"
+    RESTRICTED = "restricted"
+
+
+class UsageEventType(str, Enum):
+    STEP_ENTERED = "step_entered"
+    STEP_SUBMITTED = "step_submitted"
+    FACT_CONFIRMED = "fact_confirmed"
+    FACT_CORRECTED = "fact_corrected"
+    FACT_REJECTED = "fact_rejected"
+    FALLBACK_MODEL_USED = "fallback_model_used"
+    HOMEPAGE_FETCH_FAILED = "homepage_fetch_failed"
+    ARTIFACT_GENERATED = "artifact_generated"
 
 
 @dataclass(frozen=True)

@@ -10,13 +10,14 @@ from contextlib import nullcontext
 from dataclasses import dataclass
 from collections import defaultdict
 from html import escape
-from typing import Any, Callable, Protocol, Sequence, TypedDict
+from typing import Any, Callable, Mapping, Protocol, Sequence, TypedDict
 
 import streamlit as st
 import docx
 
 from constants import (
     AnswerType,
+    FactKey,
     NON_INTAKE_STEP_KEYS,
     SSKey,
     SUMMARY_ARTIFACT_IDS,
@@ -29,6 +30,7 @@ from interview_process import (
     default_selected_interview_value_ids,
     normalize_interview_internal_flow,
 )
+from intake_facts import get_intake_fact_evidence_state, get_intake_fact_state
 from esco_client import EscoClient, EscoClientError
 from esco_semantics import normalize_anchor_ref, sync_esco_semantic_state
 from llm_client import (
@@ -93,6 +95,7 @@ from ui_components import (
     render_interview_prep_hr,
     render_openai_error,
 )
+from usage_events import record_artifact_generated
 from usage_utils import usage_has_cache_hit
 from wizard_pages.base import (
     WizardContext,
@@ -229,6 +232,7 @@ _ARTIFACT_DISPLAY_LABELS: dict[str, str] = {
     "employment_contract": "Arbeitsvertrag",
     "brief": "Recruiting Brief",
 }
+SUMMARY_FACT_OVERVIEW_COLUMNS = 3
 
 
 @dataclass(frozen=True)
@@ -1014,6 +1018,12 @@ def _build_esco_mapping_report_csv(rows: list[dict[str, str]]) -> bytes:
 
 def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
     payload = dict(brief.structured_data.model_dump(mode="json", exclude_none=True))
+    intake_facts = get_intake_fact_state(st.session_state)
+    if intake_facts:
+        payload["intake_facts"] = dict(intake_facts)
+    intake_fact_evidence = get_intake_fact_evidence_state(st.session_state)
+    if intake_fact_evidence:
+        payload["intake_fact_evidence"] = dict(intake_fact_evidence)
     try:
         export_job = JobAdExtract.model_validate(brief.structured_data.job_extract)
     except Exception:
@@ -2155,8 +2165,7 @@ def _build_country_readiness_items(job: JobAdExtract) -> list[tuple[str, str, bo
     return rows
 
 
-def _render_summary_facts_section(vm: SummaryViewModel) -> None:
-    st.markdown("### Fakten")
+def _render_esco_coverage_kpis() -> None:
     shared_esco = _read_esco_shared_fields()
     coverage_metrics = _compute_esco_coverage_metrics(shared_esco)
     requirements_total = coverage_metrics["essential_total"] + coverage_metrics["optional_total"]
@@ -2172,6 +2181,49 @@ def _render_summary_facts_section(vm: SummaryViewModel) -> None:
         columns = st.columns(4)
         for idx, (label, value) in enumerate(kpis):
             columns[idx].metric(label=label, value=str(value))
+
+
+def _group_summary_fact_rows_by_area(
+    rows: Sequence[SummaryFactsRow],
+) -> list[tuple[str, list[SummaryFactsRow]]]:
+    grouped_rows: dict[str, list[SummaryFactsRow]] = {}
+    ordered_areas: list[str] = []
+    for row in rows:
+        area = str(row.bereich or "").strip() or "Sonstiges"
+        if area not in grouped_rows:
+            grouped_rows[area] = []
+            ordered_areas.append(area)
+        grouped_rows[area].append(row)
+    return [(area, grouped_rows[area]) for area in ordered_areas]
+
+
+def _render_summary_facts_column_overview(vm: SummaryViewModel) -> None:
+    st.markdown("### Fakten")
+    _render_esco_coverage_kpis()
+    grouped_rows = _group_summary_fact_rows_by_area(vm.fact_rows)
+    if not grouped_rows:
+        st.info("Keine Fakten verfügbar.")
+        return
+
+    for start_index in range(0, len(grouped_rows), SUMMARY_FACT_OVERVIEW_COLUMNS):
+        row_groups = grouped_rows[
+            start_index : start_index + SUMMARY_FACT_OVERVIEW_COLUMNS
+        ]
+        columns = st.columns(len(row_groups), gap="large")
+        for column, (area, fact_rows) in zip(columns, row_groups):
+            with column:
+                with st.container(border=True):
+                    st.markdown(f"**{area}**")
+                    for fact in fact_rows:
+                        value = str(fact.wert or "").strip() or "Nicht beantwortet"
+                        st.markdown(f"**{fact.feld}**")
+                        st.write(value)
+                        st.caption(f"{fact.status} · Quelle: {fact.quelle}")
+
+
+def _render_summary_facts_section(vm: SummaryViewModel) -> None:
+    st.markdown("### Fakten")
+    _render_esco_coverage_kpis()
     _render_summary_facts_table([row.to_dict() for row in vm.fact_rows])
 
 
@@ -2244,6 +2296,48 @@ def _status_for_value(value: Any) -> str:
     return "Vollständig"
 
 
+def _format_summary_fact_value(value: Any) -> str:
+    if isinstance(value, list):
+        return " | ".join(str(item).strip() for item in value if str(item).strip())
+    if isinstance(value, dict):
+        parts = [
+            f"{str(key).strip()}: {str(item).strip()}"
+            for key, item in value.items()
+            if str(key).strip() and str(item).strip()
+        ]
+        return " | ".join(parts)
+    return str(value or "").strip()
+
+
+def _summary_core_fact_row(
+    *,
+    label: str,
+    fact_key: FactKey,
+    fallback_value: Any,
+    intake_facts: Mapping[str, Any],
+    intake_fact_evidence: Mapping[str, Any],
+) -> SummaryFactsRow:
+    if fact_key.value in intake_facts:
+        fact_value = intake_facts.get(fact_key.value)
+        evidence_raw = intake_fact_evidence.get(fact_key.value)
+        evidence = evidence_raw if isinstance(evidence_raw, Mapping) else {}
+        source = str(evidence.get("source_label") or "Intake-Fakt").strip()
+        return SummaryFactsRow(
+            "Kernprofil",
+            label,
+            _format_summary_fact_value(fact_value) or "Nicht angegeben",
+            source,
+            _status_for_value(fact_value),
+        )
+    return SummaryFactsRow(
+        "Kernprofil",
+        label,
+        _format_summary_fact_value(fallback_value) or "Nicht angegeben",
+        "Jobspec",
+        _status_for_value(fallback_value),
+    )
+
+
 def _status_for_classification_value(value: Any) -> str:
     if _is_missing_value(value):
         return "Fehlend"
@@ -2281,34 +2375,36 @@ def _build_summary_fact_rows(
     meta: SummaryMeta,
 ) -> list[SummaryFactsRow]:
     show_esco_sections = _show_semantic_esco_sections()
+    intake_facts = get_intake_fact_state(st.session_state)
+    intake_fact_evidence = get_intake_fact_evidence_state(st.session_state)
     rows: list[SummaryFactsRow] = [
-        SummaryFactsRow(
-            "Kernprofil",
-            "Rolle",
-            str(job.job_title or "").strip() or "Nicht angegeben",
-            "Jobspec",
-            _status_for_value(job.job_title),
+        _summary_core_fact_row(
+            label="Rolle",
+            fact_key=FactKey.ROLE_JOB_TITLE,
+            fallback_value=job.job_title,
+            intake_facts=intake_facts,
+            intake_fact_evidence=intake_fact_evidence,
         ),
-        SummaryFactsRow(
-            "Kernprofil",
-            "Unternehmen",
-            str(job.company_name or "").strip() or "Nicht angegeben",
-            "Jobspec",
-            _status_for_value(job.company_name),
+        _summary_core_fact_row(
+            label="Unternehmen",
+            fact_key=FactKey.COMPANY_COMPANY_NAME,
+            fallback_value=job.company_name,
+            intake_facts=intake_facts,
+            intake_fact_evidence=intake_fact_evidence,
         ),
-        SummaryFactsRow(
-            "Kernprofil",
-            "Land",
-            str(job.location_country or "").strip() or "Nicht angegeben",
-            "Jobspec",
-            _status_for_value(job.location_country),
+        _summary_core_fact_row(
+            label="Land",
+            fact_key=FactKey.COMPANY_LOCATION_COUNTRY,
+            fallback_value=job.location_country,
+            intake_facts=intake_facts,
+            intake_fact_evidence=intake_fact_evidence,
         ),
-        SummaryFactsRow(
-            "Kernprofil",
-            "Stadt",
-            str(job.location_city or "").strip() or "Nicht angegeben",
-            "Jobspec",
-            _status_for_value(job.location_city),
+        _summary_core_fact_row(
+            label="Stadt",
+            fact_key=FactKey.COMPANY_LOCATION_CITY,
+            fallback_value=job.location_city,
+            intake_facts=intake_facts,
+            intake_fact_evidence=intake_fact_evidence,
         ),
         SummaryFactsRow(
             "Artefakte",
@@ -2821,12 +2917,6 @@ def _render_summary_dashboard_css() -> None:
     st.markdown(
         """
         <style>
-        .cs-summary-dashboard-intro {
-            margin: 0.15rem 0 1rem 0;
-            color: var(--cs-text-muted);
-            font-size: 0.95rem;
-            line-height: 1.55;
-        }
         .cs-summary-pipeline {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2887,7 +2977,6 @@ def _render_summary_dashboard_css() -> None:
             font-size: 0.9rem;
             line-height: 1.45;
         }
-        .cs-summary-dashboard-intro + [data-testid="stVerticalBlockBorderWrapper"],
         .cs-summary-section-note + [data-testid="stVerticalBlockBorderWrapper"] {
             margin-top: 0.35rem;
         }
@@ -3015,15 +3104,9 @@ def _render_readiness_tab(
     _render_summary_dashboard_css()
     render_output_header(
         "Zusammenfassung",
-        "Readiness, nächste Aktion und verwertbare Artefakte ohne doppelte Detailblöcke.",
+        "Fakten, nächste Aktion und verwertbare Artefakte ohne doppelte Detailblöcke.",
     )
-    st.markdown(
-        '<p class="cs-summary-dashboard-intro">'
-        "Nutze das Dashboard für die Entscheidung, und öffne Details gezielt in den Workspaces darunter."
-        "</p>",
-        unsafe_allow_html=True,
-    )
-    _render_readiness_dashboard_header(vm)
+    _render_summary_facts_column_overview(vm)
 
     recommendation = _resolve_next_best_action_recommendation(
         action_registry, resolved_brief_model=resolved_brief_model, vm=vm
@@ -3905,6 +3988,12 @@ def render(ctx: WizardContext) -> None:
             st.session_state[SSKey.SUMMARY_LAST_MODELS.value] = {
                 "draft_model": resolved_brief_model
             }
+            record_artifact_generated(
+                st.session_state,
+                artifact_id="brief",
+                cache_hit=brief_cached,
+                mode=mode,
+            )
             if brief_cached:
                 st.info("Recruiting Brief aus dem Cache geladen.")
             return True
@@ -3954,6 +4043,11 @@ def render(ctx: WizardContext) -> None:
             )
             st.session_state[SSKey.JOB_AD_DRAFT_CUSTOM.value] = payload
             st.session_state[SSKey.JOB_AD_LAST_USAGE.value] = usage or {}
+            record_artifact_generated(
+                st.session_state,
+                artifact_id="job_ad",
+                cache_hit=usage_has_cache_hit(usage),
+            )
         except OpenAICallError as e:
             render_openai_error(e)
         except Exception as exc:
@@ -4023,6 +4117,12 @@ def render(ctx: WizardContext) -> None:
             st.session_state[SSKey.INTERVIEW_PREP_HR_LAST_MODELS.value] = {
                 "draft_model": resolved_hr_sheet_model
             }
+            record_artifact_generated(
+                st.session_state,
+                artifact_id="interview_hr",
+                cache_hit=usage_has_cache_hit(usage),
+                mode="from_brief",
+            )
         except OpenAICallError as e:
             render_openai_error(e)
         except Exception as exc:
@@ -4057,6 +4157,12 @@ def render(ctx: WizardContext) -> None:
             st.session_state[SSKey.INTERVIEW_PREP_FACH_LAST_MODELS.value] = {
                 "draft_model": resolved_fach_sheet_model
             }
+            record_artifact_generated(
+                st.session_state,
+                artifact_id="interview_fach",
+                cache_hit=usage_has_cache_hit(usage),
+                mode="from_brief",
+            )
         except OpenAICallError as e:
             render_openai_error(e)
         except Exception as exc:
@@ -4091,6 +4197,12 @@ def render(ctx: WizardContext) -> None:
             st.session_state[SSKey.BOOLEAN_SEARCH_LAST_MODELS.value] = {
                 "draft_model": resolved_boolean_search_model
             }
+            record_artifact_generated(
+                st.session_state,
+                artifact_id="boolean_search",
+                cache_hit=usage_has_cache_hit(usage),
+                mode="from_brief",
+            )
         except OpenAICallError as e:
             render_openai_error(e)
         except Exception as exc:
@@ -4125,6 +4237,12 @@ def render(ctx: WizardContext) -> None:
             st.session_state[SSKey.EMPLOYMENT_CONTRACT_LAST_MODELS.value] = {
                 "draft_model": resolved_employment_contract_model
             }
+            record_artifact_generated(
+                st.session_state,
+                artifact_id="employment_contract",
+                cache_hit=usage_has_cache_hit(usage),
+                mode="from_brief",
+            )
         except OpenAICallError as e:
             render_openai_error(e)
         except Exception as exc:

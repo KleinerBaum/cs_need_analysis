@@ -39,6 +39,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from constants import (
     AnswerType,
     DEFAULT_LANGUAGE,
+    FactKey,
     JOB_AD_SCHEMA_VERSION,
     QUESTION_SCHEMA_VERSION,
     SSKey,
@@ -70,6 +71,7 @@ from schemas import (
     VacancyStructuredData,
 )
 from settings_openai import OpenAISettings, load_openai_settings
+from usage_events import record_fallback_model_used
 
 logger = logging.getLogger(__name__)
 
@@ -167,6 +169,27 @@ _NUMERIC_QUESTION_RULES: tuple[dict[str, Any], ...] = (
     },
 )
 _QUESTION_PRIORITY_VALUES = {"core", "standard", "detail"}
+_QUESTION_FACT_KEY_BY_TARGET_PATH: dict[str, FactKey] = {
+    "company_name": FactKey.COMPANY_COMPANY_NAME,
+    "company_website": FactKey.COMPANY_COMPANY_WEBSITE,
+    "brand_name": FactKey.COMPANY_BRAND_NAME,
+    "location_city": FactKey.COMPANY_LOCATION_CITY,
+    "location_country": FactKey.COMPANY_LOCATION_COUNTRY,
+    "place_of_work": FactKey.COMPANY_PLACE_OF_WORK,
+    "remote_policy": FactKey.COMPANY_REMOTE_POLICY,
+    "job_title": FactKey.ROLE_JOB_TITLE,
+    "employment_type": FactKey.ROLE_EMPLOYMENT_TYPE,
+    "contract_type": FactKey.ROLE_CONTRACT_TYPE,
+    "responsibilities": FactKey.ROLE_RESPONSIBILITIES,
+    "success_metrics": FactKey.ROLE_SUCCESS_METRICS,
+    "must_have_skills": FactKey.SKILLS_MUST_HAVE_SKILLS,
+    "nice_to_have_skills": FactKey.SKILLS_NICE_TO_HAVE_SKILLS,
+    "languages": FactKey.SKILLS_LANGUAGES,
+    "salary_range": FactKey.BENEFITS_SALARY_RANGE,
+    "benefits": FactKey.BENEFITS_BENEFITS,
+    "recruitment_steps": FactKey.INTERVIEW_RECRUITMENT_STEPS,
+    "contacts": FactKey.INTERVIEW_CONTACTS,
+}
 
 
 class VacancyBriefCriticalSections(BaseModel):
@@ -201,6 +224,7 @@ class OpenAIRuntimeConfig:
     task_max_bullets_per_field: int | None
     task_max_sentences_per_field: int | None
     settings: OpenAISettings
+    task_kind: ModelTaskKind | None = None
 
 
 class ParsedResponse(Protocol):
@@ -249,6 +273,7 @@ def _resolve_runtime_config(
             task_kind
         ),
         settings=settings,
+        task_kind=task_kind,
     )
 
 
@@ -980,11 +1005,11 @@ def _parse_with_structured_outputs(
                         used_reduced_request=True,
                     )
                 except Exception as retry_exc:
+                    mapped_retry = _error_from_openai_exception(
+                        retry_exc, endpoint="responses.parse"
+                    )
                     fallback_model = _fallback_model_candidate()
                     if fallback_model is None:
-                        mapped_retry = _error_from_openai_exception(
-                            retry_exc, endpoint="responses.parse"
-                        )
                         logger.warning(
                             "OpenAI reduced parse failed: %s",
                             mapped_retry.debug_detail or type(retry_exc).__name__,
@@ -1007,6 +1032,15 @@ def _parse_with_structured_outputs(
                             requested_model=runtime_config.resolved_model,
                             final_model=fallback_model,
                             used_reduced_request=True,
+                        )
+                        record_fallback_model_used(
+                            st.session_state,
+                            task_kind=runtime_config.task_kind or "structured_output",
+                            requested_model=runtime_config.resolved_model,
+                            final_model=fallback_model,
+                            fallback_kind="fallback_model",
+                            endpoint="responses.parse",
+                            error_code=mapped_retry.error_code,
                         )
                     except Exception as fallback_exc:
                         mapped_fallback = _error_from_openai_exception(
@@ -1199,6 +1233,9 @@ def generate_question_plan(
         "Markiere pro Step genau 3–5 Fragen mit priority='core'; "
         "weitere Fragen als 'standard' oder 'detail'. "
         "Setze group_key stabil und kurz (snake_case), sodass thematisch verwandte Fragen denselben group_key teilen. "
+        "Setze fact_key nur dann, wenn eine Frage direkt ein kanonisches Intake-Faktum adressiert "
+        "(z. B. company.company_name, role.job_title, skills.must_have_skills, benefits.salary_range); "
+        "lasse fact_key sonst null. "
         "Nutze depends_on nur bei echten Follow-up-Fragen; vermeide verschachtelte oder übermäßige Abhängigkeiten. "
         "Für depends_on nutze nur einfache Regeln mit question_id plus equals ODER any_of ODER is_answered. "
         "Bevorzuge konkrete, messbare Antworten (z. B. 'Erfolgskriterien', 'Top-Deliverables', 'Must-have vs Nice-to-have').\n\n"
@@ -1276,8 +1313,40 @@ def normalize_question_plan(plan: QuestionPlan) -> QuestionPlan:
             _normalize_numeric_question(q)
             _normalize_question_priority(q)
             _normalize_question_group_key(q, step_key=step.step_key)
+            _normalize_question_fact_key(q)
             _normalize_question_dependencies(q, step=step)
     return plan
+
+
+def _normalize_question_fact_key(q: Any) -> None:
+    raw_fact_key = getattr(q, "fact_key", None)
+    if isinstance(raw_fact_key, str) and raw_fact_key.strip():
+        try:
+            q.fact_key = FactKey(raw_fact_key.strip()).value
+            return
+        except ValueError:
+            q.fact_key = None
+
+    inferred_fact_key = _infer_question_fact_key(q)
+    q.fact_key = inferred_fact_key.value if inferred_fact_key is not None else None
+
+
+def _infer_question_fact_key(q: Any) -> FactKey | None:
+    for raw_path in (getattr(q, "target_path", None), getattr(q, "id", None)):
+        if not isinstance(raw_path, str):
+            continue
+        normalized_path = raw_path.strip()
+        if not normalized_path:
+            continue
+        try:
+            return FactKey(normalized_path)
+        except ValueError:
+            pass
+        tail = normalized_path.split(".")[-1].strip()
+        fact_key = _QUESTION_FACT_KEY_BY_TARGET_PATH.get(tail)
+        if fact_key is not None:
+            return fact_key
+    return None
 
 
 def _normalize_question_priority(q: Any) -> None:
@@ -1795,6 +1864,14 @@ def _generate_structured_with_fallback(
         return parsed, usage or {}
     except OpenAICallError as exc:
         fallback_model = out_model.model_validate(fallback_payload)
+        record_fallback_model_used(
+            st.session_state,
+            task_kind=task_kind,
+            requested_model=runtime_config.resolved_model,
+            final_model="local_minimal_output",
+            fallback_kind="local_minimal_output",
+            error_code=exc.error_code,
+        )
         return fallback_model, _build_task_fallback_usage(
             task_kind=task_kind,
             ui_message=exc.ui_message,
@@ -1803,6 +1880,14 @@ def _generate_structured_with_fallback(
     except ValidationError as exc:
         mapped = _error_from_structured_output_exception(exc)
         fallback_model = out_model.model_validate(fallback_payload)
+        record_fallback_model_used(
+            st.session_state,
+            task_kind=task_kind,
+            requested_model=runtime_config.resolved_model,
+            final_model="local_minimal_output",
+            fallback_kind="local_minimal_output",
+            error_code=mapped.error_code,
+        )
         return fallback_model, _build_task_fallback_usage(
             task_kind=task_kind,
             ui_message=mapped.ui_message,

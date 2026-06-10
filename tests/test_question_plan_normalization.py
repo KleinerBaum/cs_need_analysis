@@ -1,4 +1,4 @@
-from constants import AnswerType
+from constants import AnswerType, FactKey
 from llm_client import normalize_question_plan
 from schemas import Question, QuestionDependency, QuestionPlan, QuestionStep
 
@@ -121,3 +121,41 @@ def test_normalize_progressive_disclosure_metadata() -> None:
     assert questions[1].depends_on == [
         QuestionDependency(question_id="team_lead", equals=True)
     ]
+
+
+def test_normalize_question_fact_key_metadata() -> None:
+    plan = QuestionPlan(
+        steps=[
+            QuestionStep(
+                step_key="company",
+                title_de="Unternehmen",
+                questions=[
+                    Question(
+                        id="company_display_name",
+                        label="Unternehmen",
+                        answer_type=AnswerType.SHORT_TEXT,
+                        target_path="company_name",
+                    ),
+                    Question(
+                        id="role_title",
+                        label="Rolle",
+                        answer_type=AnswerType.SHORT_TEXT,
+                        fact_key=FactKey.ROLE_JOB_TITLE.value,
+                    ),
+                    Question(
+                        id="custom_context",
+                        label="Kontext",
+                        answer_type=AnswerType.SHORT_TEXT,
+                        fact_key="invalid.fact_key",
+                    ),
+                ],
+            )
+        ]
+    )
+
+    normalized = normalize_question_plan(plan)
+    questions = normalized.steps[0].questions
+
+    assert questions[0].fact_key == FactKey.COMPANY_COMPANY_NAME.value
+    assert questions[1].fact_key == FactKey.ROLE_JOB_TITLE.value
+    assert questions[2].fact_key is None

@@ -19,6 +19,7 @@ from constants import (
     AnswerType,
     SSKey,
     UI_DETAILS_DEFAULT_BY_MODE_TEXT,
+    UI_PREFERENCE_CONFIDENCE_THRESHOLD,
     WIDGET_KEY_PREFIX,
 )
 from esco_client import EscoClient, EscoClientError
@@ -69,6 +70,34 @@ ESCO_EXPLAINABILITY_LABELS: tuple[str, ...] = (
 )
 ESCO_CONFIDENCE_BUCKETS: tuple[str, ...] = ("high", "medium", "low")
 REVIEW_WIDGET_KEY_PREFIX = f"{WIDGET_KEY_PREFIX}review."
+ESCO_SINGLE_SELECT_PILLS_COLUMNS = 3
+
+
+def _inject_esco_single_select_pills_css() -> None:
+    _render_html_block(
+        f"""
+        <style>
+        div[data-testid="stPills"] div[role="radiogroup"] {{
+            display: grid;
+            grid-template-columns: repeat({ESCO_SINGLE_SELECT_PILLS_COLUMNS}, minmax(0, 1fr));
+            gap: 0.5rem;
+        }}
+        div[data-testid="stPills"] div[role="radiogroup"] label {{
+            width: 100%;
+        }}
+        div[data-testid="stPills"] div[role="radiogroup"] label > div {{
+            width: 100%;
+            justify-content: flex-start;
+            white-space: normal;
+        }}
+        @media (max-width: 720px) {{
+            div[data-testid="stPills"] div[role="radiogroup"] {{
+                grid-template-columns: 1fr;
+            }}
+        }}
+        </style>
+        """
+    )
 
 
 def _render_html_block(html: str) -> None:
@@ -285,12 +314,32 @@ def _load_job_extract_from_state() -> JobAdExtract | None:
         return None
 
 
+def _load_intake_fact_evidence_from_state() -> dict[str, Any]:
+    raw_evidence = st.session_state.get(SSKey.INTAKE_FACT_EVIDENCE.value)
+    return raw_evidence if isinstance(raw_evidence, dict) else {}
+
+
+def _read_ui_confidence_threshold() -> float | None:
+    preferences_raw = st.session_state.get(SSKey.UI_PREFERENCES.value, {})
+    if not isinstance(preferences_raw, Mapping):
+        return None
+    try:
+        return max(
+            0.0,
+            min(1.0, float(preferences_raw.get(UI_PREFERENCE_CONFIDENCE_THRESHOLD))),
+        )
+    except (TypeError, ValueError):
+        return None
+
+
 def build_step_review_payload(step: QuestionStep | None) -> StepReviewPayload:
     answers = get_answers()
     answer_meta = get_answer_meta()
     job_extract = _load_job_extract_from_state()
     intake_facts_raw = st.session_state.get(SSKey.INTAKE_FACTS.value)
     intake_facts = intake_facts_raw if isinstance(intake_facts_raw, dict) else {}
+    intake_fact_evidence = _load_intake_fact_evidence_from_state()
+    confidence_threshold = _read_ui_confidence_threshold()
     step_status = build_step_status_payload(
         step=step,
         answers=answers,
@@ -299,6 +348,8 @@ def build_step_review_payload(step: QuestionStep | None) -> StepReviewPayload:
         step_key=step.step_key if step is not None else None,
         job_extract=job_extract,
         intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
     )
     if step is None or not step.questions:
         return {
@@ -317,6 +368,8 @@ def build_step_review_payload(step: QuestionStep | None) -> StepReviewPayload:
         answer_meta,
         job_extract=job_extract,
         intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
     )
     visible_questions = [
         question
@@ -339,6 +392,8 @@ def build_step_review_payload(step: QuestionStep | None) -> StepReviewPayload:
             answer_meta,
             job_extract=job_extract,
             intake_facts=intake_facts,
+            intake_fact_evidence=intake_fact_evidence,
+            confidence_threshold=confidence_threshold,
         ),
         "step_status": step_status,
         "job_extract": job_extract,
@@ -542,6 +597,14 @@ class SourcePillColumn(TypedDict):
     state_key: str
 
 
+class SourcePillColumnFooter(TypedDict, total=False):
+    footer: Callable[[], None]
+
+
+class SourcePillColumnWithFooter(SourcePillColumn, SourcePillColumnFooter):
+    pass
+
+
 class SourcePillSelectionResult(TypedDict):
     selected_labels: list[str]
     selected_by_source: dict[str, list[str]]
@@ -567,7 +630,7 @@ def dedupe_source_pill_labels(values: Sequence[str]) -> list[str]:
 
 def render_source_pill_selection(
     *,
-    columns: Sequence[SourcePillColumn],
+    columns: Sequence[SourcePillColumnWithFooter],
     selected_labels: Sequence[str],
     selected_state_key: str,
     key_prefix: str,
@@ -609,6 +672,9 @@ def render_source_pill_selection(
                 st.session_state[state_key] = []
                 st.caption(empty_caption)
                 picked = []
+            footer = source_column.get("footer")
+            if footer is not None:
+                footer()
 
         cleaned_picked = dedupe_source_pill_labels(picked)
         selected_by_source[source_key] = cleaned_picked
@@ -1078,26 +1144,41 @@ def render_esco_picker_card(
                 else "Top-Vorschlag auswählen"
             )
         )
-        selected_index = st.selectbox(
-            resolved_selection_label,
-            options=list(range(len(options))),
-            format_func=lambda idx: option_labels[idx],
-            index=0 if options else None,
-            key=selected_key,
-            placeholder="Keine Vorschläge verfügbar",
-        )
+        if hasattr(st, "pills"):
+            _inject_esco_single_select_pills_css()
+            selected_index = st.pills(
+                resolved_selection_label,
+                options=list(range(len(options))),
+                format_func=lambda idx: option_labels[idx],
+                selection_mode="single",
+                default=0 if options else None,
+                key=selected_key,
+            )
+            if options and show_results_overview:
+                st.caption("Vorschläge")
+        else:
+            selected_index = st.selectbox(
+                resolved_selection_label,
+                options=list(range(len(options))),
+                format_func=lambda idx: option_labels[idx],
+                index=0 if options else None,
+                key=selected_key,
+                placeholder="Keine Vorschläge verfügbar",
+            )
+            if options and show_results_overview:
+                st.markdown("**Vorschläge**")
+                for idx, concept in enumerate(options[:3]):
+                    concept_title = str(concept.get("title") or "—").strip() or "—"
+                    status_label = (
+                        "Ausgewählt" if idx == selected_index else "Alternative"
+                    )
+                    with st.container(border=True):
+                        st.markdown(f"**{idx + 1}. {concept_title}**")
+                        st.caption(status_label)
+                        if ui_mode == "expert":
+                            st.caption(_label_for_option(concept))
         if selected_index is not None and selected_index < len(options):
             selected_payload = [options[selected_index]]
-        if options and show_results_overview:
-            st.markdown("**Vorschläge**")
-            for idx, concept in enumerate(options[:3]):
-                concept_title = str(concept.get("title") or "—").strip() or "—"
-                status_label = "Ausgewählt" if idx == selected_index else "Alternative"
-                with st.container(border=True):
-                    st.markdown(f"**{idx + 1}. {concept_title}**")
-                    st.caption(status_label)
-                    if ui_mode == "expert":
-                        st.caption(_label_for_option(concept))
 
     if use_anchor_card:
         with st.container(border=True):
@@ -2400,6 +2481,8 @@ def render_question_step(step: QuestionStep) -> None:
     job_extract = _load_job_extract_from_state()
     intake_facts_raw = st.session_state.get(SSKey.INTAKE_FACTS.value)
     intake_facts = intake_facts_raw if isinstance(intake_facts_raw, dict) else {}
+    intake_fact_evidence = _load_intake_fact_evidence_from_state()
+    confidence_threshold = _read_ui_confidence_threshold()
     ui_mode_raw = st.session_state.get(SSKey.UI_MODE.value, "standard")
     ui_mode = str(ui_mode_raw).strip().lower()
     if ui_mode not in {"quick", "standard", "expert"}:
@@ -2428,6 +2511,8 @@ def render_question_step(step: QuestionStep) -> None:
         answer_meta,
         job_extract=job_extract,
         intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
     )
     visible_questions = [
         question
@@ -2448,6 +2533,8 @@ def render_question_step(step: QuestionStep) -> None:
         answer_meta,
         job_extract=job_extract,
         intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
     )
     visible_progress = compute_question_progress(
         visible_questions, answers, answer_meta, answered_lookup=answered_lookup
@@ -2458,6 +2545,8 @@ def render_question_step(step: QuestionStep) -> None:
         answer_meta,
         job_extract=job_extract,
         intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
     )
     overall_progress = compute_question_progress(
         questions,

@@ -2,6 +2,14 @@ from __future__ import annotations
 
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+import homepage_research
+from constants import SSKey, WEBSITE_TOPIC_ABOUT
+from schemas import QuestionPlan
+from usage_events import get_usage_events
 
 COMPANY_PATH = Path(__file__).resolve().parents[1] / "wizard_pages" / "02_company.py"
 SPEC = spec_from_file_location("wizard_pages.page_02_company", COMPANY_PATH)
@@ -9,6 +17,42 @@ if SPEC is None or SPEC.loader is None:
     raise RuntimeError("Could not load company module")
 COMPANY_MODULE = module_from_spec(SPEC)
 SPEC.loader.exec_module(COMPANY_MODULE)  # type: ignore[attr-defined]
+
+
+class _FakeHeaders:
+    def __init__(self, content_type: str = "text/html") -> None:
+        self._content_type = content_type
+
+    def get_content_charset(self) -> str:
+        return "utf-8"
+
+    def get_content_type(self) -> str:
+        return self._content_type
+
+
+class _FakeResponse:
+    def __init__(
+        self,
+        payload: str,
+        *,
+        final_url: str = "https://example.com",
+        content_type: str = "text/html",
+    ) -> None:
+        self._payload = payload.encode("utf-8")
+        self._final_url = final_url
+        self.headers = _FakeHeaders(content_type)
+
+    def __enter__(self) -> "_FakeResponse":
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+    def geturl(self) -> str:
+        return self._final_url
+
+    def read(self, _size: int = -1) -> bytes:
+        return self._payload
 
 
 def test_strip_html_removes_script_payload_noise() -> None:
@@ -24,6 +68,62 @@ def test_strip_html_removes_script_payload_noise() -> None:
 
     assert "adobedatalayer" not in text.casefold()
     assert "Wir beraten Kunden" in text
+
+
+def test_normalize_url_rejects_local_or_private_targets() -> None:
+    assert COMPANY_MODULE._normalize_url("localhost") == ""
+    assert COMPANY_MODULE._normalize_url("http://127.0.0.1:8501") == ""
+    assert COMPANY_MODULE._normalize_url("https://192.168.0.10") == ""
+
+
+def test_fetch_url_text_rejects_unsupported_content_type(monkeypatch) -> None:
+    homepage_research.clear_fetch_cache()
+
+    def fake_urlopen(_request: object, timeout: float) -> _FakeResponse:
+        assert timeout == 8.0
+        return _FakeResponse("%PDF-1.7", content_type="application/pdf")
+
+    monkeypatch.setattr(homepage_research, "urlopen", fake_urlopen)
+
+    with pytest.raises(homepage_research.HomepageFetchError, match="unsupported"):
+        COMPANY_MODULE._fetch_url_text("https://example.com")
+
+
+def test_fetch_url_text_uses_cache(monkeypatch) -> None:
+    homepage_research.clear_fetch_cache()
+    calls: list[str] = []
+
+    def fake_urlopen(_request: object, timeout: float) -> _FakeResponse:
+        calls.append(f"timeout={timeout}")
+        return _FakeResponse("<html><body>Über uns</body></html>")
+
+    monkeypatch.setattr(homepage_research, "urlopen", fake_urlopen)
+
+    first = COMPANY_MODULE._fetch_url_text("example.com")
+    second = COMPANY_MODULE._fetch_url_text("https://example.com")
+
+    assert first == ("https://example.com", "<html><body>Über uns</body></html>")
+    assert second == first
+    assert calls == ["timeout=8.0"]
+
+
+def test_run_website_research_records_invalid_url_event(monkeypatch) -> None:
+    fake_st = SimpleNamespace(session_state={})
+    monkeypatch.setattr(COMPANY_MODULE, "st", fake_st)
+
+    COMPANY_MODULE._run_website_research(
+        homepage_url="http://127.0.0.1:8501",
+        topic_key=WEBSITE_TOPIC_ABOUT,
+        plan=QuestionPlan(steps=[]),
+    )
+
+    assert fake_st.session_state[SSKey.COMPANY_WEBSITE_LAST_ERROR.value] == (
+        "Keine valide Homepage-URL gefunden."
+    )
+    assert get_usage_events(fake_st.session_state)[0]["metadata"] == {
+        "topic_key": WEBSITE_TOPIC_ABOUT,
+        "error_type": "invalid_url",
+    }
 
 
 def test_extract_imprint_facts_picks_essential_fields() -> None:

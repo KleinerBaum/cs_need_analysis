@@ -9,7 +9,7 @@ from typing import Any, cast
 
 import streamlit as st
 
-from constants import SSKey
+from constants import SSKey, UI_PREFERENCE_CONFIDENCE_THRESHOLD
 from question_dependencies import should_show_question
 from question_progress import (
     AnswerMetaMap,
@@ -50,6 +50,8 @@ def _question_is_covered(
     answer_meta: AnswerMetaMap,
     job_extract: JobAdExtract | None,
     intake_facts: Mapping[str, Any] | None,
+    intake_fact_evidence: Mapping[str, Any] | None,
+    confidence_threshold: float | None,
 ) -> bool:
     if is_answered(question, answers.get(question.id), answer_meta.get(question.id)):
         return True
@@ -57,6 +59,8 @@ def _question_is_covered(
         question,
         job_extract,
         intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
     )
 
 
@@ -68,6 +72,8 @@ def compute_adaptive_question_limits(
     answer_meta: AnswerMetaMap,
     job_extract: JobAdExtract | None,
     intake_facts: Mapping[str, Any] | None = None,
+    intake_fact_evidence: Mapping[str, Any] | None = None,
+    confidence_threshold: float | None = None,
 ) -> dict[str, int]:
     profile = _resolve_mode_profile(ui_mode)
     limits: dict[str, int] = {}
@@ -81,6 +87,8 @@ def compute_adaptive_question_limits(
             answer_meta,
             job_extract=job_extract,
             intake_facts=intake_facts,
+            intake_fact_evidence=intake_fact_evidence,
+            confidence_threshold=confidence_threshold,
         )
         visible_questions = [
             question
@@ -106,6 +114,8 @@ def compute_adaptive_question_limits(
                 answer_meta=answer_meta,
                 job_extract=job_extract,
                 intake_facts=intake_facts,
+                intake_fact_evidence=intake_fact_evidence,
+                confidence_threshold=confidence_threshold,
             )
         )
         missing = max(total - covered, 0)
@@ -151,4 +161,19 @@ def sync_adaptive_question_limits() -> None:
         answer_meta=answer_meta,
         job_extract=job_extract,
         intake_facts=st.session_state.get(SSKey.INTAKE_FACTS.value),
+        intake_fact_evidence=st.session_state.get(SSKey.INTAKE_FACT_EVIDENCE.value),
+        confidence_threshold=_read_confidence_threshold(),
     )
+
+
+def _read_confidence_threshold() -> float | None:
+    preferences_raw = st.session_state.get(SSKey.UI_PREFERENCES.value, {})
+    if not isinstance(preferences_raw, Mapping):
+        return None
+    try:
+        return max(
+            0.0,
+            min(1.0, float(preferences_raw.get(UI_PREFERENCE_CONFIDENCE_THRESHOLD))),
+        )
+    except (TypeError, ValueError):
+        return None

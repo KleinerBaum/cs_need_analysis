@@ -81,6 +81,8 @@ def build_step_status_payload(
     missing_essentials_max: int = 5,
     job_extract: JobAdExtract | None = None,
     intake_facts: Mapping[str, Any] | None = None,
+    intake_fact_evidence: Mapping[str, Any] | None = None,
+    confidence_threshold: float | None = None,
 ) -> StepStatusPayload:
     answers_dict = dict(answers)
     resolved_step_key = step_key or (step.step_key if step is not None else "")
@@ -102,6 +104,8 @@ def build_step_status_payload(
         answer_meta,
         job_extract=job_extract,
         intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
     )
     accepts_intake_facts = _should_show_question_accepts_intake_facts(
         should_show_question
@@ -125,6 +129,8 @@ def build_step_status_payload(
         answer_meta,
         job_extract=job_extract,
         intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
     )
     progress = compute_question_progress(
         visible_questions,

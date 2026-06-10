@@ -3,8 +3,9 @@ from __future__ import annotations
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, Literal
 
-from constants import AnswerType, SSKey
+from constants import AnswerType, FactKey, SSKey
 from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep, RecruitmentStep
 
 
@@ -41,6 +42,14 @@ def _artifacts(*, with_brief: bool = False) -> object:
     )
 
 
+class _NoopContext:
+    def __enter__(self) -> "_NoopContext":
+        return self
+
+    def __exit__(self, *_: object) -> Literal[False]:
+        return False
+
+
 def test_build_summary_fact_rows_include_jobspec_core_facts() -> None:
     job = JobAdExtract(
         job_title="Data Engineer",
@@ -65,6 +74,47 @@ def test_build_summary_fact_rows_include_jobspec_core_facts() -> None:
         "Quelle": "Jobspec",
         "Status": "Vollständig",
     }
+
+
+def test_build_summary_fact_rows_prefer_canonical_core_facts(monkeypatch) -> None:
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.INTAKE_FACTS.value: {
+                    FactKey.ROLE_JOB_TITLE.value: "Analytics Engineer",
+                    FactKey.COMPANY_COMPANY_NAME.value: "Manual GmbH",
+                },
+                SSKey.INTAKE_FACT_EVIDENCE.value: {
+                    FactKey.ROLE_JOB_TITLE.value: {"source_label": "Manual input"},
+                    FactKey.COMPANY_COMPANY_NAME.value: {"source_label": "Manual input"},
+                },
+            }
+        ),
+    )
+    job = JobAdExtract(job_title="Data Engineer", company_name="Jobspec GmbH")
+
+    rows = SUMMARY_MODULE._build_summary_fact_rows(
+        job=job,
+        answers={},
+        plan=None,
+        artifacts=_artifacts(),
+        meta=_meta(selected_occupation_title=None),
+    )
+
+    fields = {row.feld: row.to_dict() for row in rows}
+    assert [row.feld for row in rows[:5]] == [
+        "Rolle",
+        "Unternehmen",
+        "Land",
+        "Stadt",
+        "Recruiting Brief",
+    ]
+    assert fields["Rolle"]["Wert"] == "Analytics Engineer"
+    assert fields["Rolle"]["Quelle"] == "Manual input"
+    assert fields["Unternehmen"]["Wert"] == "Manual GmbH"
+    assert fields["Unternehmen"]["Quelle"] == "Manual input"
 
 
 def test_build_summary_fact_rows_include_answer_rows() -> None:
@@ -284,6 +334,110 @@ def test_build_summary_fact_rows_marks_partial_multiselect_as_teilweise() -> Non
     skill_row = next(row.to_dict() for row in rows if row.feld == "Must-Haves")
     assert skill_row["Wert"] == "Python"
     assert skill_row["Status"] == "Teilweise"
+
+
+def test_group_summary_fact_rows_by_area_preserves_area_order_and_statuses() -> None:
+    rows = [
+        SUMMARY_MODULE.SummaryFactsRow(
+            "Kernprofil", "Rolle", "Data Engineer", "Jobspec", "Vollständig"
+        ),
+        SUMMARY_MODULE.SummaryFactsRow(
+            "Interview", "Interviewphasen", "Nicht beantwortet", "Intake", "Fehlend"
+        ),
+        SUMMARY_MODULE.SummaryFactsRow(
+            "Kernprofil", "Stadt", "Berlin", "Jobspec", "Teilweise"
+        ),
+    ]
+
+    grouped = SUMMARY_MODULE._group_summary_fact_rows_by_area(rows)
+
+    assert [(area, [row.feld for row in area_rows]) for area, area_rows in grouped] == [
+        ("Kernprofil", ["Rolle", "Stadt"]),
+        ("Interview", ["Interviewphasen"]),
+    ]
+    assert [row.status for _, area_rows in grouped for row in area_rows] == [
+        "Vollständig",
+        "Teilweise",
+        "Fehlend",
+    ]
+
+
+def test_render_summary_facts_column_overview_groups_multiple_area_columns(
+    monkeypatch,
+) -> None:
+    class _FakeColumn:
+        def __enter__(self) -> "_FakeColumn":
+            return self
+
+        def __exit__(self, *_: object) -> Literal[False]:
+            return False
+
+    class _FakeStreamlit:
+        def __init__(self) -> None:
+            self.columns_calls: list[int] = []
+            self.markdown_calls: list[str] = []
+            self.write_calls: list[str] = []
+            self.caption_calls: list[str] = []
+            self.info_calls: list[str] = []
+
+        def markdown(self, text: str, **_: Any) -> None:
+            self.markdown_calls.append(text)
+
+        def columns(self, count: int, **_: Any) -> list[_FakeColumn]:
+            self.columns_calls.append(count)
+            return [_FakeColumn() for _ in range(count)]
+
+        def container(self, **_: Any) -> _NoopContext:
+            return _NoopContext()
+
+        def write(self, text: str, **_: Any) -> None:
+            self.write_calls.append(text)
+
+        def caption(self, text: str, **_: Any) -> None:
+            self.caption_calls.append(text)
+
+        def info(self, text: str, **_: Any) -> None:
+            self.info_calls.append(text)
+
+    fake_st = _FakeStreamlit()
+    vm = SimpleNamespace(
+        fact_rows=[
+            SUMMARY_MODULE.SummaryFactsRow(
+                "Kernprofil", "Rolle", "Data Engineer", "Jobspec", "Vollständig"
+            ),
+            SUMMARY_MODULE.SummaryFactsRow(
+                "Interview",
+                "Interviewphasen",
+                "Nicht beantwortet",
+                "Intake-Antwort",
+                "Fehlend",
+            ),
+            SUMMARY_MODULE.SummaryFactsRow(
+                "Benefits", "Benefits", "Mentoring", "Auswahl", "Teilweise"
+            ),
+            SUMMARY_MODULE.SummaryFactsRow(
+                "Unternehmen", "Firma", "", "Intake-Antwort", "Fehlend"
+            ),
+        ]
+    )
+
+    monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
+    monkeypatch.setattr(SUMMARY_MODULE, "_render_esco_coverage_kpis", lambda: None)
+
+    SUMMARY_MODULE._render_summary_facts_column_overview(vm)
+
+    assert fake_st.columns_calls == [3, 1]
+    assert "**Kernprofil**" in fake_st.markdown_calls
+    assert "**Interview**" in fake_st.markdown_calls
+    assert "**Benefits**" in fake_st.markdown_calls
+    assert "**Unternehmen**" in fake_st.markdown_calls
+    assert "Nicht beantwortet" in fake_st.write_calls
+    assert fake_st.caption_calls == [
+        "Vollständig · Quelle: Jobspec",
+        "Fehlend · Quelle: Intake-Antwort",
+        "Teilweise · Quelle: Auswahl",
+        "Fehlend · Quelle: Intake-Antwort",
+    ]
 
 
 def test_build_esco_coverage_chart_spec_contains_expected_bars() -> None:

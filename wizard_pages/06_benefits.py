@@ -1,6 +1,8 @@
 # wizard_pages/06_benefits.py
 from __future__ import annotations
 import logging
+from typing import Any
+
 import streamlit as st
 
 from constants import SSKey
@@ -185,6 +187,59 @@ def _suggestion_dicts_from_labels(labels: list[str], *, source: str) -> list[dic
     return [{"label": label, "source": source} for label in labels if label.strip()]
 
 
+def _answers_with_benefit_context(*, region_context: str) -> dict[str, Any]:
+    answers = dict(get_answers())
+    region = region_context.strip()
+    if region:
+        answers["benefit_generation_context"] = {
+            "region": region,
+            "instruction": "Berücksichtige regionale Benefits und Rahmenbedingungen.",
+        }
+    return answers
+
+
+def _generate_ai_benefit_suggestions(
+    *,
+    job: JobAdExtract,
+    existing_benefits: list[str],
+    target_benefit_count: int,
+    region_context: str,
+) -> list[dict[str, Any]] | None:
+    settings = load_openai_settings()
+    suggestion_model = resolve_model_for_task(
+        task_kind=TASK_GENERATE_BENEFIT_SUGGESTIONS,
+        session_override=None,
+        settings=settings,
+    )
+    try:
+        suggestion_pack, _usage = generate_benefit_suggestions(
+            job=job,
+            answers=_answers_with_benefit_context(region_context=region_context),
+            existing_benefits=existing_benefits,
+            target_benefit_count=target_benefit_count,
+            model=suggestion_model,
+            language=str(st.session_state.get(SSKey.LANGUAGE.value, "de")),
+            store=bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)),
+        )
+    except Exception:
+        LOGGER.exception("Benefit suggestions could not be generated.")
+        st.warning("AI-Benefit-Vorschläge konnten nicht erzeugt werden.")
+        return None
+
+    blocked = {_normalize_benefit_term(label) for label in existing_benefits}
+    merged_llm: list[dict[str, Any]] = []
+    seen: set[str] = set(blocked)
+    for item in suggestion_pack.benefits:
+        label = item.label.strip()
+        normalized = _normalize_benefit_term(label)
+        if not normalized or normalized in seen:
+            continue
+        merged_llm.append(item.model_dump(mode="json"))
+        seen.add(normalized)
+    st.session_state[SSKey.BENEFITS_LLM_SUGGESTED.value] = merged_llm
+    return merged_llm
+
+
 def render(ctx: WizardContext) -> None:
     render_error_banner()
 
@@ -292,17 +347,23 @@ def render(ctx: WizardContext) -> None:
             canonical_target="SSKey.BENEFITS_SELECTED",
             source_labels=("Jobspec", "ESCO/Kontext", "AI"),
         )
-        st.number_input(
-            "Anzahl AI-Benefit-Vorschläge",
-            min_value=1,
-            max_value=8,
-            step=1,
-            key=SSKey.BENEFITS_SUGGEST_COUNT.value,
-        )
-        if st.button(
-            "AI-Benefit-Vorschläge generieren",
-            key=SSKey.BENEFITS_AI_GENERATE_CLICKED.value,
+
+        def _existing_benefits_for_generation() -> list[str]:
+            return _dedupe_benefit_terms(
+                [
+                    *jobspec_benefit_terms,
+                    *_benefit_labels_from_suggestions(contextual_suggested),
+                    *_benefit_labels_from_suggestions(
+                        st.session_state.get(SSKey.BENEFITS_LLM_SUGGESTED.value, [])
+                    ),
+                    *_read_selected_benefits(),
+                ]
+            )
+
+        if not bool(
+            st.session_state.get(SSKey.BENEFITS_AI_INITIAL_GENERATED.value, False)
         ):
+            st.session_state[SSKey.BENEFITS_AI_INITIAL_GENERATED.value] = True
             existing_benefits = _dedupe_benefit_terms(
                 [
                     *jobspec_benefit_terms,
@@ -310,53 +371,67 @@ def render(ctx: WizardContext) -> None:
                     *selected_labels,
                 ]
             )
-            settings = load_openai_settings()
-            suggestion_model = resolve_model_for_task(
-                task_kind=TASK_GENERATE_BENEFIT_SUGGESTIONS,
-                session_override=None,
-                settings=settings,
-            )
             with st.spinner("Generiere Benefit-Vorschläge …"):
-                try:
-                    suggestion_pack, _usage = generate_benefit_suggestions(
-                        job=job,
-                        answers=get_answers(),
-                        existing_benefits=existing_benefits,
-                        target_benefit_count=int(
-                            st.session_state.get(SSKey.BENEFITS_SUGGEST_COUNT.value, 5)
-                        ),
-                        model=suggestion_model,
-                        language=str(
-                            st.session_state.get(SSKey.LANGUAGE.value, "de")
-                        ),
-                        store=bool(
-                            st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)
-                        ),
-                    )
-                except Exception:
-                    LOGGER.exception("Benefit suggestions could not be generated.")
-                    st.warning("AI-Benefit-Vorschläge konnten nicht erzeugt werden.")
-                else:
-                    blocked = {
-                        _normalize_benefit_term(label) for label in existing_benefits
-                    }
-                    merged_llm: list[dict[str, str]] = []
-                    seen: set[str] = set(blocked)
-                    for item in suggestion_pack.benefits:
-                        label = item.label.strip()
-                        normalized = _normalize_benefit_term(label)
-                        if not normalized or normalized in seen:
-                            continue
-                        merged_llm.append(item.model_dump(mode="json"))
-                        seen.add(normalized)
-                    st.session_state[SSKey.BENEFITS_LLM_SUGGESTED.value] = merged_llm
-                    if merged_llm:
-                        st.success(f"{len(merged_llm)} AI-Benefit(s) übernommen.")
-                    else:
-                        st.info("Keine zusätzlichen AI-Benefits gefunden.")
+                _generate_ai_benefit_suggestions(
+                    job=job,
+                    existing_benefits=existing_benefits,
+                    target_benefit_count=int(
+                        st.session_state.get(SSKey.BENEFITS_SUGGEST_COUNT.value, 5)
+                    ),
+                    region_context=str(
+                        st.session_state.get(SSKey.BENEFITS_REGION_CONTEXT.value, "")
+                    ),
+                )
 
         ai_suggested_raw = st.session_state.get(SSKey.BENEFITS_LLM_SUGGESTED.value, [])
         ai_labels = _benefit_labels_from_suggestions(ai_suggested_raw)
+
+        def _render_ai_controls() -> None:
+            st.divider()
+            st.caption("Einflussfaktoren")
+            st.text_input(
+                "Region für regionale Benefits",
+                key=SSKey.BENEFITS_REGION_CONTEXT.value,
+                placeholder="z. B. Berlin, NRW, DACH",
+            )
+            count_col, action_col = st.columns([1, 2], gap="small")
+            with count_col:
+                st.number_input(
+                    "Anzahl AI-Benefit-Vorschläge",
+                    min_value=1,
+                    max_value=8,
+                    step=1,
+                    key=SSKey.BENEFITS_SUGGEST_COUNT.value,
+                )
+            with action_col:
+                st.caption(" ")
+                generate_clicked = st.button(
+                    "AI-Benefits generieren",
+                    key=SSKey.BENEFITS_AI_GENERATE_CLICKED.value,
+                    width="stretch",
+                )
+            if not generate_clicked:
+                return
+            with st.spinner("Generiere Benefit-Vorschläge …"):
+                merged_llm = _generate_ai_benefit_suggestions(
+                    job=job,
+                    existing_benefits=_existing_benefits_for_generation(),
+                    target_benefit_count=int(
+                        st.session_state.get(SSKey.BENEFITS_SUGGEST_COUNT.value, 5)
+                    ),
+                    region_context=str(
+                        st.session_state.get(SSKey.BENEFITS_REGION_CONTEXT.value, "")
+                    ),
+                )
+            if merged_llm is None:
+                return
+            if hasattr(st, "rerun"):
+                st.rerun()
+            if merged_llm:
+                st.success(f"{len(merged_llm)} AI-Benefit(s) übernommen.")
+            else:
+                st.info("Keine zusätzlichen AI-Benefits gefunden.")
+
         selection_result = render_source_pill_selection(
             columns=[
                 {
@@ -376,6 +451,7 @@ def render(ctx: WizardContext) -> None:
                     "source_key": "AI",
                     "options": ai_labels,
                     "state_key": SSKey.BENEFITS_AI_PILLS.value,
+                    "footer": _render_ai_controls,
                 },
             ],
             selected_labels=selected_labels,
@@ -491,9 +567,6 @@ def render(ctx: WizardContext) -> None:
             "das intern und extern einheitlich kommuniziert werden kann."
         ),
         step=step,
-        extracted_from_jobspec_slot=_render_extracted_slot,
-        extracted_from_jobspec_label="Aus der Anzeige extrahierte Benefits & Rahmenbedingungen",
-        extracted_from_jobspec_use_expander=False,
         source_comparison_slot=_render_source_comparison_slot,
         salary_forecast_slot=_render_salary_forecast_slot,
         open_questions_slot=_render_open_questions_slot,

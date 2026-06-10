@@ -4,7 +4,7 @@ from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from types import SimpleNamespace
 
-from constants import SSKey
+from constants import FactKey, FactSourceType, SSKey
 from schemas import VacancyBrief, VacancyStructuredData
 
 
@@ -111,6 +111,46 @@ def test_build_structured_export_payload_preserves_saved_tasks_and_skills(
     assert payload["selected_role_tasks"] == ["Build ETL pipelines"]
     assert payload["selected_skills"] == ["Python", "SQL"]
     assert payload["selected_benefits"] == ["Mentoring"]
+
+
+def test_build_structured_export_payload_includes_canonical_intake_facts(
+    monkeypatch,
+) -> None:
+    evidence = {
+        "source_type": FactSourceType.JOBSPEC.value,
+        "source_label": "Jobspec extraction",
+        "confidence": 0.75,
+        "evidence_snippet": None,
+        "updated_at": "2026-06-10T00:00:00+00:00",
+    }
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.ESCO_CONFIG.value: {},
+                SSKey.ESCO_SKILLS_SELECTED_MUST.value: [],
+                SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
+                SSKey.INTAKE_FACTS.value: {
+                    FactKey.ROLE_JOB_TITLE.value: "Engineer",
+                },
+                SSKey.INTAKE_FACT_EVIDENCE.value: {
+                    FactKey.ROLE_JOB_TITLE.value: evidence,
+                },
+            }
+        ),
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "get_esco_occupation_selected", lambda: None)
+
+    payload = SUMMARY_MODULE._build_structured_export_payload(_brief())
+
+    assert payload["job_extract"] == {"job_title": "Engineer"}
+    assert payload["intake_facts"] == {
+        FactKey.ROLE_JOB_TITLE.value: "Engineer",
+    }
+    assert payload["intake_fact_evidence"] == {
+        FactKey.ROLE_JOB_TITLE.value: evidence,
+    }
 
 
 def test_build_structured_export_payload_includes_session_selected_benefits(

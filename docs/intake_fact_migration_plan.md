@@ -2,17 +2,20 @@
 
 ## Summary
 
-This plan defines a staged migration from scattered intake answers and summary-only derived rows toward a canonical intake Fact Registry. It is documentation only; do not implement PR 1-5 from this document until a follow-up task explicitly asks for one phase.
+This plan defines a staged migration from scattered intake answers and summary-only derived rows toward a canonical intake Fact Registry. The initial fact vocabulary, additive `SSKey.INTAKE_FACTS` state, selected write-through adapters, and the additive `SSKey.INTAKE_FACT_EVIDENCE` store now exist; remaining phases should continue to preserve legacy compatibility.
 
 The migration goal is to make intake facts addressable, traceable, and reusable across UI state, summary artifacts, exports, prompt construction, and readiness checks without changing user-visible behavior during the initial compatibility phases.
 
 ## Current Baseline
 
-- Canonical session keys, step IDs, and labels live in `constants.py`.
+- Canonical session keys, step IDs, fact IDs, fact source types, and labels live in `constants.py`.
 - Session defaults and reset behavior live in `state.py`.
 - Wizard pages collect answers through Streamlit session state and page-local helpers.
+- `intake_facts.py` exposes legacy-compatible read/write adapters. `SSKey.INTAKE_FACTS` keeps plain values, while `SSKey.INTAKE_FACT_EVIDENCE` stores additive metadata (`source_type`, `source_label`, `confidence`, `confirmed`, `sensitivity`, redacted optional `evidence_snippet`, `used_by_artifacts`, `updated_at`).
+- Manual writes default to confidence `1.0`; jobspec extraction write-through defaults to confidence `0.75`.
+- Adaptive question coverage can use `SSKey.INTAKE_FACT_EVIDENCE` plus the UI confidence threshold; facts without evidence keep legacy coverage behavior.
+- `Question.fact_key` is an optional canonical pointer used for fact-backed coverage and prefill resolution. Existing QuestionPlans without `fact_key` remain valid.
 - Summary facts are currently assembled in `wizard_pages/08_summary.py` from available state, generated artifacts, and derived values.
-- There is no canonical Fact Registry, no canonical `fact_key` contract, and no Evidence Store yet.
 
 ## Migration Principles
 
@@ -25,7 +28,7 @@ The migration goal is to make intake facts addressable, traceable, and reusable 
 
 ## Proposed PR Sequence
 
-### PR 1: Fact Contract Skeleton
+### PR 1: Fact Contract Skeleton (done)
 
 Add the canonical fact vocabulary without changing runtime behavior.
 
@@ -35,7 +38,7 @@ Add the canonical fact vocabulary without changing runtime behavior.
 - Add contract tests for uniqueness, naming stability, and step ownership.
 - Keep existing session-state keys and summary generation untouched.
 
-### PR 2: Registry Initialization and Legacy Read Adapters
+### PR 2: Registry Initialization and Legacy Read Adapters (done)
 
 Introduce a read-only registry layer that can mirror existing session state.
 
@@ -45,7 +48,7 @@ Introduce a read-only registry layer that can mirror existing session state.
 - Add tests for default state, reset behavior, and partial legacy-state compatibility.
 - Do not migrate wizard writes yet.
 
-### PR 3: Wizard Write-Through
+### PR 3: Wizard Write-Through (partially done)
 
 Update wizard pages to write canonical facts while preserving legacy session-state keys.
 
@@ -55,22 +58,22 @@ Update wizard pages to write canonical facts while preserving legacy session-sta
 - Add tests proving legacy state and canonical facts remain synchronized.
 - Do not change exports or prompt construction in this PR.
 
-### PR 4: Summary, Export, and Prompt Consumers
+### PR 4: Summary, Export, and Prompt Consumers (partially started)
 
 Move downstream consumers to read canonical facts through adapters.
 
-- Update summary fact table assembly to prefer canonical facts while retaining legacy fallbacks.
-- Update export payload construction to use canonical fact identities.
+- Update summary fact table assembly to prefer canonical facts while retaining legacy fallbacks. Core profile rows now read canonical intake facts first and fall back to Jobspec values.
+- Update export payload construction to use canonical fact identities. The structured Summary export now includes additive `intake_facts` and `intake_fact_evidence` sections when present, while legacy export keys remain stable.
 - Update prompt construction only where existing behavior can be preserved exactly.
 - Add tests for summary facts, export payloads, and prompt payload compatibility.
 - Keep Salary, ESCO, and Summary Readiness domain behavior unchanged unless they only consume the new adapter output.
 
-### PR 5: Evidence Store and Legacy Cleanup
+### PR 5: Evidence Store and Legacy Cleanup (partially started)
 
 Add evidence tracking and remove only proven-dead legacy paths.
 
-- Define Evidence Store entries for source type, source label, confidence, timestamps, and optional raw excerpts.
-- Link evidence to canonical facts without storing secrets, credentials, or personal data in logs.
+- Extend Evidence Store usage beyond current write-through metadata where source-safe evidence is available.
+- Link evidence to canonical facts without storing secrets, credentials, or personal data in logs; snippets are redacted before storage, sensitivity is canonicalized, and artifact usage uses canonical Summary artifact IDs.
 - Remove legacy-only duplicate reads after tests prove canonical paths cover them.
 - Add regression tests for evidence linkage, privacy-safe redaction, and reset behavior.
 - Update README and docs to reflect the new canonical fact lifecycle.
@@ -88,22 +91,21 @@ Ruff findings that predate a PR should be reported but not fixed unless the PR s
 
 ## Open Decisions
 
-- Exact canonical `fact_key` naming format.
-- Whether fact values are stored as plain typed values, structured envelopes, or both.
-- Whether evidence is mandatory for all facts or only AI-derived/imported facts.
+- How far to expand write-through coverage beyond the current supported fact fields.
+- Whether evidence snippets should be populated for all imported facts or only source-safe AI-derived/imported facts.
 - How much historical legacy state should remain as compatibility surface after PR 5.
 
 ## Non-Goals For This Plan
 
-- No implementation of Fact Registry in this documentation-only change.
-- No implementation of `fact_key`.
-- No Evidence Store implementation.
+- No replacement of existing legacy session-state values with fact envelopes.
+- No migration of all Summary/export/prompt consumers until PR 4 scope is explicitly picked up.
+- No field-level LLM evidence schema changes until a dedicated prompt/schema PR.
 - No ESCO, Salary, Summary Readiness, design-system, or wizard-page behavior changes.
-- No test changes and no lint auto-fixes.
+- No lint auto-fixes.
 
 ## Proposed Registry / Schema Shape
 
-The first implementation phase should introduce the canonical vocabulary before any runtime migration.
+The first implementation phase introduced the canonical vocabulary before runtime migration. Later phases should continue extending consumers without changing existing `Question.id` or legacy session-key behavior.
 
 ### Fact Identity
 
@@ -124,9 +126,12 @@ A canonical fact should have at least:
 
 `Question.id` must remain the UI/widget/history identity.
 
-A future schema extension may add:
+Implemented:
 
 - `fact_key: str | None`
+
+Future schema extensions may add:
+
 - `prefill_paths: list[str]`
 - `criticality: str | None`
 - `answer_cost: int | float | None`
@@ -175,7 +180,7 @@ Restore summary, export, and prompt construction to their previous mixed-source 
 
 ### PR 5 Rollback
 
-Disable evidence writes and keep canonical facts without evidence metadata until privacy and reset behavior are stable.
+Disable evidence consumers and keep canonical facts without using evidence metadata until privacy and reset behavior are stable.
 
 ## Acceptance Criteria
 

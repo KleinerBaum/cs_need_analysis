@@ -32,6 +32,7 @@ from constants import (
     SSKey,
     STEPS,
     UI_PREFERENCE_ANSWER_MODE,
+    UI_PREFERENCE_CONFIDENCE_THRESHOLD,
     UI_MODE_DISPLAY_LABELS,
     UI_MODE_HELP_TEXT,
     UI_MODE_VALUES,
@@ -54,6 +55,7 @@ from question_progress import (
 from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
 from step_status import StepStatusPayload, build_step_status_payload
 from state import normalize_ui_preferences
+from usage_events import record_step_entered, record_step_submitted
 from wizard_pages.salary_forecast import render_sidebar_salary_forecast
 
 if TYPE_CHECKING:
@@ -244,7 +246,10 @@ def _ensure_salary_forecast_state_defaults() -> None:
 
 
 def set_current_step(key: str, *, sync_navigation: bool = True) -> None:
+    previous_key = st.session_state.get(SSKey.CURRENT_STEP.value)
     st.session_state[SSKey.CURRENT_STEP.value] = key
+    if previous_key != key:
+        record_step_entered(st.session_state, step_key=key)
     if sync_navigation:
         st.session_state[SSKey.NAV_SYNC_PENDING.value] = True
 
@@ -272,6 +277,19 @@ def _get_step_questions(plan: QuestionPlan | None, step_key: str) -> list[Questi
     return questions
 
 
+def _read_sidebar_confidence_threshold() -> float | None:
+    preferences_raw = st.session_state.get(SSKey.UI_PREFERENCES.value, {})
+    if not isinstance(preferences_raw, Mapping):
+        return None
+    try:
+        return max(
+            0.0,
+            min(1.0, float(preferences_raw.get(UI_PREFERENCE_CONFIDENCE_THRESHOLD))),
+        )
+    except (TypeError, ValueError):
+        return None
+
+
 def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgress]:
     plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
     plan: QuestionPlan | None = None
@@ -287,6 +305,11 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
     answer_meta = answer_meta_raw if isinstance(answer_meta_raw, dict) else {}
     intake_facts_raw = st.session_state.get(SSKey.INTAKE_FACTS.value)
     intake_facts = intake_facts_raw if isinstance(intake_facts_raw, dict) else {}
+    intake_fact_evidence_raw = st.session_state.get(SSKey.INTAKE_FACT_EVIDENCE.value)
+    intake_fact_evidence = (
+        intake_fact_evidence_raw if isinstance(intake_fact_evidence_raw, dict) else {}
+    )
+    confidence_threshold = _read_sidebar_confidence_threshold()
     job_extract_raw = st.session_state.get(SSKey.JOB_EXTRACT.value)
     has_job_extract = bool(job_extract_raw)
     job_extract: JobAdExtract | None = None
@@ -309,6 +332,8 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
             answer_meta=answer_meta,
             job_extract=job_extract,
             intake_facts=intake_facts,
+            intake_fact_evidence=intake_fact_evidence,
+            confidence_threshold=confidence_threshold,
         )
         payload: SidebarStepDetailStatus = {
             "answered": int(step_status["answered"]),
@@ -331,6 +356,8 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
             cast(AnswerMetaMap, answer_meta),
             job_extract=job_extract,
             intake_facts=intake_facts,
+            intake_fact_evidence=intake_fact_evidence,
+            confidence_threshold=confidence_threshold,
         )
         overall_progress = compute_question_progress(
             questions,
@@ -379,6 +406,8 @@ def _build_step_status_payload_for_page(
     answer_meta: dict[str, object],
     job_extract: JobAdExtract | None = None,
     intake_facts: Mapping[str, object] | None = None,
+    intake_fact_evidence: Mapping[str, object] | None = None,
+    confidence_threshold: float | None = None,
 ) -> StepStatusPayload:
     step = QuestionStep(step_key=page_key, title_de=page_key, questions=questions)
     return build_step_status_payload(
@@ -389,6 +418,8 @@ def _build_step_status_payload_for_page(
         step_key=page_key,
         job_extract=job_extract,
         intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
     )
 
 
@@ -1058,6 +1089,11 @@ def nav_buttons(
         ctx.prev()
         st.rerun()
     if next_clicked:
+        record_step_submitted(
+            st.session_state,
+            step_key=ctx.get_current_page_key(),
+            action="next",
+        )
         ctx.next()
         st.rerun()
 

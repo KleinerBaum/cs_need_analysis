@@ -7,16 +7,17 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 - Intake-Start direkt auf der Landingpage mit integriertem Jobspec-Intake in **drei klaren Start-Phasen**: **Phase A (Quelle & Datenschutz)**, **Phase B (Extraktion prüfen)**, **Phase C (ESCO-Suche)**.
 - Upload von Jobspec/Job Ad als **PDF**, **DOCX** oder **TXT** (alternativ: Text einfügen).
 - Entkoppeltes Quellenhandling im Intake: Upload-Text und manuelle Eingabe überschreiben sich nicht; die aktive Quelle wird zur Analyse genutzt.
+- Privacy-by-default im Quellenhandling: **PII-Reduktion ist standardmäßig aktiv** und kann im Präferenz-Center bewusst deaktiviert werden.
 - LLM-gestützte **Extraktion** der Jobspec in ein strukturiertes Schema (Structured Outputs) und automatische Erzeugung eines dynamischen Frageplans.
 - Wizard mit Fortschrittsanzeige und drei Ansichtsmodi (`quick`, `standard`, `expert`) für die sichtbaren Navigationsschritte: Start, Unternehmen, Rolle & Aufgaben, Skills, Benefits, Interviewprozess und Summary.
-- Der Ansichtsmodus (gespeicherte Werte: `quick`, `standard`, `expert`; Anzeige: `schnell`, `ausführlich`, `vollumfänglich`) ist global über das Sidebar-**Präferenz-Center** steuerbar und zusätzlich im Start-Schritt direkt unter dem Jobspec-Upload. Beim Wechsel greift sofort die adaptive Fragenbegrenzung (Neuberechnung der sichtbaren Fragen pro Step). In jedem Schritt wird der aktive Modus als sichtbare Caption angezeigt, damit reduzierte Frageanzahl nachvollziehbar bleibt. `schnell`/`ausführlich`: Detailgruppen standardmäßig kompakt. `vollumfänglich`: Detailgruppen standardmäßig geöffnet.
+- Der Ansichtsmodus (gespeicherte Werte: `quick`, `standard`, `expert`; Anzeige: `schnell`, `ausführlich`, `vollumfänglich`) ist global über das Sidebar-**Präferenz-Center** steuerbar und zusätzlich im Start-Schritt direkt unter dem Jobspec-Upload. Beim Wechsel greift sofort die adaptive Fragenbegrenzung (Neuberechnung der sichtbaren Fragen pro Step); die Confidence-Schwelle aus dem Präferenz-Center bestimmt dabei, ab wann faktengestützte Extraktionen als abgedeckt zählen. In jedem Schritt wird der aktive Modus als sichtbare Caption angezeigt, damit reduzierte Frageanzahl nachvollziehbar bleibt. `schnell`/`ausführlich`: Detailgruppen standardmäßig kompakt. `vollumfänglich`: Detailgruppen standardmäßig geöffnet.
 - Die Sidebar zeigt die **Gehaltsprognose** in allen Ansichtsmodi, sobald ausreichend Stelleninformationen vorliegen; sie aktualisiert sich mit dem aktuellen Wizard-State und erklärt die stärksten Einflussfaktoren in einfacher Sprache.
 - Die vormals getrennte Ansicht **Identifizierte Informationen** ist in den Start-Schritt integriert (eine Wizard-Stufe weniger): Nach der Analyse erscheint dort direkt die editierbare Übersicht und der Übergang von Phase B zu Phase C bzw. in den nächsten Fachschritt; es gibt **keinen separaten sichtbaren Review-Wizard-Schritt** mehr.
 - In Phase B geprüfte Jobspec-Werte werden beim Weitergehen als bestätigte Grundlage für offene Wizard-Fragen, Aufgaben-/Skill-Auswahl, Gehaltsprognose und Summary-Artefakte genutzt; manuell bearbeitete Antworten bleiben vorrangig.
 - Jobspec-Gaps und -Annahmen werden nicht im Start-Schritt gesammelt angezeigt, sondern best-fit im jeweils passenden Folgeschritt direkt unter **Aus Jobspec extrahiert**; Annahmen können dort bestätigt oder abgelehnt und korrigiert werden.
 - Finaler **Recruiting Brief** mit Export als JSON, Markdown und DOCX.
-- **Summary-Workspace** als einheitliche Readiness-Ansicht ohne separate Tabs.
-- Die **Readiness-Ansicht** zeigt den **Recruiting Brief** inkl. kompakter Structured-Data-Preview; der vollständige JSON-Export bleibt im separaten Bereich **Export** verfügbar.
+- **Summary-Workspace** mit oberem Fakten-Overview, Action Hub und getrennten Detail-Tabs.
+- Die **Readiness-Ansicht** zeigt Fakten nach Bereichen in Spalten, danach Action Hub und Recruiting Brief; der vollständige JSON-Export bleibt im separaten Bereich **Export** verfügbar.
 - Die Verfügbarkeit von CTAs in der Summary folgt einer Kombination aus **fachlichen Voraussetzungen** (Prerequisites) und **kurzen Freshness-Checks** auf die zugrunde liegenden Inhalte.
 - Die **Artefakt-Pipeline** zeigt klickbare Karten für Recruiting Brief, Stellenanzeige, HR-Sheet, Fachbereich-Sheet, Boolean String und Arbeitsvertrag; ein Klick startet das jeweilige Artefakt, darunter folgt der Ergebnisbereich (volle Breite).
 - **Action Hub in der Readiness-Ansicht** mit kanonischen Artefakt-IDs (`brief`, `job_ad`, `interview_hr`, `interview_fach`, `boolean_search`, `employment_contract`) und fokussiertem Primärpfad (Recruiting Brief → Folgeartefakte → Export).
@@ -28,18 +29,19 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 - ESCO-Integration in **Start · Phase C (ESCO-Suche)** mit Primäranker, optional bis zu zwei sekundären Kontextankern und 3-spaltiger Trefferübersicht; bei fehlendem Jobtitel kann der Rollenbegriff manuell eingegeben werden. Der Primäranker dient in den Folgeschritten als Downstream-Grundlage; sekundäre Anchors bleiben Kontext/Rationale und mischen keine Skills in Kernexports.
 - Degradiertes Verhalten bei ESCO-Ausfall oder bewusstem Weitergehen ohne bestätigten ESCO-Anker: Der Wizard bleibt bedienbar, speichert `degraded_unconfirmed` und erlaubt Jobspec-/AI-Flows; ESCO-Normalisierung, Matrix-Coverage, ESCO-basierte Interview-Priorisierung und URI-Exports bleiben gesperrt.
 - Skills-Mapping als geführter 4-Schritt-Flow: (1) extrahierte Jobspec-Phrasen, (2) ESCO-Normalisierung über Occupation-Relationen, (3) sichtbare Essential/Optional-Bestätigung, (4) dedizierter Bereich „Not normalized yet“ mit Optionen „Keep free text“, Retry-Suche und Attach an Occupation.
-- Unternehmensschritt mit Homepage-Enrichment (Beta): Die aus dem Jobspec extrahierte Arbeitgeber-URL kann per Buttons für **Über uns**, **Impressum** und **Vision/Mission** analysiert werden; essenzielle Textausschnitte werden rechts angezeigt, mit offenen Wizard-Fragen abgeglichen, im Session-State gespeichert und in die Brief-Generierung im Summary-Schritt eingespeist.
+- Unternehmensschritt mit Homepage-Enrichment (Beta): Die aus dem Jobspec extrahierte Arbeitgeber-URL kann per Buttons für **Über uns**, **Impressum** und **Vision/Mission** analysiert werden; der Fetch-Service akzeptiert nur öffentliche HTTP(S)-Ziele, prüft Content-Type/Größe, nutzt einen In-Process-Cache und schreibt nicht-sensitive Telemetrie. Essenzielle Textausschnitte werden rechts angezeigt, mit offenen Wizard-Fragen abgeglichen, im Session-State gespeichert und in die Brief-Generierung im Summary-Schritt eingespeist.
 - Der Unternehmensschritt umfasst neben dem Unternehmenskontext auch den Teamkontext inkl. Team-Fragen und enthält dafür ein zweizoniges **Role-context enrichment (ESCO)**-Muster: links klar als **Inferred suggestion/context** markierte Hinweise (inkl. Match-Provenance/-Confidence, falls vorhanden), rechts der Bereich **Confirmed input** aus der kanonischen Team-Notiz. Die Übernahme erfolgt gesammelt über eine eindeutige Aktion „Ausgewählte Vorschläge als confirmed selection übernehmen“.
-- Primäre Fakten-Tabelle in der Summary (Bereich/Feld/Wert/Quelle/Status) unterhalb des Recruiting Briefs mit 2/3-Tabellenbereich und 1/3 Filterspalte (Suche/Status), plus sekundärer Kompaktüberblick und ESCO Mapping Report (JSON/CSV-Export).
+- Oberer Fakten-Overview in der Summary gruppiert Fakten nach Bereich in Spalten; Core-Profilzeilen bevorzugen kanonische Intake-Facts und fallen auf Jobspec-Werte zurück. Die filterbare Detailtabelle (Bereich/Feld/Wert/Quelle/Status) bleibt im Fakten-Workspace mit Suche/Statusfilter verfügbar.
 - Der Schritt **Interviewprozess** ist als Workflow Board organisiert: identifizierte Interview-Werte, kandidatinnen-/kandidatenorientierter Prozess, Candidate Communication, interne Rollen/Timing und Konsistenzcheck. Relevante Werte können für Summary und Export selektiv markiert werden.
 - In den Schritten **Rolle & Aufgaben**, **Skills & Anforderungen** und **Benefits & Rahmenbedingungen** läuft die Auswahl über einheitliche Source-Pills: Vorschläge aus Jobspec, ESCO/Kontext und AI werden nebeneinander gestellt, dedupliziert und direkt als confirmed selection gespeichert; im Skills-Schritt bleiben ESCO Must/Nice buckets und freie Jobspec/AI-Statuswerte synchron.
 - Für **Rolle & Aufgaben**, **Skills & Anforderungen** und **Benefits & Rahmenbedingungen** gilt dieselbe Blockreihenfolge im Step-Shell: **(1) Aus Jobspec extrahiert → (2) Quellenvergleich → (3) Salary Forecast → (4) Offene Fragen → (5) Review**. Diese Reihenfolge ist bewusst vereinheitlicht und per UI-Contract-Tests abgesichert.
 - Session-basiertes LLM-Response-Caching mit Cache-Hinweisen in Intake/Summary (DE/EN), inkl. Cache-Status für Folgeartefakte.
+- Privacy-safe Session-Eventmodell für leichte Observability: Step-Wechsel, zentrale Step-Submits, manuelle Fact-Bestätigungen/-Korrekturen/-Ablehnungen, Modell-/Local-Fallbacks, Homepage-Fetch-Fehler und erfolgreiche Summary-Artefaktgenerierung werden mit whitelisted Metadata erfasst, ohne URLs, Prompts, Payloads, Antwortwerte oder Kontaktdaten zu speichern.
 
 ## Wizard-Flow (implementiert)
 
 1. **Start**
-   - Phase A: Quelle, Consent, optionale PII-Redaktion, UI-Modus sowie ESCO-Betriebsblock (Stable/Preview im Expert-Modus, Runtime-Lane, Arbeits-/Fallback-Sprache, Diagnose)
+   - Phase A: Quelle, Consent, standardmäßig aktive PII-Redaktion mit Opt-out, UI-Modus sowie ESCO-Betriebsblock (Stable/Preview im Expert-Modus, Runtime-Lane, Arbeits-/Fallback-Sprache, Diagnose)
    - Phase B: editierbare „Identifizierte Informationen“
    - Phase C: ESCO-Suche mit bestätigbarem oder manuell eingebbarem Rollenbegriff
 3. **Rolle & Aufgaben**
@@ -326,6 +328,10 @@ python scripts/openai_smoke_test.py --mode all --simulate-error timeout --json-o
 python scripts/openai_smoke_test.py --mode all --simulate-error connection --json-only
 ```
 
+## GitHub Actions CI
+
+Das Repository enthält `.github/workflows/ci.yml` für Pull Requests und Pushes auf `main`. Der Workflow installiert Abhängigkeiten über `requirements.txt` mit `constraints.txt`, führt `pip check`, `compileall`, `pytest -q` und den OpenAI-Smoke-Test im `--ci-dry-run-if-no-key`-Modus aus. Es wird kein separates Lint-/Type-Tooling eingeführt.
+
 ### Typische 400er-Fehlerbilder bei falscher Parametrisierung
 
 - `unsupported_parameter`: z. B. `temperature` wird an ein inkompatibles GPT-5 Legacy-Modell gesendet.
@@ -351,6 +357,8 @@ Dieser Smoke-Test ist der bevorzugte Verifikationspfad für Änderungen an Model
 - Arbeitsvertrag (Template Draft): JSON, DOCX
 - ESCO Mapping Report: CSV (UTF-8), JSON
 - Strukturierter Summary-Export enthält `interview_process` mit Kandidat:innen-Stages, ausgewählten Interview-Werten und normalisiertem internem Flow.
+- Strukturierter Summary-Export enthält, sofern vorhanden, additive `intake_facts` und `intake_fact_evidence` mit kanonischen Fact-IDs; bestehende Legacy-Felder wie `job_extract` und `answers` bleiben unverändert.
+- `intake_fact_evidence` enthält nur additive Metadata wie Quelle, Confidence, Confirmed-Status, Sensitivity, redigierte Evidence-Snippets und kanonische Artifact-IDs.
 
 ### Strukturierter Export (Summary)
 

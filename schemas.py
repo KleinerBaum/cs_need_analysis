@@ -416,6 +416,10 @@ class Question(StrictSchemaModel):
         default=None,
         description="Optional dot-path into the final vacancy brief structure; can be used for mapping.",
     )
+    fact_key: Optional[str] = Field(
+        default=None,
+        description="Optional canonical intake fact key used for fact-backed prefill and coverage.",
+    )
     rationale: Optional[str] = Field(
         default=None,
         description="Why this question matters (used in debug/UI).",

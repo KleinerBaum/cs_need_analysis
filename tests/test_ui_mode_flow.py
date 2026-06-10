@@ -95,6 +95,23 @@ def test_visible_step_set_for_ui_mode_navigation_excludes_team_step() -> None:
     ]
 
 
+def test_set_current_step_records_step_entered_once(monkeypatch) -> None:
+    session_state = _LockedSessionState({SSKey.CURRENT_STEP.value: "landing"})
+    fake_st = _FakeStreamlit(session_state)
+    monkeypatch.setattr(base, "st", fake_st)
+
+    base.set_current_step("company")
+    base.set_current_step("company")
+
+    assert session_state[SSKey.USAGE_EVENTS.value] == [
+        {
+            "event_type": "step_entered",
+            "occurred_at": session_state[SSKey.USAGE_EVENTS.value][0]["occurred_at"],
+            "metadata": {"step_key": "company"},
+        }
+    ]
+
+
 def test_sidebar_salary_forecast_is_rendered_for_all_ui_modes(monkeypatch) -> None:
     rendered_modes: list[str] = []
     computed_modes: list[str] = []
