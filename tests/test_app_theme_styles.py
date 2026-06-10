@@ -21,4 +21,6 @@ def test_inject_theme_styles_uses_streamlit_theme_root(monkeypatch) -> None:
     assert "--cs-app-border: var(" in css
     assert "[data-theme=\"dark\"]" not in css
     assert "[data-testid=\"stAppViewContainer" in css
+    assert "background: var(--cs-app-bg) !important;" in css
+    assert "url(\"data:image/png" not in css
     assert "background: transparent !important;" in css

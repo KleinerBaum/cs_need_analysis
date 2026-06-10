@@ -11,8 +11,8 @@ import streamlit as st
 
 from constants import SSKey
 from esco_semantics import resolve_esco_semantic_context
-from llm_client import generate_role_tasks_salary_forecast
 from salary.engine import compute_salary_forecast
+from salary.features_esco import extract_esco_context
 from salary.scenario_lab_builders import (
     SENIORITY_SWEEP_VALUES,
     apply_scenario_overrides_to_job,
@@ -27,7 +27,7 @@ from salary.scenarios import (
     SALARY_SCENARIO_OPTIONS,
     map_salary_scenario_to_overrides,
 )
-from salary.types import SalaryScenarioInputs, SalaryScenarioOverrides
+from salary.types import SalaryEscoContext, SalaryScenarioInputs, SalaryScenarioOverrides
 from schemas import JobAdExtract
 
 LOGGER = logging.getLogger(__name__)
@@ -184,40 +184,92 @@ def _get_selected_plotly_point(selection: Any) -> dict[str, Any] | None:
     return first if isinstance(first, dict) else None
 
 
+def _session_esco_context() -> SalaryEscoContext:
+    return extract_esco_context(
+        occupation_selected=st.session_state.get(SSKey.ESCO_OCCUPATION_SELECTED.value),
+        skills_must=st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, []),
+        skills_nice=st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, []),
+        esco_config=st.session_state.get(SSKey.ESCO_CONFIG.value, {}),
+    )
+
+
+def _current_salary_scenario_inputs() -> SalaryScenarioInputs:
+    return SalaryScenarioInputs(
+        location_city_override=str(
+            st.session_state.get(SSKey.SALARY_SCENARIO_LOCATION_CITY_OVERRIDE.value, "")
+        ).strip()
+        or None,
+        location_country_override=str(
+            st.session_state.get(
+                SSKey.SALARY_SCENARIO_LOCATION_COUNTRY_OVERRIDE.value, ""
+            )
+        ).strip()
+        or None,
+        search_radius_km=_safe_int(
+            st.session_state.get(SSKey.SALARY_SCENARIO_RADIUS_KM.value, 50)
+        ),
+        remote_share_percent=_safe_int(
+            st.session_state.get(SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value, 0)
+        ),
+    )
+
+
+def _step_job_with_seniority_override(job: JobAdExtract) -> JobAdExtract:
+    seniority_override = str(
+        st.session_state.get(SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value, "")
+    ).strip()
+    if not seniority_override:
+        return job
+    return job.model_copy(update={"seniority_level": seniority_override})
+
+
+def _build_step_salary_result(
+    *,
+    step_key: str,
+    job: JobAdExtract,
+    answers: dict[str, Any],
+    inputs: dict[str, Any],
+) -> dict[str, Any]:
+    forecast = compute_salary_forecast(
+        job_extract=_step_job_with_seniority_override(job),
+        answers=answers,
+        esco_context=_session_esco_context(),
+        scenario_inputs=_current_salary_scenario_inputs(),
+    )
+    result = forecast.model_dump(mode="json")
+    result["step_key"] = step_key
+    result["confidence_note"] = _build_quality_note(result.get("quality", {}))
+    result["inputs"] = {
+        **inputs,
+        "answers_count": len(answers),
+        "radius_km": _safe_int(
+            st.session_state.get(SSKey.SALARY_SCENARIO_RADIUS_KM.value, 50)
+        ),
+        "remote_share_percent": _safe_int(
+            st.session_state.get(SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value, 0)
+        ),
+        "seniority_override": str(
+            st.session_state.get(SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value, "")
+        ).strip(),
+    }
+    return result
+
+
 def _build_salary_forecast_snapshot(
     job: JobAdExtract,
     answers: dict[str, Any],
     *,
     scenario_name: str = "base",
     scenario_overrides: SalaryScenarioOverrides | None = None,
+    esco_context: SalaryEscoContext | None = None,
 ) -> dict[str, Any]:
     overrides = scenario_overrides or SalaryScenarioOverrides()
     forecast = compute_salary_forecast(
         job_extract=job,
         answers=answers,
         scenario_overrides=overrides,
-        scenario_inputs=SalaryScenarioInputs(
-            location_city_override=str(
-                st.session_state.get(
-                    SSKey.SALARY_SCENARIO_LOCATION_CITY_OVERRIDE.value, ""
-                )
-            ).strip()
-            or None,
-            location_country_override=str(
-                st.session_state.get(
-                    SSKey.SALARY_SCENARIO_LOCATION_COUNTRY_OVERRIDE.value, ""
-                )
-            ).strip()
-            or None,
-            search_radius_km=_safe_int(
-                st.session_state.get(SSKey.SALARY_SCENARIO_RADIUS_KM.value, 50)
-            ),
-            remote_share_percent=_safe_int(
-                st.session_state.get(
-                    SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value, 0
-                )
-            ),
-        ),
+        esco_context=esco_context or _session_esco_context(),
+        scenario_inputs=_current_salary_scenario_inputs(),
     )
     full_result = forecast.model_dump(mode="json")
     return {
@@ -450,28 +502,13 @@ def render_salary_forecast_panel(job: JobAdExtract, answers: dict[str, Any]) -> 
         forecast_job, candidate_skills = _apply_salary_scenario_inputs(job)
 
     scenario_overrides = map_salary_scenario_to_overrides(selected_scenario)
-    scenario_inputs = SalaryScenarioInputs(
-        location_city_override=str(
-            st.session_state.get(SSKey.SALARY_SCENARIO_LOCATION_CITY_OVERRIDE.value, "")
-        ).strip()
-        or None,
-        location_country_override=str(
-            st.session_state.get(
-                SSKey.SALARY_SCENARIO_LOCATION_COUNTRY_OVERRIDE.value, ""
-            )
-        ).strip()
-        or None,
-        search_radius_km=_safe_int(
-            st.session_state.get(SSKey.SALARY_SCENARIO_RADIUS_KM.value, 50)
-        ),
-        remote_share_percent=_safe_int(
-            st.session_state.get(SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value, 0)
-        ),
-    )
+    scenario_inputs = _current_salary_scenario_inputs()
+    esco_context = _session_esco_context()
     forecast = compute_salary_forecast(
         job_extract=forecast_job,
         answers=answers,
         scenario_overrides=scenario_overrides,
+        esco_context=esco_context,
         scenario_inputs=scenario_inputs,
     )
 
@@ -495,6 +532,7 @@ def render_salary_forecast_panel(job: JobAdExtract, answers: dict[str, Any]) -> 
             st.session_state.get(SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value, "")
         ).strip(),
         top_n_skills=12,
+        esco_context=esco_context,
     )
     st.session_state[SSKey.SALARY_SCENARIO_LAB_ROWS.value] = scenario_rows
 
@@ -679,6 +717,7 @@ def render_salary_forecast_panel(job: JobAdExtract, answers: dict[str, Any]) -> 
             answers,
             scenario_name=selected_scenario,
             scenario_overrides=scenario_overrides,
+            esco_context=esco_context,
         )
     )
 
@@ -730,42 +769,6 @@ def _render_common_scenario_inputs() -> None:
     )
 
 
-def _run_step_salary_forecast_generation(
-    *,
-    job: JobAdExtract,
-    selected_inputs: list[str],
-    model: str,
-    language: str,
-    store: bool,
-) -> tuple[int, str, dict[str, Any]]:
-    forecast, usage = generate_role_tasks_salary_forecast(
-        job_title=str(job.job_title or "").strip(),
-        location_city=str(job.location_city or "").strip(),
-        location_country=str(job.location_country or "").strip(),
-        seniority=str(
-            st.session_state.get(
-                SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value,
-                job.seniority_level or "",
-            )
-        ).strip(),
-        selected_tasks=selected_inputs,
-        search_radius_km=_safe_int(
-            st.session_state.get(SSKey.SALARY_SCENARIO_RADIUS_KM.value, 50)
-        ),
-        remote_share_percent=_safe_int(
-            st.session_state.get(SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value, 0)
-        ),
-        model=model,
-        language=language,
-        store=store,
-    )
-    return (
-        forecast.yearly_salary_eur,
-        forecast.confidence_note,
-        usage or {},
-    )
-
-
 def render_salary_forecast_result_card(
     *,
     salary_result: dict[str, Any] | None,
@@ -782,7 +785,11 @@ def render_salary_forecast_result_card(
 
     p10 = _safe_int(forecast_payload.get("p10"))
     p90 = _safe_int(forecast_payload.get("p90"))
-    confidence_note = str(payload.get("quality_note") or payload.get("confidence_note") or "").strip()
+    confidence_note = str(
+        payload.get("quality_note") or payload.get("confidence_note") or ""
+    ).strip()
+    if not confidence_note and isinstance(payload.get("quality"), dict):
+        confidence_note = _build_quality_note(payload["quality"])
     inputs = payload.get("inputs", {})
     answers_count = 0
     if isinstance(inputs, dict):
@@ -911,37 +918,19 @@ def render_role_tasks_salary_forecast_panel(
         )
         if _should_refresh_step_forecast(step_key="role_tasks", fingerprint=fingerprint):
             with st.spinner("Berechne Gehaltsprognose …"):
-                p50, confidence_note, usage = _run_step_salary_forecast_generation(
-                    job=job,
-                    selected_inputs=selected_tasks,
-                    model=model,
-                    language=language,
-                    store=store,
+                forecast_job = job.model_copy(
+                    update={
+                        "responsibilities": selected_tasks or job.responsibilities,
+                    }
                 )
-            st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {
-                "step_key": "role_tasks",
-                "forecast": {"p50": p50},
-                "currency": "EUR",
-                "period": "year",
-                "confidence_note": confidence_note,
-                "inputs": {
-                    "selected_tasks": selected_tasks,
-                    "radius_km": _safe_int(
-                        st.session_state.get(SSKey.SALARY_SCENARIO_RADIUS_KM.value, 50)
-                    ),
-                    "remote_share_percent": _safe_int(
-                        st.session_state.get(
-                            SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value, 0
-                        )
-                    ),
-                    "seniority_override": str(
-                        st.session_state.get(
-                            SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value, ""
-                        )
-                    ).strip(),
-                },
-                "usage": usage or {},
-            }
+                st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = (
+                    _build_step_salary_result(
+                        step_key="role_tasks",
+                        job=forecast_job,
+                        answers={"selected_tasks": selected_tasks},
+                        inputs={"selected_tasks": selected_tasks},
+                    )
+                )
             _remember_step_forecast_fingerprint(
                 step_key="role_tasks", fingerprint=fingerprint
             )
@@ -1015,63 +1004,17 @@ def render_benefits_salary_forecast_panel(
         )
         if _should_refresh_step_forecast(step_key="benefits", fingerprint=fingerprint):
             with st.spinner("Berechne Gehaltsprognose …"):
-                scenario_inputs = SalaryScenarioInputs(
-                    location_city_override=str(
-                        st.session_state.get(
-                            SSKey.SALARY_SCENARIO_LOCATION_CITY_OVERRIDE.value,
-                            str(job.location_city or "").strip(),
-                        )
-                    ).strip()
-                    or None,
-                    location_country_override=str(
-                        st.session_state.get(
-                            SSKey.SALARY_SCENARIO_LOCATION_COUNTRY_OVERRIDE.value,
-                            str(job.location_country or "").strip(),
-                        )
-                    ).strip()
-                    or None,
-                    search_radius_km=_safe_int(
-                        st.session_state.get(SSKey.SALARY_SCENARIO_RADIUS_KM.value, 50)
-                    ),
-                    remote_share_percent=_safe_int(
-                        st.session_state.get(
-                            SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value, 0
-                        )
-                    ),
-                )
-                forecast_result = compute_salary_forecast(
-                    job_extract=job,
+                forecast_payload = _build_step_salary_result(
+                    step_key="benefits",
+                    job=job,
                     answers=answers,
-                    scenario_inputs=scenario_inputs,
-                )
-            try:
-                st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {
-                    "step_key": "benefits",
-                    "forecast": forecast_result.forecast.model_dump(mode="json"),
-                    "currency": forecast_result.currency,
-                    "period": forecast_result.period,
-                    "confidence_note": _build_quality_note(forecast_result.quality),
-                    "inputs": {
+                    inputs={
                         "benefits_selected": selected_benefits,
                         "factors": [item for item in _factor_candidates() if item],
-                        "answers_count": len(answers),
-                        "radius_km": _safe_int(
-                            st.session_state.get(
-                                SSKey.SALARY_SCENARIO_RADIUS_KM.value, 50
-                            )
-                        ),
-                        "remote_share_percent": _safe_int(
-                            st.session_state.get(
-                                SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value, 0
-                            )
-                        ),
-                        "seniority_override": str(
-                            st.session_state.get(
-                                SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value, ""
-                            )
-                        ).strip(),
                     },
-                }
+                )
+            try:
+                st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = forecast_payload
                 _remember_step_forecast_fingerprint(
                     step_key="benefits", fingerprint=fingerprint
                 )
@@ -1196,27 +1139,33 @@ def render_skills_salary_forecast_panel(
         )
         if _should_refresh_step_forecast(step_key="skills", fingerprint=fingerprint):
             with st.spinner("Berechne Gehaltsprognose …"):
-                p50, confidence_note, usage = _run_step_salary_forecast_generation(
-                    job=job,
-                    selected_inputs=selected_inputs,
-                    model=model,
-                    language=language,
-                    store=store,
+                forecast_job = job.model_copy(
+                    update={
+                        "must_have_skills": must_priority,
+                        "nice_to_have_skills": nice_priority,
+                        "responsibilities": selected_role_tasks
+                        or job.responsibilities,
+                    }
                 )
-            st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {
-                "step_key": "skills",
-                "forecast": {"p50": p50},
-                "currency": "EUR",
-                "period": "year",
-                "confidence_note": confidence_note,
-                "inputs": {
-                    "must_have_skills": must_priority,
-                    "nice_to_have_skills": nice_priority,
-                    "selected_role_tasks": selected_role_tasks,
-                },
-                "usage": usage or {},
-            }
-            _remember_step_forecast_fingerprint(step_key="skills", fingerprint=fingerprint)
+                st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = (
+                    _build_step_salary_result(
+                        step_key="skills",
+                        job=forecast_job,
+                        answers={
+                            "must_have_skills": must_priority,
+                            "nice_to_have_skills": nice_priority,
+                            "selected_role_tasks": selected_role_tasks,
+                        },
+                        inputs={
+                            "must_have_skills": must_priority,
+                            "nice_to_have_skills": nice_priority,
+                            "selected_role_tasks": selected_role_tasks,
+                        },
+                    )
+                )
+            _remember_step_forecast_fingerprint(
+                step_key="skills", fingerprint=fingerprint
+            )
             st.caption("Prognose automatisch aktualisiert.")
         else:
             st.caption("Prognose ist für die aktuellen Eingaben aktuell.")

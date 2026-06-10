@@ -7,7 +7,7 @@ START_PAGE_COPY: dict[str, object] = {
         "Die App liest eine Stellenanzeige ein, erkennt den fachlichen Kontext und "
         "fragt nur dort nach, wo Informationen für gute Recruiting-Entscheidungen fehlen."
     ),
-    "primary_cta": "Jobspec erfassen",
+    "primary_cta": "Stellenanzeige einlesen und Intake starten",
     "secondary_cta_hint": "",
     "next_step_line": "",
     "before_start_title": "",

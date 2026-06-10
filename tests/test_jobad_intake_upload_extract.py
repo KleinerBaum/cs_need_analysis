@@ -233,7 +233,7 @@ def test_source_input_section_stays_visible_after_analysis(monkeypatch) -> None:
     result = jobad_intake._render_source_input_section(object())
 
     assert result is False
-    assert "#### Jobspec-Quelle bearbeiten" in fake_st.markdowns
+    assert "#### Quelle bearbeiten" in fake_st.markdowns
     assert fake_st.expanders == []
 
 

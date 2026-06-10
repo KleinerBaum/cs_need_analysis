@@ -390,9 +390,9 @@ def _render_phase_a_source_and_privacy_controls() -> bool:
         <style>
         .st-key-cs_ui_mode [data-baseweb="select"] > div,
         .st-key-cs-ui_mode [data-baseweb="select"] > div {
-            background: rgba(255, 255, 255, 0.10) !important;
-            color: #eaf2ff !important;
-            border: 1px solid rgba(255, 255, 255, 0.25) !important;
+            background: var(--cs-surface) !important;
+            color: var(--cs-text) !important;
+            border: 1px solid var(--cs-border) !important;
         }
         </style>
         """,
@@ -401,7 +401,7 @@ def _render_phase_a_source_and_privacy_controls() -> bool:
     upload_col, text_col = st.columns([1, 1.4], gap="large")
     with upload_col:
         st.file_uploader(
-            "Datei hochladen",
+            "PDF, DOCX oder TXT hochladen",
             type=["pdf", "docx", "txt"],
             accept_multiple_files=False,
             key="cs.source_upload_file",
@@ -424,11 +424,11 @@ def _render_phase_a_source_and_privacy_controls() -> bool:
     with text_col:
         manual_text = str(st.session_state.get(SOURCE_TEXT_INPUT_KEY, ""))
         st.text_area(
-            "Text einfügen oder Datei hochladen (PDF/DOCX/TXT)",
+            "Stellenanzeige oder Jobspec",
             key=SOURCE_TEXT_INPUT_KEY,
             height=min(420, max(280, _manual_input_height_for_text(manual_text))),
             on_change=_on_manual_text_change,
-            placeholder="Füge hier die Stellenanzeige oder Jobspec ein …",
+            placeholder="Füge hier den vollständigen Ausschreibungstext ein …",
         )
 
     uploaded_text = str(st.session_state.get(SOURCE_UPLOAD_TEXT_KEY, ""))
@@ -451,9 +451,9 @@ def _render_phase_a_source_and_privacy_controls() -> bool:
         st.metric("Zeichen", f"{char_count:,}".replace(",", "."))
     with action_col:
         do_extract = st.button(
-            "Jetzt analysieren",
+            "Analyse starten",
             width="stretch",
-            help="Analysieren und identifizierte Informationen direkt im Start anzeigen",
+            help="Es wird immer nur die aktuell aktive Quelle analysiert.",
         )
 
     return do_extract
@@ -601,7 +601,7 @@ def _render_source_input_section(ctx: WizardContext) -> bool:
         )
         with container_ctx:
             if hasattr(st, "markdown"):
-                st.markdown("#### Jobspec-Quelle bearbeiten")
+                st.markdown("#### Quelle bearbeiten")
             return _render_phase_a_source_and_privacy_controls()
     container_ctx = (
         st.container(border=True) if hasattr(st, "container") else nullcontext()
@@ -708,7 +708,7 @@ def render_jobad_intake(
                     raw = extracted_upload_text
 
         if not raw.strip():
-            set_error("Bitte zuerst ein Jobspec hochladen oder Text einfügen.")
+            set_error("Bitte lade eine Datei hoch oder füge Text ein.")
             st.rerun()
 
         redact = bool(st.session_state.get(SSKey.SOURCE_REDACT_PII.value, True))
@@ -728,7 +728,7 @@ def render_jobad_intake(
         )
 
         try:
-            with st.spinner("Extrahiere Jobspec…"):
+            with st.spinner("Analysiere Stellenanzeige…"):
                 job, usage1 = extract_job_ad(
                     submitted,
                     model=resolved_extract_model,
@@ -762,7 +762,7 @@ def render_jobad_intake(
                 "extract_job_ad": extract_cached,
                 "generate_question_plan": plan_cached,
             }
-            st.success("Fertig: Jobspec extrahiert und Fragebogen erzeugt.")
+            st.success("Analyse abgeschlossen: Informationen extrahiert und Fragebogen erzeugt.")
             if extract_cached or plan_cached:
                 st.info("Mindestens ein Ergebnis wurde aus dem Cache geladen.")
         except OpenAICallError as e:

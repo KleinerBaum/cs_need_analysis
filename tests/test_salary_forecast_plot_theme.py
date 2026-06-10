@@ -31,7 +31,7 @@ def _patch_theme(monkeypatch, *, base: str, background: str, text: str) -> None:
 
 def test_driver_chart_theme_uses_light_sidebar_contrast(monkeypatch) -> None:
     _patch_theme(
-        monkeypatch, base="light", background="#16324F", text="#FFFFFF"
+        monkeypatch, base="light", background="#12263A", text="#FFFFFF"
     )
     fig = go.Figure()
 
@@ -53,21 +53,21 @@ def test_driver_chart_theme_uses_light_sidebar_contrast(monkeypatch) -> None:
 
 
 def test_driver_chart_theme_uses_dark_sidebar_contrast(monkeypatch) -> None:
-    _patch_theme(monkeypatch, base="dark", background="#0B1726", text="#F9FAFB")
+    _patch_theme(monkeypatch, base="dark", background="#101820", text="#F8FAFC")
     fig = go.Figure()
 
     salary_forecast._apply_driver_chart_theme(fig)
 
     assert fig.layout.paper_bgcolor == "rgba(0, 0, 0, 0)"
     assert fig.layout.plot_bgcolor == "rgba(0, 0, 0, 0)"
-    assert fig.layout.font.color == "#F9FAFB"
-    assert fig.layout.xaxis.tickfont.color == "#F9FAFB"
-    assert fig.layout.xaxis.tickcolor == "#F9FAFB"
-    assert fig.layout.xaxis.linecolor == "#F9FAFB"
+    assert fig.layout.font.color == "#F8FAFC"
+    assert fig.layout.xaxis.tickfont.color == "#F8FAFC"
+    assert fig.layout.xaxis.tickcolor == "#F8FAFC"
+    assert fig.layout.xaxis.linecolor == "#F8FAFC"
     assert fig.layout.xaxis.gridcolor == "rgba(249, 250, 251, 0.28)"
     assert fig.layout.xaxis.zerolinecolor == "#F9FAFB"
-    assert fig.layout.yaxis.tickfont.color == "#F9FAFB"
-    assert fig.layout.yaxis.tickcolor == "#F9FAFB"
-    assert fig.layout.yaxis.linecolor == "#F9FAFB"
+    assert fig.layout.yaxis.tickfont.color == "#F8FAFC"
+    assert fig.layout.yaxis.tickcolor == "#F8FAFC"
+    assert fig.layout.yaxis.linecolor == "#F8FAFC"
     assert fig.layout.yaxis.gridcolor == "rgba(249, 250, 251, 0.28)"
     assert fig.layout.yaxis.zerolinecolor == "#F9FAFB"

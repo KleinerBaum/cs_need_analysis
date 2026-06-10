@@ -471,15 +471,19 @@ def render(ctx: WizardContext) -> None:
         render_question_step(step)
 
     render_step_shell(
-        title="Rolle & Aufgaben",
-        subtitle="Scope, Verantwortlichkeiten und Erfolgskriterien der Rolle.",
+        title="Rolle und Kernaufgaben festzurren",
+        subtitle=(
+            "Bestätige, was die Rolle wirklich leisten soll. Aus Aufgaben, "
+            "Deliverables und Erfolgskriterien entsteht die fachliche Grundlage "
+            "für Briefing, Ansprache und Gehaltsprognose."
+        ),
         outcome_text=(
             "Ein belastbarer Rollen-Scope mit priorisierten Aufgaben und klaren Erfolgskriterien "
             "als Basis für Briefing und Interviewleitfaden."
         ),
         step=step,
         extracted_from_jobspec_slot=_render_extracted_slot,
-        extracted_from_jobspec_label="Aufgaben aus der Anzeige",
+        extracted_from_jobspec_label="Welche Aufgaben sollen sicher in den Recruiting Brief?",
         extracted_from_jobspec_use_expander=False,
         source_comparison_slot=_render_source_comparison_slot,
         salary_forecast_slot=_render_salary_forecast_slot,

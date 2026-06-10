@@ -147,6 +147,66 @@ def test_job_ad_configuration_panel_preserves_existing_inputs(monkeypatch) -> No
     )
 
 
+def test_build_job_ad_styleguide_text_combines_guided_choices() -> None:
+    text = SUMMARY_MODULE._build_job_ad_styleguide_text(
+        preset="Senior/Expert",
+        address="Sie",
+        tone="Direkt & pragmatisch",
+        length="Kompakt",
+        cta="Niedrige Hürde",
+        manual_styleguide="Keine Anglizismen.",
+    )
+
+    assert "Anzeigenziel: Senior/Expert" in text
+    assert "Ansprache: Durchgängig in Sie-Form" in text
+    assert "Tonalität: Direkt" in text
+    assert "AGG-konforme" in text
+    assert "nicht halluzinieren" in text
+    assert "Keine Anglizismen." in text
+
+
+def test_build_job_ad_change_request_text_combines_optimization_choices() -> None:
+    text = SUMMARY_MODULE._build_job_ad_change_request_text(
+        optimization_picks=["CTA stärken", "Benefits sichtbarer"],
+        manual_change_request="Bitte mit stärkerem Praxisbezug.",
+    )
+
+    assert "CTA sichtbarer" in text
+    assert "Benefits früher" in text
+    assert "Bitte mit stärkerem Praxisbezug." in text
+
+
+def test_selection_options_by_group_dedupes_values() -> None:
+    rows = [
+        {
+            "Kategorie": "Skills",
+            "Feld": "Must-have",
+            "Wert": "Python",
+            "Quelle": "Jobspec",
+            "Kritisch": "Ja",
+        },
+        {
+            "Kategorie": "Skills",
+            "Feld": "Must-have",
+            "Wert": "Python",
+            "Quelle": "Antwort",
+            "Kritisch": "Ja",
+        },
+        {
+            "Kategorie": "Benefits",
+            "Feld": "Benefit",
+            "Wert": "Remote",
+            "Quelle": "Jobspec",
+            "Kritisch": "Nein",
+        },
+    ]
+
+    grouped = SUMMARY_MODULE._selection_options_by_group(rows)
+
+    assert grouped["Skills · Must-have"] == ["Python"]
+    assert grouped["Benefits · Benefit"] == ["Remote"]
+
+
 def test_normalize_logo_payload_supports_png_and_jpeg_only() -> None:
     png_logo = _UploadedLogo(name="brand.png", mime_type="image/png", payload=b"png")
     jpg_logo = _UploadedLogo(name="brand.jpg", mime_type="image/jpeg", payload=b"jpeg")

@@ -49,69 +49,82 @@ def render_ui_styles() -> None:
         """
         <style>
         :root {
-            --cs-primary-navy: #16324F;
+            --cs-font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            --cs-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            --cs-primary-navy: #12263A;
             --cs-primary-blue: #2563EB;
             --cs-guidance-teal: #0F766E;
-            --cs-bg: var(--background-color, #F3F6FA);
+            --cs-bg: var(--background-color, #F6F8FB);
             --cs-surface: var(--secondary-background-color, #FFFFFF);
+            --cs-surface-raised: #FFFFFF;
             --cs-surface-muted: color-mix(
                 in srgb,
-                var(--secondary-background-color, #FFFFFF) 88%,
-                var(--background-color, #F3F6FA)
+                var(--secondary-background-color, #FFFFFF) 92%,
+                var(--background-color, #F6F8FB)
             );
-            --cs-border: var(--border-color, #D9E2EC);
-            --cs-border-soft: color-mix(in srgb, var(--border-color, #D9E2EC) 72%, transparent);
-            --cs-text: var(--text-color, #16324F);
-            --cs-text-muted: color-mix(in srgb, var(--text-color, #334155) 86%, transparent);
-            --cs-text-subtle: color-mix(in srgb, var(--text-color, #64748B) 66%, transparent);
-            --cs-sidebar-bg: #16324F;
+            --cs-border: var(--border-color, #D6DEE8);
+            --cs-border-soft: color-mix(in srgb, var(--border-color, #D6DEE8) 66%, transparent);
+            --cs-text: var(--text-color, #172033);
+            --cs-text-muted: #526071;
+            --cs-text-subtle: #6F7D8C;
+            --cs-sidebar-bg: #12263A;
             --cs-sidebar-surface: #FFFFFF;
             --cs-sidebar-surface-muted: color-mix(in srgb, var(--cs-sidebar-surface) 92%, var(--cs-sidebar-bg));
-            --cs-sidebar-border: var(--border-color, #D9E2EC);
+            --cs-sidebar-border: color-mix(in srgb, #FFFFFF 18%, transparent);
             --cs-sidebar-text: #FFFFFF;
             --cs-sidebar-text-muted: color-mix(in srgb, var(--cs-sidebar-text) 78%, transparent);
             --cs-sidebar-surface-text: var(--cs-primary-navy);
             --cs-sidebar-surface-text-muted: color-mix(in srgb, var(--cs-sidebar-surface-text) 72%, transparent);
             --cs-primary: var(--primary-color, var(--cs-primary-blue));
-            --cs-primary-soft: color-mix(in srgb, var(--cs-primary) 18%, var(--cs-surface));
+            --cs-primary-soft: color-mix(in srgb, var(--cs-primary) 12%, var(--cs-surface));
             --cs-success: var(--cs-guidance-teal);
-            --cs-success-soft: color-mix(in srgb, var(--cs-success) 16%, var(--cs-surface));
+            --cs-success-soft: color-mix(in srgb, var(--cs-success) 11%, var(--cs-surface));
             --cs-warning: #F59E0B;
-            --cs-warning-soft: color-mix(in srgb, var(--cs-warning) 24%, var(--cs-surface));
+            --cs-warning-soft: color-mix(in srgb, var(--cs-warning) 15%, var(--cs-surface));
             --cs-danger: #DC2626;
+            --cs-danger-soft: color-mix(in srgb, var(--cs-danger) 12%, var(--cs-surface));
+            --cs-focus-ring: color-mix(in srgb, var(--cs-primary) 38%, transparent);
+            --cs-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+            --cs-shadow-md: 0 12px 28px rgba(15, 23, 42, 0.08);
             --cs-radius-sm: 8px;
-            --cs-radius-md: 12px;
+            --cs-radius-md: 10px;
+            --cs-radius-lg: 12px;
         }
         :root[data-theme="dark"],
         html[data-theme="dark"],
         body[data-theme="dark"],
         [data-theme="dark"] {
-            --cs-primary-navy: #0B1726;
-            --cs-primary-blue: #2563EB;
-            --cs-guidance-teal: #0F766E;
-            --cs-bg: #0B1726;
-            --cs-surface: #152640;
-            --cs-surface-muted: #0F2141;
-            --cs-border: #1E3A63;
-            --cs-border-soft: #24466F;
-            --cs-text: #E2E8F0;
-            --cs-text-muted: #A6B4C8;
-            --cs-text-subtle: #8EA0B8;
-            --cs-sidebar-bg: #0B1726;
-            --cs-sidebar-surface: #152640;
-            --cs-sidebar-surface-muted: #0F2141;
-            --cs-sidebar-border: #1E3A63;
-            --cs-sidebar-text: #F9FAFB;
-            --cs-sidebar-text-muted: #A6B4C8;
-            --cs-sidebar-surface-text: #E2E8F0;
-            --cs-sidebar-surface-text-muted: #A6B4C8;
-            --cs-primary: #2563EB;
-            --cs-primary-soft: #1E40AF;
-            --cs-success: #0F766E;
-            --cs-success-soft: #063F3A;
+            --cs-primary-navy: #101820;
+            --cs-primary-blue: #3B82F6;
+            --cs-guidance-teal: #14B8A6;
+            --cs-bg: #0F141B;
+            --cs-surface: #181E27;
+            --cs-surface-raised: #202938;
+            --cs-surface-muted: #202938;
+            --cs-border: #2D3642;
+            --cs-border-soft: #384352;
+            --cs-text: #E8EDF3;
+            --cs-text-muted: #B8C2D0;
+            --cs-text-subtle: #94A3B8;
+            --cs-sidebar-bg: #101820;
+            --cs-sidebar-surface: #202938;
+            --cs-sidebar-surface-muted: #283241;
+            --cs-sidebar-border: #2D3642;
+            --cs-sidebar-text: #F8FAFC;
+            --cs-sidebar-text-muted: #CBD5E1;
+            --cs-sidebar-surface-text: #F8FAFC;
+            --cs-sidebar-surface-text-muted: #CBD5E1;
+            --cs-primary: #3B82F6;
+            --cs-primary-soft: color-mix(in srgb, var(--cs-primary) 18%, var(--cs-surface));
+            --cs-success: #14B8A6;
+            --cs-success-soft: color-mix(in srgb, var(--cs-success) 16%, var(--cs-surface));
             --cs-warning: #F59E0B;
-            --cs-warning-soft: #593000;
+            --cs-warning-soft: color-mix(in srgb, var(--cs-warning) 18%, var(--cs-surface));
             --cs-danger: #F87171;
+            --cs-danger-soft: color-mix(in srgb, var(--cs-danger) 17%, var(--cs-surface));
+            --cs-focus-ring: color-mix(in srgb, var(--cs-primary) 45%, transparent);
+            --cs-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24);
+            --cs-shadow-md: 0 14px 32px rgba(0, 0, 0, 0.28);
         }
         html,
         body,
@@ -122,6 +135,29 @@ def render_ui_styles() -> None:
         [data-testid="stAppViewContainer"] {
             background: var(--cs-bg);
             color: var(--cs-text-muted);
+            font-family: var(--cs-font-sans);
+            letter-spacing: 0;
+        }
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6,
+        label,
+        p,
+        li,
+        [data-testid="stMarkdownContainer"],
+        [data-testid="stWidgetLabel"],
+        [data-testid="stDataFrame"],
+        [data-testid="stTable"] {
+            color: var(--cs-text);
+            font-family: var(--cs-font-sans);
+            letter-spacing: 0;
+        }
+        [data-testid="stCaptionContainer"],
+        small {
+            color: var(--cs-text-muted) !important;
         }
         [data-theme="dark"] h1,
         [data-theme="dark"] h2,
@@ -194,6 +230,95 @@ def render_ui_styles() -> None:
         [data-testid="stSidebar"] [data-testid="stProgress"] [data-testid="stMarkdownContainer"] {
             color: var(--cs-sidebar-text-muted) !important;
         }
+        [data-testid="stButton"] button,
+        [data-testid="stFormSubmitButton"] button,
+        [data-testid="stDownloadButton"] button {
+            border-radius: var(--cs-radius-sm) !important;
+            border-color: var(--cs-border) !important;
+            background: var(--cs-surface) !important;
+            color: var(--cs-text) !important;
+            font-family: var(--cs-font-sans);
+            font-weight: 650;
+            box-shadow: var(--cs-shadow-sm);
+        }
+        [data-testid="stButton"] button:hover,
+        [data-testid="stFormSubmitButton"] button:hover,
+        [data-testid="stDownloadButton"] button:hover {
+            border-color: var(--cs-primary) !important;
+            color: var(--cs-primary) !important;
+        }
+        [data-testid="stButton"] button:focus-visible,
+        [data-testid="stFormSubmitButton"] button:focus-visible,
+        [data-testid="stDownloadButton"] button:focus-visible,
+        input:focus,
+        textarea:focus,
+        [data-baseweb="select"] > div:focus-within {
+            outline: 3px solid var(--cs-focus-ring) !important;
+            outline-offset: 2px;
+            box-shadow: none !important;
+        }
+        [data-testid="stButton"] button[kind="primary"],
+        [data-testid="stFormSubmitButton"] button[kind="primary"],
+        [data-testid="stDownloadButton"] button[kind="primary"] {
+            background: var(--cs-primary) !important;
+            border-color: var(--cs-primary) !important;
+            color: #FFFFFF !important;
+        }
+        [data-testid="stButton"] button[kind="primary"]:hover,
+        [data-testid="stFormSubmitButton"] button[kind="primary"]:hover,
+        [data-testid="stDownloadButton"] button[kind="primary"]:hover {
+            background: color-mix(in srgb, var(--cs-primary) 88%, #000000) !important;
+            border-color: color-mix(in srgb, var(--cs-primary) 88%, #000000) !important;
+            color: #FFFFFF !important;
+        }
+        input,
+        textarea,
+        [data-baseweb="select"] > div,
+        [data-baseweb="textarea"] textarea {
+            background: var(--cs-surface) !important;
+            border-color: var(--cs-border) !important;
+            color: var(--cs-text) !important;
+            border-radius: var(--cs-radius-sm) !important;
+            font-family: var(--cs-font-sans);
+        }
+        input::placeholder,
+        textarea::placeholder {
+            color: var(--cs-text-subtle) !important;
+        }
+        [data-testid="stExpander"] {
+            background: var(--cs-surface) !important;
+            border: 1px solid var(--cs-border) !important;
+            border-radius: var(--cs-radius-md) !important;
+            box-shadow: var(--cs-shadow-sm);
+        }
+        [data-testid="stExpander"] summary,
+        [data-testid="stExpander"] summary p {
+            color: var(--cs-text) !important;
+            font-weight: 650;
+        }
+        [data-testid="stAlert"] {
+            border-radius: var(--cs-radius-md);
+            border-color: var(--cs-border);
+            color: var(--cs-text);
+        }
+        [data-testid="stAlert"] [data-testid="stMarkdownContainer"],
+        [data-testid="stAlert"] p {
+            color: var(--cs-text) !important;
+        }
+        [data-testid="stTabs"] button {
+            color: var(--cs-text-muted) !important;
+            font-family: var(--cs-font-sans);
+        }
+        [data-testid="stTabs"] button[aria-selected="true"] {
+            color: var(--cs-text) !important;
+            font-weight: 700;
+        }
+        [data-testid="stProgress"] > div > div {
+            background: var(--cs-surface-muted) !important;
+        }
+        [data-testid="stProgress"] [role="progressbar"] > div {
+            background: var(--cs-primary) !important;
+        }
         [data-theme="dark"] [data-testid="stButton"] button[kind="primary"],
         [data-theme="dark"] [data-testid="stFormSubmitButton"] button[kind="primary"],
         [data-theme="dark"] [data-testid="stDownloadButton"] button[kind="primary"] {
@@ -225,9 +350,11 @@ def render_ui_styles() -> None:
             background: var(--cs-surface-muted) !important;
         }
         [data-testid="stVerticalBlockBorderWrapper"] {
-            border-color: var(--cs-border);
-            border-radius: var(--cs-radius-md);
-            box-shadow: 0 8px 22px rgba(22, 50, 79, 0.05);
+            background: var(--cs-surface) !important;
+            border-color: var(--cs-border) !important;
+            border-radius: var(--cs-radius-md) !important;
+            box-shadow: var(--cs-shadow-sm);
+            color: var(--cs-text);
         }
         [data-testid="stMetric"] {
             background: var(--cs-surface);
@@ -235,6 +362,16 @@ def render_ui_styles() -> None:
             border-radius: var(--cs-radius-sm);
             padding: 0.8rem 0.85rem;
             min-height: 100%;
+            box-shadow: var(--cs-shadow-sm);
+            color: var(--cs-text);
+        }
+        [data-testid="stMetric"] label,
+        [data-testid="stMetric"] [data-testid="stMetricLabel"],
+        [data-testid="stMetric"] [data-testid="stMetricDelta"] {
+            color: var(--cs-text-muted) !important;
+        }
+        [data-testid="stMetric"] [data-testid="stMetricValue"] {
+            color: var(--cs-text) !important;
         }
         [data-testid="stSidebar"] [data-testid="stMetric"] {
             background: var(--cs-sidebar-surface);
@@ -267,7 +404,7 @@ def render_ui_styles() -> None:
             border: 1px solid var(--cs-border);
             border-radius: var(--cs-radius-md);
             color: var(--cs-text);
-            box-shadow: 0 8px 22px rgba(22, 50, 79, 0.05);
+            box-shadow: var(--cs-shadow-sm);
         }
         .cs-card,
         .cs-next-best-action,
@@ -324,13 +461,13 @@ def render_ui_styles() -> None:
         .cs-pill-warning {
             border-color: color-mix(in srgb, var(--cs-warning) 58%, var(--cs-border));
             background: var(--cs-warning-soft);
-            color: var(--cs-primary-navy);
+            color: var(--cs-text);
         }
         .cs-pill--success,
         .cs-pill-success {
             border-color: color-mix(in srgb, var(--cs-success) 58%, var(--cs-border));
             background: var(--cs-success-soft);
-            color: var(--cs-primary-navy);
+            color: var(--cs-text);
         }
         .cs-pill--neutral {
             border-color: var(--cs-border);
@@ -371,7 +508,7 @@ def render_ui_styles() -> None:
             color: var(--cs-text-muted);
             font-size: 0.84rem;
             line-height: 1.2;
-            box-shadow: 0 6px 18px rgba(22, 50, 79, 0.05);
+            box-shadow: var(--cs-shadow-sm);
         }
         .cs-process-progress-item::before {
             content: "";
@@ -394,7 +531,7 @@ def render_ui_styles() -> None:
             background: var(--cs-success-soft);
             color: var(--cs-text);
             font-weight: 700;
-            box-shadow: 0 8px 24px rgba(15, 118, 110, 0.14);
+            box-shadow: 0 0 0 3px color-mix(in srgb, var(--cs-success) 16%, transparent);
         }
         .cs-process-progress-item[data-current="true"]::before {
             border-color: var(--cs-success);

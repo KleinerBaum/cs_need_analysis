@@ -1116,10 +1116,10 @@ def guard_job_and_plan(
 
 
 LANDING_STYLE_TOKENS: dict[str, str] = {
-    "card_radius": "14px",
+    "card_radius": "10px",
     "section_spacing": "1.2rem 0 1.4rem 0",
     "muted_text_color": "var(--cs-text-muted)",
-    "emphasis_border": "4px solid #0F766E",
+    "emphasis_border": "4px solid var(--cs-success)",
     "emphasis_background": "var(--cs-success-soft)",
 }
 
@@ -1152,16 +1152,16 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
             .landing-hero {{
                 background: var(--cs-surface);
                 border: 1px solid var(--cs-border);
-                border-radius: 18px;
+                border-radius: 12px;
                 padding: 1.6rem 1.45rem;
-                box-shadow: 0 16px 40px rgba(22, 50, 79, 0.08);
+                box-shadow: var(--cs-shadow-md);
             }}
 
             .landing-hero h1 {{
                 margin: 0;
                 font-size: clamp(1.6rem, 2.3vw, 2.45rem);
                 line-height: 1.18;
-                letter-spacing: 0.01em;
+                letter-spacing: 0;
                 color: var(--cs-text);
             }}
 
@@ -1257,7 +1257,7 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
             .landing-outcome-callout {{
                 margin-top: 0.9rem;
                 border-radius: {style_tokens["card_radius"]};
-                border: 1px solid #0F766E;
+                border: 1px solid var(--cs-success);
                 background: var(--cs-success-soft);
                 padding: 0.75rem 0.85rem;
             }}
@@ -1266,7 +1266,7 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
                 display: inline-flex;
                 align-items: center;
                 gap: 0.35rem;
-                border: 1px solid #0F766E;
+                border: 1px solid var(--cs-success);
                 border-radius: 999px;
                 padding: 0.13rem 0.48rem;
                 font-size: 0.76rem;
@@ -1347,8 +1347,8 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
                 gap: 0.35rem;
                 padding: 0.34rem 0.75rem;
                 border-radius: 999px;
-                border: 1px solid #2563EB;
-                background: #2563EB;
+                border: 1px solid var(--cs-primary);
+                background: var(--cs-primary);
                 text-decoration: none !important;
                 color: #FFFFFF !important;
                 font-size: 0.82rem;
@@ -1358,8 +1358,8 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
 
             .landing-app-link-pill:hover {{
                 transform: translateY(-1px);
-                box-shadow: 0 8px 20px rgba(37, 99, 235, 0.18);
-                border-color: #1D4ED8;
+                box-shadow: 0 8px 20px color-mix(in srgb, var(--cs-primary) 22%, transparent);
+                border-color: color-mix(in srgb, var(--cs-primary) 88%, #000000);
                 color: #FFFFFF !important;
             }}
 
@@ -1372,7 +1372,7 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
 
             .landing-security-note {{
                 background: var(--cs-warning-soft);
-                border: 1px solid #F59E0B;
+                border: 1px solid var(--cs-warning);
                 border-radius: {style_tokens["card_radius"]};
                 padding: 0.8rem 0.95rem;
                 color: var(--cs-text);

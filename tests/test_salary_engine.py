@@ -87,10 +87,17 @@ def test_compute_salary_forecast_uses_benchmark_baseline_when_hit() -> None:
     assert snapshot.provenance.benchmark_version == "demo_v1"
     assert snapshot.provenance.benchmark_year == 2025
     assert snapshot.provenance.benchmark_source_label == "demo_synthetic_reference"
+    assert snapshot.provenance.benchmark_sample_size == 51
+    assert snapshot.provenance.occupation_id == (
+        "esco::http://data.europa.eu/esco/occupation/"
+        "41b0f2f6-5122-4c00-a8fd-11be7b5af50c"
+    )
+    assert snapshot.provenance.region_id == "DE-BE"
     assert any(signal == "benchmark_hit=true" for signal in snapshot.quality.signals)
     assert any(
         signal == "fallback_path=benchmark" for signal in snapshot.quality.signals
     )
+    assert snapshot.quality.benchmark_confidence == 0.75
 
 
 def test_compute_salary_forecast_uses_heuristic_fallback_when_benchmark_misses(
@@ -121,3 +128,98 @@ def test_compute_salary_forecast_uses_heuristic_fallback_when_benchmark_misses(
         signal == "fallback_path=heuristic_baseline_spread_v1"
         for signal in snapshot.quality.signals
     )
+
+
+def test_benchmark_hit_has_higher_quality_than_heuristic_fallback(monkeypatch) -> None:
+    benchmark_job = JobAdExtract(
+        job_title="Software Engineer",
+        location_country="Deutschland",
+        location_city="Berlin",
+    )
+    benchmark = compute_salary_forecast(
+        job_extract=benchmark_job,
+        answers={"team_size": 8, "budget_owner": True},
+    )
+
+    monkeypatch.setattr("salary.engine._load_benchmark_index_cached", lambda: {})
+    fallback = compute_salary_forecast(
+        job_extract=benchmark_job,
+        answers={"team_size": 8, "budget_owner": True},
+    )
+
+    assert benchmark.quality.value > fallback.quality.value
+    assert benchmark.quality.benchmark_confidence is not None
+    assert fallback.quality.benchmark_confidence == 0.0
+    assert benchmark.quality.benchmark_confidence > fallback.quality.benchmark_confidence
+
+
+def test_esco_skill_premium_match_increases_p50() -> None:
+    job = JobAdExtract(job_title="Engineer", location_country="Deutschland")
+
+    without_esco = compute_salary_forecast(job_extract=job, answers={})
+    with_esco = compute_salary_forecast(
+        job_extract=job,
+        answers={},
+        esco_context=SalaryEscoContext(
+            skill_uris_must=[
+                "http://data.europa.eu/esco/skill/e8cbf45f-5303-40a1-b1d5-fac14532395a"
+            ]
+        ),
+    )
+
+    assert with_esco.forecast.p50 > without_esco.forecast.p50
+
+
+def test_remote_share_has_graduated_direct_effect() -> None:
+    job = JobAdExtract(
+        job_title="Engineer",
+        location_country="Deutschland",
+        remote_policy="Onsite",
+    )
+
+    low_remote = compute_salary_forecast(
+        job_extract=job,
+        answers={},
+        scenario_inputs=SalaryScenarioInputs(remote_share_percent=0),
+    )
+    high_remote = compute_salary_forecast(
+        job_extract=job,
+        answers={},
+        scenario_inputs=SalaryScenarioInputs(remote_share_percent=100),
+    )
+
+    assert high_remote.forecast.p50 > low_remote.forecast.p50
+
+
+def test_seniority_calibration_is_monotonic() -> None:
+    junior = compute_salary_forecast(
+        job_extract=JobAdExtract(job_title="Engineer", seniority_level="junior"),
+        answers={},
+    )
+    mid = compute_salary_forecast(
+        job_extract=JobAdExtract(job_title="Engineer", seniority_level="mid"),
+        answers={},
+    )
+    senior = compute_salary_forecast(
+        job_extract=JobAdExtract(job_title="Engineer", seniority_level="senior"),
+        answers={},
+    )
+    lead = compute_salary_forecast(
+        job_extract=JobAdExtract(job_title="Engineer", seniority_level="lead"),
+        answers={},
+    )
+
+    assert junior.forecast.p50 < mid.forecast.p50 < senior.forecast.p50 < lead.forecast.p50
+
+
+def test_high_market_location_does_not_decrease_p50() -> None:
+    neutral = compute_salary_forecast(
+        job_extract=JobAdExtract(job_title="Engineer", location_country="Atlantis"),
+        answers={},
+    )
+    high_market = compute_salary_forecast(
+        job_extract=JobAdExtract(job_title="Engineer", location_country="Schweiz"),
+        answers={},
+    )
+
+    assert high_market.forecast.p50 >= neutral.forecast.p50

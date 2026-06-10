@@ -132,7 +132,7 @@ def test_summary_hero_status_missing_brief(monkeypatch) -> None:
     )
 
     assert status.brief_state == "missing"
-    assert status.next_step == "Recruiting Brief generieren"
+    assert status.next_step == "Recruiting Brief erstellen"
     assert status.ready_for_follow_ups is False
 
 

@@ -7,7 +7,7 @@ from contextlib import nullcontext
 from dataclasses import dataclass
 from collections import defaultdict
 from html import escape
-from typing import Any, Callable, Mapping, Protocol, Sequence, TypedDict
+from typing import Any, Callable, Final, Mapping, Protocol, Sequence, TypedDict
 
 import streamlit as st
 import docx
@@ -28,6 +28,9 @@ from intake_facts import (
     get_intake_fact_evidence_state,
     get_intake_fact_state,
     mark_intake_facts_used_by_artifact,
+)
+from homepage_research import (
+    normalize_company_website_research_payload as _normalize_company_website_research_payload,
 )
 from esco_client import EscoClient, EscoClientError
 from esco_semantics import normalize_anchor_ref, sync_esco_semantic_state
@@ -201,6 +204,104 @@ CHANGE_REQUEST_TEMPLATE_BLOCKS: dict[str, str] = {
     ),
 }
 
+JOB_AD_PRESET_BLOCKS: dict[str, dict[str, str]] = {
+    "Ausgewogen": {
+        "summary": "Allround-Variante mit Aufgaben, Anforderungen und Benefits.",
+        "style": (
+            "Anzeigenziel: Ausgewogen. Aufgaben, Must-haves und konkrete Benefits "
+            "gleichgewichtig darstellen."
+        ),
+    },
+    "Kandidatenorientiert": {
+        "summary": "Stärkerer Fokus auf Nutzen, Einstiegshürden und Bewerbung.",
+        "style": (
+            "Anzeigenziel: Kandidatenorientiert. Arbeitgebernutzen, konkrete Benefits "
+            "und einen einfachen Bewerbungsweg besonders sichtbar machen."
+        ),
+    },
+    "Senior/Expert": {
+        "summary": "Schärft Verantwortung, fachlichen Anspruch und Wirkung der Rolle.",
+        "style": (
+            "Anzeigenziel: Senior/Expert. Verantwortung, Gestaltungsspielraum, "
+            "fachliche Tiefe und erwartete Erfahrung klar herausarbeiten."
+        ),
+    },
+    "Kurz & direkt": {
+        "summary": "Kompakte Anzeige mit wenigen, klaren Entscheidungspunkten.",
+        "style": (
+            "Anzeigenziel: Kurz & direkt. Anzeige knapp halten, Redundanzen vermeiden "
+            "und nur die entscheidenden Aufgaben, Anforderungen und Benefits nennen."
+        ),
+    },
+}
+
+JOB_AD_ADDRESS_BLOCKS: dict[str, str] = {
+    "Du": "Ansprache: Durchgängig in Du-Form formulieren.",
+    "Sie": "Ansprache: Durchgängig in Sie-Form formulieren.",
+}
+
+JOB_AD_TONE_BLOCKS: dict[str, str] = {
+    "Professionell & nahbar": (
+        "Tonalität: Professionell, klar und nahbar. Aktiv formulieren, keine "
+        "Buzzword-Überladung."
+    ),
+    "Direkt & pragmatisch": (
+        "Tonalität: Direkt, konkret und pragmatisch. Keine übertriebene "
+        "Marketing-Sprache."
+    ),
+    "Motivierend": (
+        "Tonalität: Motivierend und kandidatenorientiert, ohne fachliche "
+        "Anforderungen weichzuzeichnen."
+    ),
+}
+
+JOB_AD_LENGTH_BLOCKS: dict[str, str] = {
+    "Kompakt": (
+        "Länge: Kompakt halten (ca. 350–500 Wörter), Fokus auf Aufgaben, Must-haves "
+        "und konkrete Benefits."
+    ),
+    "Standard": (
+        "Länge: Standardumfang nutzen (ca. 500–700 Wörter), mit klaren Abschnitten "
+        "für Aufgabe, Profil, Angebot und Bewerbung."
+    ),
+    "Ausführlich": (
+        "Länge: Ausführlicher formulieren, wenn dadurch Rolle, Kontext und Angebot "
+        "konkreter werden."
+    ),
+}
+
+JOB_AD_CTA_BLOCKS: dict[str, str] = {
+    "Deutlich": (
+        "CTA: Klare Handlungsaufforderung mit einfachem Bewerbungsweg und nächstem "
+        "Schritt."
+    ),
+    "Niedrige Hürde": (
+        "CTA: Bewerbungshürde niedrig darstellen, z. B. kurze Bewerbung ohne "
+        "unnötige Pflichtangaben."
+    ),
+    "Zurückhaltend": (
+        "CTA: Sachlich und unaufdringlich formulieren, aber Bewerbungsweg klar "
+        "benennen."
+    ),
+}
+
+JOB_AD_OPTIMIZATION_BLOCKS: dict[str, str] = {
+    "Kürzer formulieren": "Bitte die Anzeige kürzen und Wiederholungen entfernen.",
+    "Konkreter machen": (
+        "Bitte generische Aussagen durch konkrete Aufgaben, Anforderungen und "
+        "Arbeitgeberangebote ersetzen."
+    ),
+    "CTA stärken": "Bitte den CTA sichtbarer und handlungsorientierter formulieren.",
+    "Benefits sichtbarer": (
+        "Bitte die wichtigsten Benefits früher und konkreter herausarbeiten."
+    ),
+}
+
+JOB_AD_ALWAYS_ON_COMPLIANCE_TEXT: Final[str] = (
+    "Compliance: AGG-konforme, inklusive und diskriminierungsfreie Sprache nutzen; "
+    "fehlende Informationen klar markieren und nicht halluzinieren."
+)
+
 
 class DocxPictureDocument(Protocol):
     def add_picture(self, image_path_or_stream: Any, width: Any = ...) -> Any: ...
@@ -338,7 +439,7 @@ def _resolve_canonical_brief_status(
         return CanonicalBriefStatus(
             state="missing",
             message="Kein Recruiting Brief vorhanden.",
-            cta_label="Recruiting Brief generieren",
+            cta_label="Recruiting Brief erstellen",
             ready_for_follow_ups=False,
         )
     try:
@@ -347,7 +448,7 @@ def _resolve_canonical_brief_status(
         return CanonicalBriefStatus(
             state="invalid",
             message="Recruiting Brief ist ungültig.",
-            cta_label="Recruiting Brief neu generieren",
+            cta_label="Recruiting Brief neu erstellen",
             ready_for_follow_ups=False,
         )
 
@@ -390,7 +491,7 @@ def _resolve_canonical_brief_status(
     return CanonicalBriefStatus(
         state="current",
         message="Aktueller Recruiting Brief vorhanden.",
-        cta_label="Brief aktualisieren",
+        cta_label="Recruiting Brief aktualisieren",
         ready_for_follow_ups=True,
     )
 
@@ -1098,6 +1199,111 @@ def _collect_critical_gaps(job: JobAdExtract, rows: list[dict[str, str]]) -> lis
     return sorted(set(gaps))
 
 
+def _selection_options_by_group(rows: list[dict[str, str]]) -> dict[str, list[str]]:
+    grouped: dict[str, list[str]] = defaultdict(list)
+    for row in rows:
+        grouped[f"{row['Kategorie']} · {row['Feld']}"].append(row["Wert"])
+    return {
+        group_key: sorted(set(values))
+        for group_key, values in grouped.items()
+        if values
+    }
+
+
+def _first_existing_group(
+    grouped: dict[str, list[str]], candidate_keys: Sequence[str]
+) -> str | None:
+    for key in candidate_keys:
+        if key in grouped and grouped[key]:
+            return key
+    return None
+
+
+def _render_guided_multiselect(
+    *,
+    label: str,
+    group_key: str | None,
+    grouped: dict[str, list[str]],
+    selected_values: dict[str, list[str]],
+    suffix: str,
+    max_default: int = 4,
+    help_text: str | None = None,
+) -> None:
+    if group_key is None:
+        st.caption(f"{label}: Keine passenden Daten vorhanden.")
+        return
+    options = grouped.get(group_key, [])
+    if not options:
+        st.caption(f"{label}: Keine passenden Daten vorhanden.")
+        return
+    picks = st.multiselect(
+        label,
+        options=options,
+        default=options[:max_default],
+        key=_widget_key(SSKey.SUMMARY_SELECTION_PICK_WIDGET_PREFIX, suffix),
+        help=help_text,
+    )
+    if picks:
+        selected_values[group_key] = picks
+
+
+def _build_job_ad_styleguide_text(
+    *,
+    preset: str,
+    address: str,
+    tone: str,
+    length: str,
+    cta: str,
+    manual_styleguide: str,
+) -> str:
+    blocks = [
+        JOB_AD_PRESET_BLOCKS.get(preset, {}).get("style", ""),
+        JOB_AD_ADDRESS_BLOCKS.get(address, ""),
+        JOB_AD_TONE_BLOCKS.get(tone, ""),
+        JOB_AD_LENGTH_BLOCKS.get(length, ""),
+        JOB_AD_CTA_BLOCKS.get(cta, ""),
+        JOB_AD_ALWAYS_ON_COMPLIANCE_TEXT,
+        manual_styleguide.strip(),
+    ]
+    return "\n\n".join(block for block in blocks if block)
+
+
+def _build_job_ad_change_request_text(
+    *, optimization_picks: Sequence[str], manual_change_request: str
+) -> str:
+    blocks = [
+        JOB_AD_OPTIMIZATION_BLOCKS[pick]
+        for pick in optimization_picks
+        if pick in JOB_AD_OPTIMIZATION_BLOCKS
+    ]
+    if manual_change_request.strip():
+        blocks.append(manual_change_request.strip())
+    return "\n\n".join(blocks)
+
+
+def _render_job_ad_settings_summary(
+    *,
+    preset: str,
+    address: str,
+    length: str,
+    selected_values: dict[str, list[str]],
+    critical_gaps: list[str],
+) -> None:
+    focus_labels = [
+        key.split(" · ", 1)[1]
+        for key, values in selected_values.items()
+        if values and " · " in key
+    ]
+    focus_text = ", ".join(focus_labels[:4]) if focus_labels else "Standardauswahl"
+    gaps_text = ", ".join(critical_gaps[:3]) if critical_gaps else "Keine kritischen Lücken"
+    st.markdown("**Einstellungs-Zusammenfassung**")
+    st.write(f"- Zielgruppe: {preset}")
+    st.write(f"- Länge: {length}")
+    st.write(f"- Ansprache: {address}")
+    st.write(f"- Fokus: {focus_text}")
+    st.write(f"- Offene Lücken: {gaps_text}")
+
+
 def _render_pills_multiselect(label: str, options: list[str], key: str) -> list[str]:
     if hasattr(st, "pills"):
         return st.pills(label, options=options, selection_mode="multi", key=key) or []
@@ -1561,7 +1767,7 @@ def _build_summary_status(
     brief_status_label = brief_status.message
 
     if brief_state in {"missing", "blocked"}:
-        next_step = "Recruiting Brief generieren"
+        next_step = "Recruiting Brief erstellen"
     elif brief_state in {"invalid", "stale"}:
         next_step = "Recruiting Brief aktualisieren"
     else:
@@ -2079,9 +2285,9 @@ def _render_action_card(action: SummaryAction) -> bool:
 
         input_renderer = action.get("input_renderer")
         if input_renderer is not None:
-            st.caption("Konfiguration im separaten Panel unterhalb der Action Cards.")
+            st.caption("Vorbereitung im separaten Panel unterhalb der Action Cards.")
             open_config_clicked = st.button(
-                "Job-Ad-Konfiguration öffnen",
+                "Stellenanzeige vorbereiten",
                 width="stretch",
                 key=_widget_key(
                     SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
@@ -2138,18 +2344,16 @@ def _render_job_ad_configuration_panel(*, action_registry: list[SummaryAction]) 
     if input_renderer is None:
         return
 
-    st.markdown("### Job-Ad-Konfiguration")
-    st.caption(
-        "Selection Matrix und Editor sind ausgelagert, damit der Hub scannbar bleibt."
-    )
+    st.markdown("### Stellenanzeige vorbereiten")
+    st.caption("Welche Informationen sollen in die Stellenanzeige einfließen?")
     st.toggle(
         "Konfigurationspanel anzeigen",
         key=SSKey.SUMMARY_SHOW_JOB_AD_CONFIG.value,
-        help="Blendet Selection Matrix und Job-Ad-Editor für die Stellenanzeige ein oder aus.",
+        help="Blendet Auswahl, Spracheinstellungen und Optimierung für die Stellenanzeige ein oder aus.",
     )
     if not bool(st.session_state.get(SSKey.SUMMARY_SHOW_JOB_AD_CONFIG.value, False)):
         st.caption(
-            "Panel ausgeblendet. Nutze „Job-Ad-Konfiguration öffnen“ in der Job-Ad-Karte."
+            "Panel ausgeblendet. Nutze „Stellenanzeige vorbereiten“ in der Job-Ad-Karte."
         )
         return
 
@@ -2389,7 +2593,7 @@ def _render_summary_dashboard_css() -> None:
             padding: 0.72rem 0.75rem;
             background: var(--cs-surface);
             min-height: 4.6rem;
-            box-shadow: 0 8px 22px rgba(22, 50, 79, 0.05);
+            box-shadow: var(--cs-shadow-sm);
         }
         .cs-summary-pipeline-item strong {
             display: block;
@@ -2410,22 +2614,22 @@ def _render_summary_dashboard_css() -> None:
         .cs-summary-pipeline-item[data-status="current"] span {
             background: var(--cs-success-soft);
             color: var(--cs-text);
-            border: 1px solid #0F766E;
+            border: 1px solid var(--cs-success);
         }
         .cs-summary-pipeline-item[data-status="ready"] span {
             background: var(--cs-primary-soft);
             color: var(--cs-text);
-            border: 1px solid #2563EB;
+            border: 1px solid var(--cs-primary);
         }
         .cs-summary-pipeline-item[data-status="blocked"] span {
             background: var(--cs-warning-soft);
             color: var(--cs-text);
-            border: 1px solid #F59E0B;
+            border: 1px solid var(--cs-warning);
         }
         .cs-summary-pipeline-item[data-status="stale"] span {
             background: var(--cs-warning-soft);
             color: var(--cs-text);
-            border: 1px solid #F59E0B;
+            border: 1px solid var(--cs-warning);
         }
         .cs-summary-pipeline-item[data-status="open"] span {
             background: var(--cs-surface-muted);
@@ -2558,8 +2762,12 @@ def _render_readiness_tab(
 ) -> None:
     _render_summary_dashboard_css()
     render_output_header(
-        "Zusammenfassung",
-        "Fakten, nächste Aktion und verwertbare Artefakte ohne doppelte Detailblöcke.",
+        "Alles bereit für Recruiting und Hiring-Team",
+        (
+            "Hier siehst du, wie entscheidungsreif die Vakanz bereits ist, welche "
+            "Lücken noch offen sind und welche Folgeartefakte jetzt sinnvoll "
+            "gestartet werden können."
+        ),
     )
     _render_summary_facts_column_overview(vm)
 
@@ -2788,7 +2996,7 @@ def _build_action_registry(
             "id": "brief",
             "title": "Recruiting Brief",
             "benefit": "Verdichtet Jobspec und Wizard-Antworten zu einem sofort nutzbaren Recruiting Brief.",
-            "cta_label": "Recruiting Brief generieren",
+            "cta_label": "Recruiting Brief erstellen",
             "blocked_cta_label": None,
             "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
             "requirement_text": "Jobspec und Wizard-Plan sind vorhanden",
@@ -2854,10 +3062,10 @@ def _build_action_registry(
         },
         {
             "id": "boolean_search",
-            "title": "Boolean Search String",
+            "title": "Boolean Search",
             "benefit": "Erstellt kanal-spezifische Boolean-Queries für Google, LinkedIn und XING.",
             "cta_label": "Boolean Search erstellen",
-            "blocked_cta_label": "Recruiting Brief erstellen und danach Boolean String erstellen",
+            "blocked_cta_label": "Recruiting Brief erstellen und danach Boolean Search erstellen",
             "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
             "requirement_text": "Aktueller Recruiting Brief ist erforderlich",
             "requirement_check_fn": follow_up_requirement_check,
@@ -2984,7 +3192,7 @@ def _render_summary_processing_hub(
             )
             if action.get("input_renderer") is not None:
                 if st.button(
-                    "Job-Ad-Konfiguration öffnen",
+                    "Stellenanzeige vorbereiten",
                     width="content",
                     key=_widget_key(
                         SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
@@ -3410,8 +3618,16 @@ def render(ctx: WizardContext) -> None:
         company_website_research: CompanyWebsiteResearch | None = None
         if raw_company_website_research not in (None, {}):
             try:
+                normalized_company_website_research = (
+                    _normalize_company_website_research_payload(
+                        raw_company_website_research
+                    )
+                )
                 company_website_research = CompanyWebsiteResearch.model_validate(
-                    raw_company_website_research
+                    normalized_company_website_research
+                )
+                st.session_state[SSKey.COMPANY_WEBSITE_RESEARCH.value] = (
+                    company_website_research.model_dump(mode="json")
                 )
             except ValueError:
                 st.error(
@@ -3535,16 +3751,16 @@ def render(ctx: WizardContext) -> None:
         if brief_status == "missing":
             st.info(
                 "Kein Recruiting Brief vorhanden. Bitte zuerst die Karte "
-                "„Recruiting Brief generieren“ ausführen."
+                "„Recruiting Brief erstellen“ ausführen."
             )
             return None
         if brief_status == "invalid":
             st.warning(
-                "Recruiting Brief ist ungültig. Bitte über „Recruiting Brief generieren“ neu erstellen."
+                "Recruiting Brief ist ungültig. Bitte über „Recruiting Brief erstellen“ neu erstellen."
             )
             return None
         st.info(
-            "Recruiting Brief ist veraltet. Bitte über „Recruiting Brief generieren“ aktualisieren."
+            "Recruiting Brief ist veraltet. Bitte über „Recruiting Brief aktualisieren“ aktualisieren."
         )
         return None
 
@@ -3709,11 +3925,107 @@ def render(ctx: WizardContext) -> None:
             )
 
     def _render_job_ad_action_hub_inputs() -> None:
-        st.markdown("**Selection Matrix (optional)**")
-        selected_values, _ = _render_selection_matrix(job=vm.job, answers=vm.answers)
+        rows = _build_selection_rows(vm.job, vm.answers)
+        grouped_values = _selection_options_by_group(rows)
+        critical_gaps = _collect_critical_gaps(vm.job, rows)
+        selected_values: dict[str, list[str]] = {}
+
+        st.markdown("#### 1. Ziel der Anzeige")
+        preset = st.radio(
+            "Wähle den Schwerpunkt für die erste Variante.",
+            options=list(JOB_AD_PRESET_BLOCKS.keys()),
+            index=0,
+            format_func=lambda value: (
+                f"{value} — {JOB_AD_PRESET_BLOCKS[value]['summary']}"
+            ),
+            key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "job_ad.preset"),
+        )
+
+        st.markdown("#### 2. Inhalte auswählen")
+        st.caption(
+            "Die wichtigsten Inhalte werden vorausgewählt. Passe nur an, was in der Anzeige wirklich sichtbar sein soll."
+        )
+        _render_guided_multiselect(
+            label="Wichtigste Aufgaben / Rollenbeschreibung",
+            group_key=_first_existing_group(
+                grouped_values,
+                ("Rolle · Kurzbeschreibung", "Manager-Input · role_tasks"),
+            ),
+            grouped=grouped_values,
+            selected_values=selected_values,
+            suffix="job_ad.guided.role",
+            max_default=3,
+        )
+        _render_guided_multiselect(
+            label="Wichtigste Anforderungen",
+            group_key=_first_existing_group(
+                grouped_values,
+                ("Skills · Must-have", "Manager-Input · must_have_skills"),
+            ),
+            grouped=grouped_values,
+            selected_values=selected_values,
+            suffix="job_ad.guided.must_have",
+            max_default=5,
+        )
+        _render_guided_multiselect(
+            label="Wichtigste Benefits",
+            group_key=_first_existing_group(
+                grouped_values,
+                ("Benefits · Ausgewählter Benefit", "Benefits · Benefit"),
+            ),
+            grouped=grouped_values,
+            selected_values=selected_values,
+            suffix="job_ad.guided.benefits",
+            max_default=5,
+        )
+        for group_key in (
+            "Basis · Titel",
+            "Basis · Unternehmen",
+            "Basis · Anstellungsart",
+            "Basis · Vertragsart",
+            "Standort · Ort",
+            "Standort · Land",
+            "Standort · Remote",
+            "Kontakt · Ansprechpartner",
+            "Kontakt · Kontakt E-Mail",
+        ):
+            values = grouped_values.get(group_key)
+            if values:
+                selected_values[group_key] = values
         st.session_state[SSKey.SUMMARY_SELECTIONS.value] = selected_values
 
-        st.markdown("**Job-Ad-Editor**")
+        st.markdown("#### 3. Sprache & Marke")
+        style_col_a, style_col_b = st.columns(2)
+        with style_col_a:
+            address = st.selectbox(
+                "Ansprache",
+                options=list(JOB_AD_ADDRESS_BLOCKS.keys()),
+                index=0,
+                key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "job_ad.address"),
+            )
+            tone = st.selectbox(
+                "Tonalität",
+                options=list(JOB_AD_TONE_BLOCKS.keys()),
+                index=0,
+                key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "job_ad.tone"),
+            )
+        with style_col_b:
+            length = st.selectbox(
+                "Länge",
+                options=list(JOB_AD_LENGTH_BLOCKS.keys()),
+                index=0,
+                key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "job_ad.length"),
+            )
+            cta = st.selectbox(
+                "CTA-Stärke",
+                options=list(JOB_AD_CTA_BLOCKS.keys()),
+                index=0,
+                key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "job_ad.cta"),
+            )
+        st.caption(
+            "AGG-konforme, inklusive Sprache ist immer aktiv und kann nicht deaktiviert werden."
+        )
+
         logo_file = st.file_uploader(
             "Logo-Upload (optional)",
             type=["png", "jpg", "jpeg", "svg"],
@@ -3733,49 +4045,73 @@ def render(ctx: WizardContext) -> None:
                 width=180,
             )
 
-        styleguide_key = SSKey.SUMMARY_STYLEGUIDE_TEXT.value
-        if styleguide_key not in st.session_state:
-            st.session_state[styleguide_key] = ""
-
-        styleguide_slot = st.empty()
-        _render_template_toggles(
-            title="Bausteine (Styleguide-Beschleuniger)",
-            text_key=SSKey.SUMMARY_STYLEGUIDE_TEXT,
-            selection_key=SSKey.SUMMARY_STYLEGUIDE_BLOCKS,
-            template_blocks=STYLEGUIDE_TEMPLATE_BLOCKS,
-            widget_prefix=SSKey.SUMMARY_STYLEGUIDE_BLOCK_WIDGET_PREFIX.value,
+        manual_styleguide_key = _widget_key(
+            SSKey.SUMMARY_STYLEGUIDE_BLOCK_WIDGET_PREFIX, "manual"
         )
-        _ = styleguide_slot.text_area(
-            "Styleguide des Arbeitgebers",
+        if manual_styleguide_key not in st.session_state:
+            st.session_state[manual_styleguide_key] = st.session_state.get(
+                SSKey.SUMMARY_STYLEGUIDE_TEXT.value, ""
+            )
+        manual_styleguide = st.text_area(
+            "Zusätzlicher Styleguide des Arbeitgebers (optional)",
             placeholder="z. B. Tonalität, Wording, No-Gos, Corporate Language, Du/Sie, Diversity-Hinweise …",
-            key=styleguide_key,
+            key=manual_styleguide_key,
+        )
+        st.session_state[SSKey.SUMMARY_STYLEGUIDE_TEXT.value] = (
+            _build_job_ad_styleguide_text(
+                preset=preset,
+                address=address,
+                tone=tone,
+                length=length,
+                cta=cta,
+                manual_styleguide=manual_styleguide,
+            )
         )
 
-        change_request_key = SSKey.SUMMARY_CHANGE_REQUEST_TEXT.value
-        if change_request_key not in st.session_state:
-            st.session_state[change_request_key] = ""
-
-        change_request_slot = st.empty()
-        _render_template_toggles(
-            title="Bausteine (Change-Request-Beschleuniger)",
-            text_key=SSKey.SUMMARY_CHANGE_REQUEST_TEXT,
-            selection_key=SSKey.SUMMARY_CHANGE_REQUEST_BLOCKS,
-            template_blocks=CHANGE_REQUEST_TEMPLATE_BLOCKS,
-            widget_prefix=SSKey.SUMMARY_CHANGE_REQUEST_BLOCK_WIDGET_PREFIX.value,
+        st.markdown("#### 4. Optimierung")
+        optimization_picks = st.multiselect(
+            "Was soll bei der nächsten Variante besonders verbessert werden?",
+            options=list(JOB_AD_OPTIMIZATION_BLOCKS.keys()),
+            default=[],
+            key=_widget_key(
+                SSKey.SUMMARY_CHANGE_REQUEST_BLOCK_WIDGET_PREFIX,
+                "job_ad.optimization",
+            ),
         )
-        _ = change_request_slot.text_area(
-            "Anpassungswünsche (für Iterationen)",
+        manual_change_request_key = _widget_key(
+            SSKey.SUMMARY_CHANGE_REQUEST_BLOCK_WIDGET_PREFIX,
+            "manual",
+        )
+        if manual_change_request_key not in st.session_state:
+            st.session_state[manual_change_request_key] = st.session_state.get(
+                SSKey.SUMMARY_CHANGE_REQUEST_TEXT.value, ""
+            )
+        manual_change_request = st.text_area(
+            "Weitere Anpassungswünsche (optional)",
             placeholder="z. B. stärker auf Senior-Profile fokussieren, CTA kürzen, Benefits konkretisieren …",
-            key=change_request_key,
+            key=manual_change_request_key,
         )
-        critical_gaps = _collect_critical_gaps(
-            vm.job,
-            _build_selection_rows(vm.job, vm.answers),
+        st.session_state[SSKey.SUMMARY_CHANGE_REQUEST_TEXT.value] = (
+            _build_job_ad_change_request_text(
+                optimization_picks=optimization_picks,
+                manual_change_request=manual_change_request,
+            )
         )
+
+        _render_job_ad_settings_summary(
+            preset=preset,
+            address=address,
+            length=length,
+            selected_values=selected_values,
+            critical_gaps=critical_gaps,
+        )
+
         if critical_gaps:
             st.info(
                 "Hinweis: Kritische Lücken werden in der AGG-Checkliste markiert und nicht halluziniert."
             )
+        with st.expander("Quellen & Details prüfen", expanded=False):
+            _render_selection_matrix(job=vm.job, answers=vm.answers)
         st.caption(f"Job-Ad-Modell: `{resolved_job_ad_model}`")
 
     action_registry = _build_action_registry(
@@ -3829,7 +4165,7 @@ def render(ctx: WizardContext) -> None:
 
     if brief is None:
         st.info(
-            "Noch kein Recruiting Brief verfügbar. Prüfe die Eingaben und versuche es erneut."
+            "Noch kein aktueller Recruiting Brief verfügbar. Bitte prüfe Eingaben oder aktualisiere die Vakanz."
         )
         nav_buttons(ctx, disable_next=True)
         return

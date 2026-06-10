@@ -8,7 +8,7 @@ import pytest
 
 import homepage_research
 from constants import SSKey, WEBSITE_TOPIC_ABOUT
-from schemas import QuestionPlan
+from schemas import CompanyWebsiteResearch, QuestionPlan
 from usage_events import get_usage_events
 
 COMPANY_PATH = Path(__file__).resolve().parents[1] / "wizard_pages" / "02_company.py"
@@ -154,8 +154,30 @@ def test_derive_topic_facts_about_extracts_headcount_and_founding() -> None:
 
     facts = COMPANY_MODULE._derive_topic_facts("about", text, "")
 
-    assert any("Gegründet" in fact and "2001" in fact for fact in facts)
-    assert any("Mitarbeitende" in fact and "745000" in fact for fact in facts)
+    assert facts["Gegründet"] == "2001"
+    assert facts["Mitarbeitende (Hinweis)"] == "745000"
+
+
+def test_normalize_company_website_research_payload_accepts_legacy_fact_lists() -> None:
+    payload = {
+        "homepage_url": "https://example.com",
+        "sections": {
+            "about": {
+                "source_url": "https://example.com/about",
+                "summary": ["Example summary"],
+                "facts": ["Gegründet: 2001", "Cloud delivery focus"],
+                "fetched_at": "2026-06-10T00:00:00+00:00",
+            }
+        },
+        "open_question_matches": [],
+    }
+
+    normalized = COMPANY_MODULE._normalize_company_website_research_payload(payload)
+    research = CompanyWebsiteResearch.model_validate(normalized)
+
+    facts = research.sections["about"].facts
+    assert facts["Gegründet"] == "2001"
+    assert facts["fact_2"] == "Cloud delivery focus"
 
 
 def test_derive_insights_from_open_questions_retains_ids_and_labels() -> None:

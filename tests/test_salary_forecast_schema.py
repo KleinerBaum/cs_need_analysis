@@ -58,3 +58,11 @@ def test_parse_salary_forecast_result_normalizes_legacy_confidence_kind() -> Non
     parsed = parse_salary_forecast_result(payload)
 
     assert parsed.quality.kind == "data_quality_score"
+
+
+def test_parse_salary_forecast_result_accepts_quality_detail_fields() -> None:
+    parsed = parse_salary_forecast_result(_valid_payload())
+
+    assert parsed.quality.data_quality is not None
+    assert parsed.quality.benchmark_confidence is not None
+    assert parsed.quality.forecast_uncertainty is not None

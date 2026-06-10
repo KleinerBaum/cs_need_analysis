@@ -602,9 +602,10 @@ def _render_skill_status_surface(
     selected_count: int,
 ) -> bool:
     render_output_header(
-        "Skills & Anforderungen schärfen",
-        "Aus Stellenanzeige, ESCO und AI-Vorschlägen entsteht eine prüfbare "
-        "Skill-Liste für Brief, Matching und Interview.",
+        "Skills präzisieren und priorisieren",
+        "Hier trennst du echte Must-haves von Nice-to-haves. Die bestätigte "
+        "Skill-Liste wirkt direkt auf Matching, Interviewfragen und die Qualität "
+        "des Recruiting Briefs.",
     )
     st.caption(
         f"{jobspec_count} aus der Anzeige erkannt · "
@@ -612,13 +613,12 @@ def _render_skill_status_surface(
     )
     with st.expander("Weitere AI-Vorschläge", expanded=False):
         st.caption(
-            "Die ersten 5 AI-Vorschläge werden automatisch einmalig erzeugt. "
-            "Diese Steuerung ergänzt bei zusätzlichem Bedarf weitere Vorschläge."
+            "Nur bestätigte Skills fließen vollständig in Briefing und Interview ein."
         )
         count_col, action_col = st.columns([1, 2], gap="small")
         with count_col:
             st.number_input(
-                "Anzahl",
+                "Wie viele zusätzliche Skill-Vorschläge möchtest du sehen?",
                 key=SSKey.SKILLS_SUGGEST_COUNT.value,
                 min_value=1,
                 max_value=12,
@@ -627,7 +627,7 @@ def _render_skill_status_surface(
             )
         with action_col:
             return st.button(
-                "+ AI-Vorschläge",
+                "Weitere Skill-Vorschläge anzeigen",
                 key=SSKey.SKILLS_AI_GENERATE_CLICKED.value,
                 width="stretch",
             )
@@ -1680,9 +1680,9 @@ def _render_confirmed_selection_block(
             position: sticky;
             top: 0.85rem;
             z-index: 20;
-            background: color-mix(in srgb, var(--background-color) 95%, transparent);
+            background: color-mix(in srgb, var(--cs-surface) 96%, transparent);
             border-radius: 0.5rem;
-            backdrop-filter: blur(2px);
+            backdrop-filter: blur(4px);
         }
         .skills-chip-row {
             display: flex;
@@ -1696,8 +1696,9 @@ def _render_confirmed_selection_block(
             max-width: 18rem;
             padding: 0.2rem 0.55rem;
             border-radius: 0.9rem;
-            background: color-mix(in srgb, var(--secondary-background-color) 90%, transparent);
-            border: 1px solid color-mix(in srgb, var(--text-color) 14%, transparent);
+            background: var(--cs-surface-muted);
+            border: 1px solid var(--cs-border-soft);
+            color: var(--cs-text);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -2287,10 +2288,11 @@ def render(ctx: WizardContext) -> None:
         )
 
     render_step_shell(
-        title="Skills & Anforderungen",
+        title="Skills präzisieren und priorisieren",
         subtitle=(
-            "Skills aus Anzeige, ESCO und AI kuratieren und als belastbare "
-            "Anforderungsliste bestätigen."
+            "Hier trennst du echte Must-haves von Nice-to-haves. Die bestätigte "
+            "Skill-Liste wirkt direkt auf Matching, Interviewfragen und die Qualität "
+            "des Recruiting Briefs."
         ),
         outcome_text=(
             "Eine prüfbare Skill-Liste für Recruiting Brief, Matching und Interviewfragen."

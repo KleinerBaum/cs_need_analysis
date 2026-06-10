@@ -47,8 +47,10 @@ def test_render_ui_styles_uses_streamlit_theme_tokens(monkeypatch) -> None:
     design_system.render_ui_styles()
 
     css = calls[0]
-    assert "--cs-bg: var(--background-color, #F3F6FA);" in css
+    assert "--cs-font-sans:" in css
+    assert "--cs-bg: var(--background-color, #F6F8FB);" in css
     assert "--cs-surface: var(--secondary-background-color, #FFFFFF);" in css
+    assert "--cs-focus-ring:" in css
     assert ".stMainBlockContainer" in css
     assert "background: var(--cs-bg);" in css
 
@@ -78,6 +80,9 @@ def test_render_ui_styles_scopes_metric_styles_for_sidebar(monkeypatch) -> None:
     assert "color: var(--cs-sidebar-surface-text) !important;" in css
     assert '[data-testid="stSidebar"] [data-testid="stExpander"] {' in css
     assert '[data-testid="stSidebar"] [data-testid="stProgress"] > div > div {' in css
+    assert '[data-testid="stButton"] button {' in css
+    assert '[data-testid="stAlert"] {' in css
+    assert '[data-testid="stTabs"] button' in css
 
 
 def test_render_landing_css_uses_theme_tokens(monkeypatch) -> None:
@@ -96,6 +101,7 @@ def test_render_landing_css_uses_theme_tokens(monkeypatch) -> None:
     assert "background: var(--cs-surface);" in css
     assert "border: 1px solid var(--cs-border);" in css
     assert "color: var(--cs-text-muted);" in css
+    assert "box-shadow: var(--cs-shadow-md);" in css
 
 
 def test_build_process_progress_html_escapes_labels_and_starts_with_company() -> None:

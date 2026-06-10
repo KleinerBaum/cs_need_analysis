@@ -147,6 +147,7 @@ class SalaryForecastProvenance(StrictSchemaModel):
     )
     benchmark_year: int | None = None
     benchmark_source_label: str | None = None
+    benchmark_sample_size: int | None = None
     occupation_id: str | None = None
     region_id: str | None = None
 
@@ -159,6 +160,24 @@ class SalaryForecastQuality(StrictSchemaModel):
     signals: list[str] = Field(
         default_factory=list,
         description="Structured signals used to derive the quality indicator.",
+    )
+    data_quality: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Coverage score for available salary inputs and mappings.",
+    )
+    benchmark_confidence: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Confidence score for the benchmark lookup and fallback depth.",
+    )
+    forecast_uncertainty: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Normalized uncertainty marker for the salary band width.",
     )
 
     @model_validator(mode="before")

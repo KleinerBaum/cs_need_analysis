@@ -530,7 +530,10 @@ def render(ctx: WizardContext) -> None:
         if hasattr(st, "markdown"):
             st.markdown("#### Interviewprozess definieren")
         if hasattr(st, "caption"):
-            st.caption("Definieren Sie zuerst den Prozess, den Kandidat:innen erleben. Interne Rollen und Benachrichtigungen können danach ergänzt werden.")
+            st.caption(
+                "Definiere zuerst den sichtbaren Kandidat:innen-Prozess. Danach ergänzt "
+                "du interne Rollen, Kommunikation und Zeitfenster."
+            )
 
         if step is None or not step.questions:
             st.info(
@@ -553,10 +556,11 @@ def render(ctx: WizardContext) -> None:
         _render_interview_consistency_checklist(job=job, step=step)
 
     shell_kwargs: dict[str, Any] = {
-        "title": "Interviewprozess",
+        "title": "Interviewprozess klar und fair gestalten",
         "subtitle": (
-            "Ziel: Einen klaren, fairen Prozess definieren (Stages, Stakeholder, "
-            "Assessments, Timeline) und gleichzeitig das Candidate Experience sicherstellen."
+            "Definiere zuerst den sichtbaren Kandidat:innen-Prozess. Danach ergänzt du "
+            "interne Rollen, Kommunikation und Zeitfenster, damit Candidate Experience "
+            "und interne Steuerung zusammenpassen."
         ),
         "outcome_slot": lambda: st.markdown(
             "**Vorteile:** Bilden Sie zu Beginn die internen Prozesse sauber ab und "

@@ -13,6 +13,8 @@ from urllib.parse import urljoin, urlparse, urlunparse
 from urllib.request import Request, urlopen
 
 from constants import (
+    WEBSITE_RESEARCH_SECTIONS,
+    WEBSITE_SECTION_FACTS,
     WEBSITE_SECTION_SUMMARY,
     WEBSITE_TOPIC_ABOUT,
     WEBSITE_TOPIC_IMPRINT,
@@ -318,8 +320,64 @@ def extract_imprint_facts(raw_html: str, text: str) -> dict[str, str]:
     return facts
 
 
-def derive_topic_facts(topic_key: str, text: str, raw_html: str) -> list[str]:
-    facts: list[str] = []
+def normalize_research_facts(raw_facts: Any) -> dict[str, str]:
+    if isinstance(raw_facts, Mapping):
+        return {
+            str(key).strip(): str(value).strip()
+            for key, value in raw_facts.items()
+            if str(key).strip() and str(value).strip()
+        }
+    if not isinstance(raw_facts, list):
+        return {}
+
+    facts: dict[str, str] = {}
+    for index, item in enumerate(raw_facts, start=1):
+        text = str(item or "").strip()
+        if not text:
+            continue
+        if ":" in text:
+            label, value = text.split(":", 1)
+            key = label.strip() or f"fact_{index}"
+            normalized_value = value.strip()
+        else:
+            key = f"fact_{index}"
+            normalized_value = text
+        if not normalized_value:
+            continue
+        base_key = key
+        suffix = 2
+        while key in facts:
+            key = f"{base_key}_{suffix}"
+            suffix += 1
+        facts[key] = normalized_value
+    return facts
+
+
+def normalize_company_website_research_payload(raw_research: Any) -> Any:
+    if not isinstance(raw_research, Mapping):
+        return raw_research
+
+    research = dict(raw_research)
+    sections_raw = research.get(WEBSITE_RESEARCH_SECTIONS)
+    if not isinstance(sections_raw, Mapping):
+        return research
+
+    normalized_sections: dict[str, Any] = {}
+    for topic_key, section_raw in sections_raw.items():
+        if not isinstance(section_raw, Mapping):
+            normalized_sections[str(topic_key)] = section_raw
+            continue
+        section = dict(section_raw)
+        section[WEBSITE_SECTION_FACTS] = normalize_research_facts(
+            section.get(WEBSITE_SECTION_FACTS, {})
+        )
+        normalized_sections[str(topic_key)] = section
+    research[WEBSITE_RESEARCH_SECTIONS] = normalized_sections
+    return research
+
+
+def derive_topic_facts(topic_key: str, text: str, raw_html: str) -> dict[str, str]:
+    facts: dict[str, str] = {}
     compact = re.sub(r"\s+", " ", text)
     if topic_key == WEBSITE_TOPIC_IMPRINT:
         imprint_facts = extract_imprint_facts(raw_html, compact)
@@ -332,7 +390,7 @@ def derive_topic_facts(topic_key: str, text: str, raw_html: str) -> list[str]:
         ):
             value = imprint_facts.get(label)
             if value:
-                facts.append(f"{label}: {value}")
+                facts[label] = value
         return facts
 
     headcount_match = re.search(
@@ -341,7 +399,7 @@ def derive_topic_facts(topic_key: str, text: str, raw_html: str) -> list[str]:
         flags=re.I,
     )
     if headcount_match:
-        facts.append(f"Mitarbeitende (Hinweis): {headcount_match.group(1)}")
+        facts["Mitarbeitende (Hinweis)"] = headcount_match.group(1)
 
     for pattern, label in (
         (
@@ -355,8 +413,8 @@ def derive_topic_facts(topic_key: str, text: str, raw_html: str) -> list[str]:
         match = re.search(pattern, compact, flags=re.I)
         if match:
             matched_value = next((group for group in match.groups() if group), "")
-            facts.append(f"{label}: {matched_value.strip()}")
-    return facts[:4]
+            facts[label] = matched_value.strip()
+    return dict(list(facts.items())[:4])
 
 
 def derive_insights_from_open_questions(

@@ -49,8 +49,6 @@ def _inject_theme_styles() -> None:
 
     root_dir = Path(__file__).resolve().parent
     logo_path = root_dir / "images" / "animation_pulse_SingleColorHex1_7kigl22lw.gif"
-    light_bg_path = root_dir / "images" / "light.png"
-    dark_bg_path = root_dir / "images" / "dark.png"
 
     def _image_uri(path: Path, mime_type: str) -> str:
         image_bytes = path.read_bytes()
@@ -58,8 +56,6 @@ def _inject_theme_styles() -> None:
         return f"data:{mime_type};base64,{encoded_image}"
 
     logo_uri = _image_uri(logo_path, "image/gif")
-    light_bg_uri = _image_uri(light_bg_path, "image/png")
-    dark_bg_uri = _image_uri(dark_bg_path, "image/png")
 
     # App-shell specific styles (logo/header/sidebar spacing/layout quirks).
     st.markdown(
@@ -92,12 +88,7 @@ def _inject_theme_styles() -> None:
                 --cs-text: var(--cs-app-text);
                 --cs-text-muted: color-mix(in srgb, var(--cs-app-text) 86%, transparent);
                 --cs-text-subtle: color-mix(in srgb, var(--cs-app-text) 66%, transparent);
-                background:
-                    linear-gradient(
-                        color-mix(in srgb, var(--cs-app-bg) 84%, transparent),
-                        color-mix(in srgb, var(--cs-app-bg) 84%, transparent)
-                    ),
-                    url("{light_bg_uri}") center / cover fixed no-repeat !important;
+                background: var(--cs-app-bg) !important;
                 color: var(--cs-app-text);
             }}
 
@@ -105,17 +96,6 @@ def _inject_theme_styles() -> None:
             .stMain {{
                 background: transparent !important;
                 color: var(--cs-text);
-            }}
-
-            @media (prefers-color-scheme: dark) {{
-                .stApp {{
-                    background:
-                        linear-gradient(
-                            color-mix(in srgb, var(--cs-app-bg) 66%, transparent),
-                            color-mix(in srgb, var(--cs-app-bg) 66%, transparent)
-                        ),
-                        url("{dark_bg_uri}") center / cover fixed no-repeat !important;
-                }}
             }}
 
             .stMainBlockContainer,

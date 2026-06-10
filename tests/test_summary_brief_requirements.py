@@ -146,7 +146,7 @@ def test_get_brief_status_changes_primary_cta_label_by_state(monkeypatch) -> Non
         resolved_brief_model="gpt-5-mini",
     )
     assert state == "missing"
-    assert cta == "Recruiting Brief generieren"
+    assert cta == "Recruiting Brief erstellen"
 
     fake_st.session_state[SSKey.BRIEF.value] = _valid_brief_payload()
     fake_st.session_state[SSKey.SUMMARY_LAST_MODELS.value] = {

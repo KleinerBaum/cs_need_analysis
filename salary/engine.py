@@ -123,6 +123,32 @@ def _radius_multiplier(search_radius_km: int) -> float:
     return 0.96
 
 
+def _remote_share_multiplier(remote_share_percent: int | None) -> float:
+    """Bounded v1 remote-share salary heuristic."""
+
+    if remote_share_percent is None:
+        return 0.0
+    clamped = min(100, max(0, int(remote_share_percent)))
+    return round((clamped / 100) * 0.04, 4)
+
+
+def _benchmark_confidence(
+    *,
+    benchmark_row: Any | None,
+    occupation_id: str,
+    region_id: str,
+) -> float:
+    if benchmark_row is None:
+        return 0.0
+    if benchmark_row.occupation_id == occupation_id and benchmark_row.region_id == region_id:
+        return 0.9
+    if benchmark_row.occupation_id == occupation_id:
+        return 0.75
+    if benchmark_row.region_id == region_id:
+        return 0.55
+    return 0.45
+
+
 def _driver_from_delta(
     *, key: str, label: str, eur_delta: float, category: str, detail: str
 ) -> SalaryForecastDriver:
@@ -222,7 +248,10 @@ def compute_salary_forecast(
         seniority_multiplier = -0.08
 
     remote_policy = (job_extract.remote_policy or "").lower()
-    remote_multiplier = 0.03 if "remote" in remote_policy else 0.0
+    remote_policy_multiplier = 0.03 if "remote" in remote_policy else 0.0
+    remote_share_percent = scenario_inputs.remote_share_percent if scenario_inputs else None
+    remote_share_multiplier = _remote_share_multiplier(remote_share_percent)
+    remote_multiplier = remote_policy_multiplier + remote_share_multiplier
     interview_multiplier = 0.02 if interview_steps >= 5 else 0.0
     location_multiplier = _location_salary_multiplier(effective_location_country)
     title_multiplier = _title_salary_multiplier(job_extract.job_title or "")
@@ -272,6 +301,11 @@ def compute_salary_forecast(
         p90=round(max(35_000.0, baseline_band.p90 + total_adjustment), 0),
     )
 
+    benchmark_confidence = _benchmark_confidence(
+        benchmark_row=benchmark_row,
+        occupation_id=occupation_id,
+        region_id=region_id,
+    )
     confidence_base = (
         35
         + min(30, answers_count * 3)
@@ -283,6 +317,10 @@ def compute_salary_forecast(
     )
     confidence = min(100, max(30, int(confidence_base + overrides.confidence_delta)))
     quality_value = round(confidence / 100.0, 2)
+    forecast_uncertainty = round(
+        min(1.0, max(0.0, (forecast.p90 - forecast.p10) / max(forecast.p50, 1.0))),
+        2,
+    )
 
     location_parts = [
         part
@@ -330,7 +368,10 @@ def compute_salary_forecast(
             label="Remote-Policy",
             eur_delta=remote_delta,
             category="market",
-            detail=f"Remote-Regel erkannt: {bool('remote' in remote_policy)}.",
+            detail=(
+                f"Remote-Regel erkannt: {bool('remote' in remote_policy)}; "
+                f"Remote Share: {remote_share_percent if remote_share_percent is not None else 0}%."
+            ),
         ),
         _driver_from_delta(
             key="interview_process",
@@ -376,10 +417,12 @@ def compute_salary_forecast(
     benchmark_version = "internal_heuristic_baseline_2026_01"
     benchmark_year = 2026
     benchmark_source_label = "internal_heuristic_baseline"
+    benchmark_sample_size = None
     if benchmark_row is not None:
         benchmark_version = benchmark_row.dataset_version
         benchmark_year = benchmark_row.year
         benchmark_source_label = benchmark_row.source_label
+        benchmark_sample_size = benchmark_row.n
 
     return SalaryForecastResult(
         forecast=forecast,
@@ -388,12 +431,17 @@ def compute_salary_forecast(
         quality=SalaryForecastQuality(
             kind="data_quality_score",
             value=quality_value,
+            data_quality=quality_value,
+            benchmark_confidence=benchmark_confidence,
+            forecast_uncertainty=forecast_uncertainty,
             signals=[
                 f"benchmark_hit={str(benchmark_row is not None).lower()}",
                 f"fallback_path={fallback_path}",
+                f"benchmark_confidence={benchmark_confidence:.2f}",
                 f"occupation_id={occupation_id}",
                 f"region_id={region_id}",
                 f"answers_count={answers_count}",
+                f"remote_share_percent={remote_share_percent if remote_share_percent is not None else 0}",
                 *esco_signals,
             ],
         ),
@@ -405,6 +453,7 @@ def compute_salary_forecast(
             region_mapping="country_city_region_v1_de_seed",
             benchmark_year=benchmark_year,
             benchmark_source_label=benchmark_source_label,
+            benchmark_sample_size=benchmark_sample_size,
             occupation_id=occupation_id,
             region_id=region_id,
         ),

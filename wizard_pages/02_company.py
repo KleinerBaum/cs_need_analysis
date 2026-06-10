@@ -31,6 +31,8 @@ from homepage_research import (
     fetch_url_text as _fetch_url_text,
     find_candidate_url as _find_candidate_url,
     find_candidate_urls as _find_candidate_urls,
+    normalize_company_website_research_payload as _normalize_company_website_research_payload,
+    normalize_research_facts as _normalize_research_facts,
     normalize_url as _normalize_url,
     strip_html as _strip_html,
 )
@@ -90,7 +92,7 @@ def _run_website_research(
         if resolved_homepage not in candidate_urls:
             candidate_urls.append(resolved_homepage)
 
-        best_payload: tuple[str, str, list[str], list[str]] | None = None
+        best_payload: tuple[str, str, list[str], dict[str, str]] | None = None
         for candidate_url in candidate_urls[:5]:
             resolved_topic_url, topic_html = _fetch_url_text(candidate_url)
             text = _strip_html(topic_html)
@@ -106,7 +108,8 @@ def _run_website_research(
 
         resolved_topic_url, _, summary, facts = best_payload
         research_raw = st.session_state.get(SSKey.COMPANY_WEBSITE_RESEARCH.value, {})
-        research = research_raw if isinstance(research_raw, dict) else {}
+        normalized_research = _normalize_company_website_research_payload(research_raw)
+        research = normalized_research if isinstance(normalized_research, dict) else {}
         sections_raw = research.get(WEBSITE_RESEARCH_SECTIONS, {})
         sections = sections_raw if isinstance(sections_raw, dict) else {}
         sections[topic_key] = {
@@ -121,7 +124,9 @@ def _run_website_research(
             _collect_open_questions(plan),
             sections,
         )
-        st.session_state[SSKey.COMPANY_WEBSITE_RESEARCH.value] = research
+        st.session_state[SSKey.COMPANY_WEBSITE_RESEARCH.value] = (
+            _normalize_company_website_research_payload(research)
+        )
         st.session_state[SSKey.COMPANY_WEBSITE_LAST_ERROR.value] = None
     except Exception as exc:
         error_type = type(exc).__name__
@@ -136,7 +141,7 @@ def _run_website_research(
 
 
 def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
-    st.markdown("### Firmen-Homepage Analyse (Beta)")
+    st.markdown("### Unternehmenswebsite")
     extracted_homepage = _normalize_url(job.company_website or "")
     manual_homepage_raw = str(
         st.session_state.get(SSKey.COMPANY_WEBSITE_MANUAL_URL.value, "")
@@ -145,13 +150,13 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
     homepage = extracted_homepage or manual_homepage
     left_col, right_col = responsive_two_columns(gap="large")
     with left_col:
-        st.write("**Extrahierte URL**")
+        st.write("**Unternehmenswebsite**")
         if extracted_homepage:
             st.code(extracted_homepage, language="text")
         else:
-            st.info("Keine Homepage im Jobad erkannt.")
+            st.info("Keine Unternehmenswebsite in der Anzeige erkannt.")
             st.text_input(
-                "Homepage manuell eingeben",
+                "Unternehmenswebsite",
                 key=SSKey.COMPANY_WEBSITE_MANUAL_URL.value,
                 placeholder="https://www.beispiel.de",
             )
@@ -160,18 +165,18 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
 
         button_col_1, button_col_2, button_col_3 = responsive_three_columns(gap="small")
         with button_col_1:
-            if st.button('Ermittle "Über uns"', width="stretch"):
+            if st.button("Über-uns-Seite auswerten", width="stretch"):
                 _run_website_research(
                     homepage_url=homepage, topic_key=WEBSITE_TOPIC_ABOUT, plan=plan
                 )
         with button_col_2:
-            if st.button('Ermittle "Impressum"', width="stretch"):
+            if st.button("Impressum auswerten", width="stretch"):
                 _run_website_research(
                     homepage_url=homepage, topic_key=WEBSITE_TOPIC_IMPRINT, plan=plan
                 )
         with button_col_3:
             if st.button(
-                'Ermittle "Vision und Mission"',
+                "Vision/Mission auswerten",
                 width="stretch",
             ):
                 _run_website_research(
@@ -190,12 +195,12 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
         sections = research.get(WEBSITE_RESEARCH_SECTIONS, {})
         section_payload = sections if isinstance(sections, dict) else {}
         if not section_payload:
-            st.caption("Noch keine Analyse durchgeführt.")
+            st.caption("Noch keine Website-Analyse durchgeführt.")
         for topic_key, topic_label in _TOPIC_LABELS.items():
             payload_raw = section_payload.get(topic_key, {})
             payload = payload_raw if isinstance(payload_raw, dict) else {}
             summary = payload.get(WEBSITE_SECTION_SUMMARY, [])
-            facts = payload.get(WEBSITE_SECTION_FACTS, [])
+            facts = _normalize_research_facts(payload.get(WEBSITE_SECTION_FACTS, {}))
             if not isinstance(summary, list) or not summary:
                 continue
             with st.container(border=True):
@@ -203,9 +208,12 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
                 source_url = str(payload.get(WEBSITE_SECTION_SOURCE_URL) or "").strip()
                 if source_url:
                     st.caption(f"Quelle: {source_url}")
-                if isinstance(facts, list) and facts:
-                    for fact in facts:
-                        st.write(f"- **{str(fact).strip()}**")
+                if facts:
+                    for label, value in facts.items():
+                        if label.startswith("fact_"):
+                            st.write(f"- **{value}**")
+                        else:
+                            st.write(f"- **{label}:** {value}")
                 for line in summary:
                     st.write(f"- {str(line).strip()}")
 
@@ -218,7 +226,7 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
         if match_options:
             st.markdown("### Hinweise aus der Website-Analyse")
             st.caption(
-                "Diese Hinweise können für aktuell unbeantwortete Fragen im weiteren Prozess wiederverwendet werden."
+                "Die Website-Analyse soll offene Fragen abkürzen, nicht fachliche Entscheidungen ersetzen."
             )
             selected_matches_raw = st.session_state.get(
                 SSKey.COMPANY_WEBSITE_SELECTED_MATCHES.value, []
@@ -242,7 +250,7 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
             option_labels = {item["option_id"]: item["display_label"] for item in match_options}
             if hasattr(st, "pills"):
                 selected_ids = st.pills(
-                    "Hinweise auswählen",
+                    "Welche Website-Hinweise sollen wir für offene Fragen vormerken?",
                     options=option_ids,
                     default=default_selected_ids,
                     selection_mode="multi",
@@ -251,7 +259,7 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
                 )
             else:
                 selected_ids = st.multiselect(
-                    "Hinweise auswählen",
+                    "Welche Website-Hinweise sollen wir für offene Fragen vormerken?",
                     options=option_ids,
                     default=default_selected_ids,
                     format_func=lambda value: option_labels.get(value, value),
@@ -297,7 +305,7 @@ def _format_company_header(job: JobAdExtract) -> str:
         return f"Unternehmen · {company_name}"
     if job_title:
         return f"Unternehmen · Kontext für {job_title}"
-    return "Unternehmen"
+    return "Unternehmenskontext klären"
 
 
 def _format_company_subheader(job: JobAdExtract) -> str | None:
@@ -348,7 +356,11 @@ def render(ctx: WizardContext) -> None:
 
     render_step_shell(
         title=_format_company_header(job),
-        subtitle=_format_company_subheader(job) or "Kontext zum Unternehmen und Markt.",
+        subtitle=_format_company_subheader(job)
+        or (
+            "Hier schärfst du das Bild hinter der Vakanz: Unternehmen, Markt, "
+            "Positionierung und Arbeitskontext."
+        ),
         outcome_text=(
             "Ein klarer Company-Kontext (Mission, Markt, Brand, Rahmenbedingungen), "
             "den Recruiting und Kandidat:innen einheitlich nutzen."

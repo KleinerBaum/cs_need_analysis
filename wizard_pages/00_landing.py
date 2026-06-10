@@ -30,8 +30,8 @@ def _render_landing_responsive_overrides() -> None:
             .landing-resource-links a {
                 color: #FFFFFF !important;
                 text-decoration: none !important;
-                border: 1px solid #0F766E;
-                background: #0F766E;
+                border: 1px solid var(--cs-success);
+                background: var(--cs-success);
                 border-radius: 999px;
                 padding: 0.38rem 0.78rem;
                 font-size: 0.86rem;
@@ -39,8 +39,8 @@ def _render_landing_responsive_overrides() -> None:
             }
             .landing-resource-links a:hover,
             .landing-resource-links a:focus-visible {
-                border-color: #0B5F58;
-                background: #0B5F58;
+                border-color: color-mix(in srgb, var(--cs-success) 88%, #000000);
+                background: color-mix(in srgb, var(--cs-success) 88%, #000000);
                 outline: none;
             }
             .landing-signal-row {
@@ -54,7 +54,7 @@ def _render_landing_responsive_overrides() -> None:
                 background: var(--cs-surface);
                 border-radius: 8px;
                 padding: 0.85rem 0.9rem;
-                box-shadow: 0 8px 22px rgba(22, 50, 79, 0.06);
+                box-shadow: var(--cs-shadow-sm);
             }
             .landing-signal strong {
                 display: block;
@@ -72,7 +72,7 @@ def _render_landing_responsive_overrides() -> None:
                 border: 1px solid var(--cs-border);
                 background: var(--cs-surface);
                 border-radius: 8px;
-                box-shadow: 0 8px 22px rgba(22, 50, 79, 0.06);
+                box-shadow: var(--cs-shadow-sm);
                 overflow: hidden;
                 padding: clamp(0.55rem, 1.5vw, 1rem);
             }
@@ -83,15 +83,16 @@ def _render_landing_responsive_overrides() -> None:
                 border-radius: 6px;
             }
             [data-theme="dark"] .landing-iceberg-card {
-                border-color: #1E3A63;
-                background: #152640;
-                box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+                border-color: var(--cs-border);
+                background: var(--cs-surface);
+                box-shadow: var(--cs-shadow-sm);
             }
             .landing-process-diagram {
-                border: 1px solid #0F766E;
-                background: var(--cs-success-soft);
+                border: 1px solid color-mix(in srgb, var(--cs-success) 42%, var(--cs-border));
+                background: var(--cs-surface);
                 border-radius: 8px;
                 padding: 0.95rem;
+                box-shadow: var(--cs-shadow-sm);
             }
             .landing-process-track {
                 display: grid;
@@ -102,7 +103,7 @@ def _render_landing_responsive_overrides() -> None:
             .landing-process-step {
                 position: relative;
                 border: 1px solid var(--cs-border);
-                background: var(--cs-surface);
+                background: var(--cs-surface-muted);
                 border-radius: 8px;
                 padding: 0.74rem 0.75rem;
                 min-height: 112px;
@@ -114,8 +115,8 @@ def _render_landing_responsive_overrides() -> None:
                 right: -0.52rem;
                 width: 0.34rem;
                 height: 0.34rem;
-                border-top: 2px solid #0F766E;
-                border-right: 2px solid #0F766E;
+                border-top: 2px solid var(--cs-success);
+                border-right: 2px solid var(--cs-success);
                 transform: translateY(-50%) rotate(45deg);
             }
             .landing-process-step:last-child::after {
@@ -129,7 +130,7 @@ def _render_landing_responsive_overrides() -> None:
                 height: 1.55rem;
                 border-radius: 999px;
                 color: #FFFFFF;
-                background: #0F766E;
+                background: var(--cs-success);
                 font-weight: 800;
                 font-size: 0.84rem;
                 margin-bottom: 0.5rem;
@@ -138,6 +139,7 @@ def _render_landing_responsive_overrides() -> None:
                 display: block;
                 font-size: 0.92rem;
                 line-height: 1.25;
+                color: var(--cs-text);
             }
             .landing-process-diagram h4 {
                 margin: 0 0 0.5rem 0;
@@ -152,9 +154,9 @@ def _render_landing_responsive_overrides() -> None:
             }
             .landing-process-result {
                 margin-top: 0.8rem;
-                border-left: 3px solid #0F766E;
+                border-left: 3px solid var(--cs-success);
                 padding: 0.55rem 0.7rem;
-                background: var(--cs-surface);
+                background: var(--cs-success-soft);
                 border-radius: 8px;
                 color: var(--cs-text);
                 font-weight: 650;
@@ -253,7 +255,7 @@ def _render_landing_flow_cards() -> None:
     st.markdown(
         """
         <div class="landing-process-diagram">
-            <h4>Nach dem Klick auf "Jetzt analysieren"</h4>
+            <h4>Nach dem Klick auf "Analyse starten"</h4>
             <div class="landing-process-track">
                 <div class="landing-process-step">
                     <span>1</span>

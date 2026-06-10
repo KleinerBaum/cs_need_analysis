@@ -6,6 +6,7 @@ from typing import Any, TypedDict
 
 from salary.engine import compute_salary_forecast
 from salary.types import (
+    SalaryEscoContext,
     SalaryForecastResult,
     SalaryScenarioInputs,
     SalaryScenarioOverrides,
@@ -144,11 +145,13 @@ def build_salary_scenario_lab_rows(
     remote_share_percent: int,
     seniority_override: str,
     top_n_skills: int = 12,
+    esco_context: SalaryEscoContext | None = None,
 ) -> list[ScenarioLabRow]:
     baseline_forecast = compute_salary_forecast(
         job_extract=job,
         answers=answers,
         scenario_overrides=scenario_overrides,
+        esco_context=esco_context,
         scenario_inputs=SalaryScenarioInputs(
             location_country_override=location_country_override or job.location_country,
             search_radius_km=radius_km,
@@ -178,6 +181,7 @@ def build_salary_scenario_lab_rows(
             job_extract=scenario_job,
             answers=answers,
             scenario_overrides=scenario_overrides,
+            esco_context=esco_context,
             scenario_inputs=SalaryScenarioInputs(
                 location_country_override=location_country_override
                 or job.location_country,
@@ -210,6 +214,7 @@ def build_salary_scenario_lab_rows(
             job_extract=job,
             answers=answers,
             scenario_overrides=scenario_overrides,
+            esco_context=esco_context,
             scenario_inputs=SalaryScenarioInputs(
                 location_city_override=city or job.location_city,
                 location_country_override=location_country_override
@@ -238,6 +243,7 @@ def build_salary_scenario_lab_rows(
             job_extract=job,
             answers=answers,
             scenario_overrides=scenario_overrides,
+            esco_context=esco_context,
             scenario_inputs=SalaryScenarioInputs(
                 location_country_override=location_country_override
                 or job.location_country,
@@ -272,6 +278,7 @@ def build_salary_scenario_lab_rows(
             job_extract=scenario_job,
             answers=answers,
             scenario_overrides=scenario_overrides,
+            esco_context=esco_context,
             scenario_inputs=SalaryScenarioInputs(
                 location_country_override=location_country_override
                 or job.location_country,
@@ -298,6 +305,7 @@ def build_salary_scenario_lab_rows(
             job_extract=scenario_job,
             answers=answers,
             scenario_overrides=scenario_overrides,
+            esco_context=esco_context,
             scenario_inputs=SalaryScenarioInputs(
                 location_country_override=location_country_override
                 or job.location_country,

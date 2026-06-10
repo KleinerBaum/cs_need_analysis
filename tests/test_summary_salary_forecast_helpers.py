@@ -1,5 +1,6 @@
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
+from types import SimpleNamespace
 from zipfile import ZipFile
 import base64
 import io
@@ -117,6 +118,7 @@ def test_build_salary_forecast_snapshot_uses_compute_salary_forecast_only() -> N
         job_extract: JobAdExtract,
         answers: dict[str, Any],
         scenario_overrides: SalaryScenarioOverrides | None = None,
+        esco_context: Any | None = None,
         scenario_inputs: Any | None = None,
     ) -> Any:
         calls.append(
@@ -124,6 +126,7 @@ def test_build_salary_forecast_snapshot_uses_compute_salary_forecast_only() -> N
                 "job_title": job_extract.job_title,
                 "answers": answers,
                 "scenario_overrides": scenario_overrides,
+                "esco_context": esco_context,
                 "scenario_inputs": scenario_inputs,
             }
         )
@@ -146,6 +149,40 @@ def test_build_salary_forecast_snapshot_uses_compute_salary_forecast_only() -> N
     assert len(calls) == 1
     assert calls[0]["scenario_overrides"] == overrides
     assert snapshot["forecast_result"]["forecast"]["p50"] == baseline.forecast.p50
+
+
+def test_step_salary_result_uses_canonical_forecast_shape(monkeypatch) -> None:
+    panel_module = cast(Any, SALARY_PANEL_MODULE)
+    monkeypatch.setattr(
+        panel_module,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.ESCO_CONFIG.value: {},
+                SSKey.ESCO_OCCUPATION_SELECTED.value: None,
+                SSKey.ESCO_SKILLS_SELECTED_MUST.value: [],
+                SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
+                SSKey.SALARY_SCENARIO_LOCATION_CITY_OVERRIDE.value: "",
+                SSKey.SALARY_SCENARIO_LOCATION_COUNTRY_OVERRIDE.value: "",
+                SSKey.SALARY_SCENARIO_RADIUS_KM.value: 50,
+                SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value: 50,
+                SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value: "senior",
+            }
+        ),
+    )
+
+    result = panel_module._build_step_salary_result(
+        step_key="skills",
+        job=JobAdExtract(job_title="Engineer", location_country="Deutschland"),
+        answers={"must_have_skills": ["Python"]},
+        inputs={"must_have_skills": ["Python"]},
+    )
+
+    assert result["step_key"] == "skills"
+    assert set(result["forecast"]) == {"p10", "p50", "p90"}
+    assert result["quality"]["kind"] == "data_quality_score"
+    assert "provenance" in result
+    assert "usage" not in result
 
 
 def test_summary_source_hides_engine_internal_delta_widgets() -> None:

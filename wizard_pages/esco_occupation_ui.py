@@ -1260,9 +1260,9 @@ def _render_match_confidence_note(*, confidence: str, reason: str) -> None:
             margin: 0.25rem 0 0.45rem 0;
             padding: 0.35rem 0.55rem;
             border-radius: 999px;
-            border: 1px solid rgba(148, 163, 184, 0.22);
-            background: rgba(15, 23, 42, 0.46);
-            color: rgba(241, 245, 249, 0.92);
+            border: 1px solid var(--cs-border-soft);
+            background: var(--cs-surface-muted);
+            color: var(--cs-text);
             font-size: 0.84rem;
             line-height: 1.25;
         }}
@@ -1271,19 +1271,19 @@ def _render_match_confidence_note(*, confidence: str, reason: str) -> None:
             white-space: nowrap;
         }}
         .cs-esco-match-note.high {{
-            border-color: rgba(74, 222, 128, 0.3);
-            background: rgba(20, 83, 45, 0.28);
+            border-color: color-mix(in srgb, var(--cs-success) 46%, var(--cs-border));
+            background: var(--cs-success-soft);
         }}
         .cs-esco-match-note.medium {{
-            border-color: rgba(96, 165, 250, 0.3);
-            background: rgba(30, 64, 175, 0.22);
+            border-color: color-mix(in srgb, var(--cs-primary) 42%, var(--cs-border));
+            background: var(--cs-primary-soft);
         }}
         .cs-esco-match-note.low {{
-            border-color: rgba(250, 204, 21, 0.35);
-            background: rgba(113, 63, 18, 0.3);
+            border-color: color-mix(in srgb, var(--cs-warning) 48%, var(--cs-border));
+            background: var(--cs-warning-soft);
         }}
         .cs-esco-match-reason {{
-            color: rgba(226, 232, 240, 0.74);
+            color: var(--cs-text-muted);
         }}
         @media (max-width: 700px) {{
             .cs-esco-match-note {{

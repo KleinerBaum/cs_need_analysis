@@ -13,31 +13,31 @@ fastReruns = true
 [theme]
 base = "light"
 baseFontSize = 16
-baseRadius = "0.75rem"
+baseRadius = "0.5rem"
 showSidebarBorder = true
 
 [theme.light]
 primaryColor = "#2563EB"
-backgroundColor = "#F4F7FB"
+backgroundColor = "#F6F8FB"
 secondaryBackgroundColor = "#FFFFFF"
-textColor = "#334155"
-borderColor = "#D9E2EC"
+textColor = "#172033"
+borderColor = "#D6DEE8"
 
 [theme.light.sidebar]
 primaryColor = "#2563EB"
-backgroundColor = "#16324F"
+backgroundColor = "#12263A"
 secondaryBackgroundColor = "#FFFFFF"
 textColor = "#FFFFFF"
 
 [theme.dark]
-primaryColor = "#2563EB"
-backgroundColor = "#0B1726"
-secondaryBackgroundColor = "#152640"
-textColor = "#E2E8F0"
-borderColor = "#1E3A63"
+primaryColor = "#3B82F6"
+backgroundColor = "#0F141B"
+secondaryBackgroundColor = "#181E27"
+textColor = "#E8EDF3"
+borderColor = "#2D3642"
 
 [theme.dark.sidebar]
-primaryColor = "#2563EB"
-backgroundColor = "#0B1726"
-secondaryBackgroundColor = "#152640"
-textColor = "#F9FAFB"
+primaryColor = "#3B82F6"
+backgroundColor = "#101820"
+secondaryBackgroundColor = "#202938"
+textColor = "#F8FAFC"

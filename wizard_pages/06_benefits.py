@@ -390,14 +390,14 @@ def render(ctx: WizardContext) -> None:
             st.divider()
             st.caption("Einflussfaktoren")
             st.text_input(
-                "Region für regionale Benefits",
+                "Region für lokale Benefits",
                 key=SSKey.BENEFITS_REGION_CONTEXT.value,
                 placeholder="z. B. Berlin, NRW, DACH",
             )
             count_col, action_col = st.columns([1, 2], gap="small")
             with count_col:
                 st.number_input(
-                    "Anzahl AI-Benefit-Vorschläge",
+                    "Wie viele Benefit-Vorschläge möchtest du sehen?",
                     min_value=1,
                     max_value=8,
                     step=1,
@@ -406,7 +406,7 @@ def render(ctx: WizardContext) -> None:
             with action_col:
                 st.caption(" ")
                 generate_clicked = st.button(
-                    "AI-Benefits generieren",
+                    "Benefit-Vorschläge generieren",
                     key=SSKey.BENEFITS_AI_GENERATE_CLICKED.value,
                     width="stretch",
                 )
@@ -556,11 +556,11 @@ def render(ctx: WizardContext) -> None:
         _render_benefits_consistency_checklist(job=job, step=step)
 
     render_step_shell(
-        title="Benefits & Rahmenbedingungen",
+        title="Angebot und Rahmenbedingungen schärfen",
         subtitle=(
-            "Hier geht es um das Gesamtpaket: Gehaltsband (falls möglich), "
-            "Remote/Hybrid, Arbeitszeit, Benefits, Relocation, Learning Budget "
-            "– inklusive der Dinge, die man im Recruiting unbedingt konsistent kommunizieren muss."
+            "Hier definierst du, wie attraktiv und zugleich realistisch das Gesamtpaket "
+            "kommuniziert werden kann: Gehalt, Arbeitsmodell, Benefits und alle Faktoren, "
+            "die intern sauber abgestimmt sein müssen."
         ),
         outcome_text=(
             "Ein konsistentes Offer-Narrativ zu Compensation, Arbeitsmodell und Benefits, "

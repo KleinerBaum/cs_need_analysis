@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from typing import Any, Literal
 
 from constants import SSKey
-from schemas import JobAdExtract, QuestionPlan
+from schemas import CompanyWebsiteResearch, JobAdExtract, QuestionPlan
 
 
 SUMMARY_PATH = Path(__file__).resolve().parents[1] / "wizard_pages" / "08_summary.py"
@@ -96,7 +96,8 @@ def test_render_entry_does_not_auto_generate_recruiting_brief(monkeypatch) -> No
         "Expected no auto-generation at summary entry; actual generator call count > 0"
     )
     assert any(
-        "Noch kein Recruiting Brief verfügbar" in msg for msg in fake_st.info_calls
+        "Noch kein aktueller Recruiting Brief verfügbar" in msg
+        for msg in fake_st.info_calls
     )
 
 
@@ -117,6 +118,26 @@ def test_summary_entry_dirty_state_reports_stale_brief_message(monkeypatch) -> N
 
     assert ok is False
     assert reason == "Recruiting Brief ist veraltet."
+
+
+def test_summary_normalizes_legacy_website_research_before_validation() -> None:
+    payload = {
+        "homepage_url": "https://example.com",
+        "sections": {
+            "about": {
+                "source_url": "https://example.com/about",
+                "summary": ["Example summary"],
+                "facts": ["Gegründet: 2001"],
+                "fetched_at": "2026-06-10T00:00:00+00:00",
+            }
+        },
+        "open_question_matches": [],
+    }
+
+    normalized = SUMMARY_MODULE._normalize_company_website_research_payload(payload)
+    research = CompanyWebsiteResearch.model_validate(normalized)
+
+    assert research.sections["about"].facts == {"Gegründet": "2001"}
 
 
 def test_build_summary_view_model_tolerates_legacy_invalid_job_extract(
