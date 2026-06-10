@@ -64,6 +64,8 @@ The app supports three global UI modes:
 
 The mode is controlled through the sidebar preference center and the Start step. It affects visible question depth through `question_limits.py` and compact/detail behavior through shared UI helpers.
 
+Adaptive question ranking can use optional question metadata: `impact_targets`, `acquisition_cost`, and `info_gain_score`. These fields let high-impact unanswered questions rise above lower-value detail questions without changing the visible step contract or existing UI modes.
+
 ## Information acquisition model
 
 The intake process combines several evidence streams:
@@ -78,6 +80,8 @@ The intake process combines several evidence streams:
 | Salary engine | `salary/`, salary forecast panels | deterministic forecast result and scenario state |
 
 Manual corrections remain authoritative over extracted values. Jobspec assumptions/gaps are not collected as a single Start-step backlog; they are routed to the best matching downstream step.
+
+Canonical intake fact evidence also carries a resolution status (`confirmed`, `inferred`, `assumed`, `conflicted`, or `missing`). Structured Summary exports include `intake_fact_resolution` so downstream consumers can distinguish confirmed facts from inferred, assumed, conflicted, or still-missing information without changing the legacy fact values.
 
 ## Architecture map
 
@@ -299,7 +303,7 @@ Canonical summary artifact IDs:
 | `boolean_search` | Boolean Search Pack | JSON, Markdown |
 | `employment_contract` | Arbeitsvertrag Draft | JSON, DOCX |
 
-Additional structured exports include ESCO mapping CSV/JSON and Summary payload fields for intake facts/evidence, interview process data, ESCO anchor metadata, ESCO skills, unmapped terms, occupation context, and question-flow provenance.
+Additional structured exports include ESCO mapping CSV/JSON and Summary payload fields for intake facts/evidence/resolution, interview process data, ESCO anchor metadata, ESCO skills, unmapped terms, occupation context, and question-flow provenance.
 
 When `semantic_export_mode="degraded"`, URI-based ESCO core exports are intentionally suppressed.
 

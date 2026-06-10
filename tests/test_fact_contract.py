@@ -7,6 +7,7 @@ from constants import (
     INTAKE_FACTS,
     FactKey,
     FactPersistenceIntent,
+    FactResolutionStatus,
     FactSensitivity,
     FactSourceType,
     FactValueType,
@@ -138,6 +139,16 @@ def test_fact_sensitivity_contract_values() -> None:
         "normal",
         "personal",
         "restricted",
+    ]
+
+
+def test_fact_resolution_status_contract_values() -> None:
+    assert [status.value for status in FactResolutionStatus] == [
+        "confirmed",
+        "inferred",
+        "assumed",
+        "conflicted",
+        "missing",
     ]
 
 

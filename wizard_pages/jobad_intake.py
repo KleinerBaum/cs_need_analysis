@@ -14,8 +14,18 @@ from constants import (
     ESCO_RELEASE_LANE_PREVIEW,
     ESCO_RELEASE_LANE_SELECTED_VERSION,
     ESCO_RELEASE_LANE_STABLE,
+    FactResolutionStatus,
     FactSourceType,
     SSKey,
+)
+from job_extract_evidence import (
+    format_field_evidence_confidence,
+    format_field_evidence_snippet,
+    job_extract_field_evidence_by_name,
+)
+from job_extract_review_helpers import (
+    JOB_EXTRACT_HYPOTHESIS_GROUP_LABELS,
+    build_job_extract_hypothesis_groups,
 )
 from llm_client import (
     OpenAICallError,
@@ -68,6 +78,14 @@ SOURCE_TEXT_INPUT_KEY: Final[str] = "cs.source_text_input"
 SOURCE_UPLOAD_SIG_KEY: Final[str] = "cs.source_upload_signature"
 SOURCE_UPLOAD_TEXT_KEY: Final[str] = "cs.source_uploaded_text"
 SOURCE_ACTIVE_KEY: Final[str] = "cs.source_active"
+HYPOTHESIS_ACTION_ACCEPT: Final[str] = "accept"
+HYPOTHESIS_ACTION_EDIT: Final[str] = "edit"
+HYPOTHESIS_ACTION_SKIP: Final[str] = "skip"
+HYPOTHESIS_ACTION_LABELS: Final[dict[str, str]] = {
+    HYPOTHESIS_ACTION_ACCEPT: "Übernehmen",
+    HYPOTHESIS_ACTION_EDIT: "Bearbeiten",
+    HYPOTHESIS_ACTION_SKIP: "Überspringen",
+}
 
 
 def _model_dump_json_compatible(model: Any) -> dict[str, Any]:
@@ -272,6 +290,160 @@ def _manual_input_height_for_text(text: str) -> int:
     return max(min_height_px, min(_preview_height_for_text(text), max_height_px))
 
 
+def _coerce_hypothesis_edit_value(original_value: Any, edited_text: str) -> Any:
+    cleaned = str(edited_text or "").strip()
+    if isinstance(original_value, list):
+        return _dedupe_strings(
+            [
+                line.strip(" -•\t")
+                for line in cleaned.replace(";", "\n").splitlines()
+                if line.strip(" -•\t")
+            ]
+        )
+    if isinstance(original_value, int):
+        try:
+            return int(float(cleaned))
+        except ValueError:
+            return original_value
+    if isinstance(original_value, float):
+        try:
+            return float(cleaned)
+        except ValueError:
+            return original_value
+    if isinstance(original_value, bool):
+        return cleaned.lower() in {"1", "true", "yes", "ja", "y"}
+    return cleaned or None
+
+
+def _empty_hypothesis_value(original_value: Any) -> Any:
+    if isinstance(original_value, list):
+        return []
+    return None
+
+
+def _apply_job_extract_hypothesis_updates(
+    job: JobAdExtract,
+    submitted_rows: list[dict[str, Any]],
+) -> JobAdExtract:
+    values = job.model_dump(mode="json")
+    for row in submitted_rows:
+        field_name = str(row.get("field_name") or "").strip()
+        if not field_name or field_name not in values:
+            continue
+        action = str(row.get("action") or HYPOTHESIS_ACTION_ACCEPT)
+        original_value = values.get(field_name)
+        if action == HYPOTHESIS_ACTION_SKIP:
+            values[field_name] = _empty_hypothesis_value(original_value)
+            resolution_status = FactResolutionStatus.MISSING
+            fact_value = None
+        elif action == HYPOTHESIS_ACTION_EDIT:
+            values[field_name] = _coerce_hypothesis_edit_value(
+                original_value,
+                str(row.get("edited_value") or ""),
+            )
+            resolution_status = FactResolutionStatus.CONFIRMED
+            fact_value = values[field_name]
+        else:
+            resolution_status = (
+                FactResolutionStatus.INFERRED
+                if row.get("group_key") == "ready_to_accept"
+                else FactResolutionStatus.ASSUMED
+            )
+            fact_value = values[field_name]
+        write_intake_fact_by_legacy_field(
+            st.session_state,
+            field_name,
+            fact_value,
+            source_type=FactSourceType.JOBSPEC,
+            source_label="Jobspec hypothesis review",
+            confidence=row.get("confidence") if row.get("confidence") is not None else 0.75,
+            evidence_snippet=str(row.get("evidence_snippet") or "").strip() or None,
+            confirmed=action == HYPOTHESIS_ACTION_EDIT,
+            resolution_status=resolution_status,
+        )
+    return JobAdExtract.model_validate(values)
+
+
+def _render_job_extract_hypothesis_form(job: JobAdExtract) -> None:
+    values = job.model_dump(mode="json")
+    evidence_by_field = job_extract_field_evidence_by_name(job)
+    groups = build_job_extract_hypothesis_groups(values, evidence_by_field)
+    if not any(groups.values()):
+        return
+
+    st.markdown("#### Hypothesen bestätigen")
+    st.caption(
+        "Extrahierte Angaben sind nach Sicherheit gruppiert. Änderungen werden gesammelt übernommen."
+    )
+    form_ctx = (
+        st.form("cs.jobspec.hypothesis_review_form")
+        if hasattr(st, "form")
+        else nullcontext()
+    )
+    submitted_rows: list[dict[str, Any]] = []
+    with form_ctx:
+        for group_key, group_label in JOB_EXTRACT_HYPOTHESIS_GROUP_LABELS.items():
+            rows = groups.get(group_key, [])
+            if not rows:
+                continue
+            st.markdown(f"**{group_label}**")
+            for row in rows:
+                field_name = row["field_name"]
+                action_key = f"cs.jobspec.hypothesis.{field_name}.action"
+                value_key = f"cs.jobspec.hypothesis.{field_name}.value"
+                confidence_text = format_field_evidence_confidence(
+                    evidence_by_field.get(field_name)
+                )
+                evidence_text = format_field_evidence_snippet(
+                    evidence_by_field.get(field_name)
+                )
+                st.caption(
+                    " · ".join(
+                        part
+                        for part in (
+                            row["label"],
+                            confidence_text,
+                            evidence_text,
+                        )
+                        if part
+                    )
+                )
+                action = st.selectbox(
+                    "Aktion",
+                    options=list(HYPOTHESIS_ACTION_LABELS),
+                    format_func=lambda value: HYPOTHESIS_ACTION_LABELS[value],
+                    key=action_key,
+                    label_visibility="collapsed",
+                )
+                edited_value = st.text_area(
+                    row["label"],
+                    value=row["display_value"],
+                    key=value_key,
+                    height=90,
+                    disabled=not row["editable"] or action != HYPOTHESIS_ACTION_EDIT,
+                )
+                submitted_rows.append(
+                    {
+                        **row,
+                        "action": action,
+                        "edited_value": edited_value,
+                    }
+                )
+        submit = (
+            st.form_submit_button("Hypothesen übernehmen")
+            if hasattr(st, "form_submit_button")
+            else st.button("Hypothesen übernehmen", key="cs.jobspec.hypothesis.submit")
+        )
+    if not submit:
+        return
+    reviewed_job = _apply_job_extract_hypothesis_updates(job, submitted_rows)
+    st.session_state[SSKey.JOB_EXTRACT.value] = _model_dump_json_compatible(
+        reviewed_job
+    )
+    st.success("Hypothesen übernommen.")
+    st.rerun()
+
+
 def _render_identified_information_block(ctx: WizardContext) -> None:
     job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
     plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
@@ -296,7 +468,9 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
         show_heading=False,
         mode="compact",
         show_notes=False,
+        show_editor=False,
     )
+    _render_job_extract_hypothesis_form(job)
 
     nav_col_back, nav_col_anchor = st.columns([1, 2], gap="small")
     with nav_col_back:

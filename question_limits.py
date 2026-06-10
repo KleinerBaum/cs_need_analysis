@@ -110,14 +110,11 @@ def select_questions_for_adaptive_limit(
         )
         for index, question in enumerate(visible_questions)
     ]
-    selected_ids = {
-        question.id
-        for _, _, question in sorted(
-            scored_questions,
-            key=lambda item: (-item[0], item[1]),
-        )[:limit]
-    }
-    return [question for question in visible_questions if question.id in selected_ids]
+    selected_questions = sorted(
+        scored_questions,
+        key=lambda item: (-item[0], item[1]),
+    )[:limit]
+    return [question for _, _, question in selected_questions]
 
 
 def compute_adaptive_question_limits(
@@ -284,6 +281,30 @@ def _question_limit_score(question: Question, *, covered: bool) -> int:
         score += 15
     if _question_has_follow_up_prompts(question):
         score += 12
+    score += _question_information_gain_score(question)
+    return score
+
+
+def _question_information_gain_score(question: Question) -> int:
+    score = 0
+    try:
+        explicit_score = getattr(question, "info_gain_score", None)
+        if explicit_score is not None:
+            score += int(max(0.0, min(1.0, float(explicit_score))) * 30)
+    except (TypeError, ValueError):
+        pass
+
+    impact_targets = getattr(question, "impact_targets", [])
+    if isinstance(impact_targets, list):
+        normalized_targets = {
+            str(target).strip().casefold()
+            for target in impact_targets
+            if str(target).strip()
+        }
+        score += min(24, len(normalized_targets) * 6)
+
+    acquisition_cost = str(getattr(question, "acquisition_cost", "medium") or "medium")
+    score += {"low": 8, "medium": 4, "high": 0}.get(acquisition_cost, 4)
     return score
 
 
@@ -293,6 +314,7 @@ def _question_is_adaptive_essential(question: Question) -> bool:
         or question.priority == "core"
         or bool(question.depends_on)
         or _question_has_follow_up_prompts(question)
+        or _question_information_gain_score(question) >= 24
     )
 
 

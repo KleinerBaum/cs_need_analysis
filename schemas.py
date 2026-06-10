@@ -477,6 +477,20 @@ class Question(StrictSchemaModel):
         default_factory=list,
         description="Optional concise prompts to prioritize this question when deeper probing is useful.",
     )
+    impact_targets: List[str] = Field(
+        default_factory=list,
+        description="Downstream areas affected by this answer, e.g. brief, salary, skills, interview, export.",
+    )
+    acquisition_cost: Literal["low", "medium", "high"] = Field(
+        default="medium",
+        description="Estimated user effort required to answer the question.",
+    )
+    info_gain_score: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Optional normalized information-gain score used for adaptive question ranking.",
+    )
 
 
 _OPTION_LABEL_OVERRIDES: dict[str, str] = {

@@ -525,6 +525,14 @@ class FactSourceType(str, Enum):
     LLM = "llm"
 
 
+class FactResolutionStatus(str, Enum):
+    CONFIRMED = "confirmed"
+    INFERRED = "inferred"
+    ASSUMED = "assumed"
+    CONFLICTED = "conflicted"
+    MISSING = "missing"
+
+
 class FactSensitivity(str, Enum):
     NORMAL = "normal"
     PERSONAL = "personal"

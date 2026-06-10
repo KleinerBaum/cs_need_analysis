@@ -11,13 +11,13 @@ The migration goal is to make intake facts addressable, traceable, and reusable 
 - Canonical session keys, step IDs, fact IDs, fact source types, and labels live in `constants.py`.
 - Session defaults and reset behavior live in `state.py`.
 - Wizard pages collect answers through Streamlit session state and page-local helpers.
-- `intake_facts.py` exposes legacy-compatible read/write adapters. `SSKey.INTAKE_FACTS` keeps plain values, while `SSKey.INTAKE_FACT_EVIDENCE` stores additive metadata (`source_type`, `source_label`, `confidence`, `confirmed`, `sensitivity`, redacted optional `evidence_snippet`, `used_by_artifacts`, `updated_at`).
+- `intake_facts.py` exposes legacy-compatible read/write adapters. `SSKey.INTAKE_FACTS` keeps plain values, while `SSKey.INTAKE_FACT_EVIDENCE` stores additive metadata (`source_type`, `source_label`, `confidence`, `confirmed`, `resolution_status`, `sensitivity`, redacted optional `evidence_snippet`, `used_by_artifacts`, `updated_at`).
 - `JobAdExtract.field_evidence` can carry optional field-level extraction confidence and source snippets; jobspec fact write-through uses that metadata when it is present, and Phase B review surfaces available field evidence read-only.
 - Manual writes default to confidence `1.0`; jobspec extraction write-through defaults to confidence `0.75`.
 - Summary artifact generation appends the generated artifact ID to existing evidence rows via `used_by_artifacts`, without creating new fact values.
 - Adaptive question coverage can use `SSKey.INTAKE_FACT_EVIDENCE` plus the UI confidence threshold; facts without evidence keep legacy coverage behavior.
 - `Question.fact_key` is an optional canonical pointer used for fact-backed coverage and prefill resolution. Existing QuestionPlans without `fact_key` remain valid.
-- Summary facts are currently assembled in `wizard_pages/08_summary.py` from available state, generated artifacts, and derived values.
+- Summary facts are currently assembled in `wizard_pages/08_summary.py` from available state, generated artifacts, and derived values. Structured exports include `intake_fact_resolution`, a computed per-fact map that covers present and missing supported facts with canonical statuses (`confirmed`, `inferred`, `assumed`, `conflicted`, `missing`).
 
 ## Migration Principles
 

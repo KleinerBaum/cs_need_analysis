@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from constants import AnswerType, FactKey
+from constants import AnswerType, FactKey, FactResolutionStatus
 from schemas import Question, question_option_label_map
 
 
@@ -17,15 +17,19 @@ class SummaryFactsRow:
     wert: str
     quelle: str
     status: str
+    resolution_status: str = ""
 
     def to_dict(self) -> dict[str, str]:
-        return {
+        row = {
             "Bereich": self.bereich,
             "Feld": self.feld,
             "Wert": self.wert,
             "Quelle": self.quelle,
             "Status": self.status,
         }
+        if self.resolution_status:
+            row["Auflösung"] = self.resolution_status
+        return row
 
 
 def group_summary_fact_rows_by_area(
@@ -137,12 +141,16 @@ def summary_core_fact_row(
         evidence_raw = intake_fact_evidence.get(fact_key.value)
         evidence = evidence_raw if isinstance(evidence_raw, Mapping) else {}
         source = str(evidence.get("source_label") or "Intake-Fakt").strip()
+        resolution_status = str(
+            evidence.get("resolution_status") or _default_resolution_status(evidence)
+        ).strip()
         return SummaryFactsRow(
             "Kernprofil",
             label,
             format_summary_fact_value(fact_value) or "Nicht angegeben",
             source,
             status_for_value(fact_value),
+            resolution_status,
         )
     return SummaryFactsRow(
         "Kernprofil",
@@ -150,7 +158,16 @@ def summary_core_fact_row(
         format_summary_fact_value(fallback_value) or "Nicht angegeben",
         "Jobspec",
         status_for_value(fallback_value),
+        FactResolutionStatus.INFERRED.value
+        if not is_missing_value(fallback_value)
+        else FactResolutionStatus.MISSING.value,
     )
+
+
+def _default_resolution_status(evidence: Mapping[str, Any]) -> str:
+    if bool(evidence.get("confirmed")):
+        return FactResolutionStatus.CONFIRMED.value
+    return FactResolutionStatus.INFERRED.value
 
 
 def status_for_classification_value(value: Any) -> str:

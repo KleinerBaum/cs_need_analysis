@@ -25,6 +25,7 @@ from interview_process import (
     normalize_interview_internal_flow,
 )
 from intake_facts import (
+    build_intake_fact_resolution_state,
     get_intake_fact_evidence_state,
     get_intake_fact_state,
     mark_intake_facts_used_by_artifact,
@@ -798,6 +799,9 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
     intake_fact_evidence = get_intake_fact_evidence_state(st.session_state)
     if intake_fact_evidence:
         payload["intake_fact_evidence"] = dict(intake_fact_evidence)
+    intake_fact_resolution = build_intake_fact_resolution_state(st.session_state)
+    if intake_fact_resolution:
+        payload["intake_fact_resolution"] = intake_fact_resolution
     try:
         export_job = JobAdExtract.model_validate(brief.structured_data.job_extract)
     except Exception:

@@ -485,11 +485,12 @@ def test_promote_reviewed_job_extract_fills_confirmed_state_without_overwriting_
         "AI-Kompetenzen",
         "myConcerto",
     ]
-    assert fake_st.session_state[SSKey.INTAKE_FACTS.value] == {
-        FactKey.COMPANY_COMPANY_NAME.value: "Manual GmbH",
-        FactKey.ROLE_JOB_TITLE.value: "AI Transformation Consultant",
-        FactKey.SKILLS_MUST_HAVE_SKILLS.value: ["AI-Kompetenzen"],
-    }
+    intake_facts = fake_st.session_state[SSKey.INTAKE_FACTS.value]
+    assert intake_facts[FactKey.COMPANY_COMPANY_NAME.value] == "Manual GmbH"
+    assert (
+        intake_facts[FactKey.ROLE_JOB_TITLE.value] == "AI Transformation Consultant"
+    )
+    assert intake_facts[FactKey.SKILLS_MUST_HAVE_SKILLS.value] == ["AI-Kompetenzen"]
     evidence = fake_st.session_state[SSKey.INTAKE_FACT_EVIDENCE.value]
     assert evidence[FactKey.COMPANY_COMPANY_NAME.value]["source_type"] == (
         FactSourceType.MANUAL.value

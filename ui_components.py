@@ -1437,6 +1437,7 @@ def render_job_extract_overview(
     show_heading: bool = True,
     mode: Literal["full", "compact"] = "full",
     show_notes: bool = True,
+    show_editor: bool = True,
 ) -> None:
     del plan, show_question_limits
     if mode == "compact":
@@ -1489,12 +1490,14 @@ def render_job_extract_overview(
             hide_index=True,
             width="stretch",
         )
-        _render_editable_job_extract(job, show_notes=show_notes)
+        if show_editor:
+            _render_editable_job_extract(job, show_notes=show_notes)
         return
 
     if show_heading:
         st.markdown("### Identifizierte Informationen")
-    _render_editable_job_extract(job, show_notes=show_notes)
+    if show_editor:
+        _render_editable_job_extract(job, show_notes=show_notes)
 
 
 def _render_compact_extract_lists(job: JobAdExtract) -> None:

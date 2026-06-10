@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, Literal, TypedDict
 
 JOB_EXTRACT_DISPLAY_LABELS: dict[str, str] = {
     "job_title": "Jobtitel",
@@ -145,6 +145,26 @@ JOB_EXTRACT_TAB_NOTE_KEYWORDS: dict[str, tuple[str, ...]] = {
     ),
 }
 
+JOB_EXTRACT_HYPOTHESIS_GROUP_LABELS: dict[str, str] = {
+    "ready_to_accept": "Hochsicher übernehmen",
+    "needs_confirmation": "Kurz bestätigen",
+    "needs_clarification": "Aktiv klären",
+}
+
+
+class JobExtractHypothesisRow(TypedDict):
+    field_name: str
+    label: str
+    value: Any
+    display_value: str
+    group_key: Literal[
+        "ready_to_accept", "needs_confirmation", "needs_clarification"
+    ]
+    confidence: float | None
+    needs_confirmation: bool
+    evidence_snippet: str
+    editable: bool
+
 
 def normalize_display_text(value: object) -> str:
     text = str(value or "").strip()
@@ -210,6 +230,103 @@ def format_recruitment_steps_value(value: Any) -> str:
     preview = items[:3]
     suffix = f" +{len(items) - len(preview)} weitere" if len(items) > len(preview) else ""
     return " · ".join(preview) + suffix
+
+
+def format_review_value(value: Any) -> str:
+    if isinstance(value, list):
+        items = [normalize_display_text(item) for item in value if has_meaningful_value(item)]
+        return "\n".join(items) if items else ""
+    if isinstance(value, dict):
+        if {"min", "max", "currency", "period"} & set(value):
+            return format_salary_range_value(value)
+        return normalize_display_text(value)
+    return "" if value is None else str(value).strip()
+
+
+def is_simple_review_editable(value: Any) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, (str, int, float, bool)):
+        return True
+    if isinstance(value, list):
+        return all(not isinstance(item, (dict, list)) for item in value)
+    return False
+
+
+def classify_job_extract_hypothesis(
+    *,
+    value: Any,
+    confidence: float | None = None,
+    needs_confirmation: bool = False,
+) -> Literal["ready_to_accept", "needs_confirmation", "needs_clarification"]:
+    if not has_meaningful_value(value):
+        return "needs_clarification"
+    if needs_confirmation:
+        return "needs_confirmation"
+    if confidence is None:
+        return "needs_confirmation"
+    if confidence >= 0.85:
+        return "ready_to_accept"
+    if confidence >= 0.55:
+        return "needs_confirmation"
+    return "needs_clarification"
+
+
+def build_job_extract_hypothesis_groups(
+    values: dict[str, Any],
+    evidence_by_field: dict[str, Any] | None = None,
+) -> dict[str, list[JobExtractHypothesisRow]]:
+    grouped: dict[str, list[JobExtractHypothesisRow]] = {
+        group_key: [] for group_key in JOB_EXTRACT_HYPOTHESIS_GROUP_LABELS
+    }
+    evidence_by_field = evidence_by_field or {}
+    ordered_fields = [
+        field
+        for fields in JOB_EXTRACT_TAB_FIELDS.values()
+        for field in fields
+        if field in values
+    ]
+    seen: set[str] = set()
+    for field_name in ordered_fields:
+        if field_name in seen:
+            continue
+        seen.add(field_name)
+        value = values.get(field_name)
+        if (
+            not has_meaningful_value(value)
+            and field_name not in JOB_EXTRACT_REVIEW_EMPTY_FIELDS
+        ):
+            continue
+        evidence = evidence_by_field.get(field_name)
+        confidence: float | None = None
+        needs_confirmation = False
+        evidence_snippet = ""
+        if isinstance(evidence, dict):
+            try:
+                confidence = max(0.0, min(1.0, float(evidence.get("confidence"))))
+            except (TypeError, ValueError):
+                confidence = None
+            needs_confirmation = bool(evidence.get("needs_confirmation"))
+            evidence_snippet = str(evidence.get("evidence_snippet") or "").strip()
+        group_key = classify_job_extract_hypothesis(
+            value=value,
+            confidence=confidence,
+            needs_confirmation=needs_confirmation,
+        )
+        grouped[group_key].append(
+            {
+                "field_name": field_name,
+                "label": JOB_EXTRACT_DISPLAY_LABELS.get(field_name, field_name),
+                "value": value,
+                "display_value": format_review_value(value),
+                "group_key": group_key,
+                "confidence": confidence,
+                "needs_confirmation": needs_confirmation,
+                "evidence_snippet": evidence_snippet,
+                "editable": is_simple_review_editable(value),
+            }
+        )
+    return grouped
 
 
 def classify_extract_note_tab(note: str) -> str:

@@ -185,6 +185,43 @@ def test_step_salary_result_uses_canonical_forecast_shape(monkeypatch) -> None:
     assert "usage" not in result
 
 
+def test_step_salary_fingerprint_changes_with_esco_context(monkeypatch) -> None:
+    panel_module = cast(Any, SALARY_PANEL_MODULE)
+    session_state: dict[str, Any] = {
+        SSKey.ESCO_CONFIG.value: {"selected_version": "v1.2.0"},
+        SSKey.ESCO_OCCUPATION_SELECTED.value: {"uri": "https://example.test/occ/a"},
+        SSKey.ESCO_SKILLS_SELECTED_MUST.value: [],
+        SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
+        SSKey.SALARY_SCENARIO_RADIUS_KM.value: 50,
+        SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value: 0,
+        SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value: "",
+    }
+    monkeypatch.setattr(panel_module, "st", SimpleNamespace(session_state=session_state))
+    job = JobAdExtract(job_title="Engineer")
+
+    first = panel_module._current_step_forecast_fingerprint(
+        step_key="skills",
+        job=job,
+        selected_inputs=["Python"],
+        model="test-model",
+        language="de",
+        store=False,
+    )
+    session_state[SSKey.ESCO_SKILLS_SELECTED_MUST.value] = [
+        {"uri": "https://example.test/skill/python"}
+    ]
+    second = panel_module._current_step_forecast_fingerprint(
+        step_key="skills",
+        job=job,
+        selected_inputs=["Python"],
+        model="test-model",
+        language="de",
+        store=False,
+    )
+
+    assert second != first
+
+
 def test_summary_source_hides_engine_internal_delta_widgets() -> None:
     source = SUMMARY_PATH.read_text(encoding="utf-8")
 

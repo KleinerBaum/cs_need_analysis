@@ -60,6 +60,7 @@ def _current_step_forecast_fingerprint(
         "location_city": str(job.location_city or "").strip(),
         "location_country": str(job.location_country or "").strip(),
         "job_seniority": str(job.seniority_level or "").strip(),
+        "esco_context": _session_esco_context().model_dump(mode="json"),
         "radius_km": _safe_int(
             st.session_state.get(SSKey.SALARY_SCENARIO_RADIUS_KM.value, 50)
         ),

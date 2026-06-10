@@ -3,8 +3,9 @@ from __future__ import annotations
 from copy import deepcopy
 from types import SimpleNamespace
 
-from constants import FactKey, FactSensitivity, FactSourceType, SSKey
+from constants import FactKey, FactResolutionStatus, FactSensitivity, FactSourceType, SSKey
 from intake_facts import (
+    build_intake_fact_resolution_state,
     collect_legacy_facts,
     get_intake_fact_evidence_state,
     get_intake_fact_state,
@@ -546,6 +547,7 @@ def test_write_intake_fact_writes_manual_evidence_by_default() -> None:
     assert evidence["source_label"] == "Manual input"
     assert evidence["confidence"] == 1.0
     assert evidence["confirmed"] is True
+    assert evidence["resolution_status"] == FactResolutionStatus.CONFIRMED.value
     assert evidence["sensitivity"] == FactSensitivity.NORMAL.value
     assert evidence["evidence_snippet"] is None
     assert evidence["used_by_artifacts"] == []
@@ -565,6 +567,7 @@ def test_write_job_extract_intake_facts_writes_jobspec_evidence() -> None:
     assert evidence["source_label"] == "Jobspec extraction"
     assert evidence["confidence"] == 0.75
     assert evidence["confirmed"] is False
+    assert evidence["resolution_status"] == FactResolutionStatus.INFERRED.value
     assert evidence["sensitivity"] == FactSensitivity.NORMAL.value
     assert evidence["used_by_artifacts"] == []
 
@@ -679,6 +682,7 @@ def test_write_intake_fact_evidence_clamps_confidence_and_latest_lookup() -> Non
         "source_label": "Extraction model",
         "confidence": 1.0,
         "confirmed": False,
+        "resolution_status": FactResolutionStatus.INFERRED.value,
         "sensitivity": "normal",
         "evidence_snippet": "Senior Data Engineer gesucht",
         "used_by_artifacts": [],
@@ -704,6 +708,47 @@ def test_write_intake_fact_evidence_uses_source_default_for_invalid_confidence()
         FactKey.ROLE_JOB_TITLE.value
     ]
     assert evidence["confidence"] == 0.75
+
+
+def test_write_intake_fact_accepts_explicit_resolution_status() -> None:
+    session_state = {SSKey.INTAKE_FACTS.value: {}, SSKey.INTAKE_FACT_EVIDENCE.value: {}}
+
+    write_intake_fact(
+        session_state,
+        FactKey.ROLE_JOB_TITLE,
+        "Engineer",
+        source_type=FactSourceType.JOBSPEC,
+        resolution_status=FactResolutionStatus.CONFLICTED,
+    )
+
+    evidence = session_state[SSKey.INTAKE_FACT_EVIDENCE.value][
+        FactKey.ROLE_JOB_TITLE.value
+    ]
+    assert evidence["resolution_status"] == FactResolutionStatus.CONFLICTED.value
+
+
+def test_build_intake_fact_resolution_state_includes_missing_and_present_facts() -> None:
+    session_state = {SSKey.INTAKE_FACTS.value: {}, SSKey.INTAKE_FACT_EVIDENCE.value: {}}
+    write_intake_fact(
+        session_state,
+        FactKey.ROLE_JOB_TITLE,
+        "Engineer",
+        source_type=FactSourceType.MANUAL,
+        updated_at="2026-06-10T00:00:00+00:00",
+    )
+
+    resolution_state = build_intake_fact_resolution_state(
+        session_state,
+        fact_keys=[FactKey.ROLE_JOB_TITLE, FactKey.COMPANY_COMPANY_NAME],
+    )
+
+    assert resolution_state[FactKey.ROLE_JOB_TITLE.value]["status"] == (
+        FactResolutionStatus.CONFIRMED.value
+    )
+    assert resolution_state[FactKey.ROLE_JOB_TITLE.value]["value"] == "Engineer"
+    assert resolution_state[FactKey.COMPANY_COMPANY_NAME.value] == {
+        "status": FactResolutionStatus.MISSING.value
+    }
 
 
 def test_write_intake_fact_evidence_redacts_snippet_before_storage() -> None:

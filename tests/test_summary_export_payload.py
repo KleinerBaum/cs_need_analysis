@@ -4,7 +4,7 @@ from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from types import SimpleNamespace
 
-from constants import FactKey, FactSourceType, SSKey
+from constants import FactKey, FactResolutionStatus, FactSourceType, SSKey
 from schemas import VacancyBrief, VacancyStructuredData
 
 
@@ -150,6 +150,17 @@ def test_build_structured_export_payload_includes_canonical_intake_facts(
     }
     assert payload["intake_fact_evidence"] == {
         FactKey.ROLE_JOB_TITLE.value: evidence,
+    }
+    assert payload["intake_fact_resolution"][FactKey.ROLE_JOB_TITLE.value] == {
+        "status": FactResolutionStatus.INFERRED.value,
+        "value": "Engineer",
+        "source_type": FactSourceType.JOBSPEC.value,
+        "source_label": "Jobspec extraction",
+        "confidence": 0.75,
+        "updated_at": "2026-06-10T00:00:00+00:00",
+    }
+    assert payload["intake_fact_resolution"][FactKey.COMPANY_COMPANY_NAME.value] == {
+        "status": FactResolutionStatus.MISSING.value,
     }
 
 

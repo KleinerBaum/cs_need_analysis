@@ -8,6 +8,7 @@ from typing import Any, Mapping, MutableMapping, Sequence
 from constants import (
     SUMMARY_ARTIFACT_IDS,
     FactKey,
+    FactResolutionStatus,
     FactSensitivity,
     FactSourceType,
     SSKey,
@@ -161,6 +162,7 @@ def write_intake_fact(
     evidence_snippet: str | None = None,
     confirmed: bool | None = None,
     sensitivity: FactSensitivity | str | None = None,
+    resolution_status: FactResolutionStatus | str | None = None,
     used_by_artifacts: Sequence[str] | None = None,
     updated_at: str | None = None,
 ) -> None:
@@ -199,6 +201,7 @@ def write_intake_fact(
             evidence_snippet=evidence_snippet,
             confirmed=confirmed,
             sensitivity=sensitivity,
+            resolution_status=resolution_status,
             used_by_artifacts=used_by_artifacts,
             updated_at=updated_at,
         )
@@ -223,6 +226,7 @@ def write_intake_fact_evidence(
     evidence_snippet: str | None = None,
     confirmed: bool | None = None,
     sensitivity: FactSensitivity | str | None = None,
+    resolution_status: FactResolutionStatus | str | None = None,
     used_by_artifacts: Sequence[str] | None = None,
     updated_at: str | None = None,
 ) -> None:
@@ -242,16 +246,24 @@ def write_intake_fact_evidence(
     resolved_sensitivity = _coerce_fact_sensitivity(sensitivity) or (
         _DEFAULT_SENSITIVITY_BY_FACT.get(resolved_key, FactSensitivity.NORMAL)
     )
+    resolved_resolution = _coerce_fact_resolution_status(resolution_status)
     evidence_state = _mutable_fact_evidence_state(session_state)
     resolved_confirmed = (
         confirmed if confirmed is not None else resolved_source == FactSourceType.MANUAL
     )
+    if resolved_resolution is None:
+        resolved_resolution = _derive_fact_resolution_status(
+            fact_key=resolved_key,
+            source_type=resolved_source,
+            confirmed=bool(resolved_confirmed),
+        )
     evidence_state[resolved_key.value] = {
         "source_type": resolved_source.value,
         "source_label": _normalize_string(source_label)
         or _default_source_label(resolved_source),
         "confidence": resolved_confidence,
         "confirmed": bool(resolved_confirmed),
+        "resolution_status": resolved_resolution.value,
         "sensitivity": resolved_sensitivity.value,
         "evidence_snippet": _normalize_evidence_snippet(evidence_snippet),
         "used_by_artifacts": _normalize_used_by_artifacts(used_by_artifacts),
@@ -277,6 +289,50 @@ def latest_fact_confidence(
         return _normalize_confidence(float(raw_confidence), default=0.0)
     except (TypeError, ValueError):
         return None
+
+
+def build_intake_fact_resolution_state(
+    session_state: Mapping[str, Any],
+    *,
+    fact_keys: Sequence[FactKey | str] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Return canonical resolution metadata for supported intake facts."""
+
+    fact_state = get_intake_fact_state(session_state)
+    evidence_state = get_intake_fact_evidence_state(session_state)
+    requested_keys = (
+        tuple(fact_keys) if fact_keys is not None else tuple(_SUPPORTED_LEGACY_FACTS)
+    )
+    resolution_state: dict[str, dict[str, Any]] = {}
+
+    for raw_fact_key in requested_keys:
+        fact_key = _coerce_fact_key(raw_fact_key)
+        if fact_key is None or fact_key not in _SUPPORTED_LEGACY_FACTS:
+            continue
+
+        value = fact_state.get(fact_key.value)
+        evidence_raw = evidence_state.get(fact_key.value)
+        evidence = evidence_raw if isinstance(evidence_raw, Mapping) else {}
+        status = _resolution_status_for_payload(
+            value=value,
+            evidence=evidence,
+        )
+        entry: dict[str, Any] = {"status": status.value}
+        if value is not None:
+            entry["value"] = value
+        for field_name in (
+            "source_type",
+            "source_label",
+            "confidence",
+            "confirmed",
+            "updated_at",
+            "used_by_artifacts",
+        ):
+            if field_name in evidence:
+                entry[field_name] = evidence[field_name]
+        resolution_state[fact_key.value] = entry
+
+    return resolution_state
 
 
 def mark_intake_facts_used_by_artifact(
@@ -344,6 +400,7 @@ def write_intake_fact_by_legacy_field(
     evidence_snippet: str | None = None,
     confirmed: bool | None = None,
     sensitivity: FactSensitivity | str | None = None,
+    resolution_status: FactResolutionStatus | str | None = None,
     used_by_artifacts: Sequence[str] | None = None,
     updated_at: str | None = None,
 ) -> None:
@@ -361,6 +418,7 @@ def write_intake_fact_by_legacy_field(
             evidence_snippet=evidence_snippet,
             confirmed=confirmed,
             sensitivity=sensitivity,
+            resolution_status=resolution_status,
             used_by_artifacts=used_by_artifacts,
             updated_at=updated_at,
         )
@@ -552,6 +610,54 @@ def _coerce_fact_sensitivity(
         return FactSensitivity(raw_sensitivity)
     except ValueError:
         return None
+
+
+def _coerce_fact_resolution_status(
+    raw_status: FactResolutionStatus | str | None,
+) -> FactResolutionStatus | None:
+    if isinstance(raw_status, FactResolutionStatus):
+        return raw_status
+    if not isinstance(raw_status, str):
+        return None
+    try:
+        return FactResolutionStatus(raw_status)
+    except ValueError:
+        return None
+
+
+def _derive_fact_resolution_status(
+    *,
+    fact_key: FactKey,
+    source_type: FactSourceType,
+    confirmed: bool,
+) -> FactResolutionStatus:
+    if confirmed:
+        return FactResolutionStatus.CONFIRMED
+    if fact_key == FactKey.ROLE_ASSUMPTIONS:
+        return FactResolutionStatus.ASSUMED
+    if source_type in {
+        FactSourceType.JOBSPEC,
+        FactSourceType.HOMEPAGE,
+        FactSourceType.ESCO,
+        FactSourceType.LLM,
+    }:
+        return FactResolutionStatus.INFERRED
+    return FactResolutionStatus.MISSING
+
+
+def _resolution_status_for_payload(
+    *,
+    value: Any,
+    evidence: Mapping[str, Any],
+) -> FactResolutionStatus:
+    if value is None:
+        return FactResolutionStatus.MISSING
+    explicit_status = _coerce_fact_resolution_status(evidence.get("resolution_status"))
+    if explicit_status is not None:
+        return explicit_status
+    if bool(evidence.get("confirmed")):
+        return FactResolutionStatus.CONFIRMED
+    return FactResolutionStatus.INFERRED
 
 
 def _normalize_confidence(value: Any, *, default: float) -> float:

@@ -3,7 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import cast
 
-from constants import SSKey
+from constants import FactResolutionStatus, FactSourceType, SSKey
 from schemas import JobAdExtract, JobAdFieldEvidence
 import ui_components
 import wizard_pages.jobad_intake as jobad_intake
@@ -37,6 +37,8 @@ class _FakeStreamlit:
         self.dataframes: list[tuple[object, dict[str, object]]] = []
         self.editor_rows_by_key: dict[str, list[dict[str, object]]] = {}
         self.text_areas: dict[str, str] = {}
+        self.selectboxes: dict[str, list[str]] = {}
+        self.form_submit_returns: dict[str, bool] = {}
         self.column_config = SimpleNamespace(
             TextColumn=lambda *args, **kwargs: None,
         )
@@ -61,6 +63,17 @@ class _FakeStreamlit:
     def text_area(self, label: str, *, value: str, key: str, **_kwargs) -> str:
         self.text_areas[key] = label
         return value
+
+    def selectbox(self, label: str, *, options, key: str, **_kwargs) -> str:
+        del label
+        self.selectboxes[key] = list(options)
+        return str(list(options)[0])
+
+    def form(self, _key: str):
+        return _DummyColumn()
+
+    def form_submit_button(self, label: str, **_kwargs) -> bool:
+        return self.form_submit_returns.get(label, False)
 
     def columns(self, spec, **_kwargs):
         if isinstance(spec, int):
@@ -320,3 +333,74 @@ def test_editable_job_extract_includes_field_evidence_columns(monkeypatch) -> No
     role_row = next(row for row in core_rows if row["field"] == "job_title")
     assert role_row["confidence"] == "82% · prüfen"
     assert role_row["evidence"] == "Senior Data Engineer im Plattform-Team gesucht."
+
+
+def test_phase_b_hypothesis_form_groups_and_batches_submit(monkeypatch) -> None:
+    fake_st = _FakeStreamlit(session_state={})
+    fake_st.form_submit_returns["Hypothesen übernehmen"] = True
+    monkeypatch.setattr(jobad_intake, "st", fake_st)
+
+    job = JobAdExtract(
+        job_title="Data Engineer",
+        location_city="Berlin",
+        field_evidence=[
+            JobAdFieldEvidence(
+                field_name="job_title",
+                confidence=0.92,
+                evidence_snippet="Data Engineer gesucht.",
+            ),
+            JobAdFieldEvidence(
+                field_name="location_city",
+                confidence=0.61,
+                evidence_snippet="Standort Berlin oder remote.",
+                needs_confirmation=True,
+            ),
+        ],
+    )
+
+    jobad_intake._render_job_extract_hypothesis_form(job)
+
+    assert any("Hochsicher übernehmen" in item for item in fake_st.markdowns)
+    assert any("Kurz bestätigen" in item for item in fake_st.markdowns)
+    assert fake_st.rerun_called is True
+    assert fake_st.session_state[SSKey.JOB_EXTRACT.value]["job_title"] == "Data Engineer"
+    evidence = fake_st.session_state[SSKey.INTAKE_FACT_EVIDENCE.value]
+    assert evidence["role.job_title"]["source_type"] == FactSourceType.JOBSPEC.value
+    assert evidence["role.job_title"]["resolution_status"] == (
+        FactResolutionStatus.INFERRED.value
+    )
+
+
+def test_apply_job_extract_hypothesis_updates_supports_edit_and_skip(
+    monkeypatch,
+) -> None:
+    fake_st = _FakeStreamlit(session_state={})
+    monkeypatch.setattr(jobad_intake, "st", fake_st)
+
+    reviewed = jobad_intake._apply_job_extract_hypothesis_updates(
+        JobAdExtract(job_title="Old Title", company_name="Old GmbH"),
+        [
+            {
+                "field_name": "company_name",
+                "action": jobad_intake.HYPOTHESIS_ACTION_EDIT,
+                "edited_value": "New GmbH",
+                "confidence": 0.7,
+                "evidence_snippet": "Old GmbH",
+            },
+            {
+                "field_name": "job_title",
+                "action": jobad_intake.HYPOTHESIS_ACTION_SKIP,
+                "confidence": 0.9,
+                "evidence_snippet": "Old Title",
+            },
+        ],
+    )
+
+    assert reviewed.company_name == "New GmbH"
+    assert reviewed.job_title is None
+    evidence = fake_st.session_state[SSKey.INTAKE_FACT_EVIDENCE.value]
+    assert evidence["company.company_name"]["confirmed"] is True
+    assert evidence["company.company_name"]["resolution_status"] == (
+        FactResolutionStatus.CONFIRMED.value
+    )
+    assert "role.job_title" not in fake_st.session_state[SSKey.INTAKE_FACTS.value]

@@ -250,6 +250,70 @@ def test_select_questions_for_limit_prioritizes_uncovered_core_question() -> Non
     assert [question.id for question in selected] == ["hiring_goal"]
 
 
+def test_select_questions_for_limit_ranks_information_gain_metadata() -> None:
+    low_gain = Question(
+        id="low_gain",
+        label="Low gain",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="standard",
+        info_gain_score=0.1,
+        acquisition_cost="high",
+    )
+    high_gain = Question(
+        id="high_gain",
+        label="High gain",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="standard",
+        impact_targets=["brief", "salary", "interview"],
+        info_gain_score=0.9,
+        acquisition_cost="low",
+    )
+
+    selected = select_questions_for_adaptive_limit(
+        [low_gain, high_gain],
+        step_key="company",
+        limit=1,
+        answers={},
+        answer_meta={},
+        job_extract=None,
+    )
+
+    assert [question.id for question in selected] == ["high_gain"]
+
+
+def test_high_information_gain_questions_are_adaptive_essential() -> None:
+    plan = QuestionPlan(
+        steps=[
+            QuestionStep(
+                step_key="company",
+                title_de="Unternehmen",
+                questions=[
+                    Question(
+                        id=f"high_gain_{index}",
+                        label=f"High gain {index}",
+                        answer_type=AnswerType.SHORT_TEXT,
+                        priority="detail",
+                        impact_targets=["brief", "salary", "skills", "export"],
+                        info_gain_score=0.95,
+                        acquisition_cost="low",
+                    )
+                    for index in range(3)
+                ],
+            )
+        ]
+    )
+
+    limits = compute_adaptive_question_limits(
+        plan=plan,
+        ui_mode="quick",
+        answers={},
+        answer_meta={},
+        job_extract=None,
+    )
+
+    assert limits["company"] == 3
+
+
 def test_follow_up_prompt_questions_are_treated_as_adaptive_essential() -> None:
     plan = QuestionPlan(
         steps=[
