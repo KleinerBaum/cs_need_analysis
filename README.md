@@ -1,81 +1,316 @@
-# Cognitive Staffing – Vacancy Intake Wizard (Streamlit + OpenAI API)
+# Cognitive Staffing — Vacancy Intake Wizard
 
-Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch ein Vacancy Intake führt.
+Streamlit app for structured vacancy intake, jobspec extraction, ESCO/EURES enrichment, salary forecasting, interview-process capture, and generation of recruiting artifacts with OpenAI structured outputs.
 
-## Features
+The current implementation is not a loose demo. It is a stateful workflow application with tight coupling between canonical constants, session state, Pydantic schemas, wizard UI, fact/evidence handling, summary artifacts, and exports.
 
-- Intake-Start direkt auf der Landingpage mit integriertem Jobspec-Intake in **drei klaren Start-Phasen**: **Phase A (Quelle & Datenschutz)**, **Phase B (Extraktion prüfen)**, **Phase C (ESCO-Suche)**.
-- Upload von Jobspec/Job Ad als **PDF**, **DOCX** oder **TXT** (alternativ: Text einfügen).
-- Entkoppeltes Quellenhandling im Intake: Upload-Text und manuelle Eingabe überschreiben sich nicht; die aktive Quelle wird zur Analyse genutzt.
-- Privacy-by-default im Quellenhandling: **PII-Reduktion ist standardmäßig aktiv** und kann im Präferenz-Center bewusst deaktiviert werden.
-- LLM-gestützte **Extraktion** der Jobspec in ein strukturiertes Schema (Structured Outputs) mit optionaler feldweiser Evidence/Confidence und automatische Erzeugung eines dynamischen Frageplans.
-- Wizard mit Fortschrittsanzeige und drei Ansichtsmodi (`quick`, `standard`, `expert`) für die sichtbaren Navigationsschritte: Start, Unternehmen, Rolle & Aufgaben, Skills, Benefits, Interviewprozess und Summary.
-- Der Ansichtsmodus (gespeicherte Werte: `quick`, `standard`, `expert`; Anzeige: `schnell`, `ausführlich`, `vollumfänglich`) ist global über das Sidebar-**Präferenz-Center** steuerbar und zusätzlich im Start-Schritt direkt unter dem Jobspec-Upload. Beim Wechsel greift sofort die adaptive Fragenbegrenzung (Neuberechnung der sichtbaren Fragen pro Step); die Confidence-Schwelle aus dem Präferenz-Center bestimmt dabei, ab wann faktengestützte Extraktionen als abgedeckt zählen. In jedem Schritt wird der aktive Modus als sichtbare Caption angezeigt, damit reduzierte Frageanzahl nachvollziehbar bleibt. `schnell`/`ausführlich`: Detailgruppen standardmäßig kompakt. `vollumfänglich`: Detailgruppen standardmäßig geöffnet.
-- Offene Wizard-Fragen werden je Schritt in einem Formular gebündelt; Antwortwerte schreiben erst beim Submit über die bestehenden State-/Fact-Adapter durch, wodurch kleinteilige Reruns während der Eingabe reduziert werden.
-- Die Sidebar zeigt die **Gehaltsprognose** in allen Ansichtsmodi, sobald ausreichend Stelleninformationen vorliegen; sie aktualisiert sich mit dem aktuellen Wizard-State und erklärt die stärksten Einflussfaktoren in einfacher Sprache.
-- Die vormals getrennte Ansicht **Identifizierte Informationen** ist in den Start-Schritt integriert (eine Wizard-Stufe weniger): Nach der Analyse erscheint dort direkt die editierbare Übersicht mit verfügbarer feldweiser Confidence/Evidence und der Übergang von Phase B zu Phase C bzw. in den nächsten Fachschritt; es gibt **keinen separaten sichtbaren Review-Wizard-Schritt** mehr.
-- In Phase B geprüfte Jobspec-Werte werden beim Weitergehen als bestätigte Grundlage für offene Wizard-Fragen, Aufgaben-/Skill-Auswahl, Gehaltsprognose und Summary-Artefakte genutzt; manuell bearbeitete Antworten bleiben vorrangig.
-- Jobspec-Gaps und -Annahmen werden nicht im Start-Schritt gesammelt angezeigt, sondern best-fit im jeweils passenden Folgeschritt direkt unter **Aus Jobspec extrahiert**; Annahmen können dort bestätigt oder abgelehnt und korrigiert werden.
-- Finaler **Recruiting Brief** mit Export als JSON, Markdown und DOCX.
-- **Summary-Workspace** mit oberem Fakten-Overview, Action Hub und getrennten Detail-Tabs.
-- Die **Readiness-Ansicht** zeigt Fakten nach Bereichen in Spalten, danach Action Hub und Recruiting Brief; der vollständige JSON-Export bleibt im separaten Bereich **Export** verfügbar.
-- Die Verfügbarkeit von CTAs in der Summary folgt einer Kombination aus **fachlichen Voraussetzungen** (Prerequisites) und **kurzen Freshness-Checks** auf die zugrunde liegenden Inhalte.
-- Die **Artefakt-Pipeline** zeigt klickbare Karten für Recruiting Brief, Stellenanzeige, HR-Sheet, Fachbereich-Sheet, Boolean String und Arbeitsvertrag; ein Klick startet das jeweilige Artefakt, darunter folgt der Ergebnisbereich (volle Breite).
-- **Action Hub in der Readiness-Ansicht** mit kanonischen Artefakt-IDs (`brief`, `job_ad`, `interview_hr`, `interview_fach`, `boolean_search`, `employment_contract`) und fokussiertem Primärpfad (Recruiting Brief → Folgeartefakte → Export).
-- Der Artefaktbereich wurde auf eine scannbare Einzeldarstellung konsolidiert (keine doppelten Ergebnisblöcke); weitere Ergebnisse werden sekundär umgeschaltet.
-- Beim Job-Ad-Generator liegen **Selection Matrix** und **Job-Ad-Editor** gebündelt im erweiterten Bereich (UI-Modus `expert`), inkl. optionalem Logo-Upload sowie Styleguide-/Change-Request-Bausteinen.
-- In **Rolle & Aufgaben**, **Skills & Anforderungen** und **Benefits & Rahmenbedingungen** werden Jobspec-Werte, ESCO/Kontext und AI-Vorschläge in einheitlichen Source-Pill-Spalten kuratiert; Pill-Änderungen schreiben direkt in den kanonischen Selection-State.
-- Der Salary Forecast zeigt in diesen drei Schritten links die aktuell ausgewählten Einflussfaktoren und rechts einen interaktiven Quellenmix als Pie Chart sowie **Suchradius (km)**, **Remote Share (%)** und **Erfahrung**. Die Prognose aktualisiert automatisch über einen Input-Fingerprint, sobald Auswahl oder Parameter geändert werden, und nutzt durchgehend die deterministische Benchmark-/Heuristik-Engine mit ESCO-Kontext.
-- In **Benefits & Rahmenbedingungen** werden aus der Anzeige erkannte Benefits mit bestätigtem Kontext und AI-Vorschlägen verglichen und als kanonische Auswahl gespeichert. Diese ausgewählten Benefits fließen in Summary/Export, Recruiting-Brief-Strukturdaten und Gehaltsprognose ein; ESCO dient hier nur als Berufs-/Arbeitskontext, nicht als Benefit-Taxonomie.
-- ESCO-Integration in **Start · Phase C (ESCO-Suche)** mit Primäranker, optional bis zu zwei sekundären Kontextankern und 3-spaltiger Trefferübersicht; bei fehlendem Jobtitel kann der Rollenbegriff manuell eingegeben werden. Der Primäranker dient in den Folgeschritten als Downstream-Grundlage; sekundäre Anchors bleiben Kontext/Rationale und mischen keine Skills in Kernexports.
-- Degradiertes Verhalten bei ESCO-Ausfall oder bewusstem Weitergehen ohne bestätigten ESCO-Anker: Der Wizard bleibt bedienbar, speichert `degraded_unconfirmed` und erlaubt Jobspec-/AI-Flows; ESCO-Normalisierung, Matrix-Coverage, ESCO-basierte Interview-Priorisierung und URI-Exports bleiben gesperrt.
-- Skills-Mapping als geführter 4-Schritt-Flow: (1) extrahierte Jobspec-Phrasen, (2) ESCO-Normalisierung über Occupation-Relationen, (3) sichtbare Essential/Optional-Bestätigung, (4) dedizierter Bereich „Not normalized yet“ mit Optionen „Keep free text“, Retry-Suche und Attach an Occupation.
-- Unternehmensschritt mit Homepage-Enrichment (Beta): Die aus dem Jobspec extrahierte Arbeitgeber-URL kann per Buttons für **Über uns**, **Impressum** und **Vision/Mission** analysiert werden; der Fetch-Service akzeptiert nur öffentliche HTTP(S)-Ziele, prüft Content-Type/Größe, nutzt einen In-Process-Cache und schreibt nicht-sensitive Telemetrie. Essenzielle Textausschnitte werden rechts angezeigt, mit offenen Wizard-Fragen abgeglichen, im Session-State gespeichert und in die Brief-Generierung im Summary-Schritt eingespeist.
-- Der Unternehmensschritt umfasst neben dem Unternehmenskontext auch den Teamkontext inkl. Team-Fragen und enthält dafür ein zweizoniges **Role-context enrichment (ESCO)**-Muster: links klar als **Inferred suggestion/context** markierte Hinweise (inkl. Match-Provenance/-Confidence, falls vorhanden), rechts der Bereich **Confirmed input** aus der kanonischen Team-Notiz. Die Übernahme erfolgt gesammelt über eine eindeutige Aktion „Ausgewählte Vorschläge als confirmed selection übernehmen“.
-- Oberer Fakten-Overview in der Summary gruppiert Fakten nach Bereich in Spalten; Core-Profilzeilen bevorzugen kanonische Intake-Facts und fallen auf Jobspec-Werte zurück. Die filterbare Detailtabelle (Bereich/Feld/Wert/Quelle/Status) bleibt im Fakten-Workspace mit Suche/Statusfilter verfügbar.
-- Der Schritt **Interviewprozess** ist als Workflow Board organisiert: identifizierte Interview-Werte, kandidatinnen-/kandidatenorientierter Prozess, Candidate Communication, interne Rollen/Timing und Konsistenzcheck. Relevante Werte können für Summary und Export selektiv markiert werden.
-- In den Schritten **Rolle & Aufgaben**, **Skills & Anforderungen** und **Benefits & Rahmenbedingungen** läuft die Auswahl über einheitliche Source-Pills: Vorschläge aus Jobspec, ESCO/Kontext und AI werden nebeneinander gestellt, dedupliziert und direkt als confirmed selection gespeichert; im Skills-Schritt bleiben ESCO Must/Nice buckets und freie Jobspec/AI-Statuswerte synchron.
-- Für **Rolle & Aufgaben**, **Skills & Anforderungen** und **Benefits & Rahmenbedingungen** gilt dieselbe Blockreihenfolge im Step-Shell: **(1) Aus Jobspec extrahiert → (2) Quellenvergleich → (3) Salary Forecast → (4) Offene Fragen → (5) Review**. Diese Reihenfolge ist bewusst vereinheitlicht und per UI-Contract-Tests abgesichert.
-- Session-basiertes LLM-Response-Caching mit Cache-Hinweisen in Intake/Summary (DE/EN), inkl. Cache-Status für Folgeartefakte.
-- Privacy-safe Session-Eventmodell für leichte Observability: Step-Wechsel, zentrale Step-Submits, manuelle Fact-Bestätigungen/-Korrekturen/-Ablehnungen, Modell-/Local-Fallbacks, Homepage-Fetch-Fehler und erfolgreiche Summary-Artefaktgenerierung werden mit whitelisted Metadata erfasst, ohne URLs, Prompts, Payloads, Antwortwerte oder Kontaktdaten zu speichern.
+## Current implementation status
 
-## Wizard-Flow (implementiert)
+Implemented core flow:
 
-1. **Start**
-   - Phase A: Quelle, Consent, standardmäßig aktive PII-Redaktion mit Opt-out, UI-Modus sowie ESCO-Betriebsblock (Stable/Preview im Expert-Modus, Runtime-Lane, Arbeits-/Fallback-Sprache, Diagnose)
-   - Phase B: editierbare „Identifizierte Informationen“
-   - Phase C: ESCO-Suche mit bestätigbarem oder manuell eingebbarem Rollenbegriff
-2. **Unternehmen**
-3. **Rolle & Aufgaben**
-4. **Skills & Anforderungen**
-5. **Benefits & Rahmenbedingungen**
-6. **Interviewprozess**
-   - Identifizierte Interview-Werte prüfen und für Summary/Export markieren
-   - Prozessfragen, Candidate Communication sowie interne Rollen/Timing erfassen
-7. **Zusammenfassung** (integrierte Readiness-Ansicht mit Fakten, Aktionen, Ergebnissen und Export)
+1. Source intake from PDF, DOCX, TXT, or pasted text.
+2. Privacy-first source handling with PII reduction enabled by default.
+3. Structured jobspec extraction through OpenAI structured outputs.
+4. Reviewable identified-information block with fact/evidence promotion.
+5. Deterministic occupation-aware question-flow overlay.
+6. ESCO occupation anchoring with degraded fallback mode.
+7. Company/team context, including optional public homepage enrichment.
+8. Role/task, skill, and benefit curation through comparable source-pill blocks.
+9. Deterministic salary forecast and scenario state.
+10. Interview-process workspace.
+11. Summary readiness dashboard, action hub, artifact generation, and exports.
+12. Privacy-safe usage events for lightweight observability.
 
-Hinweis: Der frühere Schritt `jobspec_review` ist nur noch als Legacy-Modul vorhanden und nicht routbar.
+Known partials / explicit non-goals in this snapshot:
 
-## Voraussetzungen
+- Full official ESCO bulk-dataset ingestion is not implemented; the offline index path is lookup-focused.
+- ESCO matrix priors are optional and do not include ISCO distribution benchmarking or advanced coherence metrics.
+- There is no repo-local Ruff/Black/Mypy/Pyright configuration; CI relies on install checks, compilation, pytest, and OpenAI smoke dry-run.
+- `wizard_pages/01a_jobspec_review.py` and `wizard_pages/03_team.py` are legacy/non-routable modules.
 
-- Python 3.11+
-- OpenAI API Key (als Umgebungsvariable oder Streamlit Secret)
+## Wizard flow
 
-## UI-Branding
+The active visible route is defined by `constants.STEPS` and enforced by `wizard_pages/__init__.py`.
 
-- Im Sidebar-Header wird das animierte GIF `images/animation_pulse_SingleColorHex1_7kigl22lw.gif` dargestellt.
-- Im Start-Schritt wird `images/white_logo_color1_background.png` als Hero-Logo angezeigt.
-- Die Theme-Farbgebung (Light/Dark) kommt aus der Streamlit-Theme-Konfiguration (`.streamlit/config.toml`) und gemeinsamen CSS-Tokens (`components/design_system.py`, `styles/theme.css`); app-/site-spezifische CSS-Regeln halten Wizard, Sidebar, Cards und Controls kontraststabil.
-- Rechtstexte/Info-Seiten laufen als eigenständige Streamlit-Seiten unter `pages/`; im Wizard verbleibt nur das Präferenz-Center als Query-Parameter-View (`?page=preferences`).
-- Debug-Hinweise werden in den jeweiligen Fachbereichen angezeigt (z. B. API-Usage-Expander in Intake/Summary), ohne Secrets preiszugeben.
+| Order | Step key | UI label | Main module | Purpose |
+|---:|---|---|---|---|
+| 1 | `landing` | Start | `wizard_pages/00_landing.py` + `wizard_pages/jobad_intake.py` | Landing page plus jobspec intake phases A/B/C |
+| 2 | `company` | Unternehmen | `wizard_pages/02_company.py` | Company context, team context, homepage enrichment |
+| 3 | `role_tasks` | Rolle & Aufgaben | `wizard_pages/04_role_tasks.py` | Role/task curation, ESCO/context/AI suggestions, salary block |
+| 4 | `skills` | Skills & Anforderungen | `wizard_pages/05_skills.py` | Jobspec/ESCO/AI skills, normalization, matrix priors, unmapped-term decisions |
+| 5 | `benefits` | Benefits & Rahmenbedingungen | `wizard_pages/06_benefits.py` | Benefits and operating conditions from jobspec/context/AI |
+| 6 | `interview` | Interviewprozess | `wizard_pages/07_interview.py` | Interview values, candidate communication, internal roles/timing |
+| 7 | `summary` | Zusammenfassung | `wizard_pages/08_summary.py` | Readiness, facts, action hub, artifacts, exports |
 
-## Unterstützte Streamlit-Komponenten (Stand Runtime)
+### Start step phases
 
-- Breitensteuerung bei Medien nutzt die aktuelle API (`width="stretch"` / `width="content"`), nicht mehr `use_container_width=...`.
-- Für eingebettete externe Inhalte ist `st.iframe(...)` der bevorzugte Weg.
-- Beim Wizard-Step-Wechsel nutzt `app.py` für den Scroll-Reset die native API `st.html(...)` (ohne `st.components.v1.html(...)`). Falls die API in einer älteren Runtime nicht vorhanden ist, bleibt das Verhalten ohne zusätzlichen Fallback-Script bei normaler Streamlit-Navigation.
+The Start step contains the former review flow directly:
+
+- **Phase A — Quelle & Datenschutz:** upload/manual text, active source handling, consent, PII reduction, UI mode, ESCO operating settings.
+- **Phase B — Extraktion prüfen:** editable identified-information block with confidence/evidence where available.
+- **Phase C — ESCO-Suche:** primary occupation anchor, optional secondary context anchors, degraded fallback when no anchor is confirmed.
+
+There is no separate visible `jobspec_review` step.
+
+## UI modes
+
+The app supports three global UI modes:
+
+| Stored value | German label | Intended behavior |
+|---|---|---|
+| `quick` | `schnell` | Reduced question depth, compact detail groups |
+| `standard` | `ausführlich` | Default balanced depth, compact detail groups |
+| `expert` | `vollumfänglich` | Full depth, detail groups open by default, extended expert controls |
+
+The mode is controlled through the sidebar preference center and the Start step. It affects visible question depth through `question_limits.py` and compact/detail behavior through shared UI helpers.
+
+## Information acquisition model
+
+The intake process combines several evidence streams:
+
+| Source | Main modules | Stored/used as |
+|---|---|---|
+| Jobspec extraction | `llm_client.py`, `schemas.py`, `wizard_pages/jobad_intake.py` | `JobAdExtract`, intake facts, evidence, base question plan |
+| Manual review/input | `job_extract_review_helpers.py`, wizard pages, `state.py` | confirmed answers/facts with manual precedence |
+| ESCO/EURES context | `esco_client.py`, `esco_semantics.py`, `eures_mapping.py` | occupation anchors, skill suggestions, task context, export metadata |
+| Homepage enrichment | `homepage_research.py`, `wizard_pages/02_company.py` | company/team facts and open-question matches |
+| AI suggestions | `llm_client.py`, role/skills/benefits pages | source-pill suggestions and optional artifact inputs |
+| Salary engine | `salary/`, salary forecast panels | deterministic forecast result and scenario state |
+
+Manual corrections remain authoritative over extracted values. Jobspec assumptions/gaps are not collected as a single Start-step backlog; they are routed to the best matching downstream step.
+
+## Architecture map
+
+### Canonical contracts
+
+- `constants.py` — session keys, step IDs, UI modes, ESCO modes, fact registry, artifact IDs.
+- `state.py` — session defaults, vacancy reset behavior, answer/fact adapters.
+- `schemas.py` — Pydantic contracts for jobspec extraction, question plans, briefs, and generated artifacts.
+- `intake_facts.py` — canonical fact/evidence storage and legacy field compatibility.
+- `question_*`, `question_plan_compiler.py`, `question_packs/` — dynamic question flow and occupation-aware overlays.
+
+### Runtime shell and UI
+
+- `app.py` — Streamlit entrypoint, preferences query-param view, navigation and rendering.
+- `wizard_pages/base.py` — shared wizard context, navigation, progress, UI-mode helpers, ESCO sidebar/status.
+- `components/`, `ui_components.py`, `ui_layout.py`, `site_ui.py`, `styles/theme.css` — shared UI/layout/design system.
+
+### AI and enrichment
+
+- `settings_openai.py` — OpenAI settings, model defaults, task limits, ESCO RAG flags.
+- `model_capabilities.py` — model-family compatibility gates for request kwargs.
+- `llm_client.py` — OpenAI task routing, prompts, structured parsing, retries, fallbacks, response caching, error mapping.
+- `esco_client.py`, `esco_semantics.py`, `esco_offline_index.py`, `esco_matrix.py`, `esco_rag.py` — ESCO runtime layers.
+- `homepage_research.py` — public website enrichment.
+- `salary/` — salary forecast engine and scenario helpers.
+
+## OpenAI configuration
+
+Configuration can be supplied through Streamlit secrets or environment variables.
+
+Resolution order in `settings_openai.py`:
+
+1. nested Streamlit secret: `[openai] KEY = ...`
+2. root Streamlit secret: `KEY = ...`
+3. environment variable
+4. hard default
+
+Primary keys:
+
+| Key | Purpose |
+|---|---|
+| `OPENAI_API_KEY` | API key; never commit this value |
+| `OPENAI_MODEL` | global model override |
+| `DEFAULT_MODEL` | default model when no override is set |
+| `LIGHTWEIGHT_MODEL` | extraction-oriented tasks |
+| `MEDIUM_REASONING_MODEL` | question plan, brief, boolean/gap/benefit style tasks |
+| `HIGH_REASONING_MODEL` | job ad, interview sheet, employment contract tasks |
+| `REASONING_EFFORT` | optional reasoning effort after capability gating |
+| `VERBOSITY` | optional `text.verbosity` after capability gating |
+| `OPENAI_REQUEST_TIMEOUT` | request timeout in seconds; default is 120 |
+| `ESCO_VECTOR_STORE_ID` | optional ESCO vector store for RAG |
+| `ESCO_RAG_ENABLED` | enables ESCO RAG only when true and vector store ID exists |
+| `ESCO_RAG_MAX_RESULTS` | max ESCO RAG hits; default is 8 |
+
+Task-specific output limits follow this pattern for task kinds registered in `settings_openai._TASK_KINDS`:
+
+```text
+<TASK_KIND_UPPER>_MAX_OUTPUT_TOKENS
+<TASK_KIND_UPPER>_MAX_BULLETS_PER_FIELD
+<TASK_KIND_UPPER>_MAX_SENTENCES_PER_FIELD
+```
+
+Example:
+
+```toml
+# .streamlit/secrets.toml
+[openai]
+OPENAI_API_KEY = "sk-..."
+LIGHTWEIGHT_MODEL = "gpt-4o-mini"
+MEDIUM_REASONING_MODEL = "gpt-4o-mini"
+HIGH_REASONING_MODEL = "o3-mini"
+OPENAI_REQUEST_TIMEOUT = "120"
+ESCO_RAG_ENABLED = "false"
+```
+
+### Model capability gating
+
+`model_capabilities.py` centralizes model-specific request behavior:
+
+- GPT-5 legacy family (`gpt-5`, `gpt-5-mini`, `gpt-5-nano`, including dated snapshots) does not receive `temperature`.
+- GPT-5.4 family receives `temperature` only when `reasoning_effort="none"` is normalized as compatible.
+- `reasoning` and `text.verbosity` are only sent to compatible GPT-5 families.
+- Valid `reasoning_effort` values are `none`, `minimal`, `low`, `medium`, `high`, `xhigh`; `none` is GPT-5.4-only.
+- Fallback families such as `gpt-4o-mini` do not receive GPT-5-specific request fields.
+
+## ESCO configuration
+
+Default ESCO API base URL: `https://ec.europa.eu/esco/api/`.
+
+| Key | Values / default | Purpose |
+|---|---|---|
+| `ESCO_API_BASE_URL` | default hosted API | API base URL or local mirror/proxy |
+| `ESCO_RELEASE_LANE` | `stable` default, `preview` | maps to selected ESCO version |
+| `ESCO_SELECTED_VERSION` | optional override | explicit ESCO version |
+| `ESCO_API_MODE` | `hosted`, `local` | capability profile |
+| `ESCO_DATA_SOURCE_MODE` | `live_api`, `offline_index`, `hybrid` | runtime lookup lane |
+| `ESCO_FALLBACK_LANGUAGE` | derived from app language | fallback language for ESCO calls |
+| `ESCO_INDEX_STORAGE_PATH` | `data/esco_index` | local index root |
+| `ESCO_INDEX_VERSION` | selected ESCO version | local index version |
+
+Version mapping:
+
+- `stable -> v1.2.0`
+- `preview -> v1.2.1`
+
+Semantic states:
+
+| State | Meaning |
+|---|---|
+| `degraded_unconfirmed` | no confirmed ESCO anchor; URI-based flows/exports stay disabled |
+| `anchored` | confirmed primary anchor |
+| `anchored_with_context` | confirmed primary anchor plus secondary context anchors |
+
+Secondary anchors are context/rationale only; they must not inject skills into core exports unless the semantics are explicitly redesigned.
+
+### ESCO offline index
+
+The repo can build and use a versioned local ESCO lookup index.
+
+Build:
+
+```bash
+python scripts/build_esco_index.py --source-dir /path/to/esco_bulk --version v1.2.0
+```
+
+Generated artifacts:
+
+```text
+data/esco_index/<version>/esco_index.sqlite
+data/esco_index/<version>/manifest.json
+```
+
+Runtime modes:
+
+- `live_api` — query hosted/local API only.
+- `offline_index` — query local index only.
+- `hybrid` — query live API first and fall back to local index if unavailable.
+
+The current offline path is lookup-focused. A full official RDF/TTL/XML/JSON-LD ingestion pipeline is not implemented.
+
+### ESCO matrix priors
+
+Optional matrix priors add occupation-specific Must/Nice skill candidates and coverage context in the Skills step.
+
+Enable:
+
+```bash
+export ESCO_MATRIX_ENABLED=true
+export ESCO_MATRIX_PATH=/path/to/esco_matrix.normalized.json  # or .csv
+```
+
+Preprocess XLSX to loader-compatible JSON:
+
+```bash
+python scripts/build_esco_matrix.py \
+  --xlsx /path/to/esco_matrix.xlsx \
+  --out /path/to/esco_matrix.normalized.json \
+  --version 2026.05
+```
+
+Current behavior:
+
+- Live ESCO skills remain the primary source.
+- Matrix priors are additive and marked as matrix-derived candidates.
+- Matrix coverage runs only for anchored states.
+- Merge/dedupe is deterministic by ESCO URI.
+- Structured exports may include `esco_matrix_coverage` and `esco_matrix_coverage_context` when available.
+
+## Homepage enrichment
+
+The company step can analyze public company pages for:
+
+- `about`
+- `imprint`
+- `vision_mission`
+
+Safety constraints in `homepage_research.py`:
+
+- public HTTP(S) only
+- content-type and size checks
+- in-process cache
+- no sensitive URL/payload logging through usage events
+- normalized facts and open-question matches stored in session state
+
+## Salary forecast
+
+Salary forecasting is deterministic and uses the current wizard state plus configured benchmark data.
+
+Main modules:
+
+- `salary/benchmarks.py`
+- `salary/engine.py`
+- `salary/features_esco.py`
+- `salary/mapping.py`
+- `salary/scenario_lab_builders.py`
+- `salary/scenarios.py`
+- `salary/types.py`
+- `wizard_pages/salary_forecast.py`
+- `wizard_pages/salary_forecast_panel.py`
+
+Optional benchmark override:
+
+```bash
+export SALARY_BENCHMARK_PATH=/path/to/benchmarks.csv
+```
+
+Bundled demo data lives under `data/salary_benchmarks/` and `data/salary_skill_premiums/`.
+
+## Summary artifacts and exports
+
+Canonical summary artifact IDs:
+
+| ID | Label | Main export formats |
+|---|---|---|
+| `brief` | Recruiting Brief | JSON, Markdown, DOCX |
+| `job_ad` | Stellenanzeige | DOCX, PDF when `reportlab` is available |
+| `interview_hr` | HR Interview Sheet | JSON, DOCX |
+| `interview_fach` | Fachbereich Interview Sheet | JSON, DOCX |
+| `boolean_search` | Boolean Search Pack | JSON, Markdown |
+| `employment_contract` | Arbeitsvertrag Draft | JSON, DOCX |
+
+Additional structured exports include ESCO mapping CSV/JSON and Summary payload fields for intake facts/evidence, interview process data, ESCO anchor metadata, ESCO skills, unmapped terms, occupation context, and question-flow provenance.
+
+When `semantic_export_mode="degraded"`, URI-based ESCO core exports are intentionally suppressed.
 
 ## Installation
+
+Prerequisites:
+
+- Python 3.11+
+- OpenAI API key for live AI calls
+
+Setup:
 
 ```bash
 python -m venv .venv
@@ -85,335 +320,83 @@ pip install -r requirements.txt -c constraints.txt
 streamlit run app.py
 ```
 
-Falls du ohne Constraints arbeiten willst, bleibt auch `pip install -r requirements.txt` möglich.
+Without constraints, `pip install -r requirements.txt` remains possible, but CI uses `constraints.txt`.
 
-## Debugging & Deployment Incident-Reports
+## Verification
 
-- Für verwertbare Incident-Meldungen bitte immer das Template verwenden: `docs/debugging_incident_template.md`.
-- Pflichtfelder: Repro-Schritte, Expected vs. Actual, vollständiger Traceback (inkl. letzter Zeile `ExceptionType: message`) sowie Commit/Branch/Deploy-Zeit.
-- Abgeschnittene Logs mit Encoding-Artefakten wie `â”€` oder `â±` reichen nicht aus; erfasst immer den vollständigen Fehlerblock bis zur finalen Exception-Zeile.
-- Team-Runbook für diesen Ablauf: `docs/team_runbook_debugging.md`.
-
-## ESCO API Konfiguration
-
-Die ESCO-Basis-URL kann optional über `ESCO_API_BASE_URL` gesetzt werden (z. B. für lokale Mirror/Proxy-Setups).
-Die Semantik-Lane ist standardmäßig `stable` und damit auf `v1.2.0` gepinnt. `preview` zielt auf `v1.2.1` und ist im Produkt zunächst Expert-/QA-Modus, bis die ESCO-Smoke-Matrix stabil ist. `ESCO_SELECTED_VERSION` bleibt als expliziter Override kompatibel.
-Optional kann `ESCO_API_MODE` (`hosted` / `local`) gesetzt werden; die Client-Abstraktion bleibt für beide Modi gleich. `ESCO_DATA_SOURCE_MODE` (`live_api`, `offline_index`, `hybrid`) steuert die Runtime-Lane.
-
-### Auflösungsreihenfolge
-
-1. explizite Session-Konfiguration (`st.session_state[SSKey.ESCO_CONFIG]["base_url"]`)
-2. Umgebungsvariable `ESCO_API_BASE_URL`
-3. Default: `https://ec.europa.eu/esco/api/`
-
-Versionauflösung:
-
-1. explizite Session-Konfiguration (`st.session_state[SSKey.ESCO_CONFIG]["selected_version"]`)
-2. Umgebungsvariable `ESCO_SELECTED_VERSION`
-3. Version aus `ESCO_RELEASE_LANE` (`stable -> v1.2.0`, `preview -> v1.2.1`)
-4. Default: `v1.2.0`
-
-### Beispiel (Local Deployment)
-
-```bash
-export ESCO_API_BASE_URL="http://localhost:9000/esco/api/"
-export ESCO_RELEASE_LANE="stable"
-export ESCO_SELECTED_VERSION="v1.2.0"
-export ESCO_API_MODE="local"
-export ESCO_DATA_SOURCE_MODE="hybrid"
-streamlit run app.py
-```
-
-### Verifikation
+### Baseline / CI-equivalent
 
 ```bash
 pip check
-python -c "import openai; print(openai.__version__)"
-python -c "from eures_mapping import load_national_code_lookup_from_file as f; print('ok' if callable(f) else 'fail')"
-python scripts/esco_smoke_test.py --mode all --ci-dry-run-if-unavailable --json-only
+python -m compileall app.py homepage_research.py job_extract_evidence.py job_extract_review_helpers.py summary_artifacts.py summary_esco.py summary_exports.py summary_facts.py summary_job_ad.py usage_events.py components config pages salary scripts tests wizard_pages
+python -m pytest -q
+python scripts/openai_smoke_test.py --mode all --ci-dry-run-if-no-key --json-only
 ```
 
-## ESCO Matrix Priors (optional)
+### OpenAI smoke test
 
-Aktueller Stand (Implementierung):
-
-- Loader/Format-Parsing liegt in `esco_matrix.py` (`load_esco_matrix`).
-- Session-State wird über `SSKey.ESCO_MATRIX_ENABLED`, `SSKey.ESCO_MATRIX_LOADED` und `SSKey.ESCO_MATRIX_METADATA` geführt.
-- Im Skills-Schritt (`wizard_pages/05_skills.py`) werden Priors über `_load_matrix_priors(...)` geladen und zu den Live-ESCO-Skills hinzugefügt.
-
-Aktivierung:
+Live run:
 
 ```bash
-export ESCO_MATRIX_ENABLED=true
-export ESCO_MATRIX_PATH=/pfad/zur/esco_matrix.json  # alternativ .csv
-```
-
-Input-Formate (aktuell):
-
-- **JSON**: Mapping pro Occupation-URI/-Group auf Must-/Nice-Skill-URIs.
-- **CSV**: tabellarisches Äquivalent mit Occupation-Referenz + Skill-Zeilen inkl. Must/Nice-Klassifikation.
-- **XLSX (Preprocessing)**: Über `scripts/build_esco_matrix.py` kann eine ESCO-Matrix-Arbeitsmappe in ein loader-kompatibles JSON transformiert werden.
-
-Preprocessing (XLSX -> JSON):
-
-```bash
-.venv/bin/python scripts/build_esco_matrix.py \
-  --xlsx /pfad/zur/esco_matrix.xlsx \
-  --out /pfad/zur/esco_matrix.normalized.json \
-  --version 2026.05
-```
-
-Hinweis zur Rollenverteilung:
-
-- `scripts/build_esco_matrix.py` ist ein **Offline-Preprocessor** (keine Streamlit-Request-Path-Nutzung).
-- `esco_matrix.py` lädt zur Laufzeit ausschließlich das bereits normalisierte `.json`/`.csv`.
-- Das generierte JSON enthält neben loader-kompatiblen Feldern (`occupation_group`, `skill_uri`, `skill_title`, `bucket`) zusätzliche Matrix-Metadaten (`skill_group_uri`/`skill_group_id`, `skill_group_label`, `share_percent`).
-
-Output-Verhalten (aktuell):
-
-- Live-ESCO-Skills bleiben die primäre Quelle.
-- Matrix-Priors werden als **zusätzliche Must-/Nice-Kandidaten** eingeblendet.
-- Matrix-Priors und Coverage laufen nur bei bestätigtem ESCO-Primäranker (`anchored` / `anchored_with_context`).
-- Kandidaten aus der Matrix sind mit Badge `ESCO matrix prior` markiert.
-- Merge/Dedupe erfolgt deterministisch per ESCO-URI; Must/Nice-Semantik bleibt erhalten.
-- Für bestätigte Skills wird zusätzlich eine kompakte **ISCO Skill-Group Coverage** aus Matrix-Metadaten berechnet (deterministisch, ohne ESCO-API/LLM), inklusive Status `covered|missing|partial|overrepresented`.
-- Struktur-Export enthält optional `esco_matrix_coverage` sowie `esco_matrix_coverage_context`.
-- Wenn keine Matrix vorhanden ist (oder Laden fehlschlägt), läuft der Flow ohne Abbruch mit den bisherigen Live-API-Vorschlägen weiter.
-
-Explizite Lücken (aktuell):
-
-- Kein ISCO-Distribution-Benchmarking.
-- Keine erweiterten Coverage-/Coherence-Metriken.
-
-## Occupation-aware Question Flow
-
-Der Wizard nutzt weiterhin `QuestionPlan` als Render- und Export-Zwischenformat. Neu ist eine
-deterministische Overlay-Schicht vor der adaptiven quick/standard/expert-Begrenzung:
-
-1. `extract_job_ad` erzeugt wie bisher ein strukturiertes `JobAdExtract`.
-2. `generate_question_plan` erzeugt den generischen Basisplan, der in `cs.question_plan_base`
-   erhalten bleibt.
-3. Eine deterministische `OccupationContextProfile`-Klassifikation wertet Jobspec, bestaetigten
-   ESCO-Anker, ESCO-Payload, vorhandene Antworten und ESCO-Version aus.
-4. Der Question-Pack-Compiler schreibt den renderfertigen Plan nach `cs.question_plan` und
-   dokumentiert `cs.question_flow_provenance`.
-5. Erst danach berechnet `question_limits.py` die sichtbare Tiefe je UI-Modus und priorisiert
-   offene `core`-/Pflichtfragen, aktivierte `depends_on`-Follow-ups, vorhandene
-   `follow_up_prompts` und die Confidence-Schwelle aus den UI-Praeferenzen.
-
-Die deterministische Schicht entscheidet nur ueber Frage-Relevanz, Pack-Auswahl, Priorisierung und
-konservative Unterdrueckung klar unpassender Fragen. LLM-Advisory fuer Grenzfaelle ist bewusst nicht
-Teil dieser v1-Implementierung.
-
-Persistierte State-Keys:
-
-- `cs.occupation.profile`
-- `cs.occupation.classification_trace`
-- `cs.occupation.pack_keys`
-- `cs.question_plan_base`
-- `cs.question_flow_provenance`
-- `cs.question_flow_fingerprint`
-
-## OpenAI Konfiguration (Secrets, Env, UI)
-
-Du kannst die OpenAI-Parameter entweder als Root-Level-Secrets oder in einer `[openai]`-Sektion in `.streamlit/secrets.toml` setzen.
-
-### Priorität (exakt)
-
-Die Auflösung erfolgt in dieser Reihenfolge:
-
-1. `[openai]`-Sektion in `st.secrets`
-2. Root-Level-Keys in `st.secrets`
-3. Umgebungsvariablen (`os.getenv`)
-4. harte Defaults im Code
-
-Kurzform: **`[openai] > root-level secrets > env vars > defaults`**.
-
-### Wichtiger Hinweis zu Streamlit-Secrets
-
-- Root-Level-Secrets werden von Streamlit zusätzlich als Umgebungsvariablen gespiegelt.
-- Werte aus der `[openai]`-Sektion werden **nicht** als Umgebungsvariablen gespiegelt.
-
-### UI-Override via Session State
-
-Die UI kann das aufgelöste Modell zur Laufzeit überschreiben (Session-State). Dadurch gilt für die Modellwahl:
-
-**UI-Override > `OPENAI_MODEL` (global) > task-spezifische Modelle > `DEFAULT_MODEL`**.
-
-- Modell-spezifische Request-Optionen werden zentral über `model_capabilities.py` definiert und in `llm_client.py` verwendet.
-- Optionales task-basiertes Modell-Routing ist schlank integriert (ohne UX-Umbau): `extract_job_ad -> LIGHTWEIGHT_MODEL`, `generate_question_plan -> MEDIUM_REASONING_MODEL`, `generate_vacancy_brief -> MEDIUM_REASONING_MODEL`, `generate_job_ad -> HIGH_REASONING_MODEL`, `generate_interview_sheet_hr -> HIGH_REASONING_MODEL`, `generate_interview_sheet_hm -> HIGH_REASONING_MODEL`, `generate_boolean_search -> MEDIUM_REASONING_MODEL`, `generate_employment_contract -> HIGH_REASONING_MODEL`, `generate_requirement_gap_suggestions -> MEDIUM_REASONING_MODEL`.
-- Priorität beim Modellrouting: **Session/UI-Override** > **`OPENAI_MODEL` (globaler Override)** > **task-spezifische Modell-Keys** > **`DEFAULT_MODEL`** > **zentraler finaler Fallback (`gpt-4o-mini`)**.
-- Wenn die Task-Model-Keys leer/ungesetzt sind, greifen integrierte Hard-Defaults: `LIGHTWEIGHT_MODEL` und `MEDIUM_REASONING_MODEL` auf `gpt-4o-mini`, `HIGH_REASONING_MODEL` auf `o3-mini`.
-- Die Debug-Expander in den Wizard-Schritten zeigen zusätzlich die effektiv aufgelösten Task-Modelle an (`resolved_models`), damit Routing-Entscheidungen ohne Secret-Leak nachvollziehbar bleiben.
-- OpenAI-Settings bleiben bei `REASONING_EFFORT`/`VERBOSITY` bewusst optional: wenn nicht gesetzt, werden diese Werte als `None` behandelt und nicht künstlich vorbelegt.
-- Das zentrale OpenAI-Request-Timeout liegt konsistent bei **120 Sekunden** (falls `OPENAI_REQUEST_TIMEOUT` fehlt/ungültig ist).
-- Optionales ESCO-RAG für OpenAI kann über `ESCO_VECTOR_STORE_ID` konfiguriert werden; aktiviert wird es nur, wenn `ESCO_RAG_ENABLED=true` gesetzt ist **und** eine Vector-Store-ID vorhanden ist.
-- `ESCO_RAG_MAX_RESULTS` steuert die Ergebnisobergrenze (positiver Integer, Standard: `8`).
-- Für Debug/Diagnose steht eine sichere Provenance-Map (`resolved_from`) zur Verfügung, die nur die Quelle je Key (`nested_secret`/`root_secret`/`env`/`default`) ausweist – nie Secret-Inhalte.
-- Für `gpt-5`, `gpt-5-mini` und `gpt-5-nano` wird `temperature` nicht automatisch mitgesendet.
-- Snapshot-Varianten mit Datums-Suffixen (z. B. `gpt-5-mini-2026-01-15`) werden für `gpt-5`, `gpt-5-mini` und `gpt-5-nano` robust erkannt.
-- Für `gpt-5.4*` wird `temperature` nur mitgesendet, wenn `reasoning_effort="none"` aktiv ist.
-- Unterstützte `reasoning_effort`-Werte: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`.
-- `reasoning` und `text.verbosity` werden nur noch für tatsächlich kompatible GPT-5-Familien gesendet; Fallback-Modelle wie `gpt-4o-mini` erhalten keine GPT-5-spezifischen Felder.
-- Für `gpt-5-nano` und `gpt-5.4-nano` werden die drei Kern-Prompts (`extract_job_ad`, `generate_question_plan`, `generate_vacancy_brief`) minimal mit Guardrails ergänzt (nur strukturierte Schema-Ausgabe, kein Zusatztext, keine impliziten Nebenaufgaben, fehlende Infos leer/null statt geraten).
-- Mindestabhängigkeit: `openai>=2.30.0,<3.0.0`, damit `responses.parse(...)`, strukturierte `text_format`-Ausgaben, Client-`timeout` und aktuelle Request-Felder (z. B. `reasoning`, `text.verbosity`) konsistent verfügbar sind.
-
-## OpenAI Fehlerbehandlung (UI + Logging)
-
-- OpenAI-Fehler werden in klaren Kategorien behandelt: fehlender API-Key, Timeout, HTTP-400/inkompatible Parameter und Structured-Output-Validierungsfehler.
-- Zusätzlich werden `unsupported parameter` (HTTP 400) und `APIConnectionError` separat und präzise klassifiziert.
-- UI-Texte sind knapp und zweisprachig (DE/EN), damit die bestehende UX stabil bleibt und trotzdem genaueres Feedback gibt.
-- Logs enthalten nur nicht-sensitive Debug-Informationen (Endpoint, Fehlerklasse, optional `status_code`), aber keine API-Keys und keine kompletten Request-Payloads.
-- Optionale Fehler-Debugausgabe kann per Session-State-Flag `OPENAI_DEBUG_ERRORS` aktiviert werden und zeigt nur nicht-sensitive Hinweise.
-- Interne Fehlercodes sind verfügbar (z. B. `OPENAI_AUTH`, `OPENAI_TIMEOUT`, `OPENAI_BAD_REQUEST`, `OPENAI_PARSE`, `OPENAI_SDK_UNSUPPORTED`) und werden im Debug-Modus mit ausgegeben.
-- Für transiente OpenAI-Fehler (Timeout/Connection) sind automatische Wiederholversuche mit exponentiellem Backoff aktiv.
-
-## OpenAI Smoke-Test (extract_job_ad)
-
-Das Repo enthält einen kleinen Smoke-Test unter `scripts/openai_smoke_test.py`.
-
-### Ziel
-
-- Führt `extract_job_ad` mit einem kurzen Sample-Text aus.
-- Trennt klar zwischen:
-  - `configured_mode` (statische Testkonfiguration)
-  - `effective_request_kwargs` (tatsächlich capability-gefilterte Request-Parameter)
-  - `actual_response_metadata` (echte SDK-Metadaten wie `response_model_id`, `usage`, `parse_status`)
-- Gibt keine Secrets (`OPENAI_API_KEY`) aus.
-- Endet bei Fehlern mit **non-zero Exit Code** (CI-tauglich).
-
-### Abgedeckte Modi
-
-1. `gpt-5.4-nano` mit `reasoning_effort=none` und `verbosity=low`  
-   Erwartung: `temperature` darf gesendet werden (hier `0.0`), Parse sollte erfolgreich sein.
-2. `gpt-5-nano` mit kompatiblen Parametern  
-   Erwartung: `temperature` wird **nicht** gesendet, auch wenn lokal ein Wert gesetzt ist; Parse sollte erfolgreich sein.
-3. `invalid-reasoning-effort` (simuliert, kein API-Call)  
-   Erwartung: ungültiger `reasoning_effort` wird capability-gated verworfen.
-4. `unsupported-temperature` (simuliert, kein API-Call)  
-   Erwartung: für inkompatible Modelle wird `temperature` aus den effektiven Request-Kwargs entfernt.
-
-### Lokal ausführen
-
-```bash
-export OPENAI_API_KEY="sk-..."  # nur lokal setzen, nie committen
+export OPENAI_API_KEY="sk-..."  # local only; never commit
 python scripts/openai_smoke_test.py --mode all
 ```
 
-Für CI/Maschinen-Ausgabe:
-
-```bash
-python scripts/openai_smoke_test.py --mode all --json-only
-```
-
-Fail-Fast (bei erstem Fehler abbrechen):
-
-```bash
-python scripts/openai_smoke_test.py --mode all --fail-fast
-```
-
-Dry-Run für CI ohne Key (validiert nur Request-Kwargs):
+CI/dry run without key:
 
 ```bash
 python scripts/openai_smoke_test.py --mode all --ci-dry-run-if-no-key --json-only
 ```
 
-Optional einzelne Modi:
+Useful variants:
 
 ```bash
-python scripts/openai_smoke_test.py --mode gpt-5.4-nano
-python scripts/openai_smoke_test.py --mode gpt-5-nano
-```
-
-Zusätzliche Fehlerpfad-Simulation (ohne Netzverkehr):
-
-```bash
+python scripts/openai_smoke_test.py --mode all --fail-fast
 python scripts/openai_smoke_test.py --mode all --simulate-error timeout --json-only
 python scripts/openai_smoke_test.py --mode all --simulate-error connection --json-only
 ```
 
-## GitHub Actions CI
+The smoke test reports configured mode, effective request kwargs after capability gating, and response metadata when live calls are used. It does not print secrets.
 
-Das Repository enthält `.github/workflows/ci.yml` für Pull Requests und Pushes auf `main`. Der Workflow installiert Abhängigkeiten über `requirements.txt` mit `constraints.txt`, führt `pip check`, `compileall`, `pytest -q` und den OpenAI-Smoke-Test im `--ci-dry-run-if-no-key`-Modus aus. Es wird kein separates Lint-/Type-Tooling eingeführt.
-
-### Typische 400er-Fehlerbilder bei falscher Parametrisierung
-
-- `unsupported_parameter`: z. B. `temperature` wird an ein inkompatibles GPT-5 Legacy-Modell gesendet.
-- `invalid_reasoning_effort`: z. B. `reasoning.effort="none"` bei einem Modell, das diesen Wert nicht unterstützt.
-- `invalid_type`/`invalid_request_error`: z. B. falscher Typ in `reasoning`, `text.verbosity` oder fehlerhafte Struktur im Request-Body.
-
-Der Smoke-Test zeigt die tatsächlich gebauten `request_kwargs`, damit sich diese Fälle schnell eingrenzen lassen.
-
-### Hinweis zu Konfigurationsquellen (Secrets vs. Env)
-
-Die App-Konfiguration nutzt dieselbe Priorität wie `settings_openai.py`: `st.secrets` (inkl. `openai`-Namespace) kann Umgebungsvariablen überschreiben.  
-Für verlässliche lokale Verifikation daher nicht nur auf Env-Mutation verlassen, sondern die effektiven Request-Kwargs/Metadaten im Smoke-Test prüfen.
-
-Dieser Smoke-Test ist der bevorzugte Verifikationspfad für Änderungen an Modellrouting, Capability-Gating, `reasoning_effort`, `verbosity`, `temperature` und OpenAI-Request-Building.
-
-## Exporte
-
-- Recruiting Brief: JSON, Markdown, DOCX
-- Job-Ad-Ergebnis: DOCX, PDF (nur wenn `reportlab` verfügbar ist)
-- Interview-Sheet (HR): JSON, DOCX
-- Interview-Sheet (Fachbereich): JSON, DOCX
-- Boolean Search Pack: JSON, Markdown
-- Arbeitsvertrag (Template Draft): JSON, DOCX
-- ESCO Mapping Report: CSV (UTF-8), JSON
-- Strukturierter Summary-Export enthält `interview_process` mit Kandidat:innen-Stages, ausgewählten Interview-Werten und normalisiertem internem Flow.
-- Strukturierter Summary-Export enthält, sofern vorhanden, additive `intake_facts` und `intake_fact_evidence` mit kanonischen Fact-IDs; bestehende Legacy-Felder wie `job_extract` und `answers` bleiben unverändert.
-- `intake_fact_evidence` enthält nur additive Metadata wie Quelle, Confidence, Confirmed-Status, Sensitivity, redigierte Evidence-Snippets und kanonische Artifact-IDs.
-
-### Strukturierter Export (Summary)
-
-Der strukturierte Summary-Export enthält – sofern vorhanden – folgende ESCO-bezogene Felder:
-
-- `semantic_export_mode`: `degraded` oder `anchored`
-- `esco_anchor_state`: `degraded_unconfirmed`, `anchored` oder `anchored_with_context`
-- `esco_release_lane`, `esco_version`, `esco_data_source_mode`, `esco_data_source`
-- `esco_capability_snapshot`: aufgelöste Runtime-/Capability-Metadaten
-- `esco_primary_anchor` / `esco_secondary_anchors`: Primäranker und reine Kontextanker
-- `esco_occupations`: bestätigte ESCO Occupation(s) mit `uri` und `label`
-- `esco_occupation_provenance`: Explainability/Provenance zur bestätigten Occupation (`reason`, `confidence`, `provenance_categories`)
-- `recommended_titles`: geladene Occupation-Titelvarianten pro Sprache
-- `esco_skills_must` / `esco_skills_nice`: übernommene ESCO-Skills
-- `esco_unmapped_requirement_terms` / `esco_unmapped_role_terms`: offene, nicht normalisierte Begriffe
-- `esco_unmapped_term_actions`: dokumentierte Nutzerentscheidung je offenem Begriff
-- `occupation_context_profile`: deterministisches Berufs-/Kontextprofil fuer die Question-Pack-Auswahl
-- `question_flow_provenance`: deterministische Provenance zum kompilierten Fragenflow
-
-Bei `semantic_export_mode=degraded` werden keine URI-basierten ESCO-Kernexports (`esco_occupations`, `esco_skills_must`, `esco_skills_nice`, Matrix-Coverage) ausgegeben.
-
-Qualifications sind bewusst **post-MVP**. Die ESCO-Qualifications-Domain ist relevant für Lernpfade, Guidance und Talent Mobility, aber nicht Teil des aktuellen Recruitment-Need-Analysis-Kernflows.
-
-
-## ESCO Offline Index Build
-
-Status: **partially implemented** (local index exists, full official dataset ingestion pipeline still missing).
-
-### Current capability (implemented)
-
-The app can build and use a versioned local ESCO index for index-based lookup:
-
-- Build artifacts with `scripts/build_esco_index.py` (implemented in `esco_offline_index.py`).
-- Runtime offline/hybrid wiring via `esco_client.py` using mode/config keys from `constants.py` and session initialization in `state.py`.
-- Contract coverage in `tests/test_esco_offline_contract.py`.
+### ESCO smoke test
 
 ```bash
-python scripts/build_esco_index.py --source-dir /path/to/esco_bulk --version v1.2.0
+python scripts/esco_smoke_test.py --mode all --ci-dry-run-if-unavailable --json-only
 ```
 
-Generated artifacts:
-- `data/esco_index/<version>/esco_index.sqlite`
-- `data/esco_index/<version>/manifest.json`
+## GitHub Actions CI
 
-Runtime pinning/config:
-- `ESCO_DATA_SOURCE_MODE` (`live_api`, `offline_index`, `hybrid`)
-- `ESCO_INDEX_STORAGE_PATH` (default `data/esco_index`)
-- `ESCO_INDEX_VERSION` (defaults to selected ESCO version)
+`.github/workflows/ci.yml` runs on pull requests and pushes to `main`:
 
-In `hybrid` mode, the app queries the live API first and falls back to the offline index when the API is unavailable.
+1. Python 3.11 setup
+2. dependency install with `requirements.txt` and `constraints.txt`
+3. `pip check`
+4. `compileall`
+5. `pytest -q`
+6. OpenAI smoke dry-run without requiring an API key
 
-### Future scope (not yet fully implemented)
+No separate lint/type job is configured in this snapshot.
 
-A full official ESCO dataset ingestion pipeline is still out of scope and would need dedicated import flows for RDF/TTL/XML/JSON-LD plus a richer metadata model than the current lookup-focused local index.
+## Debugging and incident reports
+
+Use:
+
+- `docs/debugging_incident_template.md`
+- `docs/team_runbook_debugging.md`
+
+A useful incident report must include:
+
+- exact repro steps
+- expected vs. actual behavior
+- full traceback including final `ExceptionType: message` line
+- commit/branch/deploy timestamp
+- relevant non-sensitive config source information
+
+Do not include API keys, OAuth tokens, raw prompts, full uploaded documents, PII, or credential-bearing logs.
+
+## Developer notes
+
+- Keep `README.md` and `AGENTS.md` synchronized with runtime behavior when step flow, modes, exports, configuration, or verification commands change.
+- Prefer canonical constants/enums over ad-hoc strings.
+- Update state init, reset logic, UI, exports, and tests together.
+- Preserve degraded behavior for optional external systems such as ESCO, OpenAI, RAG, PDF export, and homepage fetches.
