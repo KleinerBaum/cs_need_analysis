@@ -88,6 +88,9 @@ def test_build_retrieval_filters_with_optional_metadata() -> None:
         collection="skills",
         language="de",
         skill_type="essential",
+        concept_type="skill",
+        version="v1.2.1",
+        lane="preview",
     )
 
     assert filters["type"] == "and"
@@ -96,6 +99,9 @@ def test_build_retrieval_filters_with_optional_metadata() -> None:
         {"type": "eq", "key": "collection", "value": "skills"},
         {"type": "eq", "key": "language", "value": "de"},
         {"type": "eq", "key": "skill_type", "value": "essential"},
+        {"type": "eq", "key": "concept_type", "value": "skill"},
+        {"type": "eq", "key": "version", "value": "v1.2.1"},
+        {"type": "eq", "key": "lane", "value": "preview"},
     ]
 
 
@@ -166,6 +172,95 @@ def test_extract_hits_infers_known_filename_metadata() -> None:
     assert hits[0].skill_type == "essential"
     assert hits[0].concept_uri == "http://data.europa.eu/esco/skill/123"
     assert hits[0].preferred_label == "Python"
+
+
+def test_extract_hits_reads_typed_metadata_from_attributes() -> None:
+    hits = esco_rag._extract_hits(
+        [
+            {
+                "text": "Skill row",
+                "attributes": {
+                    "source_file": "skills_custom.md",
+                    "collection": "skills",
+                    "language": "de",
+                    "skill_type": "essential",
+                    "concept_type": "skill",
+                    "relation_type": "essentialSkill",
+                    "occupation_group": "251",
+                    "isco_code": "2512",
+                    "version": "v1.2.1",
+                    "label_variant": "preferred",
+                    "is_obsolete": "false",
+                    "language_fallback_used": "true",
+                    "lane": "preview",
+                },
+            }
+        ]
+    )
+
+    assert hits[0].source_file == "skills_custom.md"
+    assert hits[0].collection == "skills"
+    assert hits[0].language == "de"
+    assert hits[0].skill_type == "essential"
+    assert hits[0].concept_type == "skill"
+    assert hits[0].relation_type == "essentialSkill"
+    assert hits[0].isco_code == "2512"
+    assert hits[0].version == "v1.2.1"
+    assert hits[0].is_obsolete is False
+    assert hits[0].language_fallback_used is True
+    assert hits[0].lane == "preview"
+
+
+def test_retrieve_esco_context_multi_dedupes_and_ranks(monkeypatch) -> None:
+    def _fake_retrieve(query: str, **_kwargs):
+        if query == "title":
+            return esco_rag.EscoRagResult(
+                hits=(
+                    esco_rag.EscoRagHit(
+                        rank=1,
+                        snippet="A",
+                        source_file="a.md",
+                        collection="skills",
+                        language="de",
+                        skill_type="essential",
+                        score=0.6,
+                    ),
+                ),
+                provenance="openai_vector_store",
+            )
+        return esco_rag.EscoRagResult(
+            hits=(
+                esco_rag.EscoRagHit(
+                    rank=1,
+                    snippet="A",
+                    source_file="a.md",
+                    collection="skills",
+                    language="de",
+                    skill_type="essential",
+                    score=0.6,
+                ),
+                esco_rag.EscoRagHit(
+                    rank=2,
+                    snippet="B",
+                    source_file="b.md",
+                    collection="skills",
+                    language="de",
+                    skill_type="optional",
+                    score=0.9,
+                ),
+            ),
+            provenance="openai_vector_store",
+        )
+
+    monkeypatch.setattr(esco_rag, "retrieve_esco_context", _fake_retrieve)
+
+    result = esco_rag.retrieve_esco_context_multi(
+        ["title", "title + skills"], purpose="skills", max_results=2
+    )
+
+    assert result.provenance == "openai_vector_store_multi"
+    assert [hit.snippet for hit in result.hits] == ["B", "A"]
+    assert [hit.rank for hit in result.hits] == [1, 2]
 
 
 def test_retrieve_esco_context_error_fallback_and_no_sensitive_logging(

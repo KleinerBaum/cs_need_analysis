@@ -15,12 +15,16 @@ class OfflineEscoIndex:
 
     @classmethod
     def load(cls, base_dir: Path, version: str) -> "OfflineEscoIndex | None":
-        index_dir = base_dir / version
-        sqlite_path = index_dir / "esco_index.sqlite"
-        manifest_path = index_dir / "manifest.json"
-        if not sqlite_path.exists() or not manifest_path.exists():
-            return None
-        return cls(version=version, sqlite_path=sqlite_path, manifest_path=manifest_path)
+        for index_dir in (base_dir / "indexed" / version, base_dir / version):
+            sqlite_path = index_dir / "esco_index.sqlite"
+            manifest_path = index_dir / "manifest.json"
+            if sqlite_path.exists() and manifest_path.exists():
+                return cls(
+                    version=version,
+                    sqlite_path=sqlite_path,
+                    manifest_path=manifest_path,
+                )
+        return None
 
     def _query_json(self, query: str, params: tuple[object, ...]) -> list[dict[str, Any]]:
         with sqlite3.connect(self.sqlite_path) as conn:

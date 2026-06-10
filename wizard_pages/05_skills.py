@@ -15,11 +15,12 @@ from esco_client import (
     EscoClientError,
 )
 from esco_matrix import load_esco_matrix
-from esco_rag import extract_skill_suggestions, retrieve_esco_context
+from esco_rag import extract_skill_suggestions, retrieve_esco_context_multi
 from llm_client import (
     generate_requirement_gap_suggestions,
 )
 from components.design_system import render_output_header
+from usage_events import record_enrichment_timed
 from schemas import EscoMappingReport
 from schemas import EscoSkillDetail, JobAdExtract, QuestionStep
 from state import (
@@ -1493,17 +1494,30 @@ def _generate_ai_skill_suggestions(
         for item in suggestion_pack.skills
         if str(item.type) == "skill"
     ]
-    rag_query = " | ".join(
-        [
-            job.job_title,
-            ", ".join(suggestion_context["jobspec_terms"]),
-        ]
-    ).strip(" |")
+    rag_queries = [
+        str(job.job_title or "").strip(),
+        " | ".join(
+            [
+                str(job.job_title or "").strip(),
+                ", ".join(suggestion_context["jobspec_terms"]),
+            ]
+        ).strip(" |"),
+        ", ".join(suggestion_context["esco_titles"]),
+    ]
     rag_payload: list[dict[str, Any]] = []
-    if rag_query:
-        rag_result = retrieve_esco_context(
-            rag_query,
+    if any(query.strip() for query in rag_queries):
+        rag_result = retrieve_esco_context_multi(
+            rag_queries,
             purpose="skills",
+            collection="skills",
+        )
+        record_enrichment_timed(
+            st.session_state,
+            stage="esco_rag",
+            path="skills",
+            duration_ms=rag_result.duration_ms or 0,
+            status=rag_result.reason or "success",
+            result_count=len(rag_result.hits),
         )
         if rag_result.reason is None:
             rag_payload = extract_skill_suggestions(rag_result)

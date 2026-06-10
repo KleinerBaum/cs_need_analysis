@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from contextlib import nullcontext
+from time import perf_counter
 from typing import Any, Final
 
 import streamlit as st
@@ -65,6 +66,7 @@ from ui_components import (
     render_openai_error,
 )
 from usage_utils import usage_has_cache_hit
+from usage_events import record_enrichment_timed
 from wizard_pages.base import (
     WizardContext,
     _get_esco_config,
@@ -903,18 +905,22 @@ def render_jobad_intake(
 
         try:
             with st.spinner("Analysiere Stellenanzeige…"):
+                extract_started_at = perf_counter()
                 job, usage1 = extract_job_ad(
                     submitted,
                     model=resolved_extract_model,
                     store=store,
                 )
+                extract_duration_ms = int((perf_counter() - extract_started_at) * 1000)
 
             with st.spinner("Erzeuge dynamischen Fragebogen…"):
+                plan_started_at = perf_counter()
                 plan, usage2 = generate_question_plan(
                     job,
                     model=resolved_plan_model,
                     store=store,
                 )
+                plan_duration_ms = int((perf_counter() - plan_started_at) * 1000)
 
             st.session_state[SSKey.JOB_EXTRACT.value] = _model_dump_json_compatible(
                 job
@@ -932,6 +938,21 @@ def render_jobad_intake(
 
             extract_cached = usage_has_cache_hit(usage1)
             plan_cached = usage_has_cache_hit(usage2)
+            record_enrichment_timed(
+                st.session_state,
+                stage="extract_job_ad",
+                path="landing_phase_a",
+                duration_ms=extract_duration_ms,
+                cache_hit=extract_cached,
+            )
+            record_enrichment_timed(
+                st.session_state,
+                stage="generate_question_plan",
+                path="landing_phase_a",
+                duration_ms=plan_duration_ms,
+                cache_hit=plan_cached,
+                result_count=len(plan.steps),
+            )
             st.session_state[SSKey.JOBAD_CACHE_HIT.value] = {
                 "extract_job_ad": extract_cached,
                 "generate_question_plan": plan_cached,

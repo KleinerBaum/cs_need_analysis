@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 import esco_client
+from esco_offline_index import read_manifest
 from esco_client import EscoClient
 
 
@@ -81,6 +82,35 @@ def test_offline_mode_contract_shapes(tmp_path: Path) -> None:
     assert first_related.get("label") == "Python"
     assert first_related.get("preferredLabel") == "Python"
     assert first_related.get("conceptType") == "skill"
+
+
+def test_offline_build_writes_versioned_manifest_and_normalized_artifacts(
+    tmp_path: Path,
+) -> None:
+    index_root = _write_minimal_index(tmp_path)
+    manifest_path = index_root / "indexed" / "vtest" / "manifest.json"
+    normalized_dir = index_root / "normalized" / "vtest"
+
+    assert (index_root / "indexed" / "vtest" / "esco_index.sqlite").exists()
+    assert (normalized_dir / "concepts.csv").exists()
+    assert (normalized_dir / "labels.csv").exists()
+    assert (normalized_dir / "relations.csv").exists()
+
+    manifest = read_manifest(manifest_path)
+    assert manifest["schema_version"] == 1
+    assert manifest["layout_version"] == "esco_offline_build_v1"
+    assert manifest["version"] == "vtest"
+    assert manifest["normalized_dir"] == "normalized/vtest"
+    assert manifest["indexed_dir"] == "indexed/vtest"
+    assert manifest["languages"] == ["de"]
+    assert manifest["counts"] == {"concepts": 2, "labels": 2, "relations": 1}
+    assert {item["name"] for item in manifest["source_files"]} == {
+        "occupations_en.csv",
+        "skills_en.csv",
+        "labels_en.csv",
+        "broaderRelationsSkillPillar.csv",
+    }
+    assert all(item["sha256"] for item in manifest["source_files"])
 
 
 def test_offline_mode_skill_detail_does_not_call_live_api(

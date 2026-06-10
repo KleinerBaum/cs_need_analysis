@@ -128,7 +128,7 @@ from ui_components import (
     render_interview_prep_hr,
     render_openai_error,
 )
-from usage_events import record_artifact_generated
+from usage_events import get_usage_events, record_artifact_generated
 from usage_utils import usage_has_cache_hit
 from wizard_pages.base import (
     WizardContext,
@@ -3019,6 +3019,33 @@ def _render_summary_workspace_tabs(
                 width="stretch",
                 hide_index=True,
             )
+        with st.expander("Enrichment Timing", expanded=False):
+            timing_rows = _build_enrichment_timing_rows(st.session_state)
+            if timing_rows:
+                st.dataframe(timing_rows, width="stretch", hide_index=True)
+            else:
+                st.info("Noch keine Timing-Daten für Enrichment-Pfade verfügbar.")
+
+
+def _build_enrichment_timing_rows(session_state: Mapping[str, Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for event in get_usage_events(session_state):
+        if event.get("event_type") != "enrichment_timed":
+            continue
+        metadata = event.get("metadata")
+        if not isinstance(metadata, dict):
+            continue
+        rows.append(
+            {
+                "Stage": str(metadata.get("stage") or ""),
+                "Pfad": str(metadata.get("path") or ""),
+                "Status": str(metadata.get("status") or ""),
+                "Dauer (ms)": int(metadata.get("duration_ms") or 0),
+                "Cache": metadata.get("cache_hit", ""),
+                "Treffer": metadata.get("result_count", ""),
+            }
+        )
+    return sorted(rows, key=lambda row: int(row["Dauer (ms)"]), reverse=True)
 
 
 def _build_action_registry(

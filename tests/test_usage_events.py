@@ -6,6 +6,7 @@ from usage_events import (
     append_usage_event,
     get_usage_events,
     record_artifact_generated,
+    record_enrichment_timed,
     record_fact_confirmed,
     record_fact_corrected,
     record_fact_rejected,
@@ -71,6 +72,14 @@ def test_record_helpers_write_expected_event_types() -> None:
         topic_key="about",
         error_type="HomepageFetchError",
     )
+    record_enrichment_timed(
+        session_state,
+        stage="esco_rag",
+        path="skills",
+        duration_ms=42,
+        cache_hit=False,
+        result_count=3,
+    )
     record_artifact_generated(
         session_state,
         artifact_id="job_ad",
@@ -81,6 +90,7 @@ def test_record_helpers_write_expected_event_types() -> None:
     events = get_usage_events(session_state)
     assert [event["event_type"] for event in events] == [
         "homepage_fetch_failed",
+        "enrichment_timed",
         "artifact_generated",
     ]
     assert events[0]["metadata"] == {
@@ -88,6 +98,14 @@ def test_record_helpers_write_expected_event_types() -> None:
         "error_type": "HomepageFetchError",
     }
     assert events[1]["metadata"] == {
+        "stage": "esco_rag",
+        "path": "skills",
+        "duration_ms": 42,
+        "status": "success",
+        "cache_hit": False,
+        "result_count": 3,
+    }
+    assert events[2]["metadata"] == {
         "artifact_id": "job_ad",
         "cache_hit": True,
         "mode": "from_brief",

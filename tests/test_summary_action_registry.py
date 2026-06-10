@@ -165,6 +165,43 @@ def test_record_artifact_generated_with_fact_usage_marks_evidence() -> None:
     assert evidence["updated_at"] != "old"
 
 
+def test_build_enrichment_timing_rows_sorts_by_duration() -> None:
+    session_state: dict[str, Any] = {
+        SSKey.USAGE_EVENTS.value: [
+            {
+                "event_type": "enrichment_timed",
+                "metadata": {
+                    "stage": "extract_job_ad",
+                    "path": "landing_phase_a",
+                    "status": "success",
+                    "duration_ms": 120,
+                    "cache_hit": False,
+                },
+            },
+            {
+                "event_type": "artifact_generated",
+                "metadata": {"artifact_id": "brief"},
+            },
+            {
+                "event_type": "enrichment_timed",
+                "metadata": {
+                    "stage": "esco_rag",
+                    "path": "skills",
+                    "status": "success",
+                    "duration_ms": 250,
+                    "result_count": 4,
+                },
+            },
+        ]
+    }
+
+    rows = SUMMARY_MODULE._build_enrichment_timing_rows(session_state)
+
+    assert [row["Stage"] for row in rows] == ["esco_rag", "extract_job_ad"]
+    assert rows[0]["Dauer (ms)"] == 250
+    assert rows[0]["Treffer"] == 4
+
+
 def test_render_action_card_returns_false_when_requirements_missing(
     monkeypatch,
 ) -> None:

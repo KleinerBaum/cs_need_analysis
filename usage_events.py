@@ -78,6 +78,36 @@ def record_homepage_fetch_failed(
     )
 
 
+def record_enrichment_timed(
+    session_state: MutableMapping[str, Any],
+    *,
+    stage: str,
+    path: str,
+    duration_ms: int,
+    status: str = "success",
+    cache_hit: bool | None = None,
+    result_count: int | None = None,
+    error_type: str | None = None,
+) -> None:
+    metadata: dict[str, Any] = {
+        "stage": stage,
+        "path": path,
+        "duration_ms": max(0, int(duration_ms)),
+        "status": status,
+    }
+    if cache_hit is not None:
+        metadata["cache_hit"] = cache_hit
+    if result_count is not None:
+        metadata["result_count"] = max(0, int(result_count))
+    if error_type:
+        metadata["error_type"] = error_type
+    append_usage_event(
+        session_state,
+        UsageEventType.ENRICHMENT_TIMED,
+        metadata=metadata,
+    )
+
+
 def record_artifact_generated(
     session_state: MutableMapping[str, Any],
     *,

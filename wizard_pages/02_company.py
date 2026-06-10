@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from time import perf_counter
 from typing import Any
 
 import streamlit as st
@@ -46,7 +47,7 @@ from ui_components import (
     render_standard_step_review,
 )
 from ui_layout import render_step_shell, responsive_three_columns, responsive_two_columns
-from usage_events import record_homepage_fetch_failed
+from usage_events import record_enrichment_timed, record_homepage_fetch_failed
 from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
 
 
@@ -70,10 +71,18 @@ def _run_website_research(
     topic_key: str,
     plan: QuestionPlan,
 ) -> None:
+    started_at = perf_counter()
     normalized_homepage = _normalize_url(homepage_url)
     if not normalized_homepage:
         st.session_state[SSKey.COMPANY_WEBSITE_LAST_ERROR.value] = (
             "Keine valide Homepage-URL gefunden."
+        )
+        record_enrichment_timed(
+            st.session_state,
+            stage="homepage_research",
+            path=topic_key,
+            duration_ms=int((perf_counter() - started_at) * 1000),
+            status="invalid_url",
         )
         record_homepage_fetch_failed(
             st.session_state,
@@ -128,8 +137,23 @@ def _run_website_research(
             _normalize_company_website_research_payload(research)
         )
         st.session_state[SSKey.COMPANY_WEBSITE_LAST_ERROR.value] = None
+        record_enrichment_timed(
+            st.session_state,
+            stage="homepage_research",
+            path=topic_key,
+            duration_ms=int((perf_counter() - started_at) * 1000),
+            result_count=len(summary) + len(facts),
+        )
     except Exception as exc:
         error_type = type(exc).__name__
+        record_enrichment_timed(
+            st.session_state,
+            stage="homepage_research",
+            path=topic_key,
+            duration_ms=int((perf_counter() - started_at) * 1000),
+            status="error",
+            error_type=error_type,
+        )
         record_homepage_fetch_failed(
             st.session_state,
             topic_key=topic_key,

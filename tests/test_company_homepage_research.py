@@ -120,7 +120,12 @@ def test_run_website_research_records_invalid_url_event(monkeypatch) -> None:
     assert fake_st.session_state[SSKey.COMPANY_WEBSITE_LAST_ERROR.value] == (
         "Keine valide Homepage-URL gefunden."
     )
-    assert get_usage_events(fake_st.session_state)[0]["metadata"] == {
+    events = get_usage_events(fake_st.session_state)
+    assert events[0]["event_type"] == "enrichment_timed"
+    assert events[0]["metadata"]["stage"] == "homepage_research"
+    assert events[0]["metadata"]["path"] == WEBSITE_TOPIC_ABOUT
+    assert events[0]["metadata"]["status"] == "invalid_url"
+    assert events[1]["metadata"] == {
         "topic_key": WEBSITE_TOPIC_ABOUT,
         "error_type": "invalid_url",
     }

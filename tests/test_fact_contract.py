@@ -161,6 +161,7 @@ def test_usage_event_type_contract_values() -> None:
         "fact_rejected",
         "fallback_model_used",
         "homepage_fetch_failed",
+        "enrichment_timed",
         "artifact_generated",
     ]
 

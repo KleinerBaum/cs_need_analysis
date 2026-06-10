@@ -547,6 +547,7 @@ class UsageEventType(str, Enum):
     FACT_REJECTED = "fact_rejected"
     FALLBACK_MODEL_USED = "fallback_model_used"
     HOMEPAGE_FETCH_FAILED = "homepage_fetch_failed"
+    ENRICHMENT_TIMED = "enrichment_timed"
     ARTIFACT_GENERATED = "artifact_generated"
 
 

@@ -8,10 +8,11 @@ import streamlit as st
 
 from constants import SSKey
 from esco_client import EscoClient, EscoClientError
-from esco_rag import retrieve_esco_context
+from esco_rag import retrieve_esco_context_multi
 from llm_client import generate_requirement_gap_suggestions
 from schemas import JobAdExtract
 from components.design_system import render_output_header
+from usage_events import record_enrichment_timed
 from state import (
     get_active_model,
     get_answers,
@@ -187,10 +188,21 @@ def _build_task_rag_context(job: JobAdExtract) -> list[dict[str, str]]:
     query_parts = _dedupe_task_terms(
         [part for part in [job_title, *job.responsibilities[:3], *job.deliverables[:3]] if has_meaningful_value(part)]
     )
-    query = " | ".join(part for part in query_parts if has_meaningful_value(part))
-    if not query:
+    queries = [
+        str(job_title or "").strip(),
+        " | ".join(part for part in query_parts if has_meaningful_value(part)),
+    ]
+    if not any(query.strip() for query in queries):
         return []
-    rag_result = retrieve_esco_context(query, purpose="tasks", max_results=4)
+    rag_result = retrieve_esco_context_multi(queries, purpose="tasks", max_results=4)
+    record_enrichment_timed(
+        st.session_state,
+        stage="esco_rag",
+        path="role_tasks",
+        duration_ms=rag_result.duration_ms or 0,
+        status=rag_result.reason or "success",
+        result_count=len(rag_result.hits),
+    )
     if rag_result.reason is not None or not rag_result.hits:
         return []
     context: list[dict[str, str]] = []
@@ -204,7 +216,8 @@ def _build_task_rag_context(job: JobAdExtract) -> list[dict[str, str]]:
                 "source_hint": "esco_rag",
                 "source_title": str(hit.source_title or "").strip(),
                 "source_file": str(hit.source_file or "").strip(),
-                "concept_uri": str(getattr(hit, "uri", "") or "").strip(),
+                "concept_uri": str(hit.concept_uri or "").strip(),
+                "score": "" if hit.score is None else f"{hit.score:.3f}",
             }
         )
     return context

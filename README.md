@@ -210,9 +210,14 @@ python scripts/build_esco_index.py --source-dir /path/to/esco_bulk --version v1.
 Generated artifacts:
 
 ```text
-data/esco_index/<version>/esco_index.sqlite
-data/esco_index/<version>/manifest.json
+data/esco_index/normalized/<version>/concepts.csv
+data/esco_index/normalized/<version>/labels.csv
+data/esco_index/normalized/<version>/relations.csv
+data/esco_index/indexed/<version>/esco_index.sqlite
+data/esco_index/indexed/<version>/manifest.json
 ```
+
+The manifest records source files, hashes, languages, counts, build time, and the normalized/indexed layout. Runtime loading prefers the `indexed/<version>` layout and still accepts the legacy `<version>/esco_index.sqlite` path.
 
 Runtime modes:
 
@@ -220,7 +225,7 @@ Runtime modes:
 - `offline_index` — query local index only.
 - `hybrid` — query live API first and fall back to local index if unavailable.
 
-The current offline path is lookup-focused. A full official RDF/TTL/XML/JSON-LD ingestion pipeline is not implemented.
+The current offline path is lookup-focused and accepts official-CSV-compatible inputs. Full RDF/TTL/XML/JSON-LD ingestion remains future scope.
 
 ### ESCO matrix priors
 
