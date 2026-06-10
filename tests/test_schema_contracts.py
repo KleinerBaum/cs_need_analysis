@@ -2,6 +2,8 @@ from schemas import (
     BooleanSearchPack,
     CompanyWebsiteResearch,
     EmploymentContractDraft,
+    JobAdExtract,
+    JobAdFieldEvidence,
     InterviewPrepSheetHR,
     InterviewPrepSheetHiringManager,
     OccupationContextProfile,
@@ -22,6 +24,29 @@ def test_question_default_schema_is_typed_for_openai_structured_outputs() -> Non
         "every anyOf branch must include a concrete type for OpenAI Structured Outputs"
     )
     assert "fact_key" in schema["$defs"]["Question"]["properties"]
+    assert "follow_up_prompts" in schema["$defs"]["Question"]["properties"]
+
+
+def test_job_ad_extract_field_evidence_is_optional_and_strict() -> None:
+    legacy_extract = JobAdExtract.model_validate({"job_title": "Data Engineer"})
+    enriched_extract = JobAdExtract.model_validate(
+        {
+            "job_title": "Data Engineer",
+            "field_evidence": [
+                {
+                    "field_name": "job_title",
+                    "confidence": 0.8,
+                    "evidence_snippet": "Data Engineer gesucht",
+                    "needs_confirmation": False,
+                }
+            ],
+        }
+    )
+    evidence_schema = JobAdFieldEvidence.model_json_schema()
+
+    assert legacy_extract.field_evidence == []
+    assert enriched_extract.field_evidence[0].field_name == "job_title"
+    assert evidence_schema.get("additionalProperties") is False
 
 
 def test_vacancy_brief_llm_schema_is_strict_for_structured_outputs() -> None:

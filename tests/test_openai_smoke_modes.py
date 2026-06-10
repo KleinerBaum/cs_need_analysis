@@ -213,6 +213,8 @@ def test_extract_messages_prioritize_job_title_and_no_hallucinated_requirements(
     assert "Setze job_title auf die kandidatensichtbare Rollenbezeichnung" in combined
     assert "Priorität 1: finde den Jobtitel" in combined
     assert "Erfinde keine Skills, Zertifikate, Success Metrics" in combined
+    assert "Fülle field_evidence[]" in combined
+    assert "Speichere keine personenbezogenen Kontaktdaten als evidence_snippet" in combined
 
 
 def test_extract_messages_map_offer_sections_to_benefits() -> None:

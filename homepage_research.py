@@ -6,11 +6,14 @@ import html
 import ipaddress
 import logging
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Any
 from urllib.parse import urljoin, urlparse, urlunparse
 from urllib.request import Request, urlopen
 
 from constants import (
+    WEBSITE_SECTION_SUMMARY,
     WEBSITE_TOPIC_ABOUT,
     WEBSITE_TOPIC_IMPRINT,
     WEBSITE_TOPIC_VISION_MISSION,
@@ -30,6 +33,11 @@ PAGE_KEYWORDS: dict[str, tuple[str, ...]] = {
     WEBSITE_TOPIC_ABOUT: ("über uns", "ueber uns", "about", "unternehmen", "company"),
     WEBSITE_TOPIC_IMPRINT: ("impressum", "imprint", "legal", "rechtliche", "kontakt"),
     WEBSITE_TOPIC_VISION_MISSION: ("vision", "mission", "leitbild", "werte", "purpose"),
+}
+WEBSITE_TOPIC_LABELS: dict[str, str] = {
+    WEBSITE_TOPIC_ABOUT: "Über uns",
+    WEBSITE_TOPIC_IMPRINT: "Impressum",
+    WEBSITE_TOPIC_VISION_MISSION: "Vision und Mission",
 }
 NOISE_PATTERNS: tuple[str, ...] = (
     "window.adobedatalayer",
@@ -349,6 +357,87 @@ def derive_topic_facts(topic_key: str, text: str, raw_html: str) -> list[str]:
             matched_value = next((group for group in match.groups() if group), "")
             facts.append(f"{label}: {matched_value.strip()}")
     return facts[:4]
+
+
+def derive_insights_from_open_questions(
+    open_questions: list[dict[str, str]], research_sections: dict[str, dict[str, Any]]
+) -> list[dict[str, str]]:
+    section_corpus: dict[str, str] = {}
+    for topic_key, section in research_sections.items():
+        if not isinstance(section, dict):
+            continue
+        summary = section.get(WEBSITE_SECTION_SUMMARY, [])
+        if not isinstance(summary, list):
+            continue
+        section_corpus[topic_key] = " ".join(str(line) for line in summary).casefold()
+    corpus = " ".join(section_corpus.values())
+    insights: list[dict[str, str]] = []
+    for question in open_questions:
+        tokens = [
+            token
+            for token in re.findall(r"[a-zäöüß]{4,}", question["label"].casefold())
+        ]
+        if not tokens:
+            continue
+        matched_tokens = [token for token in tokens if token in corpus]
+        if not matched_tokens:
+            continue
+        source_topic = ""
+        for topic_key in (
+            WEBSITE_TOPIC_ABOUT,
+            WEBSITE_TOPIC_IMPRINT,
+            WEBSITE_TOPIC_VISION_MISSION,
+        ):
+            topic_text = section_corpus.get(topic_key, "")
+            if any(token in topic_text for token in matched_tokens):
+                source_topic = topic_key
+                break
+        insights.append(
+            {
+                "question_id": question["id"],
+                "step": question["step"],
+                "question_label": question["label"],
+                "source_topic": source_topic,
+                "match_tokens": ", ".join(matched_tokens[:4]),
+            }
+        )
+    return insights[:8]
+
+
+def build_open_question_match_options(
+    matches: list[dict[str, str]],
+    *,
+    topic_labels: Mapping[str, str] | None = None,
+) -> list[dict[str, str]]:
+    options: list[dict[str, str]] = []
+    seen_labels: dict[str, int] = {}
+    labels = topic_labels or WEBSITE_TOPIC_LABELS
+    for match in matches:
+        question_id = str(match.get("question_id") or "").strip()
+        question_label = str(match.get("question_label") or "").strip()
+        if not question_id or not question_label:
+            continue
+        source_topic = str(match.get("source_topic") or "").strip()
+        source_label = labels.get(source_topic, "Website")
+        base_label = f"{question_label} · Quelle: {source_label}"
+        label_count = seen_labels.get(base_label, 0) + 1
+        seen_labels[base_label] = label_count
+        display_label = (
+            base_label if label_count == 1 else f"{base_label} ({label_count})"
+        )
+        option_id = f"{question_id}::{source_topic or 'website'}::{label_count}"
+        options.append(
+            {
+                "option_id": option_id,
+                "question_id": question_id,
+                "question_label": question_label,
+                "source_topic": source_topic,
+                "source_label": source_label,
+                "display_label": display_label,
+                "match_tokens": str(match.get("match_tokens") or "").strip(),
+            }
+        )
+    return options
 
 
 def _response_content_type(response: object) -> str:

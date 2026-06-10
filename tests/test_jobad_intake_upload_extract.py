@@ -352,6 +352,67 @@ def test_render_jobad_intake_uses_manual_text_when_upload_empty(monkeypatch) -> 
     assert captured["submitted"] == manual_text
 
 
+def test_render_jobad_intake_redacts_by_default_when_privacy_key_missing(
+    monkeypatch,
+) -> None:
+    manual_text = "Kontakt: max@example.com"
+    redacted_text = "Kontakt: [redacted]"
+    fake_st = _FakeStreamlitRender(
+        {
+            SSKey.SOURCE_TEXT.value: manual_text,
+            jobad_intake.SOURCE_UPLOAD_TEXT_KEY: "",
+            jobad_intake.SOURCE_TEXT_INPUT_KEY: manual_text,
+            SSKey.STORE_API_OUTPUT.value: False,
+            "cs.source_upload_file": object(),
+        }
+    )
+    captured: dict[str, object] = {}
+    redaction_calls: list[str] = []
+
+    monkeypatch.setattr(jobad_intake, "st", fake_st)
+    monkeypatch.setattr(
+        jobad_intake, "_render_phase_a_source_and_privacy_controls", lambda: True
+    )
+    monkeypatch.setattr(
+        jobad_intake, "_render_phase_b_extraction_review", lambda _ctx: None
+    )
+    monkeypatch.setattr(jobad_intake, "_render_phase_c_esco_anchor", lambda _ctx: None)
+    monkeypatch.setattr(jobad_intake, "render_error_banner", lambda: None)
+    monkeypatch.setattr(jobad_intake, "clear_error", lambda: None)
+    monkeypatch.setattr(jobad_intake, "load_openai_settings", lambda: object())
+    monkeypatch.setattr(jobad_intake, "get_model_override", lambda: None)
+    monkeypatch.setattr(
+        jobad_intake,
+        "resolve_model_for_task",
+        lambda **_kwargs: "gpt-test",
+    )
+    monkeypatch.setattr(jobad_intake, "usage_has_cache_hit", lambda _usage: False)
+
+    def _fake_redact_pii(text: str) -> str:
+        redaction_calls.append(text)
+        return redacted_text
+
+    def _fake_extract_job_ad(
+        text: str, **_kwargs: Any
+    ) -> tuple[_DummyModel, dict[str, bool]]:
+        captured["submitted"] = text
+        return _DummyModel(), {"cached": False}
+
+    monkeypatch.setattr(jobad_intake, "redact_pii", _fake_redact_pii)
+    monkeypatch.setattr(jobad_intake, "extract_job_ad", _fake_extract_job_ad)
+    monkeypatch.setattr(
+        jobad_intake,
+        "generate_question_plan",
+        lambda _job, **_kwargs: (_DummyModel(), {"cached": False}),
+    )
+
+    ctx = type("Ctx", (), {})()
+    jobad_intake.render_jobad_intake(ctx)
+
+    assert redaction_calls == [manual_text]
+    assert captured["submitted"] == redacted_text
+
+
 def test_promote_reviewed_job_extract_fills_confirmed_state_without_overwriting_touched(
     monkeypatch,
 ) -> None:

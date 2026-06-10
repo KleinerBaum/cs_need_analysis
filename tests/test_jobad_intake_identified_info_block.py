@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from typing import cast
 
 from constants import SSKey
-from schemas import JobAdExtract
+from schemas import JobAdExtract, JobAdFieldEvidence
 import ui_components
 import wizard_pages.jobad_intake as jobad_intake
 
@@ -247,6 +247,37 @@ def test_job_extract_overview_maps_gap_labels_to_german(monkeypatch) -> None:
     assert all("Feld" not in row for row in table_rows)
 
 
+def test_job_extract_overview_shows_redacted_field_evidence(monkeypatch) -> None:
+    fake_st = _FakeStreamlit(session_state={})
+    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(
+        ui_components, "_render_editable_job_extract", lambda *_args, **_kwargs: None
+    )
+
+    extract = JobAdExtract(
+        job_title="Data Engineer",
+        field_evidence=[
+            JobAdFieldEvidence(
+                field_name="job_title",
+                confidence=0.82,
+                evidence_snippet=(
+                    "Kontakt recruiting@example.com sucht Data Engineer."
+                ),
+                needs_confirmation=True,
+            )
+        ],
+    )
+
+    ui_components.render_job_extract_overview(extract, mode="compact")
+
+    table_rows, _dataframe_kwargs = fake_st.dataframes[0]
+    role_row = next(row for row in table_rows if row["Attribut"] == "Rolle")
+    assert role_row["Confidence"] == "82% · prüfen"
+    assert "recruiting@example.com" not in role_row["Evidence"]
+    assert "[REDACTED]" in role_row["Evidence"]
+    assert "Data Engineer" in role_row["Evidence"]
+
+
 def test_editable_job_extract_renders_empty_job_title_for_review(
     monkeypatch,
 ) -> None:
@@ -264,3 +295,28 @@ def test_editable_job_extract_renders_empty_job_title_for_review(
         "label": "Jobtitel",
         "value": "",
     } in core_rows
+
+
+def test_editable_job_extract_includes_field_evidence_columns(monkeypatch) -> None:
+    fake_st = _FakeStreamlit(session_state={})
+    monkeypatch.setattr(ui_components, "st", fake_st)
+
+    ui_components._render_editable_job_extract(
+        JobAdExtract(
+            job_title="Data Engineer",
+            field_evidence=[
+                JobAdFieldEvidence(
+                    field_name="job_title",
+                    confidence=0.82,
+                    evidence_snippet="Senior Data Engineer im Plattform-Team gesucht.",
+                    needs_confirmation=True,
+                )
+            ],
+        ),
+        show_notes=False,
+    )
+
+    core_rows = fake_st.editor_rows_by_key["cs.job_extract.core"]
+    role_row = next(row for row in core_rows if row["field"] == "job_title")
+    assert role_row["confidence"] == "82% · prüfen"
+    assert role_row["evidence"] == "Senior Data Engineer im Plattform-Team gesucht."

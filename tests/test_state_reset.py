@@ -37,6 +37,7 @@ RESET_EXPECTATIONS: dict[SSKey, object] = {
     },
     SSKey.OPEN_GROUPS: {},
     SSKey.BRIEF: None,
+    SSKey.OPENAI_LAST_STRUCTURED_OUTPUT_PATH: None,
     SSKey.USAGE_EVENTS: [],
     SSKey.JOBAD_CACHE_HIT: {},
     SSKey.SUMMARY_CACHE_HIT: False,
@@ -124,6 +125,7 @@ RESET_EXPECTATIONS: dict[SSKey, object] = {
         "rows": 0,
     },
     SSKey.COMPANY_WEBSITE_RESEARCH: {},
+    SSKey.COMPANY_WEBSITE_SELECTED_MATCHES: [],
     SSKey.COMPANY_WEBSITE_LAST_ERROR: None,
     SSKey.COMPANY_WEBSITE_MANUAL_URL: "",
     SSKey.ROLE_TASKS_JOBSPEC_SUGGESTED: [],
@@ -195,6 +197,12 @@ def test_reset_vacancy_clears_progressive_disclosure_state(
         SSKey.UI_MODE.value: "expert",
         SSKey.OPEN_GROUPS.value: {"company": {"Details": True}},
         SSKey.BRIEF.value: {"one_liner": "x"},
+        SSKey.OPENAI_LAST_STRUCTURED_OUTPUT_PATH.value: {
+            "endpoint": "responses.parse",
+            "requested_model": "gpt-5",
+            "final_model": "gpt-5",
+            "used_reduced_request": False,
+        },
         SSKey.USAGE_EVENTS.value: [{"event_type": "artifact_generated"}],
         SSKey.JOBAD_CACHE_HIT.value: {"hit": True},
         SSKey.SUMMARY_CACHE_HIT.value: True,
@@ -203,6 +211,9 @@ def test_reset_vacancy_clears_progressive_disclosure_state(
         SSKey.SUMMARY_SELECTIONS.value: {"a": 1},
         SSKey.JOB_AD_DRAFT_CUSTOM.value: "draft",
         SSKey.JOB_AD_LAST_USAGE.value: {"tokens": 12},
+        SSKey.COMPANY_WEBSITE_SELECTED_MATCHES.value: [
+            {"option_id": "company_q::about::1"}
+        ],
         SSKey.ESCO_SELECTED_OCCUPATION_URI.value: "http://data.europa.eu/esco/occupation/123",
         SSKey.INTERVIEW_INTERNAL_FLOW.value: {
             "contacts": [{"role": "Money", "name": "M. Example"}],

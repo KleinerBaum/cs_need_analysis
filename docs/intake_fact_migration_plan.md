@@ -12,7 +12,9 @@ The migration goal is to make intake facts addressable, traceable, and reusable 
 - Session defaults and reset behavior live in `state.py`.
 - Wizard pages collect answers through Streamlit session state and page-local helpers.
 - `intake_facts.py` exposes legacy-compatible read/write adapters. `SSKey.INTAKE_FACTS` keeps plain values, while `SSKey.INTAKE_FACT_EVIDENCE` stores additive metadata (`source_type`, `source_label`, `confidence`, `confirmed`, `sensitivity`, redacted optional `evidence_snippet`, `used_by_artifacts`, `updated_at`).
+- `JobAdExtract.field_evidence` can carry optional field-level extraction confidence and source snippets; jobspec fact write-through uses that metadata when it is present, and Phase B review surfaces available field evidence read-only.
 - Manual writes default to confidence `1.0`; jobspec extraction write-through defaults to confidence `0.75`.
+- Summary artifact generation appends the generated artifact ID to existing evidence rows via `used_by_artifacts`, without creating new fact values.
 - Adaptive question coverage can use `SSKey.INTAKE_FACT_EVIDENCE` plus the UI confidence threshold; facts without evidence keep legacy coverage behavior.
 - `Question.fact_key` is an optional canonical pointer used for fact-backed coverage and prefill resolution. Existing QuestionPlans without `fact_key` remain valid.
 - Summary facts are currently assembled in `wizard_pages/08_summary.py` from available state, generated artifacts, and derived values.
@@ -72,7 +74,7 @@ Move downstream consumers to read canonical facts through adapters.
 
 Add evidence tracking and remove only proven-dead legacy paths.
 
-- Extend Evidence Store usage beyond current write-through metadata where source-safe evidence is available.
+- Extend Evidence Store usage beyond current write-through metadata where source-safe evidence is available. Jobspec field-level evidence is now wired into supported fact write-through.
 - Link evidence to canonical facts without storing secrets, credentials, or personal data in logs; snippets are redacted before storage, sensitivity is canonicalized, and artifact usage uses canonical Summary artifact IDs.
 - Remove legacy-only duplicate reads after tests prove canonical paths cover them.
 - Add regression tests for evidence linkage, privacy-safe redaction, and reset behavior.
@@ -92,14 +94,14 @@ Ruff findings that predate a PR should be reported but not fixed unless the PR s
 ## Open Decisions
 
 - How far to expand write-through coverage beyond the current supported fact fields.
-- Whether evidence snippets should be populated for all imported facts or only source-safe AI-derived/imported facts.
+- Whether evidence snippets should be populated for all imported facts or only source-safe AI-derived/imported facts beyond jobspec field evidence.
 - How much historical legacy state should remain as compatibility surface after PR 5.
 
 ## Non-Goals For This Plan
 
 - No replacement of existing legacy session-state values with fact envelopes.
 - No migration of all Summary/export/prompt consumers until PR 4 scope is explicitly picked up.
-- No field-level LLM evidence schema changes until a dedicated prompt/schema PR.
+- No required field-level LLM evidence fields; `JobAdExtract.field_evidence` remains optional and additive.
 - No ESCO, Salary, Summary Readiness, design-system, or wizard-page behavior changes.
 - No lint auto-fixes.
 
@@ -129,6 +131,7 @@ A canonical fact should have at least:
 Implemented:
 
 - `fact_key: str | None`
+- `follow_up_prompts: list[str]`
 
 Future schema extensions may add:
 

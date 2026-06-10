@@ -344,6 +344,10 @@ def build_extract_job_ad_messages(
         "Wenn du Annahmen triffst: dokumentiere sie in 'assumptions'. "
         "Erfinde keine Skills, Zertifikate, Success Metrics, Tools oder Prozessschritte; "
         "übernimm sie nur, wenn sie im Text genannt oder eindeutig formuliert sind. "
+        "Fülle field_evidence[] für zentrale befüllte Felder mit field_name, confidence 0.0..1.0, "
+        "kurzem evidence_snippet aus dem Originaltext und needs_confirmation=true bei indirekten, "
+        "mehrdeutigen oder konfliktären Ableitungen. "
+        "Speichere keine personenbezogenen Kontaktdaten als evidence_snippet; setze dort null, wenn kein datenschutzsicherer kurzer Beleg möglich ist. "
         f"Antworte in der Sprache: {language}."
         f"{guardrails}"
     )
@@ -358,7 +362,9 @@ def build_extract_job_ad_messages(
         "Dazu gehören unter anderem Trainings, Mentoring, persönliche Entwicklung, "
         "Tools und GenAI-/Tech-Zugang, flexible Arbeitsmodelle, Corporate Benefits, "
         "Vielfalt/Arbeitsumfeld sowie Gestaltungsspielraum oder Thought Leadership. "
-        "Behalte Formulierungen aus dem Original, wo sinnvoll.\n\n"
+        "Behalte Formulierungen aus dem Original, wo sinnvoll. "
+        "Priorisiere field_evidence für job_title, company_name, company_website, location_city, remote_policy, "
+        "employment_type, contract_type, must_have_skills, nice_to_have_skills, salary_range, benefits und recruitment_steps.\n\n"
         "=== JOBSPEC START ===\n"
         f"{job_text}\n"
         "=== JOBSPEC END ==="
@@ -1238,6 +1244,8 @@ def generate_question_plan(
         "lasse fact_key sonst null. "
         "Nutze depends_on nur bei echten Follow-up-Fragen; vermeide verschachtelte oder übermäßige Abhängigkeiten. "
         "Für depends_on nutze nur einfache Regeln mit question_id plus equals ODER any_of ODER is_answered. "
+        "Nutze follow_up_prompts sparsam (maximal 3 kurze Prompts) für Fragen, bei denen vage Antworten typischerweise Nachhaken brauchen; "
+        "sonst lasse follow_up_prompts leer. "
         "Bevorzuge konkrete, messbare Antworten (z. B. 'Erfolgskriterien', 'Top-Deliverables', 'Must-have vs Nice-to-have').\n\n"
         "Wenn answer_type='number' genutzt wird, setze immer explizit min_value und max_value "
         "(optional step_value), passend zur Frage. Nutze keine Freitext-Frage für numerische Werte.\n\n"
@@ -1315,6 +1323,7 @@ def normalize_question_plan(plan: QuestionPlan) -> QuestionPlan:
             _normalize_question_group_key(q, step_key=step.step_key)
             _normalize_question_fact_key(q)
             _normalize_question_dependencies(q, step=step)
+            _normalize_question_follow_up_prompts(q)
     return plan
 
 
@@ -1418,6 +1427,30 @@ def _normalize_question_dependencies(q: Any, *, step: Any) -> None:
         sanitized.append(QuestionDependency.model_validate(dep_payload))
 
     q.depends_on = sanitized or None
+
+
+def _normalize_question_follow_up_prompts(q: Any) -> None:
+    raw_prompts = getattr(q, "follow_up_prompts", None)
+    if not isinstance(raw_prompts, list):
+        q.follow_up_prompts = []
+        return
+
+    normalized_prompts: list[str] = []
+    seen: set[str] = set()
+    for raw_prompt in raw_prompts:
+        if not isinstance(raw_prompt, str):
+            continue
+        prompt = " ".join(raw_prompt.strip().split())
+        if not prompt:
+            continue
+        dedupe_key = prompt.casefold()
+        if dedupe_key in seen:
+            continue
+        normalized_prompts.append(prompt)
+        seen.add(dedupe_key)
+        if len(normalized_prompts) >= 3:
+            break
+    q.follow_up_prompts = normalized_prompts
 
 
 def _normalize_category_question(q: Any) -> None:

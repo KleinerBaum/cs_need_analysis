@@ -711,7 +711,7 @@ def render_jobad_intake(
             set_error("Bitte zuerst ein Jobspec hochladen oder Text einfügen.")
             st.rerun()
 
-        redact = bool(st.session_state.get(SSKey.SOURCE_REDACT_PII.value, False))        
+        redact = bool(st.session_state.get(SSKey.SOURCE_REDACT_PII.value, True))
         submitted = redact_pii(raw) if redact else raw
         session_override = get_model_override()
         store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
@@ -764,7 +764,7 @@ def render_jobad_intake(
             }
             st.success("Fertig: Jobspec extrahiert und Fragebogen erzeugt.")
             if extract_cached or plan_cached:
-                st.info("Mindestens ein Ergebnis wurde aus dem Cache geladen.")        
+                st.info("Mindestens ein Ergebnis wurde aus dem Cache geladen.")
         except OpenAICallError as e:
             render_openai_error(e)
         except Exception as exc:

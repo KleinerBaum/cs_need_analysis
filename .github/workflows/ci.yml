@@ -30,7 +30,7 @@ jobs:
         run: pip check
 
       - name: Compile Python sources
-        run: python -m compileall app.py homepage_research.py usage_events.py components config pages salary scripts tests wizard_pages
+        run: python -m compileall app.py homepage_research.py job_extract_evidence.py job_extract_review_helpers.py summary_artifacts.py summary_esco.py summary_exports.py summary_facts.py summary_job_ad.py usage_events.py components config pages salary scripts tests wizard_pages
 
       - name: Run tests
         run: python -m pytest -q

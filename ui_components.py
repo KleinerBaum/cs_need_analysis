@@ -24,7 +24,29 @@ from constants import (
 )
 from esco_client import EscoClient, EscoClientError
 from esco_semantics import sync_esco_semantic_state
+from job_extract_evidence import (
+    add_field_evidence_columns,
+    field_evidence_caption_text,
+    format_field_evidence_confidence,
+    format_field_evidence_snippet,
+    job_extract_field_evidence_by_name,
+)
+from job_extract_review_helpers import (
+    JOB_EXTRACT_DISPLAY_LABELS,
+    JOB_EXTRACT_REVIEW_EMPTY_FIELDS,
+    JOB_EXTRACT_TAB_FIELDS,
+    classify_extract_note_tab as _classify_extract_note_tab,
+    format_recruitment_steps_value as _format_recruitment_steps_value,
+    format_salary_range_value as _format_salary_range_value,
+    group_extract_notes_by_tab as _group_extract_notes_by_tab,
+    has_meaningful_value,
+    normalize_display_text as _normalize_display_text,
+    normalize_optional_string as _normalize_optional_string,
+    parse_optional_int as _parse_optional_int,
+    sanitize_display_value as _sanitize_display_value,
+)
 from llm_client import OpenAICallError
+from question_limits import select_questions_for_adaptive_limit
 from question_dependencies import should_show_question
 from question_progress import (
     build_answers_with_job_extract_coverage,
@@ -108,147 +130,6 @@ def _render_html_block(html: str) -> None:
     st.markdown(html, unsafe_allow_html=True)
 
 
-JOB_EXTRACT_DISPLAY_LABELS: dict[str, str] = {
-    "job_title": "Jobtitel",
-    "company_name": "Unternehmen",
-    "brand_name": "Marke",
-    "company_website": "Unternehmenswebsite",
-    "language_guess": "Erkannte Sprache",
-    "employment_type": "Beschäftigungsart",
-    "contract_type": "Vertragsart",
-    "seniority_level": "Senioritätslevel",
-    "start_date": "Startdatum",
-    "application_deadline": "Bewerbungsfrist",
-    "job_ref_number": "Referenznummer",
-    "department_name": "Abteilung",
-    "reports_to": "Berichtet an",
-    "location_city": "Ort",
-    "location_country": "Land",
-    "place_of_work": "Arbeitsort",
-    "remote_policy": "Remote-Regelung",
-    "travel_required": "Reisebereitschaft",
-    "on_call": "Rufbereitschaft",
-    "direct_reports_count": "Anzahl direkter Reports",
-    "role_overview": "Rollenüberblick",
-    "onboarding_notes": "Onboarding-Hinweise",
-    "responsibilities": "Aufgaben",
-    "deliverables": "Lieferergebnisse",
-    "success_metrics": "Erfolgskriterien",
-    "must_have_skills": "Muss-Skills",
-    "nice_to_have_skills": "Kann-Skills",
-    "soft_skills": "Soft Skills",
-    "education": "Ausbildung",
-    "education_requirements": "Ausbildung",
-    "certifications": "Zertifikate / Qualifikationen",
-    "languages": "Sprachen",
-    "tech_stack": "Technische Anforderungen",
-    "domain_expertise": "Branchenerfahrung",
-    "salary_range": "Gehaltsrahmen",
-    "benefits": "Benefits",
-    "recruitment_steps": "Recruiting-Prozess",
-    "contacts": "Kontakte",
-    "steps": "Prozessschritte",
-    "QuestionPlan": "Fragenplan",
-}
-
-JOB_EXTRACT_TAB_FIELDS: dict[str, tuple[str, ...]] = {
-    "Basis": (
-        "job_title",
-        "company_name",
-        "brand_name",
-        "company_website",
-        "language_guess",
-        "employment_type",
-        "contract_type",
-        "seniority_level",
-        "start_date",
-        "application_deadline",
-        "job_ref_number",
-        "department_name",
-        "reports_to",
-    ),
-    "Standort": (
-        "location_city",
-        "location_country",
-        "place_of_work",
-        "remote_policy",
-        "travel_required",
-        "on_call",
-        "direct_reports_count",
-    ),
-    "Rolle": ("role_overview", "onboarding_notes"),
-    "Skills & Benefits": (
-        "responsibilities",
-        "deliverables",
-        "success_metrics",
-        "must_have_skills",
-        "nice_to_have_skills",
-        "soft_skills",
-        "education",
-        "certifications",
-        "languages",
-        "tech_stack",
-        "domain_expertise",
-        "salary_range",
-        "benefits",
-    ),
-    "Prozess": ("recruitment_steps", "contacts"),
-}
-
-JOB_EXTRACT_REVIEW_EMPTY_FIELDS: frozenset[str] = frozenset(
-    {
-        "job_title",
-        "company_name",
-        "location_city",
-        "location_country",
-        "place_of_work",
-        "remote_policy",
-        "employment_type",
-        "contract_type",
-        "seniority_level",
-        "role_overview",
-    }
-)
-
-JOB_EXTRACT_TAB_NOTE_KEYWORDS: dict[str, tuple[str, ...]] = {
-    "Basis": (
-        "job_title",
-        "company",
-        "brand",
-        "contract",
-        "employment",
-        "language",
-        "deadline",
-        "reference",
-        "department",
-        "reports_to",
-    ),
-    "Standort": ("location", "place_of_work", "remote", "travel", "on call", "on_call"),
-    "Rolle": ("role", "overview", "responsibility", "deliverable", "success"),
-    "Skills & Benefits": (
-        "skill",
-        "education",
-        "certificate",
-        "language",
-        "tech",
-        "domain",
-        "salary",
-        "benefit",
-    ),
-    "Prozess": (
-        "process",
-        "recruit",
-        "contact",
-        "step",
-        "interview",
-        "start",
-        "questionplan",
-        "question_plan",
-        "question plan",
-    ),
-}
-
-
 class StepReviewPayload(TypedDict):
     visible_questions: list[Question]
     answers: dict[str, Any]
@@ -268,6 +149,9 @@ class ReviewRenderMode(str, Enum):
 class ReviewRenderContext(str, Enum):
     STEP_FORM = "step_form"
     SUMMARY_READINESS = "summary_readiness"
+
+
+QuestionInputResult = tuple[str, Any, Any]
 
 
 def resolve_standard_review_mode(
@@ -1392,107 +1276,6 @@ def render_openai_error(error: OpenAICallError) -> None:
         st.session_state[SSKey.LAST_ERROR_DEBUG.value] = " | ".join(details)
 
 
-def _normalize_display_text(value: object) -> str:
-    text = str(value or "").strip()
-    return text if text else "—"
-
-
-def _format_salary_range_value(value: Any) -> str:
-    if value is None:
-        return "—"
-    if hasattr(value, "model_dump"):
-        try:
-            value = value.model_dump()
-        except Exception:
-            value = value
-    if not isinstance(value, dict):
-        return _normalize_display_text(value)
-
-    min_value = value.get("min")
-    max_value = value.get("max")
-    currency = str(value.get("currency") or "").strip()
-    period = str(value.get("period") or "").strip()
-    notes = str(value.get("notes") or "").strip()
-
-    parts: list[str] = []
-    if min_value is not None or max_value is not None:
-        min_text = "—" if min_value is None else str(min_value)
-        max_text = "—" if max_value is None else str(max_value)
-        parts.append(f"{min_text} – {max_text}")
-    if currency:
-        parts.append(currency)
-    if period:
-        parts.append(f"/ {period}")
-    if notes:
-        parts.append(f"({notes})")
-    return " ".join(parts) if parts else "—"
-
-
-def _format_recruitment_steps_value(value: Any) -> str:
-    if not value:
-        return "—"
-    if not isinstance(value, list):
-        return _normalize_display_text(value)
-
-    items: list[str] = []
-    for entry in value:
-        if hasattr(entry, "name"):
-            step_name = str(getattr(entry, "name", "") or "").strip()
-            step_details = str(getattr(entry, "details", "") or "").strip()
-        elif isinstance(entry, dict):
-            step_name = str(entry.get("name") or "").strip()
-            step_details = str(entry.get("details") or "").strip()
-        else:
-            step_name = str(entry or "").strip()
-            step_details = ""
-        if not step_name:
-            continue
-        if step_details:
-            items.append(f"{step_name} ({step_details})")
-        else:
-            items.append(step_name)
-    if not items:
-        return "—"
-    preview = items[:3]
-    suffix = f" +{len(items) - len(preview)} weitere" if len(items) > len(preview) else ""
-    return " · ".join(preview) + suffix
-
-
-def _classify_extract_note_tab(note: str) -> str:
-    normalized = " ".join(str(note or "").strip().casefold().split())
-    if not normalized:
-        return "Basis"
-
-    best_tab = "Basis"
-    best_score = 0
-    for tab_name, keywords in JOB_EXTRACT_TAB_NOTE_KEYWORDS.items():
-        score = sum(1 for keyword in keywords if keyword in normalized)
-        if score > best_score:
-            best_tab = tab_name
-            best_score = score
-    return best_tab
-
-
-def _group_extract_notes_by_tab(
-    notes: Sequence[str] | None,
-) -> dict[str, list[str]]:
-    grouped: dict[str, list[str]] = {tab_name: [] for tab_name in JOB_EXTRACT_TAB_FIELDS}
-    if not notes:
-        return grouped
-
-    seen: set[str] = set()
-    for note in notes:
-        normalized = " ".join(str(note or "").strip().split())
-        if not normalized:
-            continue
-        dedupe_key = normalized.casefold()
-        if dedupe_key in seen:
-            continue
-        seen.add(dedupe_key)
-        grouped[_classify_extract_note_tab(normalized)].append(normalized)
-    return grouped
-
-
 def _render_note_block(title: str, notes: Sequence[str], *, tone: str) -> None:
     cleaned = [str(note).strip() for note in notes if str(note).strip()]
     if not cleaned:
@@ -1501,6 +1284,19 @@ def _render_note_block(title: str, notes: Sequence[str], *, tone: str) -> None:
         st.warning(f"**{title}**\n\n" + "\n".join(f"- {note}" for note in cleaned))
     else:
         st.info(f"**{title}**\n\n" + "\n".join(f"- {note}" for note in cleaned))
+
+
+def _field_evidence_column_config() -> dict[str, Any]:
+    return {
+        "confidence": st.column_config.TextColumn("Confidence", disabled=True),
+        "evidence": st.column_config.TextColumn("Evidence", disabled=True),
+    }
+
+
+def _render_field_evidence_caption(field_name: str, evidence_by_field: Mapping[str, Any]) -> None:
+    caption = field_evidence_caption_text(field_name, evidence_by_field)
+    if caption:
+        st.caption(caption)
 
 
 def render_intake_process_animation(*, state: Literal["idle", "running", "done"]) -> None:
@@ -1664,18 +1460,32 @@ def render_job_extract_overview(
             or ", ".join(location_parts)
             or "—"
         )
+        evidence_by_field = job_extract_field_evidence_by_name(job)
         core_rows = [
-            ("Rolle", _normalize_display_text(job.job_title)),
-            ("Unternehmen", _normalize_display_text(job.company_name)),
-            ("Marke", _normalize_display_text(job.brand_name)),
-            ("Ort", location_value),
-            ("Location City", _normalize_display_text(job.location_city)),
-            ("Start Date", _normalize_display_text(job.start_date)),
-            ("Salary Range", _format_salary_range_value(job.salary_range)),
-            ("Recruitment Steps", _format_recruitment_steps_value(job.recruitment_steps)),
+            ("job_title", "Rolle", _normalize_display_text(job.job_title)),
+            ("company_name", "Unternehmen", _normalize_display_text(job.company_name)),
+            ("brand_name", "Marke", _normalize_display_text(job.brand_name)),
+            ("place_of_work", "Ort", location_value),
+            ("location_city", "Location City", _normalize_display_text(job.location_city)),
+            ("start_date", "Start Date", _normalize_display_text(job.start_date)),
+            ("salary_range", "Salary Range", _format_salary_range_value(job.salary_range)),
+            (
+                "recruitment_steps",
+                "Recruitment Steps",
+                _format_recruitment_steps_value(job.recruitment_steps),
+            ),
         ]
+        has_core_evidence = any(evidence_by_field.get(field) for field, _, _ in core_rows)
+        table_rows = []
+        for field, label, value in core_rows:
+            row = {"Attribut": label, "Wert": value}
+            if has_core_evidence:
+                evidence = evidence_by_field.get(field)
+                row["Confidence"] = format_field_evidence_confidence(evidence)
+                row["Evidence"] = format_field_evidence_snippet(evidence)
+            table_rows.append(row)
         st.dataframe(
-            [{"Attribut": label, "Wert": value} for label, value in core_rows],
+            table_rows,
             hide_index=True,
             width="stretch",
         )
@@ -1736,6 +1546,7 @@ def _render_editable_job_extract(job: JobAdExtract, *, show_notes: bool = True) 
         "Extrahierte Werte können hier direkt angepasst werden. Änderungen werden sofort gespeichert."
     )
     values = _sanitize_display_value(job.model_dump())
+    evidence_by_field = job_extract_field_evidence_by_name(job)
 
     tab_core, tab_location, tab_role, tab_skills, tab_process = st.tabs(
         ["Basis", "Standort", "Rolle", "Skills & Benefits", "Prozess"]
@@ -1769,6 +1580,7 @@ def _render_editable_job_extract(job: JobAdExtract, *, show_notes: bool = True) 
                 or field in JOB_EXTRACT_REVIEW_EMPTY_FIELDS
             )
         ]
+        core_rows = add_field_evidence_columns(core_rows, evidence_by_field)
         if core_rows:
             core_edit = st.data_editor(
                 core_rows,
@@ -1780,6 +1592,7 @@ def _render_editable_job_extract(job: JobAdExtract, *, show_notes: bool = True) 
                     "field": st.column_config.TextColumn("Attribut", disabled=True),
                     "label": st.column_config.TextColumn("Bezeichnung", disabled=True),
                     "value": st.column_config.TextColumn("Wert"),
+                    **_field_evidence_column_config(),
                 },
             )
             for row in core_edit:
@@ -1815,6 +1628,7 @@ def _render_editable_job_extract(job: JobAdExtract, *, show_notes: bool = True) 
                 or field in JOB_EXTRACT_REVIEW_EMPTY_FIELDS
             )
         ]
+        location_rows = add_field_evidence_columns(location_rows, evidence_by_field)
         if location_rows:
             location_edit = st.data_editor(
                 location_rows,
@@ -1826,6 +1640,7 @@ def _render_editable_job_extract(job: JobAdExtract, *, show_notes: bool = True) 
                     "field": st.column_config.TextColumn("Attribut", disabled=True),
                     "label": st.column_config.TextColumn("Bezeichnung", disabled=True),
                     "value": st.column_config.TextColumn("Wert"),
+                    **_field_evidence_column_config(),
                 },
             )
             for row in location_edit:
@@ -1853,6 +1668,7 @@ def _render_editable_job_extract(job: JobAdExtract, *, show_notes: bool = True) 
                 has_meaningful_value(values.get(field))
                 or field in JOB_EXTRACT_REVIEW_EMPTY_FIELDS
             ):
+                _render_field_evidence_caption(field, evidence_by_field)
                 values[field] = (
                     st.text_area(
                         JOB_EXTRACT_DISPLAY_LABELS.get(field, field),
@@ -1867,6 +1683,7 @@ def _render_editable_job_extract(job: JobAdExtract, *, show_notes: bool = True) 
             ("deliverables", "Deliverables"),
             ("success_metrics", "Success Metrics"),
         ]:
+            _render_field_evidence_caption(list_field, evidence_by_field)
             values[list_field] = _render_list_editor(
                 label=label,
                 key=f"cs.job_extract.list.{list_field}",
@@ -1896,11 +1713,13 @@ def _render_editable_job_extract(job: JobAdExtract, *, show_notes: bool = True) 
             ("domain_expertise", "Domain Expertise"),
             ("benefits", "Benefits"),
         ]:
+            _render_field_evidence_caption(list_field, evidence_by_field)
             values[list_field] = _render_list_editor(
                 label=label,
                 key=f"cs.job_extract.list.{list_field}",
                 entries=values.get(list_field, []),
             )
+        _render_field_evidence_caption("salary_range", evidence_by_field)
         values["salary_range"] = _render_salary_editor(values.get("salary_range"))
 
     with tab_process:
@@ -1911,9 +1730,11 @@ def _render_editable_job_extract(job: JobAdExtract, *, show_notes: bool = True) 
                 tone="warning",
             )
             _render_note_block("Annahmen", assumption_notes_by_tab["Prozess"], tone="info")
+        _render_field_evidence_caption("recruitment_steps", evidence_by_field)
         values["recruitment_steps"] = _render_recruitment_steps_editor(
             values.get("recruitment_steps", [])
         )
+        _render_field_evidence_caption("contacts", evidence_by_field)
         values["contacts"] = _render_contacts_editor(values.get("contacts", []))
 
     try:
@@ -1972,49 +1793,6 @@ def _render_question_limits_editor(
         limits[step.step_key] = int(selected)
 
     st.session_state[SSKey.QUESTION_LIMITS.value] = limits
-
-
-def _normalize_optional_string(value: Any) -> str | None:
-    if not has_meaningful_value(value):
-        return None
-    text = str(value).strip()
-    return text or None
-
-
-def has_meaningful_value(value: Any) -> bool:
-    if value is None:
-        return False
-    if isinstance(value, float):
-        return not value != value
-
-    text = str(value).strip()
-    if not text:
-        return False
-    lowered = text.lower()
-    return lowered not in {"nan", "none", "null", "n/a", "na", "-", "—"}
-
-
-def _sanitize_display_value(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {k: _sanitize_display_value(v) for k, v in value.items()}
-    if isinstance(value, list):
-        return [
-            v
-            for item in value
-            for v in [_sanitize_display_value(item)]
-            if v is not None
-        ]
-    return value if has_meaningful_value(value) else None
-
-
-def _parse_optional_int(value: Any) -> int | None:
-    normalized = _normalize_optional_string(value)
-    if normalized is None:
-        return None
-    try:
-        return int(float(normalized))
-    except ValueError:
-        return None
 
 
 def _render_list_editor(*, label: str, key: str, entries: Any) -> list[str]:
@@ -2429,16 +2207,22 @@ def _render_questions_two_columns(
     answers: Dict[str, Any],
     *,
     widget_key_prefix: str = WIDGET_KEY_PREFIX,
-) -> None:
+    persist: bool = True,
+) -> list[QuestionInputResult]:
+    results: list[QuestionInputResult] = []
     col_left, col_right = st.columns(2, gap="large")
     for index, question in enumerate(questions):
         target_col = col_left if index % 2 == 0 else col_right
         with target_col:
-            _render_question(
-                question,
-                answers,
-                widget_key_prefix=widget_key_prefix,
+            results.append(
+                _render_question(
+                    question,
+                    answers,
+                    widget_key_prefix=widget_key_prefix,
+                    persist=persist,
+                )
             )
+    return results
 
 
 def _split_core_and_detail_questions(
@@ -2502,11 +2286,22 @@ def render_question_step(step: QuestionStep) -> None:
             except ValueError:
                 step_limit = None
 
-    questions = _sort_questions_for_progressive_disclosure(step.questions)
+    all_questions = _sort_questions_for_progressive_disclosure(step.questions)
+    questions = all_questions
     if step_limit is not None and step_limit > 0:
-        questions = questions[:step_limit]
+        questions = select_questions_for_adaptive_limit(
+            all_questions,
+            step_key=step.step_key,
+            limit=step_limit,
+            answers=answers,
+            answer_meta=answer_meta,
+            job_extract=job_extract,
+            intake_facts=intake_facts,
+            intake_fact_evidence=intake_fact_evidence,
+            confidence_threshold=confidence_threshold,
+        )
     effective_answers = build_answers_with_job_extract_coverage(
-        questions,
+        all_questions,
         answers,
         answer_meta,
         job_extract=job_extract,
@@ -2572,6 +2367,44 @@ def render_question_step(step: QuestionStep) -> None:
         return
 
     grouped_questions = _group_questions(step, visible_questions)
+    if _can_render_question_step_form(visible_questions):
+        with st.form(_question_step_form_key(step.step_key), clear_on_submit=False):
+            pending_inputs = _render_grouped_question_inputs(
+                grouped_questions,
+                answers,
+                answer_meta=answer_meta,
+                answered_lookup=answered_lookup,
+                persist=False,
+            )
+            submitted = st.form_submit_button(
+                "Antworten übernehmen",
+                type="primary",
+                width="stretch",
+            )
+        if submitted:
+            _persist_question_inputs(pending_inputs)
+            _rerun_after_question_form_submit()
+    else:
+        _render_grouped_question_inputs(
+            grouped_questions,
+            answers,
+            answer_meta=answer_meta,
+            answered_lookup=answered_lookup,
+            persist=True,
+        )
+
+    return
+
+
+def _render_grouped_question_inputs(
+    grouped_questions: list[tuple[str, list[Question]]],
+    answers: Dict[str, Any],
+    *,
+    answer_meta: dict[str, Any],
+    answered_lookup: dict[str, bool],
+    persist: bool,
+) -> list[QuestionInputResult]:
+    pending_inputs: list[QuestionInputResult] = []
     for group_title, group_questions in grouped_questions:
         progress = compute_question_progress(
             group_questions,
@@ -2600,9 +2433,46 @@ def render_question_step(step: QuestionStep) -> None:
             )
             if progress["required_unanswered"] > 0:
                 st.caption(required_note)
-            _render_questions_two_columns(group_questions, answers)
+            pending_inputs.extend(
+                _render_questions_two_columns(
+                    group_questions,
+                    answers,
+                    persist=persist,
+                )
+            )
+    return pending_inputs
 
-    return
+
+def _can_render_question_step_form(questions: list[Question]) -> bool:
+    return (
+        not any(_is_language_requirement_question(question) for question in questions)
+        and callable(getattr(st, "form", None))
+        and callable(getattr(st, "form_submit_button", None))
+    )
+
+
+def _question_step_form_key(step_key: str) -> str:
+    return f"{WIDGET_KEY_PREFIX}step_form.{step_key}"
+
+
+def _persist_question_inputs(inputs: list[QuestionInputResult]) -> None:
+    for question_id, previous_value, value in inputs:
+        _persist_question_answer(question_id, previous_value, value)
+
+
+def _persist_question_answer(question_id: str, previous_value: Any, value: Any) -> None:
+    mark_answer_touched(question_id, previous_value, value)
+    set_answer(question_id, value)
+
+
+def _rerun_after_question_form_submit() -> None:
+    rerun = getattr(st, "rerun", None)
+    if callable(rerun):
+        rerun()
+        return
+    success = getattr(st, "success", None)
+    if callable(success):
+        success("Antworten übernommen.")
 
 
 def _sort_questions_for_progressive_disclosure(
@@ -3282,7 +3152,8 @@ def _render_question(
     answers: Dict[str, Any],
     *,
     widget_key_prefix: str = WIDGET_KEY_PREFIX,
-) -> None:
+    persist: bool = True,
+) -> QuestionInputResult:
     key = widget_key_prefix + q.id
     inferred_default = _infer_default_value(q)
     previous_value = answers.get(q.id, inferred_default)
@@ -3477,12 +3348,12 @@ def _render_question(
         if validation_error:
             st.error(validation_error)
 
-    # Persist answer
-    mark_answer_touched(q.id, previous_value, value)
-    set_answer(q.id, value)
+    if persist:
+        _persist_question_answer(q.id, previous_value, value)
 
     if st.session_state.get(SSKey.DEBUG.value) and q.rationale:
         st.caption(f"Rationale: {q.rationale}")
+    return q.id, previous_value, value
 
 
 def _render_number_question(

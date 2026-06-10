@@ -16,6 +16,7 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
 from constants import (
     AnswerType,
+    JOB_AD_SCHEMA_VERSION,
     OCCUPATION_CONTEXT_SCHEMA_VERSION,
     QUESTION_SCHEMA_VERSION,
     VACANCY_SCHEMA_VERSION,
@@ -284,10 +285,30 @@ class EscoSkillDetail(StrictSchemaModel):
     )
 
 
+class JobAdFieldEvidence(StrictSchemaModel):
+    field_name: str = Field(
+        description="Top-level JobAdExtract field this evidence supports."
+    )
+    confidence: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Model confidence for the extracted field value from 0.0 to 1.0.",
+    )
+    evidence_snippet: Optional[str] = Field(
+        default=None,
+        description="Short source-text fragment supporting the extracted field; omit unsafe personal data.",
+    )
+    needs_confirmation: bool = Field(
+        default=False,
+        description="True when the field is inferred, ambiguous, conflicting, or needs human confirmation.",
+    )
+
+
 class JobAdExtract(StrictSchemaModel):
     """Normalized extraction from a jobspec/job ad."""
 
-    schema_version: str = Field(default=VACANCY_SCHEMA_VERSION)
+    schema_version: str = Field(default=JOB_AD_SCHEMA_VERSION)
 
     language_guess: Optional[str] = Field(
         default=None, description="Detected language of input, e.g., 'de' or 'en'."
@@ -354,6 +375,10 @@ class JobAdExtract(StrictSchemaModel):
     assumptions: List[str] = Field(
         default_factory=list,
         description="If the model inferred something, list assumptions explicitly here.",
+    )
+    field_evidence: List[JobAdFieldEvidence] = Field(
+        default_factory=list,
+        description="Optional field-level evidence and confidence for extracted top-level fields.",
     )
 
 
@@ -447,6 +472,10 @@ class Question(StrictSchemaModel):
     depends_on: Optional[List["QuestionDependency"]] = Field(
         default=None,
         description="Optional declarative dependency rules for conditional visibility.",
+    )
+    follow_up_prompts: List[str] = Field(
+        default_factory=list,
+        description="Optional concise prompts to prioritize this question when deeper probing is useful.",
     )
 
 

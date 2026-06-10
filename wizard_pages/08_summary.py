@@ -2,10 +2,7 @@
 
 import io
 import json
-import re
 import textwrap
-import csv
-import hashlib
 from contextlib import nullcontext
 from dataclasses import dataclass
 from collections import defaultdict
@@ -16,12 +13,9 @@ import streamlit as st
 import docx
 
 from constants import (
-    AnswerType,
     FactKey,
     NON_INTAKE_STEP_KEYS,
     SSKey,
-    SUMMARY_ARTIFACT_IDS,
-    SUMMARY_ARTIFACT_LEGACY_ALIASES,
 )
 from interview_process import (
     build_candidate_stage_values,
@@ -30,7 +24,11 @@ from interview_process import (
     default_selected_interview_value_ids,
     normalize_interview_internal_flow,
 )
-from intake_facts import get_intake_fact_evidence_state, get_intake_fact_state
+from intake_facts import (
+    get_intake_fact_evidence_state,
+    get_intake_fact_state,
+    mark_intake_facts_used_by_artifact,
+)
 from esco_client import EscoClient, EscoClientError
 from esco_semantics import normalize_anchor_ref, sync_esco_semantic_state
 from llm_client import (
@@ -63,12 +61,10 @@ from schemas import (
     JobAdExtract,
     LanguageRequirement,
     OccupationContextProfile,
-    Question,
     QuestionFlowProvenance,
     QuestionPlan,
     VacancyBrief,
     CompanyWebsiteResearch,
-    question_option_label_map,
 )
 from settings_openai import load_openai_settings
 from state import (
@@ -85,6 +81,39 @@ from components.design_system import (
     render_next_best_action,
     render_output_header,
     render_pill,
+)
+from summary_facts import (
+    SummaryFactsRow,
+    format_summary_answer_value as _format_summary_answer_value,
+    group_summary_fact_rows_by_area as _group_summary_fact_rows_by_area,
+    status_for_answer_value as _status_for_answer_value,
+    status_for_classification_value as _status_for_classification_value,
+    status_for_value as _status_for_value,
+    summary_core_fact_row as _summary_core_fact_row,
+)
+from summary_artifacts import (
+    artifact_display_label as _artifact_display_label,
+    brief_pipeline_status_for_state,
+    to_canonical_artifact_id as _to_canonical_artifact_id,
+)
+from summary_exports import (
+    boolean_search_pack_to_markdown as _boolean_search_pack_to_markdown,
+    brief_to_markdown as _brief_to_markdown,
+    build_summary_input_fingerprint as _build_summary_input_fingerprint,
+)
+from summary_esco import (
+    build_esco_coverage_chart_spec as _build_esco_coverage_chart_spec,
+    build_esco_coverage_kpis as _build_esco_coverage_kpis,
+    build_esco_coverage_metrics as _build_esco_coverage_metrics,
+    build_esco_mapping_report_csv as _build_esco_mapping_report_csv,
+    extract_skills_step_raw_terms as _extract_skills_step_raw_terms,
+    normalize_skill_term as _normalize_skill_term,
+    to_esco_export_concepts as _to_esco_export_concepts,
+)
+from summary_job_ad import (
+    dedupe_preserve_order as _dedupe_preserve_order,
+    estimate_text_area_height as _estimate_text_area_height,
+    sanitize_generated_job_ad as _sanitize_generated_job_ad,
 )
 from ui_components import (
     render_boolean_search_pack,
@@ -104,6 +133,23 @@ from wizard_pages.base import (
     nav_buttons,
     render_active_ui_mode_caption,
 )
+
+
+def _record_artifact_generated_with_fact_usage(
+    session_state: dict[str, Any],
+    *,
+    artifact_id: str,
+    cache_hit: bool | None = None,
+    mode: str | None = None,
+) -> None:
+    record_artifact_generated(
+        session_state,
+        artifact_id=artifact_id,
+        cache_hit=cache_hit,
+        mode=mode,
+    )
+    mark_intake_facts_used_by_artifact(session_state, artifact_id)
+
 
 SUPPORTED_LOGO_MIME_TYPES: dict[str, str] = {
     "image/png": "PNG",
@@ -220,18 +266,6 @@ class SummaryAction(TypedDict):
     input_renderer: Callable[[], None] | None
 
 
-ACTION_ID_TO_CANONICAL_ARTIFACT_ID: dict[str, str] = {
-    **SUMMARY_ARTIFACT_LEGACY_ALIASES,
-    **{artifact_id: artifact_id for artifact_id in SUMMARY_ARTIFACT_IDS},
-}
-_ARTIFACT_DISPLAY_LABELS: dict[str, str] = {
-    "job_ad": "Stellenanzeige",
-    "interview_hr": "HR-Sheet",
-    "interview_fach": "Fachbereich-Sheet",
-    "boolean_search": "Boolean Search",
-    "employment_contract": "Arbeitsvertrag",
-    "brief": "Recruiting Brief",
-}
 SUMMARY_FACT_OVERVIEW_COLUMNS = 3
 
 
@@ -254,24 +288,6 @@ class SummaryStatus:
     readiness_percent: int
     ready_for_follow_ups: bool
     esco_ready: bool
-
-
-@dataclass(frozen=True)
-class SummaryFactsRow:
-    bereich: str
-    feld: str
-    wert: str
-    quelle: str
-    status: str
-
-    def to_dict(self) -> dict[str, str]:
-        return {
-            "Bereich": self.bereich,
-            "Feld": self.feld,
-            "Wert": self.wert,
-            "Quelle": self.quelle,
-            "Status": self.status,
-        }
 
 
 @dataclass(frozen=True)
@@ -379,111 +395,10 @@ def _resolve_canonical_brief_status(
     )
 
 
-def _normalize_list_item(value: str) -> str:
-    cleaned = re.sub(r"^[\-•*\d\.)\s]+", "", value).strip()
-    return cleaned
-
-
-def _dedupe_preserve_order(values: list[str]) -> list[str]:
-    seen: set[str] = set()
-    result: list[str] = []
-    for item in values:
-        normalized = item.strip()
-        if not normalized:
-            continue
-        key = normalized.casefold()
-        if key in seen:
-            continue
-        seen.add(key)
-        result.append(normalized)
-    return result
-
-
-def _sanitize_generated_job_ad(
-    job_ad: JobAdGenerationResult,
-) -> tuple[JobAdGenerationResult, list[str]]:
-    body_lines: list[str] = []
-    extracted_target_group: list[str] = []
-    extracted_checklist: list[str] = []
-    extracted_notes: list[str] = []
-
-    section = "body"
-    for raw_line in job_ad.job_ad_text.splitlines():
-        line = raw_line.strip()
-        if not line:
-            if section == "body":
-                body_lines.append("")
-            continue
-
-        lowered = line.rstrip(":").strip().casefold()
-        if lowered == "zielgruppe":
-            section = "target_group"
-            continue
-        if lowered in {"agg-checkliste", "agg checkliste"}:
-            section = "agg_checklist"
-            continue
-
-        if line.casefold().startswith("hinweis:"):
-            extracted_notes.append(line.split(":", 1)[1].strip())
-            continue
-
-        normalized_item = _normalize_list_item(line)
-        if section == "target_group":
-            if normalized_item:
-                extracted_target_group.append(normalized_item)
-            continue
-        if section == "agg_checklist":
-            if normalized_item:
-                extracted_checklist.append(normalized_item)
-            continue
-
-        body_lines.append(raw_line.rstrip())
-
-    while body_lines and not body_lines[-1].strip():
-        body_lines.pop()
-
-    normalized_job_ad = JobAdGenerationResult(
-        headline=job_ad.headline.strip(),
-        target_group=_dedupe_preserve_order(
-            [*job_ad.target_group, *extracted_target_group]
-        ),
-        agg_checklist=_dedupe_preserve_order(
-            [*job_ad.agg_checklist, *extracted_checklist]
-        ),
-        job_ad_text="\n".join(body_lines).strip(),
-    )
-    return normalized_job_ad, _dedupe_preserve_order(extracted_notes)
-
-
-def _estimate_text_area_height(text: str) -> int:
-    lines = max(1, len(text.splitlines()))
-    return min(520, max(160, 40 + lines * 22))
-
-
 def _widget_key(base_key: SSKey, suffix: str | None = None) -> str:
     if not suffix:
         return base_key.value
     return f"{base_key.value}.{suffix}"
-
-
-def _to_canonical_artifact_id(raw_id: Any) -> str:
-    if not isinstance(raw_id, str):
-        return ""
-    normalized = raw_id.strip()
-    if not normalized:
-        return ""
-    if normalized in ACTION_ID_TO_CANONICAL_ARTIFACT_ID:
-        return ACTION_ID_TO_CANONICAL_ARTIFACT_ID[normalized]
-    return ACTION_ID_TO_CANONICAL_ARTIFACT_ID.get(normalized.casefold(), "")
-
-
-def _artifact_display_label(artifact_id: str) -> str:
-    if not isinstance(artifact_id, str):
-        return ""
-    normalized = artifact_id.strip()
-    if not normalized:
-        return ""
-    return _ARTIFACT_DISPLAY_LABELS.get(normalized, normalized)
 
 
 def _resolve_active_artifact_id(*, available_artifact_ids: list[str]) -> str:
@@ -568,80 +483,6 @@ def _render_template_toggles(
     )
 
 
-def _build_summary_input_fingerprint(
-    *,
-    job: JobAdExtract,
-    answers: dict[str, Any],
-    selected_role_tasks: list[str],
-    selected_skills: list[str],
-    selected_benefits: list[str],
-    esco_occupation_selected: dict[str, str],
-    esco_match_explainability: EscoMatchExplainability,
-    esco_selected_skills_must: list[dict[str, str]],
-    esco_selected_skills_nice: list[dict[str, str]],
-) -> str:
-    non_sensitive_payload = {
-        "job": job.model_dump(mode="json", exclude_none=True),
-        "answers": answers,
-        "selected_role_tasks": selected_role_tasks,
-        "selected_skills": selected_skills,
-        "selected_benefits": selected_benefits,
-        "esco_occupation_selected": esco_occupation_selected,
-        "esco_match_explainability": esco_match_explainability,
-        "esco_selected_skills_must": esco_selected_skills_must,
-        "esco_selected_skills_nice": esco_selected_skills_nice,
-    }
-    serialized = json.dumps(
-        non_sensitive_payload,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    )
-    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
-
-
-def _brief_to_markdown(brief: VacancyBrief) -> str:
-    structured_data = brief.structured_data.model_dump(mode="json")
-    lines = []
-    lines.append(
-        f"# Recruiting Brief – {structured_data.get('job_extract', {}).get('job_title', '')}".strip()
-    )
-    lines.append("")
-    lines.append(f"**One-liner:** {brief.one_liner}")
-    lines.append("")
-    lines.append("## Hiring Context")
-    lines.append(brief.hiring_context)
-    lines.append("")
-    lines.append("## Role Summary")
-    lines.append(brief.role_summary)
-    lines.append("")
-    lines.append("## Top Responsibilities")
-    lines.extend([f"- {x}" for x in brief.top_responsibilities])
-    lines.append("")
-    lines.append("## Must-have")
-    lines.extend([f"- {x}" for x in brief.must_have])
-    lines.append("")
-    lines.append("## Nice-to-have")
-    lines.extend([f"- {x}" for x in brief.nice_to_have])
-    lines.append("")
-    lines.append("## Dealbreakers")
-    lines.extend([f"- {x}" for x in brief.dealbreakers])
-    lines.append("")
-    lines.append("## Interview Plan")
-    lines.extend([f"- {x}" for x in brief.interview_plan])
-    lines.append("")
-    lines.append("## Evaluation Rubric")
-    lines.extend([f"- {x}" for x in brief.evaluation_rubric])
-    lines.append("")
-    lines.append("## Risks / Open Questions")
-    lines.extend([f"- {x}" for x in brief.risks_open_questions])
-    lines.append("")
-    lines.append("## Job Ad Draft (DE)")
-    lines.append(brief.job_ad_draft)
-    lines.append("")
-    return "\n".join(lines)
-
-
 def _session_list(key: SSKey, default: list[Any] | None = None) -> list[Any]:
     raw = st.session_state.get(key.value, default if default is not None else [])
     return raw if isinstance(raw, list) else []
@@ -654,23 +495,6 @@ def _session_dict(key: SSKey, default: dict[str, Any] | None = None) -> dict[str
 
 def _session_str(key: SSKey, default: str = "") -> str:
     return str(st.session_state.get(key.value, default) or "").strip()
-
-
-def _to_esco_export_concepts(raw_items: Any) -> list[EscoExportConcept]:
-    if not isinstance(raw_items, list):
-        return []
-    concepts: list[EscoExportConcept] = []
-    for item in raw_items:
-        try:
-            parsed = EscoConceptRef.model_validate(item)
-        except Exception:
-            continue
-        concepts.append({"uri": parsed.uri, "label": parsed.title})
-    return concepts
-
-
-def _normalize_skill_term(value: str) -> str:
-    return " ".join(str(value or "").strip().casefold().split())
 
 
 def _read_esco_shared_fields() -> EscoSharedFields:
@@ -752,152 +576,11 @@ def _count_skill_relation_traces(skills: list[dict[str, Any]]) -> int:
 
 def _compute_esco_coverage_metrics(shared_esco: EscoSharedFields) -> dict[str, int]:
     job_extract = st.session_state.get(SSKey.JOB_EXTRACT.value, {})
-    must_terms = (
-        _extract_skills_step_raw_terms(
-            {"must_have_skills": job_extract.get("must_have_skills", [])}
-        )
-        if isinstance(job_extract, dict)
-        else []
+    return _build_esco_coverage_metrics(
+        job_extract_payload=job_extract,
+        essential_skills=shared_esco.get("essential_skills", []),
+        optional_skills=shared_esco.get("optional_skills", []),
     )
-    nice_terms = (
-        _extract_skills_step_raw_terms(
-            {"nice_to_have_skills": job_extract.get("nice_to_have_skills", [])}
-        )
-        if isinstance(job_extract, dict)
-        else []
-    )
-
-    essential_titles = {
-        _normalize_skill_term(str(item.get("title") or ""))
-        for item in shared_esco.get("essential_skills", [])
-        if isinstance(item, dict)
-    }
-    optional_titles = {
-        _normalize_skill_term(str(item.get("title") or ""))
-        for item in shared_esco.get("optional_skills", [])
-        if isinstance(item, dict)
-    }
-
-    essential_covered = sum(
-        1 for term in must_terms if _normalize_skill_term(term) in essential_titles
-    )
-    optional_covered = sum(
-        1 for term in nice_terms if _normalize_skill_term(term) in optional_titles
-    )
-    essential_total = len(must_terms)
-    optional_total = len(nice_terms)
-    essential_pct = (
-        round((essential_covered / essential_total) * 100) if essential_total else 0
-    )
-    optional_pct = (
-        round((optional_covered / optional_total) * 100) if optional_total else 0
-    )
-    return {
-        "essential_covered": essential_covered,
-        "essential_total": essential_total,
-        "essential_pct": essential_pct,
-        "optional_covered": optional_covered,
-        "optional_total": optional_total,
-        "optional_pct": optional_pct,
-    }
-
-
-def _build_esco_coverage_chart_spec(
-    *, metrics: dict[str, int], unmapped_requirements_count: int
-) -> dict[str, Any]:
-    essential_total = int(metrics.get("essential_total", 0) or 0)
-    optional_total = int(metrics.get("optional_total", 0) or 0)
-    covered_total = int(metrics.get("essential_covered", 0) or 0) + int(
-        metrics.get("optional_covered", 0) or 0
-    )
-    requirements_total = essential_total + optional_total
-    unmapped_total = max(int(unmapped_requirements_count or 0), 0)
-
-    return {
-        "data": {
-            "values": [
-                {
-                    "group": "Quelle",
-                    "category": "Must-have (Jobspec)",
-                    "value": essential_total,
-                },
-                {
-                    "group": "Quelle",
-                    "category": "Nice-to-have (Jobspec)",
-                    "value": optional_total,
-                },
-                {
-                    "group": "Abdeckung",
-                    "category": "ESCO-unterstützt",
-                    "value": covered_total,
-                },
-                {
-                    "group": "Abdeckung",
-                    "category": "Nicht gemappt",
-                    "value": unmapped_total,
-                },
-                {
-                    "group": "Abdeckung",
-                    "category": "Gesamtanforderungen",
-                    "value": requirements_total,
-                },
-            ]
-        },
-        "mark": {"type": "bar", "cornerRadiusTopLeft": 3, "cornerRadiusTopRight": 3},
-        "encoding": {
-            "x": {"field": "category", "type": "nominal", "title": ""},
-            "y": {"field": "value", "type": "quantitative", "title": "Anzahl"},
-            "color": {"field": "group", "type": "nominal", "title": "Sicht"},
-            "tooltip": [
-                {"field": "group", "type": "nominal", "title": "Sicht"},
-                {"field": "category", "type": "nominal", "title": "Kategorie"},
-                {"field": "value", "type": "quantitative", "title": "Anzahl"},
-            ],
-        },
-    }
-
-
-def _build_esco_coverage_kpis(
-    *, metrics: dict[str, int], unmapped_requirements_count: int
-) -> list[tuple[str, int]]:
-    essential_total = int(metrics.get("essential_total", 0) or 0)
-    optional_total = int(metrics.get("optional_total", 0) or 0)
-    covered_total = int(metrics.get("essential_covered", 0) or 0) + int(
-        metrics.get("optional_covered", 0) or 0
-    )
-    requirements_total = essential_total + optional_total
-    unmapped_total = max(int(unmapped_requirements_count or 0), 0)
-    return [
-        ("Anforderungen", requirements_total),
-        ("ESCO unterstützt", covered_total),
-        ("Nicht gemappt", unmapped_total),
-        ("Quelle vorhanden", requirements_total),
-    ]
-
-
-def _extract_skills_step_raw_terms(job_extract_payload: Any) -> list[str]:
-    if not isinstance(job_extract_payload, dict):
-        return []
-
-    raw_terms: list[str] = []
-    for key in ("must_have_skills", "nice_to_have_skills"):
-        values = job_extract_payload.get(key, [])
-        if not isinstance(values, list):
-            continue
-        for value in values:
-            term = str(value or "").strip()
-            if term:
-                raw_terms.append(term)
-
-    deduped_terms: list[str] = []
-    seen: set[str] = set()
-    for term in raw_terms:
-        normalized = _normalize_skill_term(term)
-        if not normalized or normalized in seen:
-            continue
-        deduped_terms.append(term)
-        seen.add(normalized)
-    return deduped_terms
 
 
 def _build_esco_mapping_report_rows() -> list[dict[str, str]]:
@@ -1004,16 +687,6 @@ def _build_esco_mapping_report_rows() -> list[dict[str, str]]:
             row["notes"].casefold(),
         ),
     )
-
-
-def _build_esco_mapping_report_csv(rows: list[dict[str, str]]) -> bytes:
-    fieldnames = ["raw_term", "chosen_uri", "chosen_label", "match_method", "notes"]
-    buffer = io.StringIO()
-    writer = csv.DictWriter(buffer, fieldnames=fieldnames)
-    writer.writeheader()
-    for row in rows:
-        writer.writerow({name: row.get(name, "") for name in fieldnames})
-    return buffer.getvalue().encode("utf-8")
 
 
 def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
@@ -1317,65 +990,6 @@ def _read_saved_selection_labels(key: SSKey) -> list[str]:
         if label:
             values.append(label)
     return values
-
-
-def _boolean_search_pack_to_markdown(pack: BooleanSearchPack) -> str:
-    def _as_bullets(values: list[str], *, code: bool = False) -> list[str]:
-        if not values:
-            return ["- —"]
-        if code:
-            return [f"- `{value}`" for value in values]
-        return [f"- {value}" for value in values]
-
-    lines = [
-        "# Boolean Search Pack",
-        "",
-        f"**Role Title:** {pack.role_title}",
-        "",
-        "## Must-have Terms",
-        *_as_bullets(pack.must_have_terms),
-        "",
-        "## Seniority Terms",
-        *_as_bullets(pack.seniority_terms),
-        "",
-        "## Exclusion Terms",
-        *_as_bullets(pack.exclusion_terms),
-        "",
-        "## Target Locations",
-        *_as_bullets(pack.target_locations),
-        "",
-    ]
-    for channel_label, channel in (
-        ("Google", pack.google),
-        ("LinkedIn", pack.linkedin),
-        ("XING", pack.xing),
-    ):
-        lines.extend(
-            [
-                f"## {channel_label}",
-                "",
-                "### Broad",
-                *_as_bullets(channel.broad, code=True),
-                "",
-                "### Focused",
-                *_as_bullets(channel.focused, code=True),
-                "",
-                "### Fallback",
-                *_as_bullets(channel.fallback, code=True),
-                "",
-            ]
-        )
-    lines.extend(
-        [
-            "## Channel Limitations",
-            *_as_bullets(pack.channel_limitations),
-            "",
-            "## Usage Notes",
-            *_as_bullets(pack.usage_notes),
-            "",
-        ]
-    )
-    return "\n".join(lines)
 
 
 def _build_selection_rows(
@@ -2183,20 +1797,6 @@ def _render_esco_coverage_kpis() -> None:
             columns[idx].metric(label=label, value=str(value))
 
 
-def _group_summary_fact_rows_by_area(
-    rows: Sequence[SummaryFactsRow],
-) -> list[tuple[str, list[SummaryFactsRow]]]:
-    grouped_rows: dict[str, list[SummaryFactsRow]] = {}
-    ordered_areas: list[str] = []
-    for row in rows:
-        area = str(row.bereich or "").strip() or "Sonstiges"
-        if area not in grouped_rows:
-            grouped_rows[area] = []
-            ordered_areas.append(area)
-        grouped_rows[area].append(row)
-    return [(area, grouped_rows[area]) for area in ordered_areas]
-
-
 def _render_summary_facts_column_overview(vm: SummaryViewModel) -> None:
     st.markdown("### Fakten")
     _render_esco_coverage_kpis()
@@ -2225,145 +1825,6 @@ def _render_summary_facts_section(vm: SummaryViewModel) -> None:
     st.markdown("### Fakten")
     _render_esco_coverage_kpis()
     _render_summary_facts_table([row.to_dict() for row in vm.fact_rows])
-
-
-def _format_summary_answer_value(question: Question, value: Any) -> str:
-    option_label_map = question_option_label_map(question)
-
-    def _label_for(item: Any) -> str:
-        item_str = str(item).strip()
-        if not item_str:
-            return ""
-        return option_label_map.get(item_str, item_str)
-
-    if question.answer_type == AnswerType.BOOLEAN:
-        return "Ja" if bool(value) else "Nein"
-    if question.answer_type == AnswerType.MULTI_SELECT:
-        if isinstance(value, list):
-            labels = [_label_for(item) for item in value]
-            return ", ".join(label for label in labels if label)
-        return ""
-    if question.answer_type == AnswerType.SINGLE_SELECT:
-        return _label_for(value)
-    if question.answer_type in {
-        AnswerType.LONG_TEXT,
-        AnswerType.SHORT_TEXT,
-        AnswerType.DATE,
-    }:
-        return str(value or "").strip()
-    if question.answer_type == AnswerType.NUMBER:
-        return str(value) if value is not None else ""
-
-    if isinstance(value, list):
-        return ", ".join(str(item).strip() for item in value if str(item).strip())
-    return str(value or "").strip()
-
-
-def _is_missing_value(value: Any) -> bool:
-    if value is None:
-        return True
-    if isinstance(value, str):
-        return not value.strip()
-    if isinstance(value, (list, tuple, set)):
-        return len(value) == 0
-    if isinstance(value, dict):
-        return len(value) == 0
-    return False
-
-
-def _has_partial_payload(value: Any) -> bool:
-    if isinstance(value, dict):
-        values = list(value.values())
-        if not values:
-            return False
-        has_present = any(not _is_missing_value(item) for item in values)
-        has_missing = any(_is_missing_value(item) for item in values)
-        return has_present and has_missing
-    if isinstance(value, list):
-        if not value:
-            return False
-        has_present = any(not _is_missing_value(item) for item in value)
-        has_missing = any(_is_missing_value(item) for item in value)
-        return has_present and has_missing
-    return False
-
-
-def _status_for_value(value: Any) -> str:
-    if _is_missing_value(value):
-        return "Fehlend"
-    if _has_partial_payload(value):
-        return "Teilweise"
-    return "Vollständig"
-
-
-def _format_summary_fact_value(value: Any) -> str:
-    if isinstance(value, list):
-        return " | ".join(str(item).strip() for item in value if str(item).strip())
-    if isinstance(value, dict):
-        parts = [
-            f"{str(key).strip()}: {str(item).strip()}"
-            for key, item in value.items()
-            if str(key).strip() and str(item).strip()
-        ]
-        return " | ".join(parts)
-    return str(value or "").strip()
-
-
-def _summary_core_fact_row(
-    *,
-    label: str,
-    fact_key: FactKey,
-    fallback_value: Any,
-    intake_facts: Mapping[str, Any],
-    intake_fact_evidence: Mapping[str, Any],
-) -> SummaryFactsRow:
-    if fact_key.value in intake_facts:
-        fact_value = intake_facts.get(fact_key.value)
-        evidence_raw = intake_fact_evidence.get(fact_key.value)
-        evidence = evidence_raw if isinstance(evidence_raw, Mapping) else {}
-        source = str(evidence.get("source_label") or "Intake-Fakt").strip()
-        return SummaryFactsRow(
-            "Kernprofil",
-            label,
-            _format_summary_fact_value(fact_value) or "Nicht angegeben",
-            source,
-            _status_for_value(fact_value),
-        )
-    return SummaryFactsRow(
-        "Kernprofil",
-        label,
-        _format_summary_fact_value(fallback_value) or "Nicht angegeben",
-        "Jobspec",
-        _status_for_value(fallback_value),
-    )
-
-
-def _status_for_classification_value(value: Any) -> str:
-    if _is_missing_value(value):
-        return "Fehlend"
-    return "Automatisch erkannt"
-
-
-def _status_for_answer_value(
-    *, question: Question, raw_value: Any, formatted: str
-) -> str:
-    if _is_missing_value(raw_value):
-        return "Fehlend"
-    if question.answer_type == AnswerType.MULTI_SELECT and isinstance(raw_value, list):
-        normalized_items = [str(item).strip() for item in raw_value]
-        non_empty_count = sum(1 for item in normalized_items if item)
-        if non_empty_count == 0:
-            return "Fehlend"
-        if non_empty_count < len(normalized_items):
-            return "Teilweise"
-    if question.answer_type in {
-        AnswerType.SHORT_TEXT,
-        AnswerType.LONG_TEXT,
-    } and isinstance(raw_value, dict):
-        return "Teilweise" if _has_partial_payload(raw_value) else "Vollständig"
-    if not formatted:
-        return "Teilweise"
-    return "Teilweise" if _has_partial_payload(raw_value) else "Vollständig"
 
 
 def _build_summary_fact_rows(
@@ -2999,13 +2460,7 @@ def _artifact_pipeline_status(
             primary_action=action,
             resolved_brief_model=resolved_brief_model,
         )
-        return {
-            "current": ("current", "Aktuell"),
-            "stale": ("stale", "Veraltet"),
-            "missing": ("open", "Fehlt"),
-            "invalid": ("blocked", "Ungültig"),
-            "blocked": ("blocked", "Wartet"),
-        }.get(state, ("open", "Offen"))
+        return brief_pipeline_status_for_state(state)
 
     has_result = bool(st.session_state.get(action["result_key"].value))
     if has_result:
@@ -3988,7 +3443,7 @@ def render(ctx: WizardContext) -> None:
             st.session_state[SSKey.SUMMARY_LAST_MODELS.value] = {
                 "draft_model": resolved_brief_model
             }
-            record_artifact_generated(
+            _record_artifact_generated_with_fact_usage(
                 st.session_state,
                 artifact_id="brief",
                 cache_hit=brief_cached,
@@ -4043,7 +3498,7 @@ def render(ctx: WizardContext) -> None:
             )
             st.session_state[SSKey.JOB_AD_DRAFT_CUSTOM.value] = payload
             st.session_state[SSKey.JOB_AD_LAST_USAGE.value] = usage or {}
-            record_artifact_generated(
+            _record_artifact_generated_with_fact_usage(
                 st.session_state,
                 artifact_id="job_ad",
                 cache_hit=usage_has_cache_hit(usage),
@@ -4117,7 +3572,7 @@ def render(ctx: WizardContext) -> None:
             st.session_state[SSKey.INTERVIEW_PREP_HR_LAST_MODELS.value] = {
                 "draft_model": resolved_hr_sheet_model
             }
-            record_artifact_generated(
+            _record_artifact_generated_with_fact_usage(
                 st.session_state,
                 artifact_id="interview_hr",
                 cache_hit=usage_has_cache_hit(usage),
@@ -4157,7 +3612,7 @@ def render(ctx: WizardContext) -> None:
             st.session_state[SSKey.INTERVIEW_PREP_FACH_LAST_MODELS.value] = {
                 "draft_model": resolved_fach_sheet_model
             }
-            record_artifact_generated(
+            _record_artifact_generated_with_fact_usage(
                 st.session_state,
                 artifact_id="interview_fach",
                 cache_hit=usage_has_cache_hit(usage),
@@ -4197,7 +3652,7 @@ def render(ctx: WizardContext) -> None:
             st.session_state[SSKey.BOOLEAN_SEARCH_LAST_MODELS.value] = {
                 "draft_model": resolved_boolean_search_model
             }
-            record_artifact_generated(
+            _record_artifact_generated_with_fact_usage(
                 st.session_state,
                 artifact_id="boolean_search",
                 cache_hit=usage_has_cache_hit(usage),
@@ -4237,7 +3692,7 @@ def render(ctx: WizardContext) -> None:
             st.session_state[SSKey.EMPLOYMENT_CONTRACT_LAST_MODELS.value] = {
                 "draft_model": resolved_employment_contract_model
             }
-            record_artifact_generated(
+            _record_artifact_generated_with_fact_usage(
                 st.session_state,
                 artifact_id="employment_contract",
                 cache_hit=usage_has_cache_hit(usage),

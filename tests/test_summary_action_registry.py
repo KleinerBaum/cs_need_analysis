@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Literal
 
-from constants import SSKey
+from constants import FactKey, SSKey
 
 
 SUMMARY_PATH = Path(__file__).resolve().parents[1] / "wizard_pages" / "08_summary.py"
@@ -130,6 +130,39 @@ def test_build_action_registry_contains_expected_actions_and_requirements() -> N
     assert action_registry[4]["generator_fn"] is not None
     assert action_registry[5]["requires"] == (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN)
     assert action_registry[5]["generator_fn"] is not None
+
+
+def test_record_artifact_generated_with_fact_usage_marks_evidence() -> None:
+    session_state: dict[str, Any] = {
+        SSKey.INTAKE_FACT_EVIDENCE.value: {
+            FactKey.ROLE_JOB_TITLE.value: {
+                "source_type": "manual",
+                "used_by_artifacts": [],
+                "updated_at": "old",
+            }
+        }
+    }
+
+    SUMMARY_MODULE._record_artifact_generated_with_fact_usage(
+        session_state,
+        artifact_id="job_ad",
+        cache_hit=False,
+        mode="test",
+    )
+
+    assert session_state[SSKey.USAGE_EVENTS.value][0]["event_type"] == (
+        "artifact_generated"
+    )
+    assert session_state[SSKey.USAGE_EVENTS.value][0]["metadata"] == {
+        "artifact_id": "job_ad",
+        "cache_hit": False,
+        "mode": "test",
+    }
+    evidence = session_state[SSKey.INTAKE_FACT_EVIDENCE.value][
+        FactKey.ROLE_JOB_TITLE.value
+    ]
+    assert evidence["used_by_artifacts"] == ["job_ad"]
+    assert evidence["updated_at"] != "old"
 
 
 def test_render_action_card_returns_false_when_requirements_missing(

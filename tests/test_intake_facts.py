@@ -9,6 +9,7 @@ from intake_facts import (
     get_intake_fact_evidence_state,
     get_intake_fact_state,
     latest_fact_confidence,
+    mark_intake_facts_used_by_artifact,
     reset_intake_fact_evidence_state,
     reset_intake_fact_state,
     resolve_legacy_fact,
@@ -18,7 +19,7 @@ from intake_facts import (
     write_intake_fact_evidence,
     write_job_extract_intake_facts,
 )
-from schemas import Contact, JobAdExtract, MoneyRange, RecruitmentStep
+from schemas import Contact, JobAdExtract, JobAdFieldEvidence, MoneyRange, RecruitmentStep
 import state
 from usage_events import get_usage_events
 
@@ -447,6 +448,33 @@ def test_write_job_extract_intake_facts_writes_jobspec_evidence() -> None:
     assert evidence["used_by_artifacts"] == []
 
 
+def test_write_job_extract_intake_facts_uses_field_level_evidence() -> None:
+    session_state = {SSKey.INTAKE_FACTS.value: {}, SSKey.INTAKE_FACT_EVIDENCE.value: {}}
+    job = JobAdExtract(
+        job_title="Data Engineer",
+        field_evidence=[
+            JobAdFieldEvidence(
+                field_name="job_title",
+                confidence=0.62,
+                evidence_snippet="Senior Data Engineer fuer die Plattform gesucht",
+                needs_confirmation=True,
+            )
+        ],
+    )
+
+    write_job_extract_intake_facts(session_state, job)
+
+    evidence = session_state[SSKey.INTAKE_FACT_EVIDENCE.value][
+        FactKey.ROLE_JOB_TITLE.value
+    ]
+    assert evidence["source_type"] == FactSourceType.JOBSPEC.value
+    assert evidence["confidence"] == 0.62
+    assert evidence["confirmed"] is False
+    assert evidence["evidence_snippet"] == (
+        "Senior Data Engineer fuer die Plattform gesucht"
+    )
+
+
 def test_empty_write_clears_fact_and_evidence() -> None:
     session_state = {SSKey.INTAKE_FACTS.value: {}, SSKey.INTAKE_FACT_EVIDENCE.value: {}}
     write_intake_fact(session_state, FactKey.ROLE_JOB_TITLE, "Data Engineer")
@@ -541,6 +569,22 @@ def test_write_intake_fact_evidence_clamps_confidence_and_latest_lookup() -> Non
     ) == 1.0
 
 
+def test_write_intake_fact_evidence_uses_source_default_for_invalid_confidence() -> None:
+    session_state = {SSKey.INTAKE_FACT_EVIDENCE.value: {}}
+
+    write_intake_fact_evidence(
+        session_state,
+        FactKey.ROLE_JOB_TITLE,
+        source_type=FactSourceType.JOBSPEC,
+        confidence="not-a-number",  # type: ignore[arg-type]
+    )
+
+    evidence = session_state[SSKey.INTAKE_FACT_EVIDENCE.value][
+        FactKey.ROLE_JOB_TITLE.value
+    ]
+    assert evidence["confidence"] == 0.75
+
+
 def test_write_intake_fact_evidence_redacts_snippet_before_storage() -> None:
     session_state = {SSKey.INTAKE_FACT_EVIDENCE.value: {}}
 
@@ -599,3 +643,73 @@ def test_write_intake_fact_evidence_stores_sensitivity_and_artifact_usage() -> N
     ]
     assert contacts_evidence["confirmed"] is True
     assert contacts_evidence["sensitivity"] == FactSensitivity.PERSONAL.value
+
+
+def test_mark_intake_facts_used_by_artifact_updates_existing_evidence_rows() -> None:
+    session_state = {
+        SSKey.INTAKE_FACT_EVIDENCE.value: {
+            FactKey.ROLE_JOB_TITLE.value: {
+                "source_type": "manual",
+                "used_by_artifacts": ["brief"],
+                "updated_at": "old",
+            },
+            FactKey.COMPANY_COMPANY_NAME.value: {
+                "source_type": "jobspec",
+                "used_by_artifacts": [],
+                "updated_at": "old",
+            },
+        }
+    }
+
+    mark_intake_facts_used_by_artifact(
+        session_state,
+        "job_ad",
+        updated_at="2026-06-10T10:00:00+00:00",
+    )
+
+    evidence = session_state[SSKey.INTAKE_FACT_EVIDENCE.value]
+    assert evidence[FactKey.ROLE_JOB_TITLE.value]["used_by_artifacts"] == [
+        "brief",
+        "job_ad",
+    ]
+    assert evidence[FactKey.COMPANY_COMPANY_NAME.value]["used_by_artifacts"] == [
+        "job_ad"
+    ]
+    assert (
+        evidence[FactKey.ROLE_JOB_TITLE.value]["updated_at"]
+        == "2026-06-10T10:00:00+00:00"
+    )
+
+
+def test_mark_intake_facts_used_by_artifact_can_target_selected_facts() -> None:
+    session_state = {
+        SSKey.INTAKE_FACT_EVIDENCE.value: {
+            FactKey.ROLE_JOB_TITLE.value: {
+                "source_type": "manual",
+                "used_by_artifacts": [],
+                "updated_at": "old",
+            },
+            FactKey.COMPANY_COMPANY_NAME.value: {
+                "source_type": "jobspec",
+                "used_by_artifacts": [],
+                "updated_at": "old",
+            },
+        }
+    }
+
+    mark_intake_facts_used_by_artifact(
+        session_state,
+        "invalid",
+        fact_keys=[FactKey.ROLE_JOB_TITLE],
+        updated_at="ignored",
+    )
+    mark_intake_facts_used_by_artifact(
+        session_state,
+        "brief",
+        fact_keys=[FactKey.ROLE_JOB_TITLE, "not.a.fact"],
+        updated_at="2026-06-10T10:00:00+00:00",
+    )
+
+    evidence = session_state[SSKey.INTAKE_FACT_EVIDENCE.value]
+    assert evidence[FactKey.ROLE_JOB_TITLE.value]["used_by_artifacts"] == ["brief"]
+    assert evidence[FactKey.COMPANY_COMPANY_NAME.value]["used_by_artifacts"] == []

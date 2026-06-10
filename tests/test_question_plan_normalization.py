@@ -101,6 +101,14 @@ def test_normalize_progressive_disclosure_metadata() -> None:
                         id="team_size",
                         label="Wie groß ist das Team?",
                         answer_type=AnswerType.NUMBER,
+                        follow_up_prompts=[
+                            "  Ab welcher Teamgroesse?  ",
+                            "Ab welcher Teamgroesse?",
+                            "",
+                            "Wer fuehrt fachlich?",
+                            "Wie veraendert sich das Team?",
+                            "Wird die Rolle aufgebaut?",
+                        ],
                         depends_on=[
                             QuestionDependency(question_id="team lead", equals=True),
                             QuestionDependency(question_id="unknown_id", equals=True),
@@ -120,6 +128,11 @@ def test_normalize_progressive_disclosure_metadata() -> None:
     assert questions[1].group_key == "team_team_size"
     assert questions[1].depends_on == [
         QuestionDependency(question_id="team_lead", equals=True)
+    ]
+    assert questions[1].follow_up_prompts == [
+        "Ab welcher Teamgroesse?",
+        "Wer fuehrt fachlich?",
+        "Wie veraendert sich das Team?",
     ]
 
 

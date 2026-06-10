@@ -8,11 +8,12 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
 - Upload von Jobspec/Job Ad als **PDF**, **DOCX** oder **TXT** (alternativ: Text einfügen).
 - Entkoppeltes Quellenhandling im Intake: Upload-Text und manuelle Eingabe überschreiben sich nicht; die aktive Quelle wird zur Analyse genutzt.
 - Privacy-by-default im Quellenhandling: **PII-Reduktion ist standardmäßig aktiv** und kann im Präferenz-Center bewusst deaktiviert werden.
-- LLM-gestützte **Extraktion** der Jobspec in ein strukturiertes Schema (Structured Outputs) und automatische Erzeugung eines dynamischen Frageplans.
+- LLM-gestützte **Extraktion** der Jobspec in ein strukturiertes Schema (Structured Outputs) mit optionaler feldweiser Evidence/Confidence und automatische Erzeugung eines dynamischen Frageplans.
 - Wizard mit Fortschrittsanzeige und drei Ansichtsmodi (`quick`, `standard`, `expert`) für die sichtbaren Navigationsschritte: Start, Unternehmen, Rolle & Aufgaben, Skills, Benefits, Interviewprozess und Summary.
 - Der Ansichtsmodus (gespeicherte Werte: `quick`, `standard`, `expert`; Anzeige: `schnell`, `ausführlich`, `vollumfänglich`) ist global über das Sidebar-**Präferenz-Center** steuerbar und zusätzlich im Start-Schritt direkt unter dem Jobspec-Upload. Beim Wechsel greift sofort die adaptive Fragenbegrenzung (Neuberechnung der sichtbaren Fragen pro Step); die Confidence-Schwelle aus dem Präferenz-Center bestimmt dabei, ab wann faktengestützte Extraktionen als abgedeckt zählen. In jedem Schritt wird der aktive Modus als sichtbare Caption angezeigt, damit reduzierte Frageanzahl nachvollziehbar bleibt. `schnell`/`ausführlich`: Detailgruppen standardmäßig kompakt. `vollumfänglich`: Detailgruppen standardmäßig geöffnet.
+- Offene Wizard-Fragen werden je Schritt in einem Formular gebündelt; Antwortwerte schreiben erst beim Submit über die bestehenden State-/Fact-Adapter durch, wodurch kleinteilige Reruns während der Eingabe reduziert werden.
 - Die Sidebar zeigt die **Gehaltsprognose** in allen Ansichtsmodi, sobald ausreichend Stelleninformationen vorliegen; sie aktualisiert sich mit dem aktuellen Wizard-State und erklärt die stärksten Einflussfaktoren in einfacher Sprache.
-- Die vormals getrennte Ansicht **Identifizierte Informationen** ist in den Start-Schritt integriert (eine Wizard-Stufe weniger): Nach der Analyse erscheint dort direkt die editierbare Übersicht und der Übergang von Phase B zu Phase C bzw. in den nächsten Fachschritt; es gibt **keinen separaten sichtbaren Review-Wizard-Schritt** mehr.
+- Die vormals getrennte Ansicht **Identifizierte Informationen** ist in den Start-Schritt integriert (eine Wizard-Stufe weniger): Nach der Analyse erscheint dort direkt die editierbare Übersicht mit verfügbarer feldweiser Confidence/Evidence und der Übergang von Phase B zu Phase C bzw. in den nächsten Fachschritt; es gibt **keinen separaten sichtbaren Review-Wizard-Schritt** mehr.
 - In Phase B geprüfte Jobspec-Werte werden beim Weitergehen als bestätigte Grundlage für offene Wizard-Fragen, Aufgaben-/Skill-Auswahl, Gehaltsprognose und Summary-Artefakte genutzt; manuell bearbeitete Antworten bleiben vorrangig.
 - Jobspec-Gaps und -Annahmen werden nicht im Start-Schritt gesammelt angezeigt, sondern best-fit im jeweils passenden Folgeschritt direkt unter **Aus Jobspec extrahiert**; Annahmen können dort bestätigt oder abgelehnt und korrigiert werden.
 - Finaler **Recruiting Brief** mit Export als JSON, Markdown und DOCX.
@@ -44,6 +45,7 @@ Dieses Repo enthält eine Streamlit-Webapp, die Line Manager strukturiert durch 
    - Phase A: Quelle, Consent, standardmäßig aktive PII-Redaktion mit Opt-out, UI-Modus sowie ESCO-Betriebsblock (Stable/Preview im Expert-Modus, Runtime-Lane, Arbeits-/Fallback-Sprache, Diagnose)
    - Phase B: editierbare „Identifizierte Informationen“
    - Phase C: ESCO-Suche mit bestätigbarem oder manuell eingebbarem Rollenbegriff
+2. **Unternehmen**
 3. **Rolle & Aufgaben**
 4. **Skills & Anforderungen**
 5. **Benefits & Rahmenbedingungen**
@@ -76,9 +78,9 @@ Hinweis: Der frühere Schritt `jobspec_review` ist nur noch als Legacy-Modul vor
 ## Installation
 
 ```bash
-python -m pip install --upgrade pip
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
+python -m pip install --upgrade pip
 pip install -r requirements.txt -c constraints.txt
 streamlit run app.py
 ```
@@ -195,7 +197,9 @@ deterministische Overlay-Schicht vor der adaptiven quick/standard/expert-Begrenz
    ESCO-Anker, ESCO-Payload, vorhandene Antworten und ESCO-Version aus.
 4. Der Question-Pack-Compiler schreibt den renderfertigen Plan nach `cs.question_plan` und
    dokumentiert `cs.question_flow_provenance`.
-5. Erst danach berechnet `question_limits.py` die sichtbare Tiefe je UI-Modus.
+5. Erst danach berechnet `question_limits.py` die sichtbare Tiefe je UI-Modus und priorisiert
+   offene `core`-/Pflichtfragen, aktivierte `depends_on`-Follow-ups, vorhandene
+   `follow_up_prompts` und die Confidence-Schwelle aus den UI-Praeferenzen.
 
 Die deterministische Schicht entscheidet nur ueber Frage-Relevanz, Pack-Auswahl, Priorisierung und
 konservative Unterdrueckung klar unpassender Fragen. LLM-Advisory fuer Grenzfaelle ist bewusst nicht

@@ -227,6 +227,60 @@ def latest_fact_confidence(
         return None
 
 
+def mark_intake_facts_used_by_artifact(
+    session_state: MutableMapping[str, Any],
+    artifact_id: str,
+    *,
+    fact_keys: Sequence[FactKey | str] | None = None,
+    updated_at: str | None = None,
+) -> None:
+    """Append one artifact usage marker to existing intake fact evidence rows."""
+
+    normalized_artifact_id = _normalize_string(artifact_id)
+    if normalized_artifact_id not in set(SUMMARY_ARTIFACT_IDS):
+        return
+
+    evidence_state = _mutable_fact_evidence_state(session_state)
+    if not evidence_state:
+        return
+
+    if fact_keys is None:
+        target_keys = set(evidence_state)
+    else:
+        target_keys = {
+            fact_key.value
+            for raw_fact_key in fact_keys
+            for fact_key in [_coerce_fact_key(raw_fact_key)]
+            if fact_key is not None
+        }
+    if not target_keys:
+        return
+
+    timestamp = updated_at or datetime.now(UTC).isoformat()
+    changed = False
+    for fact_key in target_keys:
+        raw_entry = evidence_state.get(fact_key)
+        if not isinstance(raw_entry, Mapping):
+            continue
+        entry = dict(raw_entry)
+        existing_artifacts = entry.get("used_by_artifacts")
+        existing_list = (
+            list(existing_artifacts) if isinstance(existing_artifacts, list) else []
+        )
+        next_artifacts = _normalize_used_by_artifacts(
+            [*existing_list, normalized_artifact_id]
+        )
+        if next_artifacts == existing_artifacts:
+            continue
+        entry["used_by_artifacts"] = next_artifacts
+        entry["updated_at"] = timestamp
+        evidence_state[fact_key] = entry
+        changed = True
+
+    if changed:
+        session_state[SSKey.INTAKE_FACT_EVIDENCE.value] = evidence_state
+
+
 def write_intake_fact_by_legacy_field(
     session_state: MutableMapping[str, Any],
     legacy_field: str,
@@ -270,14 +324,17 @@ def write_job_extract_intake_facts(
         payload = JobAdExtract.model_validate(job_extract).model_dump(mode="json")
     except Exception:
         return
+    field_evidence = _field_evidence_by_name(payload.get("field_evidence"))
     for field_name in _WRITE_THROUGH_FACT_FIELDS:
+        evidence = field_evidence.get(field_name, {})
         write_intake_fact_by_legacy_field(
             session_state,
             field_name,
             payload.get(field_name),
             source_type=FactSourceType.JOBSPEC,
             source_label="Jobspec extraction",
-            confidence=0.75,
+            confidence=evidence.get("confidence", 0.75),
+            evidence_snippet=evidence.get("evidence_snippet"),
         )
 
 
@@ -347,6 +404,20 @@ def _mutable_fact_state(session_state: Mapping[str, Any]) -> dict[str, Any]:
 def _mutable_fact_evidence_state(session_state: Mapping[str, Any]) -> dict[str, Any]:
     raw_state = session_state.get(SSKey.INTAKE_FACT_EVIDENCE.value)
     return dict(raw_state) if isinstance(raw_state, dict) else {}
+
+
+def _field_evidence_by_name(raw_field_evidence: Any) -> dict[str, Mapping[str, Any]]:
+    if not isinstance(raw_field_evidence, list):
+        return {}
+    evidence_by_name: dict[str, Mapping[str, Any]] = {}
+    for raw_entry in raw_field_evidence:
+        if not isinstance(raw_entry, Mapping):
+            continue
+        field_name = _normalize_string(raw_entry.get("field_name"))
+        if field_name is None:
+            continue
+        evidence_by_name[field_name] = raw_entry
+    return evidence_by_name
 
 
 def _clear_intake_fact_evidence(
@@ -431,10 +502,13 @@ def _coerce_fact_sensitivity(
         return None
 
 
-def _normalize_confidence(value: float | None, *, default: float) -> float:
+def _normalize_confidence(value: Any, *, default: float) -> float:
     if value is None:
         value = default
-    return max(0.0, min(1.0, float(value)))
+    try:
+        return max(0.0, min(1.0, float(value)))
+    except (TypeError, ValueError):
+        return max(0.0, min(1.0, float(default)))
 
 
 def _normalize_evidence_snippet(value: Any) -> str | None:

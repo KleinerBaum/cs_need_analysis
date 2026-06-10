@@ -244,6 +244,7 @@ def init_session_state() -> None:
         SSKey.BRIEF.value: None,
         SSKey.LAST_ERROR.value: None,
         SSKey.LAST_ERROR_DEBUG.value: None,
+        SSKey.OPENAI_LAST_STRUCTURED_OUTPUT_PATH.value: None,
         SSKey.OPENAI_DEBUG_ERRORS.value: False,
         SSKey.DEBUG.value: False,
         SSKey.CONTENT_SHARING_CONSENT.value: False,
@@ -346,6 +347,7 @@ def init_session_state() -> None:
             "rows": 0,
         },
         SSKey.COMPANY_WEBSITE_RESEARCH.value: {},
+        SSKey.COMPANY_WEBSITE_SELECTED_MATCHES.value: [],
         SSKey.COMPANY_WEBSITE_LAST_ERROR.value: None,
         SSKey.COMPANY_WEBSITE_MANUAL_URL.value: "",
         SSKey.ROLE_TASKS_JOBSPEC_SUGGESTED.value: [],
@@ -524,6 +526,7 @@ def reset_vacancy() -> None:
         "rows": 0,
     }
     st.session_state[SSKey.COMPANY_WEBSITE_RESEARCH.value] = {}
+    st.session_state[SSKey.COMPANY_WEBSITE_SELECTED_MATCHES.value] = []
     st.session_state[SSKey.COMPANY_WEBSITE_LAST_ERROR.value] = None
     st.session_state[SSKey.COMPANY_WEBSITE_MANUAL_URL.value] = ""
     st.session_state[SSKey.ROLE_TASKS_JOBSPEC_SUGGESTED.value] = []
@@ -587,6 +590,7 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {}
     st.session_state[SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value] = {}
     st.session_state[SSKey.LAST_ERROR.value] = None
+    st.session_state[SSKey.OPENAI_LAST_STRUCTURED_OUTPUT_PATH.value] = None
     st.session_state[SSKey.CURRENT_STEP.value] = STEPS[0].key
     st.session_state[SSKey.LAST_RENDERED_STEP.value] = STEPS[0].key
     st.session_state[SSKey.NAV_SELECTED.value] = STEPS[0].key

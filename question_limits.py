@@ -64,6 +64,62 @@ def _question_is_covered(
     )
 
 
+def select_questions_for_adaptive_limit(
+    questions: list[Question],
+    *,
+    step_key: str,
+    limit: int | None,
+    answers: dict[str, Any],
+    answer_meta: AnswerMetaMap,
+    job_extract: JobAdExtract | None,
+    intake_facts: Mapping[str, Any] | None = None,
+    intake_fact_evidence: Mapping[str, Any] | None = None,
+    confidence_threshold: float | None = None,
+) -> list[Question]:
+    """Return dependency-visible questions selected by adaptive need."""
+
+    visible_questions = _resolve_visible_questions_for_limit(
+        questions,
+        step_key=step_key,
+        answers=answers,
+        answer_meta=answer_meta,
+        job_extract=job_extract,
+        intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
+    )
+    if limit is None or limit <= 0 or limit >= len(visible_questions):
+        return visible_questions
+
+    scored_questions = [
+        (
+            _question_limit_score(
+                question,
+                covered=_question_is_covered(
+                    question,
+                    answers=answers,
+                    answer_meta=answer_meta,
+                    job_extract=job_extract,
+                    intake_facts=intake_facts,
+                    intake_fact_evidence=intake_fact_evidence,
+                    confidence_threshold=confidence_threshold,
+                ),
+            ),
+            index,
+            question,
+        )
+        for index, question in enumerate(visible_questions)
+    ]
+    selected_ids = {
+        question.id
+        for _, _, question in sorted(
+            scored_questions,
+            key=lambda item: (-item[0], item[1]),
+        )[:limit]
+    }
+    return [question for question in visible_questions if question.id in selected_ids]
+
+
 def compute_adaptive_question_limits(
     *,
     plan: QuestionPlan,
@@ -81,34 +137,22 @@ def compute_adaptive_question_limits(
     for step in plan.steps:
         if not step.questions:
             continue
-        effective_answers = build_answers_with_job_extract_coverage(
+        visible_questions = _resolve_visible_questions_for_limit(
             step.questions,
-            answers,
-            answer_meta,
+            step_key=step.step_key,
+            answers=answers,
+            answer_meta=answer_meta,
             job_extract=job_extract,
             intake_facts=intake_facts,
             intake_fact_evidence=intake_fact_evidence,
             confidence_threshold=confidence_threshold,
         )
-        visible_questions = [
-            question
-            for question in step.questions
-            if should_show_question(
-                question,
-                effective_answers,
-                answer_meta,
-                step.step_key,
-                intake_facts=intake_facts,
-            )
-        ]
         total = len(visible_questions)
         if total == 0:
             continue
 
-        covered = sum(
-            1
-            for question in visible_questions
-            if _question_is_covered(
+        covered_by_question = {
+            question.id: _question_is_covered(
                 question,
                 answers=answers,
                 answer_meta=answer_meta,
@@ -117,10 +161,22 @@ def compute_adaptive_question_limits(
                 intake_fact_evidence=intake_fact_evidence,
                 confidence_threshold=confidence_threshold,
             )
-        )
+            for question in visible_questions
+        }
+        covered = sum(1 for is_covered in covered_by_question.values() if is_covered)
         missing = max(total - covered, 0)
+        essential_missing = sum(
+            1
+            for question in visible_questions
+            if not covered_by_question.get(question.id, False)
+            and _question_is_adaptive_essential(question)
+        )
         adaptive_count = math.ceil(missing * profile.missing_fraction)
-        limit = max(profile.min_questions, adaptive_count + profile.context_buffer)
+        limit = max(
+            profile.min_questions,
+            adaptive_count + profile.context_buffer,
+            essential_missing,
+        )
         limits[step.step_key] = max(1, min(total, limit))
 
     return limits
@@ -177,3 +233,71 @@ def _read_confidence_threshold() -> float | None:
         )
     except (TypeError, ValueError):
         return None
+
+
+def _resolve_visible_questions_for_limit(
+    questions: list[Question],
+    *,
+    step_key: str,
+    answers: dict[str, Any],
+    answer_meta: AnswerMetaMap,
+    job_extract: JobAdExtract | None,
+    intake_facts: Mapping[str, Any] | None,
+    intake_fact_evidence: Mapping[str, Any] | None,
+    confidence_threshold: float | None,
+) -> list[Question]:
+    effective_answers = build_answers_with_job_extract_coverage(
+        questions,
+        answers,
+        answer_meta,
+        job_extract=job_extract,
+        intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
+    )
+    return [
+        question
+        for question in questions
+        if should_show_question(
+            question,
+            effective_answers,
+            answer_meta,
+            step_key,
+            intake_facts=intake_facts,
+        )
+    ]
+
+
+def _question_limit_score(question: Question, *, covered: bool) -> int:
+    priority_score = {"core": 30, "standard": 20, "detail": 10}.get(
+        question.priority or "",
+        20,
+    )
+    score = priority_score
+    if not covered:
+        score += 100
+    else:
+        score += 5
+    if question.required:
+        score += 40
+    if question.depends_on:
+        score += 15
+    if _question_has_follow_up_prompts(question):
+        score += 12
+    return score
+
+
+def _question_is_adaptive_essential(question: Question) -> bool:
+    return (
+        bool(question.required)
+        or question.priority == "core"
+        or bool(question.depends_on)
+        or _question_has_follow_up_prompts(question)
+    )
+
+
+def _question_has_follow_up_prompts(question: Question) -> bool:
+    prompts = getattr(question, "follow_up_prompts", None)
+    return isinstance(prompts, list) and any(
+        isinstance(prompt, str) and bool(prompt.strip()) for prompt in prompts
+    )

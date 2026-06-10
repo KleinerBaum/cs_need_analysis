@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 from typing import Literal
 
@@ -403,7 +404,7 @@ def test_render_question_step_hides_verbose_progress_captions(monkeypatch) -> No
     monkeypatch.setattr(
         ui_components,
         "_render_questions_two_columns",
-        lambda _questions, _answers: None,
+        lambda _questions, _answers, **_kwargs: [],
     )
     step = QuestionStep(
         step_key="company",
@@ -433,6 +434,150 @@ def test_render_question_step_hides_verbose_progress_captions(monkeypatch) -> No
     assert not any(
         caption.startswith("Pflichtfragen offen in:") for caption in fake_st.captions
     )
+
+
+class _QuestionFormFakeStreamlit:
+    def __init__(self, *, submitted: bool) -> None:
+        self.session_state: dict[str, Any] = {
+            "cs.ui_mode": "standard",
+            "cs.question_limits": {},
+        }
+        self.submitted = submitted
+        self.rerun_called = False
+
+    def caption(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    def markdown(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    def info(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    def success(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    def container(self, *, border: bool = False) -> _NoopContext:
+        del border
+        return _NoopContext()
+
+    def columns(self, spec: int | list[int], **_: Any) -> list[_NoopContext]:
+        count = spec if isinstance(spec, int) else len(spec)
+        return [_NoopContext() for _ in range(count)]
+
+    def form(self, *_args: Any, **_kwargs: Any) -> _NoopContext:
+        return _NoopContext()
+
+    def form_submit_button(self, *_args: Any, **_kwargs: Any) -> bool:
+        return self.submitted
+
+    def text_input(self, *_args: Any, **_kwargs: Any) -> str:
+        return "Draft answer"
+
+    def rerun(self) -> None:
+        self.rerun_called = True
+
+
+def test_render_question_step_form_waits_for_submit_before_persisting(
+    monkeypatch,
+) -> None:
+    fake_st = _QuestionFormFakeStreamlit(submitted=False)
+    persisted_answers: list[tuple[str, Any]] = []
+    touched_answers: list[tuple[str, Any, Any]] = []
+    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_components, "get_answers", lambda: {})
+    monkeypatch.setattr(ui_components, "get_answer_meta", lambda: {})
+    monkeypatch.setattr(
+        ui_components,
+        "set_answer",
+        lambda question_id, value: persisted_answers.append((question_id, value)),
+    )
+    monkeypatch.setattr(
+        ui_components,
+        "mark_answer_touched",
+        lambda question_id, previous, current: touched_answers.append(
+            (question_id, previous, current)
+        ),
+    )
+    step = QuestionStep(
+        step_key="company",
+        title_de="Company",
+        questions=[
+            Question(
+                id="company_context",
+                label="Company context",
+                answer_type=AnswerType.SHORT_TEXT,
+                group_key="company",
+            )
+        ],
+    )
+
+    ui_components.render_question_step(step)
+
+    assert persisted_answers == []
+    assert touched_answers == []
+    assert fake_st.rerun_called is False
+
+
+def test_render_question_step_form_persists_answers_on_submit(monkeypatch) -> None:
+    fake_st = _QuestionFormFakeStreamlit(submitted=True)
+    persisted_answers: list[tuple[str, Any]] = []
+    touched_answers: list[tuple[str, Any, Any]] = []
+    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_components, "get_answers", lambda: {})
+    monkeypatch.setattr(ui_components, "get_answer_meta", lambda: {})
+    monkeypatch.setattr(
+        ui_components,
+        "set_answer",
+        lambda question_id, value: persisted_answers.append((question_id, value)),
+    )
+    monkeypatch.setattr(
+        ui_components,
+        "mark_answer_touched",
+        lambda question_id, previous, current: touched_answers.append(
+            (question_id, previous, current)
+        ),
+    )
+    step = QuestionStep(
+        step_key="company",
+        title_de="Company",
+        questions=[
+            Question(
+                id="company_context",
+                label="Company context",
+                answer_type=AnswerType.SHORT_TEXT,
+                group_key="company",
+            )
+        ],
+    )
+
+    ui_components.render_question_step(step)
+
+    assert persisted_answers == [("company_context", "Draft answer")]
+    assert touched_answers == [("company_context", None, "Draft answer")]
+    assert fake_st.rerun_called is True
+
+
+def test_question_step_form_is_disabled_for_language_widgets(monkeypatch) -> None:
+    fake_st = SimpleNamespace(
+        form=lambda *_args, **_kwargs: _NoopContext(),
+        form_submit_button=lambda *_args, **_kwargs: False,
+    )
+    monkeypatch.setattr(ui_components, "st", fake_st)
+
+    normal_question = Question(
+        id="company_context",
+        label="Company context",
+        answer_type=AnswerType.SHORT_TEXT,
+    )
+    language_question = Question(
+        id="language_requirements",
+        label="Welche Sprachen sind erforderlich?",
+        answer_type=AnswerType.MULTI_SELECT,
+    )
+
+    assert ui_components._can_render_question_step_form([normal_question]) is True
+    assert ui_components._can_render_question_step_form([language_question]) is False
 
 
 def test_render_step_review_card_direct_answers_mode_shows_hint_when_inline_disabled(

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from constants import AnswerType, FactKey
-from question_limits import compute_adaptive_question_limits
-from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
+from question_limits import (
+    compute_adaptive_question_limits,
+    select_questions_for_adaptive_limit,
+)
+from schemas import JobAdExtract, Question, QuestionDependency, QuestionPlan, QuestionStep
 
 
 def _build_plan() -> QuestionPlan:
@@ -144,3 +147,146 @@ def test_adaptive_limits_treat_low_confidence_fact_as_uncovered() -> None:
     )
 
     assert limits["skills"] == 3
+
+
+def test_adaptive_limits_keep_uncovered_core_questions_in_scope() -> None:
+    plan = QuestionPlan(
+        steps=[
+            QuestionStep(
+                step_key="role_tasks",
+                title_de="Rolle",
+                questions=[
+                    Question(
+                        id=f"core_{index}",
+                        label=f"Core {index}",
+                        answer_type=AnswerType.SHORT_TEXT,
+                        priority="core",
+                    )
+                    for index in range(4)
+                ]
+                + [
+                    Question(
+                        id="detail_1",
+                        label="Detail 1",
+                        answer_type=AnswerType.SHORT_TEXT,
+                        priority="detail",
+                    ),
+                    Question(
+                        id="detail_2",
+                        label="Detail 2",
+                        answer_type=AnswerType.SHORT_TEXT,
+                        priority="detail",
+                    ),
+                ],
+            )
+        ]
+    )
+
+    limits = compute_adaptive_question_limits(
+        plan=plan,
+        ui_mode="quick",
+        answers={},
+        answer_meta={},
+        job_extract=None,
+    )
+
+    assert limits["role_tasks"] == 4
+
+
+def test_select_questions_for_limit_applies_dependency_visibility_before_slicing() -> None:
+    hidden_follow_up = Question(
+        id="hybrid_days",
+        label="Wie viele Office-Tage?",
+        answer_type=AnswerType.NUMBER,
+        priority="core",
+        depends_on=[
+            QuestionDependency(question_id="remote_policy", equals="hybrid")
+        ],
+    )
+    visible_question = Question(
+        id="office_location",
+        label="Wo ist das Office?",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="standard",
+    )
+
+    selected = select_questions_for_adaptive_limit(
+        [hidden_follow_up, visible_question],
+        step_key="company",
+        limit=1,
+        answers={"remote_policy": "onsite"},
+        answer_meta={},
+        job_extract=None,
+    )
+
+    assert [question.id for question in selected] == ["office_location"]
+
+
+def test_select_questions_for_limit_prioritizes_uncovered_core_question() -> None:
+    covered_detail = Question(
+        id="detail_context",
+        label="Detail",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="detail",
+        target_path=FactKey.COMPANY_COMPANY_NAME.value,
+    )
+    uncovered_core = Question(
+        id="hiring_goal",
+        label="Hiring goal",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="core",
+    )
+
+    selected = select_questions_for_adaptive_limit(
+        [covered_detail, uncovered_core],
+        step_key="company",
+        limit=1,
+        answers={},
+        answer_meta={},
+        job_extract=None,
+        intake_facts={FactKey.COMPANY_COMPANY_NAME.value: "Example GmbH"},
+    )
+
+    assert [question.id for question in selected] == ["hiring_goal"]
+
+
+def test_follow_up_prompt_questions_are_treated_as_adaptive_essential() -> None:
+    plan = QuestionPlan(
+        steps=[
+            QuestionStep(
+                step_key="interview",
+                title_de="Interview",
+                questions=[
+                    *[
+                        Question(
+                            id=f"probe_{index}",
+                            label=f"Probe {index}",
+                            answer_type=AnswerType.SHORT_TEXT,
+                            priority="detail",
+                            follow_up_prompts=["Bitte konkretisieren"],
+                        )
+                        for index in range(4)
+                    ],
+                    *[
+                        Question(
+                            id=f"detail_{index}",
+                            label=f"Detail {index}",
+                            answer_type=AnswerType.SHORT_TEXT,
+                            priority="detail",
+                        )
+                        for index in range(2)
+                    ],
+                ],
+            )
+        ]
+    )
+
+    limits = compute_adaptive_question_limits(
+        plan=plan,
+        ui_mode="quick",
+        answers={},
+        answer_meta={},
+        job_extract=None,
+    )
+
+    assert limits["interview"] == 4
