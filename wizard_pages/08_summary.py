@@ -3759,9 +3759,7 @@ def render(ctx: WizardContext) -> None:
                 "Recruiting Brief ist ungültig. Bitte über „Recruiting Brief erstellen“ neu erstellen."
             )
             return None
-        st.info(
-            "Recruiting Brief ist veraltet. Bitte über „Recruiting Brief aktualisieren“ aktualisieren."
-        )
+        st.info("Recruiting Brief ist veraltet. Bitte aktualisiere den Recruiting Brief.")
         return None
 
     def _generate_interview_prep_hr() -> None:
