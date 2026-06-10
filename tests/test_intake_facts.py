@@ -79,15 +79,41 @@ def test_get_intake_fact_evidence_state_does_not_create_missing_key() -> None:
 
 def test_collect_legacy_facts_resolves_job_extract_values() -> None:
     job_extract = JobAdExtract(
+        language_guess="de",
         company_name=" Example GmbH ",
+        brand_name="Example",
         company_website=" https://example.test ",
         location_city=" Berlin ",
+        location_country=" DE ",
+        place_of_work=" Office ",
+        remote_policy=" Hybrid ",
+        department_name=" Data ",
+        reports_to=" CTO ",
+        direct_reports_count=2,
         job_title=" Data Engineer ",
+        employment_type=" Vollzeit ",
+        contract_type=" Unbefristet ",
+        seniority_level=" Senior ",
+        job_ref_number=" REF-123 ",
+        role_overview=" Build data products ",
         responsibilities=[" Build pipelines ", ""],
+        deliverables=["Data marts"],
         success_metrics=["Reliable reporting"],
+        tech_stack=["Python", "SQL"],
+        domain_expertise=["Retail"],
+        travel_required="Nein",
+        on_call="Nein",
+        onboarding_notes="Buddy program",
+        gaps=["Budget klaeren"],
+        assumptions=["Hybrid is possible"],
         must_have_skills=[" Python ", "SQL"],
         nice_to_have_skills=["Airflow"],
+        soft_skills=["Kommunikation"],
+        education=["Bachelor"],
+        certifications=["AWS"],
         languages=["Deutsch", " Englisch "],
+        start_date="2026-07-01",
+        application_deadline="2026-06-20",
         salary_range=MoneyRange(
             min=60000,
             max=80000,
@@ -106,15 +132,41 @@ def test_collect_legacy_facts_resolves_job_extract_values() -> None:
 
     facts = collect_legacy_facts(session_state)
 
+    assert facts[FactKey.COMPANY_LANGUAGE_GUESS] == "de"
     assert facts[FactKey.COMPANY_COMPANY_NAME] == "Example GmbH"
+    assert facts[FactKey.COMPANY_BRAND_NAME] == "Example"
     assert facts[FactKey.COMPANY_COMPANY_WEBSITE] == "https://example.test"
     assert facts[FactKey.COMPANY_LOCATION_CITY] == "Berlin"
+    assert facts[FactKey.COMPANY_LOCATION_COUNTRY] == "DE"
+    assert facts[FactKey.COMPANY_PLACE_OF_WORK] == "Office"
+    assert facts[FactKey.COMPANY_REMOTE_POLICY] == "Hybrid"
+    assert facts[FactKey.COMPANY_DEPARTMENT_NAME] == "Data"
+    assert facts[FactKey.COMPANY_REPORTS_TO] == "CTO"
+    assert facts[FactKey.COMPANY_DIRECT_REPORTS_COUNT] == 2
     assert facts[FactKey.ROLE_JOB_TITLE] == "Data Engineer"
+    assert facts[FactKey.ROLE_EMPLOYMENT_TYPE] == "Vollzeit"
+    assert facts[FactKey.ROLE_CONTRACT_TYPE] == "Unbefristet"
+    assert facts[FactKey.ROLE_SENIORITY_LEVEL] == "Senior"
+    assert facts[FactKey.ROLE_JOB_REF_NUMBER] == "REF-123"
+    assert facts[FactKey.ROLE_ROLE_OVERVIEW] == "Build data products"
     assert facts[FactKey.ROLE_RESPONSIBILITIES] == ["Build pipelines"]
+    assert facts[FactKey.ROLE_DELIVERABLES] == ["Data marts"]
     assert facts[FactKey.ROLE_SUCCESS_METRICS] == ["Reliable reporting"]
+    assert facts[FactKey.ROLE_TECH_STACK] == ["Python", "SQL"]
+    assert facts[FactKey.ROLE_DOMAIN_EXPERTISE] == ["Retail"]
+    assert facts[FactKey.ROLE_TRAVEL_REQUIRED] == "Nein"
+    assert facts[FactKey.ROLE_ON_CALL] == "Nein"
+    assert facts[FactKey.ROLE_ONBOARDING_NOTES] == "Buddy program"
+    assert facts[FactKey.ROLE_GAPS] == ["Budget klaeren"]
+    assert facts[FactKey.ROLE_ASSUMPTIONS] == ["Hybrid is possible"]
     assert facts[FactKey.SKILLS_MUST_HAVE_SKILLS] == ["Python", "SQL"]
     assert facts[FactKey.SKILLS_NICE_TO_HAVE_SKILLS] == ["Airflow"]
+    assert facts[FactKey.SKILLS_SOFT_SKILLS] == ["Kommunikation"]
+    assert facts[FactKey.SKILLS_EDUCATION] == ["Bachelor"]
+    assert facts[FactKey.SKILLS_CERTIFICATIONS] == ["AWS"]
     assert facts[FactKey.SKILLS_LANGUAGES] == ["Deutsch", "Englisch"]
+    assert facts[FactKey.INTERVIEW_START_DATE] == "2026-07-01"
+    assert facts[FactKey.INTERVIEW_APPLICATION_DEADLINE] == "2026-06-20"
     assert facts[FactKey.BENEFITS_SALARY_RANGE] == {
         "min": 60000.0,
         "max": 80000.0,
@@ -219,9 +271,13 @@ def test_write_intake_fact_by_legacy_field_updates_fact_state_only() -> None:
     }
 
     write_intake_fact_by_legacy_field(session_state, "company_name", " Example GmbH ")
+    write_intake_fact_by_legacy_field(session_state, "brand_name", " Example ")
     write_intake_fact_by_legacy_field(session_state, "remote_policy", " Hybrid ")
+    write_intake_fact_by_legacy_field(session_state, "direct_reports_count", 2)
+    write_intake_fact_by_legacy_field(session_state, "responsibilities", [" Build "])
     write_intake_fact_by_legacy_field(session_state, "travel_required", False)
     write_intake_fact_by_legacy_field(session_state, "on_call", True)
+    write_intake_fact_by_legacy_field(session_state, "certifications", [" AWS "])
     write_intake_fact_by_legacy_field(
         session_state,
         "salary_range",
@@ -246,9 +302,13 @@ def test_write_intake_fact_by_legacy_field_updates_fact_state_only() -> None:
     assert session_state[SSKey.ANSWERS.value] == {}
     assert session_state[SSKey.INTAKE_FACTS.value] == {
         FactKey.COMPANY_COMPANY_NAME.value: "Example GmbH",
+        FactKey.COMPANY_BRAND_NAME.value: "Example",
         FactKey.COMPANY_REMOTE_POLICY.value: "Hybrid",
+        FactKey.COMPANY_DIRECT_REPORTS_COUNT.value: 2,
+        FactKey.ROLE_RESPONSIBILITIES.value: ["Build"],
         FactKey.ROLE_TRAVEL_REQUIRED.value: False,
         FactKey.ROLE_ON_CALL.value: True,
+        FactKey.SKILLS_CERTIFICATIONS.value: ["AWS"],
         FactKey.BENEFITS_SALARY_RANGE.value: {
             "min": 60000,
             "max": 80000,
@@ -271,15 +331,38 @@ def test_write_job_extract_intake_facts_mirrors_supported_fields() -> None:
         SSKey.INTAKE_FACTS.value: {},
     }
     job = JobAdExtract(
+        language_guess="de",
         company_name=" Acme GmbH ",
+        brand_name=" Acme Jobs ",
         company_website=" https://example.test ",
         location_city=" Berlin ",
+        location_country=" DE ",
+        place_of_work=" Berlin office ",
         job_title=" Data Engineer ",
+        employment_type=" Vollzeit ",
+        contract_type=" Unbefristet ",
+        seniority_level=" Senior ",
+        job_ref_number=" REF-123 ",
+        role_overview=" Build reliable data products ",
+        responsibilities=[" Build pipelines "],
+        deliverables=["Data marts"],
+        success_metrics=["Reliable reporting"],
+        tech_stack=["Python"],
+        domain_expertise=["Retail"],
         remote_policy=" Hybrid ",
         travel_required="Ja",
         on_call="Nein",
+        onboarding_notes="Buddy program",
+        gaps=["Budget klaeren"],
+        assumptions=["Hybrid possible"],
         must_have_skills=[" Python ", ""],
         nice_to_have_skills=["Airflow"],
+        soft_skills=["Kommunikation"],
+        education=["Bachelor"],
+        certifications=["AWS"],
+        languages=["Deutsch"],
+        start_date="2026-07-01",
+        application_deadline="2026-06-20",
         salary_range=MoneyRange(
             min=60000,
             max=80000,
@@ -302,15 +385,38 @@ def test_write_job_extract_intake_facts_mirrors_supported_fields() -> None:
         "job_title": "Legacy title",
     }
     assert session_state[SSKey.INTAKE_FACTS.value] == {
+        FactKey.COMPANY_LANGUAGE_GUESS.value: "de",
         FactKey.COMPANY_COMPANY_NAME.value: "Acme GmbH",
+        FactKey.COMPANY_BRAND_NAME.value: "Acme Jobs",
         FactKey.COMPANY_COMPANY_WEBSITE.value: "https://example.test",
         FactKey.COMPANY_LOCATION_CITY.value: "Berlin",
+        FactKey.COMPANY_LOCATION_COUNTRY.value: "DE",
+        FactKey.COMPANY_PLACE_OF_WORK.value: "Berlin office",
         FactKey.COMPANY_REMOTE_POLICY.value: "Hybrid",
         FactKey.ROLE_JOB_TITLE.value: "Data Engineer",
+        FactKey.ROLE_EMPLOYMENT_TYPE.value: "Vollzeit",
+        FactKey.ROLE_CONTRACT_TYPE.value: "Unbefristet",
+        FactKey.ROLE_SENIORITY_LEVEL.value: "Senior",
+        FactKey.ROLE_JOB_REF_NUMBER.value: "REF-123",
+        FactKey.ROLE_ROLE_OVERVIEW.value: "Build reliable data products",
+        FactKey.ROLE_RESPONSIBILITIES.value: ["Build pipelines"],
+        FactKey.ROLE_DELIVERABLES.value: ["Data marts"],
+        FactKey.ROLE_SUCCESS_METRICS.value: ["Reliable reporting"],
+        FactKey.ROLE_TECH_STACK.value: ["Python"],
+        FactKey.ROLE_DOMAIN_EXPERTISE.value: ["Retail"],
         FactKey.ROLE_TRAVEL_REQUIRED.value: "Ja",
         FactKey.ROLE_ON_CALL.value: "Nein",
+        FactKey.ROLE_ONBOARDING_NOTES.value: "Buddy program",
+        FactKey.ROLE_GAPS.value: ["Budget klaeren"],
+        FactKey.ROLE_ASSUMPTIONS.value: ["Hybrid possible"],
         FactKey.SKILLS_MUST_HAVE_SKILLS.value: ["Python"],
         FactKey.SKILLS_NICE_TO_HAVE_SKILLS.value: ["Airflow"],
+        FactKey.SKILLS_SOFT_SKILLS.value: ["Kommunikation"],
+        FactKey.SKILLS_EDUCATION.value: ["Bachelor"],
+        FactKey.SKILLS_CERTIFICATIONS.value: ["AWS"],
+        FactKey.SKILLS_LANGUAGES.value: ["Deutsch"],
+        FactKey.INTERVIEW_START_DATE.value: "2026-07-01",
+        FactKey.INTERVIEW_APPLICATION_DEADLINE.value: "2026-06-20",
         FactKey.BENEFITS_SALARY_RANGE.value: {
             "min": 60000.0,
             "max": 80000.0,
@@ -388,6 +494,18 @@ def test_state_set_answer_writes_through_supported_fact_and_legacy_answer(
     fake_session_state = {
         SSKey.ANSWERS.value: {},
         SSKey.INTAKE_FACTS.value: {},
+        SSKey.QUESTION_PLAN.value: {
+            "steps": [
+                {
+                    "questions": [
+                        {
+                            "id": "ctx_tech_stack_must",
+                            "fact_key": FactKey.ROLE_TECH_STACK.value,
+                        }
+                    ]
+                }
+            ]
+        },
     }
     monkeypatch.setattr(
         state,
@@ -397,16 +515,19 @@ def test_state_set_answer_writes_through_supported_fact_and_legacy_answer(
 
     state.set_answer("job_title", " Data Engineer ")
     state.set_answer("travel_required", False)
+    state.set_answer("ctx_tech_stack_must", [" Python "])
     state.set_answer("unmapped_question", "kept legacy-only")
 
     assert fake_session_state[SSKey.ANSWERS.value] == {
         "job_title": " Data Engineer ",
         "travel_required": False,
+        "ctx_tech_stack_must": [" Python "],
         "unmapped_question": "kept legacy-only",
     }
     assert fake_session_state[SSKey.INTAKE_FACTS.value] == {
         FactKey.ROLE_JOB_TITLE.value: "Data Engineer",
         FactKey.ROLE_TRAVEL_REQUIRED.value: False,
+        FactKey.ROLE_TECH_STACK.value: ["Python"],
     }
 
 

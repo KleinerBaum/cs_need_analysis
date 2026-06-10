@@ -627,7 +627,7 @@ def _render_skill_status_surface(
             )
         with action_col:
             return st.button(
-                "Weitere Skill-Vorschläge anzeigen",
+                "Weitere AI-Skill-Vorschläge generieren",
                 key=SSKey.SKILLS_AI_GENERATE_CLICKED.value,
                 width="stretch",
             )
@@ -1520,6 +1520,31 @@ def _generate_ai_skill_suggestions(
     return combined_llm
 
 
+def _initial_ai_skill_generation_action(
+    *,
+    existing_llm: list[Any],
+    generate_ai_clicked: bool,
+) -> tuple[bool, int | None]:
+    initial_ai_generated = bool(
+        st.session_state.get(SSKey.SKILLS_AI_INITIAL_GENERATED.value, False)
+    )
+    should_auto_generate_ai = not initial_ai_generated and not existing_llm
+    if not initial_ai_generated and existing_llm:
+        st.session_state[SSKey.SKILLS_AI_INITIAL_GENERATED.value] = True
+    if not (should_auto_generate_ai or generate_ai_clicked):
+        return False, None
+    st.session_state[SSKey.SKILLS_AI_INITIAL_GENERATED.value] = True
+    if should_auto_generate_ai:
+        return True, 5
+    try:
+        target_skill_count = int(
+            st.session_state.get(SSKey.SKILLS_SUGGEST_COUNT.value, 5)
+        )
+    except (TypeError, ValueError):
+        target_skill_count = 5
+    return True, max(1, min(12, target_skill_count))
+
+
 def _render_unmapped_term_workflow(flagged_terms: list[str]) -> None:
     st.markdown("#### Offene Begriffe")
     st.caption("Für jeden Begriff: ESCO mappen, Freitext behalten, ignorieren oder erneut suchen.")
@@ -2058,19 +2083,13 @@ def _render_skills_source_comparison_block(
         esco_must_selected=deduped_must,
         esco_nice_selected=deduped_nice,
     )
-    initial_ai_generated = bool(
-        st.session_state.get(SSKey.SKILLS_AI_INITIAL_GENERATED.value, False)
-    )
     existing_llm_raw = st.session_state.get(SSKey.SKILLS_LLM_SUGGESTED.value, [])
     existing_llm = existing_llm_raw if isinstance(existing_llm_raw, list) else []
-    should_auto_generate_ai = not initial_ai_generated and not existing_llm
-    if not initial_ai_generated and existing_llm:
-        st.session_state[SSKey.SKILLS_AI_INITIAL_GENERATED.value] = True
-    if should_auto_generate_ai or generate_ai_clicked:
-        st.session_state[SSKey.SKILLS_AI_INITIAL_GENERATED.value] = True
-        target_skill_count = 5 if should_auto_generate_ai else int(
-            st.session_state.get(SSKey.SKILLS_SUGGEST_COUNT.value, 5)
-        )
+    should_generate_ai, target_skill_count = _initial_ai_skill_generation_action(
+        existing_llm=existing_llm,
+        generate_ai_clicked=generate_ai_clicked,
+    )
+    if should_generate_ai and target_skill_count is not None:
         with st.spinner("Generiere Skill-Vorschläge …"):
             _generate_ai_skill_suggestions(
                 job=job,

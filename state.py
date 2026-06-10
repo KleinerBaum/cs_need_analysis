@@ -43,6 +43,7 @@ from esco_semantics import (
 from intake_facts import (
     reset_intake_fact_evidence_state,
     reset_intake_fact_state,
+    write_intake_fact,
     write_intake_fact_by_legacy_field,
 )
 from interview_process import INTERVIEW_INTERNAL_FLOW_DEFAULT
@@ -601,11 +602,53 @@ def get_answers() -> Dict[str, Any]:
     return st.session_state.get(SSKey.ANSWERS.value, {}) or {}
 
 
-def set_answer(question_id: str, value: Any) -> None:
+def set_answer(question_id: str, value: Any, *, fact_key: str | None = None) -> None:
     answers = get_answers()
     answers[question_id] = value
     st.session_state[SSKey.ANSWERS.value] = answers
     write_intake_fact_by_legacy_field(st.session_state, question_id, value)
+    resolved_fact_key = fact_key or _question_fact_key_from_plan(question_id)
+    if resolved_fact_key:
+        write_intake_fact(st.session_state, resolved_fact_key, value)
+
+
+def _question_fact_key_from_plan(question_id: str) -> str | None:
+    raw_plan = st.session_state.get(SSKey.QUESTION_PLAN.value)
+    raw_steps = _raw_question_plan_steps(raw_plan)
+    for raw_step in raw_steps:
+        raw_questions = _raw_step_questions(raw_step)
+        for raw_question in raw_questions:
+            if not isinstance(raw_question, dict):
+                continue
+            if raw_question.get("id") != question_id:
+                continue
+            fact_key = raw_question.get("fact_key")
+            if isinstance(fact_key, str) and fact_key.strip():
+                return fact_key.strip()
+    return None
+
+
+def _raw_question_plan_steps(raw_plan: Any) -> list[Any]:
+    if isinstance(raw_plan, dict):
+        raw_steps = raw_plan.get("steps")
+        return raw_steps if isinstance(raw_steps, list) else []
+    raw_steps = getattr(raw_plan, "steps", None)
+    return list(raw_steps) if isinstance(raw_steps, list) else []
+
+
+def _raw_step_questions(raw_step: Any) -> list[Any]:
+    if isinstance(raw_step, dict):
+        raw_questions = raw_step.get("questions")
+        return raw_questions if isinstance(raw_questions, list) else []
+    raw_questions = getattr(raw_step, "questions", None)
+    if isinstance(raw_questions, list):
+        return [
+            question.model_dump(mode="json")
+            if hasattr(question, "model_dump")
+            else question
+            for question in raw_questions
+        ]
+    return []
 
 
 def get_answer_meta() -> AnswerMetaMap:

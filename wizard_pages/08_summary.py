@@ -2073,17 +2073,9 @@ def _build_summary_fact_rows(
             intake_facts=intake_facts,
             intake_fact_evidence=intake_fact_evidence,
         ),
-        SummaryFactsRow(
-            "Artefakte",
-            "Recruiting Brief",
-            "Vorhanden" if artifacts.brief is not None else "Noch nicht generiert",
-            "Summary",
-            "Vollständig" if artifacts.brief is not None else "Teilweise",
-        ),
     ]
     if show_esco_sections:
-        rows.insert(
-            4,
+        rows.append(
             SummaryFactsRow(
                 "Klassifikation",
                 "ESCO Occupation",
@@ -2092,6 +2084,57 @@ def _build_summary_fact_rows(
                 _status_for_classification_value(meta.selected_occupation_title),
             ),
         )
+    for label, fact_key, fallback_value in (
+        ("Homepage", FactKey.COMPANY_COMPANY_WEBSITE, job.company_website),
+        ("Arbeitsort", FactKey.COMPANY_PLACE_OF_WORK, job.place_of_work),
+        ("Remote-Regelung", FactKey.COMPANY_REMOTE_POLICY, job.remote_policy),
+        ("Beschäftigungsart", FactKey.ROLE_EMPLOYMENT_TYPE, job.employment_type),
+        ("Vertragsart", FactKey.ROLE_CONTRACT_TYPE, job.contract_type),
+        ("Seniorität", FactKey.ROLE_SENIORITY_LEVEL, job.seniority_level),
+        ("Startdatum", FactKey.INTERVIEW_START_DATE, job.start_date),
+        (
+            "Bewerbungsfrist",
+            FactKey.INTERVIEW_APPLICATION_DEADLINE,
+            job.application_deadline,
+        ),
+        (
+            "Gehalt",
+            FactKey.BENEFITS_SALARY_RANGE,
+            job.salary_range.model_dump(mode="json")
+            if job.salary_range is not None
+            else None,
+        ),
+        ("Must-have Skills", FactKey.SKILLS_MUST_HAVE_SKILLS, job.must_have_skills),
+        (
+            "Nice-to-have Skills",
+            FactKey.SKILLS_NICE_TO_HAVE_SKILLS,
+            job.nice_to_have_skills,
+        ),
+        ("Sprachen", FactKey.SKILLS_LANGUAGES, job.languages),
+    ):
+        if (
+            fact_key.value not in intake_facts
+            and _status_for_value(fallback_value) == "Fehlend"
+        ):
+            continue
+        rows.append(
+            _summary_core_fact_row(
+                label=label,
+                fact_key=fact_key,
+                fallback_value=fallback_value,
+                intake_facts=intake_facts,
+                intake_fact_evidence=intake_fact_evidence,
+            )
+        )
+    rows.append(
+        SummaryFactsRow(
+            "Artefakte",
+            "Recruiting Brief",
+            "Vorhanden" if artifacts.brief is not None else "Noch nicht generiert",
+            "Summary",
+            "Vollständig" if artifacts.brief is not None else "Teilweise",
+        )
+    )
     if artifacts.selected_benefits:
         rows.append(
             SummaryFactsRow(

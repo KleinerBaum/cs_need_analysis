@@ -571,7 +571,7 @@ def _intake_fact(
     )
 
 
-# FACT_REGISTRY: canonical intake fact definitions, not wired into runtime yet.
+# FACT_REGISTRY: canonical intake fact definitions used by runtime write-through.
 INTAKE_FACTS: Final[tuple[IntakeFactDef, ...]] = (
     _intake_fact(
         FactKey.COMPANY_LANGUAGE_GUESS,

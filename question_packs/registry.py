@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from constants import (
     AnswerType,
+    FactKey,
     STEP_KEY_BENEFITS,
     STEP_KEY_COMPANY,
     STEP_KEY_INTERVIEW,
@@ -24,6 +25,7 @@ def _pack_entry(
     group_key: str,
     priority: str = "standard",
     target_path: str | None = None,
+    fact_key: FactKey | None = None,
     required: bool = False,
     options: list[str] | None = None,
     help_text: str | None = None,
@@ -36,6 +38,7 @@ def _pack_entry(
         required=required,
         options=options,
         target_path=target_path or f"answers.{step_key}.{question_id}",
+        fact_key=fact_key.value if fact_key is not None else None,
         priority=priority,  # type: ignore[arg-type]
         group_key=group_key,
     )
@@ -54,6 +57,7 @@ BASE_CORE_PACK = QuestionPack(
             group_key="success_context",
             priority="core",
             target_path="success_metrics",
+            fact_key=FactKey.ROLE_SUCCESS_METRICS,
         ),
     ),
 )
@@ -70,6 +74,7 @@ BASE_INTERVIEW_PACK = QuestionPack(
             group_key="assessment",
             priority="core",
             target_path="recruitment_steps",
+            fact_key=FactKey.INTERVIEW_RECRUITMENT_STEPS,
         ),
     ),
 )
@@ -86,6 +91,7 @@ DIGITAL_PRODUCT_PACK = QuestionPack(
             group_key="digital_delivery",
             priority="core",
             target_path="responsibilities",
+            fact_key=FactKey.ROLE_RESPONSIBILITIES,
         ),
         _pack_entry(
             step_key=STEP_KEY_SKILLS,
@@ -95,6 +101,7 @@ DIGITAL_PRODUCT_PACK = QuestionPack(
             group_key="tech_stack",
             priority="core",
             target_path="tech_stack",
+            fact_key=FactKey.ROLE_TECH_STACK,
             options=[
                 "Python",
                 "Java",
@@ -120,6 +127,7 @@ CLINICAL_PHYSICIAN_PACK = QuestionPack(
             group_key="medical_context",
             priority="core",
             target_path="domain_expertise",
+            fact_key=FactKey.ROLE_DOMAIN_EXPERTISE,
         ),
         _pack_entry(
             step_key=STEP_KEY_SKILLS,
@@ -129,6 +137,7 @@ CLINICAL_PHYSICIAN_PACK = QuestionPack(
             group_key="licenses",
             priority="core",
             target_path="certifications",
+            fact_key=FactKey.SKILLS_CERTIFICATIONS,
         ),
     ),
 )
@@ -145,6 +154,7 @@ NURSING_CARE_PACK = QuestionPack(
             group_key="care_context",
             priority="core",
             target_path="domain_expertise",
+            fact_key=FactKey.ROLE_DOMAIN_EXPERTISE,
         ),
         _pack_entry(
             step_key=STEP_KEY_SKILLS,
@@ -154,6 +164,7 @@ NURSING_CARE_PACK = QuestionPack(
             group_key="licenses",
             priority="core",
             target_path="certifications",
+            fact_key=FactKey.SKILLS_CERTIFICATIONS,
         ),
     ),
 )
@@ -170,6 +181,7 @@ FIELD_SALES_PACK = QuestionPack(
             group_key="sales_territory",
             priority="core",
             target_path="responsibilities",
+            fact_key=FactKey.ROLE_RESPONSIBILITIES,
         ),
         _pack_entry(
             step_key=STEP_KEY_BENEFITS,
@@ -179,6 +191,7 @@ FIELD_SALES_PACK = QuestionPack(
             group_key="compensation",
             priority="core",
             target_path="salary_range.notes",
+            fact_key=FactKey.BENEFITS_SALARY_RANGE,
         ),
     ),
 )
@@ -195,6 +208,7 @@ FIELD_SERVICE_PACK = QuestionPack(
             group_key="service_area",
             priority="core",
             target_path="responsibilities",
+            fact_key=FactKey.ROLE_RESPONSIBILITIES,
         ),
         _pack_entry(
             step_key=STEP_KEY_SKILLS,
@@ -204,6 +218,7 @@ FIELD_SERVICE_PACK = QuestionPack(
             group_key="safety",
             priority="core",
             target_path="certifications",
+            fact_key=FactKey.SKILLS_CERTIFICATIONS,
         ),
     ),
 )
@@ -220,6 +235,7 @@ TRANSPORT_LOGISTICS_PACK = QuestionPack(
             group_key="route_model",
             priority="core",
             target_path="responsibilities",
+            fact_key=FactKey.ROLE_RESPONSIBILITIES,
         ),
     ),
 )
@@ -236,6 +252,7 @@ CUSTOMER_SUPPORT_PACK = QuestionPack(
             group_key="support_model",
             priority="core",
             target_path="responsibilities",
+            fact_key=FactKey.ROLE_RESPONSIBILITIES,
         ),
     ),
 )
@@ -252,6 +269,7 @@ REMOTE_GLOBAL_PACK = QuestionPack(
             group_key="work_arrangement",
             priority="core",
             target_path="remote_policy",
+            fact_key=FactKey.COMPANY_REMOTE_POLICY,
         ),
     ),
 )
@@ -268,6 +286,7 @@ DRIVING_REQUIRED_PACK = QuestionPack(
             group_key="mobility",
             priority="core",
             target_path="travel_required",
+            fact_key=FactKey.ROLE_TRAVEL_REQUIRED,
         ),
     ),
 )
@@ -284,6 +303,7 @@ TRAVEL_HIGH_PACK = QuestionPack(
             group_key="travel",
             priority="core",
             target_path="travel_required",
+            fact_key=FactKey.ROLE_TRAVEL_REQUIRED,
         ),
     ),
 )
@@ -300,6 +320,7 @@ REGULATED_PROFESSION_PACK = QuestionPack(
             group_key="licenses",
             priority="core",
             target_path="certifications",
+            fact_key=FactKey.SKILLS_CERTIFICATIONS,
         ),
     ),
 )
@@ -316,6 +337,7 @@ SHIFT_ONCALL_PACK = QuestionPack(
             group_key="shift_oncall",
             priority="core",
             target_path="on_call",
+            fact_key=FactKey.ROLE_ON_CALL,
         ),
     ),
 )

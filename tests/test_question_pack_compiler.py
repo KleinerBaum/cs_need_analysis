@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from constants import AnswerType
+from constants import AnswerType, FactKey
 from question_plan_compiler import compile_question_plan
 from schemas import (
     JobAdExtract,
@@ -43,6 +43,16 @@ def test_compiler_injects_selected_digital_product_packs() -> None:
     assert "ctx_digital_ownership" in question_ids
     assert "ctx_tech_stack_must" in question_ids
     assert "ctx_remote_geography" in question_ids
+    fact_by_question_id = {
+        q.id: q.fact_key for step in compiled.plan.steps for q in step.questions
+    }
+    assert fact_by_question_id["ctx_digital_ownership"] == (
+        FactKey.ROLE_RESPONSIBILITIES.value
+    )
+    assert fact_by_question_id["ctx_tech_stack_must"] == FactKey.ROLE_TECH_STACK.value
+    assert fact_by_question_id["ctx_remote_geography"] == (
+        FactKey.COMPANY_REMOTE_POLICY.value
+    )
     assert "family.digital_product" in compiled.provenance.selected_pack_keys
     assert compiled.provenance.base_question_count == 1
     assert compiled.provenance.compiled_question_count > 1

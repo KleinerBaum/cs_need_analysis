@@ -118,7 +118,7 @@ def format_summary_fact_value(value: Any) -> str:
         parts = [
             f"{str(key).strip()}: {str(item).strip()}"
             for key, item in value.items()
-            if str(key).strip() and str(item).strip()
+            if str(key).strip() and not is_missing_value(item)
         ]
         return " | ".join(parts)
     return str(value or "").strip()

@@ -6,7 +6,14 @@ from types import SimpleNamespace
 from typing import Any, Literal
 
 from constants import AnswerType, FactKey, SSKey
-from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep, RecruitmentStep
+from schemas import (
+    JobAdExtract,
+    MoneyRange,
+    Question,
+    QuestionPlan,
+    QuestionStep,
+    RecruitmentStep,
+)
 
 
 SUMMARY_PATH = Path(__file__).resolve().parents[1] / "wizard_pages" / "08_summary.py"
@@ -115,6 +122,51 @@ def test_build_summary_fact_rows_prefer_canonical_core_facts(monkeypatch) -> Non
     assert fields["Rolle"]["Quelle"] == "Manual input"
     assert fields["Unternehmen"]["Wert"] == "Manual GmbH"
     assert fields["Unternehmen"]["Quelle"] == "Manual input"
+
+
+def test_build_summary_fact_rows_include_populated_extended_core_facts(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.INTAKE_FACTS.value: {
+                    FactKey.COMPANY_REMOTE_POLICY.value: "Hybrid",
+                    FactKey.SKILLS_MUST_HAVE_SKILLS.value: ["Python", "SQL"],
+                },
+                SSKey.INTAKE_FACT_EVIDENCE.value: {
+                    FactKey.COMPANY_REMOTE_POLICY.value: {
+                        "source_label": "Manual input"
+                    },
+                    FactKey.SKILLS_MUST_HAVE_SKILLS.value: {
+                        "source_label": "Manual skill selection"
+                    },
+                },
+            }
+        ),
+    )
+    job = JobAdExtract(
+        job_title="Data Engineer",
+        employment_type="Vollzeit",
+        salary_range=MoneyRange(min=60000, max=80000, currency="EUR"),
+    )
+
+    rows = SUMMARY_MODULE._build_summary_fact_rows(
+        job=job,
+        answers={},
+        plan=None,
+        artifacts=_artifacts(),
+        meta=_meta(selected_occupation_title=None),
+    )
+
+    fields = {row.feld: row.to_dict() for row in rows}
+    assert fields["Remote-Regelung"]["Wert"] == "Hybrid"
+    assert fields["Remote-Regelung"]["Quelle"] == "Manual input"
+    assert fields["Beschäftigungsart"]["Wert"] == "Vollzeit"
+    assert fields["Gehalt"]["Wert"] == "min: 60000.0 | max: 80000.0 | currency: EUR"
+    assert fields["Must-have Skills"]["Wert"] == "Python | SQL"
 
 
 def test_build_summary_fact_rows_include_answer_rows() -> None:
