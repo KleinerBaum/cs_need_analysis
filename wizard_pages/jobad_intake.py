@@ -40,7 +40,7 @@ from intake_facts import (
     write_intake_fact_by_legacy_field,
     write_job_extract_intake_facts,
 )
-from occupation_context import classify_occupation_context
+from occupation_context import build_occupation_question_context, classify_occupation_context
 from parsing import extract_text_from_uploaded_file, redact_pii
 from question_progress import (
     is_answered,
@@ -117,8 +117,53 @@ def _sync_deterministic_question_flow(job: JobAdExtract, base_plan: QuestionPlan
         ),
         answers=answers,
     )
-    compiled = compile_question_plan(base_plan=base_plan, profile=profile)
+    esco_config_raw = st.session_state.get(SSKey.ESCO_CONFIG.value, {})
+    esco_config = esco_config_raw if isinstance(esco_config_raw, dict) else {}
+    essential_raw = st.session_state.get(SSKey.ESCO_CONFIRMED_ESSENTIAL_SKILLS.value)
+    optional_raw = st.session_state.get(SSKey.ESCO_CONFIRMED_OPTIONAL_SKILLS.value)
+    essential_skills = (
+        essential_raw
+        if isinstance(essential_raw, list)
+        else st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
+    )
+    optional_skills = (
+        optional_raw
+        if isinstance(optional_raw, list)
+        else st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
+    )
+    matrix_rows_raw = st.session_state.get(SSKey.ESCO_MATRIX_COVERAGE_ROWS.value, [])
+    skill_group_share_raw = st.session_state.get(
+        SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value, []
+    )
+    question_context = build_occupation_question_context(
+        esco_selected=primary_anchor,
+        esco_payload=st.session_state.get(SSKey.ESCO_OCCUPATION_PAYLOAD.value),
+        essential_skills=essential_skills if isinstance(essential_skills, list) else [],
+        optional_skills=optional_skills if isinstance(optional_skills, list) else [],
+        matrix_coverage_rows=matrix_rows_raw if isinstance(matrix_rows_raw, list) else [],
+        skill_group_share=(
+            skill_group_share_raw if isinstance(skill_group_share_raw, list) else []
+        ),
+        capability_snapshot=capability_snapshot,
+        esco_version=(
+            capability_snapshot.selected_version if capability_snapshot else None
+        ),
+        source_mode=(
+            capability_snapshot.data_source_mode if capability_snapshot else None
+        ),
+        language=str(esco_config.get("language") or "de"),
+        regulated_profession=profile.regulated_profession,
+    )
+    compiled = compile_question_plan(
+        base_plan=base_plan,
+        profile=profile,
+        question_context=question_context,
+        ui_mode=str(st.session_state.get(SSKey.UI_MODE.value, "standard")),
+    )
     st.session_state[SSKey.OCCUPATION_PROFILE.value] = profile.model_dump(mode="json")
+    st.session_state[SSKey.OCCUPATION_QUESTION_CONTEXT.value] = (
+        question_context.model_dump(mode="json")
+    )
     st.session_state[SSKey.OCCUPATION_CLASSIFICATION_TRACE.value] = [
         item.model_dump(mode="json") for item in profile.evidence
     ]

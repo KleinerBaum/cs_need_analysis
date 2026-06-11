@@ -197,6 +197,25 @@ Semantic states:
 
 Secondary anchors are context/rationale only; they must not inject skills into core exports unless the semantics are explicitly redesigned.
 
+### ESCO/ISCO question-flow context
+
+Confirmed ESCO context is normalized into an optional question context used by the deterministic question compiler. ESCO supplies occupation, skill, knowledge, ISCO, NACE, and regulation context; it does not provide ready-made interview questions or a canonical benefit taxonomy.
+
+Question-flow provenance records the ordered module keys when data is available:
+
+- `BASE_RECRUITING`
+- `ISCO1:<code>`, `ISCO3:<code>`, `ISCO4:<code>`
+- `ESCO_OCCUPATION:<uri>`
+- `SKILL_GROUP:<canonical_group>`
+- `NACE:<code>`
+- `REGULATED_PROFESSION`
+
+Skill groups are mapped into reusable blocks such as `domain_knowledge`, `tools_methods`, `regulation_safety`, `customer_client_interaction`, `documentation_reporting`, `leadership_coordination`, `physical_manual_context`, `digital_data_ai`, `language_communication`, and `transversal_fit`.
+
+Essential and optional ESCO skills/knowledge are converted into capped confirmation questions in the Skills step. ESCO `essential` is treated as a signal to ask the hiring manager, not as an automatic knockout criterion. If ESCO, NACE, matrix, or knowledge metadata is missing, the wizard degrades to the existing generic/family/facet packs and records skipped module reasons in export provenance.
+
+Structured exports may include `occupation_question_context` and extended `question_flow_provenance` fields (`resolved_module_keys`, `skipped_module_reasons`, `source_uris_by_question_id`). These fields are optional and absent/empty in degraded mode.
+
 ### ESCO offline index
 
 The repo can build and use a versioned local ESCO lookup index.

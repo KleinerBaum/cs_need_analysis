@@ -18,6 +18,7 @@ from constants import (
     AnswerType,
     JOB_AD_SCHEMA_VERSION,
     OCCUPATION_CONTEXT_SCHEMA_VERSION,
+    OCCUPATION_QUESTION_CONTEXT_SCHEMA_VERSION,
     QUESTION_SCHEMA_VERSION,
     VACANCY_SCHEMA_VERSION,
     WEBSITE_RESEARCH_HOMEPAGE_URL,
@@ -220,6 +221,40 @@ class ClassificationEvidence(StrictSchemaModel):
     rationale: str
 
 
+class OccupationQuestionConcept(StrictSchemaModel):
+    uri: str = Field(default="", description="ESCO concept URI when available.")
+    label: str = Field(default="", description="Human-readable concept label.")
+    concept_type: Literal["skill", "knowledge", "unknown"] = "unknown"
+    relation: Literal["essential", "optional", "unknown"] = "unknown"
+    source: Optional[str] = None
+    skill_group: Optional[str] = None
+    reuse_level: Optional[str] = None
+
+
+class OccupationQuestionContext(StrictSchemaModel):
+    schema_version: str = Field(default=OCCUPATION_QUESTION_CONTEXT_SCHEMA_VERSION)
+    occupation_uri: str = ""
+    preferred_label: str = ""
+    alternative_labels: List[str] = Field(default_factory=list)
+    isco_code: Optional[str] = None
+    isco_path: List[str] = Field(default_factory=list)
+    nace_codes: List[str] = Field(default_factory=list)
+    regulated_profession: Optional[bool] = None
+    essential_skill_uris: List[str] = Field(default_factory=list)
+    optional_skill_uris: List[str] = Field(default_factory=list)
+    essential_knowledge_uris: List[str] = Field(default_factory=list)
+    optional_knowledge_uris: List[str] = Field(default_factory=list)
+    essential_skills: List[OccupationQuestionConcept] = Field(default_factory=list)
+    optional_skills: List[OccupationQuestionConcept] = Field(default_factory=list)
+    essential_knowledge: List[OccupationQuestionConcept] = Field(default_factory=list)
+    optional_knowledge: List[OccupationQuestionConcept] = Field(default_factory=list)
+    skill_groups: List[str] = Field(default_factory=list)
+    reuse_levels: List[str] = Field(default_factory=list)
+    esco_version: Optional[str] = None
+    source_mode: Optional[str] = None
+    language: str = "de"
+
+
 class OccupationContextProfile(StrictSchemaModel):
     schema_version: str = Field(default=OCCUPATION_CONTEXT_SCHEMA_VERSION)
     esco_version: Optional[str] = None
@@ -248,6 +283,9 @@ class QuestionFlowProvenance(StrictSchemaModel):
     base_question_count: int = Field(default=0, ge=0)
     compiled_question_count: int = Field(default=0, ge=0)
     selected_pack_keys: List[str] = Field(default_factory=list)
+    resolved_module_keys: List[str] = Field(default_factory=list)
+    skipped_module_reasons: Dict[str, str] = Field(default_factory=dict)
+    source_uris_by_question_id: Dict[str, List[str]] = Field(default_factory=dict)
     suppressed_question_ids: List[str] = Field(default_factory=list)
     demoted_question_ids: List[str] = Field(default_factory=list)
     injected_question_ids: List[str] = Field(default_factory=list)
@@ -816,6 +854,10 @@ class VacancyStructuredData(StrictSchemaModel):
     occupation_context_profile: Optional[OccupationContextProfile] = Field(
         default=None,
         description="Optional deterministic occupation-aware context profile used for question flow selection.",
+    )
+    occupation_question_context: Optional[OccupationQuestionContext] = Field(
+        default=None,
+        description="Optional ESCO/ISCO question context used for deterministic question module resolution.",
     )
     question_flow_provenance: Optional[QuestionFlowProvenance] = Field(
         default=None,

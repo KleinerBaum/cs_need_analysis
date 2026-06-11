@@ -416,6 +416,21 @@ def test_benefits_selected_state_syncs_intake_fact() -> None:
     }
 
 
+def test_benefits_esco_skill_dicts_do_not_become_benefit_labels() -> None:
+    benefits = _load_module(
+        "wizard_pages.page_06_benefits_esco_guard", "wizard_pages/06_benefits.py"
+    )
+
+    labels = benefits._benefit_labels_from_suggestions(
+        [
+            {"uri": "uri:skill:python", "title": "Python", "source": "ESCO"},
+            {"label": "Weiterbildung", "source": "AI"},
+        ]
+    )
+
+    assert labels == ["Weiterbildung"]
+
+
 def test_interview_contact_state_syncs_intake_fact() -> None:
     interview = _load_module(
         "wizard_pages.page_07_interview_fact_sync", "wizard_pages/07_interview.py"

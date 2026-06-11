@@ -4,6 +4,8 @@ from constants import AnswerType, FactKey
 from question_plan_compiler import compile_question_plan
 from schemas import (
     JobAdExtract,
+    OccupationQuestionConcept,
+    OccupationQuestionContext,
     Question,
     QuestionPlan,
     QuestionStep,
@@ -103,3 +105,88 @@ def test_compiler_demotes_irrelevant_question_when_confidence_is_low() -> None:
 
     assert demoted.priority == "detail"
     assert compiled.provenance.demoted_question_ids == ["driving_license"]
+
+
+def test_compiler_injects_skill_group_pack_and_esco_concept_questions() -> None:
+    profile = classify_occupation_context(job=JobAdExtract(job_title="Data Engineer"))
+    context = OccupationQuestionContext(
+        occupation_uri="uri:occupation:data-engineer",
+        preferred_label="Data engineer",
+        isco_code="2511",
+        nace_codes=["J62"],
+        regulated_profession=True,
+        skill_groups=["digital_data_ai"],
+        essential_skills=[
+            OccupationQuestionConcept(
+                uri="uri:skill:python",
+                label="Python",
+                concept_type="skill",
+                relation="essential",
+                skill_group="digital_data_ai",
+                reuse_level="occupation-specific",
+            )
+        ],
+    )
+    base_plan = QuestionPlan(
+        steps=[
+            QuestionStep(
+                step_key="skills",
+                title_de="Skills",
+                questions=[_question("base_skill", "Welche Skills fehlen?")],
+            )
+        ]
+    )
+
+    compiled = compile_question_plan(
+        base_plan=base_plan,
+        profile=profile,
+        question_context=context,
+        ui_mode="standard",
+    )
+    question_ids = [q.id for step in compiled.plan.steps for q in step.questions]
+    esco_question_ids = [
+        question_id
+        for question_id in question_ids
+        if question_id.startswith("ctx_esco_essential_skill_")
+    ]
+
+    assert "ctx_sg_digital_data_ai" in question_ids
+    assert "ctx_regulated_requirements" in question_ids
+    assert len(esco_question_ids) == 1
+    assert "SKILL_GROUP:digital_data_ai" in compiled.provenance.resolved_module_keys
+    assert "ISCO4:2511" in compiled.provenance.resolved_module_keys
+    assert compiled.provenance.source_uris_by_question_id[esco_question_ids[0]] == [
+        "uri:skill:python"
+    ]
+
+
+def test_compiler_caps_esco_concept_questions_by_ui_mode() -> None:
+    profile = classify_occupation_context(job=JobAdExtract(job_title="Data Engineer"))
+    context = OccupationQuestionContext(
+        occupation_uri="uri:occupation:data-engineer",
+        preferred_label="Data engineer",
+        essential_skills=[
+            OccupationQuestionConcept(
+                uri=f"uri:skill:{index}",
+                label=f"Skill {index}",
+                concept_type="skill",
+                relation="essential",
+            )
+            for index in range(5)
+        ],
+    )
+
+    compiled = compile_question_plan(
+        base_plan=QuestionPlan(steps=[]),
+        profile=profile,
+        question_context=context,
+        ui_mode="quick",
+    )
+    esco_questions = [
+        q
+        for step in compiled.plan.steps
+        for q in step.questions
+        if q.id.startswith("ctx_esco_")
+    ]
+
+    assert len(esco_questions) == 3

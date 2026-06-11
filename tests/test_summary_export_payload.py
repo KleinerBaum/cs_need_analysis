@@ -200,10 +200,22 @@ def test_build_structured_export_payload_includes_occupation_context(
                     "authority_source": "deterministic_rules",
                     "pack_keys": ["base.core", "family.digital_product"],
                 },
+                SSKey.OCCUPATION_QUESTION_CONTEXT.value: {
+                    "occupation_uri": "uri:occupation:data-engineer",
+                    "preferred_label": "Data engineer",
+                    "isco_code": "2511",
+                    "skill_groups": ["digital_data_ai"],
+                    "essential_skill_uris": ["uri:skill:python"],
+                },
                 SSKey.QUESTION_FLOW_PROVENANCE.value: {
                     "base_question_count": 3,
                     "compiled_question_count": 5,
                     "selected_pack_keys": ["base.core", "family.digital_product"],
+                    "resolved_module_keys": [
+                        "BASE_RECRUITING",
+                        "ISCO4:2511",
+                        "SKILL_GROUP:digital_data_ai",
+                    ],
                     "injected_question_ids": ["ctx_digital_ownership"],
                 },
                 SSKey.ESCO_CONFIG.value: {},
@@ -223,7 +235,18 @@ def test_build_structured_export_payload_includes_occupation_context(
         "base.core",
         "family.digital_product",
     ]
+    assert payload["occupation_question_context"]["occupation_uri"] == (
+        "uri:occupation:data-engineer"
+    )
+    assert payload["occupation_question_context"]["essential_skill_uris"] == [
+        "uri:skill:python"
+    ]
     assert payload["question_flow_provenance"]["compiled_question_count"] == 5
+    assert payload["question_flow_provenance"]["resolved_module_keys"] == [
+        "BASE_RECRUITING",
+        "ISCO4:2511",
+        "SKILL_GROUP:digital_data_ai",
+    ]
     assert payload["question_flow_provenance"]["injected_question_ids"] == [
         "ctx_digital_ownership"
     ]

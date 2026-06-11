@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from typing import Any
 
 from constants import (
+    AnswerType,
+    ESCO_CONCEPT_QUESTION_CAP_BY_UI_MODE,
     STEP_KEY_BENEFITS,
     STEP_KEY_COMPANY,
     STEP_KEY_INTERVIEW,
@@ -13,13 +16,16 @@ from constants import (
     STEP_KEY_SKILLS,
 )
 from llm_client import normalize_question_plan
-from occupation_context import profile_fingerprint
+from occupation_context import profile_fingerprint, resolve_question_module_keys
 from question_packs import get_question_pack
 from schemas import (
     OccupationContextProfile,
     OccupationFamily,
+    OccupationQuestionConcept,
+    OccupationQuestionContext,
     Question,
     QuestionFlowProvenance,
+    QuestionOption,
     QuestionPlan,
     QuestionStep,
     RelevanceLevel,
@@ -58,6 +64,10 @@ def _question_blob(question: Question) -> str:
 
 def _contains_any(blob: str, terms: tuple[str, ...]) -> bool:
     return any(term in blob for term in terms)
+
+
+def _safe_hash(value: str, length: int = 12) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()[:length]
 
 
 def _clone_question(question: Question) -> Question:
@@ -140,10 +150,153 @@ def _step_index(step_key: str) -> tuple[int, str]:
         return (len(_VISIBLE_INTAKE_STEP_ORDER), step_key)
 
 
+def _context_pack_keys(context: OccupationQuestionContext | None) -> list[str]:
+    if context is None:
+        return []
+    keys = [f"skill_group.{group}" for group in context.skill_groups]
+    if context.regulated_profession is True:
+        keys.append("facet.regulated_profession")
+    return list(dict.fromkeys(keys))
+
+
+def _reuse_rank(concept: OccupationQuestionConcept) -> int:
+    level = (concept.reuse_level or "").casefold()
+    if "occupation" in level:
+        return 0
+    if "sector" in level and "cross" not in level:
+        return 1
+    if "cross" in level:
+        return 2
+    if "transversal" in level:
+        return 4
+    return 3
+
+
+def _concept_bucket_rank(bucket: str) -> int:
+    return {
+        "essential_skill": 0,
+        "essential_knowledge": 1,
+        "optional_skill": 2,
+        "optional_knowledge": 3,
+    }.get(bucket, 9)
+
+
+def _concept_candidates(
+    context: OccupationQuestionContext,
+) -> list[tuple[str, OccupationQuestionConcept]]:
+    candidates: list[tuple[str, OccupationQuestionConcept]] = [
+        *[("essential_skill", concept) for concept in context.essential_skills],
+        *[("essential_knowledge", concept) for concept in context.essential_knowledge],
+        *[("optional_skill", concept) for concept in context.optional_skills],
+        *[("optional_knowledge", concept) for concept in context.optional_knowledge],
+    ]
+    output: list[tuple[str, OccupationQuestionConcept]] = []
+    seen: set[str] = set()
+    for bucket, concept in candidates:
+        key = concept.uri.strip() or f"label:{concept.label.casefold().strip()}"
+        if not key or key in seen:
+            continue
+        output.append((bucket, concept))
+        seen.add(key)
+    return sorted(
+        output,
+        key=lambda item: (
+            _concept_bucket_rank(item[0]),
+            _reuse_rank(item[1]),
+            item[1].label.casefold(),
+            item[1].uri,
+        ),
+    )
+
+
+def _concept_question_options(bucket: str) -> list[QuestionOption]:
+    if bucket in {"essential_skill", "essential_knowledge"}:
+        if bucket == "essential_knowledge":
+            return [
+                QuestionOption(value="none", label="Keine Vorkenntnisse"),
+                QuestionOption(value="basic", label="Grundverstaendnis"),
+                QuestionOption(value="practical", label="Praxiserfahrung"),
+                QuestionOption(value="solid", label="Sicheres Anwenden"),
+                QuestionOption(value="expert", label="Experten-/Anleitungsniveau"),
+            ]
+        return [
+            QuestionOption(value="not_relevant", label="Nicht relevant"),
+            QuestionOption(value="nice_to_have", label="Nice-to-have"),
+            QuestionOption(value="required_basic", label="Zwingend: Grundkenntnisse"),
+            QuestionOption(value="required_solid", label="Zwingend: sicher anwendbar"),
+            QuestionOption(value="required_expert", label="Zwingend: Expertenniveau"),
+        ]
+    return [
+        QuestionOption(value="no", label="Nein"),
+        QuestionOption(value="rare", label="Selten"),
+        QuestionOption(value="regular", label="Regelmaessig"),
+        QuestionOption(
+            value="critical_six_months",
+            label="Kritisch fuer Erfolg in den ersten 6 Monaten",
+        ),
+    ]
+
+
+def _concept_question_label(bucket: str, label: str) -> str:
+    if bucket == "essential_knowledge" or bucket == "optional_knowledge":
+        return f"Welches Niveau in \"{label}\" wird erwartet?"
+    if bucket == "optional_skill":
+        return f"Kommt \"{label}\" in dieser konkreten Stelle vor?"
+    return f"Wie wichtig ist \"{label}\" fuer diese Position?"
+
+
+def _build_esco_concept_questions(
+    *,
+    context: OccupationQuestionContext | None,
+    seen_ids: set[str],
+    ui_mode: str,
+) -> tuple[list[Question], dict[str, list[str]]]:
+    if context is None:
+        return [], {}
+    cap = ESCO_CONCEPT_QUESTION_CAP_BY_UI_MODE.get(
+        ui_mode,
+        ESCO_CONCEPT_QUESTION_CAP_BY_UI_MODE["standard"],
+    )
+    questions: list[Question] = []
+    source_uris_by_question_id: dict[str, list[str]] = {}
+    for bucket, concept in _concept_candidates(context):
+        if len(questions) >= cap:
+            break
+        label = concept.label.strip()
+        if not label:
+            continue
+        question_id = f"ctx_esco_{bucket}_{_safe_hash(concept.uri or label)}"
+        if question_id in seen_ids:
+            continue
+        group_key = concept.skill_group or f"esco_{bucket}"
+        question = Question(
+            id=question_id,
+            label=_concept_question_label(bucket, label),
+            help="Aus ESCO-Kontext abgeleitet; bitte fuer diese konkrete Vakanz bestaetigen.",
+            answer_type=AnswerType.SINGLE_SELECT,
+            required=False,
+            options=_concept_question_options(bucket),
+            target_path=f"esco_questions.{question_id}",
+            priority="standard" if bucket.startswith("essential") else "detail",
+            group_key=group_key,
+            rationale="ESCO essential/optional concepts require vacancy-specific confirmation.",
+            impact_targets=["skills", "interview", "export"],
+            acquisition_cost="low",
+            info_gain_score=0.74 if bucket.startswith("essential") else 0.62,
+        )
+        questions.append(question)
+        seen_ids.add(question_id)
+        if concept.uri:
+            source_uris_by_question_id[question_id] = [concept.uri]
+    return questions, source_uris_by_question_id
+
+
 def compile_question_plan(
     *,
     base_plan: QuestionPlan,
     profile: OccupationContextProfile,
+    question_context: OccupationQuestionContext | None = None,
+    ui_mode: str = "standard",
 ) -> CompiledQuestionPlan:
     """Return a compiled QuestionPlan while preserving the existing render contract."""
 
@@ -177,9 +330,11 @@ def compile_question_plan(
         question.id for step in step_by_key.values() for question in step.questions
     }
     selected_pack_keys: list[str] = []
-    for pack_key in profile.pack_keys:
+    resolved_pack_keys = list(dict.fromkeys([*profile.pack_keys, *_context_pack_keys(question_context)]))
+    for pack_key in resolved_pack_keys:
         pack = get_question_pack(pack_key)
-        if pack is None or not pack.applies_to(profile):
+        is_context_pack = pack_key not in profile.pack_keys
+        if pack is None or (not is_context_pack and not pack.applies_to(profile)):
             continue
         selected_pack_keys.append(pack_key)
         for entry in pack.entries:
@@ -197,6 +352,22 @@ def compile_question_plan(
             seen_ids.add(question.id)
             injected_question_ids.append(question.id)
 
+    esco_questions, source_uris_by_question_id = _build_esco_concept_questions(
+        context=question_context,
+        seen_ids=seen_ids,
+        ui_mode=ui_mode,
+    )
+    if esco_questions:
+        step_by_key.setdefault(
+            STEP_KEY_SKILLS,
+            QuestionStep(
+                step_key=STEP_KEY_SKILLS,
+                title_de=STEP_KEY_SKILLS.replace("_", " ").title(),
+            ),
+        )
+        step_by_key[STEP_KEY_SKILLS].questions.extend(esco_questions)
+        injected_question_ids.extend(question.id for question in esco_questions)
+
     compiled_steps = sorted(step_by_key.values(), key=lambda step: _step_index(step.step_key))
     for step in compiled_steps:
         step.questions = _sort_questions(step.questions)
@@ -208,11 +379,17 @@ def compile_question_plan(
             steps=compiled_steps,
         )
     )
+    resolved_module_keys, skipped_module_reasons = resolve_question_module_keys(
+        question_context
+    )
     provenance = QuestionFlowProvenance(
         profile_fingerprint=profile_fingerprint(profile),
         base_question_count=sum(len(step.questions) for step in base_plan.steps),
         compiled_question_count=sum(len(step.questions) for step in compiled_plan.steps),
         selected_pack_keys=selected_pack_keys,
+        resolved_module_keys=resolved_module_keys,
+        skipped_module_reasons=skipped_module_reasons,
+        source_uris_by_question_id=source_uris_by_question_id,
         suppressed_question_ids=suppressed_question_ids,
         demoted_question_ids=demoted_question_ids,
         injected_question_ids=injected_question_ids,
@@ -224,8 +401,16 @@ def compile_question_plan_from_payloads(
     *,
     base_plan_payload: dict[str, Any],
     profile_payload: dict[str, Any],
+    question_context_payload: dict[str, Any] | None = None,
+    ui_mode: str = "standard",
 ) -> CompiledQuestionPlan:
     return compile_question_plan(
         base_plan=QuestionPlan.model_validate(base_plan_payload),
         profile=OccupationContextProfile.model_validate(profile_payload),
+        question_context=(
+            OccupationQuestionContext.model_validate(question_context_payload)
+            if question_context_payload
+            else None
+        ),
+        ui_mode=ui_mode,
     )

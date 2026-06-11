@@ -19,10 +19,18 @@ from esco_rag import extract_skill_suggestions, retrieve_esco_context_multi
 from llm_client import (
     generate_requirement_gap_suggestions,
 )
+from occupation_context import build_occupation_question_context
+from question_plan_compiler import compile_question_plan
 from components.design_system import render_output_header
 from usage_events import record_enrichment_timed
 from schemas import EscoMappingReport
-from schemas import EscoSkillDetail, JobAdExtract, QuestionStep
+from schemas import (
+    EscoSkillDetail,
+    JobAdExtract,
+    OccupationContextProfile,
+    QuestionPlan,
+    QuestionStep,
+)
 from state import (
     EscoAnchorStatus,
     EscoCoverageSnapshot,
@@ -1398,6 +1406,69 @@ def _compute_matrix_coverage_snapshot(
     }
 
 
+def _sync_question_context_from_esco_skills() -> None:
+    profile_raw = st.session_state.get(SSKey.OCCUPATION_PROFILE.value)
+    base_plan_raw = st.session_state.get(SSKey.QUESTION_PLAN_BASE.value)
+    if not isinstance(profile_raw, dict) or not isinstance(base_plan_raw, dict):
+        return
+    try:
+        profile = OccupationContextProfile.model_validate(profile_raw)
+        base_plan = QuestionPlan.model_validate(base_plan_raw)
+    except ValidationError:
+        return
+
+    semantic_context = get_esco_semantic_context()
+    capability_snapshot = semantic_context.capability_snapshot
+    primary_anchor = (
+        semantic_context.primary_anchor.model_dump(mode="json")
+        if semantic_context.primary_anchor is not None
+        else None
+    )
+    esco_config_raw = st.session_state.get(SSKey.ESCO_CONFIG.value, {})
+    esco_config = esco_config_raw if isinstance(esco_config_raw, dict) else {}
+    essential_raw = st.session_state.get(SSKey.ESCO_CONFIRMED_ESSENTIAL_SKILLS.value)
+    optional_raw = st.session_state.get(SSKey.ESCO_CONFIRMED_OPTIONAL_SKILLS.value)
+    matrix_rows_raw = st.session_state.get(SSKey.ESCO_MATRIX_COVERAGE_ROWS.value, [])
+    skill_group_share_raw = st.session_state.get(
+        SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value, []
+    )
+    question_context = build_occupation_question_context(
+        esco_selected=primary_anchor,
+        esco_payload=st.session_state.get(SSKey.ESCO_OCCUPATION_PAYLOAD.value),
+        essential_skills=essential_raw if isinstance(essential_raw, list) else [],
+        optional_skills=optional_raw if isinstance(optional_raw, list) else [],
+        matrix_coverage_rows=matrix_rows_raw if isinstance(matrix_rows_raw, list) else [],
+        skill_group_share=(
+            skill_group_share_raw if isinstance(skill_group_share_raw, list) else []
+        ),
+        capability_snapshot=capability_snapshot,
+        esco_version=(
+            capability_snapshot.selected_version if capability_snapshot else None
+        ),
+        source_mode=(
+            capability_snapshot.data_source_mode if capability_snapshot else None
+        ),
+        language=str(esco_config.get("language") or "de"),
+        regulated_profession=profile.regulated_profession,
+    )
+    compiled = compile_question_plan(
+        base_plan=base_plan,
+        profile=profile,
+        question_context=question_context,
+        ui_mode=get_current_ui_mode(),
+    )
+    st.session_state[SSKey.OCCUPATION_QUESTION_CONTEXT.value] = (
+        question_context.model_dump(mode="json")
+    )
+    st.session_state[SSKey.QUESTION_FLOW_PROVENANCE.value] = (
+        compiled.provenance.model_dump(mode="json")
+    )
+    st.session_state[SSKey.QUESTION_FLOW_FINGERPRINT.value] = (
+        compiled.provenance.profile_fingerprint
+    )
+    st.session_state[SSKey.QUESTION_PLAN.value] = compiled.plan.model_dump(mode="json")
+
+
 def _render_matrix_coverage_section(snapshot: dict[str, Any], *, ui_mode: str) -> None:
     st.markdown("#### ESCO Matrix Coverage")
     reason = str(snapshot.get("reason") or "").strip()
@@ -2092,6 +2163,7 @@ def _render_skills_source_comparison_block(
         "occupation_group": str(matrix_snapshot.get("occupation_group") or ""),
         "rows": int(matrix_snapshot.get("rows_count") or 0),
     }
+    _sync_question_context_from_esco_skills()
     suggestion_context = _build_skill_suggestion_context(
         job=job,
         esco_must_selected=deduped_must,

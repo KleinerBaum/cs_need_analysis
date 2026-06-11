@@ -233,6 +233,7 @@ def init_session_state() -> None:
         SSKey.QUESTION_PLAN.value: None,
         SSKey.QUESTION_LIMITS.value: {},
         SSKey.OCCUPATION_PROFILE.value: None,
+        SSKey.OCCUPATION_QUESTION_CONTEXT.value: None,
         SSKey.OCCUPATION_CLASSIFICATION_TRACE.value: [],
         SSKey.OCCUPATION_PACK_KEYS.value: [],
         SSKey.QUESTION_FLOW_PROVENANCE.value: {},
@@ -426,6 +427,7 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.QUESTION_PLAN.value] = None
     st.session_state[SSKey.QUESTION_LIMITS.value] = {}
     st.session_state[SSKey.OCCUPATION_PROFILE.value] = None
+    st.session_state[SSKey.OCCUPATION_QUESTION_CONTEXT.value] = None
     st.session_state[SSKey.OCCUPATION_CLASSIFICATION_TRACE.value] = []
     st.session_state[SSKey.OCCUPATION_PACK_KEYS.value] = []
     st.session_state[SSKey.QUESTION_FLOW_PROVENANCE.value] = {}

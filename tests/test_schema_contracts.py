@@ -7,6 +7,7 @@ from schemas import (
     InterviewPrepSheetHR,
     InterviewPrepSheetHiringManager,
     OccupationContextProfile,
+    OccupationQuestionContext,
     QuestionPlan,
     QuestionFlowProvenance,
     RequirementSuggestionPack,
@@ -115,12 +116,16 @@ def test_company_website_research_contract_is_strict_and_typed() -> None:
 
 def test_occupation_context_contracts_are_strict() -> None:
     profile_schema = OccupationContextProfile.model_json_schema()
+    question_context_schema = OccupationQuestionContext.model_json_schema()
     provenance_schema = QuestionFlowProvenance.model_json_schema()
 
     assert profile_schema.get("additionalProperties") is False
+    assert question_context_schema.get("additionalProperties") is False
     assert provenance_schema.get("additionalProperties") is False
     assert "occupation_family" in profile_schema["properties"]
+    assert "skill_groups" in question_context_schema["properties"]
     assert "selected_pack_keys" in provenance_schema["properties"]
+    assert "resolved_module_keys" in provenance_schema["properties"]
 
 
 def test_vacancy_structured_data_rejects_invalid_company_website_research_shape() -> None:

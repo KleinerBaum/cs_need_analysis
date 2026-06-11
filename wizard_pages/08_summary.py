@@ -65,6 +65,7 @@ from schemas import (
     JobAdExtract,
     LanguageRequirement,
     OccupationContextProfile,
+    OccupationQuestionContext,
     QuestionFlowProvenance,
     QuestionPlan,
     VacancyBrief,
@@ -828,6 +829,16 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
             payload["occupation_context_profile"] = (
                 OccupationContextProfile.model_validate(
                     occupation_profile_raw
+                ).model_dump(mode="json", exclude_none=True)
+            )
+        except Exception:
+            pass
+    question_context_raw = st.session_state.get(SSKey.OCCUPATION_QUESTION_CONTEXT.value)
+    if isinstance(question_context_raw, dict):
+        try:
+            payload["occupation_question_context"] = (
+                OccupationQuestionContext.model_validate(
+                    question_context_raw
                 ).model_dump(mode="json", exclude_none=True)
             )
         except Exception:

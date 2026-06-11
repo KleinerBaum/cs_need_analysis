@@ -4,6 +4,16 @@ from __future__ import annotations
 
 from constants import (
     AnswerType,
+    ESCO_QUESTION_SKILL_GROUP_CUSTOMER_CLIENT_INTERACTION,
+    ESCO_QUESTION_SKILL_GROUP_DIGITAL_DATA_AI,
+    ESCO_QUESTION_SKILL_GROUP_DOCUMENTATION_REPORTING,
+    ESCO_QUESTION_SKILL_GROUP_DOMAIN_KNOWLEDGE,
+    ESCO_QUESTION_SKILL_GROUP_LANGUAGE_COMMUNICATION,
+    ESCO_QUESTION_SKILL_GROUP_LEADERSHIP_COORDINATION,
+    ESCO_QUESTION_SKILL_GROUP_PHYSICAL_MANUAL_CONTEXT,
+    ESCO_QUESTION_SKILL_GROUP_REGULATION_SAFETY,
+    ESCO_QUESTION_SKILL_GROUP_TOOLS_METHODS,
+    ESCO_QUESTION_SKILL_GROUP_TRANSVERSAL_FIT,
     FactKey,
     STEP_KEY_BENEFITS,
     STEP_KEY_COMPANY,
@@ -342,6 +352,176 @@ SHIFT_ONCALL_PACK = QuestionPack(
     ),
 )
 
+SKILL_GROUP_DOMAIN_KNOWLEDGE_PACK = QuestionPack(
+    pack_key=f"skill_group.{ESCO_QUESTION_SKILL_GROUP_DOMAIN_KNOWLEDGE}",
+    description="ESCO domain knowledge context.",
+    entries=(
+        _pack_entry(
+            step_key=STEP_KEY_SKILLS,
+            question_id="ctx_sg_domain_knowledge",
+            label="Welche fachlichen Kenntnisse sind fuer die Rolle zwingend erforderlich?",
+            answer_type=AnswerType.LONG_TEXT,
+            group_key=ESCO_QUESTION_SKILL_GROUP_DOMAIN_KNOWLEDGE,
+            priority="standard",
+            target_path="domain_expertise",
+            fact_key=FactKey.ROLE_DOMAIN_EXPERTISE,
+        ),
+    ),
+)
+
+SKILL_GROUP_TOOLS_METHODS_PACK = QuestionPack(
+    pack_key=f"skill_group.{ESCO_QUESTION_SKILL_GROUP_TOOLS_METHODS}",
+    description="ESCO tools, systems, methods context.",
+    entries=(
+        _pack_entry(
+            step_key=STEP_KEY_SKILLS,
+            question_id="ctx_sg_tools_methods",
+            label="Welche Tools, Systeme oder Methoden muessen Kandidat:innen sicher anwenden?",
+            answer_type=AnswerType.LONG_TEXT,
+            group_key=ESCO_QUESTION_SKILL_GROUP_TOOLS_METHODS,
+            priority="standard",
+            target_path="tech_stack",
+            fact_key=FactKey.ROLE_TECH_STACK,
+        ),
+    ),
+)
+
+SKILL_GROUP_REGULATION_SAFETY_PACK = QuestionPack(
+    pack_key=f"skill_group.{ESCO_QUESTION_SKILL_GROUP_REGULATION_SAFETY}",
+    description="ESCO regulation, safety, and qualification context.",
+    entries=(
+        _pack_entry(
+            step_key=STEP_KEY_SKILLS,
+            question_id="ctx_sg_regulation_safety",
+            label="Gibt es gesetzliche, sicherheitsrelevante oder qualifikatorische Anforderungen?",
+            answer_type=AnswerType.LONG_TEXT,
+            group_key=ESCO_QUESTION_SKILL_GROUP_REGULATION_SAFETY,
+            priority="standard",
+            target_path="certifications",
+            fact_key=FactKey.SKILLS_CERTIFICATIONS,
+        ),
+    ),
+)
+
+SKILL_GROUP_CUSTOMER_CLIENT_INTERACTION_PACK = QuestionPack(
+    pack_key=f"skill_group.{ESCO_QUESTION_SKILL_GROUP_CUSTOMER_CLIENT_INTERACTION}",
+    description="ESCO customer, client, user, and stakeholder interaction context.",
+    entries=(
+        _pack_entry(
+            step_key=STEP_KEY_ROLE_TASKS,
+            question_id="ctx_sg_customer_client_interaction",
+            label="Mit welchen Kund:innen, Nutzer:innen oder Stakeholdern arbeitet die Rolle direkt?",
+            answer_type=AnswerType.LONG_TEXT,
+            group_key=ESCO_QUESTION_SKILL_GROUP_CUSTOMER_CLIENT_INTERACTION,
+            priority="standard",
+            target_path="responsibilities",
+            fact_key=FactKey.ROLE_RESPONSIBILITIES,
+        ),
+    ),
+)
+
+SKILL_GROUP_DOCUMENTATION_REPORTING_PACK = QuestionPack(
+    pack_key=f"skill_group.{ESCO_QUESTION_SKILL_GROUP_DOCUMENTATION_REPORTING}",
+    description="ESCO documentation, reporting, and quality context.",
+    entries=(
+        _pack_entry(
+            step_key=STEP_KEY_ROLE_TASKS,
+            question_id="ctx_sg_documentation_reporting",
+            label="Welche Dokumentations-, Reporting- oder Qualitaetsanforderungen sind relevant?",
+            answer_type=AnswerType.LONG_TEXT,
+            group_key=ESCO_QUESTION_SKILL_GROUP_DOCUMENTATION_REPORTING,
+            priority="standard",
+            target_path="responsibilities",
+            fact_key=FactKey.ROLE_RESPONSIBILITIES,
+        ),
+    ),
+)
+
+SKILL_GROUP_LEADERSHIP_COORDINATION_PACK = QuestionPack(
+    pack_key=f"skill_group.{ESCO_QUESTION_SKILL_GROUP_LEADERSHIP_COORDINATION}",
+    description="ESCO leadership, planning, and coordination context.",
+    entries=(
+        _pack_entry(
+            step_key=STEP_KEY_ROLE_TASKS,
+            question_id="ctx_sg_leadership_coordination",
+            label="Ist fachliche oder disziplinarische Fuehrung Teil der Rolle?",
+            answer_type=AnswerType.LONG_TEXT,
+            group_key=ESCO_QUESTION_SKILL_GROUP_LEADERSHIP_COORDINATION,
+            priority="standard",
+            target_path="responsibilities",
+            fact_key=FactKey.ROLE_RESPONSIBILITIES,
+        ),
+    ),
+)
+
+SKILL_GROUP_PHYSICAL_MANUAL_CONTEXT_PACK = QuestionPack(
+    pack_key=f"skill_group.{ESCO_QUESTION_SKILL_GROUP_PHYSICAL_MANUAL_CONTEXT}",
+    description="ESCO physical, manual, and work-environment context.",
+    entries=(
+        _pack_entry(
+            step_key=STEP_KEY_ROLE_TASKS,
+            question_id="ctx_sg_physical_manual_context",
+            label="Welche koerperlichen, manuellen oder umgebungsbezogenen Anforderungen praegen die Arbeit?",
+            answer_type=AnswerType.LONG_TEXT,
+            group_key=ESCO_QUESTION_SKILL_GROUP_PHYSICAL_MANUAL_CONTEXT,
+            priority="standard",
+            target_path="responsibilities",
+            fact_key=FactKey.ROLE_RESPONSIBILITIES,
+        ),
+    ),
+)
+
+SKILL_GROUP_DIGITAL_DATA_AI_PACK = QuestionPack(
+    pack_key=f"skill_group.{ESCO_QUESTION_SKILL_GROUP_DIGITAL_DATA_AI}",
+    description="ESCO digital, data, analytics, automation, and AI context.",
+    entries=(
+        _pack_entry(
+            step_key=STEP_KEY_SKILLS,
+            question_id="ctx_sg_digital_data_ai",
+            label="Welche digitalen Systeme, Daten- oder Automatisierungsanteile sind erfolgskritisch?",
+            answer_type=AnswerType.LONG_TEXT,
+            group_key=ESCO_QUESTION_SKILL_GROUP_DIGITAL_DATA_AI,
+            priority="standard",
+            target_path="tech_stack",
+            fact_key=FactKey.ROLE_TECH_STACK,
+        ),
+    ),
+)
+
+SKILL_GROUP_LANGUAGE_COMMUNICATION_PACK = QuestionPack(
+    pack_key=f"skill_group.{ESCO_QUESTION_SKILL_GROUP_LANGUAGE_COMMUNICATION}",
+    description="ESCO language and communication context.",
+    entries=(
+        _pack_entry(
+            step_key=STEP_KEY_SKILLS,
+            question_id="ctx_sg_language_communication",
+            label="Welche Sprach- und Kommunikationsanforderungen sind zwingend?",
+            answer_type=AnswerType.LONG_TEXT,
+            group_key=ESCO_QUESTION_SKILL_GROUP_LANGUAGE_COMMUNICATION,
+            priority="standard",
+            target_path="languages",
+            fact_key=FactKey.SKILLS_LANGUAGES,
+        ),
+    ),
+)
+
+SKILL_GROUP_TRANSVERSAL_FIT_PACK = QuestionPack(
+    pack_key=f"skill_group.{ESCO_QUESTION_SKILL_GROUP_TRANSVERSAL_FIT}",
+    description="ESCO transversal fit and working-style context.",
+    entries=(
+        _pack_entry(
+            step_key=STEP_KEY_ROLE_TASKS,
+            question_id="ctx_sg_transversal_fit",
+            label="Welche Arbeitsweise ist fuer Erfolg in den ersten sechs Monaten entscheidend?",
+            answer_type=AnswerType.LONG_TEXT,
+            group_key=ESCO_QUESTION_SKILL_GROUP_TRANSVERSAL_FIT,
+            priority="detail",
+            target_path="success_metrics",
+            fact_key=FactKey.ROLE_SUCCESS_METRICS,
+        ),
+    ),
+)
+
 QUESTION_PACK_REGISTRY: dict[str, QuestionPack] = {
     pack.pack_key: pack
     for pack in (
@@ -359,6 +539,16 @@ QUESTION_PACK_REGISTRY: dict[str, QuestionPack] = {
         TRAVEL_HIGH_PACK,
         REGULATED_PROFESSION_PACK,
         SHIFT_ONCALL_PACK,
+        SKILL_GROUP_DOMAIN_KNOWLEDGE_PACK,
+        SKILL_GROUP_TOOLS_METHODS_PACK,
+        SKILL_GROUP_REGULATION_SAFETY_PACK,
+        SKILL_GROUP_CUSTOMER_CLIENT_INTERACTION_PACK,
+        SKILL_GROUP_DOCUMENTATION_REPORTING_PACK,
+        SKILL_GROUP_LEADERSHIP_COORDINATION_PACK,
+        SKILL_GROUP_PHYSICAL_MANUAL_CONTEXT_PACK,
+        SKILL_GROUP_DIGITAL_DATA_AI_PACK,
+        SKILL_GROUP_LANGUAGE_COMMUNICATION_PACK,
+        SKILL_GROUP_TRANSVERSAL_FIT_PACK,
     )
 }
 
