@@ -35,6 +35,7 @@ from wizard_pages.fact_inputs import (
     persist_compact_object,
     persist_fact,
     render_text_area_fact,
+    section_container,
     split_lines,
 )
 
@@ -548,7 +549,7 @@ def _render_stage_rows(job: JobAdExtract) -> list[str]:
     st.markdown("#### Interviewstufen")
     for idx, stage in enumerate(stage_labels[:5]):
         current = existing_steps.get(stage, {})
-        with st.container(border=True):
+        with section_container(border=True):
             name = st.text_input(
                 "Stage",
                 value=compact_text(current.get("name") or stage),
@@ -772,7 +773,7 @@ def _render_scorecard(stage_labels: list[str]) -> None:
 
 
 def _render_structured_interview_design(job: JobAdExtract) -> None:
-    with st.container(border=True):
+    with section_container(border=True):
         st.markdown("### Stage & Evaluation")
         stage_labels = _render_stage_rows(job)
         _render_stage_owner_rows(stage_labels)

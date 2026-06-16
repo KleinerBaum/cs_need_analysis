@@ -39,6 +39,7 @@ from wizard_pages.fact_inputs import (
     persist_fact,
     render_multiselect_fact,
     render_select_fact,
+    section_container,
     render_text_area_fact,
     render_text_fact,
     split_lines,
@@ -405,7 +406,7 @@ def _render_structured_role_scope(job: JobAdExtract, candidate_tasks: list[str])
     st.caption(
         "Diese Struktur trennt Day-1-Scope, spätere Ausbaustufen und messbare Erfolgssignale."
     )
-    with st.container(border=True):
+    with section_container(border=True):
         render_text_fact(
             FactKey.ROLE_BUSINESS_OUTCOME_PRIMARY,
             "Welches konkrete Business-Ergebnis soll die Rolle liefern?",
@@ -447,7 +448,7 @@ def _render_structured_role_scope(job: JobAdExtract, candidate_tasks: list[str])
                 prioritized.append({"label": label, "priority": priority})
         persist_fact(FactKey.ROLE_RESPONSIBILITIES_PRIORITIZED, prioritized)
 
-    with st.container(border=True):
+    with section_container(border=True):
         st.markdown("#### Erfolg und Entscheidungsspielraum")
         _render_success_timeline()
         render_select_fact(
@@ -464,7 +465,7 @@ def _render_structured_role_scope(job: JobAdExtract, candidate_tasks: list[str])
             height=100,
         )
 
-    with st.container(border=True):
+    with section_container(border=True):
         st.markdown("#### Reiseprofil")
         _render_travel_profile()
 

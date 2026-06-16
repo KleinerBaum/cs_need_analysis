@@ -38,6 +38,7 @@ from wizard_pages.fact_inputs import (
     persist_fact,
     render_multiselect_fact,
     render_select_fact,
+    section_container,
     render_text_area_fact,
     split_lines,
 )
@@ -398,13 +399,13 @@ def _render_structured_offer_constraints(job: JobAdExtract) -> None:
     st.caption(
         "Diese Angaben trennen Offer-Bestandteile von harten Beschäftigungs- und Vertragslogiken."
     )
-    with st.container(border=True):
+    with section_container(border=True):
         st.markdown("#### Variable Vergütung")
         _render_variable_pay_block()
-    with st.container(border=True):
+    with section_container(border=True):
         st.markdown("#### Arbeitszeit, Schicht und Ausgleich")
         _render_shift_compensation_block()
-    with st.container(border=True):
+    with section_container(border=True):
         st.markdown("#### Vertrags- und Offer-Komponenten")
         render_multiselect_fact(
             FactKey.BENEFITS_COLLECTIVE_AGREEMENT_CONTEXT,
@@ -441,6 +442,13 @@ def _render_structured_offer_constraints(job: JobAdExtract) -> None:
             ],
         )
         _render_start_flexibility_block(job)
+
+
+def _can_render_structured_offer_inputs() -> bool:
+    return all(
+        callable(getattr(st, name, None))
+        for name in ("multiselect", "number_input", "selectbox", "text_area", "text_input")
+    )
 
 
 def render(ctx: WizardContext) -> None:
@@ -676,7 +684,8 @@ def render(ctx: WizardContext) -> None:
         else:
             st.caption("Noch keine Benefits ausgewählt.")
 
-        _render_structured_offer_constraints(job)
+        if _can_render_structured_offer_inputs():
+            _render_structured_offer_constraints(job)
 
         confirmed_salary = _confirmed_values_for_keywords(
             ("gehalt", "salary", "vergütung", "compensation")

@@ -58,7 +58,7 @@ from wizard_pages.base import (
     guard_job_and_plan,
     nav_buttons,
 )
-from wizard_pages.fact_inputs import compact_text, fact_value, persist_fact, split_lines
+from wizard_pages.fact_inputs import compact_text, fact_value, persist_fact, section_container, split_lines
 from wizard_pages.salary_forecast_panel import render_skills_salary_forecast_panel
 
 ESCO_RELATED_ENDPOINT_UNSUPPORTED_MESSAGE = (
@@ -2403,7 +2403,7 @@ def _render_structured_skill_rows() -> None:
         default_timing = compact_text(existing.get("readiness_timing")) or "start"
         if default_timing not in _SKILL_TIMING_LABELS:
             default_timing = "start"
-        with st.container(border=True):
+        with section_container(border=True):
             st.markdown(f"**{label}**")
             col_status, col_level, col_timing = responsive_three_columns(gap="large")
             with col_status:

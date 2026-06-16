@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from typing import Any, Iterable, Mapping
 
 import streamlit as st
@@ -9,6 +10,16 @@ import streamlit as st
 from constants import FactKey, SSKey
 from intake_facts import get_intake_fact_state
 from state import get_answers, mark_answer_touched, set_answer
+
+
+def section_container(*, border: bool = False):
+    container = getattr(st, "container", None)
+    if callable(container):
+        try:
+            return container(border=border)
+        except TypeError:
+            return container()
+    return nullcontext()
 
 
 def compact_text(value: Any) -> str:

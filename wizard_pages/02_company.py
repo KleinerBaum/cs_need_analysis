@@ -58,6 +58,7 @@ from wizard_pages.fact_inputs import (
     render_multiselect_fact,
     render_number_fact,
     render_select_fact,
+    section_container,
     render_text_area_fact,
     render_text_fact,
     split_lines,
@@ -416,7 +417,7 @@ def _render_structured_company_context(job: JobAdExtract) -> None:
         "Diese Angaben werden als kanonische Fakten gespeichert und in Folgefragen, Summary und Exporten genutzt."
     )
 
-    with st.container(border=True):
+    with section_container(border=True):
         st.markdown("#### Unternehmensprofil")
         left, right = responsive_two_columns(gap="large")
         with left:
@@ -446,7 +447,7 @@ def _render_structured_company_context(job: JobAdExtract) -> None:
                 ],
             )
 
-    with st.container(border=True):
+    with section_container(border=True):
         st.markdown("#### Team & Reporting")
         col_team, col_scope, col_size = responsive_three_columns(gap="large")
         with col_team:
@@ -492,7 +493,7 @@ def _render_structured_company_context(job: JobAdExtract) -> None:
             height=100,
         )
 
-    with st.container(border=True):
+    with section_container(border=True):
         st.markdown("#### Arbeitsmodell")
         arrangement_col, days_col = responsive_two_columns(gap="large")
         with arrangement_col:
@@ -534,7 +535,7 @@ def _render_structured_company_context(job: JobAdExtract) -> None:
                 default_context="Kund:innen / Partner",
             )
 
-    with st.container(border=True):
+    with section_container(border=True):
         st.markdown("#### Non-negotiables & Compliance")
         render_multiselect_fact(
             FactKey.COMPANY_NON_NEGOTIABLES,
