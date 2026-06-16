@@ -567,7 +567,7 @@ def _render_job_extract_hypothesis_form(job: JobAdExtract) -> None:
                     key=f"cs.jobspec.hypothesis.{tab_name}.editor",
                     hide_index=True,
                     num_rows="dynamic",
-                    use_container_width=True,
+                    width="stretch",
                     column_order=("Feld", "Wert", "Status", "Confidence", "Evidence"),
                     disabled=["Feld", "Status", "Confidence", "Evidence"],
                     column_config={
