@@ -554,6 +554,31 @@ def test_write_intake_fact_writes_manual_evidence_by_default() -> None:
     assert isinstance(evidence["updated_at"], str)
 
 
+def test_write_intake_fact_accepts_new_routing_and_object_facts() -> None:
+    session_state = {SSKey.INTAKE_FACTS.value: {}, SSKey.INTAKE_FACT_EVIDENCE.value: {}}
+
+    write_intake_fact(session_state, FactKey.INTAKE_URGENCY, " high ")
+    write_intake_fact(
+        session_state,
+        FactKey.BENEFITS_VARIABLE_PAY,
+        {"eligible": True, "bonus_logic": "10% target bonus"},
+    )
+
+    assert session_state[SSKey.INTAKE_FACTS.value] == {
+        FactKey.INTAKE_URGENCY.value: "high",
+        FactKey.BENEFITS_VARIABLE_PAY.value: {
+            "eligible": True,
+            "bonus_logic": "10% target bonus",
+        },
+    }
+    assert (
+        session_state[SSKey.INTAKE_FACT_EVIDENCE.value][
+            FactKey.BENEFITS_VARIABLE_PAY.value
+        ]["resolution_status"]
+        == FactResolutionStatus.CONFIRMED.value
+    )
+
+
 def test_write_job_extract_intake_facts_writes_jobspec_evidence() -> None:
     session_state = {SSKey.INTAKE_FACTS.value: {}, SSKey.INTAKE_FACT_EVIDENCE.value: {}}
     job = JobAdExtract(job_title="Data Engineer")

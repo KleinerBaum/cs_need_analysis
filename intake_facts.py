@@ -65,7 +65,7 @@ _JOB_EXTRACT_FACT_FIELDS: dict[FactKey, str] = {
     FactKey.INTERVIEW_CONTACTS: "contacts",
 }
 
-_SUPPORTED_LEGACY_FACTS: tuple[FactKey, ...] = tuple(_JOB_EXTRACT_FACT_FIELDS)
+_SUPPORTED_LEGACY_FACTS: tuple[FactKey, ...] = tuple(FactKey)
 
 _WRITE_THROUGH_FACT_FIELDS: dict[str, FactKey] = {
     "language_guess": FactKey.COMPANY_LANGUAGE_GUESS,
@@ -109,9 +109,7 @@ _WRITE_THROUGH_FACT_FIELDS: dict[str, FactKey] = {
     "contacts": FactKey.INTERVIEW_CONTACTS,
 }
 
-_WRITE_THROUGH_FACTS: frozenset[FactKey] = frozenset(
-    _WRITE_THROUGH_FACT_FIELDS.values()
-)
+_WRITE_THROUGH_FACTS: frozenset[FactKey] = frozenset(FactKey)
 _DEFAULT_CONFIDENCE_BY_SOURCE: dict[FactSourceType, float] = {
     FactSourceType.MANUAL: 1.0,
     FactSourceType.JOBSPEC: 0.75,
@@ -120,7 +118,9 @@ _DEFAULT_CONFIDENCE_BY_SOURCE: dict[FactSourceType, float] = {
     FactSourceType.LLM: 0.75,
 }
 _DEFAULT_SENSITIVITY_BY_FACT: dict[FactKey, FactSensitivity] = {
+    FactKey.INTAKE_SEARCH_CONFIDENTIALITY: FactSensitivity.RESTRICTED,
     FactKey.BENEFITS_SALARY_RANGE: FactSensitivity.RESTRICTED,
+    FactKey.BENEFITS_VARIABLE_PAY: FactSensitivity.RESTRICTED,
     FactKey.INTERVIEW_CONTACTS: FactSensitivity.PERSONAL,
 }
 
@@ -482,6 +482,10 @@ def resolve_legacy_fact(
     job_facts = _job_extract_facts(session_state)
     if resolved_key in job_facts:
         return job_facts[resolved_key]
+
+    intake_fact_state = get_intake_fact_state(session_state)
+    if resolved_key.value in intake_fact_state:
+        return intake_fact_state.get(resolved_key.value)
 
     return _session_state_fact(resolved_key, session_state)
 

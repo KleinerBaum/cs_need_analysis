@@ -78,6 +78,81 @@ CEFRLevel = Literal["A1", "A2", "B1", "B2", "C1", "C2"]
 class LanguageRequirement(StrictSchemaModel):
     language: str = Field(description="Language name, e.g., 'Deutsch' or 'Englisch'.")
     level: CEFRLevel = Field(description="Required CEFR level from A1 to C2.")
+    context: Optional[str] = Field(
+        default=None,
+        description="Use context, e.g. internal team work or external client contact.",
+    )
+
+
+SkillRequirementStatus = Literal["must", "nice", "trainable", "knockout"]
+SkillReadinessTiming = Literal["start", "90_days", "6_months", "later"]
+SkillProficiencyLevel = Literal[
+    "basic",
+    "practical",
+    "solid",
+    "expert",
+]
+
+
+class SkillRequirementItem(StrictSchemaModel):
+    label: str = Field(description="Human-readable skill or requirement label.")
+    status: SkillRequirementStatus = Field(
+        description="Recruiting requirement bucket for this skill."
+    )
+    proficiency: Optional[SkillProficiencyLevel] = Field(
+        default=None,
+        description="Minimum required proficiency level.",
+    )
+    readiness_timing: Optional[SkillReadinessTiming] = Field(
+        default=None,
+        description="When the skill must be available.",
+    )
+    esco_uri: Optional[str] = Field(
+        default=None,
+        description="Canonical ESCO skill URI when mapped.",
+    )
+    evidence_required: Optional[str] = Field(
+        default=None,
+        description="Evidence, certificate, portfolio, or work sample expected.",
+    )
+    free_text_reason: Optional[str] = Field(
+        default=None,
+        description="Reason for keeping this as free text when no ESCO mapping exists.",
+    )
+
+
+class VariablePay(StrictSchemaModel):
+    eligible: Optional[bool] = None
+    ote_min: Optional[float] = None
+    ote_max: Optional[float] = None
+    currency: Optional[str] = None
+    period: Optional[str] = None
+    bonus_logic: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class TravelProfile(StrictSchemaModel):
+    required: Optional[bool] = None
+    percent: Optional[float] = Field(default=None, ge=0, le=100)
+    frequency: Optional[str] = None
+    region: Optional[str] = None
+    overnight_required: Optional[bool] = None
+    driving_license_required: Optional[str] = None
+    vehicle_policy: Optional[str] = None
+
+
+class ScorecardCriterion(StrictSchemaModel):
+    title: str
+    weight_percent: Optional[int] = Field(default=None, ge=0, le=100)
+    scale: Optional[str] = Field(default=None, description="e.g. 1-5 or 1-4.")
+    evidence_anchor: Optional[str] = None
+
+
+class InterviewScorecardTemplate(StrictSchemaModel):
+    stage: Optional[str] = None
+    criteria: List[ScorecardCriterion] = Field(default_factory=list)
+    recommendation_options: List[str] = Field(default_factory=list)
+    notes: Optional[str] = None
 
 
 class EscoConceptRef(StrictSchemaModel):
@@ -260,8 +335,16 @@ class OccupationContextProfile(StrictSchemaModel):
     esco_version: Optional[str] = None
     occupation_family: OccupationFamily = OccupationFamily.UNKNOWN
     confidence: float = Field(default=0.0, ge=0, le=1)
+    hiring_reason: Optional[str] = None
+    urgency: Optional[str] = None
+    hiring_volume: Optional[int] = None
+    search_confidentiality: Optional[str] = None
+    role_definition_maturity: Optional[str] = None
     work_arrangement: WorkArrangement = WorkArrangement.UNKNOWN
     region_scope: str = "unknown"
+    contract_context: Optional[str] = None
+    international_context: bool = False
+    leadership_scope: Optional[str] = None
     driving_relevance: RelevanceLevel = RelevanceLevel.UNKNOWN
     travel_relevance: RelevanceLevel = RelevanceLevel.UNKNOWN
     regulated_profession: Optional[bool] = None
@@ -807,6 +890,22 @@ class CompanyWebsiteResearch(StrictSchemaModel):
 class VacancyStructuredData(StrictSchemaModel):
     job_extract: Dict[str, Any] = Field(default_factory=dict)
     answers: Dict[str, Any] = Field(default_factory=dict)
+    skill_items: Optional[List[SkillRequirementItem]] = Field(
+        default=None,
+        description="Optional normalized skill rows with proficiency, timing, and evidence.",
+    )
+    variable_pay: Optional[VariablePay] = Field(
+        default=None,
+        description="Optional normalized variable compensation details.",
+    )
+    travel_profile: Optional[TravelProfile] = Field(
+        default=None,
+        description="Optional normalized travel and mobility requirements.",
+    )
+    interview_scorecard_template: Optional[InterviewScorecardTemplate] = Field(
+        default=None,
+        description="Optional structured scorecard template for interview exports.",
+    )
     selected_role_tasks: Optional[List[str]] = Field(
         default=None,
         description="Optional role task labels explicitly selected in the wizard.",

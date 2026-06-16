@@ -293,11 +293,11 @@ def _leadership_trigger(
         predicate=_is_yes_like,
     ) or _fact_matches(
         intake_facts,
-        (FactKey.COMPANY_REPORTS_TO,),
+        (FactKey.COMPANY_REPORTS_TO, FactKey.TEAM_LEADERSHIP_SCOPE),
         predicate=_has_non_empty_answer,
     ) or _fact_matches(
         intake_facts,
-        (FactKey.COMPANY_DIRECT_REPORTS_COUNT,),
+        (FactKey.COMPANY_DIRECT_REPORTS_COUNT, FactKey.TEAM_SIZE_DIRECT),
         predicate=_is_positive_number,
     )
 
@@ -319,6 +319,7 @@ def _remote_trigger(
         (
             FactKey.COMPANY_REMOTE_POLICY,
             FactKey.COMPANY_PLACE_OF_WORK,
+            FactKey.COMPANY_WORK_ARRANGEMENT,
         ),
         predicate=lambda value: _contains_any(
             _normalize_text(value), ("remote", "hybrid")
@@ -347,6 +348,10 @@ def _salary_trigger(
         intake_facts,
         (FactKey.BENEFITS_SALARY_RANGE,),
         predicate=_has_meaningful_fact_value,
+    ) or _fact_matches(
+        intake_facts,
+        (FactKey.BENEFITS_VARIABLE_PAY,),
+        predicate=_has_meaningful_fact_value,
     )
 
 
@@ -362,7 +367,7 @@ def _travel_trigger(
         predicate=_is_yes_like,
     ) or _fact_matches(
         intake_facts,
-        (FactKey.ROLE_TRAVEL_REQUIRED,),
+        (FactKey.ROLE_TRAVEL_REQUIRED, FactKey.ROLE_TRAVEL_PROFILE),
         predicate=_is_yes_like,
     )
 
@@ -379,7 +384,7 @@ def _oncall_trigger(
         predicate=_is_yes_like,
     ) or _fact_matches(
         intake_facts,
-        (FactKey.ROLE_ON_CALL,),
+        (FactKey.ROLE_ON_CALL, FactKey.BENEFITS_SHIFT_COMPENSATION),
         predicate=_is_yes_like,
     )
 

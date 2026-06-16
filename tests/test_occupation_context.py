@@ -5,6 +5,7 @@ from occupation_context import (
     classify_occupation_context,
     resolve_question_module_keys,
 )
+from constants import FactKey
 from schemas import JobAdExtract, OccupationFamily, RelevanceLevel, WorkArrangement
 
 
@@ -62,6 +63,38 @@ def test_unknown_profile_uses_generic_fallback() -> None:
     assert profile.occupation_family == OccupationFamily.UNKNOWN
     assert profile.authority_source == "generic_fallback"
     assert profile.pack_keys == ["base.core", "base.interview"]
+
+
+def test_routing_answers_add_semantic_facet_packs() -> None:
+    profile = classify_occupation_context(
+        job=JobAdExtract(job_title="Operations Lead", contract_type="freelance"),
+        answers={
+            FactKey.INTAKE_HIRING_REASON.value: "replacement",
+            FactKey.INTAKE_URGENCY.value: "high",
+            FactKey.INTAKE_HIRING_VOLUME.value: 3,
+            FactKey.INTAKE_SEARCH_CONFIDENTIALITY.value: "high",
+            FactKey.INTAKE_ROLE_DEFINITION_MATURITY.value: "low",
+            FactKey.TEAM_LEADERSHIP_SCOPE.value: "disziplinarische_fuehrung",
+            FactKey.COMPANY_WORK_ARRANGEMENT.value: "remote_cross_border",
+        },
+    )
+
+    assert profile.hiring_reason == "replacement"
+    assert profile.urgency == "high"
+    assert profile.hiring_volume == 3
+    assert profile.search_confidentiality == "high"
+    assert profile.role_definition_maturity == "low"
+    assert profile.international_context is True
+    assert {
+        "facet.hiring_replacement",
+        "facet.urgency_high",
+        "facet.search_confidential",
+        "facet.hiring_volume_multi",
+        "facet.role_maturity_low",
+        "facet.leadership_scope",
+        "facet.contract_constraints",
+        "facet.international_context",
+    }.issubset(set(profile.pack_keys))
 
 
 def test_build_occupation_question_context_normalizes_esco_fields() -> None:

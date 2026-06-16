@@ -46,7 +46,7 @@ The active visible route is defined by `constants.STEPS` and enforced by `wizard
 
 The Start step contains the former review flow directly:
 
-- **Phase A — Quelle & Datenschutz:** upload/manual text, active source handling, consent, PII reduction, UI mode, ESCO operating settings.
+- **Phase A — Quelle & Datenschutz:** upload/manual text, active source handling, consent, PII reduction, UI mode, ESCO operating settings, and routing metadata for hiring reason, urgency, volume, confidentiality, and role-definition maturity.
 - **Phase B — Extraktion prüfen:** editable identified-information block with confidence/evidence where available.
 - **Phase C — ESCO-Suche:** primary occupation anchor, optional secondary context anchors, degraded fallback when no anchor is confirmed.
 
@@ -82,6 +82,8 @@ The intake process combines several evidence streams:
 Manual corrections remain authoritative over extracted values. Jobspec assumptions/gaps are not collected as a single Start-step backlog; they are routed to the best matching downstream step.
 
 Canonical intake fact evidence also carries a resolution status (`confirmed`, `inferred`, `assumed`, `conflicted`, or `missing`). Structured Summary exports include `intake_fact_resolution` so downstream consumers can distinguish confirmed facts from inferred, assumed, conflicted, or still-missing information without changing the legacy fact values.
+
+The canonical fact registry also covers downstream decision points from the improvement report: company and team context, role outcomes and travel profile, typed skill requirements, variable pay and offer constraints, work authorization, start-date flexibility, and interview assessment/scorecard fields.
 
 ## Architecture map
 
@@ -209,6 +211,7 @@ Question-flow provenance records the ordered module keys when data is available:
 - `SKILL_GROUP:<canonical_group>`
 - `NACE:<code>`
 - `REGULATED_PROFESSION`
+- `facet.<routing_context>` modules derived from Start-step routing metadata and answered company/team/role context.
 
 Skill groups are mapped into reusable blocks such as `domain_knowledge`, `tools_methods`, `regulation_safety`, `customer_client_interaction`, `documentation_reporting`, `leadership_coordination`, `physical_manual_context`, `digital_data_ai`, `language_communication`, and `transversal_fit`.
 
@@ -327,7 +330,7 @@ Canonical summary artifact IDs:
 | `boolean_search` | Boolean Search Pack | JSON, Markdown |
 | `employment_contract` | Arbeitsvertrag Draft | JSON, DOCX |
 
-Additional structured exports include ESCO mapping CSV/JSON and Summary payload fields for intake facts/evidence/resolution, interview process data, ESCO anchor metadata, ESCO skills, unmapped terms, occupation context, and question-flow provenance.
+Additional structured exports include ESCO mapping CSV/JSON and Summary payload fields for intake facts/evidence/resolution, supplemental routing/company/team/role/benefit/interview facts, interview process data, ESCO anchor metadata, ESCO skills, unmapped terms, occupation context, and question-flow provenance.
 
 When `semantic_export_mode="degraded"`, URI-based ESCO core exports are intentionally suppressed.
 

@@ -21,6 +21,7 @@ from constants import (
     ESCO_QUESTION_SKILL_GROUP_REGULATION_SAFETY,
     ESCO_QUESTION_SKILL_GROUP_TOOLS_METHODS,
     ESCO_QUESTION_SKILL_GROUP_TRANSVERSAL_FIT,
+    FactKey,
     OCCUPATION_QUESTION_MODULE_BASE,
     OCCUPATION_QUESTION_MODULE_ESCO_PREFIX,
     OCCUPATION_QUESTION_MODULE_ISCO1_PREFIX,
@@ -264,6 +265,34 @@ def _coerce_text_list(value: Any) -> list[str]:
         return _dedupe_strings(values)
     text = str(value).strip()
     return [text] if text else []
+
+
+def _answer_value(
+    answers: Mapping[str, Any],
+    fact_key: FactKey,
+    *,
+    fallback_ids: tuple[str, ...] = (),
+) -> Any:
+    for key in (fact_key.value, *fallback_ids):
+        if key in answers:
+            return answers.get(key)
+    return None
+
+
+def _coerce_int(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    text = _coerce_text(value)
+    if not text:
+        return None
+    try:
+        return int(float(text))
+    except ValueError:
+        return None
 
 
 def _first_field(source: Mapping[str, Any], keys: tuple[str, ...]) -> str:
@@ -733,7 +762,15 @@ def _resolve_level(
 def _pack_keys_for_profile(
     *,
     family: OccupationFamily,
+    hiring_reason: str,
+    urgency: str,
+    hiring_volume: int | None,
+    search_confidentiality: str,
+    role_definition_maturity: str,
     work_arrangement: WorkArrangement,
+    contract_context: str,
+    international_context: bool,
+    leadership_scope: str,
     driving_relevance: RelevanceLevel,
     travel_relevance: RelevanceLevel,
     regulated_profession: bool | None,
@@ -747,6 +784,37 @@ def _pack_keys_for_profile(
         WorkArrangement.REMOTE_GLOBAL_POSSIBLE,
     }:
         keys.append("facet.remote_global_possible")
+    if hiring_reason in {"replacement", "ersatz", "backfill"}:
+        keys.append("facet.hiring_replacement")
+    if hiring_reason in {"growth", "new_role", "neuaufbau", "aufbau"}:
+        keys.append("facet.hiring_growth")
+    if urgency in {"high", "critical", "sofort", "dringend", "kritisch"}:
+        keys.append("facet.urgency_high")
+    if search_confidentiality in {"high", "confidential", "hoch", "verdeckt"}:
+        keys.append("facet.search_confidential")
+    if hiring_volume is not None and hiring_volume > 1:
+        keys.append("facet.hiring_volume_multi")
+    if role_definition_maturity in {"low", "unclear", "rough", "unklar", "nicht_kalibriert"}:
+        keys.append("facet.role_maturity_low")
+    if leadership_scope and leadership_scope not in {
+        "individual_contributor",
+        "ic",
+        "none",
+        "keine",
+        "unklar",
+    }:
+        keys.append("facet.leadership_scope")
+    if contract_context in {
+        "freelance",
+        "interim",
+        "anue",
+        "befristet",
+        "temporary",
+        "contractor",
+    }:
+        keys.append("facet.contract_constraints")
+    if international_context:
+        keys.append("facet.international_context")
     if driving_relevance in {RelevanceLevel.REQUIRED, RelevanceLevel.HIGH}:
         keys.append("facet.driving_required")
     if travel_relevance in {RelevanceLevel.REQUIRED, RelevanceLevel.HIGH}:
@@ -769,11 +837,29 @@ def classify_occupation_context(
     """Return an authoritative deterministic profile. This function never calls an LLM."""
 
     has_confirmed_esco = bool((esco_selected or {}).get("uri"))
+    answers_map = answers if isinstance(answers, Mapping) else {}
+    hiring_reason = _coerce_text(
+        _answer_value(answers_map, FactKey.INTAKE_HIRING_REASON)
+    ).casefold()
+    urgency = _coerce_text(_answer_value(answers_map, FactKey.INTAKE_URGENCY)).casefold()
+    hiring_volume = _coerce_int(_answer_value(answers_map, FactKey.INTAKE_HIRING_VOLUME))
+    search_confidentiality = _coerce_text(
+        _answer_value(answers_map, FactKey.INTAKE_SEARCH_CONFIDENTIALITY)
+    ).casefold()
+    role_definition_maturity = _coerce_text(
+        _answer_value(answers_map, FactKey.INTAKE_ROLE_DEFINITION_MATURITY)
+    ).casefold()
+    leadership_scope = _coerce_text(
+        _answer_value(answers_map, FactKey.TEAM_LEADERSHIP_SCOPE)
+    ).casefold()
+    contract_context = _coerce_text(
+        _answer_value(answers_map, FactKey.ROLE_CONTRACT_TYPE) or job.contract_type
+    ).casefold()
     blob = _normalize_blob(
         job.model_dump(mode="json"),
         esco_selected or {},
         esco_payload or {},
-        answers or {},
+        answers_map,
     )
     family, confidence, evidence = _classify_family(
         blob=blob,
@@ -805,6 +891,21 @@ def classify_occupation_context(
         blob,
         required_terms=("deutsch", "german", "approbation", "patient"),
         high_terms=("language", "sprache", "kundenkontakt"),
+    )
+    international_context = _contains_any(
+        blob,
+        (
+            "remote_cross_border",
+            "remote global",
+            "weltweit",
+            "visa",
+            "work permit",
+            "sponsoring",
+            "timezone",
+            "zeitzone",
+            "english",
+            "englisch",
+        ),
     )
     regulated_profession = (
         True
@@ -849,7 +950,15 @@ def classify_occupation_context(
 
     pack_keys = _pack_keys_for_profile(
         family=family,
+        hiring_reason=hiring_reason,
+        urgency=urgency,
+        hiring_volume=hiring_volume,
+        search_confidentiality=search_confidentiality,
+        role_definition_maturity=role_definition_maturity,
         work_arrangement=work_arrangement,
+        contract_context=contract_context,
+        international_context=international_context,
+        leadership_scope=leadership_scope,
         driving_relevance=driving_relevance,
         travel_relevance=travel_relevance,
         regulated_profession=regulated_profession,
@@ -870,12 +979,43 @@ def classify_occupation_context(
             "Selected deterministic question packs from family and facet rules.",
         )
     )
+    routing_signals = {
+        "hiring_reason": hiring_reason,
+        "urgency": urgency,
+        "hiring_volume": hiring_volume,
+        "search_confidentiality": search_confidentiality,
+        "role_definition_maturity": role_definition_maturity,
+        "contract_context": contract_context,
+        "international_context": international_context,
+        "leadership_scope": leadership_scope,
+    }
+    if any(value not in ("", None, False) for value in routing_signals.values()):
+        evidence.append(
+            _evidence(
+                "intake_routing",
+                ",".join(
+                    f"{key}={value}"
+                    for key, value in routing_signals.items()
+                    if value not in ("", None, False)
+                ),
+                0.9,
+                "Used normalized intake routing answers for deterministic question flow.",
+            )
+        )
 
     return OccupationContextProfile(
         esco_version=esco_version,
         occupation_family=family,
         confidence=confidence,
+        hiring_reason=hiring_reason or None,
+        urgency=urgency or None,
+        hiring_volume=hiring_volume,
+        search_confidentiality=search_confidentiality or None,
+        role_definition_maturity=role_definition_maturity or None,
         work_arrangement=work_arrangement,
+        contract_context=contract_context or None,
+        international_context=international_context,
+        leadership_scope=leadership_scope or None,
         driving_relevance=driving_relevance,
         travel_relevance=travel_relevance,
         regulated_profession=regulated_profession,

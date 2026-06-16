@@ -90,6 +90,7 @@ from components.design_system import (
 from summary_facts import (
     SummaryFactsRow,
     format_summary_answer_value as _format_summary_answer_value,
+    format_summary_fact_value as _format_summary_fact_value,
     group_summary_fact_rows_by_area as _group_summary_fact_rows_by_area,
     status_for_answer_value as _status_for_answer_value,
     status_for_classification_value as _status_for_classification_value,
@@ -2139,6 +2140,69 @@ def _build_summary_fact_rows(
                 fallback_value=fallback_value,
                 intake_facts=intake_facts,
                 intake_fact_evidence=intake_fact_evidence,
+            )
+        )
+    for area, label, fact_key in (
+        ("Routing", "Besetzungsanlass", FactKey.INTAKE_HIRING_REASON),
+        ("Routing", "Dringlichkeit", FactKey.INTAKE_URGENCY),
+        ("Routing", "Besetzungsvolumen", FactKey.INTAKE_HIRING_VOLUME),
+        ("Routing", "Suchvertraulichkeit", FactKey.INTAKE_SEARCH_CONFIDENTIALITY),
+        ("Routing", "Rollenreife", FactKey.INTAKE_ROLE_DEFINITION_MATURITY),
+        ("Unternehmen", "Employer Pitch", FactKey.COMPANY_EMPLOYER_PITCH),
+        ("Unternehmen", "Business Unit", FactKey.COMPANY_BUSINESS_UNIT),
+        ("Unternehmen", "Rollenrelevante Positionierung", FactKey.COMPANY_ROLE_RELEVANT_POSITIONING),
+        ("Unternehmen", "Arbeitsmodell", FactKey.COMPANY_WORK_ARRANGEMENT),
+        ("Unternehmen", "Office-Tage pro Woche", FactKey.COMPANY_OFFICE_DAYS_PER_WEEK),
+        ("Unternehmen", "Zulaessige Regionen/Zeitzonen", FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES),
+        ("Unternehmen", "Interne Sprache", FactKey.COMPANY_LANGUAGE_INTERNAL),
+        ("Unternehmen", "Externe Sprache", FactKey.COMPANY_LANGUAGE_EXTERNAL),
+        ("Unternehmen", "Nicht verhandelbar", FactKey.COMPANY_NON_NEGOTIABLES),
+        ("Unternehmen", "Compliance-Kontext", FactKey.COMPANY_COMPLIANCE_CONTEXT),
+        ("Unternehmen", "Tarifkontext", FactKey.COMPANY_TARIFF_CONTEXT),
+        ("Team", "Team", FactKey.TEAM_NAME),
+        ("Team", "Leadership Scope", FactKey.TEAM_LEADERSHIP_SCOPE),
+        ("Team", "Teamgroesse", FactKey.TEAM_SIZE_DIRECT),
+        ("Team", "Stakeholder", FactKey.TEAM_STAKEHOLDERS_PRIMARY),
+        ("Team", "90-Tage Kontext", FactKey.TEAM_SUCCESS_CONTEXT_90D),
+        ("Rolle", "Business Outcome", FactKey.ROLE_BUSINESS_OUTCOME_PRIMARY),
+        ("Rolle", "Day-1 Aufgaben", FactKey.ROLE_DAY1_RESPONSIBILITIES),
+        ("Rolle", "Aufgaben spaeter ausbaubar", FactKey.ROLE_EXPANSION_SCOPE),
+        ("Rolle", "Priorisierte Aufgaben", FactKey.ROLE_RESPONSIBILITIES_PRIORITIZED),
+        ("Rolle", "Success Timeline", FactKey.ROLE_SUCCESS_METRICS_TIMELINE),
+        ("Rolle", "Decision Scope", FactKey.ROLE_DECISION_SCOPE),
+        ("Rolle", "12-Monats Erfolgssignale", FactKey.ROLE_YEAR1_SUCCESS_SIGNALS),
+        ("Rolle", "Reiseprofil", FactKey.ROLE_TRAVEL_PROFILE),
+        ("Skills", "Skill Items", FactKey.SKILLS_ITEMS),
+        ("Skills", "Skill Timing", FactKey.SKILLS_READINESS_TIMING),
+        ("Skills", "Free-Text Begruendung", FactKey.SKILLS_FREE_TEXT_REASON),
+        ("Skills", "KO-Kriterien", FactKey.SKILLS_KNOCKOUT_CRITERIA),
+        ("Skills", "Trainierbare Skills", FactKey.SKILLS_TRAINABLE_SKILLS),
+        ("Benefits", "Variable Verguetung", FactKey.BENEFITS_VARIABLE_PAY),
+        ("Benefits", "Schicht-/Rufbereitschaftsausgleich", FactKey.BENEFITS_SHIFT_COMPENSATION),
+        ("Benefits", "Tarif / Vorgaben", FactKey.BENEFITS_COLLECTIVE_AGREEMENT_CONTEXT),
+        ("Benefits", "Offer-Komponenten", FactKey.BENEFITS_OFFER_COMPONENTS),
+        ("Legal", "Work Authorization", FactKey.LEGAL_WORK_AUTHORIZATION_SUPPORT),
+        ("Timeline", "Startflexibilitaet", FactKey.TIMELINE_START_FLEXIBILITY),
+        ("Interview", "Assessment Evidence", FactKey.INTERVIEW_ASSESSMENT_EVIDENCE),
+        ("Interview", "Stage Owner", FactKey.INTERVIEW_STAGE_OWNERS),
+        ("Interview", "Scorecard", FactKey.INTERVIEW_SCORECARD_TEMPLATE),
+        ("Interview", "Kernfragen", FactKey.INTERVIEW_CORE_QUESTIONS),
+        ("Interview", "Candidate SLA", FactKey.INTERVIEW_COMMUNICATION_SLA),
+        ("Interview", "Compliance Notes", FactKey.INTERVIEW_COMPLIANCE_NOTES),
+    ):
+        if fact_key.value not in intake_facts:
+            continue
+        value = intake_facts.get(fact_key.value)
+        evidence_raw = intake_fact_evidence.get(fact_key.value)
+        evidence = evidence_raw if isinstance(evidence_raw, Mapping) else {}
+        rows.append(
+            SummaryFactsRow(
+                area,
+                label,
+                _format_summary_fact_value(value) or "Nicht angegeben",
+                str(evidence.get("source_label") or "Intake-Fakt").strip(),
+                _status_for_value(value),
+                str(evidence.get("resolution_status") or "").strip(),
             )
         )
     rows.append(

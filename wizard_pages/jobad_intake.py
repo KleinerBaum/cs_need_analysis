@@ -15,6 +15,7 @@ from constants import (
     ESCO_RELEASE_LANE_PREVIEW,
     ESCO_RELEASE_LANE_SELECTED_VERSION,
     ESCO_RELEASE_LANE_STABLE,
+    FactKey,
     FactResolutionStatus,
     FactSourceType,
     SSKey,
@@ -58,6 +59,7 @@ from state import (
     get_model_override,
     handle_unexpected_exception,
     set_error,
+    set_answer,
 )
 from ui_components import (
     render_error_banner,
@@ -87,6 +89,34 @@ HYPOTHESIS_ACTION_LABELS: Final[dict[str, str]] = {
     HYPOTHESIS_ACTION_ACCEPT: "Übernehmen",
     HYPOTHESIS_ACTION_EDIT: "Bearbeiten",
     HYPOTHESIS_ACTION_SKIP: "Überspringen",
+}
+_START_ROUTING_LABELS: Final[dict[str, dict[str, str]]] = {
+    FactKey.INTAKE_SEARCH_CONFIDENTIALITY.value: {
+        "open": "Offen kommunizierbar",
+        "limited": "Intern begrenzt",
+        "high": "Vertraulich / neutralisieren",
+    },
+    FactKey.INTAKE_HIRING_REASON.value: {
+        "unknown": "Noch unklar",
+        "replacement": "Ersatz / Backfill",
+        "growth": "Wachstum",
+        "new_role": "Neue Rolle / Neuaufbau",
+        "internal_move": "Interne Nachfolge",
+        "confidential": "Vertrauliche Suche",
+    },
+    FactKey.INTAKE_URGENCY.value: {
+        "unknown": "Noch unklar",
+        "low": "Planbar",
+        "medium": "Relevant",
+        "high": "Dringend",
+        "critical": "Kritisch / sofort",
+    },
+    FactKey.INTAKE_ROLE_DEFINITION_MATURITY.value: {
+        "unknown": "Noch unklar",
+        "high": "Intern kalibriert",
+        "medium": "Teilweise kalibriert",
+        "low": "Noch unscharf",
+    },
 }
 
 
@@ -539,6 +569,104 @@ def _set_active_source(source: str, text: str) -> None:
     st.session_state[SOURCE_ACTIVE_KEY] = source
 
 
+def _routing_answer(fact_key: FactKey, default: Any) -> Any:
+    answers_raw = st.session_state.get(SSKey.ANSWERS.value, {})
+    answers = answers_raw if isinstance(answers_raw, dict) else {}
+    value = answers.get(fact_key.value, default)
+    return default if value is None else value
+
+
+def _persist_routing_answer(fact_key: FactKey, value: Any) -> None:
+    set_answer(fact_key.value, value, fact_key=fact_key.value)
+
+
+def _render_routing_select(
+    *,
+    fact_key: FactKey,
+    label: str,
+    options: tuple[str, ...],
+    default: str,
+) -> None:
+    labels = _START_ROUTING_LABELS[fact_key.value]
+    current = str(_routing_answer(fact_key, default) or default)
+    if current not in options:
+        current = default
+    selected = st.selectbox(
+        label,
+        options=options,
+        index=options.index(current),
+        format_func=lambda value: labels.get(value, value),
+        key=f"cs.start.routing.{fact_key.value}",
+    )
+    _persist_routing_answer(fact_key, selected)
+
+
+def _render_start_routing_controls() -> None:
+    if not all(hasattr(st, name) for name in ("selectbox", "number_input", "columns")):
+        if hasattr(st, "caption"):
+            st.caption("Routing: Standardwerte werden verwendet.")
+        return
+
+    with st.container(border=True):
+        st.markdown("#### Routing")
+        st.caption(
+            "Diese Metadaten steuern Folgefragen zu Unternehmen, Rolle, Benefits und Interview."
+        )
+        top_left, top_right = st.columns([1, 1], gap="small")
+        with top_left:
+            _render_routing_select(
+                fact_key=FactKey.INTAKE_SEARCH_CONFIDENTIALITY,
+                label="Wie vertraulich ist die Suche?",
+                options=("open", "limited", "high"),
+                default="open",
+            )
+        with top_right:
+            _render_routing_select(
+                fact_key=FactKey.INTAKE_URGENCY,
+                label="Wie dringend ist die Besetzung?",
+                options=("unknown", "low", "medium", "high", "critical"),
+                default="unknown",
+            )
+
+        lower_left, lower_mid, lower_right = st.columns([1, 1, 1], gap="small")
+        with lower_left:
+            _render_routing_select(
+                fact_key=FactKey.INTAKE_HIRING_REASON,
+                label="Warum wird besetzt?",
+                options=(
+                    "unknown",
+                    "replacement",
+                    "growth",
+                    "new_role",
+                    "internal_move",
+                    "confidential",
+                ),
+                default="unknown",
+            )
+        with lower_mid:
+            current_volume = _routing_answer(FactKey.INTAKE_HIRING_VOLUME, 1)
+            try:
+                current_volume_int = int(current_volume)
+            except (TypeError, ValueError):
+                current_volume_int = 1
+            hiring_volume = st.number_input(
+                "Wie viele Personen sollen besetzt werden?",
+                min_value=1,
+                max_value=50,
+                value=max(1, min(50, current_volume_int)),
+                step=1,
+                key=f"cs.start.routing.{FactKey.INTAKE_HIRING_VOLUME.value}",
+            )
+            _persist_routing_answer(FactKey.INTAKE_HIRING_VOLUME, int(hiring_volume))
+        with lower_right:
+            _render_routing_select(
+                fact_key=FactKey.INTAKE_ROLE_DEFINITION_MATURITY,
+                label="Ist die Rolle intern kalibriert?",
+                options=("unknown", "high", "medium", "low"),
+                default="unknown",
+            )
+
+
 def _usage_has_cache_hit(usage: Any) -> bool:
     if isinstance(usage, dict):
         return bool(usage.get("cached"))
@@ -652,6 +780,8 @@ def _render_phase_a_source_and_privacy_controls() -> bool:
             placeholder="Füge hier den vollständigen Ausschreibungstext ein …",
         )
 
+    _render_start_routing_controls()
+
     uploaded_text = str(st.session_state.get(SOURCE_UPLOAD_TEXT_KEY, ""))
     upload_meta = st.session_state.get(SSKey.SOURCE_FILE_META.value, {})
     upload = st.session_state.get("cs.source_upload_file")
@@ -670,6 +800,8 @@ def _render_phase_a_source_and_privacy_controls() -> bool:
         active_source_text = str(st.session_state.get(SSKey.SOURCE_TEXT.value, ""))
         char_count = len(active_source_text.strip()) if active_source_text else 0
         st.metric("Zeichen", f"{char_count:,}".replace(",", "."))
+        if 0 < char_count < 250:
+            st.warning("Die Quelle ist sehr kurz. Die Extraktion kann unvollstaendig sein.")
     with action_col:
         do_extract = st.button(
             "Analyse starten",

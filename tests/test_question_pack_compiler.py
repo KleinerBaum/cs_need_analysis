@@ -190,3 +190,34 @@ def test_compiler_caps_esco_concept_questions_by_ui_mode() -> None:
     ]
 
     assert len(esco_questions) == 3
+
+
+def test_compiler_injects_routing_facet_questions() -> None:
+    profile = classify_occupation_context(
+        job=JobAdExtract(job_title="Operations Lead", contract_type="freelance"),
+        answers={
+            FactKey.INTAKE_HIRING_REASON.value: "replacement",
+            FactKey.INTAKE_URGENCY.value: "high",
+            FactKey.INTAKE_HIRING_VOLUME.value: 2,
+            FactKey.INTAKE_SEARCH_CONFIDENTIALITY.value: "high",
+            FactKey.INTAKE_ROLE_DEFINITION_MATURITY.value: "low",
+            FactKey.TEAM_LEADERSHIP_SCOPE.value: "fachliche_fuehrung",
+            FactKey.COMPANY_WORK_ARRANGEMENT.value: "remote_cross_border",
+        },
+    )
+
+    compiled = compile_question_plan(base_plan=QuestionPlan(steps=[]), profile=profile)
+    questions = {q.id: q for step in compiled.plan.steps for q in step.questions}
+
+    assert "ctx_hiring_replacement_gap" in questions
+    assert "ctx_interview_urgency_tradeoffs" in questions
+    assert "ctx_confidential_external_narrative" in questions
+    assert "ctx_multi_hire_calibration" in questions
+    assert "ctx_low_maturity_role_assumptions" in questions
+    assert "ctx_leadership_reporting_detail" in questions
+    assert "ctx_contract_constraints" in questions
+    assert "ctx_company_allowed_regions_timezones" in questions
+    assert questions["ctx_company_allowed_regions_timezones"].fact_key == (
+        FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES.value
+    )
+    assert "facet.international_context" in compiled.provenance.selected_pack_keys

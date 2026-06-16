@@ -6,11 +6,15 @@ from schemas import (
     JobAdFieldEvidence,
     InterviewPrepSheetHR,
     InterviewPrepSheetHiringManager,
+    InterviewScorecardTemplate,
     OccupationContextProfile,
     OccupationQuestionContext,
     QuestionPlan,
     QuestionFlowProvenance,
     RequirementSuggestionPack,
+    SkillRequirementItem,
+    TravelProfile,
+    VariablePay,
     VacancyStructuredData,
     VacancyBriefLLM,
 )
@@ -60,10 +64,49 @@ def test_new_interview_and_contract_schemas_are_strict() -> None:
     hr_schema = InterviewPrepSheetHR.model_json_schema()
     hm_schema = InterviewPrepSheetHiringManager.model_json_schema()
     contract_schema = EmploymentContractDraft.model_json_schema()
+    scorecard_schema = InterviewScorecardTemplate.model_json_schema()
 
     assert hr_schema.get("additionalProperties") is False
     assert hm_schema.get("additionalProperties") is False
     assert contract_schema.get("additionalProperties") is False
+    assert scorecard_schema.get("additionalProperties") is False
+
+
+def test_vacancy_structured_data_accepts_new_normalized_objects() -> None:
+    payload = VacancyStructuredData.model_validate(
+        {
+            "job_extract": {},
+            "answers": {},
+            "skill_items": [
+                {
+                    "label": "Python",
+                    "status": "must",
+                    "proficiency": "solid",
+                    "readiness_timing": "start",
+                }
+            ],
+            "variable_pay": {
+                "eligible": True,
+                "currency": "EUR",
+                "bonus_logic": "10% target bonus",
+            },
+            "travel_profile": {
+                "required": True,
+                "percent": 25,
+                "region": "DACH",
+            },
+            "interview_scorecard_template": {
+                "stage": "Fachinterview",
+                "criteria": [{"title": "Python", "weight_percent": 40}],
+                "recommendation_options": ["hire", "no_hire"],
+            },
+        }
+    )
+
+    assert isinstance(payload.skill_items[0], SkillRequirementItem)
+    assert isinstance(payload.variable_pay, VariablePay)
+    assert isinstance(payload.travel_profile, TravelProfile)
+    assert isinstance(payload.interview_scorecard_template, InterviewScorecardTemplate)
 
 
 def test_interview_hr_sheet_contract_references_strict_question_blocks() -> None:
