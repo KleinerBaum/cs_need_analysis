@@ -59,10 +59,10 @@ The app supports three global UI modes:
 | Stored value | German label | Intended behavior |
 |---|---|---|
 | `quick` | `schnell` | Reduced question depth, compact detail groups |
-| `standard` | `ausführlich` | Default balanced depth, compact detail groups |
+| `standard` | `ausführlich` | Balanced depth with per-step visible-question floors, compact detail groups |
 | `expert` | `vollumfänglich` | Full depth, detail groups open by default, extended expert controls |
 
-The mode is controlled through the sidebar preference center and the Start step. It affects visible question depth through `question_limits.py` and compact/detail behavior through shared UI helpers.
+The mode is controlled through the sidebar preference center and the Start step. It affects visible question depth through `question_limits.py` and compact/detail behavior through shared UI helpers. In `standard`, the main intake steps keep a minimum visible depth when enough dependency-visible questions exist: Company 5, Role & Tasks 6, Skills 5, Benefits 4, Interview 5. `expert` shows the full dependency-visible question set.
 
 Adaptive question ranking can use optional question metadata: `impact_targets`, `acquisition_cost`, and `info_gain_score`. These fields let high-impact unanswered questions rise above lower-value detail questions without changing the visible step contract or existing UI modes.
 

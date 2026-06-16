@@ -45,7 +45,10 @@ from esco_semantics import (
     sync_esco_semantic_state,
 )
 from question_dependencies import should_show_question
-from question_limits import sync_adaptive_question_limits
+from question_limits import (
+    select_questions_for_adaptive_limit,
+    sync_adaptive_question_limits,
+)
 from question_progress import AnswerMetaMap
 from question_progress import (
     build_answered_lookup,
@@ -254,7 +257,17 @@ def set_current_step(key: str, *, sync_navigation: bool = True) -> None:
         st.session_state[SSKey.NAV_SYNC_PENDING.value] = True
 
 
-def _get_step_questions(plan: QuestionPlan | None, step_key: str) -> list[Question]:
+def _get_step_questions(
+    plan: QuestionPlan | None,
+    step_key: str,
+    *,
+    answers: dict[str, object] | None = None,
+    answer_meta: AnswerMetaMap | None = None,
+    job_extract: JobAdExtract | None = None,
+    intake_facts: Mapping[str, object] | None = None,
+    intake_fact_evidence: Mapping[str, object] | None = None,
+    confidence_threshold: float | None = None,
+) -> list[Question]:
     if plan is None:
         return []
     step = next((entry for entry in plan.steps if entry.step_key == step_key), None)
@@ -273,7 +286,17 @@ def _get_step_questions(plan: QuestionPlan | None, step_key: str) -> list[Questi
 
     questions = step.questions
     if step_limit is not None and step_limit > 0:
-        questions = step.questions[:step_limit]
+        questions = select_questions_for_adaptive_limit(
+            step.questions,
+            step_key=step_key,
+            limit=step_limit,
+            answers=answers or {},
+            answer_meta=answer_meta or {},
+            job_extract=job_extract,
+            intake_facts=intake_facts,
+            intake_fact_evidence=intake_fact_evidence,
+            confidence_threshold=confidence_threshold,
+        )
     return questions
 
 
@@ -324,7 +347,16 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
 
     statuses: list[SidebarStepProgress] = []
     for page in pages:
-        questions = _get_step_questions(plan, page.key)
+        questions = _get_step_questions(
+            plan,
+            page.key,
+            answers=answers,
+            answer_meta=cast(AnswerMetaMap, answer_meta),
+            job_extract=job_extract,
+            intake_facts=intake_facts,
+            intake_fact_evidence=intake_fact_evidence,
+            confidence_threshold=confidence_threshold,
+        )
         step_status = _build_step_status_payload_for_page(
             page_key=page.key,
             questions=questions,

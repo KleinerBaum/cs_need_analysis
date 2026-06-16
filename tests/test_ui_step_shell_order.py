@@ -193,7 +193,8 @@ def test_company_team_interview_use_step_shell_with_review_slot_and_canonical_or
 
     assert _slot_order_from_render_kwargs(company_kwargs) == [
         "extracted_from_jobspec_slot",
-        "main_content_slot",
+        "source_comparison_slot",
+        "open_questions_slot",
         "review_slot",
     ]
     assert _slot_order_from_render_kwargs(team_kwargs) == [
@@ -491,6 +492,31 @@ def test_primary_step_pages_use_compact_review_render_mode() -> None:
         kwargs["review_slot"]()
 
         assert getattr(called["render_mode"], "value", called["render_mode"]) == "compact"
+
+
+def test_company_team_esco_hint_persists_to_canonical_team_success_fact(
+    monkeypatch,
+) -> None:
+    company = _load_module("wizard_pages.page_02_company_fact", "wizard_pages/02_company.py")
+    persisted: dict[str, Any] = {}
+
+    monkeypatch.setattr(company, "fact_value", lambda *_args, **_kwargs: "Vorhanden")
+
+    def _persist_fact(fact_key: FactKey, value: str) -> None:
+        persisted["fact_key"] = fact_key
+        persisted["value"] = value
+
+    monkeypatch.setattr(company, "persist_fact", _persist_fact)
+
+    adopted = company._append_context_to_team_success_fact(
+        "ESCO-Hinweis: Zusammenarbeit / Kommunikation"
+    )
+
+    assert adopted is True
+    assert persisted["fact_key"] is FactKey.TEAM_SUCCESS_CONTEXT_90D
+    assert persisted["value"] == (
+        "Vorhanden\n- ESCO-Hinweis: Zusammenarbeit / Kommunikation"
+    )
 
 
 def test_review_mode_resolution_prefers_full_for_expert_or_debug() -> None:

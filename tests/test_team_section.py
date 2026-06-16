@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from constants import AnswerType
 from schemas import Question, QuestionStep
 from wizard_pages import team_section
@@ -76,3 +78,63 @@ def test_role_context_ui_texts_do_not_contain_forbidden_terms() -> None:
     all_ui_text = " ".join(team_section.ROLE_CONTEXT_UI_TEXTS).casefold()
     for term in forbidden_terms:
         assert term not in all_ui_text
+
+
+def test_role_context_enrichment_uses_optional_adoption_callback(monkeypatch) -> None:
+    adopted_lines: list[str] = []
+
+    class _FakeStreamlit:
+        session_state: dict[str, object] = {}
+
+        def markdown(self, *_args, **_kwargs) -> None:
+            return None
+
+        def caption(self, *_args, **_kwargs) -> None:
+            return None
+
+        def pills(self, *_args, options, **_kwargs):
+            return list(options)
+
+        def button(self, *_args, **_kwargs) -> bool:
+            return True
+
+        def success(self, *_args, **_kwargs) -> None:
+            return None
+
+        def info(self, *_args, **_kwargs) -> None:
+            return None
+
+    class _FakeEscoClient:
+        def resource_occupation(self, *, uri: str):
+            assert uri == "uri:occupation"
+            return {
+                "description": (
+                    "Cross-functional team collaboration and stakeholder communication."
+                )
+            }
+
+    monkeypatch.setattr(team_section, "st", _FakeStreamlit())
+    monkeypatch.setattr(team_section, "EscoClient", _FakeEscoClient)
+    monkeypatch.setattr(
+        team_section,
+        "get_esco_semantic_context",
+        lambda: SimpleNamespace(
+            primary_anchor=SimpleNamespace(uri="uri:occupation"),
+        ),
+    )
+    monkeypatch.setattr(
+        team_section,
+        "_append_context_to_team_notes",
+        lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("legacy Team answer path should not be used")
+        ),
+    )
+
+    team_section.render_role_context_enrichment(
+        step=None,
+        ctx=SimpleNamespace(),
+        adopt_context_callback=lambda line: not adopted_lines.append(line),
+    )
+
+    assert adopted_lines
+    assert all(line.startswith("ESCO-Hinweis: ") for line in adopted_lines)

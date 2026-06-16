@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import Any
 
 import streamlit as st
@@ -176,7 +176,10 @@ def _esco_reason_labels(provenance: object) -> list[str]:
 
 
 def render_role_context_enrichment(
-    *, step: QuestionStep | None, ctx: WizardContext
+    *,
+    step: QuestionStep | None,
+    ctx: WizardContext,
+    adopt_context_callback: Callable[[str], bool] | None = None,
 ) -> None:
     st.markdown(ROLE_CONTEXT_TITLE)
     st.caption(ROLE_CONTEXT_HELP)
@@ -273,9 +276,14 @@ def render_role_context_enrichment(
         else:
             adopted_count = 0
             for label in selected_theme_labels:
-                adopted = _append_context_to_team_notes(
-                    step=step,
-                    context_line=f"ESCO-Hinweis: {label}",
+                context_line = f"ESCO-Hinweis: {label}"
+                adopted = (
+                    adopt_context_callback(context_line)
+                    if adopt_context_callback is not None
+                    else _append_context_to_team_notes(
+                        step=step,
+                        context_line=context_line,
+                    )
                 )
                 if adopted:
                     adopted_count += 1
@@ -284,7 +292,11 @@ def render_role_context_enrichment(
             else:
                 st.info("Keine geeignete Team-Notizfrage zum Übernehmen gefunden.")
 
-    current_notes = _read_confirmed_team_notes(step)
+    current_notes = (
+        ""
+        if adopt_context_callback is not None
+        else _read_confirmed_team_notes(step)
+    )
     if current_notes:
         st.caption("Übernommene Hinweise sind in der Team-Notiz gespeichert.")
 

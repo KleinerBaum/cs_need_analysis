@@ -9,7 +9,15 @@ from typing import Any, cast
 
 import streamlit as st
 
-from constants import SSKey, UI_PREFERENCE_CONFIDENCE_THRESHOLD
+from constants import (
+    SSKey,
+    STEP_KEY_BENEFITS,
+    STEP_KEY_COMPANY,
+    STEP_KEY_INTERVIEW,
+    STEP_KEY_ROLE_TASKS,
+    STEP_KEY_SKILLS,
+    UI_PREFERENCE_CONFIDENCE_THRESHOLD,
+)
 from question_dependencies import should_show_question
 from question_progress import (
     AnswerMetaMap,
@@ -25,6 +33,7 @@ class ModeLimitProfile:
     missing_fraction: float
     min_questions: int
     context_buffer: int
+    full_depth: bool = False
 
 
 _MODE_LIMIT_PROFILES: dict[str, ModeLimitProfile] = {
@@ -34,7 +43,20 @@ _MODE_LIMIT_PROFILES: dict[str, ModeLimitProfile] = {
         min_questions=2,
         context_buffer=1,
     ),
-    "expert": ModeLimitProfile(missing_fraction=1.0, min_questions=3, context_buffer=2),
+    "expert": ModeLimitProfile(
+        missing_fraction=1.0,
+        min_questions=3,
+        context_buffer=2,
+        full_depth=True,
+    ),
+}
+
+_STANDARD_STEP_FLOORS: dict[str, int] = {
+    STEP_KEY_COMPANY: 5,
+    STEP_KEY_ROLE_TASKS: 6,
+    STEP_KEY_SKILLS: 5,
+    STEP_KEY_BENEFITS: 4,
+    STEP_KEY_INTERVIEW: 5,
 }
 
 
@@ -147,6 +169,9 @@ def compute_adaptive_question_limits(
         total = len(visible_questions)
         if total == 0:
             continue
+        if profile.full_depth:
+            limits[step.step_key] = total
+            continue
 
         covered_by_question = {
             question.id: _question_is_covered(
@@ -171,12 +196,19 @@ def compute_adaptive_question_limits(
         adaptive_count = math.ceil(missing * profile.missing_fraction)
         limit = max(
             profile.min_questions,
+            _step_min_questions(ui_mode, step.step_key),
             adaptive_count + profile.context_buffer,
             essential_missing,
         )
         limits[step.step_key] = max(1, min(total, limit))
 
     return limits
+
+
+def _step_min_questions(ui_mode: str, step_key: str) -> int:
+    if str(ui_mode).strip().lower() != "standard":
+        return 0
+    return _STANDARD_STEP_FLOORS.get(step_key, 0)
 
 
 def sync_adaptive_question_limits() -> None:

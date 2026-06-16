@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import sys
 
-from constants import AnswerType, SSKey, STEP_KEY_SUMMARY
+from constants import AnswerType, FactKey, SSKey, STEP_KEY_SUMMARY
 from question_progress import build_step_scope_progress_labels
 from schemas import JobAdExtract, Question, QuestionDependency, QuestionPlan, QuestionStep
 
@@ -166,6 +166,64 @@ def test_sidebar_progress_counts_jobspec_covered_company_questions(monkeypatch) 
     assert statuses[0]["answered"] == 2
     assert statuses[0]["total"] == 3
     assert statuses[0]["payload"]["missing_essential_ids"] == ["company_q_city"]
+
+
+def test_sidebar_progress_uses_adaptive_selection_instead_of_prefix_slice(
+    monkeypatch,
+) -> None:
+    covered_detail = Question(
+        id="covered_detail",
+        label="Already covered",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="detail",
+        target_path=FactKey.COMPANY_COMPANY_NAME.value,
+    )
+    uncovered_core = Question(
+        id="uncovered_core",
+        label="Hiring goal",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="core",
+    )
+    plan = QuestionPlan(
+        steps=[
+            QuestionStep(
+                step_key="company",
+                title_de="Company",
+                questions=[covered_detail, uncovered_core],
+            )
+        ]
+    )
+    monkeypatch.setattr(
+        BASE_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.QUESTION_PLAN.value: plan.model_dump(mode="json"),
+                SSKey.QUESTION_LIMITS.value: {"company": 1},
+                SSKey.ANSWERS.value: {},
+                SSKey.ANSWER_META.value: {},
+                SSKey.INTAKE_FACTS.value: {
+                    FactKey.COMPANY_COMPANY_NAME.value: "Example GmbH"
+                },
+                SSKey.JOB_EXTRACT.value: None,
+                SSKey.BRIEF.value: None,
+            }
+        ),
+    )
+    pages = [
+        BASE_MODULE.WizardPage(
+            key="company",
+            title_de="Company",
+            icon="",
+            render=_noop_render,
+        )
+    ]
+
+    statuses = BASE_MODULE._compute_step_statuses(pages)
+
+    assert statuses[0]["answered"] == 0
+    assert statuses[0]["total"] == 1
+    assert statuses[0]["payload"]["missing_essential_ids"] == ["uncovered_core"]
 
 
 def test_intake_process_progress_excludes_start_and_marks_summary_from_brief(

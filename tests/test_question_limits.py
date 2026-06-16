@@ -92,8 +92,50 @@ def test_adaptive_limits_reduce_steps_with_good_jobspec_coverage() -> None:
         job_extract=job_extract,
     )
 
-    assert limits["skills"] == 2
+    assert limits["skills"] == 3
     assert limits["interview"] == 6
+
+
+def test_standard_mode_applies_step_specific_question_floors() -> None:
+    plan = QuestionPlan(
+        steps=[
+            QuestionStep(
+                step_key=step_key,
+                title_de=step_key,
+                questions=[
+                    Question(
+                        id=f"{step_key}_{index}",
+                        label=f"{step_key} {index}",
+                        answer_type=AnswerType.SHORT_TEXT,
+                    )
+                    for index in range(8)
+                ],
+            )
+            for step_key in (
+                "company",
+                "role_tasks",
+                "skills",
+                "benefits",
+                "interview",
+            )
+        ]
+    )
+
+    limits = compute_adaptive_question_limits(
+        plan=plan,
+        ui_mode="standard",
+        answers={question.id: "covered" for step in plan.steps for question in step.questions},
+        answer_meta={},
+        job_extract=None,
+    )
+
+    assert limits == {
+        "company": 5,
+        "role_tasks": 6,
+        "skills": 5,
+        "benefits": 4,
+        "interview": 5,
+    }
 
 
 def test_adaptive_limits_scale_by_mode_depth() -> None:
@@ -116,6 +158,35 @@ def test_adaptive_limits_scale_by_mode_depth() -> None:
 
     assert quick_limits["interview"] < expert_limits["interview"]
     assert quick_limits["skills"] < expert_limits["skills"]
+
+
+def test_expert_mode_uses_full_dependency_visible_question_set() -> None:
+    plan = QuestionPlan(
+        steps=[
+            QuestionStep(
+                step_key="skills",
+                title_de="Skills",
+                questions=[
+                    Question(
+                        id=f"skill_{index}",
+                        label=f"Skill {index}",
+                        answer_type=AnswerType.SHORT_TEXT,
+                    )
+                    for index in range(7)
+                ],
+            )
+        ]
+    )
+
+    limits = compute_adaptive_question_limits(
+        plan=plan,
+        ui_mode="expert",
+        answers={question.id: "covered" for question in plan.steps[0].questions},
+        answer_meta={},
+        job_extract=None,
+    )
+
+    assert limits["skills"] == 7
 
 
 def test_adaptive_limits_treat_low_confidence_fact_as_uncovered() -> None:

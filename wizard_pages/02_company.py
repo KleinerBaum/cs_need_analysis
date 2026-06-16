@@ -63,6 +63,7 @@ from wizard_pages.fact_inputs import (
     render_text_fact,
     split_lines,
 )
+from wizard_pages.team_section import render_role_context_enrichment
 
 
 _LEADERSHIP_LABELS = {
@@ -411,7 +412,11 @@ def _render_language_fact(
     )
 
 
-def _render_structured_company_context(job: JobAdExtract) -> None:
+def _render_structured_company_context(
+    job: JobAdExtract,
+    *,
+    ctx: WizardContext,
+) -> None:
     st.markdown("### Strukturierter Kontext")
     st.caption(
         "Diese Angaben werden als kanonische Fakten gespeichert und in Folgefragen, Summary und Exporten genutzt."
@@ -491,6 +496,11 @@ def _render_structured_company_context(job: JobAdExtract) -> None:
             FactKey.TEAM_SUCCESS_CONTEXT_90D,
             "Welche Arbeitsweise ist im Team nötig, um in den ersten 90 Tagen zu bestehen?",
             height=100,
+        )
+        render_role_context_enrichment(
+            step=None,
+            ctx=ctx,
+            adopt_context_callback=_append_context_to_team_success_fact,
         )
 
     with section_container(border=True):
@@ -574,6 +584,18 @@ def _render_structured_company_context(job: JobAdExtract) -> None:
             )
 
 
+def _append_context_to_team_success_fact(context_line: str) -> bool:
+    current = str(fact_value(FactKey.TEAM_SUCCESS_CONTEXT_90D, "") or "").strip()
+    addition = context_line.strip()
+    if not addition:
+        return False
+    if addition.casefold() in current.casefold():
+        return True
+    updated = f"{current}\n- {addition}".strip() if current else f"- {addition}"
+    persist_fact(FactKey.TEAM_SUCCESS_CONTEXT_90D, updated)
+    return True
+
+
 def render(ctx: WizardContext) -> None:
     preflight = guard_job_and_plan(ctx)
     if preflight is None:
@@ -599,11 +621,13 @@ def render(ctx: WizardContext) -> None:
                 "Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions."
             )
 
-    def _render_main_slot() -> None:
+    def _render_source_comparison_slot() -> None:
         render_error_banner()
-        _render_structured_company_context(job)
+        _render_structured_company_context(job, ctx=ctx)
         st.divider()
         _render_website_enrichment(job, plan)
+
+    def _render_open_questions_slot() -> None:
         if step_company is None or not step_company.questions:
             st.info(
                 "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
@@ -626,7 +650,8 @@ def render(ctx: WizardContext) -> None:
         step=step_company,
         extracted_from_jobspec_slot=_render_extracted_slot,
         extracted_from_jobspec_label="Aus Jobspec extrahiert (Company & Location)",
-        main_content_slot=_render_main_slot,
+        source_comparison_slot=_render_source_comparison_slot,
+        open_questions_slot=_render_open_questions_slot,
         review_slot=lambda: render_standard_step_review(
             step_company,
             render_mode=resolve_standard_review_mode(context=ReviewRenderContext.STEP_FORM),
