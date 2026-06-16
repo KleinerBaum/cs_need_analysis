@@ -49,6 +49,16 @@ def _render_landing_responsive_overrides() -> None:
                 gap: 0.75rem;
                 margin-top: 1.1rem;
             }
+            .landing-start-overview {
+                display: grid;
+                grid-template-columns: minmax(360px, 1.5fr) minmax(280px, 0.85fr);
+                gap: clamp(1rem, 2vw, 1.5rem);
+                align-items: center;
+            }
+            .landing-start-signals {
+                display: grid;
+                gap: 0.7rem;
+            }
             .landing-signal {
                 border: 1px solid var(--cs-border);
                 background: var(--cs-surface);
@@ -181,6 +191,7 @@ def _render_landing_responsive_overrides() -> None:
             }
             @media (max-width: 900px) {
                 .landing-signal-row,
+                .landing-start-overview,
                 .landing-process-track {
                     grid-template-columns: minmax(0, 1fr);
                 }
@@ -224,25 +235,6 @@ def _render_landing_hero() -> None:
     hero_supporting = str(START_PAGE_COPY["hero_supporting_paragraph"])
     if hero_supporting:
         st.markdown(hero_supporting)
-    st.markdown(
-        """
-        <div class="landing-signal-row">
-            <div class="landing-signal">
-                <strong>Weniger Rückfragen</strong>
-                <span>Der Wizard fragt gezielt nach, statt ein starres Formular abzuarbeiten.</span>
-            </div>
-            <div class="landing-signal">
-                <strong>Klarer Rollenanker</strong>
-                <span>Jobtitel werden mit ESCO abgeglichen, damit alle Folgeschritte denselben Berufskontext nutzen.</span>
-            </div>
-            <div class="landing-signal">
-                <strong>Direkt nutzbare Outputs</strong>
-                <span>Aus dem Intake entstehen strukturierte Informationen für Recruiting, Hiring-Team und Summary.</span>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
     st.markdown("</section>", unsafe_allow_html=True)
 
 
@@ -301,8 +293,24 @@ def _render_landing_explainer_sections() -> None:
     st.markdown(
         f"""
         <section id="{LANDING_SECTION_IDS["importance"]}" class="landing-section">
-            <div class="landing-iceberg-card">
-                <img src="{iceberg_uri}" alt="{START_PAGE_COPY["importance_title"]}">
+            <div class="landing-start-overview">
+                <div class="landing-iceberg-card">
+                    <img src="{iceberg_uri}" alt="{START_PAGE_COPY["importance_title"]}">
+                </div>
+                <div class="landing-start-signals">
+                    <div class="landing-signal">
+                        <strong>Weniger manuell eingeben</strong>
+                        <span>Jobspec, Kontext und vorhandene Fakten werden vorbefüllt; bei lokaler LLM-Konfiguration bleiben sensible Daten besonders geschützt.</span>
+                    </div>
+                    <div class="landing-signal">
+                        <strong>Dynamisch nachfragen</strong>
+                        <span>Der Fragebogen passt sich an die Vakanz an und schärft Muss-have- und Nice-to-have-Skills mit Gehaltsprognose und Kandidatenverfügbarkeit.</span>
+                    </div>
+                    <div class="landing-signal">
+                        <strong>Folgeschritte optimieren</strong>
+                        <span>Job Ad, Vertrag, Boolean Search, Interviewleitfäden und interne oder externe Kommunikation bauen auf derselben Datenbasis auf.</span>
+                    </div>
+                </div>
             </div>
         </section>
         """,
@@ -315,7 +323,6 @@ def render(ctx: WizardContext) -> None:
     _render_landing_responsive_overrides()
     _render_landing_hero()
     _render_landing_explainer_sections()
-    _render_landing_flow_cards()
 
     st.markdown('<section class="landing-section landing-card landing-intake-card">', unsafe_allow_html=True)
     render_jobad_intake(ctx, title=str(START_PAGE_COPY["primary_cta"]))

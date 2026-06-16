@@ -46,6 +46,11 @@ SIDEBAR_PAGE_LINKS: tuple[tuple[str, str], ...] = (
     ("pages/03_Impressum.py", "Impressum"),
     ("pages/13_Cookie_Policy_Settings.py", "Cookie Policy/Settings"),
 )
+SIDEBAR_PRIMARY_PAGE_LINKS: tuple[tuple[str, str], ...] = SIDEBAR_PAGE_LINKS[:2]
+SIDEBAR_FOOTER_PAGE_LINKS: tuple[tuple[str, str], ...] = (
+    SIDEBAR_PAGE_LINKS[3],
+    SIDEBAR_PAGE_LINKS[2],
+)
 
 
 def _inject_theme_styles() -> None:
@@ -329,12 +334,19 @@ def _render_preferences_page() -> None:
         st.rerun()
 
 
-def _render_sidebar_actions() -> None:
-    """Render non-wizard global sidebar controls."""
+def _render_sidebar_primary_links() -> None:
+    """Render prominent sidebar links above the wizard navigation."""
     with st.sidebar:
-        st.caption("Globale Steuerung für den aktuellen Wizard-Kontext.")
-        st.markdown("#### Seiten")
-        for page_path, label in SIDEBAR_PAGE_LINKS:
+        for page_path, label in SIDEBAR_PRIMARY_PAGE_LINKS:
+            st.page_link(page_path, label=label)
+        st.markdown('<div class="cs-sidebar-nav-gap"></div>', unsafe_allow_html=True)
+
+
+def _render_sidebar_footer_links() -> None:
+    """Render non-wizard legal sidebar links below contextual controls."""
+    with st.sidebar:
+        st.markdown('<div class="cs-sidebar-nav-gap"></div>', unsafe_allow_html=True)
+        for page_path, label in SIDEBAR_FOOTER_PAGE_LINKS:
             st.page_link(page_path, label=label)
 
 
@@ -415,12 +427,14 @@ def main() -> None:
     if isinstance(page_param, list):
         page_param = page_param[0] if page_param else None
     if page_param == "preferences":
+        _render_sidebar_primary_links()
         sidebar_navigation(ctx)
         _render_preferences_page()
-        _render_sidebar_actions()
+        _render_sidebar_footer_links()
         st.session_state[SSKey.LAST_RENDERED_STEP.value] = None
         return
 
+    _render_sidebar_primary_links()
     current = sidebar_navigation(ctx)
     step_changed = bool(previous_step and previous_step != current.key)
 
@@ -428,7 +442,7 @@ def main() -> None:
         _reset_scroll_on_step_change()
     render_intake_process_progress(current.key)
     current.render(ctx)
-    _render_sidebar_actions()
+    _render_sidebar_footer_links()
     st.session_state[SSKey.LAST_RENDERED_STEP.value] = current.key
 
 

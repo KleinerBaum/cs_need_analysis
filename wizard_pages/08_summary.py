@@ -2034,7 +2034,10 @@ def _render_esco_coverage_kpis() -> None:
 def _render_summary_facts_column_overview(vm: SummaryViewModel) -> None:
     st.markdown("### Fakten")
     _render_esco_coverage_kpis()
-    grouped_rows = _group_summary_fact_rows_by_area(vm.fact_rows)
+    visible_rows = [
+        row for row in vm.fact_rows if _is_visible_summary_fact_row(row.to_dict())
+    ]
+    grouped_rows = _group_summary_fact_rows_by_area(visible_rows)
     if not grouped_rows:
         st.info("Keine Fakten verfügbar.")
         return
@@ -2335,13 +2338,12 @@ def _render_summary_facts_table(rows: list[dict[str, str]]) -> None:
                 "Alle",
                 "Vollständig",
                 "Teilweise",
-                "Fehlend",
                 "Automatisch erkannt",
             ],
             key=SSKey.SUMMARY_FACTS_STATUS_FILTER.value,
         )
 
-    filtered_rows = rows
+    filtered_rows = [row for row in rows if _is_visible_summary_fact_row(row)]
     if search_query:
         filtered_rows = [
             row
@@ -2364,6 +2366,10 @@ def _render_summary_facts_table(rows: list[dict[str, str]]) -> None:
             hide_index=True,
             column_order=["Bereich", "Feld", "Wert", "Quelle", "Status"],
         )
+
+
+def _is_visible_summary_fact_row(row: Mapping[str, str]) -> bool:
+    return str(row.get("Status", "")).strip() != "Fehlend"
 
 
 def _has_required_state(requirements: tuple[SSKey, ...]) -> bool:

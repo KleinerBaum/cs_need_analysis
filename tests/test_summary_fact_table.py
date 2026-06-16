@@ -478,18 +478,73 @@ def test_render_summary_facts_column_overview_groups_multiple_area_columns(
 
     SUMMARY_MODULE._render_summary_facts_column_overview(vm)
 
-    assert fake_st.columns_calls == [3, 1]
+    assert fake_st.columns_calls == [2]
     assert "**Kernprofil**" in fake_st.markdown_calls
-    assert "**Interview**" in fake_st.markdown_calls
     assert "**Benefits**" in fake_st.markdown_calls
-    assert "**Unternehmen**" in fake_st.markdown_calls
-    assert "Nicht beantwortet" in fake_st.write_calls
+    assert "**Interview**" not in fake_st.markdown_calls
+    assert "**Unternehmen**" not in fake_st.markdown_calls
+    assert "Nicht beantwortet" not in fake_st.write_calls
     assert fake_st.caption_calls == [
         "Vollständig · Quelle: Jobspec",
-        "Fehlend · Quelle: Intake-Antwort",
         "Teilweise · Quelle: Auswahl",
-        "Fehlend · Quelle: Intake-Antwort",
     ]
+
+
+def test_render_summary_facts_table_hides_missing_rows(monkeypatch) -> None:
+    class _FakeColumn:
+        def __enter__(self) -> "_FakeColumn":
+            return self
+
+        def __exit__(self, *_: object) -> Literal[False]:
+            return False
+
+    class _FakeStreamlit:
+        def __init__(self) -> None:
+            self.dataframe_rows: list[dict[str, str]] = []
+            self.selectbox_options: list[str] = []
+
+        def columns(self, *_: Any, **__: Any) -> list[_FakeColumn]:
+            return [_FakeColumn(), _FakeColumn()]
+
+        def text_input(self, *_: Any, **__: Any) -> str:
+            return ""
+
+        def selectbox(self, _label: str, *, options: list[str], **__: Any) -> str:
+            self.selectbox_options = options
+            return "Alle"
+
+        def dataframe(self, rows: list[dict[str, str]], **_: Any) -> None:
+            self.dataframe_rows = rows
+
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
+
+    SUMMARY_MODULE._render_summary_facts_table(
+        [
+            {
+                "Bereich": "Kernprofil",
+                "Feld": "Rolle",
+                "Wert": "Data Engineer",
+                "Quelle": "Jobspec",
+                "Status": "Vollständig",
+            },
+            {
+                "Bereich": "Interview",
+                "Feld": "Interviewphasen",
+                "Wert": "Nicht beantwortet",
+                "Quelle": "Intake-Antwort",
+                "Status": "Fehlend",
+            },
+        ]
+    )
+
+    assert fake_st.selectbox_options == [
+        "Alle",
+        "Vollständig",
+        "Teilweise",
+        "Automatisch erkannt",
+    ]
+    assert [row["Feld"] for row in fake_st.dataframe_rows] == ["Rolle"]
 
 
 def test_build_esco_coverage_chart_spec_contains_expected_bars() -> None:
