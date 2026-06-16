@@ -55,6 +55,9 @@ def test_group_extract_notes_by_tab_deduplicates_and_classifies_notes() -> None:
 def test_value_helpers_normalize_empty_sentinels_and_parse_numbers() -> None:
     assert has_meaningful_value("n/a") is False
     assert has_meaningful_value(math.nan) is False
+    assert has_meaningful_value([]) is False
+    assert has_meaningful_value({}) is False
+    assert has_meaningful_value(["Skill", ""]) is True
     assert normalize_optional_string("  Berlin ") == "Berlin"
     assert normalize_optional_string("—") is None
     assert parse_optional_int("3.0") == 3

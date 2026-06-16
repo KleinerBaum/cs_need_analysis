@@ -26,8 +26,10 @@ from job_extract_evidence import (
     job_extract_field_evidence_by_name,
 )
 from job_extract_review_helpers import (
+    JOB_EXTRACT_TAB_FIELDS,
     JOB_EXTRACT_HYPOTHESIS_GROUP_LABELS,
     build_job_extract_hypothesis_groups,
+    has_meaningful_value,
 )
 from llm_client import (
     OpenAICallError,
@@ -85,11 +87,6 @@ SOURCE_ACTIVE_KEY: Final[str] = "cs.source_active"
 HYPOTHESIS_ACTION_ACCEPT: Final[str] = "accept"
 HYPOTHESIS_ACTION_EDIT: Final[str] = "edit"
 HYPOTHESIS_ACTION_SKIP: Final[str] = "skip"
-HYPOTHESIS_ACTION_LABELS: Final[dict[str, str]] = {
-    HYPOTHESIS_ACTION_ACCEPT: "Übernehmen",
-    HYPOTHESIS_ACTION_EDIT: "Bearbeiten",
-    HYPOTHESIS_ACTION_SKIP: "Überspringen",
-}
 _START_ROUTING_LABELS: Final[dict[str, dict[str, str]]] = {
     FactKey.INTAKE_SEARCH_CONFIDENTIALITY.value: {
         "open": "Offen kommunizierbar",
@@ -441,16 +438,112 @@ def _apply_job_extract_hypothesis_updates(
     return JobAdExtract.model_validate(values)
 
 
+def _build_hypothesis_rows_by_tab(
+    groups: dict[str, list[dict[str, Any]]],
+) -> dict[str, list[dict[str, Any]]]:
+    rows_by_field = {
+        str(row.get("field_name") or ""): row
+        for rows in groups.values()
+        for row in rows
+    }
+    return {
+        tab_name: [
+            rows_by_field[field_name]
+            for field_name in field_names
+            if field_name in rows_by_field
+            and has_meaningful_value(rows_by_field[field_name].get("value"))
+        ]
+        for tab_name, field_names in JOB_EXTRACT_TAB_FIELDS.items()
+    }
+
+
+def _build_hypothesis_editor_rows(
+    rows: list[dict[str, Any]],
+    evidence_by_field: dict[str, Any],
+) -> list[dict[str, Any]]:
+    editor_rows: list[dict[str, Any]] = []
+    for row in rows:
+        field_name = str(row.get("field_name") or "")
+        editor_rows.append(
+            {
+                "field_name": field_name,
+                "Feld": row.get("label") or field_name,
+                "Wert": row.get("display_value") or "",
+                "Status": JOB_EXTRACT_HYPOTHESIS_GROUP_LABELS.get(
+                    str(row.get("group_key") or ""),
+                    str(row.get("group_key") or ""),
+                ),
+                "Confidence": format_field_evidence_confidence(
+                    evidence_by_field.get(field_name)
+                ),
+                "Evidence": format_field_evidence_snippet(
+                    evidence_by_field.get(field_name)
+                ),
+            }
+        )
+    return editor_rows
+
+
+def _collect_hypothesis_editor_updates(
+    rows: list[dict[str, Any]],
+    edited_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    rows_by_field = {str(row.get("field_name") or ""): row for row in rows}
+    edited_by_field = {
+        str(row.get("field_name") or ""): row
+        for row in edited_rows
+        if str(row.get("field_name") or "").strip()
+    }
+    submitted_rows: list[dict[str, Any]] = []
+    for field_name, row in rows_by_field.items():
+        edited_row = edited_by_field.get(field_name)
+        if edited_row is None:
+            submitted_rows.append({**row, "action": HYPOTHESIS_ACTION_SKIP})
+            continue
+        edited_value = str(edited_row.get("Wert") or "")
+        original_value = str(row.get("display_value") or "")
+        if not has_meaningful_value(edited_value):
+            action = HYPOTHESIS_ACTION_SKIP
+        elif not bool(row.get("editable", True)):
+            action = HYPOTHESIS_ACTION_ACCEPT
+        elif edited_value.strip() != original_value.strip():
+            action = HYPOTHESIS_ACTION_EDIT
+        else:
+            action = HYPOTHESIS_ACTION_ACCEPT
+        submitted_rows.append(
+            {
+                **row,
+                "action": action,
+                "edited_value": edited_value,
+            }
+        )
+    return submitted_rows
+
+
+def _normalize_hypothesis_editor_rows(edited_rows: Any) -> list[dict[str, Any]]:
+    if isinstance(edited_rows, list):
+        return [row for row in edited_rows if isinstance(row, dict)]
+    to_dict = getattr(edited_rows, "to_dict", None)
+    if callable(to_dict):
+        records = to_dict("records")
+        if isinstance(records, list):
+            return [row for row in records if isinstance(row, dict)]
+    return []
+
+
 def _render_job_extract_hypothesis_form(job: JobAdExtract) -> None:
     values = job.model_dump(mode="json")
     evidence_by_field = job_extract_field_evidence_by_name(job)
     groups = build_job_extract_hypothesis_groups(values, evidence_by_field)
     if not any(groups.values()):
         return
+    rows_by_tab = _build_hypothesis_rows_by_tab(groups)
+    if not any(rows_by_tab.values()):
+        return
 
     st.markdown("#### Hypothesen bestätigen")
     st.caption(
-        "Extrahierte Angaben sind nach Sicherheit gruppiert. Änderungen werden gesammelt übernommen."
+        "Extrahierte Angaben werden automatisch übernommen. Bearbeiten Sie Werte direkt in der Tabelle oder löschen Sie eine Zeile, um den Wert zu entfernen."
     )
     form_ctx = (
         st.form("cs.jobspec.hypothesis_review_form")
@@ -459,52 +552,37 @@ def _render_job_extract_hypothesis_form(job: JobAdExtract) -> None:
     )
     submitted_rows: list[dict[str, Any]] = []
     with form_ctx:
-        for group_key, group_label in JOB_EXTRACT_HYPOTHESIS_GROUP_LABELS.items():
-            rows = groups.get(group_key, [])
-            if not rows:
-                continue
-            st.markdown(f"**{group_label}**")
-            for row in rows:
-                field_name = row["field_name"]
-                action_key = f"cs.jobspec.hypothesis.{field_name}.action"
-                value_key = f"cs.jobspec.hypothesis.{field_name}.value"
-                confidence_text = format_field_evidence_confidence(
-                    evidence_by_field.get(field_name)
+        tab_names = [tab_name for tab_name, rows in rows_by_tab.items() if rows]
+        tab_contexts = (
+            st.tabs(tab_names)
+            if hasattr(st, "tabs")
+            else [nullcontext()] * len(tab_names)
+        )
+        for tab_name, tab_ctx in zip(tab_names, tab_contexts):
+            with tab_ctx:
+                rows = rows_by_tab[tab_name]
+                editor_rows = _build_hypothesis_editor_rows(rows, evidence_by_field)
+                edited_rows = st.data_editor(
+                    editor_rows,
+                    key=f"cs.jobspec.hypothesis.{tab_name}.editor",
+                    hide_index=True,
+                    num_rows="dynamic",
+                    use_container_width=True,
+                    column_order=("Feld", "Wert", "Status", "Confidence", "Evidence"),
+                    disabled=["Feld", "Status", "Confidence", "Evidence"],
+                    column_config={
+                        "Feld": st.column_config.TextColumn("Feld"),
+                        "Wert": st.column_config.TextColumn("Wert"),
+                        "Status": st.column_config.TextColumn("Status"),
+                        "Confidence": st.column_config.TextColumn("Confidence"),
+                        "Evidence": st.column_config.TextColumn("Evidence"),
+                    },
                 )
-                evidence_text = format_field_evidence_snippet(
-                    evidence_by_field.get(field_name)
-                )
-                st.caption(
-                    " · ".join(
-                        part
-                        for part in (
-                            row["label"],
-                            confidence_text,
-                            evidence_text,
-                        )
-                        if part
+                submitted_rows.extend(
+                    _collect_hypothesis_editor_updates(
+                        rows,
+                        _normalize_hypothesis_editor_rows(edited_rows),
                     )
-                )
-                action = st.selectbox(
-                    "Aktion",
-                    options=list(HYPOTHESIS_ACTION_LABELS),
-                    format_func=lambda value: HYPOTHESIS_ACTION_LABELS[value],
-                    key=action_key,
-                    label_visibility="collapsed",
-                )
-                edited_value = st.text_area(
-                    row["label"],
-                    value=row["display_value"],
-                    key=value_key,
-                    height=90,
-                    disabled=not row["editable"] or action != HYPOTHESIS_ACTION_EDIT,
-                )
-                submitted_rows.append(
-                    {
-                        **row,
-                        "action": action,
-                        "edited_value": edited_value,
-                    }
                 )
         submit = (
             st.form_submit_button("Hypothesen übernehmen")

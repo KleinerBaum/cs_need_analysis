@@ -36,9 +36,11 @@ class _FakeStreamlit:
         self.tables: list[object] = []
         self.dataframes: list[tuple[object, dict[str, object]]] = []
         self.editor_rows_by_key: dict[str, list[dict[str, object]]] = {}
+        self.editor_returns_by_key: dict[str, list[dict[str, object]]] = {}
         self.text_areas: dict[str, str] = {}
         self.selectboxes: dict[str, list[str]] = {}
         self.form_submit_returns: dict[str, bool] = {}
+        self.tab_labels: list[list[str]] = []
         self.column_config = SimpleNamespace(
             TextColumn=lambda *args, **kwargs: None,
         )
@@ -55,9 +57,12 @@ class _FakeStreamlit:
         key = str(_kwargs.get("key") or "")
         if key:
             self.editor_rows_by_key[key] = rows
+            if key in self.editor_returns_by_key:
+                return self.editor_returns_by_key[key]
         return rows
 
     def tabs(self, labels):
+        self.tab_labels.append(list(labels))
         return tuple(_DummyColumn() for _label in labels)
 
     def text_area(self, label: str, *, value: str, key: str, **_kwargs) -> str:
@@ -360,14 +365,61 @@ def test_phase_b_hypothesis_form_groups_and_batches_submit(monkeypatch) -> None:
 
     jobad_intake._render_job_extract_hypothesis_form(job)
 
-    assert any("Hochsicher übernehmen" in item for item in fake_st.markdowns)
-    assert any("Kurz bestätigen" in item for item in fake_st.markdowns)
+    assert fake_st.tab_labels == [["Basis", "Standort"]]
+    assert "cs.jobspec.hypothesis.Basis.editor" in fake_st.editor_rows_by_key
+    assert "cs.jobspec.hypothesis.Standort.editor" in fake_st.editor_rows_by_key
+    assert fake_st.selectboxes == {}
     assert fake_st.rerun_called is True
     assert fake_st.session_state[SSKey.JOB_EXTRACT.value]["job_title"] == "Data Engineer"
     evidence = fake_st.session_state[SSKey.INTAKE_FACT_EVIDENCE.value]
     assert evidence["role.job_title"]["source_type"] == FactSourceType.JOBSPEC.value
     assert evidence["role.job_title"]["resolution_status"] == (
         FactResolutionStatus.INFERRED.value
+    )
+
+
+def test_phase_b_hypothesis_form_saves_table_edits_and_deleted_rows(monkeypatch) -> None:
+    fake_st = _FakeStreamlit(session_state={})
+    fake_st.form_submit_returns["Hypothesen übernehmen"] = True
+    fake_st.editor_returns_by_key["cs.jobspec.hypothesis.Basis.editor"] = [
+        {
+            "field_name": "company_name",
+            "Feld": "Unternehmen",
+            "Wert": "New GmbH",
+            "Status": "Kurz bestätigen",
+            "Confidence": "70%",
+            "Evidence": "Old GmbH",
+        }
+    ]
+    monkeypatch.setattr(jobad_intake, "st", fake_st)
+
+    job = JobAdExtract(
+        job_title="Old Title",
+        company_name="Old GmbH",
+        field_evidence=[
+            JobAdFieldEvidence(
+                field_name="job_title",
+                confidence=0.9,
+                evidence_snippet="Old Title",
+            ),
+            JobAdFieldEvidence(
+                field_name="company_name",
+                confidence=0.7,
+                evidence_snippet="Old GmbH",
+                needs_confirmation=True,
+            ),
+        ],
+    )
+
+    jobad_intake._render_job_extract_hypothesis_form(job)
+
+    reviewed = fake_st.session_state[SSKey.JOB_EXTRACT.value]
+    assert reviewed["company_name"] == "New GmbH"
+    assert reviewed["job_title"] is None
+    evidence = fake_st.session_state[SSKey.INTAKE_FACT_EVIDENCE.value]
+    assert evidence["company.company_name"]["confirmed"] is True
+    assert evidence["company.company_name"]["resolution_status"] == (
+        FactResolutionStatus.CONFIRMED.value
     )
 
 

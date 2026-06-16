@@ -369,6 +369,10 @@ def has_meaningful_value(value: Any) -> bool:
         return False
     if isinstance(value, float):
         return not value != value
+    if isinstance(value, list):
+        return any(has_meaningful_value(item) for item in value)
+    if isinstance(value, dict):
+        return any(has_meaningful_value(item) for item in value.values())
 
     text = str(value).strip()
     if not text:
