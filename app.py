@@ -78,16 +78,21 @@ def _inject_theme_styles() -> None:
                 );
                 --cs-bg: var(--cs-app-bg);
                 --cs-surface: var(--cs-app-surface);
+                --cs-surface-raised: color-mix(
+                    in srgb,
+                    var(--cs-app-surface) 94%,
+                    #ffffff 6%
+                );
                 --cs-surface-muted: color-mix(
                     in srgb,
-                    var(--cs-app-surface) 88%,
-                    var(--cs-app-bg)
+                    var(--cs-app-surface) 82%,
+                    var(--cs-app-bg) 18%
                 );
                 --cs-border: var(--cs-app-border);
                 --cs-border-soft: color-mix(in srgb, var(--cs-app-border) 72%, transparent);
                 --cs-text: var(--cs-app-text);
-                --cs-text-muted: color-mix(in srgb, var(--cs-app-text) 86%, transparent);
-                --cs-text-subtle: color-mix(in srgb, var(--cs-app-text) 66%, transparent);
+                --cs-text-muted: color-mix(in srgb, var(--cs-app-text) 76%, var(--cs-app-bg));
+                --cs-text-subtle: color-mix(in srgb, var(--cs-app-text) 60%, var(--cs-app-bg));
                 background: var(--cs-app-bg) !important;
                 color: var(--cs-app-text);
             }}

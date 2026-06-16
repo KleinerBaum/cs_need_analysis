@@ -17,27 +17,27 @@ baseRadius = "0.5rem"
 showSidebarBorder = true
 
 [theme.light]
-primaryColor = "#2563EB"
-backgroundColor = "#F6F8FB"
+primaryColor = "#1D4ED8"
+backgroundColor = "#F4F7FA"
 secondaryBackgroundColor = "#FFFFFF"
-textColor = "#172033"
-borderColor = "#D6DEE8"
+textColor = "#142033"
+borderColor = "#CAD6E2"
 
 [theme.light.sidebar]
-primaryColor = "#2563EB"
-backgroundColor = "#12263A"
-secondaryBackgroundColor = "#FFFFFF"
-textColor = "#FFFFFF"
+primaryColor = "#60A5FA"
+backgroundColor = "#0B1724"
+secondaryBackgroundColor = "#F8FAFC"
+textColor = "#F8FAFC"
 
 [theme.dark]
-primaryColor = "#3B82F6"
-backgroundColor = "#0F141B"
-secondaryBackgroundColor = "#181E27"
-textColor = "#E8EDF3"
-borderColor = "#2D3642"
+primaryColor = "#60A5FA"
+backgroundColor = "#0B111B"
+secondaryBackgroundColor = "#111827"
+textColor = "#F1F5F9"
+borderColor = "#334155"
 
 [theme.dark.sidebar]
-primaryColor = "#3B82F6"
-backgroundColor = "#101820"
-secondaryBackgroundColor = "#202938"
+primaryColor = "#60A5FA"
+backgroundColor = "#07111F"
+secondaryBackgroundColor = "#142033"
 textColor = "#F8FAFC"

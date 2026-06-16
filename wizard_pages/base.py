@@ -1382,7 +1382,7 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
                 border: 1px solid var(--cs-primary);
                 background: var(--cs-primary);
                 text-decoration: none !important;
-                color: #FFFFFF !important;
+                color: var(--cs-on-primary, #FFFFFF) !important;
                 font-size: 0.82rem;
                 font-weight: 620;
                 transition: transform 130ms ease, box-shadow 130ms ease, border-color 130ms ease;
@@ -1392,14 +1392,14 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
                 transform: translateY(-1px);
                 box-shadow: 0 8px 20px color-mix(in srgb, var(--cs-primary) 22%, transparent);
                 border-color: color-mix(in srgb, var(--cs-primary) 88%, #000000);
-                color: #FFFFFF !important;
+                color: var(--cs-on-primary, #FFFFFF) !important;
             }}
 
             .landing-app-link-pill:visited,
             .landing-app-link-pill:focus,
             .landing-app-link-pill:active {{
                 text-decoration: none !important;
-                color: #FFFFFF !important;
+                color: var(--cs-on-primary, #FFFFFF) !important;
             }}
 
             .landing-security-note {{

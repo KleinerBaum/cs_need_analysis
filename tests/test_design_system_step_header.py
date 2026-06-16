@@ -48,8 +48,9 @@ def test_render_ui_styles_uses_streamlit_theme_tokens(monkeypatch) -> None:
 
     css = calls[0]
     assert "--cs-font-sans:" in css
-    assert "--cs-bg: var(--background-color, #F6F8FB);" in css
+    assert "--cs-bg: var(--background-color, #F4F7FA);" in css
     assert "--cs-surface: var(--secondary-background-color, #FFFFFF);" in css
+    assert "--cs-on-primary:" in css
     assert "--cs-focus-ring:" in css
     assert ".stMainBlockContainer" in css
     assert "background: var(--cs-bg);" in css
@@ -80,6 +81,10 @@ def test_render_ui_styles_scopes_metric_styles_for_sidebar(monkeypatch) -> None:
     assert "color: var(--cs-sidebar-surface-text) !important;" in css
     assert '[data-testid="stSidebar"] [data-testid="stExpander"] {' in css
     assert '[data-testid="stSidebar"] [data-testid="stProgress"] > div > div {' in css
+    assert '[data-testid="stSidebar"] input,' in css
+    assert '[data-testid="stSidebar"] [data-baseweb="select"] > div,' in css
+    assert '[data-testid="stSidebar"] [data-testid="stButton"] button,' in css
+    assert '[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] {' in css
     assert '[data-testid="stButton"] button {' in css
     assert '[data-testid="stAlert"] {' in css
     assert '[data-testid="stTabs"] button' in css
