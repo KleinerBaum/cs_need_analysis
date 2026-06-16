@@ -377,6 +377,56 @@ def render_ui_styles() -> None:
         [data-testid="stToggle"] span {
             color: inherit !important;
         }
+        [data-testid="stSidebar"] [data-testid="stExpander"] h1,
+        [data-testid="stSidebar"] [data-testid="stExpander"] h2,
+        [data-testid="stSidebar"] [data-testid="stExpander"] h3,
+        [data-testid="stSidebar"] [data-testid="stExpander"] h4,
+        [data-testid="stSidebar"] [data-testid="stExpander"] h5,
+        [data-testid="stSidebar"] [data-testid="stExpander"] h6,
+        [data-testid="stSidebar"] [data-testid="stExpander"] p,
+        [data-testid="stSidebar"] [data-testid="stExpander"] li,
+        [data-testid="stSidebar"] [data-testid="stExpander"] label,
+        [data-testid="stSidebar"] [data-testid="stExpander"] span,
+        [data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stMarkdownContainer"],
+        [data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stWidgetLabel"],
+        [data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stRadio"] label,
+        [data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stCheckbox"] label,
+        [data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stToggle"] label {
+            color: var(--cs-sidebar-surface-text) !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stCaptionContainer"],
+        [data-testid="stSidebar"] [data-testid="stExpander"] small,
+        [data-testid="stSidebar"] [data-testid="stExpander"] .caption {
+            color: var(--cs-sidebar-surface-text-muted) !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stExpander"] input,
+        [data-testid="stSidebar"] [data-testid="stExpander"] textarea,
+        [data-testid="stSidebar"] [data-testid="stExpander"] [data-baseweb="select"] > div,
+        [data-testid="stSidebar"] [data-testid="stExpander"] [data-baseweb="textarea"] textarea,
+        [data-testid="stSidebar"] [data-testid="stExpander"] [data-baseweb="input"] > div,
+        [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] input,
+        [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] textarea,
+        [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] [data-baseweb="select"] > div,
+        [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] [data-baseweb="textarea"] textarea,
+        [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] [data-baseweb="input"] > div {
+            background: var(--cs-sidebar-surface-muted) !important;
+            border-color: var(--cs-sidebar-border) !important;
+            color: var(--cs-sidebar-surface-text) !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stExpander"] [data-baseweb="select"] *,
+        [data-testid="stSidebar"] [data-testid="stExpander"] [data-baseweb="input"] *,
+        [data-testid="stSidebar"] [data-testid="stExpander"] [data-baseweb="textarea"] *,
+        [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] [data-baseweb="select"] *,
+        [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] [data-baseweb="input"] *,
+        [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] [data-baseweb="textarea"] * {
+            color: var(--cs-sidebar-surface-text) !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stExpander"] input::placeholder,
+        [data-testid="stSidebar"] [data-testid="stExpander"] textarea::placeholder,
+        [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] input::placeholder,
+        [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] textarea::placeholder {
+            color: var(--cs-sidebar-surface-text-muted) !important;
+        }
         [data-testid="stExpander"] {
             background: var(--cs-surface) !important;
             border: 1px solid var(--cs-border) !important;
@@ -498,6 +548,17 @@ def render_ui_styles() -> None:
         [data-testid="stSidebar"] [data-testid="stMetric"] [data-testid="stMetricDelta"] svg {
             fill: currentColor;
         }
+        [data-testid="stSidebar"] [data-testid="stAlert"] {
+            background: var(--cs-sidebar-surface) !important;
+            border-color: var(--cs-sidebar-border) !important;
+            color: var(--cs-sidebar-surface-text) !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stAlert"] [data-testid="stMarkdownContainer"],
+        [data-testid="stSidebar"] [data-testid="stAlert"] p,
+        [data-testid="stSidebar"] [data-testid="stAlert"] li,
+        [data-testid="stSidebar"] [data-testid="stAlert"] span {
+            color: var(--cs-sidebar-surface-text) !important;
+        }
         [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] {
             background: var(--cs-sidebar-surface) !important;
             border-color: var(--cs-sidebar-border) !important;
@@ -506,9 +567,13 @@ def render_ui_styles() -> None:
         }
         [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] p,
         [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] label,
+        [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] span,
         [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] li,
         [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stMarkdownContainer"],
-        [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stWidgetLabel"] {
+        [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stWidgetLabel"],
+        [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stRadio"] label,
+        [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stCheckbox"] label,
+        [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stToggle"] label {
             color: var(--cs-sidebar-surface-text) !important;
         }
         [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stCaptionContainer"],

@@ -85,6 +85,19 @@ def test_render_ui_styles_scopes_metric_styles_for_sidebar(monkeypatch) -> None:
     assert '[data-testid="stSidebar"] [data-baseweb="select"] > div,' in css
     assert '[data-testid="stSidebar"] [data-testid="stButton"] button,' in css
     assert '[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] {' in css
+    assert (
+        '[data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stRadio"] label'
+        in css
+    )
+    assert (
+        '[data-testid="stSidebar"] [data-testid="stExpander"] [data-baseweb="select"] > div'
+        in css
+    )
+    assert (
+        '[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stToggle"] label'
+        in css
+    )
+    assert '[data-testid="stSidebar"] [data-testid="stAlert"] {' in css
     assert '[data-testid="stButton"] button {' in css
     assert '[data-testid="stAlert"] {' in css
     assert '[data-testid="stTabs"] button' in css
