@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 from pathlib import Path
 import streamlit as st
+import streamlit.components.v1 as components
 
 from components.design_system import render_ui_styles
 from constants import (
@@ -338,24 +339,45 @@ def _render_sidebar_actions() -> None:
 
 
 def _reset_scroll_on_step_change() -> None:
-    """Reset scroll position on step changes using native Streamlit HTML rendering."""
-    if not hasattr(st, "html"):
-        return
-    st.html(
+    """Reset scroll position on step changes."""
+    components.html(
         """
         <script>
-        const topOptions = { top: 0, behavior: "auto" };
+        const topOptions = { top: 0, left: 0, behavior: "auto" };
+        const scrollElement = (element) => {
+            if (!element) {
+                return;
+            }
+            if (typeof element.scrollTo === "function") {
+                element.scrollTo(topOptions);
+            }
+            element.scrollTop = 0;
+        };
         const scrollTop = () => {
+            const targetWindow = window.parent || window;
             try {
-                if (window.parent && typeof window.parent.scrollTo === "function") {
-                    window.parent.scrollTo(topOptions);
-                } else if (typeof window.scrollTo === "function") {
-                    window.scrollTo(topOptions);
+                if (typeof targetWindow.scrollTo === "function") {
+                    targetWindow.scrollTo(topOptions);
                 }
             } catch (error) {
                 if (typeof window.scrollTo === "function") {
                     window.scrollTo(topOptions);
                 }
+            }
+            try {
+                const doc = targetWindow.document || document;
+                scrollElement(doc.scrollingElement);
+                scrollElement(doc.documentElement);
+                scrollElement(doc.body);
+                doc
+                    .querySelectorAll(
+                        '[data-testid="stAppViewContainer"], [data-testid="stMain"], section.main'
+                    )
+                    .forEach(scrollElement);
+            } catch (error) {
+                scrollElement(document.scrollingElement);
+                scrollElement(document.documentElement);
+                scrollElement(document.body);
             }
         };
         scrollTop();
@@ -365,8 +387,11 @@ def _reset_scroll_on_step_change() -> None:
         window.setTimeout(scrollTop, 0);
         window.setTimeout(scrollTop, 50);
         window.setTimeout(scrollTop, 150);
+        window.setTimeout(scrollTop, 300);
+        window.setTimeout(scrollTop, 600);
         </script>
-        """
+        """,
+        height=0,
     )
 
 
@@ -399,10 +424,10 @@ def main() -> None:
     current = sidebar_navigation(ctx)
     step_changed = bool(previous_step and previous_step != current.key)
 
-    render_intake_process_progress(current.key)
-    current.render(ctx)
     if step_changed:
         _reset_scroll_on_step_change()
+    render_intake_process_progress(current.key)
+    current.render(ctx)
     _render_sidebar_actions()
     st.session_state[SSKey.LAST_RENDERED_STEP.value] = current.key
 
