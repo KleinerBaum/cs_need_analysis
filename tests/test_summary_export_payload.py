@@ -164,6 +164,43 @@ def test_build_structured_export_payload_includes_canonical_intake_facts(
     }
 
 
+def test_build_structured_export_payload_backfills_normalized_structured_fields(
+    monkeypatch,
+) -> None:
+    skill_items = [{"label": "Python", "status": "must", "readiness_timing": "start"}]
+    variable_pay = {"eligible": True, "ote_min": 90000, "currency": "EUR"}
+    travel_profile = {"required": False, "percent": 0}
+    scorecard = {
+        "stage": "Fachinterview",
+        "criteria": [{"title": "Python", "weight_percent": 50}],
+    }
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.ESCO_CONFIG.value: {},
+                SSKey.ESCO_SKILLS_SELECTED_MUST.value: [],
+                SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
+                SSKey.INTAKE_FACTS.value: {
+                    FactKey.SKILLS_ITEMS.value: skill_items,
+                    FactKey.BENEFITS_VARIABLE_PAY.value: variable_pay,
+                    FactKey.ROLE_TRAVEL_PROFILE.value: travel_profile,
+                    FactKey.INTERVIEW_SCORECARD_TEMPLATE.value: scorecard,
+                },
+            }
+        ),
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "get_esco_occupation_selected", lambda: None)
+
+    payload = SUMMARY_MODULE._build_structured_export_payload(_brief())
+
+    assert payload["skill_items"] == skill_items
+    assert payload["variable_pay"] == variable_pay
+    assert payload["travel_profile"] == travel_profile
+    assert payload["interview_scorecard_template"] == scorecard
+
+
 def test_build_structured_export_payload_includes_session_selected_benefits(
     monkeypatch,
 ) -> None:

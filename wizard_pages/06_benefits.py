@@ -5,7 +5,7 @@ from typing import Any
 
 import streamlit as st
 
-from constants import SSKey
+from constants import FactKey, SSKey
 from intake_facts import write_intake_fact_by_legacy_field
 from llm_client import (
     TASK_GENERATE_BENEFIT_SUGGESTIONS,
@@ -16,7 +16,7 @@ from llm_client import (
 from schemas import JobAdExtract, QuestionStep
 from settings_openai import load_openai_settings
 from state import get_answers, get_esco_semantic_context
-from ui_layout import render_step_shell, responsive_three_columns
+from ui_layout import render_step_shell, responsive_three_columns, responsive_two_columns
 from ui_components import (
     build_step_review_payload,
     has_answered_question_with_keywords,
@@ -31,12 +31,27 @@ from ui_components import (
     render_standard_step_review,
 )
 from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
+from wizard_pages.fact_inputs import (
+    compact_text,
+    fact_value,
+    persist_compact_object,
+    persist_fact,
+    render_multiselect_fact,
+    render_select_fact,
+    render_text_area_fact,
+    split_lines,
+)
 from wizard_pages.salary_forecast_panel import render_benefits_salary_forecast_panel
 
 LOGGER = logging.getLogger(__name__)
 
 _LEGACY_BENEFITS_SELECTED_COMPARE_KEY = "benefits.compare.selected"
 _LEGACY_BENEFITS_AI_SUGGESTED_KEY = "benefits.ai_suggested"
+_YES_NO_UNKNOWN_LABELS = {
+    "unknown": "Noch unklar",
+    "yes": "Ja",
+    "no": "Nein",
+}
 
 
 def _render_benefits_consistency_checklist(
@@ -238,6 +253,194 @@ def _generate_ai_benefit_suggestions(
         seen.add(normalized)
     st.session_state[SSKey.BENEFITS_LLM_SUGGESTED.value] = merged_llm
     return merged_llm
+
+
+def _render_variable_pay_block() -> None:
+    current_raw = fact_value(FactKey.BENEFITS_VARIABLE_PAY, {})
+    current = current_raw if isinstance(current_raw, dict) else {}
+    eligible_current = compact_text(current.get("eligible"))
+    if eligible_current not in _YES_NO_UNKNOWN_LABELS:
+        eligible_current = "unknown"
+    col_eligible, col_min, col_max = responsive_three_columns(gap="large")
+    with col_eligible:
+        eligible = st.selectbox(
+            "Variable Vergütung möglich?",
+            options=tuple(_YES_NO_UNKNOWN_LABELS),
+            index=tuple(_YES_NO_UNKNOWN_LABELS).index(eligible_current),
+            format_func=lambda value: _YES_NO_UNKNOWN_LABELS.get(value, value),
+            key=f"fact_input.{FactKey.BENEFITS_VARIABLE_PAY.value}.eligible",
+        )
+    with col_min:
+        ote_min = st.number_input(
+            "OTE min",
+            min_value=0.0,
+            value=float(current.get("ote_min") or 0),
+            step=1000.0,
+            key=f"fact_input.{FactKey.BENEFITS_VARIABLE_PAY.value}.ote_min",
+        )
+    with col_max:
+        ote_max = st.number_input(
+            "OTE max",
+            min_value=0.0,
+            value=float(current.get("ote_max") or 0),
+            step=1000.0,
+            key=f"fact_input.{FactKey.BENEFITS_VARIABLE_PAY.value}.ote_max",
+        )
+    col_currency, col_period = responsive_two_columns(gap="large")
+    with col_currency:
+        currency = st.text_input(
+            "Währung",
+            value=compact_text(current.get("currency") or "EUR"),
+            key=f"fact_input.{FactKey.BENEFITS_VARIABLE_PAY.value}.currency",
+        )
+    with col_period:
+        period = st.selectbox(
+            "Zeitraum",
+            options=("yearly", "monthly", "hourly", "one_time"),
+            index=("yearly", "monthly", "hourly", "one_time").index(
+                compact_text(current.get("period"))
+                if compact_text(current.get("period")) in {"yearly", "monthly", "hourly", "one_time"}
+                else "yearly"
+            ),
+            key=f"fact_input.{FactKey.BENEFITS_VARIABLE_PAY.value}.period",
+        )
+    bonus_logic = st.text_area(
+        "Bonuslogik / Zielsystem",
+        value=str(current.get("bonus_logic") or ""),
+        height=80,
+        key=f"fact_input.{FactKey.BENEFITS_VARIABLE_PAY.value}.bonus_logic",
+    )
+    persist_compact_object(
+        FactKey.BENEFITS_VARIABLE_PAY,
+        {
+            "eligible": eligible == "yes" if eligible != "unknown" else None,
+            "ote_min": ote_min or None,
+            "ote_max": ote_max or None,
+            "currency": currency,
+            "period": period,
+            "bonus_logic": bonus_logic,
+        },
+    )
+
+
+def _render_shift_compensation_block() -> None:
+    current_raw = fact_value(FactKey.BENEFITS_SHIFT_COMPENSATION, {})
+    current = current_raw if isinstance(current_raw, dict) else {}
+    col_rotation, col_extra = responsive_two_columns(gap="large")
+    with col_rotation:
+        rotation = st.text_input(
+            "Schicht-/Rufbereitschaftsrotation",
+            value=compact_text(current.get("rotation")),
+            placeholder="z. B. alle 6 Wochen, keine",
+            key=f"fact_input.{FactKey.BENEFITS_SHIFT_COMPENSATION.value}.rotation",
+        )
+    with col_extra:
+        compensation = st.text_input(
+            "Ausgleich / Zuschläge",
+            value=compact_text(current.get("compensation")),
+            key=f"fact_input.{FactKey.BENEFITS_SHIFT_COMPENSATION.value}.compensation",
+        )
+    notes = st.text_area(
+        "Nacht-/Wochenend-/Sonderregelungen",
+        value=str(current.get("notes") or ""),
+        height=80,
+        key=f"fact_input.{FactKey.BENEFITS_SHIFT_COMPENSATION.value}.notes",
+    )
+    persist_compact_object(
+        FactKey.BENEFITS_SHIFT_COMPENSATION,
+        {
+            "rotation": rotation,
+            "compensation": compensation,
+            "notes": notes,
+        },
+    )
+
+
+def _render_start_flexibility_block(job: JobAdExtract) -> None:
+    current_raw = fact_value(FactKey.TIMELINE_START_FLEXIBILITY, {})
+    current = current_raw if isinstance(current_raw, dict) else {}
+    col_target, col_flex = responsive_two_columns(gap="large")
+    with col_target:
+        target_start = st.text_input(
+            "Ziel-Starttermin",
+            value=compact_text(current.get("target_start") or job.start_date or ""),
+            placeholder="YYYY-MM-DD oder freier Zeitraum",
+            key=f"fact_input.{FactKey.TIMELINE_START_FLEXIBILITY.value}.target",
+        )
+    with col_flex:
+        flexibility = st.selectbox(
+            "Flexibilität",
+            options=("fixed", "plus_minus_2_weeks", "plus_minus_1_month", "flexible", "unknown"),
+            index=("fixed", "plus_minus_2_weeks", "plus_minus_1_month", "flexible", "unknown").index(
+                compact_text(current.get("flexibility"))
+                if compact_text(current.get("flexibility")) in {"fixed", "plus_minus_2_weeks", "plus_minus_1_month", "flexible", "unknown"}
+                else "unknown"
+            ),
+            key=f"fact_input.{FactKey.TIMELINE_START_FLEXIBILITY.value}.flexibility",
+        )
+    notice_period = st.text_input(
+        "Notice-Period-Fenster / Einschränkungen",
+        value=compact_text(current.get("notice_period")),
+        key=f"fact_input.{FactKey.TIMELINE_START_FLEXIBILITY.value}.notice",
+    )
+    persist_compact_object(
+        FactKey.TIMELINE_START_FLEXIBILITY,
+        {
+            "target_start": target_start,
+            "flexibility": flexibility,
+            "notice_period": notice_period,
+        },
+    )
+
+
+def _render_structured_offer_constraints(job: JobAdExtract) -> None:
+    st.markdown("### Compensation & Constraints")
+    st.caption(
+        "Diese Angaben trennen Offer-Bestandteile von harten Beschäftigungs- und Vertragslogiken."
+    )
+    with st.container(border=True):
+        st.markdown("#### Variable Vergütung")
+        _render_variable_pay_block()
+    with st.container(border=True):
+        st.markdown("#### Arbeitszeit, Schicht und Ausgleich")
+        _render_shift_compensation_block()
+    with st.container(border=True):
+        st.markdown("#### Vertrags- und Offer-Komponenten")
+        render_multiselect_fact(
+            FactKey.BENEFITS_COLLECTIVE_AGREEMENT_CONTEXT,
+            "Tarifbindung, Betriebsrat oder branchenspezifische Vorgaben",
+            options=[
+                "Tarifbindung",
+                "Betriebsrat",
+                "TVöD/TV-L",
+                "Branchentarif",
+                "Betriebsvereinbarung",
+                "Keine bekannt",
+                "Sonstiges",
+            ],
+        )
+        render_select_fact(
+            FactKey.LEGAL_WORK_AUTHORIZATION_SUPPORT,
+            "Ist Visa-/Work-Permit-Sponsoring möglich?",
+            options=("unknown", "yes", "no"),
+            default="unknown",
+            labels=_YES_NO_UNKNOWN_LABELS,
+        )
+        render_multiselect_fact(
+            FactKey.BENEFITS_OFFER_COMPONENTS,
+            "Welche zusätzlichen Offer-Komponenten sind relevant?",
+            options=[
+                "Equipment",
+                "Homeoffice-Kosten",
+                "Relocation",
+                "Firmenwagen",
+                "Jobticket",
+                "Weiterbildungsbudget",
+                "Sign-on Bonus",
+                "Sonstiges",
+            ],
+        )
+        _render_start_flexibility_block(job)
 
 
 def render(ctx: WizardContext) -> None:
@@ -472,6 +675,8 @@ def render(ctx: WizardContext) -> None:
             )
         else:
             st.caption("Noch keine Benefits ausgewählt.")
+
+        _render_structured_offer_constraints(job)
 
         confirmed_salary = _confirmed_values_for_keywords(
             ("gehalt", "salary", "vergütung", "compensation")

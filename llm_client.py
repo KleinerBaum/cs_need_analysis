@@ -18,6 +18,7 @@ from typing import (
     Callable,
     Dict,
     List,
+    Mapping,
     Optional,
     Protocol,
     Sequence,
@@ -1599,6 +1600,156 @@ def re_slugify(s: str) -> str:
     return s
 
 
+def _answer_dict(answers: Mapping[str, Any], fact_key: FactKey) -> dict[str, Any] | None:
+    value = answers.get(fact_key.value)
+    return value if isinstance(value, dict) and value else None
+
+
+def _answer_list(answers: Mapping[str, Any], fact_key: FactKey) -> list[Any] | None:
+    value = answers.get(fact_key.value)
+    return value if isinstance(value, list) and value else None
+
+
+def _normalized_structured_fields(answers: Mapping[str, Any]) -> dict[str, Any]:
+    fields: dict[str, Any] = {}
+    skill_items = _answer_list(answers, FactKey.SKILLS_ITEMS)
+    if skill_items is not None:
+        fields["skill_items"] = skill_items
+    variable_pay = _answer_dict(answers, FactKey.BENEFITS_VARIABLE_PAY)
+    if variable_pay is not None:
+        fields["variable_pay"] = variable_pay
+    travel_profile = _answer_dict(answers, FactKey.ROLE_TRAVEL_PROFILE)
+    if travel_profile is not None:
+        fields["travel_profile"] = travel_profile
+    scorecard_template = _answer_dict(answers, FactKey.INTERVIEW_SCORECARD_TEMPLATE)
+    if scorecard_template is not None:
+        fields["interview_scorecard_template"] = scorecard_template
+    return fields
+
+
+def _brief_answers(brief: VacancyBrief) -> dict[str, Any]:
+    answers = brief.structured_data.answers
+    return answers if isinstance(answers, dict) else {}
+
+
+def _brief_job_payload(brief: VacancyBrief) -> dict[str, Any]:
+    payload = brief.structured_data.job_extract
+    return payload if isinstance(payload, dict) else {}
+
+
+def _brief_answer_list(brief: VacancyBrief, fact_key: FactKey) -> list[Any]:
+    value = _brief_answers(brief).get(fact_key.value)
+    return value if isinstance(value, list) else []
+
+
+def _brief_answer_dict(brief: VacancyBrief, fact_key: FactKey) -> dict[str, Any]:
+    value = _brief_answers(brief).get(fact_key.value)
+    return value if isinstance(value, dict) else {}
+
+
+def _fallback_core_question_blocks(brief: VacancyBrief) -> list[dict[str, Any]]:
+    core_questions = [
+        str(item).strip()
+        for item in _brief_answer_list(brief, FactKey.INTERVIEW_CORE_QUESTIONS)
+        if str(item).strip()
+    ]
+    if not core_questions:
+        return []
+    return [
+        {
+            "block_id": "core_questions",
+            "title": "Kernfragen",
+            "objective": "Vergleichbare Fragen für alle Kandidat:innen stellen.",
+            "questions": core_questions[:8],
+            "follow_up_prompts": [],
+            "signal_tags": ["structured_interview", "fairness"],
+        }
+    ]
+
+
+def _fallback_rubric_from_scorecard(brief: VacancyBrief) -> list[dict[str, Any]]:
+    scorecard = _brief_answer_dict(brief, FactKey.INTERVIEW_SCORECARD_TEMPLATE)
+    criteria_raw = scorecard.get("criteria", [])
+    criteria = criteria_raw if isinstance(criteria_raw, list) else []
+    output: list[dict[str, Any]] = []
+    for idx, item in enumerate(criteria[:6]):
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title") or "").strip()
+        if not title:
+            continue
+        scale = str(item.get("scale") or "1-5").strip()
+        evidence_anchor = str(item.get("evidence_anchor") or "").strip()
+        output.append(
+            {
+                "criterion_id": re_slugify(title),
+                "title": title,
+                "description": evidence_anchor or f"{title} strukturiert bewerten.",
+                "weight_percent": int(item.get("weight_percent") or 0),
+                "score_scale": [scale] if scale else [],
+                "evidence_examples": [evidence_anchor] if evidence_anchor else [],
+            }
+        )
+    return output
+
+
+def _fallback_recommendation_options(brief: VacancyBrief) -> list[str]:
+    scorecard = _brief_answer_dict(brief, FactKey.INTERVIEW_SCORECARD_TEMPLATE)
+    options = scorecard.get("recommendation_options", [])
+    if isinstance(options, list):
+        cleaned = [str(item).strip() for item in options if str(item).strip()]
+        if cleaned:
+            return cleaned
+    return ["Strong Yes", "Yes", "Hold", "No"]
+
+
+def _contract_fallback_salary(brief: VacancyBrief) -> dict[str, Any]:
+    job_payload = _brief_job_payload(brief)
+    salary = job_payload.get("salary_range")
+    if isinstance(salary, dict) and (salary.get("min") or salary.get("max")):
+        return {
+            "min": salary.get("min") or 0,
+            "max": salary.get("max") or 0,
+            "currency": salary.get("currency") or "EUR",
+            "period": salary.get("period") or "yearly",
+            "notes": salary.get("notes") or "",
+        }
+    variable_pay = _brief_answer_dict(brief, FactKey.BENEFITS_VARIABLE_PAY)
+    notes = str(variable_pay.get("bonus_logic") or "Bitte Vergütung ergänzen.").strip()
+    return {
+        "min": variable_pay.get("ote_min") or 0,
+        "max": variable_pay.get("ote_max") or 0,
+        "currency": variable_pay.get("currency") or "EUR",
+        "period": variable_pay.get("period") or "yearly",
+        "notes": notes,
+    }
+
+
+def _contract_fallback_clauses(brief: VacancyBrief) -> list[dict[str, Any]]:
+    answers = _brief_answers(brief)
+    clauses: list[dict[str, Any]] = []
+    for fact_key, title in (
+        (FactKey.BENEFITS_COLLECTIVE_AGREEMENT_CONTEXT, "Tarifliche Vorgaben"),
+        (FactKey.BENEFITS_OFFER_COMPONENTS, "Offer-Komponenten"),
+        (FactKey.LEGAL_WORK_AUTHORIZATION_SUPPORT, "Work Authorization"),
+    ):
+        value = answers.get(fact_key.value)
+        if not value:
+            continue
+        clauses.append(
+            {
+                "clause_id": re_slugify(fact_key.value),
+                "title": title,
+                "clause_text": json.dumps(value, ensure_ascii=False)
+                if isinstance(value, (dict, list))
+                else str(value),
+                "required": False,
+                "legal_note": "Aus strukturierten Intake-Fakten übernommen; rechtlich prüfen.",
+            }
+        )
+    return clauses
+
+
 def generate_vacancy_brief(
     job: JobAdExtract,
     answers: Dict[str, Any],
@@ -1637,6 +1788,8 @@ def generate_vacancy_brief(
         f"{json.dumps(job.model_dump(mode='json'), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
         "Manager-Antworten (JSON):\n"
         f"{json.dumps(answers, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
+        "Normalisierte strukturierte Felder (JSON):\n"
+        f"{json.dumps(_normalized_structured_fields(answers), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
         "Explizit ausgewählte Benefits (JSON):\n"
         f"{json.dumps(selected_benefits or [], ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
         "Firmen-Homepage-Research (JSON):\n"
@@ -1648,6 +1801,7 @@ def generate_vacancy_brief(
         {
             "job": job.model_dump(mode="json"),
             "answers": answers,
+            "normalized_structured_fields": _normalized_structured_fields(answers),
             "selected_role_tasks": selected_role_tasks or [],
             "selected_skills": selected_skills or [],
             "selected_benefits": selected_benefits or [],
@@ -1701,6 +1855,7 @@ def generate_vacancy_brief(
     merged = {
         "job_extract": job.model_dump(),
         "answers": answers,
+        **_normalized_structured_fields(answers),
         "selected_role_tasks": selected_role_tasks or None,
         "selected_skills": selected_skills or None,
         "selected_benefits": selected_benefits or None,
@@ -2011,20 +2166,20 @@ def generate_interview_sheet_hr(
         "interview_stage": "HR Screen",
         "duration_minutes": 45,
         "opening_script": "Vielen Dank für Ihre Zeit. Ich führe strukturiert durch das Gespräch und beantworte zum Schluss Ihre Fragen.",
-        "question_blocks": [],
+        "question_blocks": _fallback_core_question_blocks(brief),
         "knockout_criteria": [
-            "Muss-Kriterien aus dem Brief im Gespräch valide prüfen."
+            *[
+                str(item).strip()
+                for item in _brief_answer_list(brief, FactKey.SKILLS_KNOCKOUT_CRITERIA)
+                if str(item).strip()
+            ],
+            "Muss-Kriterien aus dem Brief im Gespräch valide prüfen.",
         ],
         "candidate_experience_notes": [
             "Klaren Ablauf kommunizieren und Zeitrahmen einhalten."
         ],
-        "evaluation_rubric": [],
-        "final_recommendation_options": [
-            "Strong Yes",
-            "Yes",
-            "Hold",
-            "No",
-        ],
+        "evaluation_rubric": _fallback_rubric_from_scorecard(brief),
+        "final_recommendation_options": _fallback_recommendation_options(brief),
     }
     parsed, usage = _generate_structured_with_fallback(
         task_kind=TASK_GENERATE_INTERVIEW_SHEET_HR,
@@ -2075,10 +2230,10 @@ def generate_interview_sheet_hm(
         "interview_stage": "Fachinterview",
         "duration_minutes": 60,
         "competencies_to_validate": brief.must_have[:5],
-        "question_blocks": [],
+        "question_blocks": _fallback_core_question_blocks(brief),
         "technical_deep_dive_topics": brief.top_responsibilities[:3],
         "case_or_task_prompt": "Bitte schildern Sie eine vergleichbare Aufgabe inklusive Ziel, Vorgehen und Ergebnis.",
-        "evaluation_rubric": [],
+        "evaluation_rubric": _fallback_rubric_from_scorecard(brief),
         "hiring_signal_summary": [
             "Belegbare Ergebnisse, klare Priorisierung, nachvollziehbare Entscheidungen."
         ],
@@ -2203,31 +2358,50 @@ def generate_employment_contract_draft(
         "Vacancy Brief (JSON):\n"
         f"{json.dumps(brief.model_dump(mode='json'), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}"
     )
+    job_payload = _brief_job_payload(brief)
+    answers = _brief_answers(brief)
+    start_flexibility = _brief_answer_dict(brief, FactKey.TIMELINE_START_FLEXIBILITY)
+    work_arrangement = str(
+        answers.get(FactKey.COMPANY_WORK_ARRANGEMENT.value)
+        or job_payload.get("place_of_work")
+        or ""
+    ).strip()
     fallback_payload = {
         "contract_language": language,
-        "jurisdiction": "Nicht angegeben",
+        "jurisdiction": str(job_payload.get("location_country") or "Nicht angegeben"),
         "role_title": role_title,
-        "employment_type": "Vollzeit",
-        "contract_type": "Unbefristet",
-        "start_date": None,
+        "employment_type": str(
+            answers.get(FactKey.ROLE_EMPLOYMENT_TYPE.value)
+            or job_payload.get("employment_type")
+            or "Vollzeit"
+        ),
+        "contract_type": str(
+            answers.get(FactKey.ROLE_CONTRACT_TYPE.value)
+            or job_payload.get("contract_type")
+            or "Unbefristet"
+        ),
+        "start_date": str(
+            start_flexibility.get("target_start")
+            or job_payload.get("start_date")
+            or ""
+        )
+        or None,
         "probation_period_months": None,
-        "salary": {
-            "min": 0,
-            "max": 0,
-            "currency": "EUR",
-            "period": "yearly",
-            "notes": "Bitte Vergütung ergänzen.",
-        },
+        "salary": _contract_fallback_salary(brief),
         "working_hours_per_week": None,
         "vacation_days_per_year": None,
-        "place_of_work": None,
+        "place_of_work": work_arrangement or None,
         "notice_period": None,
-        "clauses": [],
+        "clauses": _contract_fallback_clauses(brief),
         "signature_requirements": ["Vertrag vor Unterzeichnung rechtlich prüfen."],
         "missing_inputs": [
-            "Jurisdiction",
-            "Salary",
-            "Start date",
+            item
+            for item, present in (
+                ("Jurisdiction", bool(job_payload.get("location_country"))),
+                ("Salary", bool(_contract_fallback_salary(brief).get("min") or _contract_fallback_salary(brief).get("max"))),
+                ("Start date", bool(start_flexibility.get("target_start") or job_payload.get("start_date"))),
+            )
+            if not present
         ],
     }
     parsed, usage = _generate_structured_with_fallback(

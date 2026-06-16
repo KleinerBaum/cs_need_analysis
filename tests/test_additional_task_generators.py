@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import llm_client
+from constants import FactKey
 from llm_client import (
     TASK_GENERATE_EMPLOYMENT_CONTRACT,
     OpenAICallError,
@@ -82,6 +83,60 @@ def _brief() -> VacancyBrief:
     )
 
 
+def _brief_with_structured_interview_fields() -> VacancyBrief:
+    return VacancyBrief(
+        one_liner="Senior Data Engineer",
+        hiring_context="Scale analytics platform",
+        role_summary="Build and maintain data products.",
+        top_responsibilities=["Build pipelines", "Own data models"],
+        must_have=["Python", "SQL", "Airflow"],
+        nice_to_have=["dbt"],
+        dealbreakers=["No backend experience"],
+        interview_plan=["HR screen", "Tech panel"],
+        evaluation_rubric=["Problem solving", "Communication"],
+        sourcing_channels=["LinkedIn"],
+        risks_open_questions=["Notice period unknown"],
+        job_ad_draft="Draft",
+        structured_data={
+            "job_extract": {
+                "job_title": "Senior Data Engineer",
+                "employment_type": "Vollzeit",
+                "contract_type": "Unbefristet",
+                "location_country": "Deutschland",
+                "salary_range": {
+                    "min": 90000,
+                    "max": 110000,
+                    "currency": "EUR",
+                    "period": "yearly",
+                },
+            },
+            "answers": {
+                FactKey.INTERVIEW_CORE_QUESTIONS.value: [
+                    "Wie lösen Sie Prioritätskonflikte?"
+                ],
+                FactKey.INTERVIEW_SCORECARD_TEMPLATE.value: {
+                    "stage": "Fachinterview",
+                    "criteria": [
+                        {
+                            "title": "Python",
+                            "weight_percent": 50,
+                            "scale": "1-5",
+                            "evidence_anchor": "Saubere Problemlösung",
+                        }
+                    ],
+                    "recommendation_options": ["Hire", "No hire"],
+                },
+                FactKey.SKILLS_KNOCKOUT_CRITERIA.value: ["Keine Python-Erfahrung"],
+                FactKey.TIMELINE_START_FLEXIBILITY.value: {
+                    "target_start": "2026-09-01"
+                },
+                FactKey.COMPANY_WORK_ARRANGEMENT.value: "hybrid",
+                FactKey.BENEFITS_OFFER_COMPONENTS.value: ["Equipment"],
+            },
+        },
+    )
+
+
 def test_resolve_model_for_new_tasks_uses_expected_buckets() -> None:
     settings = _settings()
 
@@ -152,6 +207,34 @@ def test_generate_interview_sheet_hr_returns_deterministic_fallback_on_openai_er
     assert usage["fallback"] is True
     assert usage["task_kind"] == TASK_GENERATE_INTERVIEW_SHEET_HR
     assert usage["error_code"] == "OPENAI_TIMEOUT"
+
+
+def test_generate_interview_sheet_hr_fallback_uses_scorecard_and_core_questions(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        llm_client,
+        "_resolve_runtime_config",
+        lambda **_: _runtime_config(),
+    )
+
+    def _raise_openai_error(**_: Any) -> tuple[Any, Any]:
+        raise OpenAICallError("OpenAI API Key fehlt.", error_code="OPENAI_MISSING_API_KEY")
+
+    monkeypatch.setattr(
+        llm_client, "_parse_with_structured_outputs", _raise_openai_error
+    )
+
+    result, usage = generate_interview_sheet_hr(
+        brief=_brief_with_structured_interview_fields(),
+        model="gpt-5-mini",
+    )
+
+    assert usage["fallback"] is True
+    assert result.question_blocks[0].questions == ["Wie lösen Sie Prioritätskonflikte?"]
+    assert result.evaluation_rubric[0].title == "Python"
+    assert result.final_recommendation_options == ["Hire", "No hire"]
+    assert "Keine Python-Erfahrung" in result.knockout_criteria
 
 
 def test_generate_boolean_search_appends_runtime_output_limits_to_system_prompt(
@@ -300,6 +383,36 @@ def test_generate_employment_contract_fallback_on_missing_key_error(
     assert usage["fallback"] is True
     assert usage["task_kind"] == TASK_GENERATE_EMPLOYMENT_CONTRACT
     assert usage["error_code"] == "OPENAI_MISSING_API_KEY"
+
+
+def test_generate_employment_contract_fallback_uses_structured_contract_fields(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        llm_client,
+        "_resolve_runtime_config",
+        lambda **_: _runtime_config(),
+    )
+
+    def _raise_missing_key(**_: Any) -> tuple[Any, Any]:
+        raise OpenAICallError("OpenAI API Key fehlt.", error_code="OPENAI_MISSING_API_KEY")
+
+    monkeypatch.setattr(
+        llm_client, "_parse_with_structured_outputs", _raise_missing_key
+    )
+
+    result, usage = generate_employment_contract_draft(
+        brief=_brief_with_structured_interview_fields(),
+        model="gpt-5-mini",
+    )
+
+    assert usage["fallback"] is True
+    assert result.jurisdiction == "Deutschland"
+    assert result.start_date == "2026-09-01"
+    assert result.salary.min == 90000
+    assert result.salary.max == 110000
+    assert result.place_of_work == "hybrid"
+    assert any(clause.title == "Offer-Komponenten" for clause in result.clauses)
 
 
 def test_generate_employment_contract_prompt_enforces_template_guardrails(

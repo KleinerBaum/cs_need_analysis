@@ -6,7 +6,7 @@ from typing import Any
 
 import streamlit as st
 
-from constants import SSKey
+from constants import FactKey, SSKey
 from esco_client import EscoClient, EscoClientError
 from esco_rag import retrieve_esco_context_multi as retrieve_esco_context
 from llm_client import generate_requirement_gap_suggestions
@@ -32,7 +32,37 @@ from ui_components import (
 )
 from ui_layout import render_step_shell, responsive_three_columns
 from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
+from wizard_pages.fact_inputs import (
+    compact_text,
+    fact_value,
+    persist_compact_object,
+    persist_fact,
+    render_multiselect_fact,
+    render_select_fact,
+    render_text_area_fact,
+    render_text_fact,
+    split_lines,
+)
 from wizard_pages.salary_forecast_panel import render_role_tasks_salary_forecast_panel
+
+
+_RESPONSIBILITY_PRIORITY_LABELS = {
+    "must": "Must",
+    "core": "Core",
+    "optional": "Optional",
+}
+_DECISION_SCOPE_LABELS = {
+    "keine_eigenen_entscheidungen": "Keine eigenen Entscheidungen",
+    "fachliche_empfehlungen": "Fachliche Empfehlungen",
+    "eigenstaendige_fachentscheidungen": "Eigenständige Fachentscheidungen",
+    "budget_personal_oder_prioritaeten": "Budget, Personal oder Prioritäten",
+    "unklar": "Noch unklar",
+}
+_YES_NO_UNKNOWN_LABELS = {
+    "unknown": "Noch unklar",
+    "yes": "Ja",
+    "no": "Nein",
+}
 
 
 def _normalize_task_term(term: str) -> str:
@@ -262,6 +292,183 @@ def _render_role_tasks_salary_block(
     )
 
 
+def _priority_by_label(raw_items: Any) -> dict[str, str]:
+    items = raw_items if isinstance(raw_items, list) else []
+    output: dict[str, str] = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        label = compact_text(item.get("label"))
+        priority = compact_text(item.get("priority")) or "core"
+        if label:
+            output[label] = priority if priority in _RESPONSIBILITY_PRIORITY_LABELS else "core"
+    return output
+
+
+def _render_success_timeline() -> None:
+    current_raw = fact_value(FactKey.ROLE_SUCCESS_METRICS_TIMELINE, {})
+    current = current_raw if isinstance(current_raw, dict) else {}
+    timeline: dict[str, str] = {}
+    cols = responsive_three_columns(gap="large")
+    milestones = (
+        ("30_days", "Nach 30 Tagen"),
+        ("60_days", "Nach 60 Tagen"),
+        ("90_days", "Nach 90 Tagen"),
+        ("180_days", "Nach 180 Tagen"),
+    )
+    for idx, (key, label) in enumerate(milestones):
+        with cols[idx % len(cols)]:
+            timeline[key] = st.text_area(
+                label,
+                value=str(current.get(key) or ""),
+                height=80,
+                key=f"fact_input.{FactKey.ROLE_SUCCESS_METRICS_TIMELINE.value}.{key}",
+            ).strip()
+    persist_compact_object(FactKey.ROLE_SUCCESS_METRICS_TIMELINE, timeline)
+
+
+def _render_travel_profile() -> None:
+    current_raw = fact_value(FactKey.ROLE_TRAVEL_PROFILE, {})
+    current = current_raw if isinstance(current_raw, dict) else {}
+    required = compact_text(current.get("required"))
+    if required not in _YES_NO_UNKNOWN_LABELS:
+        required = "unknown"
+    col_required, col_percent, col_frequency = responsive_three_columns(gap="large")
+    with col_required:
+        required_value = st.selectbox(
+            "Reisen erforderlich?",
+            options=tuple(_YES_NO_UNKNOWN_LABELS),
+            index=tuple(_YES_NO_UNKNOWN_LABELS).index(required),
+            format_func=lambda value: _YES_NO_UNKNOWN_LABELS.get(value, value),
+            key=f"fact_input.{FactKey.ROLE_TRAVEL_PROFILE.value}.required",
+        )
+    with col_percent:
+        try:
+            current_percent = float(current.get("percent") or 0)
+        except (TypeError, ValueError):
+            current_percent = 0.0
+        percent = st.number_input(
+            "Reiseanteil (%)",
+            min_value=0.0,
+            max_value=100.0,
+            value=max(0.0, min(100.0, current_percent)),
+            step=5.0,
+            key=f"fact_input.{FactKey.ROLE_TRAVEL_PROFILE.value}.percent",
+        )
+    with col_frequency:
+        frequency = st.text_input(
+            "Frequenz",
+            value=compact_text(current.get("frequency")),
+            placeholder="z. B. monatlich, wöchentlich",
+            key=f"fact_input.{FactKey.ROLE_TRAVEL_PROFILE.value}.frequency",
+        )
+    col_region, col_overnight, col_vehicle = responsive_three_columns(gap="large")
+    with col_region:
+        region = st.text_input(
+            "Region",
+            value=compact_text(current.get("region")),
+            key=f"fact_input.{FactKey.ROLE_TRAVEL_PROFILE.value}.region",
+        )
+    with col_overnight:
+        overnight = st.checkbox(
+            "Übernachtungen möglich",
+            value=bool(current.get("overnight_required")),
+            key=f"fact_input.{FactKey.ROLE_TRAVEL_PROFILE.value}.overnight",
+        )
+    with col_vehicle:
+        vehicle_policy = st.text_input(
+            "Fahrzeugregelung",
+            value=compact_text(current.get("vehicle_policy")),
+            key=f"fact_input.{FactKey.ROLE_TRAVEL_PROFILE.value}.vehicle_policy",
+        )
+    driving_license_required = st.text_input(
+        "Führerschein / Mobilitätsnachweis",
+        value=compact_text(current.get("driving_license_required")),
+        key=f"fact_input.{FactKey.ROLE_TRAVEL_PROFILE.value}.driving_license",
+    )
+    persist_compact_object(
+        FactKey.ROLE_TRAVEL_PROFILE,
+        {
+            "required": required_value == "yes" if required_value != "unknown" else None,
+            "percent": percent,
+            "frequency": frequency,
+            "region": region,
+            "overnight_required": overnight,
+            "driving_license_required": driving_license_required,
+            "vehicle_policy": vehicle_policy,
+        },
+    )
+
+
+def _render_structured_role_scope(job: JobAdExtract, candidate_tasks: list[str]) -> None:
+    st.markdown("### Outcome & Scope")
+    st.caption(
+        "Diese Struktur trennt Day-1-Scope, spätere Ausbaustufen und messbare Erfolgssignale."
+    )
+    with st.container(border=True):
+        render_text_fact(
+            FactKey.ROLE_BUSINESS_OUTCOME_PRIMARY,
+            "Welches konkrete Business-Ergebnis soll die Rolle liefern?",
+            default=job.role_overview or "",
+        )
+        task_options = _dedupe_task_terms(candidate_tasks)
+        render_multiselect_fact(
+            FactKey.ROLE_DAY1_RESPONSIBILITIES,
+            "Welche Aufgaben sind wirklich ab Tag 1 relevant?",
+            options=task_options or ["Kernbetrieb", "Kundenkontakt", "Reporting", "Projektstart", "Teamkoordination", "Sonstiges"],
+        )
+        render_multiselect_fact(
+            FactKey.ROLE_EXPANSION_SCOPE,
+            "Welche Aufgaben sind Nice-to-have oder später ausbaubar?",
+            options=task_options or ["Automatisierung", "Strategie", "Mentoring", "Reporting", "Stakeholder-Ausbau", "Tooling", "Sonstiges"],
+        )
+        existing_priorities = _priority_by_label(
+            fact_value(FactKey.ROLE_RESPONSIBILITIES_PRIORITIZED, [])
+        )
+        prioritized: list[dict[str, str]] = []
+        if task_options:
+            st.markdown("##### Priorisierung")
+            for idx, label in enumerate(task_options[:10]):
+                cols = st.columns([2, 1], gap="small")
+                with cols[0]:
+                    st.caption(label)
+                with cols[1]:
+                    priority = st.selectbox(
+                        "Priorität",
+                        options=tuple(_RESPONSIBILITY_PRIORITY_LABELS),
+                        index=tuple(_RESPONSIBILITY_PRIORITY_LABELS).index(
+                            existing_priorities.get(label, "core")
+                            if existing_priorities.get(label, "core") in _RESPONSIBILITY_PRIORITY_LABELS
+                            else "core"
+                        ),
+                        format_func=lambda value: _RESPONSIBILITY_PRIORITY_LABELS.get(value, value),
+                        key=f"fact_input.{FactKey.ROLE_RESPONSIBILITIES_PRIORITIZED.value}.{idx}",
+                    )
+                prioritized.append({"label": label, "priority": priority})
+        persist_fact(FactKey.ROLE_RESPONSIBILITIES_PRIORITIZED, prioritized)
+
+    with st.container(border=True):
+        st.markdown("#### Erfolg und Entscheidungsspielraum")
+        _render_success_timeline()
+        render_select_fact(
+            FactKey.ROLE_DECISION_SCOPE,
+            "Welche Entscheidungsrechte hat die Rolle?",
+            options=tuple(_DECISION_SCOPE_LABELS),
+            default="unklar",
+            labels=_DECISION_SCOPE_LABELS,
+        )
+        render_text_area_fact(
+            FactKey.ROLE_YEAR1_SUCCESS_SIGNALS,
+            "Wofür würde die Person in 12 Monaten gemessen oder gelobt werden?",
+            default="\n".join(job.success_metrics[:3]),
+            height=100,
+        )
+
+    with st.container(border=True):
+        st.markdown("#### Reiseprofil")
+        _render_travel_profile()
+
+
 def render(ctx: WizardContext) -> None:
     preflight = guard_job_and_plan(ctx)
     if preflight is None:
@@ -453,6 +660,17 @@ def render(ctx: WizardContext) -> None:
             selection_result["selected_labels"]
         )
         st.caption(f"Ausgewählt: {len(selection_result['selected_labels'])} Aufgaben")
+        _render_structured_role_scope(
+            job,
+            _dedupe_task_terms(
+                [
+                    *selection_result["selected_labels"],
+                    *jobspec_labels,
+                    *esco_labels,
+                    *llm_after_labels,
+                ]
+            ),
+        )
 
     def _render_salary_forecast_slot() -> None:
         selected_tasks_raw = st.session_state.get(SSKey.ROLE_TASKS_SELECTED.value, [])

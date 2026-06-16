@@ -4,6 +4,7 @@ from typing import Any
 
 import pytest
 import llm_client
+from constants import FactKey
 from llm_client import OpenAIRuntimeConfig, generate_vacancy_brief
 from schemas import CompanyWebsiteResearch, JobAdExtract, VacancyBrief, VacancyBriefLLM
 from settings_openai import OpenAISettings
@@ -133,6 +134,72 @@ def test_generate_vacancy_brief_includes_selected_role_tasks_skills_and_benefits
     assert brief.structured_data.selected_role_tasks == ["Build ETL pipelines"]
     assert brief.structured_data.selected_skills == ["Python", "SQL"]
     assert brief.structured_data.selected_benefits == ["Mentoring"]
+
+
+def test_generate_vacancy_brief_embeds_normalized_structured_objects(
+    monkeypatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_parse_with_structured_outputs(**kwargs: Any):
+        captured["messages"] = kwargs["messages"]
+        return (
+            VacancyBriefLLM(
+                one_liner="One line",
+                hiring_context="Context",
+                role_summary="Summary",
+                top_responsibilities=["Resp"],
+                must_have=["Must"],
+                nice_to_have=["Nice"],
+                dealbreakers=["Deal"],
+                interview_plan=["Interview"],
+                evaluation_rubric=["Rubric"],
+                sourcing_channels=["Channel"],
+                risks_open_questions=["Risk"],
+                job_ad_draft="Draft",
+            ),
+            {},
+        )
+
+    monkeypatch.setattr(
+        llm_client, "_resolve_runtime_config", lambda **_: _runtime_config()
+    )
+    monkeypatch.setattr(
+        llm_client, "_parse_with_structured_outputs", fake_parse_with_structured_outputs
+    )
+    monkeypatch.setattr(llm_client, "_get_session_response_cache", lambda: {})
+
+    answers = {
+        FactKey.SKILLS_ITEMS.value: [
+            {"label": "Python", "status": "must", "readiness_timing": "start"}
+        ],
+        FactKey.BENEFITS_VARIABLE_PAY.value: {
+            "eligible": True,
+            "ote_min": 90000,
+            "currency": "EUR",
+        },
+        FactKey.ROLE_TRAVEL_PROFILE.value: {"required": False, "percent": 0},
+        FactKey.INTERVIEW_SCORECARD_TEMPLATE.value: {
+            "stage": "Fachinterview",
+            "criteria": [{"title": "Python", "weight_percent": 50}],
+        },
+    }
+
+    brief, _ = generate_vacancy_brief(
+        JobAdExtract(job_title="Engineer"),
+        answers,
+        model="gpt-5-mini",
+    )
+
+    assert brief.structured_data.skill_items is not None
+    assert brief.structured_data.skill_items[0].label == "Python"
+    assert brief.structured_data.variable_pay is not None
+    assert brief.structured_data.variable_pay.currency == "EUR"
+    assert brief.structured_data.travel_profile is not None
+    assert brief.structured_data.travel_profile.required is False
+    assert brief.structured_data.interview_scorecard_template is not None
+    assert "Normalisierte strukturierte Felder" in captured["messages"][1]["content"]
+    assert "Fachinterview" in captured["messages"][1]["content"]
 
 
 

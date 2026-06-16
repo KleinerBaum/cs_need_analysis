@@ -7,7 +7,7 @@ from typing import Any
 
 import streamlit as st
 
-from constants import SSKey
+from constants import FactKey, SSKey
 from intake_facts import write_intake_fact_by_legacy_field
 from interview_process import (
     build_interview_value_rows,
@@ -29,6 +29,14 @@ from ui_components import (
     render_standard_step_review,
 )
 from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
+from wizard_pages.fact_inputs import (
+    compact_text,
+    fact_value,
+    persist_compact_object,
+    persist_fact,
+    render_text_area_fact,
+    split_lines,
+)
 
 
 def _normalize_values(values: list[str]) -> list[str]:
@@ -512,6 +520,279 @@ def _render_internal_roles_container(job: JobAdExtract) -> None:
     )
 
 
+def _stage_seed_labels(job: JobAdExtract) -> list[str]:
+    labels = [
+        compact_text(step.name or step.details)
+        for step in job.recruitment_steps
+        if compact_text(step.name or step.details)
+    ]
+    return _normalize_values(labels) or ["HR Screen", "Fachinterview", "Finale Entscheidung"]
+
+
+def _list_by_stage(raw_items: Any, key_name: str = "stage") -> dict[str, dict[str, Any]]:
+    items = raw_items if isinstance(raw_items, list) else []
+    output: dict[str, dict[str, Any]] = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        stage = compact_text(item.get(key_name))
+        if stage:
+            output[stage] = item
+    return output
+
+
+def _render_stage_rows(job: JobAdExtract) -> list[str]:
+    existing_steps = _list_by_stage(fact_value(FactKey.INTERVIEW_RECRUITMENT_STEPS, []), "name")
+    stage_labels = _stage_seed_labels(job)
+    rows: list[dict[str, Any]] = []
+    st.markdown("#### Interviewstufen")
+    for idx, stage in enumerate(stage_labels[:5]):
+        current = existing_steps.get(stage, {})
+        with st.container(border=True):
+            name = st.text_input(
+                "Stage",
+                value=compact_text(current.get("name") or stage),
+                key=f"fact_input.{FactKey.INTERVIEW_RECRUITMENT_STEPS.value}.{idx}.name",
+            )
+            col_goal, col_duration = responsive_two_columns(gap="large")
+            with col_goal:
+                goal = st.text_input(
+                    "Ziel der Stufe",
+                    value=compact_text(current.get("goal") or current.get("details")),
+                    key=f"fact_input.{FactKey.INTERVIEW_RECRUITMENT_STEPS.value}.{idx}.goal",
+                )
+            with col_duration:
+                duration = st.number_input(
+                    "Dauer (Minuten)",
+                    min_value=0,
+                    max_value=240,
+                    value=int(current.get("duration_minutes") or 45),
+                    step=15,
+                    key=f"fact_input.{FactKey.INTERVIEW_RECRUITMENT_STEPS.value}.{idx}.duration",
+                )
+            if name:
+                rows.append(
+                    {
+                        "name": compact_text(name),
+                        "goal": compact_text(goal),
+                        "duration_minutes": int(duration),
+                    }
+                )
+    persist_fact(FactKey.INTERVIEW_RECRUITMENT_STEPS, rows)
+    return [row["name"] for row in rows] or stage_labels
+
+
+def _render_stage_owner_rows(stage_labels: list[str]) -> None:
+    existing = _list_by_stage(fact_value(FactKey.INTERVIEW_STAGE_OWNERS, []))
+    rows: list[dict[str, str]] = []
+    st.markdown("#### Stage Owner")
+    for idx, stage in enumerate(stage_labels[:5]):
+        current = existing.get(stage, {})
+        cols = responsive_three_columns(gap="large")
+        with cols[0]:
+            st.caption(stage)
+        with cols[1]:
+            owner = st.text_input(
+                "Owner",
+                value=compact_text(current.get("owner")),
+                key=f"fact_input.{FactKey.INTERVIEW_STAGE_OWNERS.value}.{idx}.owner",
+            )
+        with cols[2]:
+            role = st.text_input(
+                "Entscheidungsrolle",
+                value=compact_text(current.get("decision_role")),
+                placeholder="z. B. Entscheider, Interviewer, Feedback",
+                key=f"fact_input.{FactKey.INTERVIEW_STAGE_OWNERS.value}.{idx}.role",
+            )
+        if owner or role:
+            rows.append(
+                {
+                    "stage": stage,
+                    "owner": compact_text(owner),
+                    "decision_role": compact_text(role),
+                }
+            )
+    persist_fact(FactKey.INTERVIEW_STAGE_OWNERS, rows)
+
+
+def _render_candidate_sla_rows(stage_labels: list[str]) -> None:
+    existing = _list_by_stage(fact_value(FactKey.INTERVIEW_COMMUNICATION_SLA, []), "event")
+    default_events = ["Bewerbungseingang", "Nach Interview", "Finale Entscheidung"]
+    rows: list[dict[str, Any]] = []
+    st.markdown("#### Candidate Update SLA")
+    for idx, event in enumerate(default_events):
+        current = existing.get(event, {})
+        cols = responsive_three_columns(gap="large")
+        with cols[0]:
+            event_name = st.text_input(
+                "Event",
+                value=compact_text(current.get("event") or event),
+                key=f"fact_input.{FactKey.INTERVIEW_COMMUNICATION_SLA.value}.{idx}.event",
+            )
+        with cols[1]:
+            owner = st.text_input(
+                "Owner",
+                value=compact_text(current.get("owner")),
+                key=f"fact_input.{FactKey.INTERVIEW_COMMUNICATION_SLA.value}.{idx}.owner",
+            )
+        with cols[2]:
+            days = st.number_input(
+                "Update binnen Tagen",
+                min_value=0,
+                max_value=30,
+                value=int(current.get("days") or 2),
+                step=1,
+                key=f"fact_input.{FactKey.INTERVIEW_COMMUNICATION_SLA.value}.{idx}.days",
+            )
+        if event_name:
+            rows.append(
+                {
+                    "event": compact_text(event_name),
+                    "owner": compact_text(owner),
+                    "days": int(days),
+                    "stage_hint": stage_labels[min(idx, len(stage_labels) - 1)] if stage_labels else "",
+                }
+            )
+    persist_fact(FactKey.INTERVIEW_COMMUNICATION_SLA, rows)
+
+
+def _render_assessment_evidence(stage_labels: list[str]) -> None:
+    existing = fact_value(FactKey.INTERVIEW_ASSESSMENT_EVIDENCE, [])
+    existing_items = existing if isinstance(existing, list) else []
+    rows: list[dict[str, str]] = []
+    st.markdown("#### Assessment Evidence")
+    for idx in range(3):
+        current = existing_items[idx] if idx < len(existing_items) and isinstance(existing_items[idx], dict) else {}
+        cols = responsive_three_columns(gap="large")
+        with cols[0]:
+            item = st.text_input(
+                "Nachweis / Arbeitsprobe",
+                value=compact_text(current.get("item")),
+                key=f"fact_input.{FactKey.INTERVIEW_ASSESSMENT_EVIDENCE.value}.{idx}.item",
+            )
+        with cols[1]:
+            stage = st.selectbox(
+                "Stage",
+                options=stage_labels or ["Fachinterview"],
+                index=0,
+                key=f"fact_input.{FactKey.INTERVIEW_ASSESSMENT_EVIDENCE.value}.{idx}.stage",
+            )
+        with cols[2]:
+            signal = st.text_input(
+                "Erfolgssignal",
+                value=compact_text(current.get("success_signal")),
+                key=f"fact_input.{FactKey.INTERVIEW_ASSESSMENT_EVIDENCE.value}.{idx}.signal",
+            )
+        if item or signal:
+            rows.append(
+                {
+                    "item": compact_text(item),
+                    "stage": compact_text(stage),
+                    "success_signal": compact_text(signal),
+                }
+            )
+    persist_fact(FactKey.INTERVIEW_ASSESSMENT_EVIDENCE, rows)
+
+
+def _render_scorecard(stage_labels: list[str]) -> None:
+    current_raw = fact_value(FactKey.INTERVIEW_SCORECARD_TEMPLATE, {})
+    current = current_raw if isinstance(current_raw, dict) else {}
+    criteria_raw = current.get("criteria", [])
+    criteria = criteria_raw if isinstance(criteria_raw, list) else []
+    st.markdown("#### Scorecard")
+    stage = st.selectbox(
+        "Scorecard Stage",
+        options=stage_labels or ["Fachinterview"],
+        index=0,
+        key=f"fact_input.{FactKey.INTERVIEW_SCORECARD_TEMPLATE.value}.stage",
+    )
+    criteria_rows: list[dict[str, Any]] = []
+    for idx in range(4):
+        current_criterion = (
+            criteria[idx] if idx < len(criteria) and isinstance(criteria[idx], dict) else {}
+        )
+        cols = st.columns([2, 1, 1], gap="small")
+        with cols[0]:
+            title = st.text_input(
+                "Kriterium",
+                value=compact_text(current_criterion.get("title")),
+                key=f"fact_input.{FactKey.INTERVIEW_SCORECARD_TEMPLATE.value}.criteria.{idx}.title",
+            )
+        with cols[1]:
+            weight = st.number_input(
+                "Gewicht %",
+                min_value=0,
+                max_value=100,
+                value=int(current_criterion.get("weight_percent") or 0),
+                step=5,
+                key=f"fact_input.{FactKey.INTERVIEW_SCORECARD_TEMPLATE.value}.criteria.{idx}.weight",
+            )
+        with cols[2]:
+            scale = st.text_input(
+                "Skala",
+                value=compact_text(current_criterion.get("scale") or "1-5"),
+                key=f"fact_input.{FactKey.INTERVIEW_SCORECARD_TEMPLATE.value}.criteria.{idx}.scale",
+            )
+        evidence_anchor = st.text_input(
+            "Evidenzanker",
+            value=compact_text(current_criterion.get("evidence_anchor")),
+            key=f"fact_input.{FactKey.INTERVIEW_SCORECARD_TEMPLATE.value}.criteria.{idx}.evidence",
+        )
+        if title:
+            criteria_rows.append(
+                {
+                    "title": compact_text(title),
+                    "weight_percent": int(weight),
+                    "scale": compact_text(scale),
+                    "evidence_anchor": compact_text(evidence_anchor),
+                }
+            )
+    recommendation_text = st.text_input(
+        "Empfehlungsoptionen",
+        value=", ".join(
+            split_lines(current.get("recommendation_options") or ["Strong Yes", "Yes", "Hold", "No"])
+        ),
+        key=f"fact_input.{FactKey.INTERVIEW_SCORECARD_TEMPLATE.value}.recommendations",
+    )
+    notes = st.text_area(
+        "Scorecard Notes",
+        value=str(current.get("notes") or ""),
+        height=80,
+        key=f"fact_input.{FactKey.INTERVIEW_SCORECARD_TEMPLATE.value}.notes",
+    )
+    persist_compact_object(
+        FactKey.INTERVIEW_SCORECARD_TEMPLATE,
+        {
+            "stage": stage,
+            "criteria": criteria_rows,
+            "recommendation_options": split_lines(recommendation_text),
+            "notes": notes,
+        },
+    )
+
+
+def _render_structured_interview_design(job: JobAdExtract) -> None:
+    with st.container(border=True):
+        st.markdown("### Stage & Evaluation")
+        stage_labels = _render_stage_rows(job)
+        _render_stage_owner_rows(stage_labels)
+        _render_candidate_sla_rows(stage_labels)
+        _render_assessment_evidence(stage_labels)
+        _render_scorecard(stage_labels)
+        core_questions = st.text_area(
+            "Welche Fragen sind für alle Kandidat:innen identisch?",
+            value="\n".join(split_lines(fact_value(FactKey.INTERVIEW_CORE_QUESTIONS, []))),
+            height=110,
+            key=f"fact_input.{FactKey.INTERVIEW_CORE_QUESTIONS.value}",
+        )
+        persist_fact(FactKey.INTERVIEW_CORE_QUESTIONS, split_lines(core_questions))
+        render_text_area_fact(
+            FactKey.INTERVIEW_COMPLIANCE_NOTES,
+            "Datenschutz-/Dokumentationspflichten oder Compliance Notes",
+            height=90,
+        )
+
+
 def render(ctx: WizardContext) -> None:
     render_error_banner()
 
@@ -541,6 +822,8 @@ def render(ctx: WizardContext) -> None:
             )
         else:
             render_question_step(step)
+
+        _render_structured_interview_design(job)
 
         if hasattr(st, "markdown"):
             st.markdown("#### Candidate Communication")

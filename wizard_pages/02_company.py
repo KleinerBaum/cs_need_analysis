@@ -8,6 +8,7 @@ from typing import Any
 import streamlit as st
 
 from constants import (
+    FactKey,
     SSKey,
     WEBSITE_RESEARCH_HOMEPAGE_URL,
     WEBSITE_RESEARCH_OPEN_QUESTION_MATCHES,
@@ -49,6 +50,35 @@ from ui_components import (
 from ui_layout import render_step_shell, responsive_three_columns, responsive_two_columns
 from usage_events import record_enrichment_timed, record_homepage_fetch_failed
 from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
+from wizard_pages.fact_inputs import (
+    compact_text,
+    fact_value,
+    persist_compact_object,
+    persist_fact,
+    render_multiselect_fact,
+    render_number_fact,
+    render_select_fact,
+    render_text_area_fact,
+    render_text_fact,
+    split_lines,
+)
+
+
+_LEADERSHIP_LABELS = {
+    "individual_contributor": "Individual Contributor",
+    "fachliche_fuehrung": "Fachliche Führung",
+    "disziplinarische_fuehrung": "Disziplinarische Führung",
+    "beides": "Fachlich und disziplinarisch",
+    "unklar": "Noch unklar",
+}
+_WORK_ARRANGEMENT_LABELS = {
+    "onsite": "Vor Ort",
+    "hybrid": "Hybrid",
+    "remote_country": "Remote im Land",
+    "remote_cross_border": "Remote grenzüberschreitend",
+    "unknown": "Noch unklar",
+}
+_CEFR_LEVELS = ("A1", "A2", "B1", "B2", "C1", "C2")
 
 
 def _collect_open_questions(plan: QuestionPlan) -> list[dict[str, str]]:
@@ -342,6 +372,207 @@ def _format_company_subheader(job: JobAdExtract) -> str | None:
     return " · ".join(parts)
 
 
+def _render_language_fact(
+    *,
+    fact_key: FactKey,
+    title: str,
+    default_context: str,
+) -> None:
+    current_raw = fact_value(fact_key, {})
+    current = current_raw if isinstance(current_raw, dict) else {}
+    language = st.text_input(
+        f"{title}: Sprache",
+        value=compact_text(current.get("language")),
+        placeholder="Deutsch, Englisch, ...",
+        key=f"fact_input.{fact_key.value}.language",
+    )
+    current_level = compact_text(current.get("level")) or "B2"
+    if current_level not in _CEFR_LEVELS:
+        current_level = "B2"
+    level = st.selectbox(
+        f"{title}: Mindestniveau",
+        options=_CEFR_LEVELS,
+        index=_CEFR_LEVELS.index(current_level),
+        key=f"fact_input.{fact_key.value}.level",
+    )
+    context = st.text_input(
+        f"{title}: Kontext",
+        value=compact_text(current.get("context") or default_context),
+        key=f"fact_input.{fact_key.value}.context",
+    )
+    persist_compact_object(
+        fact_key,
+        {
+            "language": language,
+            "level": level,
+            "context": context,
+        },
+    )
+
+
+def _render_structured_company_context(job: JobAdExtract) -> None:
+    st.markdown("### Strukturierter Kontext")
+    st.caption(
+        "Diese Angaben werden als kanonische Fakten gespeichert und in Folgefragen, Summary und Exporten genutzt."
+    )
+
+    with st.container(border=True):
+        st.markdown("#### Unternehmensprofil")
+        left, right = responsive_two_columns(gap="large")
+        with left:
+            render_text_area_fact(
+                FactKey.COMPANY_EMPLOYER_PITCH,
+                "Wie würden Sie das Unternehmen in 1-2 Sätzen für Kandidat:innen beschreiben?",
+                height=110,
+            )
+            render_text_fact(
+                FactKey.COMPANY_BUSINESS_UNIT,
+                "In welchem Geschäfts- oder Produktbereich sitzt die Rolle?",
+                default=job.department_name or "",
+            )
+        with right:
+            render_multiselect_fact(
+                FactKey.COMPANY_ROLE_RELEVANT_POSITIONING,
+                "Welche Positionierungsaspekte sind für diese Rolle relevant?",
+                options=[
+                    "Marktposition",
+                    "Produkt",
+                    "Wachstum",
+                    "Stabilität",
+                    "Technologie",
+                    "Mission",
+                    "Kundennutzen",
+                    "Sonstiges",
+                ],
+            )
+
+    with st.container(border=True):
+        st.markdown("#### Team & Reporting")
+        col_team, col_scope, col_size = responsive_three_columns(gap="large")
+        with col_team:
+            render_text_fact(
+                FactKey.TEAM_NAME,
+                "Welches Team nimmt die Person auf?",
+                default=job.department_name or "",
+            )
+        with col_scope:
+            render_select_fact(
+                FactKey.TEAM_LEADERSHIP_SCOPE,
+                "Welche Führungsverantwortung hat die Rolle?",
+                options=tuple(_LEADERSHIP_LABELS),
+                default="individual_contributor",
+                labels=_LEADERSHIP_LABELS,
+            )
+        with col_size:
+            render_number_fact(
+                FactKey.TEAM_SIZE_DIRECT,
+                "Wie groß ist das unmittelbare Team?",
+                min_value=0,
+                max_value=500,
+                default=job.direct_reports_count or 0,
+            )
+        render_multiselect_fact(
+            FactKey.TEAM_STAKEHOLDERS_PRIMARY,
+            "Mit welchen wichtigsten Stakeholdern arbeitet die Person regelmäßig?",
+            options=[
+                "Fachbereich",
+                "Management",
+                "HR/Recruiting",
+                "Sales",
+                "Customer Success",
+                "Operations",
+                "Kund:innen",
+                "Lieferanten/Partner",
+                "Sonstiges",
+            ],
+        )
+        render_text_area_fact(
+            FactKey.TEAM_SUCCESS_CONTEXT_90D,
+            "Welche Arbeitsweise ist im Team nötig, um in den ersten 90 Tagen zu bestehen?",
+            height=100,
+        )
+
+    with st.container(border=True):
+        st.markdown("#### Arbeitsmodell")
+        arrangement_col, days_col = responsive_two_columns(gap="large")
+        with arrangement_col:
+            render_select_fact(
+                FactKey.COMPANY_WORK_ARRANGEMENT,
+                "Welches Arbeitsmodell gilt für diese Rolle?",
+                options=tuple(_WORK_ARRANGEMENT_LABELS),
+                default="unknown",
+                labels=_WORK_ARRANGEMENT_LABELS,
+            )
+        with days_col:
+            render_number_fact(
+                FactKey.COMPANY_OFFICE_DAYS_PER_WEEK,
+                "Wie viele Tage pro Woche vor Ort?",
+                min_value=0,
+                max_value=5,
+                default=0,
+            )
+        allowed_regions = st.text_area(
+            "Zulässige Regionen oder Zeitzonen",
+            value="\n".join(split_lines(fact_value(FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES, []))),
+            placeholder="z. B. Deutschland\nDACH\nCET +/- 2h",
+            height=90,
+            key=f"fact_input.{FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES.value}",
+        )
+        region_values = split_lines(allowed_regions)
+        persist_fact(FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES, region_values)
+        lang_left, lang_right = responsive_two_columns(gap="large")
+        with lang_left:
+            _render_language_fact(
+                fact_key=FactKey.COMPANY_LANGUAGE_INTERNAL,
+                title="Interne Arbeitssprache",
+                default_context="interne Zusammenarbeit",
+            )
+        with lang_right:
+            _render_language_fact(
+                fact_key=FactKey.COMPANY_LANGUAGE_EXTERNAL,
+                title="Externe Kommunikationssprache",
+                default_context="Kund:innen / Partner",
+            )
+
+    with st.container(border=True):
+        st.markdown("#### Non-negotiables & Compliance")
+        render_multiselect_fact(
+            FactKey.COMPANY_NON_NEGOTIABLES,
+            "Welche Rahmenbedingungen sind nicht verhandelbar?",
+            options=[
+                "Standort",
+                "Arbeitszeit",
+                "Gehalt",
+                "Vertragsart",
+                "Sprache",
+                "Zertifikat/Nachweis",
+                "Reisebereitschaft",
+                "Schicht/Rufbereitschaft",
+                "Sonstiges",
+            ],
+        )
+        compliance_col, tariff_col = responsive_two_columns(gap="large")
+        with compliance_col:
+            render_multiselect_fact(
+                FactKey.COMPANY_COMPLIANCE_CONTEXT,
+                "Welche regulatorischen oder betrieblichen Besonderheiten sind relevant?",
+                options=[
+                    "Regulierte Branche",
+                    "Datenschutz",
+                    "Arbeitssicherheit",
+                    "Zertifizierungen",
+                    "Betriebsrat",
+                    "Öffentlicher Sektor",
+                    "Sonstiges",
+                ],
+            )
+        with tariff_col:
+            render_text_fact(
+                FactKey.COMPANY_TARIFF_CONTEXT,
+                "Tarifbindung / Betriebsvereinbarung / besondere Vorgaben",
+            )
+
+
 def render(ctx: WizardContext) -> None:
     preflight = guard_job_and_plan(ctx)
     if preflight is None:
@@ -369,6 +600,8 @@ def render(ctx: WizardContext) -> None:
 
     def _render_main_slot() -> None:
         render_error_banner()
+        _render_structured_company_context(job)
+        st.divider()
         _render_website_enrichment(job, plan)
         if step_company is None or not step_company.questions:
             st.info(

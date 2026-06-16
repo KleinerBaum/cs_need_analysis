@@ -8,7 +8,7 @@ from typing import Any
 import streamlit as st
 from pydantic import ValidationError
 
-from constants import SSKey
+from constants import FactKey, SSKey
 from intake_facts import sync_selected_skill_intake_facts
 from esco_client import (
     EscoClient,
@@ -58,12 +58,31 @@ from wizard_pages.base import (
     guard_job_and_plan,
     nav_buttons,
 )
+from wizard_pages.fact_inputs import compact_text, fact_value, persist_fact, split_lines
 from wizard_pages.salary_forecast_panel import render_skills_salary_forecast_panel
 
 ESCO_RELATED_ENDPOINT_UNSUPPORTED_MESSAGE = (
     "Dieser ESCO-Endpunkt wird in der aktuell gewählten API-Variante "
     "nicht unterstützt. Occupation-Skill-Vorschläge sind daher hier nicht verfügbar."
 )
+_SKILL_STATUS_LABELS = {
+    "must": "Must-have",
+    "nice": "Nice-to-have",
+    "trainable": "Trainierbar",
+    "knockout": "KO-Kriterium",
+}
+_SKILL_PROFICIENCY_LABELS = {
+    "basic": "Basic",
+    "practical": "Praktisch",
+    "solid": "Sicher",
+    "expert": "Expert",
+}
+_SKILL_TIMING_LABELS = {
+    "start": "Zum Start",
+    "90_days": "Nach 90 Tagen",
+    "6_months": "Nach 6 Monaten",
+    "later": "Später",
+}
 
 
 def _normalize_term(term: str) -> str:
@@ -2325,6 +2344,153 @@ def _render_skills_source_comparison_block(
     return selection_result["source_counts"]
 
 
+def _skill_item_by_label(raw_items: Any) -> dict[str, dict[str, Any]]:
+    items = raw_items if isinstance(raw_items, list) else []
+    output: dict[str, dict[str, Any]] = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        label = compact_text(item.get("label"))
+        if label:
+            output[label] = item
+    return output
+
+
+def _render_structured_skill_rows() -> None:
+    selected_labels = _get_selected_skill_labels()
+    fallback_labels = _dedupe_terms(
+        [
+            *[
+                str(item.get("label") or "")
+                for item in _get_free_skill_statuses().values()
+                if isinstance(item, dict)
+            ],
+        ]
+    )
+    labels = selected_labels or fallback_labels
+    if not labels:
+        st.caption("Wähle zuerst Skills aus den Quellen aus, um Status, Niveau und Timing zu präzisieren.")
+        persist_fact(FactKey.SKILLS_ITEMS, [])
+        persist_fact(FactKey.SKILLS_READINESS_TIMING, [])
+        persist_fact(FactKey.SKILLS_KNOCKOUT_CRITERIA, [])
+        persist_fact(FactKey.SKILLS_TRAINABLE_SKILLS, [])
+        return
+
+    existing_by_label = _skill_item_by_label(fact_value(FactKey.SKILLS_ITEMS, []))
+    free_statuses = _get_free_skill_statuses()
+    free_status_by_label = {
+        compact_text(value.get("label")): compact_text(value.get("status"))
+        for value in free_statuses.values()
+        if isinstance(value, dict)
+    }
+    skill_items: list[dict[str, Any]] = []
+    st.markdown("### Skill-Anforderungen strukturieren")
+    st.caption(
+        "Pro Skill werden Status, Mindestniveau, Timing und erwartete Evidenz als strukturierte Zeilen gespeichert."
+    )
+    for idx, label in enumerate(labels[:12]):
+        existing = existing_by_label.get(label, {})
+        default_status = (
+            compact_text(existing.get("status"))
+            or free_status_by_label.get(label)
+            or "must"
+        )
+        if default_status not in _SKILL_STATUS_LABELS:
+            default_status = "must"
+        default_proficiency = compact_text(existing.get("proficiency")) or "solid"
+        if default_proficiency not in _SKILL_PROFICIENCY_LABELS:
+            default_proficiency = "solid"
+        default_timing = compact_text(existing.get("readiness_timing")) or "start"
+        if default_timing not in _SKILL_TIMING_LABELS:
+            default_timing = "start"
+        with st.container(border=True):
+            st.markdown(f"**{label}**")
+            col_status, col_level, col_timing = responsive_three_columns(gap="large")
+            with col_status:
+                status = st.selectbox(
+                    "Status",
+                    options=tuple(_SKILL_STATUS_LABELS),
+                    index=tuple(_SKILL_STATUS_LABELS).index(default_status),
+                    format_func=lambda value: _SKILL_STATUS_LABELS.get(value, value),
+                    key=f"fact_input.{FactKey.SKILLS_ITEMS.value}.{idx}.status",
+                )
+            with col_level:
+                proficiency = st.selectbox(
+                    "Mindestniveau",
+                    options=tuple(_SKILL_PROFICIENCY_LABELS),
+                    index=tuple(_SKILL_PROFICIENCY_LABELS).index(default_proficiency),
+                    format_func=lambda value: _SKILL_PROFICIENCY_LABELS.get(value, value),
+                    key=f"fact_input.{FactKey.SKILLS_ITEMS.value}.{idx}.proficiency",
+                )
+            with col_timing:
+                timing = st.selectbox(
+                    "Bis wann nötig?",
+                    options=tuple(_SKILL_TIMING_LABELS),
+                    index=tuple(_SKILL_TIMING_LABELS).index(default_timing),
+                    format_func=lambda value: _SKILL_TIMING_LABELS.get(value, value),
+                    key=f"fact_input.{FactKey.SKILLS_ITEMS.value}.{idx}.timing",
+                )
+            evidence_required = st.text_input(
+                "Evidenz / Nachweis",
+                value=compact_text(existing.get("evidence_required")),
+                placeholder="z. B. Arbeitsprobe, Zertifikat, Projektbeispiel",
+                key=f"fact_input.{FactKey.SKILLS_ITEMS.value}.{idx}.evidence",
+            )
+            free_text_reason = st.text_input(
+                "Warum als Freitext behalten?",
+                value=compact_text(existing.get("free_text_reason")),
+                placeholder="Nur bei nicht gemappten Begriffen nötig",
+                key=f"fact_input.{FactKey.SKILLS_ITEMS.value}.{idx}.free_text_reason",
+            )
+        skill_items.append(
+            {
+                "label": label,
+                "status": status,
+                "proficiency": proficiency,
+                "readiness_timing": timing,
+                "evidence_required": compact_text(evidence_required),
+                "free_text_reason": compact_text(free_text_reason),
+            }
+        )
+    persist_fact(FactKey.SKILLS_ITEMS, skill_items)
+    persist_fact(
+        FactKey.SKILLS_READINESS_TIMING,
+        [
+            {"label": item["label"], "readiness_timing": item["readiness_timing"]}
+            for item in skill_items
+        ],
+    )
+    persist_fact(
+        FactKey.SKILLS_KNOCKOUT_CRITERIA,
+        [item["label"] for item in skill_items if item["status"] == "knockout"],
+    )
+    persist_fact(
+        FactKey.SKILLS_TRAINABLE_SKILLS,
+        [item["label"] for item in skill_items if item["status"] == "trainable"],
+    )
+    persist_fact(
+        FactKey.SKILLS_FREE_TEXT_REASON,
+        "; ".join(
+            f"{item['label']}: {item['free_text_reason']}"
+            for item in skill_items
+            if item["free_text_reason"]
+        ),
+    )
+    job_extract_raw = st.session_state.get(SSKey.JOB_EXTRACT.value, {})
+    job_extract_payload = job_extract_raw if isinstance(job_extract_raw, dict) else {}
+    current_certifications = fact_value(
+        FactKey.SKILLS_CERTIFICATIONS,
+        job_extract_payload.get("certifications", []),
+    )
+    certifications_text = st.text_area(
+        "Zertifikate / Nachweise mit Pflichtgrad, Frist oder Gültigkeit",
+        value="\n".join(split_lines(current_certifications)),
+        height=90,
+        key=f"fact_input.{FactKey.SKILLS_CERTIFICATIONS.value}",
+    )
+    persist_fact(FactKey.SKILLS_CERTIFICATIONS, split_lines(certifications_text))
+
+
 def _render_salary_forecast_slot(
     job: JobAdExtract, source_counts: dict[str, int] | None = None
 ) -> None:
@@ -2391,6 +2557,7 @@ def render(ctx: WizardContext) -> None:
             show_esco_sections=show_esco_sections,
             esco_anchor_status=esco_anchor_status,
         )
+        _render_structured_skill_rows()
 
     render_step_shell(
         title="Skills präzisieren und priorisieren",

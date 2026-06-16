@@ -798,6 +798,18 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
     intake_facts = get_intake_fact_state(st.session_state)
     if intake_facts:
         payload["intake_facts"] = dict(intake_facts)
+        session_structured_fields = {
+            "skill_items": FactKey.SKILLS_ITEMS,
+            "variable_pay": FactKey.BENEFITS_VARIABLE_PAY,
+            "travel_profile": FactKey.ROLE_TRAVEL_PROFILE,
+            "interview_scorecard_template": FactKey.INTERVIEW_SCORECARD_TEMPLATE,
+        }
+        for payload_key, fact_key in session_structured_fields.items():
+            if payload.get(payload_key):
+                continue
+            value = intake_facts.get(fact_key.value)
+            if value:
+                payload[payload_key] = value
     intake_fact_evidence = get_intake_fact_evidence_state(st.session_state)
     if intake_fact_evidence:
         payload["intake_fact_evidence"] = dict(intake_fact_evidence)
