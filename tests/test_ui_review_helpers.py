@@ -5,6 +5,7 @@ from typing import Any
 from typing import Literal
 
 import ui_components
+from constants import FactKey, SSKey, UI_PREFERENCE_CONFIDENCE_THRESHOLD
 from schemas import AnswerType, JobAdExtract, Question, QuestionStep
 
 
@@ -434,6 +435,116 @@ def test_render_question_step_hides_verbose_progress_captions(monkeypatch) -> No
     assert not any(
         caption.startswith("Pflichtfragen offen in:") for caption in fake_st.captions
     )
+
+
+def test_render_question_step_shows_group_provenance_counts_without_sensitive_details(
+    monkeypatch,
+) -> None:
+    class _FakeStepStreamlit:
+        def __init__(self) -> None:
+            self.session_state: dict[str, Any] = {
+                SSKey.UI_MODE.value: "standard",
+                SSKey.QUESTION_LIMITS.value: {},
+                SSKey.UI_PREFERENCES.value: {
+                    UI_PREFERENCE_CONFIDENCE_THRESHOLD: 0.6,
+                },
+                SSKey.INTAKE_FACTS.value: {
+                    FactKey.COMPANY_COMPANY_NAME.value: "Rheinbahn",
+                    FactKey.ROLE_TECH_STACK.value: ["Python"],
+                },
+                SSKey.INTAKE_FACT_EVIDENCE.value: {
+                    FactKey.COMPANY_COMPANY_NAME.value: {
+                        "confidence": 0.9,
+                        "evidence_snippet": "Company name from upload",
+                    },
+                    FactKey.ROLE_TECH_STACK.value: {
+                        "confidence": 0.4,
+                        "evidence_snippet": "Do not leak this evidence snippet",
+                    },
+                },
+                SSKey.QUESTION_FLOW_PROVENANCE.value: {
+                    "injected_question_ids": ["ctx_esco_skill"],
+                    "source_uris_by_question_id": {
+                        "ctx_esco_skill": ["uri:skill:python"]
+                    },
+                },
+                SSKey.JOB_EXTRACT.value: JobAdExtract(
+                    company_name="Rheinbahn"
+                ).model_dump(mode="json"),
+            }
+            self.captions: list[str] = []
+            self.markdowns: list[str] = []
+
+        def caption(self, message: str, *_: Any, **__: Any) -> None:
+            self.captions.append(message)
+
+        def markdown(self, message: str, *_: Any, **__: Any) -> None:
+            self.markdowns.append(message)
+
+        def info(self, *_: Any, **__: Any) -> None:
+            return None
+
+        def container(self, *, border: bool = False) -> _NoopContext:
+            del border
+            return _NoopContext()
+
+        def columns(self, spec: int | list[int], **_: Any) -> list[_NoopContext]:
+            count = spec if isinstance(spec, int) else len(spec)
+            return [_NoopContext() for _ in range(count)]
+
+    fake_st = _FakeStepStreamlit()
+    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_components, "get_answers", lambda: {})
+    monkeypatch.setattr(ui_components, "get_answer_meta", lambda: {})
+    monkeypatch.setattr(
+        ui_components,
+        "_render_questions_two_columns",
+        lambda _questions, _answers, **_kwargs: [],
+    )
+    step = QuestionStep(
+        step_key="company",
+        title_de="Company",
+        questions=[
+            Question(
+                id="company_name",
+                label="Unternehmen",
+                answer_type=AnswerType.SHORT_TEXT,
+                group_key="origin",
+                target_path=FactKey.COMPANY_COMPANY_NAME.value,
+            ),
+            Question(
+                id="ctx_esco_skill",
+                label="ESCO Skill",
+                answer_type=AnswerType.SHORT_TEXT,
+                group_key="origin",
+            ),
+            Question(
+                id="role_tech_stack",
+                label="Tech Stack",
+                answer_type=AnswerType.SHORT_TEXT,
+                group_key="origin",
+                target_path=FactKey.ROLE_TECH_STACK.value,
+            ),
+            Question(
+                id="open_goal",
+                label="Offenes Ziel",
+                answer_type=AnswerType.SHORT_TEXT,
+                group_key="origin",
+            ),
+        ],
+    )
+
+    ui_components.render_question_step(step)
+
+    provenance_captions = [
+        caption for caption in fake_st.captions if caption.startswith("Aus Start:")
+    ]
+    assert provenance_captions == [
+        "Aus Start: Jobspec/Fakten gedeckt 1 · ESCO/Kontext ergänzt 1 · offen 3 · Evidenz prüfen 1"
+    ]
+    joined_captions = " ".join(fake_st.captions)
+    assert "uri:skill:python" not in joined_captions
+    assert "Do not leak this evidence snippet" not in joined_captions
 
 
 class _QuestionFormFakeStreamlit:
