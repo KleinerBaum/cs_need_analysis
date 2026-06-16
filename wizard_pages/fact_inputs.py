@@ -7,7 +7,7 @@ from typing import Any, Iterable, Mapping
 
 import streamlit as st
 
-from constants import FactKey, SSKey
+from constants import FactKey
 from intake_facts import get_intake_fact_state
 from state import get_answers, mark_answer_touched, set_answer
 
