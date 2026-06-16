@@ -230,7 +230,15 @@ def render_ui_styles() -> None:
         [data-testid="stSidebar"] [data-testid="stProgress"] [data-testid="stMarkdownContainer"] {
             color: var(--cs-sidebar-text-muted) !important;
         }
-        [data-testid="stButton"] button,
+        [data-testid="stButton"] button {
+            border-radius: var(--cs-radius-sm) !important;
+            border-color: var(--cs-border) !important;
+            background: var(--cs-surface) !important;
+            color: var(--cs-text) !important;
+            font-family: var(--cs-font-sans);
+            font-weight: 650;
+            box-shadow: var(--cs-shadow-sm);
+        }
         [data-testid="stFormSubmitButton"] button,
         [data-testid="stDownloadButton"] button {
             border-radius: var(--cs-radius-sm) !important;

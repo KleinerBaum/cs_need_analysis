@@ -27,8 +27,6 @@ class SummaryFactsRow:
             "Quelle": self.quelle,
             "Status": self.status,
         }
-        if self.resolution_status:
-            row["Auflösung"] = self.resolution_status
         return row
 
 

@@ -207,3 +207,6 @@ marimo/_lsp/
 __marimo__/
 
 .streamlit/secrets.toml
+
+# Windows alternate data stream metadata
+*:Zone.Identifier

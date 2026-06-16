@@ -8,7 +8,7 @@ import streamlit as st
 
 from constants import SSKey
 from esco_client import EscoClient, EscoClientError
-from esco_rag import retrieve_esco_context_multi
+from esco_rag import retrieve_esco_context_multi as retrieve_esco_context
 from llm_client import generate_requirement_gap_suggestions
 from schemas import JobAdExtract
 from components.design_system import render_output_header
@@ -184,7 +184,7 @@ def _merge_llm_task_suggestions(
 
 
 def _build_task_rag_context(job: JobAdExtract) -> list[dict[str, str]]:
-    job_title = getattr(job, "job_title", None)
+    job_title = getattr(job, "job_title", None) or getattr(job, "title", None)
     query_parts = _dedupe_task_terms(
         [part for part in [job_title, *job.responsibilities[:3], *job.deliverables[:3]] if has_meaningful_value(part)]
     )
@@ -194,32 +194,34 @@ def _build_task_rag_context(job: JobAdExtract) -> list[dict[str, str]]:
     ]
     if not any(query.strip() for query in queries):
         return []
-    rag_result = retrieve_esco_context_multi(queries, purpose="tasks", max_results=4)
+    rag_result = retrieve_esco_context(queries, purpose="tasks", max_results=4)
     record_enrichment_timed(
         st.session_state,
         stage="esco_rag",
         path="role_tasks",
-        duration_ms=rag_result.duration_ms or 0,
-        status=rag_result.reason or "success",
-        result_count=len(rag_result.hits),
+        duration_ms=getattr(rag_result, "duration_ms", None) or 0,
+        status=getattr(rag_result, "reason", None) or "success",
+        result_count=len(getattr(rag_result, "hits", ())),
     )
-    if rag_result.reason is not None or not rag_result.hits:
+    hits = getattr(rag_result, "hits", ())
+    if getattr(rag_result, "reason", None) is not None or not hits:
         return []
     context: list[dict[str, str]] = []
-    for hit in rag_result.hits[:4]:
+    for hit in hits[:4]:
         snippet = str(hit.snippet).strip()
         if not snippet:
             continue
-        context.append(
-            {
-                "snippet": snippet[:320],
-                "source_hint": "esco_rag",
-                "source_title": str(hit.source_title or "").strip(),
-                "source_file": str(hit.source_file or "").strip(),
-                "concept_uri": str(hit.concept_uri or "").strip(),
-                "score": "" if hit.score is None else f"{hit.score:.3f}",
-            }
-        )
+        item = {
+            "snippet": snippet[:320],
+            "source_hint": "esco_rag",
+            "source_title": str(getattr(hit, "source_title", None) or "").strip(),
+            "source_file": str(getattr(hit, "source_file", None) or "").strip(),
+            "concept_uri": str(getattr(hit, "concept_uri", None) or "").strip(),
+        }
+        score = getattr(hit, "score", None)
+        if score is not None:
+            item["score"] = f"{score:.3f}"
+        context.append(item)
     return context
 
 

@@ -493,7 +493,7 @@ def _resolve_canonical_brief_status(
     return CanonicalBriefStatus(
         state="current",
         message="Aktueller Recruiting Brief vorhanden.",
-        cta_label="Recruiting Brief aktualisieren",
+        cta_label="Brief aktualisieren",
         ready_for_follow_ups=True,
     )
 
@@ -3052,8 +3052,8 @@ def _build_enrichment_timing_rows(session_state: Mapping[str, Any]) -> list[dict
                 "Pfad": str(metadata.get("path") or ""),
                 "Status": str(metadata.get("status") or ""),
                 "Dauer (ms)": int(metadata.get("duration_ms") or 0),
-                "Cache": metadata.get("cache_hit", ""),
-                "Treffer": metadata.get("result_count", ""),
+                "Cache": metadata.get("cache_hit"),
+                "Treffer": metadata.get("result_count"),
             }
         )
     return sorted(rows, key=lambda row: int(row["Dauer (ms)"]), reverse=True)

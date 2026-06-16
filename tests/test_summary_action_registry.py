@@ -199,7 +199,10 @@ def test_build_enrichment_timing_rows_sorts_by_duration() -> None:
 
     assert [row["Stage"] for row in rows] == ["esco_rag", "extract_job_ad"]
     assert rows[0]["Dauer (ms)"] == 250
+    assert rows[0]["Cache"] is None
     assert rows[0]["Treffer"] == 4
+    assert rows[1]["Cache"] is False
+    assert rows[1]["Treffer"] is None
 
 
 def test_render_action_card_returns_false_when_requirements_missing(
