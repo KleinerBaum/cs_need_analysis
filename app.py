@@ -5,7 +5,6 @@ from __future__ import annotations
 import base64
 from pathlib import Path
 import streamlit as st
-import streamlit.components.v1 as components
 
 from components.design_system import render_ui_styles
 from constants import (
@@ -352,8 +351,7 @@ def _render_sidebar_footer_links() -> None:
 
 def _reset_scroll_on_step_change() -> None:
     """Reset scroll position on step changes."""
-    components.html(
-        """
+    scroll_reset_html = """
         <script>
         const topOptions = { top: 0, left: 0, behavior: "auto" };
         const scrollElement = (element) => {
@@ -402,7 +400,10 @@ def _reset_scroll_on_step_change() -> None:
         window.setTimeout(scrollTop, 300);
         window.setTimeout(scrollTop, 600);
         </script>
-        """,
+    """
+    encoded_html = base64.b64encode(scroll_reset_html.encode("utf-8")).decode("ascii")
+    st.iframe(
+        f"data:text/html;base64,{encoded_html}",
         height=0,
     )
 

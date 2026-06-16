@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+from dataclasses import dataclass
 from difflib import SequenceMatcher
 from typing import Callable, Mapping, TypedDict
 
@@ -61,7 +62,13 @@ class _CapabilityStatusRow(TypedDict):
     value: str
 
 
-def _build_esco_query(job: JobAdExtract) -> str:
+@dataclass(frozen=True)
+class EscoOccupationQuery:
+    search_query: str
+    context_label: str
+
+
+def _build_esco_occupation_query(job: JobAdExtract) -> EscoOccupationQuery:
     title = (job.job_title or "").strip()
     if not title:
         fallback_terms = [
@@ -78,14 +85,16 @@ def _build_esco_query(job: JobAdExtract) -> str:
             "",
         )
     if not title:
-        return ""
+        return EscoOccupationQuery(search_query="", context_label="")
     if len(title) > 140:
         title = title[:140].rsplit(" ", 1)[0].strip() or title[:140].strip()
     context_parts = [job.seniority_level, job.department_name, job.location_city]
     context = ", ".join(part.strip() for part in context_parts if part and part.strip())
-    if not context:
-        return title
-    return f"{title} ({context})"
+    return EscoOccupationQuery(search_query=title, context_label=context)
+
+
+def _build_esco_query(job: JobAdExtract) -> str:
+    return _build_esco_occupation_query(job).search_query
 
 
 def _collect_occupation_labels(payload: object) -> list[str]:
@@ -1500,7 +1509,8 @@ def render_esco_occupation_confirmation(
     # - Titel, Match-Badge und Confidence immer in separaten Zeilen/Containern rendern.
     # - ESCO-URI als kurzen Linktext darstellen; Voll-URI nur bei expliziter "Kopieren"-Aktion zeigen.
     # - Explainability-Chips kompakt halten; Zusatzinfos in "Mehr Infos" auslagern.
-    query_text = _build_esco_query(job)
+    occupation_query = _build_esco_occupation_query(job)
+    query_text = occupation_query.search_query
     if not query_text:
         st.info(
             "Kein Jobtitel vorhanden. Gib einen Rollenbegriff ein, um die "
@@ -1510,6 +1520,8 @@ def render_esco_occupation_confirmation(
     if show_start_context_panels and show_detail_panels:
         st.markdown("### Berufsabgleich bestätigen")
         st.caption(f"Suche mit: `{query_text}`")
+        if occupation_query.context_label:
+            st.caption(f"Kontext: {occupation_query.context_label}")
         st.info(
             "Ein eindeutiger Referenzberuf reduziert Mehrdeutigkeit und "
             "wird in den nächsten Schritten für Aufgaben, Skills und Summary weiterverwendet."

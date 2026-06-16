@@ -18,7 +18,38 @@ def test_build_esco_query_falls_back_to_role_context_without_job_title() -> None
         )
     )
 
-    assert query == "HR Transformation Consultant for AI adoption (Talent, Kronberg)"
+    assert query == "HR Transformation Consultant for AI adoption"
+
+
+def test_build_esco_occupation_query_keeps_context_separate() -> None:
+    query = esco_occupation_ui._build_esco_occupation_query(
+        JobAdExtract(
+            job_title="Data Engineer",
+            seniority_level="Senior",
+            department_name="Analytics",
+            location_city="Berlin",
+        )
+    )
+
+    assert query.search_query == "Data Engineer"
+    assert query.context_label == "Senior, Analytics, Berlin"
+
+
+def test_build_esco_occupation_query_truncates_long_fallback_title() -> None:
+    query = esco_occupation_ui._build_esco_occupation_query(
+        JobAdExtract(
+            role_overview=(
+                "Lead HR Transformation Consultant for AI adoption across global "
+                "people operations, workforce planning, process automation, "
+                "change management, and executive stakeholder enablement"
+            ),
+            department_name="Talent",
+        )
+    )
+
+    assert len(query.search_query) <= 140
+    assert "(" not in query.search_query
+    assert query.context_label == "Talent"
 
 
 def test_render_esco_occupation_confirmation_allows_manual_query_without_title(

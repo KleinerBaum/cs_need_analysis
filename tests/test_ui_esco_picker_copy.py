@@ -215,6 +215,97 @@ class _FakeEscoClient:
         return {}
 
 
+def test_render_esco_picker_card_retries_occupation_query_without_context(
+    monkeypatch,
+) -> None:
+    class _RecordingEscoClient:
+        calls: list[tuple[str, str, str]] = []
+
+        def suggest2(self, **query: Any) -> dict[str, Any]:
+            text = str(query.get("text") or "")
+            concept_type = str(query.get("type") or "")
+            self.calls.append(("suggest2", text, concept_type))
+            if text == "Data Engineer":
+                return {
+                    "uri": "https://example.test/occupation/1",
+                    "title": "Data Engineer",
+                    "type": "occupation",
+                }
+            return {}
+
+        def search(self, **query: Any) -> dict[str, Any]:
+            text = str(query.get("text") or "")
+            concept_type = str(query.get("type") or "")
+            self.calls.append(("search", text, concept_type))
+            return {}
+
+    fake_st = _FakeStreamlit()
+    fake_st.text_input_value = "Data Engineer (Analytics, Berlin)"
+    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_components, "EscoClient", _RecordingEscoClient)
+
+    ui_components.render_esco_picker_card(
+        concept_type="occupation",
+        target_state_key="esco.occupation",
+        show_apply_button=False,
+    )
+
+    assert _RecordingEscoClient.calls == [
+        ("suggest2", "Data Engineer (Analytics, Berlin)", "occupation"),
+        ("search", "Data Engineer (Analytics, Berlin)", "occupation"),
+        ("suggest2", "Data Engineer", "occupation"),
+    ]
+    assert fake_st.session_state["esco.occupation.esco_picker.options"] == [
+        {
+            "uri": "https://example.test/occupation/1",
+            "title": "Data Engineer",
+            "type": "occupation",
+            "source": "auto",
+        }
+    ]
+
+
+def test_render_esco_picker_card_does_not_clean_skill_queries(monkeypatch) -> None:
+    class _RecordingEscoClient:
+        calls: list[tuple[str, str, str]] = []
+
+        def suggest2(self, **query: Any) -> dict[str, Any]:
+            self.calls.append(
+                (
+                    "suggest2",
+                    str(query.get("text") or ""),
+                    str(query.get("type") or ""),
+                )
+            )
+            return {}
+
+        def search(self, **query: Any) -> dict[str, Any]:
+            self.calls.append(
+                (
+                    "search",
+                    str(query.get("text") or ""),
+                    str(query.get("type") or ""),
+                )
+            )
+            return {}
+
+    fake_st = _FakeStreamlit()
+    fake_st.text_input_value = "Python (Backend)"
+    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_components, "EscoClient", _RecordingEscoClient)
+
+    ui_components.render_esco_picker_card(
+        concept_type="skill",
+        target_state_key="esco.skill",
+        show_apply_button=False,
+    )
+
+    assert _RecordingEscoClient.calls == [
+        ("suggest2", "Python (Backend)", "skill"),
+        ("search", "Python (Backend)", "skill"),
+    ]
+
+
 def test_render_esco_picker_card_results_overview_uses_candidate_cards(
     monkeypatch,
 ) -> None:

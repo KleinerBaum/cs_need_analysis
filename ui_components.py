@@ -588,6 +588,11 @@ def _normalize_target_state_key(target_state_key: SSKey | str) -> str:
     return str(target_state_key).strip()
 
 
+def _clean_esco_occupation_query(query_text: str) -> str:
+    cleaned = re.sub(r"\s*\([^()]*\)\s*$", "", query_text).strip()
+    return cleaned if cleaned != query_text.strip() else ""
+
+
 def _infer_applied_provenance_categories(
     *,
     query_text: str,
@@ -955,6 +960,7 @@ def render_esco_picker_card(
 
     suggestions: list[dict[str, str]] = []
     used_fallback_path = False
+    used_cleaned_query_fallback = False
     if len(query_text) >= 2:
         client = EscoClient()
         try:
@@ -970,6 +976,24 @@ def render_esco_picker_card(
                     concept_type=concept_type,
                     source="manual",
                 )
+            cleaned_query = (
+                _clean_esco_occupation_query(query_text)
+                if concept_type == "occupation"
+                else ""
+            )
+            if not suggestions and len(cleaned_query) >= 2:
+                used_cleaned_query_fallback = True
+                suggestions = _extract_esco_suggestions(
+                    client.suggest2(text=cleaned_query, type=concept_type, limit=12),
+                    concept_type=concept_type,
+                    source="auto",
+                )
+                if not suggestions:
+                    suggestions = _extract_esco_suggestions(
+                        client.search(text=cleaned_query, type=concept_type, limit=12),
+                        concept_type=concept_type,
+                        source="manual",
+                    )
         except EscoClientError as exc:
             st.warning(f"ESCO-Suche aktuell nicht verfügbar: {exc}")
 
@@ -990,7 +1014,8 @@ def render_esco_picker_card(
             st.caption(
                 "Diagnose: "
                 f"language={language} · selected_version={selected_version} · "
-                f"fallback_used={'ja' if used_fallback_path else 'nein'}"
+                f"fallback_used={'ja' if used_fallback_path else 'nein'} · "
+                f"cleaned_query_fallback_used={'ja' if used_cleaned_query_fallback else 'nein'}"
             )
 
     def _label_for_option(item: dict[str, str]) -> str:
