@@ -1304,17 +1304,26 @@ def render_intake_process_animation(*, state: Literal["idle", "running", "done"]
     title = {
         "idle": "So entsteht dein Fragenplan",
         "running": "Analyse läuft",
-        "done": "Vorbereitung für den Wizard",
+        "done": "Intelligenter Vacancy-Intake",
     }[state]
     subtitle = {
-        "idle": "Aus der Jobspec werden Rollenprofil, Berufskontext und gezielte Rückfragen.",
-        "running": "Die App liest den Text, setzt Kontext und bereitet die nächsten Schritte vor.",
-        "done": "Rollenprofil, ESCO-Kontext und dynamische Rückfragen sind vorbereitet.",
+        "idle": "Der Wizard reduziert manuelle Eingaben, erkennt offene Punkte und bereitet verwertbare Recruitment-Ergebnisse vor.",
+        "running": "Die App liest den Text, setzt Kontext und bereitet dynamische Rückfragen sowie Folgeartefakte vor.",
+        "done": "Rollenprofil, ESCO-Kontext und offene Fragen sind bereit für einen passgenauen Wizard.",
     }[state]
     steps = (
-        ("Jobspec verstehen", "Upload oder Freitext wird in ein Rollenprofil überführt."),
-        ("Berufskontext setzen", "Der passende Referenzberuf dient als gemeinsame Grundlage."),
-        ("Fragen fokussieren", "Der Wizard fragt gezielt nach fehlenden Informationen."),
+        (
+            "Weniger manuell eingeben",
+            "Jobspec, Kontext und vorhandene Fakten werden vorbefüllt; bei lokaler LLM-Konfiguration bleiben sensible Daten besonders geschützt.",
+        ),
+        (
+            "Dynamisch nachfragen",
+            "Der Fragebogen passt sich an die Vakanz an und schärft Must-have- und Nice-to-have-Skills mit Gehaltsprognose und Kandidatenverfügbarkeit.",
+        ),
+        (
+            "Folgeschritte optimieren",
+            "Job Ad, Vertrag, Boolean Searchstrings, Interviewleitfäden und interne oder externe Kommunikation bauen auf derselben Datenbasis auf.",
+        ),
     )
     step_items = []
     for idx, (label, detail) in enumerate(steps):

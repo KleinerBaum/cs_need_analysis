@@ -685,11 +685,11 @@ def _render_routing_select(
 def _render_start_routing_controls() -> None:
     if not all(hasattr(st, name) for name in ("selectbox", "number_input", "columns")):
         if hasattr(st, "caption"):
-            st.caption("Routing: Standardwerte werden verwendet.")
+            st.caption("Ein paar Informationen vorab: Standardwerte werden verwendet.")
         return
 
     with st.container(border=True):
-        st.markdown("#### Routing")
+        st.markdown("#### Ein paar Informationen vorab")
         st.caption(
             "Diese Metadaten steuern Folgefragen zu Unternehmen, Rolle, Benefits und Interview."
         )
@@ -918,9 +918,29 @@ def _render_esco_operating_block() -> None:
             )
         else:
             st.caption(
-                "Die App nutzt einen standardisierten Berufs- und Skill-Bezug, "
-                "damit Folgefragen besser zur Rolle passen."
+                "Mithilfe der ESCO-Taxonomie nutzt diese App einen standardisierten "
+                "Berufs- und Skill-Bezug, damit Folgefragen besser zur Rolle passen."
             )
+            esco_popover = getattr(st, "popover", None)
+            if callable(esco_popover):
+                with esco_popover("Was ist die ESCO-Taxonomie?"):
+                    st.markdown(
+                        "**European Skills/Competences, Qualifications and Occupations (ESCO)**"
+                    )
+                    st.caption(
+                        "Die europäische mehrsprachige Klassifikation von Skills, "
+                        "Kompetenzen, Qualifikationen und Berufen der Europäischen Kommission."
+                    )
+                    st.write(
+                        "ESCO funktioniert wie ein Wörterbuch: Es beschreibt, identifiziert "
+                        "und klassifiziert 3.039 berufliche Tätigkeiten und 13.939 damit "
+                        "verknüpfte Skills, übersetzt in 28 Sprachen."
+                    )
+            else:
+                st.caption(
+                    "ESCO beschreibt 3.039 Berufe und 13.939 damit verknüpfte Skills "
+                    "in 28 Sprachen."
+                )
         lang_col, fallback_col = st.columns([1, 1], gap="small")
         with lang_col:
             selected_language = st.radio(
