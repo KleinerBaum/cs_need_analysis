@@ -184,6 +184,12 @@ Default ESCO API base URL: `https://ec.europa.eu/esco/api/`.
 | `ESCO_INDEX_STORAGE_PATH` | `data/esco_index` | local index root |
 | `ESCO_INDEX_VERSION` | selected ESCO version | local index version |
 
+On Streamlit Cloud, the same ESCO settings can be provided in `.streamlit/secrets.toml`
+under `[esco]` with lowercase keys: `api_base_url`, `release_lane`,
+`selected_version`, `api_mode`, `data_source_mode`, `fallback_language`,
+`index_storage_path`, and `index_version`. Runtime precedence is session state,
+then `[esco]` secrets, then environment variables, then defaults.
+
 Version mapping:
 
 - `stable -> v1.2.0`

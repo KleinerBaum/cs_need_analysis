@@ -135,6 +135,26 @@ def _coerce_bool(value: object, *, default: bool) -> bool:
     return default
 
 
+def _streamlit_esco_secret(key: str) -> object:
+    try:
+        section = st.secrets.get("esco")  # type: ignore[attr-defined]
+    except Exception:
+        return None
+    if isinstance(section, Mapping):
+        return section.get(key)
+    return None
+
+
+def _config_text_value(*values: object) -> str:
+    for value in values:
+        if value is None:
+            continue
+        normalized = str(value).strip()
+        if normalized:
+            return normalized
+    return ""
+
+
 def _extract_safe_http_error_hint(exc: HTTPError) -> str | None:
     if not hasattr(exc, "read"):
         return None
@@ -676,42 +696,56 @@ class EscoClient:
     def _esco_config(self) -> dict[str, object]:
         raw = self._session_state.get(SSKey.ESCO_CONFIG.value, {})
         config = raw if isinstance(raw, Mapping) else {}
-        session_base_url = str(config.get("base_url") or "").strip()
-        env_base_url = os.getenv("ESCO_API_BASE_URL", "").strip()
+        session_base_url = _config_text_value(config.get("base_url"))
+        secret_base_url = _config_text_value(_streamlit_esco_secret("api_base_url"))
+        env_base_url = _config_text_value(os.getenv("ESCO_API_BASE_URL", ""))
         resolved_base_url = (
-            session_base_url or env_base_url or DEFAULT_ESCO_API_BASE_URL
+            session_base_url or secret_base_url or env_base_url or DEFAULT_ESCO_API_BASE_URL
         )
 
-        session_selected_version = str(config.get("selected_version") or "").strip()
-        env_selected_version = os.getenv("ESCO_SELECTED_VERSION", "").strip()
+        session_selected_version = _config_text_value(config.get("selected_version"))
+        secret_release_lane = _config_text_value(_streamlit_esco_secret("release_lane"))
+        secret_selected_version = _config_text_value(
+            _streamlit_esco_secret("selected_version")
+        )
+        env_selected_version = _config_text_value(os.getenv("ESCO_SELECTED_VERSION", ""))
         release_lane = normalize_release_lane(
             config.get("release_lane")
             or self._session_state.get(SSKey.ESCO_RELEASE_LANE.value)
+            or secret_release_lane
             or os.getenv("ESCO_RELEASE_LANE", DEFAULT_ESCO_RELEASE_LANE)
             or infer_release_lane_from_version(
-                session_selected_version or env_selected_version
+                session_selected_version or secret_selected_version or env_selected_version
             )
         )
         resolved_selected_version = (
             session_selected_version
+            or secret_selected_version
             or env_selected_version
             or selected_version_for_release_lane(release_lane)
             or DEFAULT_ESCO_SELECTED_VERSION
         )
         api_mode = (
-            str(config.get("api_mode") or os.getenv("ESCO_API_MODE", "hosted"))
-            .strip()
-            .lower()
+            _config_text_value(
+                config.get("api_mode"),
+                _streamlit_esco_secret("api_mode"),
+                os.getenv("ESCO_API_MODE", "hosted"),
+            ).lower()
         )
         if api_mode not in SUPPORTED_API_MODES:
             api_mode = "hosted"
-        data_source_mode = str(
-            config.get("data_source_mode")
-            or os.getenv("ESCO_DATA_SOURCE_MODE", DEFAULT_ESCO_DATA_SOURCE_MODE)
-        ).strip().lower()
+        data_source_mode = _config_text_value(
+            config.get("data_source_mode"),
+            _streamlit_esco_secret("data_source_mode"),
+            os.getenv("ESCO_DATA_SOURCE_MODE", DEFAULT_ESCO_DATA_SOURCE_MODE),
+        ).lower()
         if data_source_mode not in ESCO_DATA_SOURCE_MODES:
             data_source_mode = DEFAULT_ESCO_DATA_SOURCE_MODE
-        language = str(config.get("language") or "de").strip().lower() or "de"
+        language = _config_text_value(
+            config.get("language"),
+            _streamlit_esco_secret("language"),
+            "de",
+        ).lower() or "de"
 
         return {
             "base_url": resolved_base_url,
@@ -721,13 +755,29 @@ class EscoClient:
             "fallback_language": resolve_fallback_language(
                 language,
                 config.get("fallback_language")
+                or _streamlit_esco_secret("fallback_language")
                 or os.getenv("ESCO_FALLBACK_LANGUAGE", ""),
             ),
-            "view_obsolete": _coerce_bool(config.get("view_obsolete"), default=False),
+            "view_obsolete": _coerce_bool(
+                config.get("view_obsolete")
+                if config.get("view_obsolete") is not None
+                else _streamlit_esco_secret("view_obsolete"),
+                default=False,
+            ),
             "api_mode": api_mode,
             "data_source_mode": data_source_mode,
-            "index_storage_path": str(config.get("index_storage_path") or os.getenv("ESCO_INDEX_STORAGE_PATH", DEFAULT_ESCO_INDEX_STORAGE_PATH)).strip() or DEFAULT_ESCO_INDEX_STORAGE_PATH,
-            "index_version": str(config.get("index_version") or os.getenv("ESCO_INDEX_VERSION", resolved_selected_version)).strip() or resolved_selected_version,
+            "index_storage_path": _config_text_value(
+                config.get("index_storage_path"),
+                _streamlit_esco_secret("index_storage_path"),
+                os.getenv("ESCO_INDEX_STORAGE_PATH", DEFAULT_ESCO_INDEX_STORAGE_PATH),
+            )
+            or DEFAULT_ESCO_INDEX_STORAGE_PATH,
+            "index_version": _config_text_value(
+                config.get("index_version"),
+                _streamlit_esco_secret("index_version"),
+                os.getenv("ESCO_INDEX_VERSION", resolved_selected_version),
+            )
+            or resolved_selected_version,
         }
 
     @staticmethod

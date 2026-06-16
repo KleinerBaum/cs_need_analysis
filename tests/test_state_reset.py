@@ -335,6 +335,49 @@ def test_init_session_state_uses_env_esco_selected_version(monkeypatch) -> None:
     assert fake_session_state[SSKey.ESCO_CONFIG.value]["selected_version"] == "v1.3.1"
 
 
+def test_init_session_state_uses_streamlit_esco_secrets(monkeypatch) -> None:
+    fake_session_state: dict[str, object] = {}
+    monkeypatch.setenv("ESCO_SELECTED_VERSION", "v1.3.1")
+    monkeypatch.setattr(
+        state,
+        "load_openai_settings",
+        lambda: SimpleNamespace(openai_model="gpt-5-mini"),
+    )
+    monkeypatch.setattr(
+        state,
+        "st",
+        SimpleNamespace(
+            session_state=fake_session_state,
+            secrets={
+                "esco": {
+                    "api_base_url": "https://secret.example/esco/",
+                    "release_lane": "preview",
+                    "selected_version": "v1.2.1",
+                    "language": "en",
+                    "fallback_language": "de",
+                    "api_mode": "local",
+                    "data_source_mode": "hybrid",
+                    "index_storage_path": "data/custom_esco_index",
+                    "index_version": "v1.2.1",
+                }
+            },
+        ),
+    )
+
+    state.init_session_state()
+
+    esco_config = fake_session_state[SSKey.ESCO_CONFIG.value]
+    assert esco_config["base_url"] == "https://secret.example/esco/"
+    assert esco_config["release_lane"] == "preview"
+    assert esco_config["selected_version"] == "v1.2.1"
+    assert esco_config["language"] == "en"
+    assert esco_config["fallback_language"] == "de"
+    assert esco_config["api_mode"] == "local"
+    assert esco_config["data_source_mode"] == "hybrid"
+    assert esco_config["index_storage_path"] == "data/custom_esco_index"
+    assert esco_config["index_version"] == "v1.2.1"
+
+
 
 def test_init_session_state_maps_legacy_summary_alias_key(monkeypatch) -> None:
     fake_session_state: dict[str, object] = {"cs.summary.active_action": "job_ad"}

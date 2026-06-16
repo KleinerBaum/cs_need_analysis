@@ -328,8 +328,59 @@ def test_esco_config_prefers_env_base_url_when_session_value_missing(
 
 def test_esco_config_uses_env_selected_version(monkeypatch) -> None:
     monkeypatch.setenv("ESCO_SELECTED_VERSION", "v1.3.0")
+    monkeypatch.setattr(esco_client, "st", SimpleNamespace(secrets={}))
     client = esco_client.EscoClient(session_state={SSKey.ESCO_CONFIG.value: {}})
     assert client._esco_config()["selected_version"] == "v1.3.0"
+
+
+def test_esco_config_uses_streamlit_esco_secrets(monkeypatch) -> None:
+    monkeypatch.setattr(
+        esco_client,
+        "st",
+        SimpleNamespace(
+            secrets={
+                "esco": {
+                    "api_base_url": "https://secret.example/esco/",
+                    "release_lane": "preview",
+                    "selected_version": "v9.9.9",
+                    "language": "en",
+                    "fallback_language": "de",
+                    "view_obsolete": True,
+                    "api_mode": "local",
+                    "data_source_mode": "hybrid",
+                    "index_storage_path": "data/custom_esco_index",
+                    "index_version": "v9.9.9",
+                }
+            },
+        ),
+    )
+
+    client = esco_client.EscoClient(session_state={SSKey.ESCO_CONFIG.value: {}})
+    config = client._esco_config()
+
+    assert config["base_url"] == "https://secret.example/esco/"
+    assert config["release_lane"] == "preview"
+    assert config["selected_version"] == "v9.9.9"
+    assert config["language"] == "en"
+    assert config["fallback_language"] == "de"
+    assert config["view_obsolete"] is True
+    assert config["api_mode"] == "local"
+    assert config["data_source_mode"] == "hybrid"
+    assert config["index_storage_path"] == "data/custom_esco_index"
+    assert config["index_version"] == "v9.9.9"
+
+
+def test_esco_config_prefers_secrets_over_env(monkeypatch) -> None:
+    monkeypatch.setenv("ESCO_SELECTED_VERSION", "v1.3.0")
+    monkeypatch.setattr(
+        esco_client,
+        "st",
+        SimpleNamespace(secrets={"esco": {"selected_version": "v1.2.1"}}),
+    )
+
+    client = esco_client.EscoClient(session_state={SSKey.ESCO_CONFIG.value: {}})
+
+    assert client._esco_config()["selected_version"] == "v1.2.1"
 
 
 def test_esco_config_prefers_session_base_url_over_env(monkeypatch) -> None:

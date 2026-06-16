@@ -8,6 +8,7 @@ of a wizard workflow.
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Dict, cast
 
@@ -59,6 +60,26 @@ from settings_openai import load_openai_settings
 from usage_events import reset_usage_events
 
 DEFAULT_ESCO_API_BASE_URL = "https://ec.europa.eu/esco/api/"
+
+
+def _streamlit_esco_secret(key: str) -> object:
+    try:
+        section = st.secrets.get("esco")  # type: ignore[attr-defined]
+    except Exception:
+        return None
+    if isinstance(section, Mapping):
+        return section.get(key)
+    return None
+
+
+def _config_text_value(*values: object) -> str:
+    for value in values:
+        if value is None:
+            continue
+        normalized = str(value).strip()
+        if normalized:
+            return normalized
+    return ""
 
 
 def _apply_summary_legacy_key_aliases() -> None:
@@ -206,24 +227,53 @@ def init_session_state() -> None:
     configured_language = configured_language.strip().lower()
     if configured_language not in {"de", "en"}:
         configured_language = DEFAULT_LANGUAGE
-    configured_esco_base_url = os.getenv("ESCO_API_BASE_URL", "").strip()
-    if not configured_esco_base_url:
-        configured_esco_base_url = DEFAULT_ESCO_API_BASE_URL
+    configured_esco_base_url = _config_text_value(
+        _streamlit_esco_secret("api_base_url"),
+        os.getenv("ESCO_API_BASE_URL", ""),
+        DEFAULT_ESCO_API_BASE_URL,
+    )
     configured_esco_release_lane = normalize_release_lane(
-        os.getenv("ESCO_RELEASE_LANE", DEFAULT_ESCO_RELEASE_LANE)
+        _config_text_value(
+            _streamlit_esco_secret("release_lane"),
+            os.getenv("ESCO_RELEASE_LANE", DEFAULT_ESCO_RELEASE_LANE),
+        )
     )
-    configured_esco_selected_version = (
-        os.getenv("ESCO_SELECTED_VERSION", "").strip()
-        or selected_version_for_release_lane(configured_esco_release_lane)
+    configured_esco_selected_version = _config_text_value(
+        _streamlit_esco_secret("selected_version"),
+        os.getenv("ESCO_SELECTED_VERSION", ""),
+        selected_version_for_release_lane(configured_esco_release_lane),
     )
-    configured_esco_data_source_mode = os.getenv(
-        "ESCO_DATA_SOURCE_MODE", DEFAULT_ESCO_DATA_SOURCE_MODE
-    ).strip().lower()
+    configured_esco_language = _config_text_value(
+        _streamlit_esco_secret("language"),
+        configured_language,
+    ).lower()
+    if configured_esco_language not in {"de", "en"}:
+        configured_esco_language = configured_language
+    configured_esco_data_source_mode = _config_text_value(
+        _streamlit_esco_secret("data_source_mode"),
+        os.getenv("ESCO_DATA_SOURCE_MODE", DEFAULT_ESCO_DATA_SOURCE_MODE),
+    ).lower()
     if configured_esco_data_source_mode not in ESCO_DATA_SOURCE_MODES:
         configured_esco_data_source_mode = DEFAULT_ESCO_DATA_SOURCE_MODE
-    configured_esco_fallback_language = (
-        os.getenv("ESCO_FALLBACK_LANGUAGE", "").strip().lower()
-        or ("en" if configured_language != "en" else "de")
+    configured_esco_fallback_language = _config_text_value(
+        _streamlit_esco_secret("fallback_language"),
+        os.getenv("ESCO_FALLBACK_LANGUAGE", ""),
+        "en" if configured_language != "en" else "de",
+    ).lower()
+    configured_esco_api_mode = _config_text_value(
+        _streamlit_esco_secret("api_mode"),
+        os.getenv("ESCO_API_MODE", "hosted"),
+        "hosted",
+    ).lower()
+    configured_esco_index_storage_path = _config_text_value(
+        _streamlit_esco_secret("index_storage_path"),
+        os.getenv("ESCO_INDEX_STORAGE_PATH", DEFAULT_ESCO_INDEX_STORAGE_PATH),
+        DEFAULT_ESCO_INDEX_STORAGE_PATH,
+    )
+    configured_esco_index_version = _config_text_value(
+        _streamlit_esco_secret("index_version"),
+        os.getenv("ESCO_INDEX_VERSION", ""),
+        configured_esco_selected_version,
     )
 
     default_ui_preferences = _default_ui_preferences()
@@ -309,16 +359,13 @@ def init_session_state() -> None:
             "base_url": configured_esco_base_url,
             "release_lane": configured_esco_release_lane,
             "selected_version": configured_esco_selected_version,
-            "language": configured_language,
+            "language": configured_esco_language,
             "fallback_language": configured_esco_fallback_language,
             "view_obsolete": False,
-            "api_mode": os.getenv("ESCO_API_MODE", "hosted").strip().lower()
-            or "hosted",
+            "api_mode": configured_esco_api_mode or "hosted",
             "data_source_mode": configured_esco_data_source_mode,
-            "index_storage_path": os.getenv("ESCO_INDEX_STORAGE_PATH", DEFAULT_ESCO_INDEX_STORAGE_PATH).strip() or DEFAULT_ESCO_INDEX_STORAGE_PATH,
-            "index_version": os.getenv("ESCO_INDEX_VERSION", "").strip() or (
-                configured_esco_selected_version
-            ),
+            "index_storage_path": configured_esco_index_storage_path,
+            "index_version": configured_esco_index_version,
         },
         SSKey.ESCO_LAST_DATA_SOURCE.value: "",
         SSKey.ESCO_RELEASE_LANE.value: configured_esco_release_lane,
@@ -437,10 +484,15 @@ def init_session_state() -> None:
     st.session_state[SSKey.UI_PREFERENCES.value] = preferences
     esco_config = st.session_state.get(SSKey.ESCO_CONFIG.value)
     if isinstance(esco_config, dict):
-        fallback_language = "en" if active_language == "de" else "de"
+        esco_language = str(esco_config.get("language") or active_language).strip().lower()
+        if esco_language not in {"de", "en"}:
+            esco_language = active_language
+        fallback_language = str(esco_config.get("fallback_language") or "").strip().lower()
+        if fallback_language not in {"de", "en"}:
+            fallback_language = "en" if esco_language == "de" else "de"
         st.session_state[SSKey.ESCO_CONFIG.value] = {
             **esco_config,
-            "language": active_language,
+            "language": esco_language,
             "fallback_language": fallback_language,
         }
     sync_esco_semantic_state(st.session_state)
