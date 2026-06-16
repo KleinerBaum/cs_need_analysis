@@ -49,8 +49,7 @@ class _FakeCtx:
         self.goto_calls.append(step)
 
 
-def test_render_entry_does_not_auto_generate_recruiting_brief(monkeypatch) -> None:
-    """Expected vs Actual: Beim Entry ohne Brief kein Auto-Generate; stattdessen Hinweis + return."""
+def test_render_entry_without_brief_still_renders_summary(monkeypatch) -> None:
     session_state = {
         SSKey.JOB_EXTRACT.value: JobAdExtract(job_title="Engineer").model_dump(
             mode="json"
@@ -82,6 +81,12 @@ def test_render_entry_does_not_auto_generate_recruiting_brief(monkeypatch) -> No
         SUMMARY_MODULE, "_render_summary_processing_hub", lambda **_: None
     )
     monkeypatch.setattr(SUMMARY_MODULE, "_build_action_registry", lambda **_: [])
+    readiness_calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "_render_readiness_tab",
+        lambda **kwargs: readiness_calls.append(kwargs),
+    )
 
     called_generate = {"count": 0}
 
@@ -95,10 +100,9 @@ def test_render_entry_does_not_auto_generate_recruiting_brief(monkeypatch) -> No
     assert called_generate["count"] == 0, (
         "Expected no auto-generation at summary entry; actual generator call count > 0"
     )
-    assert any(
-        "Noch kein aktueller Recruiting Brief verfügbar" in msg
-        for msg in fake_st.info_calls
-    )
+    assert len(readiness_calls) == 1
+    assert readiness_calls[0]["brief"] is None
+    assert fake_st.info_calls == []
 
 
 def test_summary_entry_dirty_state_reports_stale_brief_message(monkeypatch) -> None:

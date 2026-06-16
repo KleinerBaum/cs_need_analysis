@@ -4294,26 +4294,6 @@ def render(ctx: WizardContext) -> None:
         generate_employment_contract=_generate_employment_contract,
     )
 
-    entered_summary_step = (
-        st.session_state.get(SSKey.LAST_RENDERED_STEP.value) != "summary"
-    )
-    brief_requirements_ready = _has_required_state(
-        (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN)
-    )
-    canonical_brief_status = _resolve_canonical_brief_status(
-        resolved_brief_model=resolved_brief_model
-    )
-    if (
-        entered_summary_step
-        and brief_requirements_ready
-        and not canonical_brief_status.ready_for_follow_ups
-    ):
-        _run_generate_recruiting_brief(
-            mode="auto_refresh",
-            spinner_text="Aktualisiere Recruiting Brief automatisch…",
-            error_step="summary.auto_generate_brief_on_enter",
-        )
-
     brief_dict = st.session_state.get(SSKey.BRIEF.value)
     brief: VacancyBrief | None = None
     if isinstance(brief_dict, dict):
@@ -4321,13 +4301,6 @@ def render(ctx: WizardContext) -> None:
             brief = VacancyBrief.model_validate(brief_dict)
         except Exception:
             brief = None
-
-    if brief is None:
-        st.info(
-            "Noch kein aktueller Recruiting Brief verfügbar. Bitte prüfe Eingaben oder aktualisiere die Vakanz."
-        )
-        nav_buttons(ctx, disable_next=True)
-        return
 
     _render_readiness_tab(
         vm=vm,
