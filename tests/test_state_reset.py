@@ -35,6 +35,7 @@ RESET_EXPECTATIONS: dict[SSKey, object] = {
         "pii_reduction": True,
         "details_expanded_default": False,
         "step_compact": {},
+        "ui_language": "de",
     },
     SSKey.OPEN_GROUPS: {},
     SSKey.BRIEF: None,

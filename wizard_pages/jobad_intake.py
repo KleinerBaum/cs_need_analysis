@@ -43,6 +43,7 @@ from intake_facts import (
     write_intake_fact_by_legacy_field,
     write_job_extract_intake_facts,
 )
+from i18n import sync_language_state
 from occupation_context import build_occupation_question_context, classify_occupation_context
 from parsing import extract_text_from_uploaded_file, redact_pii
 from question_progress import (
@@ -950,6 +951,7 @@ def _render_esco_operating_block() -> None:
                 horizontal=True,
                 key=f"{SSKey.ESCO_CONFIG.value}.phase_a.language",
             )
+            sync_language_state(selected_language)
         with fallback_col:
             fallback_language = st.selectbox(
                 "Alternative Sprache",

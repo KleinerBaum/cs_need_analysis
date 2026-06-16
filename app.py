@@ -16,7 +16,9 @@ from constants import (
     UI_PREFERENCE_INFORMATION_DEPTH,
     UI_PREFERENCE_PII_REDUCTION,
     UI_PREFERENCE_REGIONAL_FOCUS,
+    UI_PREFERENCE_UI_LANGUAGE,
 )
+from i18n import patch_streamlit_text, sync_language_state
 from llm_client import (
     TASK_EXTRACT_JOB_AD,
     TASK_GENERATE_QUESTION_PLAN,
@@ -234,6 +236,27 @@ def _render_preference_center_sidebar(
     preferences = normalize_ui_preferences(raw_preferences)
     st.session_state[SSKey.UI_PREFERENCES.value] = preferences
 
+    language_options = ["de", "en"]
+    current_language = str(
+        preferences.get(UI_PREFERENCE_UI_LANGUAGE)
+        or st.session_state.get(SSKey.LANGUAGE.value)
+        or "de"
+    )
+    if current_language not in language_options:
+        current_language = "de"
+    selected_language = st.selectbox(
+        "Sprache",
+        options=language_options,
+        index=language_options.index(current_language),
+        format_func=lambda value: "🇩🇪 Deutsch" if value == "de" else "🇬🇧 English",
+        key=f"{key_prefix}.ui_language",
+        help="Steuert UI-Texte, Standard-Response-Language und Exportsprache.",
+    )
+    sync_language_state(selected_language, session_state=st.session_state)
+    preferences = normalize_ui_preferences(
+        st.session_state.get(SSKey.UI_PREFERENCES.value)
+    )
+
     answer_mode_options = ["compact", "balanced", "advisory"]
     current_ui_mode = normalize_ui_mode(st.session_state.get(SSKey.UI_MODE.value))
     answer_mode = map_ui_mode_to_answer_mode(current_ui_mode)
@@ -383,6 +406,7 @@ def main() -> None:
     _inject_theme_styles()
 
     init_session_state()
+    patch_streamlit_text()
     previous_step = st.session_state.get(SSKey.LAST_RENDERED_STEP.value)
 
     pages = load_pages()

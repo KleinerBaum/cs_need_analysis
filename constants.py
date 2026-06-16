@@ -129,6 +129,7 @@ UI_PREFERENCE_CONFIDENCE_THRESHOLD: Final[str] = "confidence_threshold"
 UI_PREFERENCE_PII_REDUCTION: Final[str] = "pii_reduction"
 UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT: Final[str] = "details_expanded_default"
 UI_PREFERENCE_STEP_COMPACT: Final[str] = "step_compact"
+UI_PREFERENCE_UI_LANGUAGE: Final[str] = "ui_language"
 
 COMPLETION_STATE_COMPLETE: Final[str] = "complete"
 COMPLETION_STATE_PARTIAL: Final[str] = "partial"

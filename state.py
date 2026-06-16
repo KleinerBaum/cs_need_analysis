@@ -31,6 +31,7 @@ from constants import (
     UI_PREFERENCE_REGIONAL_FOCUS,
     UI_PREFERENCE_SHOW_SOURCES_DEFAULT,
     UI_PREFERENCE_STEP_COMPACT,
+    UI_PREFERENCE_UI_LANGUAGE,
     STALE_REDESIGN_SESSION_KEY_PREFIXES,
     STEPS,
     SUMMARY_SESSION_KEY_LEGACY_ALIASES,
@@ -146,6 +147,7 @@ def _default_ui_preferences() -> dict[str, Any]:
         UI_PREFERENCE_PII_REDUCTION: True,
         UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT: False,
         UI_PREFERENCE_STEP_COMPACT: {},
+        UI_PREFERENCE_UI_LANGUAGE: DEFAULT_LANGUAGE,
     }
 
 
@@ -156,6 +158,12 @@ def normalize_ui_preferences(raw_preferences: Any) -> dict[str, Any]:
         normalized.update(raw_preferences)
     if not isinstance(normalized.get(UI_PREFERENCE_STEP_COMPACT), dict):
         normalized[UI_PREFERENCE_STEP_COMPACT] = {}
+    language = (
+        str(normalized.get(UI_PREFERENCE_UI_LANGUAGE, DEFAULT_LANGUAGE)).strip().lower()
+    )
+    normalized[UI_PREFERENCE_UI_LANGUAGE] = (
+        language if language in {"de", "en"} else DEFAULT_LANGUAGE
+    )
     confidence = normalized.get(UI_PREFERENCE_CONFIDENCE_THRESHOLD)
     try:
         normalized[UI_PREFERENCE_CONFIDENCE_THRESHOLD] = min(
@@ -195,6 +203,9 @@ def init_session_state() -> None:
     configured_language = st.session_state.get(SSKey.LANGUAGE.value, DEFAULT_LANGUAGE)
     if not isinstance(configured_language, str) or not configured_language.strip():
         configured_language = DEFAULT_LANGUAGE
+    configured_language = configured_language.strip().lower()
+    if configured_language not in {"de", "en"}:
+        configured_language = DEFAULT_LANGUAGE
     configured_esco_base_url = os.getenv("ESCO_API_BASE_URL", "").strip()
     if not configured_esco_base_url:
         configured_esco_base_url = DEFAULT_ESCO_API_BASE_URL
@@ -215,12 +226,15 @@ def init_session_state() -> None:
         or ("en" if configured_language != "en" else "de")
     )
 
+    default_ui_preferences = _default_ui_preferences()
+    default_ui_preferences[UI_PREFERENCE_UI_LANGUAGE] = configured_language
+
     defaults: Dict[str, Any] = {
         SSKey.CURRENT_STEP.value: STEPS[0].key,
         SSKey.LAST_RENDERED_STEP.value: None,
         SSKey.NAV_SELECTED.value: STEPS[0].key,
         SSKey.NAV_SYNC_PENDING.value: False,
-        SSKey.LANGUAGE.value: DEFAULT_LANGUAGE,
+        SSKey.LANGUAGE.value: configured_language,
         SSKey.MODEL.value: load_openai_settings().openai_model,
         SSKey.STORE_API_OUTPUT.value: False,
         SSKey.SOURCE_TEXT.value: "",
@@ -241,7 +255,7 @@ def init_session_state() -> None:
         SSKey.ANSWERS.value: {},
         SSKey.ANSWER_META.value: {},
         SSKey.UI_MODE.value: "standard",
-        SSKey.UI_PREFERENCES.value: _default_ui_preferences(),
+        SSKey.UI_PREFERENCES.value: default_ui_preferences,
         SSKey.OPEN_GROUPS.value: {},
         SSKey.BRIEF.value: None,
         SSKey.LAST_ERROR.value: None,
@@ -412,6 +426,23 @@ def init_session_state() -> None:
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
+    preferences = normalize_ui_preferences(
+        st.session_state.get(SSKey.UI_PREFERENCES.value)
+    )
+    active_language = str(preferences.get(UI_PREFERENCE_UI_LANGUAGE) or configured_language)
+    if active_language not in {"de", "en"}:
+        active_language = DEFAULT_LANGUAGE
+    st.session_state[SSKey.LANGUAGE.value] = active_language
+    preferences[UI_PREFERENCE_UI_LANGUAGE] = active_language
+    st.session_state[SSKey.UI_PREFERENCES.value] = preferences
+    esco_config = st.session_state.get(SSKey.ESCO_CONFIG.value)
+    if isinstance(esco_config, dict):
+        fallback_language = "en" if active_language == "de" else "de"
+        st.session_state[SSKey.ESCO_CONFIG.value] = {
+            **esco_config,
+            "language": active_language,
+            "fallback_language": fallback_language,
+        }
     sync_esco_semantic_state(st.session_state)
     _sync_source_redaction_from_preferences()
 

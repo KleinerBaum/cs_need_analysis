@@ -44,6 +44,7 @@ from esco_semantics import (
     selected_version_for_release_lane,
     sync_esco_semantic_state,
 )
+from i18n import sync_language_state, t
 from question_dependencies import should_show_question
 from question_limits import (
     select_questions_for_adaptive_limit,
@@ -146,7 +147,8 @@ class WizardPage:
 
     @property
     def label(self) -> str:
-        return f"{self.icon} {self.title_de}" if self.icon else self.title_de
+        title = str(t(self.title_de))
+        return f"{self.icon} {title}" if self.icon else title
 
 
 @dataclass
@@ -924,6 +926,7 @@ def render_esco_language_toggle() -> None:
         key=f"{SSKey.ESCO_CONFIG.value}.language_choice",
         label_visibility="collapsed",
     )
+    sync_language_state(selected_language)
     _set_esco_config(
         release_lane=release_lane,
         selected_version=selected_version,
@@ -1008,13 +1011,14 @@ def _sync_mode_change() -> None:
 def get_ui_mode_badge_text(ui_mode: str | None = None) -> str:
     normalized_mode = (ui_mode or get_current_ui_mode()).strip().lower()
     display_label = UI_MODE_DISPLAY_LABELS.get(normalized_mode, normalized_mode)
-    return f"Detailgrad aktiv: **{display_label.capitalize()}** (`{normalized_mode}`)"
+    display_label = str(t(display_label.capitalize()))
+    return str(t(f"Detailgrad aktiv: **{display_label}** (`{normalized_mode}`)"))
 
 
 def render_active_ui_mode_caption(*, ui_mode: str | None = None) -> None:
     st.caption(
         f"{get_ui_mode_badge_text(ui_mode)} · "
-        "Der Modus steuert, wie viele Fragen im aktuellen Schritt sichtbar sind."
+        f"{t('Der Modus steuert, wie viele Fragen im aktuellen Schritt sichtbar sind.')}"
     )
 
 
@@ -1034,8 +1038,8 @@ def render_ui_mode_selector(
         "Wie weit möchten Sie ins Detail gehen?",
         options=list(UI_MODE_VALUES),
         key=ui_mode_key,
-        format_func=lambda mode: UI_MODE_DISPLAY_LABELS.get(
-            mode, str(mode).capitalize()
+        format_func=lambda mode: str(
+            t(UI_MODE_DISPLAY_LABELS.get(mode, str(mode).capitalize()))
         ),
         help=UI_MODE_HELP_TEXT,
         on_change=_sync_mode_change,

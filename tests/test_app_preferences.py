@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import app
-from constants import SSKey, UI_PREFERENCE_PII_REDUCTION
+from constants import SSKey, UI_PREFERENCE_PII_REDUCTION, UI_PREFERENCE_UI_LANGUAGE
 
 
 class _FakePreferenceStreamlit:
@@ -56,4 +56,9 @@ def test_preference_center_defaults_pii_reduction_on_when_missing(monkeypatch) -
             UI_PREFERENCE_PII_REDUCTION
         ]
         is True
+    )
+    assert fake_st.session_state[SSKey.LANGUAGE.value] == "de"
+    assert (
+        fake_st.session_state[SSKey.UI_PREFERENCES.value][UI_PREFERENCE_UI_LANGUAGE]
+        == "de"
     )
