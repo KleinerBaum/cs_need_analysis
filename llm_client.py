@@ -44,6 +44,11 @@ from constants import (
     JOB_AD_SCHEMA_VERSION,
     QUESTION_SCHEMA_VERSION,
     SSKey,
+    STEP_KEY_BENEFITS,
+    STEP_KEY_COMPANY,
+    STEP_KEY_INTERVIEW,
+    STEP_KEY_ROLE_TASKS,
+    STEP_KEY_SKILLS,
     VACANCY_SCHEMA_VERSION,
 )
 from model_capabilities import (
@@ -98,6 +103,165 @@ TASK_GENERATE_EMPLOYMENT_CONTRACT = "generate_employment_contract"
 TASK_GENERATE_REQUIREMENT_GAP_SUGGESTIONS = "generate_requirement_gap_suggestions"
 TASK_GENERATE_BENEFIT_SUGGESTIONS = "generate_benefit_suggestions"
 TASK_GENERATE_ROLE_TASKS_SALARY_FORECAST = "generate_role_tasks_salary_forecast"
+
+_CANONICAL_QUESTION_GROUPS_BY_STEP: dict[str, tuple[str, ...]] = {
+    STEP_KEY_COMPANY: (
+        "employer_narrative",
+        "business_context",
+        "organization_team",
+        "work_model_location",
+        "risks_non_negotiables",
+    ),
+    STEP_KEY_ROLE_TASKS: (
+        "role_purpose",
+        "top_deliverables",
+        "ownership_scope",
+        "stakeholders_collaboration",
+        "success_30_90_180",
+    ),
+    STEP_KEY_SKILLS: (
+        "must_have",
+        "nice_to_have",
+        "proficiency_depth",
+        "application_context",
+        "substitutability",
+    ),
+    STEP_KEY_BENEFITS: (
+        "compensation",
+        "work_model",
+        "contract_start",
+        "differentiating_benefits",
+        "dealbreakers",
+    ),
+    STEP_KEY_INTERVIEW: (
+        "candidate_journey",
+        "stage_goals",
+        "evaluation_evidence",
+        "internal_responsibilities",
+        "slas_communication",
+    ),
+}
+
+_QUESTION_GROUP_FALLBACK_BY_STEP: dict[str, str] = {
+    STEP_KEY_COMPANY: "business_context",
+    STEP_KEY_ROLE_TASKS: "role_purpose",
+    STEP_KEY_SKILLS: "application_context",
+    STEP_KEY_BENEFITS: "differentiating_benefits",
+    STEP_KEY_INTERVIEW: "candidate_journey",
+}
+
+_QUESTION_GROUP_MATCH_RULES: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
+    STEP_KEY_COMPANY: (
+        (
+            "employer_narrative",
+            ("employer", "arbeitgeber", "pitch", "narrative", "mission", "vision", "brand", "marke", "positionierung"),
+        ),
+        (
+            "business_context",
+            ("business", "geschaeft", "geschäft", "unit", "bereich", "markt", "produkt", "kunden", "warum", "purpose"),
+        ),
+        (
+            "organization_team",
+            ("team", "report", "stakeholder", "organisation", "organization", "fuehrung", "führung", "leadership", "zusammenarbeit"),
+        ),
+        (
+            "work_model_location",
+            ("remote", "hybrid", "standort", "location", "arbeitsort", "office", "timezone", "zeitzone", "region", "sprache"),
+        ),
+        (
+            "risks_non_negotiables",
+            ("risk", "risiko", "non negotiable", "non_negotiable", "pflicht", "compliance", "vorgabe", "tarif", "betriebsrat"),
+        ),
+    ),
+    STEP_KEY_ROLE_TASKS: (
+        (
+            "role_purpose",
+            ("purpose", "zweck", "ziel", "warum", "mission", "rolle", "overview", "kontext"),
+        ),
+        (
+            "top_deliverables",
+            ("deliverable", "aufgabe", "responsibil", "priorit", "top", "output", "ergebnis"),
+        ),
+        (
+            "ownership_scope",
+            ("ownership", "entscheidung", "scope", "verantwort", "befugnis", "autonomie", "budget"),
+        ),
+        (
+            "stakeholders_collaboration",
+            ("stakeholder", "schnittstelle", "zusammenarbeit", "collaboration", "kunden", "partner", "team"),
+        ),
+        (
+            "success_30_90_180",
+            ("30", "90", "180", "success", "erfolg", "metric", "kpi", "onboarding", "probezeit"),
+        ),
+    ),
+    STEP_KEY_SKILLS: (
+        (
+            "must_have",
+            ("must", "required", "pflicht", "knockout", "zwingend", "essential", "muss"),
+        ),
+        (
+            "nice_to_have",
+            ("nice", "optional", "wuensch", "wünsch", "plus", "bonus"),
+        ),
+        (
+            "proficiency_depth",
+            ("level", "niveau", "tiefe", "senior", "expert", "erfahrung", "proficiency", "kenntnis"),
+        ),
+        (
+            "application_context",
+            ("context", "anwendung", "tool", "stack", "praxis", "umgebung", "skill_group", "esco", "knowledge", "digital", "data"),
+        ),
+        (
+            "substitutability",
+            ("substitut", "train", "lern", "ersetz", "alternative", "kompens", "entwickelbar"),
+        ),
+    ),
+    STEP_KEY_BENEFITS: (
+        (
+            "compensation",
+            ("salary", "gehalt", "compensation", "bonus", "variable", "budget", "range", "vergütung", "verguetung"),
+        ),
+        (
+            "work_model",
+            ("remote", "hybrid", "office", "arbeitsmodell", "arbeitszeit", "zeit", "flex"),
+        ),
+        (
+            "contract_start",
+            ("contract", "vertrag", "start", "deadline", "frist", "befrist", "notice", "kuendig", "kündig"),
+        ),
+        (
+            "differentiating_benefits",
+            ("benefit", "perk", "angebot", "argument", "differenz", "mobil", "weiterbildung", "urlaub"),
+        ),
+        (
+            "dealbreakers",
+            ("dealbreaker", "einschraenk", "einschränk", "fix", "non negotiable", "grenze", "constraint"),
+        ),
+    ),
+    STEP_KEY_INTERVIEW: (
+        (
+            "evaluation_evidence",
+            ("evidence", "bewertung", "score", "assessment", "case", "probe", "signal", "kriter"),
+        ),
+        (
+            "slas_communication",
+            ("sla", "feedback", "kommunikation", "communication", "antwort", "tage", "timing"),
+        ),
+        (
+            "internal_responsibilities",
+            ("owner", "verantwort", "entscheidung", "rolle", "intern", "hiring manager", "recruit"),
+        ),
+        (
+            "stage_goals",
+            ("stage", "stufe", "ziel", "goal", "interviewziel", "screening", "fachinterview"),
+        ),
+        (
+            "candidate_journey",
+            ("candidate", "kandidat", "journey", "prozess", "process", "schritt", "timeline", "runde"),
+        ),
+    ),
+}
 
 _OTHER_OPTION = "Sonstiges"
 _CATEGORY_QUESTION_RULES: tuple[dict[str, Any], ...] = (
@@ -1290,7 +1454,13 @@ def generate_question_plan(
         "Füge bei jedem Step 6–12 Fragen hinzu, je nachdem, was im Jobspec fehlt. "
         "Markiere pro Step genau 3–5 Fragen mit priority='core'; "
         "weitere Fragen als 'standard' oder 'detail'. "
-        "Setze group_key stabil und kurz (snake_case), sodass thematisch verwandte Fragen denselben group_key teilen. "
+        "Setze group_key pro Step ausschliesslich auf eine dieser stabilen Domaenen: "
+        "company: employer_narrative, business_context, organization_team, work_model_location, risks_non_negotiables; "
+        "role_tasks: role_purpose, top_deliverables, ownership_scope, stakeholders_collaboration, success_30_90_180; "
+        "skills: must_have, nice_to_have, proficiency_depth, application_context, substitutability; "
+        "benefits: compensation, work_model, contract_start, differentiating_benefits, dealbreakers; "
+        "interview: candidate_journey, stage_goals, evaluation_evidence, internal_responsibilities, slas_communication. "
+        "Nutze keine einmaligen oder jobspezifischen group_key-Werte. "
         "Setze fact_key nur dann, wenn eine Frage direkt ein kanonisches Intake-Faktum adressiert "
         "(z. B. company.company_name, role.job_title, skills.must_have_skills, benefits.salary_range); "
         "lasse fact_key sonst null. "
@@ -1420,11 +1590,65 @@ def _normalize_question_priority(q: Any) -> None:
 
 
 def _normalize_question_group_key(q: Any, *, step_key: str) -> None:
+    canonical_groups = _CANONICAL_QUESTION_GROUPS_BY_STEP.get(step_key)
     raw_group_key = getattr(q, "group_key", None)
-    if isinstance(raw_group_key, str) and raw_group_key.strip():
-        q.group_key = re_slugify(raw_group_key)
+    normalized_group = (
+        re_slugify(raw_group_key)
+        if isinstance(raw_group_key, str) and raw_group_key.strip()
+        else ""
+    )
+    if canonical_groups is None:
+        if normalized_group:
+            q.group_key = normalized_group
+            return
+        q.group_key = re_slugify(f"{step_key}_{q.id}")
         return
-    q.group_key = re_slugify(f"{step_key}_{q.id}")
+
+    if normalized_group in canonical_groups:
+        q.group_key = normalized_group
+        return
+
+    inferred_group = _infer_canonical_question_group_key(
+        q,
+        step_key=step_key,
+        normalized_group=normalized_group,
+    )
+    q.group_key = inferred_group or _QUESTION_GROUP_FALLBACK_BY_STEP[step_key]
+
+
+def _infer_canonical_question_group_key(
+    q: Any,
+    *,
+    step_key: str,
+    normalized_group: str,
+) -> str | None:
+    blob = _question_group_match_blob(q, normalized_group=normalized_group)
+    for group_key, keywords in _QUESTION_GROUP_MATCH_RULES.get(step_key, ()):
+        if any(keyword in blob for keyword in keywords):
+            return group_key
+    return None
+
+
+def _question_group_match_blob(q: Any, *, normalized_group: str) -> str:
+    raw = " ".join(
+        str(part or "")
+        for part in (
+            normalized_group,
+            getattr(q, "id", ""),
+            getattr(q, "label", ""),
+            getattr(q, "help", ""),
+            getattr(q, "rationale", ""),
+            getattr(q, "target_path", ""),
+            getattr(q, "fact_key", ""),
+        )
+    ).casefold()
+    normalized = (
+        raw.replace("ä", "ae")
+        .replace("ö", "oe")
+        .replace("ü", "ue")
+        .replace("ß", "ss")
+    )
+    return re.sub(r"[^a-z0-9_]+", " ", normalized)
 
 
 def _normalize_question_dependencies(q: Any, *, step: Any) -> None:

@@ -172,3 +172,137 @@ def test_normalize_question_fact_key_metadata() -> None:
     assert questions[0].fact_key == FactKey.COMPANY_COMPANY_NAME.value
     assert questions[1].fact_key == FactKey.ROLE_JOB_TITLE.value
     assert questions[2].fact_key is None
+
+
+def test_normalize_active_step_group_keys_to_canonical_domains() -> None:
+    plan = QuestionPlan(
+        steps=[
+            QuestionStep(
+                step_key="company",
+                title_de="Unternehmen",
+                questions=[
+                    Question(
+                        id="employer_pitch",
+                        label="Wie beschreiben wir den Arbeitgeber fuer Kandidaten?",
+                        answer_type=AnswerType.SHORT_TEXT,
+                        group_key="Employer Story",
+                    ),
+                    Question(
+                        id="office_policy",
+                        label="Welche Remote- oder Hybrid-Regel gilt?",
+                        answer_type=AnswerType.SHORT_TEXT,
+                        group_key="random workplace bucket",
+                    ),
+                ],
+            ),
+            QuestionStep(
+                step_key="role_tasks",
+                title_de="Rolle",
+                questions=[
+                    Question(
+                        id="decision_scope",
+                        label="Welche Entscheidungen darf die Person selbst treffen?",
+                        answer_type=AnswerType.SHORT_TEXT,
+                    ),
+                    Question(
+                        id="success_90_days",
+                        label="Woran erkennt ihr Erfolg nach 90 Tagen?",
+                        answer_type=AnswerType.SHORT_TEXT,
+                        group_key="success_30_90_180",
+                    ),
+                ],
+            ),
+            QuestionStep(
+                step_key="skills",
+                title_de="Skills",
+                questions=[
+                    Question(
+                        id="python_depth",
+                        label="Welches Niveau in Python ist erforderlich?",
+                        answer_type=AnswerType.SHORT_TEXT,
+                        group_key="Skill Levels",
+                    ),
+                    Question(
+                        id="skill_substitute",
+                        label="Welche Skills koennen durch Lernkurve ersetzt werden?",
+                        answer_type=AnswerType.SHORT_TEXT,
+                    ),
+                ],
+            ),
+            QuestionStep(
+                step_key="benefits",
+                title_de="Benefits",
+                questions=[
+                    Question(
+                        id="salary_budget",
+                        label="Welches Gehaltsbudget ist geplant?",
+                        answer_type=AnswerType.SHORT_TEXT,
+                    ),
+                    Question(
+                        id="start_contract",
+                        label="Welche Vertragsart und welcher Starttermin sind fix?",
+                        answer_type=AnswerType.SHORT_TEXT,
+                    ),
+                ],
+            ),
+            QuestionStep(
+                step_key="interview",
+                title_de="Interview",
+                questions=[
+                    Question(
+                        id="scorecard_evidence",
+                        label="Welche Bewertungsevidenz braucht ihr je Stufe?",
+                        answer_type=AnswerType.SHORT_TEXT,
+                    ),
+                    Question(
+                        id="feedback_sla",
+                        label="Welche Feedback-SLA gilt fuer Kandidaten?",
+                        answer_type=AnswerType.SHORT_TEXT,
+                    ),
+                ],
+            ),
+        ]
+    )
+
+    normalized = normalize_question_plan(plan)
+    groups_by_id = {
+        question.id: question.group_key
+        for step in normalized.steps
+        for question in step.questions
+    }
+
+    assert groups_by_id == {
+        "employer_pitch": "employer_narrative",
+        "office_policy": "work_model_location",
+        "decision_scope": "ownership_scope",
+        "success_90_days": "success_30_90_180",
+        "python_depth": "proficiency_depth",
+        "skill_substitute": "substitutability",
+        "salary_budget": "compensation",
+        "start_contract": "contract_start",
+        "scorecard_evidence": "evaluation_evidence",
+        "feedback_sla": "slas_communication",
+    }
+
+
+def test_normalize_active_step_unknown_group_keys_use_stable_step_fallback() -> None:
+    plan = QuestionPlan(
+        steps=[
+            QuestionStep(
+                step_key="benefits",
+                title_de="Benefits",
+                questions=[
+                    Question(
+                        id="unclear_offer_question",
+                        label="Welche Besonderheit ist relevant?",
+                        answer_type=AnswerType.SHORT_TEXT,
+                        group_key="bespoke customer phrase",
+                    )
+                ],
+            )
+        ]
+    )
+
+    normalized = normalize_question_plan(plan)
+
+    assert normalized.steps[0].questions[0].group_key == "differentiating_benefits"
