@@ -55,7 +55,7 @@ def test_public_sidebar_link_targets_exist_and_are_allowed() -> None:
         assert (repo_root / page_path).is_file(), f"Missing public sidebar target: {page_path}"
 
 
-def test_sidebar_renders_preference_center_after_public_links(monkeypatch) -> None:
+def test_sidebar_does_not_render_preference_center(monkeypatch) -> None:
     events: list[str] = []
 
     class _FakeExpander:
@@ -117,37 +117,16 @@ def test_sidebar_renders_preference_center_after_public_links(monkeypatch) -> No
 
     monkeypatch.setattr("components.sidebar.st", fake_st)
     monkeypatch.setattr("components.sidebar.ensure_preference_state", lambda: None)
-    monkeypatch.setattr("components.sidebar.get_preferences", lambda: {
-        "ui_language": "de",
-        "response_mode": "compact",
-        "info_depth": "standard",
-        "esco_match_strictness": 50,
-        "regional_focus": "DACH",
-        "privacy_mode": "minimal",
-        "accessibility_mode": "standard",
-        "output_format": "cards",
-        "include_sources": False,
-        "reuse_profile_context": False,
-    })
-    monkeypatch.setattr(
-        "components.sidebar.get_cookie_consent",
-        lambda: {"essential": True, "analytics": False, "personalization": False, "marketing": False},
-    )
-    monkeypatch.setattr("components.sidebar.update_preference", lambda *args, **kwargs: None)
-    monkeypatch.setattr("components.sidebar.update_cookie", lambda *args, **kwargs: None)
     monkeypatch.setattr("components.sidebar.build_runtime_context", lambda: {})
-    monkeypatch.setattr("components.sidebar.render_ui_mode_selector", lambda **kwargs: None)
 
     render_sidebar("landing")
 
-    preference_exit_idx = events.index("exit:Präferenz-Center")
-    public_links_idx = min(
-        events.index("page_link:Unsere Kompetenzen"),
-        events.index("page_link:Über Cognitive Staffing"),
-        events.index("page_link:Impressum"),
-        events.index("page_link:Cookie Policy/Settings"),
-    )
-    assert public_links_idx < preference_exit_idx
+    assert "expander:Präferenz-Center" not in events
+    assert "page_link:Vollansicht öffnen" not in events
+    assert "page_link:Unsere Kompetenzen" in events
+    assert "page_link:Über Cognitive Staffing" in events
+    assert "page_link:Impressum" in events
+    assert "page_link:Cookie Policy/Settings" in events
     hidden_labels = {
         "Kontakt",
         "Datenschutzrichtlinie",

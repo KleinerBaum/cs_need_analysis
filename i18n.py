@@ -11,6 +11,13 @@ from constants import SSKey, UI_PREFERENCE_UI_LANGUAGE
 
 
 SUPPORTED_UI_LANGUAGES = ("de", "en")
+LANGUAGE_WIDGET_KEYS = (
+    "sidebar.ui_language",
+    "page.ui_language",
+    f"{SSKey.ESCO_CONFIG.value}.language_choice",
+    f"{SSKey.ESCO_CONFIG.value}.phase_a.language",
+)
+LAST_LANGUAGE_WIDGET_KEY = "cs.language.last_widget_key"
 
 _TRANSLATIONS_EN: dict[str, str] = {
     "Start": "Start",
@@ -26,6 +33,16 @@ _TRANSLATIONS_EN: dict[str, str] = {
     "Schnell": "Quick",
     "Ausführlich": "Standard",
     "Vollumfänglich": "Full",
+    "niedrig": "low",
+    "hoch": "high",
+    "locker": "loose",
+    "ausgewogen": "balanced",
+    "streng": "strict",
+    "standard": "standard",
+    "ja": "yes",
+    "nein": "no",
+    "Später": "Later",
+    "Nicht übernommen": "Not applied",
     "Prozess": "Process",
     "Sprache": "Language",
     "Sprache für Vorschläge": "Language for suggestions",
@@ -97,6 +114,85 @@ _TRANSLATIONS_EN: dict[str, str] = {
     "Auswahl verwerfen": "Discard selection",
     "Legacy-URI migrieren": "Migrate legacy URI",
     "ESCO-Konfiguration aktualisiert. Cache wurde invalidiert.": "ESCO configuration updated. Cache was invalidated.",
+    "Analyse starten": "Start analysis",
+    "Analyseergebnis": "Analysis result",
+    "Berufsabgleich": "Occupation matching",
+    "Berufsabgleich bestätigen": "Confirm occupation match",
+    "Quelle bearbeiten": "Edit source",
+    "Erkannte Angaben prüfen": "Review detected information",
+    "Angaben übernehmen": "Apply information",
+    "Angaben übernommen.": "Information applied.",
+    "Ein paar Informationen vorab": "A few details first",
+    "Unternehmenswebsite": "Company website",
+    "Hinweise aus der Website-Analyse": "Insights from website analysis",
+    "Strukturierter Kontext": "Structured context",
+    "Unternehmensprofil": "Company profile",
+    "Team & Reporting": "Team & reporting",
+    "Arbeitsmodell": "Work model",
+    "Non-negotiables & Compliance": "Non-negotiables & compliance",
+    "Outcome & Scope": "Outcome & scope",
+    "Priorisierung": "Prioritization",
+    "Erfolg und Entscheidungsspielraum": "Success and decision scope",
+    "Reiseprofil": "Travel profile",
+    "Auswirkung auf Prognose": "Impact on forecast",
+    "Skills präzisieren und priorisieren": "Clarify and prioritize skills",
+    "Weitere AI-Vorschläge": "More AI suggestions",
+    "AI-Vorschläge": "AI suggestions",
+    "AI-Vorschläge ergänzen": "Add AI suggestions",
+    "Erkannte und ausgewählte Benefits": "Detected and selected benefits",
+    "Einflussfaktoren": "Influence factors",
+    "Details zu Einflussfaktoren": "Details on influence factors",
+    "Variable Vergütung": "Variable compensation",
+    "Arbeitszeit, Schicht und Ausgleich": "Working time, shifts, and compensation",
+    "Vertrags- und Offer-Komponenten": "Contract and offer components",
+    "Interne Rollen und Ansprechpartner": "Internal roles and contacts",
+    "Interviewstufen": "Interview stages",
+    "Stage Owner": "Stage owner",
+    "Candidate Update SLA": "Candidate update SLA",
+    "Assessment Evidence": "Assessment evidence",
+    "Scorecard": "Scorecard",
+    "Stage & Evaluation": "Stage & evaluation",
+    "Interviewprozess definieren": "Define interview process",
+    "Candidate Communication": "Candidate communication",
+    "Readiness-Übersicht": "Readiness overview",
+    "Artefaktübersicht": "Artifact overview",
+    "Quellen & Details prüfen": "Review sources and details",
+    "Recruiting Brief": "Recruiting brief",
+    "Frageblöcke": "Question blocks",
+    "Bewertungsrubrik": "Evaluation rubric",
+    "Empfehlungsoptionen": "Recommendation options",
+    "Kompetenzen validieren": "Validate competencies",
+    "Debrief-Fragen": "Debrief questions",
+    "Klauseln": "Clauses",
+    "Keine Vorschläge.": "No suggestions.",
+    "Keine Einträge.": "No entries.",
+    "Keine Treffer für die aktuellen Filter.": "No matches for the current filters.",
+    "Keine sichtbaren Fragen in diesem Schritt.": "No visible questions in this step.",
+    "Antworten übernehmen": "Apply answers",
+    "Antworten übernommen.": "Answers applied.",
+    "Übernehmen": "Apply",
+    "Weitere Sprache hinzufügen": "Add another language",
+    "Taxonomie laden": "Load taxonomy",
+    "Top-Treffer wurde per Enter übernommen.": "Top match was applied via Enter.",
+    "Referenzberuf auswählen": "Select reference occupation",
+    "Kontextrolle auswählen": "Select context role",
+    "Suchbegriff für Berufsabgleich": "Search term for occupation matching",
+    "Suchbegriff für Kontextrolle": "Search term for context role",
+    "Bestätigter Referenzberuf": "Confirmed reference occupation",
+    "Bestätigte ESCO-Auswahl": "Confirmed ESCO selection",
+    "Ausgewählte Kontextrolle": "Selected context role",
+    "Als Kontextanker hinzufügen": "Add as context anchor",
+    "Kontextanker hinzugefügt.": "Context anchor added.",
+    "Ohne bestätigten Referenzberuf fortfahren": "Continue without a confirmed reference occupation",
+    "Später erneut versuchen": "Try again later",
+    "URI kopieren": "Copy URI",
+    "URI zum Kopieren eingeblendet.": "URI shown for copying.",
+    "Mehr Details": "More details",
+    "Warum Berufsabgleich?": "Why occupation matching?",
+    "Warum dieser Vorschlag?": "Why this suggestion?",
+    "Geladene Occupation-Titelvarianten": "Loaded occupation title variants",
+    "Nur verfügbare Felder anzeigen": "Show available fields only",
+    "Portal öffnen": "Open portal",
 }
 
 _PHRASE_TRANSLATIONS_EN: dict[str, str] = {
@@ -110,6 +206,57 @@ _PHRASE_TRANSLATIONS_EN: dict[str, str] = {
     "Offen": "Open",
     "Teilweise": "Partial",
     "Vollständig": "Complete",
+    "beantwortet": "answered",
+    "Fehlt (essentiell)": "Missing (essential)",
+    "Sicherheit": "Confidence",
+    "Technische Details": "Technical details",
+    "Vorschläge": "Suggestions",
+    "Ausgewählt": "Selected",
+    "Ausgewählte": "Selected",
+    "Ausgewählter": "Selected",
+    "Noch keine": "No",
+    "Keine": "No",
+    "Berufsabgleich": "Occupation matching",
+    "Analyse läuft": "Analysis running",
+    "Analyse abgeschlossen": "Analysis complete",
+    "Informationen extrahiert und Fragebogen erzeugt": "information extracted and questionnaire generated",
+    "Mindestens ein Ergebnis wurde aus dem Cache geladen": "At least one result was loaded from cache",
+    "Die Quelle ist sehr kurz": "The source is very short",
+    "Die Extraktion kann unvollstaendig sein": "Extraction may be incomplete",
+    "Datei bereit": "File ready",
+    "Unbekannt": "Unknown",
+    "Extraktion fehlgeschlagen": "Extraction failed",
+    "Zeichen": "Characters",
+    "Quelle": "Source",
+    "Upload": "Upload",
+    "Text": "Text",
+    "Manuell erfasste URL": "Manually entered URL",
+    "Website-Analyse": "website analysis",
+    "Arbeitsmodell": "Work model",
+    "Aufgaben": "tasks",
+    "Skills": "skills",
+    "Benefits": "benefits",
+    "Fragen": "questions",
+    "Antworten": "answers",
+    "Essentials offen": "Open essentials",
+    "Gruppenstatus": "Group status",
+    "vollständig beantwortet": "fully answered",
+    "vollständig": "complete",
+    "offen": "open",
+    "weitere": "more",
+    "Rolle": "Role",
+    "Zielregionen": "Target regions",
+    "Primäre Query": "Primary query",
+    "Beobachtbare Evidenz": "Observable evidence",
+    "Skala": "Scale",
+    "Keine kritischen Lücken erkannt": "No critical gaps detected",
+    "Kritische Lücken": "Critical gaps",
+    "Bereit": "Ready",
+    "Erfüllt": "Met",
+    "Ungültig": "Invalid",
+    "ungültig": "invalid",
+    "Offene Lücken": "Open gaps",
+    "Nächster verfügbarer Schritt": "Next available step",
 }
 
 _PATCHED = False
@@ -165,6 +312,43 @@ def sync_language_state(language: object, *, session_state: Any | None = None) -
     return normalized
 
 
+def sync_language_from_widget_key(
+    widget_key: str, *, session_state: Any | None = None
+) -> str | None:
+    state = session_state if session_state is not None else st.session_state
+    if widget_key not in state:
+        return None
+    raw_language = state.get(widget_key)
+    normalized = normalize_language(raw_language)
+    if normalized != raw_language:
+        return None
+    synced_language = sync_language_state(normalized, session_state=state)
+    state[LAST_LANGUAGE_WIDGET_KEY] = widget_key
+    return synced_language
+
+
+def sync_language_from_known_widgets(*, session_state: Any | None = None) -> str | None:
+    state = session_state if session_state is not None else st.session_state
+    last_widget_key = state.get(LAST_LANGUAGE_WIDGET_KEY)
+    if isinstance(last_widget_key, str):
+        synced_language = sync_language_from_widget_key(
+            last_widget_key, session_state=state
+        )
+        if synced_language is not None:
+            return synced_language
+    for widget_key in LANGUAGE_WIDGET_KEYS:
+        synced_language = sync_language_from_widget_key(
+            widget_key, session_state=state
+        )
+        if synced_language is not None:
+            return synced_language
+    return None
+
+
+def sync_streamlit_language_widget(widget_key: str) -> None:
+    sync_language_from_widget_key(widget_key)
+
+
 def _translate_first_string_arg(args: tuple[Any, ...]) -> tuple[Any, ...]:
     if args and isinstance(args[0], str):
         return (t(args[0]), *args[1:])
@@ -176,6 +360,13 @@ def _translate_label_kwargs(kwargs: dict[str, Any]) -> dict[str, Any]:
     for key in ("label", "help", "placeholder"):
         if isinstance(translated.get(key), str):
             translated[key] = t(translated[key])
+    options = translated.get("options")
+    if (
+        "format_func" not in translated
+        and isinstance(options, (list, tuple))
+        and all(isinstance(option, str) for option in options)
+    ):
+        translated["format_func"] = lambda option: t(option)
     return translated
 
 

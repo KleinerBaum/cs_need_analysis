@@ -72,8 +72,12 @@ def test_render_ui_styles_scopes_metric_styles_for_sidebar(monkeypatch) -> None:
     assert '[data-testid="stSidebar"] [data-testid="stMetric"] {' in css
     assert "--cs-sidebar-bg:" in css
     assert "--cs-sidebar-surface:" in css
+    assert "--cs-sidebar-surface: #142033;" in css
+    assert "--cs-sidebar-surface-muted: #1E2C42;" in css
     assert "--cs-sidebar-text:" in css
     assert "--cs-sidebar-text-muted:" in css
+    assert "--cs-sidebar-surface-text: #F8FAFC;" in css
+    assert "--cs-sidebar-surface-text-muted: #CBD5E1;" in css
     assert '[data-testid="stSidebarContent"] {' in css
     assert "background: var(--cs-sidebar-bg) !important;" in css
     assert "background: var(--cs-sidebar-surface);" in css
@@ -89,6 +93,8 @@ def test_render_ui_styles_scopes_metric_styles_for_sidebar(monkeypatch) -> None:
         '[data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stRadio"] label'
         in css
     )
+    assert '[data-testid="stSidebar"] [data-testid="stExpander"] div,' in css
+    assert '[data-testid="stSidebar"] [data-testid="stExpander"] svg,' in css
     assert (
         '[data-testid="stSidebar"] [data-testid="stExpander"] [data-baseweb="select"] > div'
         in css
@@ -97,7 +103,18 @@ def test_render_ui_styles_scopes_metric_styles_for_sidebar(monkeypatch) -> None:
         '[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stToggle"] label'
         in css
     )
+    assert (
+        '[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] div,'
+        in css
+    )
+    assert (
+        '[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] svg,'
+        in css
+    )
     assert '[data-testid="stSidebar"] [data-testid="stAlert"] {' in css
+    assert '[data-testid="stSidebar"] [data-testid="stAlert"] div,' in css
+    assert '[data-testid="stSidebar"] [data-testid="stAlert"] svg {' in css
+    assert "fill: currentColor !important;" in css
     assert '[data-testid="stButton"] button {' in css
     assert '[data-testid="stAlert"] {' in css
     assert '[data-testid="stTabs"] button' in css

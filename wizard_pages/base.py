@@ -33,8 +33,8 @@ from constants import (
     STEPS,
     UI_PREFERENCE_ANSWER_MODE,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
+    UI_PREFERENCE_INFORMATION_DEPTH,
     UI_MODE_DISPLAY_LABELS,
-    UI_MODE_HELP_TEXT,
     UI_MODE_VALUES,
 )
 from esco_client import EscoClient, EscoClientError, clear_esco_cache
@@ -44,7 +44,7 @@ from esco_semantics import (
     selected_version_for_release_lane,
     sync_esco_semantic_state,
 )
-from i18n import sync_language_state, t
+from i18n import sync_language_state, sync_streamlit_language_widget, t
 from question_dependencies import should_show_question
 from question_limits import (
     select_questions_for_adaptive_limit,
@@ -925,6 +925,8 @@ def render_esco_language_toggle() -> None:
         horizontal=True,
         key=f"{SSKey.ESCO_CONFIG.value}.language_choice",
         label_visibility="collapsed",
+        on_change=sync_streamlit_language_widget,
+        args=(f"{SSKey.ESCO_CONFIG.value}.language_choice",),
     )
     sync_language_state(selected_language)
     _set_esco_config(
@@ -993,13 +995,27 @@ def map_ui_mode_to_answer_mode(raw_ui_mode: object) -> str:
     return str(ui_to_answer_mode.get(normalized_ui_mode, "balanced"))
 
 
+def map_ui_mode_to_information_depth(raw_ui_mode: object) -> str:
+    """Map canonical UI mode to persisted information-depth preference metadata."""
+    normalized_ui_mode = normalize_ui_mode(raw_ui_mode)
+    ui_to_information_depth = {
+        "quick": "niedrig",
+        "standard": "standard",
+        "expert": "hoch",
+    }
+    return str(ui_to_information_depth.get(normalized_ui_mode, "standard"))
+
+
 def sync_ui_mode_preference_metadata() -> None:
-    """Persist answer-mode metadata from canonical runtime UI mode."""
+    """Persist derived preference metadata from canonical runtime UI mode."""
     ui_mode = get_current_ui_mode()
     preferences = normalize_ui_preferences(
         st.session_state.get(SSKey.UI_PREFERENCES.value)
     )
     preferences[UI_PREFERENCE_ANSWER_MODE] = map_ui_mode_to_answer_mode(ui_mode)
+    preferences[UI_PREFERENCE_INFORMATION_DEPTH] = map_ui_mode_to_information_depth(
+        ui_mode
+    )
     st.session_state[SSKey.UI_PREFERENCES.value] = preferences
 
 
@@ -1018,7 +1034,7 @@ def get_ui_mode_badge_text(ui_mode: str | None = None) -> str:
 def render_active_ui_mode_caption(*, ui_mode: str | None = None) -> None:
     st.caption(
         f"{get_ui_mode_badge_text(ui_mode)} · "
-        f"{t('Der Modus steuert, wie viele Fragen im aktuellen Schritt sichtbar sind.')}"
+        f"{t('Der Modus steuert Frageumfang und Detailgrad der Ergebnisse.')}"
     )
 
 
@@ -1035,13 +1051,16 @@ def render_ui_mode_selector(
     )
     st.session_state[ui_mode_key] = normalized_mode
     selected_mode = selectbox(
-        "Wie weit möchten Sie ins Detail gehen?",
+        "Detailgrad",
         options=list(UI_MODE_VALUES),
         key=ui_mode_key,
         format_func=lambda mode: str(
             t(UI_MODE_DISPLAY_LABELS.get(mode, str(mode).capitalize()))
         ),
-        help=UI_MODE_HELP_TEXT,
+        help=(
+            "Steuert, wie intensiv der Bedarf abgefragt wird und wie genau "
+            "die Ergebnisse des Informationsgewinnungsprozesses ausfallen."
+        ),
         on_change=_sync_mode_change,
         label_visibility="visible" if show_label else "collapsed",
     )

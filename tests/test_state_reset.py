@@ -273,6 +273,7 @@ def test_reset_vacancy_preserves_existing_ui_preferences(monkeypatch) -> None:
         "details_expanded_default": True,
         "pii_reduction": False,
         "step_compact": {"company": False},
+        "ui_language": "en",
     }
     fake_session_state = {
         SSKey.UI_PREFERENCES.value: preserved_preferences,
@@ -292,6 +293,7 @@ def test_reset_vacancy_preserves_existing_ui_preferences(monkeypatch) -> None:
     assert resolved_preferences["step_compact"] == {"company": False}
     assert resolved_preferences["confidence_threshold"] == 0.6
     assert resolved_preferences["pii_reduction"] is False
+    assert resolved_preferences["ui_language"] == "en"
     assert fake_session_state[SSKey.SOURCE_REDACT_PII.value] is False
 
 

@@ -5,7 +5,13 @@ from typing import Any
 from streamlit.errors import StreamlitAPIException
 
 import wizard_pages.base as base
-from constants import SSKey, STEPS, STEP_KEY_TEAM, UI_PREFERENCE_ANSWER_MODE
+from constants import (
+    SSKey,
+    STEPS,
+    STEP_KEY_TEAM,
+    UI_PREFERENCE_ANSWER_MODE,
+    UI_PREFERENCE_INFORMATION_DEPTH,
+)
 
 
 class _LockedSessionState(dict[str, Any]):
@@ -77,6 +83,37 @@ def test_render_ui_mode_selector_does_not_mutate_widget_bound_mode_key(
     assert (
         session_state[SSKey.UI_PREFERENCES.value][UI_PREFERENCE_ANSWER_MODE]
         == "balanced"
+    )
+    assert (
+        session_state[SSKey.UI_PREFERENCES.value][UI_PREFERENCE_INFORMATION_DEPTH]
+        == "standard"
+    )
+
+
+def test_render_ui_mode_selector_derives_legacy_preference_metadata(monkeypatch) -> None:
+    session_state = _LockedSessionState(
+        {
+            SSKey.UI_MODE.value: "expert",
+            SSKey.UI_PREFERENCES.value: {
+                UI_PREFERENCE_ANSWER_MODE: "balanced",
+                UI_PREFERENCE_INFORMATION_DEPTH: "standard",
+            },
+        }
+    )
+    fake_st = _FakeStreamlit(session_state)
+    monkeypatch.setattr(base, "st", fake_st)
+    monkeypatch.setattr(base, "sync_adaptive_question_limits", lambda: None)
+
+    selected_mode = base.render_ui_mode_selector(widget_key=SSKey.UI_MODE.value)
+
+    assert selected_mode == "expert"
+    assert (
+        session_state[SSKey.UI_PREFERENCES.value][UI_PREFERENCE_ANSWER_MODE]
+        == "advisory"
+    )
+    assert (
+        session_state[SSKey.UI_PREFERENCES.value][UI_PREFERENCE_INFORMATION_DEPTH]
+        == "hoch"
     )
 
 

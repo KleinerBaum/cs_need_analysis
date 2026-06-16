@@ -16,9 +16,11 @@ from constants import (
     UI_PREFERENCE_INFORMATION_DEPTH,
     UI_PREFERENCE_PII_REDUCTION,
     UI_PREFERENCE_REGIONAL_FOCUS,
-    UI_PREFERENCE_UI_LANGUAGE,
 )
-from i18n import patch_streamlit_text, sync_language_state
+from i18n import (
+    patch_streamlit_text,
+    sync_language_from_known_widgets,
+)
 from llm_client import (
     TASK_EXTRACT_JOB_AD,
     TASK_GENERATE_QUESTION_PLAN,
@@ -31,6 +33,7 @@ from ui_layout import render_intake_process_progress
 from wizard_pages import load_pages
 from wizard_pages.base import (
     WizardContext,
+    map_ui_mode_to_information_depth,
     map_ui_mode_to_answer_mode,
     normalize_ui_mode,
     sidebar_navigation,
@@ -229,6 +232,12 @@ def _render_openai_debug_panel() -> None:
         st.json(debug_payload, expanded=False)
 
 
+def _sync_language_before_render() -> None:
+    """Apply language widget changes before any routed page renders."""
+
+    sync_language_from_known_widgets(session_state=st.session_state)
+
+
 def _render_preference_center_sidebar(
     *, key_prefix: str = "sidebar", show_reset_button: bool = True
 ) -> None:
@@ -236,52 +245,19 @@ def _render_preference_center_sidebar(
     preferences = normalize_ui_preferences(raw_preferences)
     st.session_state[SSKey.UI_PREFERENCES.value] = preferences
 
-    language_options = ["de", "en"]
-    current_language = str(
-        preferences.get(UI_PREFERENCE_UI_LANGUAGE)
-        or st.session_state.get(SSKey.LANGUAGE.value)
-        or "de"
-    )
-    if current_language not in language_options:
-        current_language = "de"
-    selected_language = st.selectbox(
-        "Sprache",
-        options=language_options,
-        index=language_options.index(current_language),
-        format_func=lambda value: "🇩🇪 Deutsch" if value == "de" else "🇬🇧 English",
-        key=f"{key_prefix}.ui_language",
-        help="Steuert UI-Texte, Standard-Response-Language und Exportsprache.",
-    )
-    sync_language_state(selected_language, session_state=st.session_state)
-    preferences = normalize_ui_preferences(
-        st.session_state.get(SSKey.UI_PREFERENCES.value)
-    )
-
-    answer_mode_options = ["compact", "balanced", "advisory"]
     current_ui_mode = normalize_ui_mode(st.session_state.get(SSKey.UI_MODE.value))
     answer_mode = map_ui_mode_to_answer_mode(current_ui_mode)
-    st.selectbox(
-        "Antwortmodus",
-        options=answer_mode_options,
-        index=answer_mode_options.index(answer_mode),
-        key=f"{key_prefix}.answer_mode",
-        disabled=True,
-        help=(
-            "Wird aus dem kanonischen Laufzeitmodus synchronisiert "
-            "(Detailgrad-Auswahl im Wizard)."
-        ),
+    information_depth = map_ui_mode_to_information_depth(current_ui_mode)
+    preferences.update(
+        {
+            UI_PREFERENCE_ANSWER_MODE: answer_mode,
+            UI_PREFERENCE_INFORMATION_DEPTH: information_depth,
+        }
     )
-    information_depth_options = ["niedrig", "standard", "hoch"]
-    information_depth_value = str(
-        preferences.get(UI_PREFERENCE_INFORMATION_DEPTH, "standard")
-    )
-    if information_depth_value not in information_depth_options:
-        information_depth_value = "standard"
-    information_depth = st.selectbox(
-        "Informationstiefe",
-        options=information_depth_options,
-        index=information_depth_options.index(information_depth_value),
-        key=f"{key_prefix}.information_depth",
+    st.session_state[SSKey.UI_PREFERENCES.value] = normalize_ui_preferences(preferences)
+    st.markdown(
+        "Detailgrad, Antwortmodus und Informationstiefe werden im Start-Schritt "
+        "über eine gemeinsame Auswahl gesteuert."
     )
     strictness_options = ["locker", "ausgewogen", "streng"]
     strictness_value = str(
@@ -329,7 +305,6 @@ def _render_preference_center_sidebar(
     )
     st.session_state[SSKey.UI_PREFERENCES.value] = normalize_ui_preferences(preferences)
     st.session_state[SSKey.SOURCE_REDACT_PII.value] = pii_reduction
-    st.markdown("[⚙️ Präferenz-Center (volle Ansicht)](?page=preferences)")
     if show_reset_button:
         st.button("Reset Vacancy", on_click=reset_vacancy, key=f"{key_prefix}.reset")
 
@@ -360,8 +335,6 @@ def _render_sidebar_actions() -> None:
         st.markdown("#### Seiten")
         for page_path, label in SIDEBAR_PAGE_LINKS:
             st.page_link(page_path, label=label)
-        with st.expander("Präferenz-Center", expanded=False):
-            _render_preference_center_sidebar()
 
 
 def _reset_scroll_on_step_change() -> None:
@@ -407,6 +380,7 @@ def main() -> None:
 
     init_session_state()
     patch_streamlit_text()
+    _sync_language_before_render()
     previous_step = st.session_state.get(SSKey.LAST_RENDERED_STEP.value)
 
     pages = load_pages()

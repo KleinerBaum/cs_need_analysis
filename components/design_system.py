@@ -68,13 +68,13 @@ def render_ui_styles() -> None:
             --cs-text-muted: #475569;
             --cs-text-subtle: #64748B;
             --cs-sidebar-bg: #0B1724;
-            --cs-sidebar-surface: #F8FAFC;
-            --cs-sidebar-surface-muted: #E8EEF5;
-            --cs-sidebar-border: rgba(226, 232, 240, 0.22);
+            --cs-sidebar-surface: #142033;
+            --cs-sidebar-surface-muted: #1E2C42;
+            --cs-sidebar-border: #2D3A4F;
             --cs-sidebar-text: #F8FAFC;
             --cs-sidebar-text-muted: #CBD5E1;
-            --cs-sidebar-surface-text: var(--cs-primary-navy);
-            --cs-sidebar-surface-text-muted: #475569;
+            --cs-sidebar-surface-text: #F8FAFC;
+            --cs-sidebar-surface-text-muted: #CBD5E1;
             --cs-primary: var(--primary-color, var(--cs-primary-blue));
             --cs-on-primary: #FFFFFF;
             --cs-primary-soft: #E8F0FF;
@@ -196,6 +196,7 @@ def render_ui_styles() -> None:
         [data-testid="stSidebar"] h5,
         [data-testid="stSidebar"] h6,
         [data-testid="stSidebar"] p,
+        [data-testid="stSidebar"] span,
         [data-testid="stSidebar"] li,
         [data-testid="stSidebar"] label,
         [data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
@@ -253,8 +254,12 @@ def render_ui_styles() -> None:
         }
         [data-testid="stSidebar"] [data-baseweb="radio"] > div:first-child,
         [data-testid="stSidebar"] [data-testid="stCheckbox"] span,
-        [data-testid="stSidebar"] [data-testid="stToggle"] span {
+        [data-testid="stSidebar"] [data-testid="stToggle"] span,
+        [data-testid="stSidebar"] [data-testid="stRadio"] svg,
+        [data-testid="stSidebar"] [data-testid="stCheckbox"] svg,
+        [data-testid="stSidebar"] [data-testid="stToggle"] svg {
             color: inherit !important;
+            fill: currentColor !important;
         }
         [data-testid="stSidebar"] input,
         [data-testid="stSidebar"] textarea,
@@ -387,6 +392,8 @@ def render_ui_styles() -> None:
         [data-testid="stSidebar"] [data-testid="stExpander"] li,
         [data-testid="stSidebar"] [data-testid="stExpander"] label,
         [data-testid="stSidebar"] [data-testid="stExpander"] span,
+        [data-testid="stSidebar"] [data-testid="stExpander"] div,
+        [data-testid="stSidebar"] [data-testid="stExpander"] svg,
         [data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stMarkdownContainer"],
         [data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stWidgetLabel"],
         [data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stRadio"] label,
@@ -420,6 +427,7 @@ def render_ui_styles() -> None:
         [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] [data-baseweb="input"] *,
         [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] [data-baseweb="textarea"] * {
             color: var(--cs-sidebar-surface-text) !important;
+            fill: currentColor !important;
         }
         [data-testid="stSidebar"] [data-testid="stExpander"] input::placeholder,
         [data-testid="stSidebar"] [data-testid="stExpander"] textarea::placeholder,
@@ -497,6 +505,33 @@ def render_ui_styles() -> None:
         [data-theme="dark"] [data-testid="stTable"] tbody tr {
             background: var(--cs-surface-muted) !important;
         }
+        [data-testid="stSidebar"] input,
+        [data-testid="stSidebar"] textarea,
+        [data-testid="stSidebar"] [data-baseweb="select"] > div,
+        [data-testid="stSidebar"] [data-baseweb="textarea"] textarea,
+        [data-testid="stSidebar"] [data-baseweb="input"] > div {
+            background: var(--cs-sidebar-surface-muted) !important;
+            border-color: var(--cs-sidebar-border) !important;
+            color: var(--cs-sidebar-surface-text) !important;
+        }
+        [data-testid="stSidebar"] [data-baseweb="select"] *,
+        [data-testid="stSidebar"] [data-baseweb="input"] *,
+        [data-testid="stSidebar"] [data-baseweb="textarea"] * {
+            color: var(--cs-sidebar-surface-text) !important;
+            fill: currentColor !important;
+        }
+        [data-testid="stSidebar"] input::placeholder,
+        [data-testid="stSidebar"] textarea::placeholder {
+            color: var(--cs-sidebar-surface-text-muted) !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stButton"] button,
+        [data-testid="stSidebar"] [data-testid="stFormSubmitButton"] button,
+        [data-testid="stSidebar"] [data-testid="stDownloadButton"] button {
+            background: var(--cs-sidebar-surface) !important;
+            border-color: var(--cs-sidebar-border) !important;
+            color: var(--cs-sidebar-surface-text) !important;
+            box-shadow: none;
+        }
         [data-testid="stDataFrame"],
         [data-testid="stTable"] {
             color: var(--cs-text) !important;
@@ -556,8 +591,11 @@ def render_ui_styles() -> None:
         [data-testid="stSidebar"] [data-testid="stAlert"] [data-testid="stMarkdownContainer"],
         [data-testid="stSidebar"] [data-testid="stAlert"] p,
         [data-testid="stSidebar"] [data-testid="stAlert"] li,
-        [data-testid="stSidebar"] [data-testid="stAlert"] span {
+        [data-testid="stSidebar"] [data-testid="stAlert"] span,
+        [data-testid="stSidebar"] [data-testid="stAlert"] div,
+        [data-testid="stSidebar"] [data-testid="stAlert"] svg {
             color: var(--cs-sidebar-surface-text) !important;
+            fill: currentColor !important;
         }
         [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] {
             background: var(--cs-sidebar-surface) !important;
@@ -568,6 +606,8 @@ def render_ui_styles() -> None:
         [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] p,
         [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] label,
         [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] span,
+        [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] div,
+        [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] svg,
         [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] li,
         [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stMarkdownContainer"],
         [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stWidgetLabel"],
@@ -575,6 +615,7 @@ def render_ui_styles() -> None:
         [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stCheckbox"] label,
         [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stToggle"] label {
             color: var(--cs-sidebar-surface-text) !important;
+            fill: currentColor !important;
         }
         [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stCaptionContainer"],
         [data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] small {
