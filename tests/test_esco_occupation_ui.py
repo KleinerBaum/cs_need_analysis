@@ -57,7 +57,7 @@ def test_render_esco_occupation_confirmation_allows_manual_query_without_title(
     assert picker_calls
     assert fake_st.infos == [
         "Kein Jobtitel vorhanden. Gib einen Rollenbegriff ein, um die "
-        "ESCO-Zuordnung manuell zu starten."
+        "Berufsabgleich manuell zu starten."
     ]
     assert fake_st.session_state[SSKey.ESCO_UNMAPPED_ROLE_TERMS.value] == []
 
@@ -613,6 +613,7 @@ def test_render_esco_occupation_confirmation_keeps_chart_before_title_variants(
                     "uri": "http://data.europa.eu/esco/occupation/123",
                     "title": "Data Engineer",
                 },
+                SSKey.UI_MODE.value: "expert",
                 SSKey.ESCO_CONFIG.value: {"language": "de"},
             }
 
@@ -706,13 +707,13 @@ def test_render_esco_occupation_confirmation_keeps_chart_before_title_variants(
     assert any("Sicherheit: hoch" in event for event in fake_st.events)
     assert any("passt direkt zur Rolle" in event for event in fake_st.events)
     assert fake_st.expander_calls[:5] == [
-        ("Warum ESCO?", False),
+        ("Warum Berufsabgleich?", False),
         ("Warum dieser Vorschlag?", False),
-        ("Technische Details", False),
+        ("Technische Details", True),
         ("ESCO Capability Status", False),
-        ("ESCO Debug", False),
+        ("ESCO Debug", True),
     ]
-    assert ("Beruf im Detail", False) in fake_st.expander_calls
+    assert ("Beruf im Detail", True) in fake_st.expander_calls
     assert any("Essential Knowledge" in event for event in fake_st.events)
     assert any("Optional Knowledge" in event for event in fake_st.events)
 
@@ -736,6 +737,7 @@ def test_render_esco_occupation_confirmation_compact_mode_keeps_decision_first(
                     "uri": "http://data.europa.eu/esco/occupation/123",
                     "title": "Data Engineer",
                 },
+                SSKey.UI_MODE.value: "expert",
                 SSKey.ESCO_CONFIG.value: {"language": "de"},
             }
             self.caption_messages: list[str] = []
@@ -799,7 +801,7 @@ def test_render_esco_occupation_confirmation_compact_mode_keeps_decision_first(
     )
 
     assert any(
-        "Der ESCO-Beruf ist der gemeinsame Bezugspunkt" in message
+        "Der Referenzberuf ist der gemeinsame Bezugspunkt" in message
         for message in fake_st.info_messages
     )
     assert any("Portal öffnen" in message for message in fake_st.markdown_messages)
@@ -826,6 +828,7 @@ def test_render_esco_occupation_confirmation_can_hide_start_detail_panels(
                     "uri": "http://data.europa.eu/esco/occupation/123",
                     "title": "Data Engineer",
                 },
+                SSKey.UI_MODE.value: "expert",
                 SSKey.ESCO_CONFIG.value: {"language": "de"},
             }
             self.button_labels: list[str] = []
@@ -930,13 +933,13 @@ def test_render_esco_occupation_confirmation_can_hide_start_detail_panels(
         ]
     )
     assert "Titel-Varianten laden" not in rendered_text
-    assert "Bevorzugte Occupation-Titelsprachen" not in rendered_text
+    assert "Sprachen für Berufstitel" not in rendered_text
     assert "Concept overview" not in rendered_text
     assert "Capabilities:" not in rendered_text
     assert "URI kopieren" not in rendered_text
     assert "Taxonomie/Breadcrumb" not in rendered_text
     assert "Portal öffnen" not in rendered_text
-    assert "Warum ESCO" not in rendered_text
+    assert "Warum Berufsabgleich" not in rendered_text
     assert any("Sicherheit: hoch" in message for message in fake_st.markdown_messages)
     assert fake_st.session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] == (
         "http://data.europa.eu/esco/occupation/123"
@@ -976,6 +979,7 @@ def test_render_esco_occupation_confirmation_skips_skill_group_request_when_unsu
                     "uri": "http://data.europa.eu/esco/occupation/123",
                     "title": "Data Engineer",
                 },
+                SSKey.UI_MODE.value: "expert",
                 SSKey.ESCO_CONFIG.value: {"language": "de"},
             }
 

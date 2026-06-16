@@ -163,13 +163,14 @@ def test_identified_info_next_is_enabled_without_esco_anchor(monkeypatch) -> Non
     assert "Analyse abgeschlossen" not in fake_st.successes
     assert (
         "Die wichtigsten Angaben sind vorbereitet. Prüfen Sie kurz die Basisdaten "
-        "und bestätigen Sie anschließend den passenden ESCO-Beruf."
+        "und bestätigen Sie anschließend den passenden Beruf für den Abgleich."
         in fake_st.captions
     )
     assert "Technische Details zur Analyse" not in fake_st.expanders
     assert "cs.jobspec.ident_info.next" not in fake_st.button_disabled
     assert (
-        "Optional: In Phase C können Sie einen semantischen ESCO-Anker bestätigen."
+        "Optional: Im nächsten Abschnitt können Sie einen Referenzberuf für den "
+        "Berufsabgleich bestätigen."
         in fake_st.captions
     )
     assert overview_calls
@@ -212,7 +213,7 @@ def test_identified_info_next_uses_selected_occupation_fallback(monkeypatch) -> 
     jobad_intake._render_identified_information_block(ctx)
 
     assert "cs.jobspec.ident_info.next" not in fake_st.button_disabled
-    assert "ESCO-Anker bestätigt: Data Scientist" in fake_st.successes
+    assert "Berufsabgleich bestätigt: Data Scientist" in fake_st.successes
     assert next_calls["count"] == 0
     assert fake_st.rerun_called is False
 
@@ -290,10 +291,10 @@ def test_job_extract_overview_shows_redacted_field_evidence(monkeypatch) -> None
 
     table_rows, _dataframe_kwargs = fake_st.dataframes[0]
     role_row = next(row for row in table_rows if row["Attribut"] == "Rolle")
-    assert role_row["Confidence"] == "82% · prüfen"
-    assert "recruiting@example.com" not in role_row["Evidence"]
-    assert "[REDACTED]" in role_row["Evidence"]
-    assert "Data Engineer" in role_row["Evidence"]
+    assert role_row["Sicherheit"] == "82% · prüfen"
+    assert "recruiting@example.com" not in role_row["Textstelle"]
+    assert "[REDACTED]" in role_row["Textstelle"]
+    assert "Data Engineer" in role_row["Textstelle"]
 
 
 def test_editable_job_extract_renders_empty_job_title_for_review(
@@ -342,7 +343,7 @@ def test_editable_job_extract_includes_field_evidence_columns(monkeypatch) -> No
 
 def test_phase_b_hypothesis_form_groups_and_batches_submit(monkeypatch) -> None:
     fake_st = _FakeStreamlit(session_state={})
-    fake_st.form_submit_returns["Hypothesen übernehmen"] = True
+    fake_st.form_submit_returns["Angaben übernehmen"] = True
     monkeypatch.setattr(jobad_intake, "st", fake_st)
 
     job = JobAdExtract(
@@ -402,15 +403,15 @@ def test_phase_b_hypothesis_form_groups_and_batches_submit(monkeypatch) -> None:
 
 def test_phase_b_hypothesis_form_saves_table_edits_and_deleted_rows(monkeypatch) -> None:
     fake_st = _FakeStreamlit(session_state={})
-    fake_st.form_submit_returns["Hypothesen übernehmen"] = True
+    fake_st.form_submit_returns["Angaben übernehmen"] = True
     fake_st.editor_returns_by_key["cs.jobspec.hypothesis.Unternehmen.editor"] = [
         {
             "field_name": "company_name",
             "Feld": "Unternehmen",
             "Wert": "New GmbH",
             "Status": "Kurz bestätigen",
-            "Confidence": "70%",
-            "Evidence": "Old GmbH",
+            "Sicherheit": "70%",
+            "Textstelle": "Old GmbH",
         }
     ]
     fake_st.editor_returns_by_key[

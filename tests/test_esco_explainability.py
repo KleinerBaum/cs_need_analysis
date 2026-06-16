@@ -99,7 +99,7 @@ def test_render_esco_explainability_renders_collapsed_technical_details(monkeypa
         caption_prefix="Occupation Explainability",
     )
 
-    assert "Confidence: High" in fake_st.caption_messages
+    assert "Sicherheit: High" in fake_st.caption_messages
     assert (
         "Occupation Explainability: Top-ranked ESCO occupation aligns with query title."
         in fake_st.caption_messages

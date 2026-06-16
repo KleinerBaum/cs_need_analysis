@@ -383,7 +383,7 @@ def render_esco_explainability(
     normalized_confidence = _normalize_esco_confidence(confidence)
     if not normalized_labels and not reason:
         return
-    st.caption(f"Confidence: {normalized_confidence.title()}")
+    st.caption(f"Sicherheit: {normalized_confidence.title()}")
     if reason:
         st.caption(f"{caption_prefix}: {reason}")
     if normalized_labels:
@@ -944,7 +944,7 @@ def render_esco_picker_card(
     ).strip()
     if use_anchor_card:
         st.caption(
-            "Der Begriff steuert nur die ESCO-Suche; deine Rollenbeschreibung "
+            "Der Begriff steuert nur den Berufsabgleich; deine Rollenbeschreibung "
             "und spätere Antworten bleiben unverändert."
         )
     elif use_secondary_anchor_card:
@@ -978,9 +978,9 @@ def render_esco_picker_card(
     options = options if isinstance(options, list) else []
     if len(query_text) >= 2 and not options:
         st.info(
-            "Der Begriff wurde gesucht, aber es wurde keine passende Occupation gefunden. "
-            "Bitte Sprache umschalten (DE/EN), eine kürzere Query ohne Klammer-Kontext testen "
-            "oder die gewählte ESCO-Version prüfen."
+            "Der Begriff wurde gesucht, aber es wurde kein passender Beruf gefunden. "
+            "Bitte Sprache umschalten (DE/EN), einen kürzeren Suchbegriff ohne "
+            "Klammer-Kontext testen oder die Einstellungen prüfen."
         )
         if ui_mode == "expert":
             esco_config = st.session_state.get(SSKey.ESCO_CONFIG.value, {})
@@ -1019,7 +1019,7 @@ def render_esco_picker_card(
             return
 
         resolved_selection_label = selection_label or (
-            "ESCO-Beruf auswählen"
+            "Referenzberuf auswählen"
             if use_anchor_card
             else (
                 "Kontextrolle auswählen"
@@ -1087,7 +1087,7 @@ def render_esco_picker_card(
                 st.caption("Noch keine Vorschläge ausgewählt.")
             else:
                 st.markdown(
-                    "**Inferred suggestion/context preview (not user-confirmed):**"
+                    "**Vorschau der Auswahl (noch nicht bestätigt):**"
                 )
                 for concept in selected_payload:
                     if ui_mode == "expert":
@@ -1215,13 +1215,13 @@ def render_esco_picker_card(
         for idx, concept in enumerate(current_entries):
             concept_id = _build_esco_concept_id(concept, idx)
             with st.container(border=True):
-                st.markdown("**Bestätigter ESCO-Beruf**")
+                st.markdown("**Bestätigter Referenzberuf**")
                 st.markdown(f"### {concept['title']}")
                 if ui_mode == "expert":
                     st.caption(
                         f"URI: {concept['uri']} · Version: {version} · Quelle: {source}"
                     )
-                st.markdown("**Position im ESCO-Berufsbaum**")
+                st.markdown("**Position im Berufsverzeichnis**")
                 _render_esco_taxonomy_breadcrumb(
                     session_key=session_key,
                     concept=concept,
@@ -1287,8 +1287,8 @@ def _render_note_block(title: str, notes: Sequence[str], *, tone: str) -> None:
 
 def _field_evidence_column_config() -> dict[str, Any]:
     return {
-        "confidence": st.column_config.TextColumn("Confidence", disabled=True),
-        "evidence": st.column_config.TextColumn("Evidence", disabled=True),
+        "confidence": st.column_config.TextColumn("Sicherheit", disabled=True),
+        "evidence": st.column_config.TextColumn("Textstelle", disabled=True),
     }
 
 
@@ -1313,7 +1313,7 @@ def render_intake_process_animation(*, state: Literal["idle", "running", "done"]
     }[state]
     steps = (
         ("Jobspec verstehen", "Upload oder Freitext wird in ein Rollenprofil überführt."),
-        ("Berufskontext setzen", "Der passende ESCO-Beruf dient als gemeinsame Referenz."),
+        ("Berufskontext setzen", "Der passende Referenzberuf dient als gemeinsame Grundlage."),
         ("Fragen fokussieren", "Der Wizard fragt gezielt nach fehlenden Informationen."),
     )
     step_items = []
@@ -1481,8 +1481,8 @@ def render_job_extract_overview(
             row = {"Attribut": label, "Wert": value}
             if has_core_evidence:
                 evidence = evidence_by_field.get(field)
-                row["Confidence"] = format_field_evidence_confidence(evidence)
-                row["Evidence"] = format_field_evidence_snippet(evidence)
+                row["Sicherheit"] = format_field_evidence_confidence(evidence)
+                row["Textstelle"] = format_field_evidence_snippet(evidence)
             table_rows.append(row)
         st.dataframe(
             table_rows,

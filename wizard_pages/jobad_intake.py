@@ -473,10 +473,10 @@ def _build_hypothesis_editor_rows(
                     str(row.get("group_key") or ""),
                     str(row.get("group_key") or ""),
                 ),
-                "Confidence": format_field_evidence_confidence(
+                "Sicherheit": format_field_evidence_confidence(
                     evidence_by_field.get(field_name)
                 ),
-                "Evidence": format_field_evidence_snippet(
+                "Textstelle": format_field_evidence_snippet(
                     evidence_by_field.get(field_name)
                 ),
             }
@@ -541,9 +541,11 @@ def _render_job_extract_hypothesis_form(job: JobAdExtract) -> None:
     if not any(rows_by_tab.values()):
         return
 
-    st.markdown("#### Hypothesen bestätigen")
+    st.markdown("#### Erkannte Angaben prüfen")
     st.caption(
-        "Extrahierte Angaben werden automatisch übernommen. Bearbeiten Sie Werte direkt in der Tabelle oder löschen Sie eine Zeile, um den Wert zu entfernen."
+        "Prüfen Sie die erkannten Angaben vor dem Weiterarbeiten. "
+        "Korrigieren Sie Werte direkt in der Tabelle oder löschen Sie eine Zeile, "
+        "wenn die Angabe nicht übernommen werden soll."
     )
     form_ctx = (
         st.form("cs.jobspec.hypothesis_review_form")
@@ -568,14 +570,14 @@ def _render_job_extract_hypothesis_form(job: JobAdExtract) -> None:
                     hide_index=True,
                     num_rows="dynamic",
                     width="stretch",
-                    column_order=("Feld", "Wert", "Status", "Confidence", "Evidence"),
-                    disabled=["Feld", "Status", "Confidence", "Evidence"],
+                    column_order=("Feld", "Wert", "Status", "Sicherheit", "Textstelle"),
+                    disabled=["Feld", "Status", "Sicherheit", "Textstelle"],
                     column_config={
                         "Feld": st.column_config.TextColumn("Feld"),
                         "Wert": st.column_config.TextColumn("Wert"),
                         "Status": st.column_config.TextColumn("Status"),
-                        "Confidence": st.column_config.TextColumn("Confidence"),
-                        "Evidence": st.column_config.TextColumn("Evidence"),
+                        "Sicherheit": st.column_config.TextColumn("Sicherheit"),
+                        "Textstelle": st.column_config.TextColumn("Textstelle"),
                     },
                 )
                 submitted_rows.extend(
@@ -585,9 +587,9 @@ def _render_job_extract_hypothesis_form(job: JobAdExtract) -> None:
                     )
                 )
         submit = (
-            st.form_submit_button("Hypothesen übernehmen")
+            st.form_submit_button("Angaben übernehmen")
             if hasattr(st, "form_submit_button")
-            else st.button("Hypothesen übernehmen", key="cs.jobspec.hypothesis.submit")
+            else st.button("Angaben übernehmen", key="cs.jobspec.hypothesis.submit")
         )
     if not submit:
         return
@@ -595,7 +597,7 @@ def _render_job_extract_hypothesis_form(job: JobAdExtract) -> None:
     st.session_state[SSKey.JOB_EXTRACT.value] = _model_dump_json_compatible(
         reviewed_job
     )
-    st.success("Hypothesen übernommen.")
+    st.success("Angaben übernommen.")
     st.rerun()
 
 
@@ -614,7 +616,7 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
 
     st.caption(
         "Die wichtigsten Angaben sind vorbereitet. Prüfen Sie kurz die Basisdaten "
-        "und bestätigen Sie anschließend den passenden ESCO-Beruf."
+        "und bestätigen Sie anschließend den passenden Beruf für den Abgleich."
     )
     render_job_extract_overview(
         job,
@@ -634,11 +636,12 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
             st.rerun()
     with nav_col_anchor:
         if has_confirmed_anchor:
-            title = selected_occupation_title or "ESCO-Beruf"
-            st.success(f"ESCO-Anker bestätigt: {title}")
+            title = selected_occupation_title or "Referenzberuf"
+            st.success(f"Berufsabgleich bestätigt: {title}")
         else:
             st.caption(
-                "Optional: In Phase C können Sie einen semantischen ESCO-Anker bestätigen."
+                "Optional: Im nächsten Abschnitt können Sie einen Referenzberuf für den "
+                "Berufsabgleich bestätigen."
             )
 
 
@@ -893,7 +896,7 @@ def _render_phase_a_source_and_privacy_controls() -> bool:
 def _render_esco_operating_block() -> None:
     if not all(hasattr(st, name) for name in ("radio", "selectbox", "caption")):
         if hasattr(st, "caption"):
-            st.caption("ESCO-Betrieb: Stable · hosted/live_api · Sprache DE/EN")
+            st.caption("Berufsabgleich: Standardsprache DE, Alternative EN")
         return
 
     config = _get_esco_config()
@@ -908,11 +911,20 @@ def _render_esco_operating_block() -> None:
         fallback_language = "en" if selected_language == "de" else "de"
 
     with st.container(border=True):
-        st.markdown("#### ESCO-Betrieb")
+        st.markdown("#### Berufsabgleich")
+        if is_expert:
+            st.caption(
+                "Technische ESCO-Einstellungen für Version, API und Datenquelle."
+            )
+        else:
+            st.caption(
+                "Die App nutzt einen standardisierten Berufs- und Skill-Bezug, "
+                "damit Folgefragen besser zur Rolle passen."
+            )
         lang_col, fallback_col = st.columns([1, 1], gap="small")
         with lang_col:
             selected_language = st.radio(
-                "Arbeitssprache",
+                "Sprache für Vorschläge",
                 options=language_options,
                 index=language_options.index(selected_language),
                 horizontal=True,
@@ -920,7 +932,7 @@ def _render_esco_operating_block() -> None:
             )
         with fallback_col:
             fallback_language = st.selectbox(
-                "Fallback-Sprache",
+                "Alternative Sprache",
                 options=[value for value in language_options if value != selected_language],
                 index=0,
                 key=f"{SSKey.ESCO_CONFIG.value}.phase_a.fallback_language",
@@ -989,12 +1001,13 @@ def _render_esco_operating_block() -> None:
             api_mode=api_mode,
             data_source_mode=data_source_mode,
         )
-        st.caption(
-            "Diagnose: "
-            f"lane={release_lane} · version={selected_version} · "
-            f"api={api_mode} · runtime={data_source_mode} · "
-            f"language={selected_language}/{fallback_language}"
-        )
+        if is_expert:
+            st.caption(
+                "Diagnose: "
+                f"lane={release_lane} · version={selected_version} · "
+                f"api={api_mode} · runtime={data_source_mode} · "
+                f"language={selected_language}/{fallback_language}"
+            )
 
 
 
@@ -1061,7 +1074,7 @@ def _render_esco_anchor_section(ctx: WizardContext) -> None:
     )
     with container_ctx:
         if hasattr(st, "markdown"):
-            st.markdown("### ESCO-Anker bestätigen")
+            st.markdown("### Berufsabgleich bestätigen")
         _render_phase_c_esco_anchor(ctx)
 
 def _render_phase_b_extraction_review(ctx: WizardContext) -> None:

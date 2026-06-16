@@ -1504,14 +1504,14 @@ def render_esco_occupation_confirmation(
     if not query_text:
         st.info(
             "Kein Jobtitel vorhanden. Gib einen Rollenbegriff ein, um die "
-            "ESCO-Zuordnung manuell zu starten."
+            "Berufsabgleich manuell zu starten."
         )
 
     if show_start_context_panels and show_detail_panels:
-        st.markdown("### ESCO-Anker bestätigen")
+        st.markdown("### Berufsabgleich bestätigen")
         st.caption(f"Suche mit: `{query_text}`")
         st.info(
-            "Warum ESCO? Ein eindeutiger Berufsanker reduziert Mehrdeutigkeit und "
+            "Ein eindeutiger Referenzberuf reduziert Mehrdeutigkeit und "
             "wird in den nächsten Schritten für Aufgaben, Skills und Summary weiterverwendet."
         )
     query_state_key = f"{SSKey.ESCO_OCCUPATION_SELECTED.value}.esco_picker.query"
@@ -1522,7 +1522,7 @@ def render_esco_occupation_confirmation(
         target_state_key=SSKey.ESCO_OCCUPATION_SELECTED,
         enable_preview=False,
         apply_label=None,
-        selection_label="ESCO-Beruf auswählen",
+        selection_label="Referenzberuf auswählen",
         confirmation_helper_text=(
             "Diese Auswahl gibt Aufgaben, Skills und Summary einen eindeutigen fachlichen Bezug."
         ),
@@ -1531,10 +1531,10 @@ def render_esco_occupation_confirmation(
         show_results_overview=True,
         query_label="Suchbegriff für Berufsabgleich",
         query_placeholder="Jobtitel oder Rollenbegriff eingeben",
-        confirmed_summary_label="Bestätigter ESCO-Beruf",
+        confirmed_summary_label="Bestätigter Referenzberuf",
         taxonomy_auto_load=True,
         taxonomy_in_expander=False,
-        taxonomy_title="ESCO-Einordnung",
+        taxonomy_title="Einordnung im Berufsverzeichnis",
         layout_variant="anchor_card",
     )
     options_state_key = f"{SSKey.ESCO_OCCUPATION_SELECTED.value}.esco_picker.options"
@@ -1555,13 +1555,13 @@ def render_esco_occupation_confirmation(
     occupation_uri = str(selected.get("uri") or "").strip()
     if not occupation_uri:
         if st.button(
-            "Ohne bestätigten ESCO-Anker fortfahren",
+            "Ohne bestätigten Referenzberuf fortfahren",
             key="esco.occupation.continue_degraded",
         ):
             _set_degraded_anchor_state(query_text=query_text)
             st.info(
-                "Degradierter Modus aktiv: Jobspec- und AI-Schritte bleiben nutzbar; "
-                "ESCO-Normalisierung, Matrix-Coverage und URI-Exporte bleiben gesperrt."
+                "Berufsabgleich übersprungen: Jobspec- und AI-Schritte bleiben nutzbar; "
+                "berufsbezogene Normalisierung und technische ESCO-Exporte bleiben deaktiviert."
             )
         else:
             st.session_state[SSKey.ESCO_UNMAPPED_ROLE_TERMS.value] = (
@@ -1632,7 +1632,7 @@ def render_esco_occupation_confirmation(
                     clear_esco_cache()
                     st.info("Bitte den Ladevorgang später erneut ausführen.")
         else:
-            st.warning(f"ESCO-Occupationsdetails konnten nicht geladen werden: {exc}")
+            st.warning(f"ESCO-Berufsdetails konnten nicht geladen werden: {exc}")
         st.session_state[SSKey.ESCO_OCCUPATION_PAYLOAD.value] = None
         st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = {}
         st.session_state[SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value] = []
@@ -1701,32 +1701,33 @@ def render_esco_occupation_confirmation(
         confidence = str(explainability["confidence"]).strip().lower()
         reason = str(explainability["reason"]).strip()
         if compact and show_detail_panels:
-            st.markdown("### ESCO-Anker bestätigen")
+            st.markdown("### Berufsabgleich bestätigen")
             st.caption(f"Suche mit: `{query_text}`")
             st.info(
-                "Der ESCO-Beruf ist der gemeinsame Bezugspunkt für Aufgaben, Skills und Zusammenfassung."
+                "Der Referenzberuf ist der gemeinsame Bezugspunkt für Aufgaben, Skills und Zusammenfassung."
             )
             _render_match_confidence_note(confidence=confidence, reason=reason)
             st.markdown(f"[Portal öffnen]({occupation_uri})")
             with st.expander("Mehr Details", expanded=False):
                 st.caption(
-                    "Taxonomie, technische Daten und Occupation-Details sind hier gebündelt."
+                    "Taxonomie, technische Daten und Berufsdetails sind hier gebündelt."
                 )
-                _render_capability_status_panel(client=client, capabilities=capabilities)
-                st.caption(capabilities_badge)
-                st.markdown(
-                    (
-                        "<span style='display:inline-block;padding:0.1rem 0.5rem;"
-                        "border:1px solid #999;border-radius:0.75rem;font-size:0.8rem;'>"
-                        f"{explainability['badge_label']}</span>"
-                    ),
-                    unsafe_allow_html=True,
-                )
-                uri_suffix = occupation_uri.rstrip("/").rsplit("/", 1)[-1] or occupation_uri
-                st.markdown(f"[ESCO URI: …{uri_suffix}]({occupation_uri})")
-                if st.button("URI kopieren", key="esco.occupation.selected.uri.copy"):
-                    st.code(occupation_uri, language="text")
-                    st.caption("URI zum Kopieren eingeblendet.")
+                if ui_mode == "expert":
+                    _render_capability_status_panel(client=client, capabilities=capabilities)
+                    st.caption(capabilities_badge)
+                    st.markdown(
+                        (
+                            "<span style='display:inline-block;padding:0.1rem 0.5rem;"
+                            "border:1px solid #999;border-radius:0.75rem;font-size:0.8rem;'>"
+                            f"{explainability['badge_label']}</span>"
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                    uri_suffix = occupation_uri.rstrip("/").rsplit("/", 1)[-1] or occupation_uri
+                    st.markdown(f"[ESCO URI: …{uri_suffix}]({occupation_uri})")
+                    if st.button("URI kopieren", key="esco.occupation.selected.uri.copy"):
+                        st.code(occupation_uri, language="text")
+                        st.caption("URI zum Kopieren eingeblendet.")
                 _render_selected_occupation_detail(
                     st.session_state.get(SSKey.ESCO_OCCUPATION_PAYLOAD.value),
                     st.session_state.get(SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value),
@@ -1746,56 +1747,59 @@ def render_esco_occupation_confirmation(
     if show_start_context_panels and show_detail_panels and not compact:
         st.markdown("[Portal öffnen]({})".format(occupation_uri))
 
-        with st.expander("Warum ESCO?", expanded=False):
+        with st.expander("Warum Berufsabgleich?", expanded=False):
             st.markdown(
-                "ESCO ist die europäische Klassifikation für **Berufe**, **Skills** und "
-                "**Kompetenzen**. Sie bietet ein gemeinsames Vokabular, damit ähnliche "
-                "Jobtitel und Anforderungen einheitlich beschrieben werden können."
+                "Der Berufsabgleich ordnet die Rolle einem standardisierten Referenzberuf zu. "
+                "So bleiben ähnliche Jobtitel und Anforderungen in den nächsten Schritten "
+                "vergleichbar."
             )
             st.markdown(
-                "Die App nutzt ESCO als Retrieval-Kontext: erst Occupation, dann Skills "
-                "und Relationen für bessere Vorschläge in Rollenaufgaben, Skills und Summary."
+                "Die App nutzt diese Einordnung für passendere Vorschläge zu Aufgaben, "
+                "Skills und Summary."
             )
-            st.markdown(
-                "**Quellen**: ESCO Web-Service API, Offline ESCO Index, Occupations pillar, "
-                "Skills & Competences pillar, Skills–Occupations Matrix Tables"
-            )
+            if ui_mode == "expert":
+                st.markdown(
+                    "**Quellen**: ESCO Web-Service API, Offline ESCO Index, "
+                    "Occupations pillar, Skills & Competences pillar, "
+                    "Skills–Occupations Matrix Tables"
+                )
 
         with st.expander("Warum dieser Vorschlag?", expanded=False):
             st.caption(
-                "Diese Hinweise erklären, warum der ESCO-Beruf zur Jobspec passt."
+                "Diese Hinweise erklären, warum der Referenzberuf zur Jobspec passt."
             )
             render_esco_explainability(
                 labels=explainability["provenance_categories"],
                 confidence=str(explainability["confidence"]),
                 reason=str(explainability["reason"]),
-                caption_prefix="Occupation Explainability",
+                caption_prefix="Berufsabgleich",
             )
 
-        with st.expander(
-            "Technische Details",
-            expanded=(technical_expanded and not compact),
-        ):
-            _render_capability_status_panel(client=client, capabilities=capabilities)
-            st.caption(capabilities_badge)
-            st.markdown(
-                (
-                    "<span style='display:inline-block;padding:0.1rem 0.5rem;"
-                    "border:1px solid #999;border-radius:0.75rem;font-size:0.8rem;'>"
-                    f"{explainability['badge_label']}</span>"
-                ),
-                unsafe_allow_html=True,
-            )
-            uri_suffix = occupation_uri.rstrip("/").rsplit("/", 1)[-1] or occupation_uri
-            st.markdown(f"[ESCO URI: …{uri_suffix}]({occupation_uri})")
-            if st.button("URI kopieren", key="esco.occupation.selected.uri.copy"):
-                st.code(occupation_uri, language="text")
-                st.caption("URI zum Kopieren eingeblendet.")
+        if ui_mode == "expert":
+            with st.expander(
+                "Technische Details",
+                expanded=(technical_expanded and not compact),
+            ):
+                _render_capability_status_panel(client=client, capabilities=capabilities)
+                st.caption(capabilities_badge)
+                st.markdown(
+                    (
+                        "<span style='display:inline-block;padding:0.1rem 0.5rem;"
+                        "border:1px solid #999;border-radius:0.75rem;font-size:0.8rem;'>"
+                        f"{explainability['badge_label']}</span>"
+                    ),
+                    unsafe_allow_html=True,
+                )
+                uri_suffix = occupation_uri.rstrip("/").rsplit("/", 1)[-1] or occupation_uri
+                st.markdown(f"[ESCO URI: …{uri_suffix}]({occupation_uri})")
+                if st.button("URI kopieren", key="esco.occupation.selected.uri.copy"):
+                    st.code(occupation_uri, language="text")
+                    st.caption("URI zum Kopieren eingeblendet.")
 
-        with st.expander("ESCO Debug", expanded=(technical_expanded and not compact)):
-            st.caption(
-                f"Session key: {SSKey.ESCO_OCCUPATION_SELECTED.value} · URI: {occupation_uri}"
-            )
+            with st.expander("ESCO Debug", expanded=(technical_expanded and not compact)):
+                st.caption(
+                    f"Session key: {SSKey.ESCO_OCCUPATION_SELECTED.value} · URI: {occupation_uri}"
+                )
 
         with st.expander(
             "Beruf im Detail",
@@ -1831,7 +1835,7 @@ def render_esco_occupation_confirmation(
             [configured_language] if configured_language in language_options else ["de"]
         )
         selected_languages = st.multiselect(
-            "Bevorzugte Occupation-Titelsprachen",
+            "Sprachen für Berufstitel",
             options=list(language_options.keys()),
             default=default_languages,
             format_func=lambda value: language_options[value],
