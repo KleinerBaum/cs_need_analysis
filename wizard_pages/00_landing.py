@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-import base64
-from pathlib import Path
-
 import streamlit as st
+import streamlit.components.v1 as components
+from components.iceberg_need_analysis import (
+    COMPONENT_HEIGHT,
+    build_iceberg_need_analysis_html,
+)
 from content.start_page import START_PAGE_COPY
 from constants import APP_TITLE
 from wizard_pages.jobad_intake import render_jobad_intake
@@ -42,60 +44,6 @@ def _render_landing_responsive_overrides() -> None:
                 border-color: color-mix(in srgb, var(--cs-success) 88%, #000000);
                 background: color-mix(in srgb, var(--cs-success) 88%, #000000);
                 outline: none;
-            }
-            .landing-signal-row {
-                display: grid;
-                grid-template-columns: repeat(3, minmax(0, 1fr));
-                gap: 0.75rem;
-                margin-top: 1.1rem;
-            }
-            .landing-start-overview {
-                display: grid;
-                grid-template-columns: minmax(360px, 1.5fr) minmax(280px, 0.85fr);
-                gap: clamp(1rem, 2vw, 1.5rem);
-                align-items: center;
-            }
-            .landing-start-signals {
-                display: grid;
-                gap: 0.7rem;
-            }
-            .landing-signal {
-                border: 1px solid var(--cs-border);
-                background: var(--cs-surface);
-                border-radius: 8px;
-                padding: 0.85rem 0.9rem;
-                box-shadow: var(--cs-shadow-sm);
-            }
-            .landing-signal strong {
-                display: block;
-                color: var(--cs-text);
-                font-size: 0.94rem;
-            }
-            .landing-signal span {
-                display: block;
-                color: var(--cs-text-muted);
-                font-size: 0.82rem;
-                line-height: 1.35;
-                margin-top: 0.18rem;
-            }
-            .landing-iceberg-card {
-                border: 1px solid var(--cs-border);
-                background: var(--cs-surface);
-                border-radius: 8px;
-                box-shadow: var(--cs-shadow-sm);
-                overflow: hidden;
-                padding: clamp(0.55rem, 1.5vw, 1rem);
-            }
-            .landing-iceberg-card img {
-                display: block;
-                width: 100%;
-                height: auto;
-                border-radius: 6px;
-            }
-            [data-theme="dark"] .landing-iceberg-card {
-                border-color: var(--cs-border);
-                background: var(--cs-surface);
-                box-shadow: var(--cs-shadow-sm);
             }
             .landing-process-diagram {
                 border: 1px solid color-mix(in srgb, var(--cs-success) 42%, var(--cs-border));
@@ -183,15 +131,11 @@ def _render_landing_responsive_overrides() -> None:
                 font-size: 0.86rem;
                 font-weight: 700;
             }
-            .landing-iceberg-card,
             .landing-process-step,
-            .landing-signal,
             .landing-resource-links a {
                 overflow-wrap: anywhere;
             }
             @media (max-width: 900px) {
-                .landing-signal-row,
-                .landing-start-overview,
                 .landing-process-track {
                     grid-template-columns: minmax(0, 1fr);
                 }
@@ -206,13 +150,6 @@ def _render_landing_responsive_overrides() -> None:
         """,
         unsafe_allow_html=True,
     )
-
-
-def _image_uri(filename: str) -> str:
-    image_path = Path(__file__).resolve().parents[1] / "images" / filename
-    image_bytes = image_path.read_bytes()
-    encoded_image = base64.b64encode(image_bytes).decode("utf-8")
-    return f"data:image/png;base64,{encoded_image}"
 
 
 def _render_landing_hero() -> None:
@@ -289,32 +226,18 @@ def _render_landing_flow_cards() -> None:
 
 
 def _render_landing_explainer_sections() -> None:
-    iceberg_uri = _image_uri("Eisberg.png")
     st.markdown(
         f"""
         <section id="{LANDING_SECTION_IDS["importance"]}" class="landing-section">
-            <div class="landing-start-overview">
-                <div class="landing-iceberg-card">
-                    <img src="{iceberg_uri}" alt="{START_PAGE_COPY["importance_title"]}">
-                </div>
-                <div class="landing-start-signals">
-                    <div class="landing-signal">
-                        <strong>Weniger manuell eingeben</strong>
-                        <span>Jobspec, Kontext und vorhandene Fakten werden vorbefüllt; bei lokaler LLM-Konfiguration bleiben sensible Daten besonders geschützt.</span>
-                    </div>
-                    <div class="landing-signal">
-                        <strong>Dynamisch nachfragen</strong>
-                        <span>Der Fragebogen passt sich an die Vakanz an und schärft Muss-have- und Nice-to-have-Skills mit Gehaltsprognose und Kandidatenverfügbarkeit.</span>
-                    </div>
-                    <div class="landing-signal">
-                        <strong>Folgeschritte optimieren</strong>
-                        <span>Job Ad, Vertrag, Boolean Search, Interviewleitfäden und interne oder externe Kommunikation bauen auf derselben Datenbasis auf.</span>
-                    </div>
-                </div>
-            </div>
+            <h2>{START_PAGE_COPY["importance_title"]}</h2>
         </section>
         """,
         unsafe_allow_html=True,
+    )
+    components.html(
+        build_iceberg_need_analysis_html(),
+        height=COMPONENT_HEIGHT,
+        scrolling=False,
     )
 
 

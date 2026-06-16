@@ -404,7 +404,7 @@ def _reset_scroll_on_step_change() -> None:
     encoded_html = base64.b64encode(scroll_reset_html.encode("utf-8")).decode("ascii")
     st.iframe(
         f"data:text/html;base64,{encoded_html}",
-        height=0,
+        height=1,
     )
 
 

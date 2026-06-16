@@ -1,0 +1,42 @@
+{
+  "left": {
+    "headline": "Klassische Bedarfsanalyse",
+    "subline": "Sichtbar, aber lückenhaft",
+    "surface": {
+      "title": "Sichtbare Anforderungen",
+      "body": "Rolle, Aufgaben, Skills, Prozesse und Ziele."
+    },
+    "deep": {
+      "title": "Verborgene Faktoren",
+      "body": "Erwartungen, Prioritäten, Risiken und unausgesprochene Kriterien."
+    },
+    "result": {
+      "title": "Ergebnis",
+      "body": "Teilweises Bild. Höheres Risiko für Fehlbesetzungen."
+    }
+  },
+  "right": {
+    "headline": "AI-gestützte Need-Analysis",
+    "subline": "Tiefgründig, kontextbasiert, präzise",
+    "surface": {
+      "title": "Vollständiger Kontext",
+      "body": "Rolle, Ziele, Abhängigkeiten und Erfolgskriterien."
+    },
+    "deep": {
+      "title": "Versteckte Insights",
+      "body": "Bedürfnisse, Treiber, Risiken, Chancen und Passungslogik."
+    },
+    "result": {
+      "title": "Ergebnis",
+      "body": "Vollständigeres Bild. Bessere Entscheidungen im Recruiting."
+    }
+  },
+  "kpis": [
+    "Weniger Rückfragen",
+    "Schneller starten",
+    "Passgenau statt Standard",
+    "Höhere Trefferquote",
+    "Sichere Entscheidungen",
+    "Weniger Fehlbesetzungen"
+  ]
+}
