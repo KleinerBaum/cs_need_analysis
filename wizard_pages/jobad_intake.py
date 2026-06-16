@@ -43,7 +43,6 @@ from intake_facts import (
     write_intake_fact_by_legacy_field,
     write_job_extract_intake_facts,
 )
-from i18n import sync_language_state, sync_streamlit_language_widget
 from occupation_context import build_occupation_question_context, classify_occupation_context
 from parsing import extract_text_from_uploaded_file, redact_pii
 from question_progress import (
@@ -684,69 +683,59 @@ def _render_routing_select(
 
 
 def _render_start_routing_controls() -> None:
-    if not all(hasattr(st, name) for name in ("selectbox", "number_input", "columns")):
+    if not all(hasattr(st, name) for name in ("selectbox", "number_input")):
         if hasattr(st, "caption"):
             st.caption("Ein paar Informationen vorab: Standardwerte werden verwendet.")
         return
 
-    with st.container(border=True):
-        st.markdown("#### Ein paar Informationen vorab")
-        st.caption(
-            "Diese Metadaten steuern Folgefragen zu Unternehmen, Rolle, Benefits und Interview."
+    with st.container():
+        if hasattr(st, "caption"):
+            st.caption("Ein paar Informationen vorab")
+        _render_routing_select(
+            fact_key=FactKey.INTAKE_SEARCH_CONFIDENTIALITY,
+            label="Vertraulichkeit",
+            options=("open", "limited", "high"),
+            default="open",
         )
-        top_left, top_right = st.columns([1, 1], gap="small")
-        with top_left:
-            _render_routing_select(
-                fact_key=FactKey.INTAKE_SEARCH_CONFIDENTIALITY,
-                label="Wie vertraulich ist die Suche?",
-                options=("open", "limited", "high"),
-                default="open",
-            )
-        with top_right:
-            _render_routing_select(
-                fact_key=FactKey.INTAKE_URGENCY,
-                label="Wie dringend ist die Besetzung?",
-                options=("unknown", "low", "medium", "high", "critical"),
-                default="unknown",
-            )
-
-        lower_left, lower_mid, lower_right = st.columns([1, 1, 1], gap="small")
-        with lower_left:
-            _render_routing_select(
-                fact_key=FactKey.INTAKE_HIRING_REASON,
-                label="Warum wird besetzt?",
-                options=(
-                    "unknown",
-                    "replacement",
-                    "growth",
-                    "new_role",
-                    "internal_move",
-                    "confidential",
-                ),
-                default="unknown",
-            )
-        with lower_mid:
-            current_volume = _routing_answer(FactKey.INTAKE_HIRING_VOLUME, 1)
-            try:
-                current_volume_int = int(current_volume)
-            except (TypeError, ValueError):
-                current_volume_int = 1
-            hiring_volume = st.number_input(
-                "Wie viele Personen sollen besetzt werden?",
-                min_value=1,
-                max_value=50,
-                value=max(1, min(50, current_volume_int)),
-                step=1,
-                key=f"cs.start.routing.{FactKey.INTAKE_HIRING_VOLUME.value}",
-            )
-            _persist_routing_answer(FactKey.INTAKE_HIRING_VOLUME, int(hiring_volume))
-        with lower_right:
-            _render_routing_select(
-                fact_key=FactKey.INTAKE_ROLE_DEFINITION_MATURITY,
-                label="Ist die Rolle intern kalibriert?",
-                options=("unknown", "high", "medium", "low"),
-                default="unknown",
-            )
+        _render_routing_select(
+            fact_key=FactKey.INTAKE_URGENCY,
+            label="Dringlichkeit",
+            options=("unknown", "low", "medium", "high", "critical"),
+            default="unknown",
+        )
+        _render_routing_select(
+            fact_key=FactKey.INTAKE_HIRING_REASON,
+            label="Besetzungsgrund",
+            options=(
+                "unknown",
+                "replacement",
+                "growth",
+                "new_role",
+                "internal_move",
+                "confidential",
+            ),
+            default="unknown",
+        )
+        current_volume = _routing_answer(FactKey.INTAKE_HIRING_VOLUME, 1)
+        try:
+            current_volume_int = int(current_volume)
+        except (TypeError, ValueError):
+            current_volume_int = 1
+        hiring_volume = st.number_input(
+            "Anzahl Positionen",
+            min_value=1,
+            max_value=50,
+            value=max(1, min(50, current_volume_int)),
+            step=1,
+            key=f"cs.start.routing.{FactKey.INTAKE_HIRING_VOLUME.value}",
+        )
+        _persist_routing_answer(FactKey.INTAKE_HIRING_VOLUME, int(hiring_volume))
+        _render_routing_select(
+            fact_key=FactKey.INTAKE_ROLE_DEFINITION_MATURITY,
+            label="Rollenkalibrierung",
+            options=("unknown", "high", "medium", "low"),
+            default="unknown",
+        )
 
 
 def _usage_has_cache_hit(usage: Any) -> bool:
@@ -852,6 +841,7 @@ def _render_phase_a_source_and_privacy_controls() -> bool:
                 )
         st.markdown("#### Detailgrad")
         render_ui_mode_selector()
+        _render_start_routing_controls()
         _render_esco_operating_block()
     with text_col:
         manual_text = str(st.session_state.get(SOURCE_TEXT_INPUT_KEY, ""))
@@ -862,8 +852,6 @@ def _render_phase_a_source_and_privacy_controls() -> bool:
             on_change=_on_manual_text_change,
             placeholder="Füge hier den vollständigen Ausschreibungstext ein …",
         )
-
-    _render_start_routing_controls()
 
     uploaded_text = str(st.session_state.get(SOURCE_UPLOAD_TEXT_KEY, ""))
     upload_meta = st.session_state.get(SSKey.SOURCE_FILE_META.value, {})
@@ -896,7 +884,7 @@ def _render_phase_a_source_and_privacy_controls() -> bool:
 
 
 def _render_esco_operating_block() -> None:
-    if not all(hasattr(st, name) for name in ("radio", "selectbox", "caption")):
+    if not all(hasattr(st, name) for name in ("selectbox", "caption")):
         if hasattr(st, "caption"):
             st.caption("Berufsabgleich: Standardsprache DE, Alternative EN")
         return
@@ -905,12 +893,12 @@ def _render_esco_operating_block() -> None:
     ui_mode = str(st.session_state.get(SSKey.UI_MODE.value, "standard")).strip().lower()
     is_expert = ui_mode == "expert"
     language_options = ("de", "en")
-    selected_language = str(config.get("language") or "de").strip().lower()
+    selected_language = str(
+        st.session_state.get(SSKey.LANGUAGE.value) or config.get("language") or "de"
+    ).strip().lower()
     if selected_language not in language_options:
         selected_language = "de"
-    fallback_language = str(config.get("fallback_language") or "en").strip().lower()
-    if fallback_language not in language_options or fallback_language == selected_language:
-        fallback_language = "en" if selected_language == "de" else "de"
+    fallback_language = "en" if selected_language == "de" else "de"
 
     with st.container(border=True):
         st.markdown("#### Berufsabgleich")
@@ -943,26 +931,6 @@ def _render_esco_operating_block() -> None:
                     "ESCO beschreibt 3.039 Berufe und 13.939 damit verknüpfte Skills "
                     "in 28 Sprachen."
                 )
-        lang_col, fallback_col = st.columns([1, 1], gap="small")
-        with lang_col:
-            selected_language = st.radio(
-                "Sprache für Vorschläge",
-                options=language_options,
-                index=language_options.index(selected_language),
-                horizontal=True,
-                key=f"{SSKey.ESCO_CONFIG.value}.phase_a.language",
-                on_change=sync_streamlit_language_widget,
-                args=(f"{SSKey.ESCO_CONFIG.value}.phase_a.language",),
-            )
-            sync_language_state(selected_language)
-        with fallback_col:
-            fallback_language = st.selectbox(
-                "Alternative Sprache",
-                options=[value for value in language_options if value != selected_language],
-                index=0,
-                key=f"{SSKey.ESCO_CONFIG.value}.phase_a.fallback_language",
-            )
-
         release_lane = str(config.get("release_lane") or ESCO_RELEASE_LANE_STABLE)
         selected_version = str(config.get("selected_version") or "").strip()
         api_mode = str(config.get("api_mode") or "hosted").strip().lower()
@@ -1037,40 +1005,13 @@ def _render_esco_operating_block() -> None:
 
 
 
-def _render_source_summary() -> None:
-    active_source = str(st.session_state.get(SOURCE_ACTIVE_KEY, "") or "")
-    source_label = "Upload" if active_source == "upload" else "Text"
-    source_text = str(st.session_state.get(SSKey.SOURCE_TEXT.value, "") or "")
-    char_count = len(source_text.strip())
-
-    job_title = ""
-    company_name = ""
-    job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
-    if isinstance(job_dict, dict):
-        job_title = str(job_dict.get("job_title") or "").strip()
-        company_name = str(job_dict.get("company_name") or "").strip()
-
-    summary_parts = [
-        f"Quelle: **{source_label}**",
-        f"Zeichen: **{char_count:,}**".replace(",", "."),
-    ]
-    if job_title:
-        summary_parts.append(f"Rolle: **{job_title}**")
-    if company_name:
-        summary_parts.append(f"Unternehmen: **{company_name}**")
-    st.caption(" · ".join(summary_parts))
-
-
 def _render_source_input_section(ctx: WizardContext) -> bool:
     del ctx
     if _has_completed_intake_analysis():
-        _render_source_summary()
         container_ctx = (
             st.container(border=True) if hasattr(st, "container") else nullcontext()
         )
         with container_ctx:
-            if hasattr(st, "markdown"):
-                st.markdown("#### Quelle bearbeiten")
             return _render_phase_a_source_and_privacy_controls()
     container_ctx = (
         st.container(border=True) if hasattr(st, "container") else nullcontext()
@@ -1141,6 +1082,14 @@ def render_jobad_intake(
     ctx: WizardContext, *, title: str = "Jobspezifikation einlesen"
 ) -> None:
     st.header(title)
+    subtitle = (
+        "So vermeiden Sie umfangreiche Eingaben, können jederzeit Anpassungen vornehmen "
+        "und passen so den folgenden Fragebogen den Anforderungen einer solchen Rolle an."
+    )
+    if hasattr(st, "subheader"):
+        st.subheader(subtitle)
+    else:
+        st.caption(subtitle)
     render_error_banner()
 
     if SOURCE_TEXT_INPUT_KEY not in st.session_state:

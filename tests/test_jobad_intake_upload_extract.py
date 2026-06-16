@@ -225,7 +225,6 @@ def test_source_input_section_stays_visible_after_analysis(monkeypatch) -> None:
         }
     )
     monkeypatch.setattr(jobad_intake, "st", fake_st)
-    monkeypatch.setattr(jobad_intake, "_render_source_summary", lambda: None)
     monkeypatch.setattr(
         jobad_intake, "_render_phase_a_source_and_privacy_controls", lambda: False
     )
@@ -233,7 +232,7 @@ def test_source_input_section_stays_visible_after_analysis(monkeypatch) -> None:
     result = jobad_intake._render_source_input_section(object())
 
     assert result is False
-    assert "#### Quelle bearbeiten" in fake_st.markdowns
+    assert "#### Quelle bearbeiten" not in fake_st.markdowns
     assert fake_st.expanders == []
 
 

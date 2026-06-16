@@ -226,14 +226,6 @@ def _render_landing_flow_cards() -> None:
 
 
 def _render_landing_explainer_sections() -> None:
-    st.markdown(
-        f"""
-        <section id="{LANDING_SECTION_IDS["importance"]}" class="landing-section">
-            <h2>{START_PAGE_COPY["importance_title"]}</h2>
-        </section>
-        """,
-        unsafe_allow_html=True,
-    )
     components.html(
         build_iceberg_need_analysis_html(),
         height=COMPONENT_HEIGHT,
