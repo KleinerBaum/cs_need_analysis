@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from typing import cast
 
 from constants import FactResolutionStatus, FactSourceType, SSKey
-from schemas import JobAdExtract, JobAdFieldEvidence
+from schemas import JobAdExtract, JobAdFieldEvidence, RecruitmentStep
 import ui_components
 import wizard_pages.jobad_intake as jobad_intake
 
@@ -348,6 +348,7 @@ def test_phase_b_hypothesis_form_groups_and_batches_submit(monkeypatch) -> None:
     job = JobAdExtract(
         job_title="Data Engineer",
         location_city="Berlin",
+        recruitment_steps=[RecruitmentStep(name="Fachinterview", details="60 min")],
         field_evidence=[
             JobAdFieldEvidence(
                 field_name="job_title",
@@ -360,14 +361,35 @@ def test_phase_b_hypothesis_form_groups_and_batches_submit(monkeypatch) -> None:
                 evidence_snippet="Standort Berlin oder remote.",
                 needs_confirmation=True,
             ),
+            JobAdFieldEvidence(
+                field_name="recruitment_steps",
+                confidence=0.88,
+                evidence_snippet="Anschliessend folgt ein Fachinterview.",
+            ),
         ],
     )
 
     jobad_intake._render_job_extract_hypothesis_form(job)
 
-    assert fake_st.tab_labels == [["Basis", "Standort"]]
-    assert "cs.jobspec.hypothesis.Basis.editor" in fake_st.editor_rows_by_key
-    assert "cs.jobspec.hypothesis.Standort.editor" in fake_st.editor_rows_by_key
+    assert fake_st.tab_labels == [
+        [
+            "Rolle & Aufgaben",
+            "Benefits & Rahmenbedingungen",
+            "Interviewprozess",
+        ]
+    ]
+    assert (
+        "cs.jobspec.hypothesis.Rolle & Aufgaben.editor"
+        in fake_st.editor_rows_by_key
+    )
+    assert (
+        "cs.jobspec.hypothesis.Benefits & Rahmenbedingungen.editor"
+        in fake_st.editor_rows_by_key
+    )
+    assert (
+        "cs.jobspec.hypothesis.Interviewprozess.editor"
+        in fake_st.editor_rows_by_key
+    )
     assert fake_st.selectboxes == {}
     assert fake_st.rerun_called is True
     assert fake_st.session_state[SSKey.JOB_EXTRACT.value]["job_title"] == "Data Engineer"
@@ -381,7 +403,7 @@ def test_phase_b_hypothesis_form_groups_and_batches_submit(monkeypatch) -> None:
 def test_phase_b_hypothesis_form_saves_table_edits_and_deleted_rows(monkeypatch) -> None:
     fake_st = _FakeStreamlit(session_state={})
     fake_st.form_submit_returns["Hypothesen übernehmen"] = True
-    fake_st.editor_returns_by_key["cs.jobspec.hypothesis.Basis.editor"] = [
+    fake_st.editor_returns_by_key["cs.jobspec.hypothesis.Unternehmen.editor"] = [
         {
             "field_name": "company_name",
             "Feld": "Unternehmen",
@@ -391,6 +413,9 @@ def test_phase_b_hypothesis_form_saves_table_edits_and_deleted_rows(monkeypatch)
             "Evidence": "Old GmbH",
         }
     ]
+    fake_st.editor_returns_by_key[
+        "cs.jobspec.hypothesis.Rolle & Aufgaben.editor"
+    ] = []
     monkeypatch.setattr(jobad_intake, "st", fake_st)
 
     job = JobAdExtract(

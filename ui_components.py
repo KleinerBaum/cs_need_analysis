@@ -33,12 +33,11 @@ from job_extract_evidence import (
 )
 from job_extract_review_helpers import (
     JOB_EXTRACT_DISPLAY_LABELS,
+    JOB_EXTRACT_LEGACY_REVIEW_TAB_FIELDS,
     JOB_EXTRACT_REVIEW_EMPTY_FIELDS,
-    JOB_EXTRACT_TAB_FIELDS,
-    classify_extract_note_tab as _classify_extract_note_tab,
     format_recruitment_steps_value as _format_recruitment_steps_value,
     format_salary_range_value as _format_salary_range_value,
-    group_extract_notes_by_tab as _group_extract_notes_by_tab,
+    group_extract_notes_by_legacy_review_tab as _group_extract_notes_by_legacy_review_tab,
     has_meaningful_value,
     normalize_display_text as _normalize_display_text,
     normalize_optional_string as _normalize_optional_string,
@@ -1554,8 +1553,8 @@ def _render_editable_job_extract(job: JobAdExtract, *, show_notes: bool = True) 
     tab_core, tab_location, tab_role, tab_skills, tab_process = st.tabs(
         ["Basis", "Standort", "Rolle", "Skills & Benefits", "Prozess"]
     )
-    gap_notes_by_tab = _group_extract_notes_by_tab(job.gaps)
-    assumption_notes_by_tab = _group_extract_notes_by_tab(job.assumptions)
+    gap_notes_by_tab = _group_extract_notes_by_legacy_review_tab(job.gaps)
+    assumption_notes_by_tab = _group_extract_notes_by_legacy_review_tab(job.assumptions)
 
     with tab_core:
         if show_notes:
@@ -1569,7 +1568,7 @@ def _render_editable_job_extract(job: JobAdExtract, *, show_notes: bool = True) 
                 assumption_notes_by_tab["Basis"],
                 tone="info",
             )
-        core_fields = JOB_EXTRACT_TAB_FIELDS["Basis"]
+        core_fields = JOB_EXTRACT_LEGACY_REVIEW_TAB_FIELDS["Basis"]
         core_rows = [
             {
                 "field": field,
@@ -1617,7 +1616,7 @@ def _render_editable_job_extract(job: JobAdExtract, *, show_notes: bool = True) 
                 assumption_notes_by_tab["Standort"],
                 tone="info",
             )
-        location_fields = JOB_EXTRACT_TAB_FIELDS["Standort"]
+        location_fields = JOB_EXTRACT_LEGACY_REVIEW_TAB_FIELDS["Standort"]
         location_rows = [
             {
                 "field": field,
@@ -1665,7 +1664,7 @@ def _render_editable_job_extract(job: JobAdExtract, *, show_notes: bool = True) 
                 tone="warning",
             )
             _render_note_block("Annahmen", assumption_notes_by_tab["Rolle"], tone="info")
-        text_fields = JOB_EXTRACT_TAB_FIELDS["Rolle"]
+        text_fields = JOB_EXTRACT_LEGACY_REVIEW_TAB_FIELDS["Rolle"]
         for field in text_fields:
             if (
                 has_meaningful_value(values.get(field))

@@ -47,9 +47,11 @@ def test_group_extract_notes_by_tab_deduplicates_and_classifies_notes() -> None:
         ]
     )
 
-    assert grouped["Standort"] == ["Remote policy is unclear"]
-    assert grouped["Skills & Benefits"] == ["Salary not stated"]
-    assert grouped["Prozess"] == ["Interview process missing"]
+    assert grouped["Benefits & Rahmenbedingungen"] == [
+        "Remote policy is unclear",
+        "Salary not stated",
+    ]
+    assert grouped["Interviewprozess"] == ["Interview process missing"]
 
 
 def test_value_helpers_normalize_empty_sentinels_and_parse_numbers() -> None:

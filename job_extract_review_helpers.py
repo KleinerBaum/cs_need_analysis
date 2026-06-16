@@ -49,6 +49,56 @@ JOB_EXTRACT_DISPLAY_LABELS: dict[str, str] = {
 }
 
 JOB_EXTRACT_TAB_FIELDS: dict[str, tuple[str, ...]] = {
+    "Unternehmen": (
+        "company_name",
+        "brand_name",
+        "company_website",
+        "language_guess",
+        "department_name",
+        "reports_to",
+    ),
+    "Rolle & Aufgaben": (
+        "job_title",
+        "employment_type",
+        "contract_type",
+        "seniority_level",
+        "direct_reports_count",
+        "role_overview",
+        "onboarding_notes",
+        "responsibilities",
+        "deliverables",
+        "success_metrics",
+    ),
+    "Skills & Anforderungen": (
+        "must_have_skills",
+        "nice_to_have_skills",
+        "soft_skills",
+        "education",
+        "certifications",
+        "languages",
+        "tech_stack",
+        "domain_expertise",
+    ),
+    "Benefits & Rahmenbedingungen": (
+        "location_city",
+        "location_country",
+        "place_of_work",
+        "remote_policy",
+        "travel_required",
+        "on_call",
+        "salary_range",
+        "benefits",
+    ),
+    "Interviewprozess": (
+        "start_date",
+        "application_deadline",
+        "job_ref_number",
+        "recruitment_steps",
+        "contacts",
+    ),
+}
+
+JOB_EXTRACT_LEGACY_REVIEW_TAB_FIELDS: dict[str, tuple[str, ...]] = {
     "Basis": (
         "job_title",
         "company_name",
@@ -108,6 +158,58 @@ JOB_EXTRACT_REVIEW_EMPTY_FIELDS: frozenset[str] = frozenset(
 )
 
 JOB_EXTRACT_TAB_NOTE_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "Unternehmen": (
+        "company",
+        "brand",
+        "language",
+        "department",
+        "reports_to",
+    ),
+    "Rolle & Aufgaben": (
+        "job_title",
+        "role",
+        "contract",
+        "employment",
+        "seniority",
+        "overview",
+        "responsibility",
+        "deliverable",
+        "success",
+    ),
+    "Skills & Anforderungen": (
+        "skill",
+        "education",
+        "certificate",
+        "language",
+        "tech",
+        "domain",
+    ),
+    "Benefits & Rahmenbedingungen": (
+        "location",
+        "place_of_work",
+        "remote",
+        "travel",
+        "on call",
+        "on_call",
+        "salary",
+        "benefit",
+    ),
+    "Interviewprozess": (
+        "process",
+        "recruit",
+        "contact",
+        "step",
+        "interview",
+        "start",
+        "deadline",
+        "reference",
+        "questionplan",
+        "question_plan",
+        "question plan",
+    ),
+}
+
+JOB_EXTRACT_LEGACY_REVIEW_TAB_NOTE_KEYWORDS: dict[str, tuple[str, ...]] = {
     "Basis": (
         "job_title",
         "company",
@@ -332,11 +434,26 @@ def build_job_extract_hypothesis_groups(
 def classify_extract_note_tab(note: str) -> str:
     normalized = " ".join(str(note or "").strip().casefold().split())
     if not normalized:
+        return "Unternehmen"
+
+    best_tab = "Unternehmen"
+    best_score = 0
+    for tab_name, keywords in JOB_EXTRACT_TAB_NOTE_KEYWORDS.items():
+        score = sum(1 for keyword in keywords if keyword in normalized)
+        if score > best_score:
+            best_tab = tab_name
+            best_score = score
+    return best_tab
+
+
+def classify_legacy_review_note_tab(note: str) -> str:
+    normalized = " ".join(str(note or "").strip().casefold().split())
+    if not normalized:
         return "Basis"
 
     best_tab = "Basis"
     best_score = 0
-    for tab_name, keywords in JOB_EXTRACT_TAB_NOTE_KEYWORDS.items():
+    for tab_name, keywords in JOB_EXTRACT_LEGACY_REVIEW_TAB_NOTE_KEYWORDS.items():
         score = sum(1 for keyword in keywords if keyword in normalized)
         if score > best_score:
             best_tab = tab_name
@@ -361,6 +478,28 @@ def group_extract_notes_by_tab(
             continue
         seen.add(dedupe_key)
         grouped[classify_extract_note_tab(normalized)].append(normalized)
+    return grouped
+
+
+def group_extract_notes_by_legacy_review_tab(
+    notes: Sequence[str] | None,
+) -> dict[str, list[str]]:
+    grouped: dict[str, list[str]] = {
+        tab_name: [] for tab_name in JOB_EXTRACT_LEGACY_REVIEW_TAB_FIELDS
+    }
+    if not notes:
+        return grouped
+
+    seen: set[str] = set()
+    for note in notes:
+        normalized = " ".join(str(note or "").strip().split())
+        if not normalized:
+            continue
+        dedupe_key = normalized.casefold()
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        grouped[classify_legacy_review_note_tab(normalized)].append(normalized)
     return grouped
 
 
