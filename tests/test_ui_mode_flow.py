@@ -12,6 +12,7 @@ from constants import (
     UI_PREFERENCE_ANSWER_MODE,
     UI_PREFERENCE_INFORMATION_DEPTH,
 )
+from schemas import JobAdExtract
 
 
 class _LockedSessionState(dict[str, Any]):
@@ -157,9 +158,9 @@ def test_sidebar_salary_forecast_is_rendered_for_all_ui_modes(monkeypatch) -> No
         computed_modes.append(str(base.st.session_state[SSKey.UI_MODE.value]))
         return object()
 
-    def _fake_render_sidebar_salary_forecast(*, forecast: object) -> None:
-        del forecast
+    def _fake_render_sidebar_salary_forecast(**_kwargs: Any) -> bool:
         rendered_modes.append(str(base.st.session_state[SSKey.UI_MODE.value]))
+        return False
 
     monkeypatch.setattr(base, "sync_adaptive_question_limits", lambda: None)
     monkeypatch.setattr(
@@ -212,5 +213,112 @@ def test_sidebar_salary_forecast_is_rendered_for_all_ui_modes(monkeypatch) -> No
 
         assert current_page.key == "landing"
 
-    assert computed_modes == ["quick", "standard", "expert"]
+    assert computed_modes == []
     assert rendered_modes == ["quick", "standard", "expert"]
+
+
+def test_sidebar_salary_input_selections_default_active_and_persist(
+    monkeypatch,
+) -> None:
+    session_state = _LockedSessionState(
+        {
+            SSKey.JOB_EXTRACT.value: {"job_title": "Engineer"},
+            SSKey.ROLE_TASKS_SELECTED.value: ["Build APIs"],
+            SSKey.SALARY_FORECAST_INPUT_SELECTIONS.value: {},
+        }
+    )
+    monkeypatch.setattr(base, "st", _FakeStreamlit(session_state))
+
+    rows = base._build_sidebar_salary_input_rows()
+    selections = base._sync_sidebar_salary_input_selections(rows)
+
+    assert rows
+    assert all(selections[row.id] is True for row in rows)
+
+    first_row_id = rows[0].id
+    session_state[SSKey.SALARY_FORECAST_INPUT_SELECTIONS.value][first_row_id] = False
+    persisted = base._sync_sidebar_salary_input_selections(rows)
+
+    assert persisted[first_row_id] is False
+
+
+def test_sidebar_salary_fingerprint_changes_with_selection(monkeypatch) -> None:
+    session_state = _LockedSessionState(
+        {
+            SSKey.JOB_EXTRACT.value: {"job_title": "Engineer"},
+            SSKey.ROLE_TASKS_SELECTED.value: ["Build APIs"],
+            SSKey.SALARY_FORECAST_INPUT_SELECTIONS.value: {},
+        }
+    )
+    monkeypatch.setattr(base, "st", _FakeStreamlit(session_state))
+
+    rows = base._build_sidebar_salary_input_rows()
+    selections = base._sync_sidebar_salary_input_selections(rows)
+    first = base._sidebar_salary_fingerprint(rows=rows, selections=selections)
+    selections[rows[0].id] = False
+    second = base._sidebar_salary_fingerprint(rows=rows, selections=selections)
+
+    assert second != first
+
+
+def test_sidebar_salary_job_excludes_disabled_inputs(monkeypatch) -> None:
+    session_state = _LockedSessionState({})
+    monkeypatch.setattr(base, "st", _FakeStreamlit(session_state))
+    disabled = base.SalarySidebarInputRow(
+        id="python",
+        group="Skills",
+        label="Must-have: Python",
+        value="Python",
+        target="must_have_skills",
+        source_label="test",
+    )
+    enabled = base.SalarySidebarInputRow(
+        id="go",
+        group="Skills",
+        label="Must-have: Go",
+        value="Go",
+        target="must_have_skills",
+        source_label="test",
+    )
+
+    job, answers = base._sidebar_job_and_answers(
+        base_job=JobAdExtract(job_title="Engineer", must_have_skills=["Legacy"]),
+        rows=[disabled, enabled],
+        selections={"python": False, "go": True},
+        source_text="",
+    )
+
+    assert job is not None
+    assert job.must_have_skills == ["Go"]
+    assert "python" not in answers
+    assert answers["go"] == "Go"
+
+
+def test_compute_sidebar_salary_forecast_passes_esco_and_scenario(
+    monkeypatch,
+) -> None:
+    from salary.types import SalaryEscoContext, SalaryScenarioInputs
+
+    captured: dict[str, Any] = {}
+
+    def _fake_compute_salary_forecast(**kwargs: Any) -> object:
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(
+        "salary.engine.compute_salary_forecast", _fake_compute_salary_forecast
+    )
+    esco_context = SalaryEscoContext(occupation_uri="https://example.test/occ")
+    scenario_inputs = SalaryScenarioInputs(remote_share_percent=75)
+
+    result = base._compute_sidebar_salary_forecast(
+        job=JobAdExtract(job_title="Engineer"),
+        answers={"skill": "Python"},
+        source_text="",
+        esco_context=esco_context,
+        scenario_inputs=scenario_inputs,
+    )
+
+    assert result is not None
+    assert captured["esco_context"] == esco_context
+    assert captured["scenario_inputs"] == scenario_inputs

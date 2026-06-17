@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
+from typing import Any, Mapping, Sequence
+
 import plotly.graph_objects as go  # type: ignore[import-untyped]
 import streamlit as st
 
@@ -178,38 +181,148 @@ def _top_driver_rows(
     ]
 
 
-def render_sidebar_salary_forecast(*, forecast: SalaryForecastResult) -> None:
-    """Render a salary forecast in the sidebar without computing domain data."""
-    st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = forecast.model_dump(
-        mode="json"
-    )
+def _row_value(row: Any, field_name: str, default: Any = None) -> Any:
+    if isinstance(row, Mapping):
+        return row.get(field_name, default)
+    return getattr(row, field_name, default)
 
-    period_label = _period_label(forecast.period)
+
+def _group_input_rows(input_rows: Sequence[Any]) -> dict[str, list[Any]]:
+    grouped: dict[str, list[Any]] = defaultdict(list)
+    for row in input_rows:
+        group = str(_row_value(row, "group", "Weitere Werte") or "Weitere Werte")
+        grouped[group].append(row)
+    return dict(grouped)
+
+
+def _render_sidebar_input_selection(
+    *,
+    input_rows: Sequence[Any],
+    input_selections: Mapping[str, bool],
+) -> dict[str, bool]:
+    grouped_rows = _group_input_rows(input_rows)
+    next_selections = dict(input_selections)
+    group_order = [
+        "Rolle & Standort",
+        "Aufgaben",
+        "Skills",
+        "Benefits",
+        "Interview",
+        "ESCO",
+        "Szenario",
+    ]
+    ordered_groups = [
+        group for group in group_order if group in grouped_rows
+    ] + sorted(group for group in grouped_rows if group not in group_order)
+
+    st.sidebar.markdown("**Genutzte Werte**")
+    st.sidebar.caption(
+        "Aktive Werte fließen in die nächste Berechnung ein. Abgewählte Werte bleiben gespeichert, werden hier aber ignoriert."
+    )
+    for group in ordered_groups:
+        rows = grouped_rows[group]
+        active_count = sum(
+            1
+            for row in rows
+            if bool(
+                next_selections.get(
+                    str(_row_value(row, "id")),
+                    bool(_row_value(row, "default_enabled", True)),
+                )
+            )
+        )
+        with st.sidebar.expander(
+            f"{group} ({active_count}/{len(rows)} aktiv)",
+            expanded=group in {"Rolle & Standort", "Skills"},
+        ):
+            for row in rows:
+                row_id = str(_row_value(row, "id"))
+                label = str(_row_value(row, "label", row_id))
+                source_label = str(_row_value(row, "source_label", "") or "")
+                current_value = bool(
+                    next_selections.get(
+                        row_id, bool(_row_value(row, "default_enabled", True))
+                    )
+                )
+                widget_key = (
+                    f"{SSKey.SALARY_FORECAST_INPUT_SELECTIONS.value}.{row_id}"
+                )
+                checked = st.checkbox(
+                    label,
+                    value=current_value,
+                    key=widget_key,
+                    help=source_label or None,
+                )
+                next_selections[row_id] = bool(checked)
+    st.session_state[SSKey.SALARY_FORECAST_INPUT_SELECTIONS.value] = next_selections
+    return next_selections
+
+
+def render_sidebar_salary_forecast(
+    *,
+    forecast: SalaryForecastResult | None,
+    input_rows: Sequence[Any],
+    input_selections: Mapping[str, bool],
+    is_stale: bool,
+) -> bool:
+    """Render salary forecast controls in the sidebar without computing domain data."""
 
     st.sidebar.markdown("### Gehaltsprognose")
-    st.sidebar.caption(
-        "Aktualisiert sich automatisch mit den bisher erfassten Stelleninfos."
+    status_label = (
+        "Noch nicht berechnet"
+        if forecast is None
+        else "Neue gespeicherte Werte verfügbar"
+        if is_stale
+        else "Aktuell für die aktive Auswahl"
     )
-    st.sidebar.metric(
-        f"Orientierungswert ({period_label})",
-        _format_salary(forecast.forecast.p50, forecast.currency),
+    st.sidebar.caption(status_label)
+
+    active_count = sum(
+        1
+        for row in input_rows
+        if bool(
+            input_selections.get(
+                str(_row_value(row, "id")),
+                bool(_row_value(row, "default_enabled", True)),
+            )
+        )
     )
-    st.sidebar.write(
-        "**Realistische Spanne:** "
-        f"{_format_salary(forecast.forecast.p10, forecast.currency)} bis "
-        f"{_format_salary(forecast.forecast.p90, forecast.currency)}"
+    update_requested = st.sidebar.button(
+        "Update berechnen",
+        type="primary",
+        disabled=not input_rows,
+        help="Berechnet die Prognose mit den aktuell aktivierten Werten neu.",
     )
-    quality_percent = int(round(float(forecast.quality.value) * 100, 0))
-    st.sidebar.progress(
-        quality_percent,
-        text=f"Datenbasis: {quality_percent}% ({_quality_label(quality_percent)})",
-    )
-    st.sidebar.caption(
-        f"Berücksichtigt: {forecast.job_title}, {forecast.location}, "
-        f"{forecast.must_have_count} Muss-Skills, "
-        f"{forecast.answers_count} beantwortete Felder."
-    )
-    with st.sidebar.expander("Was verändert das Gehalt?", expanded=True):
+
+    if forecast is None:
+        st.sidebar.info(
+            "Noch kein Orientierungswert vorhanden. Wähle die relevanten Werte aus und starte die Berechnung."
+        )
+    else:
+        period_label = _period_label(forecast.period)
+        st.sidebar.metric(
+            f"Orientierungswert ({period_label})",
+            _format_salary(forecast.forecast.p50, forecast.currency),
+        )
+        st.sidebar.metric(
+            "Realistische Spanne",
+            (
+                f"{_format_salary(forecast.forecast.p10, forecast.currency)} bis "
+                f"{_format_salary(forecast.forecast.p90, forecast.currency)}"
+            ),
+        )
+        quality_percent = int(round(float(forecast.quality.value) * 100, 0))
+        st.sidebar.progress(
+            quality_percent,
+            text=f"Datenbasis: {quality_percent}% ({_quality_label(quality_percent)})",
+        )
+        st.sidebar.caption(
+            f"Berechnet für {forecast.job_title}; Standort: {forecast.location}; "
+            f"{forecast.must_have_count} Must-have-Skills; "
+            f"{forecast.answers_count} aktive Eingaben."
+        )
+
+        st.sidebar.markdown("**Einfluss auf die Schätzung**")
         top_rows = _top_driver_rows(forecast)
         try:
             fig = go.Figure(
@@ -226,21 +339,39 @@ def render_sidebar_salary_forecast(*, forecast: SalaryForecastResult) -> None:
                 )
             )
             _apply_driver_chart_theme(fig)
-            st.plotly_chart(
+            st.sidebar.plotly_chart(
                 fig,
                 width="stretch",
                 key=f"{SSKey.SALARY_FORECAST_LAST_RESULT.value}_drivers",
             )
         except Exception:
-            st.dataframe(top_rows, width="stretch", hide_index=True)
+            st.sidebar.dataframe(top_rows, width="stretch", hide_index=True)
         for row in top_rows[:3]:
-            st.caption(
+            st.sidebar.caption(
                 f"**{row['Faktor']}:** {row['Einschätzung']} - {row['Hinweis']}"
             )
-    st.sidebar.markdown("**Was heißt das?**")
-    st.sidebar.write(
-        "- Der große Wert ist die Mitte der aktuellen Schätzung.\n"
-        "- Die Spanne zeigt, womit du im Markt grob rechnen solltest.\n"
-        "- Skills, Anforderungen, Standort und Rolle können den Wert sofort verändern.\n"
-        "- Die Prognose ist eine Orientierung und ersetzt kein externes Vergütungsbenchmarking."
+
+        st.sidebar.markdown("**Einordnung**")
+        st.sidebar.write(
+            "- Der Orientierungswert ist der aktuelle Median der aktivierten Daten.\n"
+            "- Die Spanne zeigt ein vorsichtiges Marktband, nicht Minimum und Maximum der Stelle.\n"
+            "- Datenbasis bewertet Abdeckung und Mapping-Treffer, nicht die reale Treffergenauigkeit.\n"
+            "- Die Prognose ersetzt kein externes Vergütungsbenchmarking."
+        )
+
+    next_selections = _render_sidebar_input_selection(
+        input_rows=input_rows,
+        input_selections=input_selections,
     )
+    active_count = sum(
+        1
+        for row in input_rows
+        if bool(
+            next_selections.get(
+                str(_row_value(row, "id")),
+                bool(_row_value(row, "default_enabled", True)),
+            )
+        )
+    )
+    st.sidebar.caption(f"{active_count}/{len(input_rows)} gespeicherte Werte aktiv.")
+    return bool(update_requested)

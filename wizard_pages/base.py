@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import hashlib
+import json
 from typing import (
+    Any,
     TYPE_CHECKING,
     Callable,
     List,
@@ -29,6 +32,7 @@ from constants import (
     ESCO_RELEASE_LANE_PREVIEW,
     ESCO_RELEASE_LANE_SELECTED_VERSION,
     ESCO_RELEASE_LANE_STABLE,
+    FactKey,
     SSKey,
     STEPS,
     UI_PREFERENCE_ANSWER_MODE,
@@ -44,6 +48,7 @@ from esco_semantics import (
     selected_version_for_release_lane,
     sync_esco_semantic_state,
 )
+from intake_facts import collect_legacy_facts
 from i18n import sync_language_state, sync_streamlit_language_widget, t
 from question_dependencies import should_show_question
 from question_limits import (
@@ -63,7 +68,18 @@ from usage_events import record_step_entered, record_step_submitted
 from wizard_pages.salary_forecast import render_sidebar_salary_forecast
 
 if TYPE_CHECKING:
-    from salary.types import SalaryForecastResult
+    from salary.types import SalaryEscoContext, SalaryForecastResult, SalaryScenarioInputs
+
+
+@dataclass(frozen=True)
+class SalarySidebarInputRow:
+    id: str
+    group: str
+    label: str
+    value: Any
+    target: str
+    source_label: str
+    default_enabled: bool = True
 
 
 def _has_meaningful_value(value: object) -> bool:
@@ -118,11 +134,471 @@ def _fallback_job_from_session(
     )
 
 
+_SALARY_SIDEBAR_FACT_TARGETS: dict[FactKey, tuple[str, str, str]] = {
+    FactKey.ROLE_JOB_TITLE: ("Rolle & Standort", "Jobtitel", "job_title"),
+    FactKey.COMPANY_LOCATION_CITY: ("Rolle & Standort", "Stadt", "location_city"),
+    FactKey.COMPANY_LOCATION_COUNTRY: ("Rolle & Standort", "Land", "location_country"),
+    FactKey.COMPANY_REMOTE_POLICY: ("Rolle & Standort", "Remote-Regel", "remote_policy"),
+    FactKey.ROLE_SENIORITY_LEVEL: ("Rolle & Standort", "Seniority", "seniority_level"),
+    FactKey.ROLE_RESPONSIBILITIES: ("Aufgaben", "Aufgabe", "responsibilities"),
+    FactKey.SKILLS_MUST_HAVE_SKILLS: ("Skills", "Must-have", "must_have_skills"),
+    FactKey.SKILLS_NICE_TO_HAVE_SKILLS: ("Skills", "Nice-to-have", "nice_to_have_skills"),
+    FactKey.SKILLS_CERTIFICATIONS: ("Skills", "Zertifikat", "certifications"),
+    FactKey.SKILLS_LANGUAGES: ("Skills", "Sprache", "languages"),
+    FactKey.BENEFITS_SALARY_RANGE: ("Benefits", "Gehaltsrahmen", "salary_range"),
+    FactKey.BENEFITS_BENEFITS: ("Benefits", "Benefit", "benefits"),
+    FactKey.INTERVIEW_RECRUITMENT_STEPS: (
+        "Interview",
+        "Interview-Schritt",
+        "recruitment_steps",
+    ),
+}
+_SALARY_SIDEBAR_LIST_TARGETS = {
+    "responsibilities",
+    "must_have_skills",
+    "nice_to_have_skills",
+    "certifications",
+    "languages",
+    "benefits",
+    "recruitment_steps",
+}
+_SALARY_SIDEBAR_STEP_KEY = "sidebar"
+
+
+def _json_safe(value: Any) -> Any:
+    if hasattr(value, "model_dump"):
+        try:
+            return value.model_dump(mode="json")
+        except Exception:
+            return str(value)
+    if isinstance(value, Mapping):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_json_safe(item) for item in value]
+    return value
+
+
+def _stable_sidebar_input_id(*, target: str, source_label: str, value: Any) -> str:
+    payload = {
+        "target": target,
+        "source_label": source_label,
+        "value": _json_safe(value),
+    }
+    serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()[:16]
+
+
+def _stringify_salary_sidebar_value(value: Any) -> str:
+    if isinstance(value, Mapping):
+        if {"min", "max", "currency", "period"} & set(value):
+            salary_min = value.get("min")
+            salary_max = value.get("max")
+            currency = str(value.get("currency") or "EUR").strip()
+            period = str(value.get("period") or "").strip()
+            return f"{salary_min or '—'} bis {salary_max or '—'} {currency} {period}".strip()
+        if "name" in value:
+            return str(value.get("name") or "").strip()
+        if "title" in value:
+            return str(value.get("title") or "").strip()
+    return str(value).strip()
+
+
+def _append_salary_sidebar_row(
+    rows: list[SalarySidebarInputRow],
+    *,
+    group: str,
+    label_prefix: str,
+    value: Any,
+    target: str,
+    source_label: str,
+) -> None:
+    if not _has_meaningful_value(value):
+        return
+    if target in _SALARY_SIDEBAR_LIST_TARGETS and isinstance(value, list):
+        for item in value:
+            _append_salary_sidebar_row(
+                rows,
+                group=group,
+                label_prefix=label_prefix,
+                value=item,
+                target=target,
+                source_label=source_label,
+            )
+        return
+    value_label = _stringify_salary_sidebar_value(value)
+    if not value_label:
+        return
+    row_id = _stable_sidebar_input_id(
+        target=target, source_label=source_label, value=value
+    )
+    if any(row.id == row_id for row in rows):
+        return
+    rows.append(
+        SalarySidebarInputRow(
+            id=row_id,
+            group=group,
+            label=f"{label_prefix}: {value_label}",
+            value=_json_safe(value),
+            target=target,
+            source_label=source_label,
+        )
+    )
+
+
+def _append_sidebar_selected_state_rows(rows: list[SalarySidebarInputRow]) -> None:
+    selected_sources = (
+        (
+            SSKey.ROLE_TASKS_SELECTED,
+            "Aufgaben",
+            "Ausgewählte Aufgabe",
+            "responsibilities",
+            "Manual task selection",
+        ),
+        (
+            SSKey.SKILLS_SELECTED,
+            "Skills",
+            "Ausgewählter Skill",
+            "must_have_skills",
+            "Manual skill selection",
+        ),
+        (
+            SSKey.BENEFITS_SELECTED,
+            "Benefits",
+            "Ausgewählter Benefit",
+            "benefits",
+            "Manual benefit selection",
+        ),
+    )
+    for state_key, group, label_prefix, target, source_label in selected_sources:
+        raw_values = st.session_state.get(state_key.value, [])
+        if not isinstance(raw_values, list):
+            continue
+        for value in raw_values:
+            _append_salary_sidebar_row(
+                rows,
+                group=group,
+                label_prefix=label_prefix,
+                value=value,
+                target=target,
+                source_label=source_label,
+            )
+
+
+def _append_sidebar_esco_rows(rows: list[SalarySidebarInputRow]) -> None:
+    occupation = st.session_state.get(SSKey.ESCO_OCCUPATION_SELECTED.value)
+    if isinstance(occupation, Mapping):
+        uri = str(occupation.get("uri") or "").strip()
+        title = str(occupation.get("title") or occupation.get("preferredLabel") or "").strip()
+        if uri:
+            _append_salary_sidebar_row(
+                rows,
+                group="ESCO",
+                label_prefix="Occupation",
+                value={"uri": uri, "title": title or uri},
+                target="esco_occupation_uri",
+                source_label="ESCO occupation anchor",
+            )
+
+    for state_key, target, label_prefix in (
+        (SSKey.ESCO_SKILLS_SELECTED_MUST, "esco_skill_uri_must", "ESCO Must-have"),
+        (SSKey.ESCO_SKILLS_SELECTED_NICE, "esco_skill_uri_nice", "ESCO Nice-to-have"),
+    ):
+        raw_items = st.session_state.get(state_key.value, [])
+        if not isinstance(raw_items, list):
+            continue
+        for item in raw_items:
+            if not isinstance(item, Mapping):
+                continue
+            uri = str(item.get("uri") or "").strip()
+            title = str(item.get("title") or item.get("preferredLabel") or "").strip()
+            if uri:
+                _append_salary_sidebar_row(
+                    rows,
+                    group="ESCO",
+                    label_prefix=label_prefix,
+                    value={"uri": uri, "title": title or uri},
+                    target=target,
+                    source_label="ESCO skill selection",
+                )
+
+
+def _append_sidebar_scenario_rows(rows: list[SalarySidebarInputRow]) -> None:
+    scenario_values = (
+        (
+            SSKey.SALARY_SCENARIO_LOCATION_CITY_OVERRIDE,
+            "Stadt-Override",
+            "scenario.location_city_override",
+        ),
+        (
+            SSKey.SALARY_SCENARIO_LOCATION_COUNTRY_OVERRIDE,
+            "Land-Override",
+            "scenario.location_country_override",
+        ),
+        (
+            SSKey.SALARY_SCENARIO_RADIUS_KM,
+            "Suchradius",
+            "scenario.search_radius_km",
+        ),
+        (
+            SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT,
+            "Remote Share",
+            "scenario.remote_share_percent",
+        ),
+        (
+            SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE,
+            "Seniority-Override",
+            "scenario.seniority_override",
+        ),
+    )
+    for state_key, label_prefix, target in scenario_values:
+        value = st.session_state.get(state_key.value)
+        if state_key == SSKey.SALARY_SCENARIO_RADIUS_KM:
+            value = value if value is not None else 50
+        if state_key == SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT:
+            value = value if value is not None else 0
+        _append_salary_sidebar_row(
+            rows,
+            group="Szenario",
+            label_prefix=label_prefix,
+            value=value,
+            target=target,
+            source_label="Salary scenario controls",
+        )
+
+
+def _build_sidebar_salary_input_rows() -> list[SalarySidebarInputRow]:
+    rows: list[SalarySidebarInputRow] = []
+    for fact_key, value in collect_legacy_facts(st.session_state).items():
+        target_config = _SALARY_SIDEBAR_FACT_TARGETS.get(fact_key)
+        if target_config is None:
+            continue
+        group, label_prefix, target = target_config
+        _append_salary_sidebar_row(
+            rows,
+            group=group,
+            label_prefix=label_prefix,
+            value=value,
+            target=target,
+            source_label="Stored vacancy fact",
+        )
+    _append_sidebar_selected_state_rows(rows)
+    _append_sidebar_esco_rows(rows)
+    if rows:
+        _append_sidebar_scenario_rows(rows)
+    return rows
+
+
+def _sync_sidebar_salary_input_selections(
+    rows: Sequence[SalarySidebarInputRow],
+) -> dict[str, bool]:
+    raw_selections = st.session_state.get(SSKey.SALARY_FORECAST_INPUT_SELECTIONS.value)
+    existing = raw_selections if isinstance(raw_selections, dict) else {}
+    valid_ids = {row.id for row in rows}
+    selections = {
+        row.id: bool(existing.get(row.id, row.default_enabled))
+        for row in rows
+        if row.id in valid_ids
+    }
+    st.session_state[SSKey.SALARY_FORECAST_INPUT_SELECTIONS.value] = selections
+    return selections
+
+
+def _sidebar_salary_fingerprint(
+    *,
+    rows: Sequence[SalarySidebarInputRow],
+    selections: Mapping[str, bool],
+) -> str:
+    payload = {
+        "rows": [
+            {
+                "id": row.id,
+                "target": row.target,
+                "value": _json_safe(row.value),
+                "enabled": bool(selections.get(row.id, row.default_enabled)),
+            }
+            for row in rows
+        ]
+    }
+    serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _selected_sidebar_rows(
+    rows: Sequence[SalarySidebarInputRow],
+    selections: Mapping[str, bool],
+) -> list[SalarySidebarInputRow]:
+    return [row for row in rows if bool(selections.get(row.id, row.default_enabled))]
+
+
+def _active_sidebar_esco_context(
+    rows: Sequence[SalarySidebarInputRow],
+    selections: Mapping[str, bool],
+) -> "SalaryEscoContext":
+    from salary.types import SalaryEscoContext
+
+    active_rows = _selected_sidebar_rows(rows, selections)
+    occupation_uri = next(
+        (
+            str(row.value.get("uri") or "").strip()
+            for row in active_rows
+            if row.target == "esco_occupation_uri" and isinstance(row.value, Mapping)
+        ),
+        "",
+    )
+    skill_uris_must = [
+        str(row.value.get("uri") or "").strip()
+        for row in active_rows
+        if row.target == "esco_skill_uri_must" and isinstance(row.value, Mapping)
+    ]
+    skill_uris_nice = [
+        str(row.value.get("uri") or "").strip()
+        for row in active_rows
+        if row.target == "esco_skill_uri_nice" and isinstance(row.value, Mapping)
+    ]
+    esco_config = st.session_state.get(SSKey.ESCO_CONFIG.value, {})
+    esco_version = (
+        str(esco_config.get("selected_version") or "").strip()
+        if isinstance(esco_config, Mapping)
+        else ""
+    )
+    return SalaryEscoContext(
+        occupation_uri=occupation_uri or None,
+        skill_uris_must=list(dict.fromkeys(uri for uri in skill_uris_must if uri)),
+        skill_uris_nice=list(dict.fromkeys(uri for uri in skill_uris_nice if uri)),
+        esco_version=esco_version or None,
+    )
+
+
+def _active_sidebar_scenario_inputs(
+    rows: Sequence[SalarySidebarInputRow],
+    selections: Mapping[str, bool],
+) -> "SalaryScenarioInputs":
+    from salary.types import SalaryScenarioInputs
+
+    active_by_target = {
+        row.target: row.value
+        for row in _selected_sidebar_rows(rows, selections)
+        if row.target.startswith("scenario.")
+    }
+    return SalaryScenarioInputs(
+        location_city_override=str(
+            active_by_target.get("scenario.location_city_override") or ""
+        ).strip()
+        or None,
+        location_country_override=str(
+            active_by_target.get("scenario.location_country_override") or ""
+        ).strip()
+        or None,
+        search_radius_km=_safe_sidebar_int(
+            active_by_target.get("scenario.search_radius_km"), default=50
+        ),
+        remote_share_percent=(
+            _safe_sidebar_int(active_by_target.get("scenario.remote_share_percent"))
+            if "scenario.remote_share_percent" in active_by_target
+            else None
+        ),
+    )
+
+
+def _safe_sidebar_int(value: Any, *, default: int = 0) -> int:
+    try:
+        return int(round(float(value)))
+    except (TypeError, ValueError):
+        return default
+
+
+def _sidebar_job_and_answers(
+    *,
+    base_job: JobAdExtract | None,
+    rows: Sequence[SalarySidebarInputRow],
+    selections: Mapping[str, bool],
+    source_text: str,
+) -> tuple[JobAdExtract | None, dict[str, Any]]:
+    active_rows = _selected_sidebar_rows(rows, selections)
+    answers = {
+        row.id: row.value
+        for row in active_rows
+        if not row.target.startswith(("esco_", "scenario."))
+    }
+    fallback_job = base_job or _fallback_job_from_session(
+        answers=answers, source_text=source_text
+    )
+    has_forecast_signal = any(
+        not row.target.startswith("scenario.") for row in active_rows
+    )
+    if fallback_job is None and not has_forecast_signal:
+        return None, answers
+    updates: dict[str, Any] = {}
+    list_updates: dict[str, list[Any]] = {}
+    for row in active_rows:
+        target = row.target
+        if target.startswith(("esco_", "scenario.")):
+            continue
+        if target in _SALARY_SIDEBAR_LIST_TARGETS:
+            list_updates.setdefault(target, []).append(row.value)
+        elif target == "salary_range":
+            updates[target] = row.value
+        else:
+            updates[target] = row.value
+
+    for target, values in list_updates.items():
+        if target == "recruitment_steps":
+            normalized_steps = []
+            for value in values:
+                if isinstance(value, Mapping):
+                    name = str(value.get("name") or "").strip()
+                    if name:
+                        normalized_steps.append(dict(value))
+                else:
+                    name = str(value or "").strip()
+                    if name:
+                        normalized_steps.append({"name": name})
+            updates[target] = normalized_steps
+            continue
+        deduped = list(dict.fromkeys(str(value).strip() for value in values if str(value).strip()))
+        updates[target] = deduped
+
+    seniority_override = next(
+        (
+            str(row.value or "").strip()
+            for row in active_rows
+            if row.target == "scenario.seniority_override"
+        ),
+        "",
+    )
+    if seniority_override:
+        updates["seniority_level"] = seniority_override
+
+    try:
+        merged_job = (fallback_job or JobAdExtract()).model_copy(update=updates)
+        return JobAdExtract.model_validate(merged_job.model_dump(mode="json")), answers
+    except Exception:
+        return fallback_job, answers
+
+
+def _coerce_sidebar_salary_forecast(payload: Any) -> "SalaryForecastResult | None":
+    from salary.types import SalaryForecastResult
+
+    if isinstance(payload, SalaryForecastResult):
+        return payload
+    if not isinstance(payload, Mapping):
+        return None
+    model_fields = set(SalaryForecastResult.model_fields)
+    try:
+        return SalaryForecastResult.model_validate(
+            {key: value for key, value in payload.items() if key in model_fields}
+        )
+    except Exception:
+        return None
+
+
 def _compute_sidebar_salary_forecast(
     *,
     job: JobAdExtract | None,
     answers: dict[str, object],
     source_text: str,
+    esco_context: "SalaryEscoContext | None" = None,
+    scenario_inputs: "SalaryScenarioInputs | None" = None,
 ) -> "SalaryForecastResult | None":
     forecast_job = job or _fallback_job_from_session(
         answers=answers, source_text=source_text
@@ -132,7 +608,12 @@ def _compute_sidebar_salary_forecast(
     try:
         from salary.engine import compute_salary_forecast
 
-        return compute_salary_forecast(job_extract=forecast_job, answers=answers)
+        return compute_salary_forecast(
+            job_extract=forecast_job,
+            answers=answers,
+            esco_context=esco_context,
+            scenario_inputs=scenario_inputs,
+        )
     except Exception:
         return None
 
@@ -248,6 +729,8 @@ def _ensure_salary_forecast_state_defaults() -> None:
     )
     st.session_state.setdefault(SSKey.SALARY_FORECAST_SELECTED_SCENARIO.value, "base")
     st.session_state.setdefault(SSKey.SALARY_FORECAST_LAST_RESULT.value, {})
+    st.session_state.setdefault(SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value, {})
+    st.session_state.setdefault(SSKey.SALARY_FORECAST_INPUT_SELECTIONS.value, {})
 
 
 def set_current_step(key: str, *, sync_navigation: bool = True) -> None:
@@ -1120,13 +1603,68 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
             job = JobAdExtract.model_validate(job_dict)
         except Exception:
             job = None
-    forecast = _compute_sidebar_salary_forecast(
-        job=job,
-        answers=answers,
-        source_text=source_text,
+    sidebar_input_rows = _build_sidebar_salary_input_rows()
+    sidebar_input_selections = _sync_sidebar_salary_input_selections(
+        sidebar_input_rows
     )
-    if forecast is not None:
-        render_sidebar_salary_forecast(forecast=forecast)
+    sidebar_fingerprint = _sidebar_salary_fingerprint(
+        rows=sidebar_input_rows,
+        selections=sidebar_input_selections,
+    )
+    raw_fingerprints = st.session_state.get(
+        SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value, {}
+    )
+    fingerprints = raw_fingerprints if isinstance(raw_fingerprints, dict) else {}
+    last_sidebar_fingerprint = str(
+        fingerprints.get(_SALARY_SIDEBAR_STEP_KEY) or ""
+    ).strip()
+    forecast = _coerce_sidebar_salary_forecast(
+        st.session_state.get(SSKey.SALARY_FORECAST_LAST_RESULT.value)
+    )
+    update_requested = render_sidebar_salary_forecast(
+        forecast=forecast,
+        input_rows=sidebar_input_rows,
+        input_selections=sidebar_input_selections,
+        is_stale=last_sidebar_fingerprint != sidebar_fingerprint,
+    )
+    if update_requested:
+        updated_selections_raw = st.session_state.get(
+            SSKey.SALARY_FORECAST_INPUT_SELECTIONS.value, {}
+        )
+        updated_selections = (
+            updated_selections_raw if isinstance(updated_selections_raw, dict) else {}
+        )
+        forecast_job, forecast_answers = _sidebar_job_and_answers(
+            base_job=job,
+            rows=sidebar_input_rows,
+            selections=updated_selections,
+            source_text=source_text,
+        )
+        forecast = _compute_sidebar_salary_forecast(
+            job=forecast_job,
+            answers=forecast_answers,
+            source_text=source_text,
+            esco_context=_active_sidebar_esco_context(
+                sidebar_input_rows, updated_selections
+            ),
+            scenario_inputs=_active_sidebar_scenario_inputs(
+                sidebar_input_rows, updated_selections
+            ),
+        )
+        if forecast is not None:
+            st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {
+                **forecast.model_dump(mode="json"),
+                "step_key": _SALARY_SIDEBAR_STEP_KEY,
+            }
+            fingerprints = dict(fingerprints)
+            fingerprints[_SALARY_SIDEBAR_STEP_KEY] = _sidebar_salary_fingerprint(
+                rows=sidebar_input_rows,
+                selections=updated_selections,
+            )
+            st.session_state[SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value] = (
+                fingerprints
+            )
+            st.rerun()
     _render_esco_warnings_and_migration_cta()
     return current_page
 

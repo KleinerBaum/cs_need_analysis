@@ -372,6 +372,7 @@ class SSKey(str, Enum):
     SALARY_SCENARIO_PENDING_SELECTED_ROW_ID = "cs.salary.scenario.pending.selected_row"
     SALARY_FORECAST_LAST_RESULT = "cs.salary.forecast.last_result"
     SALARY_FORECAST_INPUT_FINGERPRINT = "cs.salary.forecast.input_fingerprint"
+    SALARY_FORECAST_INPUT_SELECTIONS = "cs.salary.forecast.input_selections"
     SALARY_FORECAST_SELECTED_SCENARIO = "cs.salary.forecast.selected_scenario"
     SUMMARY_SELECTION_PICK_WIDGET_PREFIX = "cs.summary.pick"
     SUMMARY_LOGO_UPLOAD_WIDGET = "cs.summary.logo_upload"

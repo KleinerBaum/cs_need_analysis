@@ -473,6 +473,7 @@ def init_session_state() -> None:
         SSKey.SALARY_FORECAST_SELECTED_SCENARIO.value: "base",
         SSKey.SALARY_FORECAST_LAST_RESULT.value: {},
         SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value: {},
+        SSKey.SALARY_FORECAST_INPUT_SELECTIONS.value: {},
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -683,6 +684,7 @@ def reset_vacancy() -> None:
     _clear_stale_redesign_state()
     st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {}
     st.session_state[SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value] = {}
+    st.session_state[SSKey.SALARY_FORECAST_INPUT_SELECTIONS.value] = {}
     st.session_state[SSKey.LAST_ERROR.value] = None
     st.session_state[SSKey.OPENAI_LAST_STRUCTURED_OUTPUT_PATH.value] = None
     st.session_state[SSKey.CURRENT_STEP.value] = STEPS[0].key
