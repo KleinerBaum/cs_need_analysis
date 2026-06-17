@@ -132,8 +132,8 @@ def test_summary_hero_status_missing_brief(monkeypatch) -> None:
     )
 
     assert status.brief_state == "missing"
-    assert status.next_step == "Recruiting Brief erstellen"
-    assert status.ready_for_follow_ups is False
+    assert status.next_step == "Gewünschtes Recruiting-Artefakt erzeugen"
+    assert status.ready_for_follow_ups is True
 
 
 def test_summary_hero_status_stale_brief_text_path(monkeypatch) -> None:
@@ -159,7 +159,7 @@ def test_summary_hero_status_stale_brief_text_path(monkeypatch) -> None:
     subheader = SUMMARY_MODULE._build_summary_subheader(meta, status)
 
     assert status.brief_state == "stale"
-    assert status.next_step == "Recruiting Brief aktualisieren"
+    assert status.next_step == "Gewünschtes Recruiting-Artefakt erzeugen"
     assert "Recruiting Brief ist veraltet." in subheader
 
 

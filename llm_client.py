@@ -2358,10 +2358,29 @@ def _generate_structured_with_fallback(
         )
 
 
+def _artifact_context_block(
+    *,
+    generation_options: Mapping[str, Any] | None,
+    change_request: str | None,
+) -> str:
+    options = dict(generation_options or {})
+    request = (change_request or "").strip()
+    if not options and not request:
+        return ""
+    return (
+        "\n\nArtifact-Optionen (JSON):\n"
+        f"{json.dumps(options, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
+        "Anpassungswunsch:\n"
+        f"{request or 'Kein zusätzlicher Änderungswunsch.'}"
+    )
+
+
 def generate_interview_sheet_hr(
     *,
     brief: VacancyBrief,
     model: str,
+    generation_options: Mapping[str, Any] | None = None,
+    change_request: str | None = None,
     language: str = DEFAULT_LANGUAGE,
     store: bool = False,
     temperature: float | None = None,
@@ -2384,6 +2403,7 @@ def generate_interview_sheet_hr(
         "InterviewPrepSheetHR-Objekt.\n\n"
         "Vacancy Brief (JSON):\n"
         f"{json.dumps(brief.model_dump(mode='json'), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}"
+        f"{_artifact_context_block(generation_options=generation_options, change_request=change_request)}"
     )
     fallback_payload = {
         "role_title": role_title,
@@ -2424,6 +2444,8 @@ def generate_interview_sheet_hm(
     *,
     brief: VacancyBrief,
     model: str,
+    generation_options: Mapping[str, Any] | None = None,
+    change_request: str | None = None,
     language: str = DEFAULT_LANGUAGE,
     store: bool = False,
     temperature: float | None = None,
@@ -2448,6 +2470,7 @@ def generate_interview_sheet_hm(
         "InterviewPrepSheetHiringManager-Objekt.\n\n"
         "Vacancy Brief (JSON):\n"
         f"{json.dumps(brief.model_dump(mode='json'), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}"
+        f"{_artifact_context_block(generation_options=generation_options, change_request=change_request)}"
     )
     fallback_payload = {
         "role_title": role_title,
@@ -2484,6 +2507,8 @@ def generate_boolean_search_pack(
     *,
     brief: VacancyBrief,
     model: str,
+    generation_options: Mapping[str, Any] | None = None,
+    change_request: str | None = None,
     language: str = DEFAULT_LANGUAGE,
     store: bool = False,
     temperature: float | None = None,
@@ -2507,6 +2532,7 @@ def generate_boolean_search_pack(
         "BooleanSearchPack-Objekt.\n\n"
         "Vacancy Brief (JSON):\n"
         f"{json.dumps(brief.model_dump(mode='json'), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}"
+        f"{_artifact_context_block(generation_options=generation_options, change_request=change_request)}"
     )
     must_have_terms = brief.must_have[:8]
     fallback_query = (
@@ -2557,6 +2583,8 @@ def generate_employment_contract_draft(
     *,
     brief: VacancyBrief,
     model: str,
+    generation_options: Mapping[str, Any] | None = None,
+    change_request: str | None = None,
     language: str = DEFAULT_LANGUAGE,
     store: bool = False,
     temperature: float | None = None,
@@ -2581,6 +2609,7 @@ def generate_employment_contract_draft(
         "EmploymentContractDraft-Objekt.\n\n"
         "Vacancy Brief (JSON):\n"
         f"{json.dumps(brief.model_dump(mode='json'), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}"
+        f"{_artifact_context_block(generation_options=generation_options, change_request=change_request)}"
     )
     job_payload = _brief_job_payload(brief)
     answers = _brief_answers(brief)

@@ -332,6 +332,9 @@ def init_session_state() -> None:
         SSKey.SUMMARY_CHANGE_REQUEST_BLOCKS.value: [],
         SSKey.SUMMARY_STYLEGUIDE_TEXT.value: "",
         SSKey.SUMMARY_CHANGE_REQUEST_TEXT.value: "",
+        SSKey.SUMMARY_ARTIFACT_OPTIONS.value: {},
+        SSKey.SUMMARY_ARTIFACT_CHANGE_REQUESTS.value: {},
+        SSKey.SUMMARY_ARTIFACT_FINGERPRINTS.value: {},
         SSKey.SUMMARY_LOGO.value: None,
         SSKey.JOB_AD_DRAFT_CUSTOM.value: None,
         SSKey.JOB_AD_LAST_USAGE.value: {},
@@ -545,6 +548,9 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.SUMMARY_CHANGE_REQUEST_BLOCKS.value] = []
     st.session_state[SSKey.SUMMARY_STYLEGUIDE_TEXT.value] = ""
     st.session_state[SSKey.SUMMARY_CHANGE_REQUEST_TEXT.value] = ""
+    st.session_state[SSKey.SUMMARY_ARTIFACT_OPTIONS.value] = {}
+    st.session_state[SSKey.SUMMARY_ARTIFACT_CHANGE_REQUESTS.value] = {}
+    st.session_state[SSKey.SUMMARY_ARTIFACT_FINGERPRINTS.value] = {}
     st.session_state[SSKey.SUMMARY_LOGO.value] = None
     st.session_state[SSKey.JOB_AD_DRAFT_CUSTOM.value] = None
     st.session_state[SSKey.JOB_AD_LAST_USAGE.value] = {}

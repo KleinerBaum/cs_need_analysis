@@ -18,6 +18,11 @@ class SummaryFactsRow:
     quelle: str
     status: str
     resolution_status: str = ""
+    step_key: str = ""
+    fact_key: str = ""
+    question_id: str = ""
+    editable: bool = False
+    value_type: str = "text"
 
     def to_dict(self) -> dict[str, str]:
         row = {
@@ -115,15 +120,75 @@ def status_for_value(value: Any) -> str:
 
 def format_summary_fact_value(value: Any) -> str:
     if isinstance(value, list):
-        return " | ".join(str(item).strip() for item in value if str(item).strip())
+        return " | ".join(
+            item
+            for item in (_format_summary_collection_item(item) for item in value)
+            if item
+        )
     if isinstance(value, dict):
-        parts = [
-            f"{str(key).strip()}: {str(item).strip()}"
-            for key, item in value.items()
-            if str(key).strip() and not is_missing_value(item)
-        ]
-        return " | ".join(parts)
+        return _format_summary_mapping(value)
     return str(value or "").strip()
+
+
+def _format_summary_collection_item(value: Any) -> str:
+    if isinstance(value, Mapping):
+        label = _mapping_primary_label(value)
+        if label:
+            return label
+        return _format_summary_mapping(value)
+    if isinstance(value, list):
+        return format_summary_fact_value(value)
+    return str(value or "").strip()
+
+
+def _mapping_primary_label(value: Mapping[str, Any]) -> str:
+    for key in ("label", "title", "name", "value", "skill", "term"):
+        raw = value.get(key)
+        if not is_missing_value(raw):
+            return str(raw).strip()
+    language = value.get("language")
+    level = value.get("level")
+    if not is_missing_value(language):
+        fragments = [str(language).strip()]
+        if not is_missing_value(level):
+            fragments.append(str(level).strip())
+        return " ".join(fragments)
+    return ""
+
+
+def _format_summary_mapping(value: Mapping[str, Any]) -> str:
+    preferred_order = (
+        "min",
+        "max",
+        "currency",
+        "period",
+        "notes",
+        "eligible",
+        "ote_min",
+        "ote_max",
+        "bonus_logic",
+    )
+    ordered_keys = [
+        key for key in preferred_order if key in value and not is_missing_value(value.get(key))
+    ]
+    ordered_keys.extend(
+        key
+        for key in value.keys()
+        if key not in ordered_keys and not is_missing_value(value.get(key))
+    )
+    parts: list[str] = []
+    for key in ordered_keys:
+        item = value.get(key)
+        if isinstance(item, Mapping):
+            formatted = _format_summary_mapping(item)
+        elif isinstance(item, list):
+            formatted = format_summary_fact_value(item)
+        else:
+            formatted = str(item).strip()
+        if not formatted:
+            continue
+        parts.append(f"{str(key).strip()}: {formatted}")
+    return " | ".join(parts)
 
 
 def summary_core_fact_row(
@@ -149,6 +214,8 @@ def summary_core_fact_row(
             source,
             status_for_value(fact_value),
             resolution_status,
+            fact_key=fact_key.value,
+            editable=True,
         )
     return SummaryFactsRow(
         "Kernprofil",
@@ -159,6 +226,8 @@ def summary_core_fact_row(
         FactResolutionStatus.INFERRED.value
         if not is_missing_value(fallback_value)
         else FactResolutionStatus.MISSING.value,
+        fact_key=fact_key.value,
+        editable=True,
     )
 
 

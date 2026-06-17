@@ -332,12 +332,18 @@ Bundled demo data lives under `data/salary_benchmarks/` and `data/salary_skill_p
 
 ## Summary artifacts and exports
 
+The visible Summary step starts with `Alles bereit für Recruiting und Hiring-Team`.
+It shows editable facts by wizard step, a critical-gap table, a compact artifact grid,
+and the active output with refinement requests and downloads. The Recruiting Brief
+remains a compatible internal context artifact for downstream generation, but it is
+not shown as a required user-facing CTA.
+
 Canonical summary artifact IDs:
 
 | ID | Label | Main export formats |
 |---|---|---|
-| `brief` | Recruiting Brief | JSON, Markdown, DOCX |
-| `job_ad` | Stellenanzeige | DOCX, PDF when `reportlab` is available |
+| `brief` | Recruiting Brief (internal context) | JSON, Markdown, DOCX |
+| `job_ad` | Stellenanzeige | Markdown, DOCX, PDF when `reportlab` is available |
 | `interview_hr` | HR Interview Sheet | JSON, DOCX |
 | `interview_fach` | Fachbereich Interview Sheet | JSON, DOCX |
 | `boolean_search` | Boolean Search Pack | JSON, Markdown |

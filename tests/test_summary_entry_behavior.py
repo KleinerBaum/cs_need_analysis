@@ -73,19 +73,33 @@ def test_render_entry_without_brief_still_renders_summary(monkeypatch) -> None:
     monkeypatch.setattr(
         SUMMARY_MODULE, "resolve_model_for_task", lambda *_, **__: "gpt-5-mini"
     )
-    monkeypatch.setattr(SUMMARY_MODULE, "_render_summary_hero", lambda **_: None)
-    monkeypatch.setattr(
-        SUMMARY_MODULE, "_render_summary_facts_section", lambda *_: None
-    )
-    monkeypatch.setattr(
-        SUMMARY_MODULE, "_render_summary_processing_hub", lambda **_: None
-    )
     monkeypatch.setattr(SUMMARY_MODULE, "_build_action_registry", lambda **_: [])
-    readiness_calls: list[dict[str, Any]] = []
+    render_events: list[str] = []
     monkeypatch.setattr(
         SUMMARY_MODULE,
-        "_render_readiness_tab",
-        lambda **kwargs: readiness_calls.append(kwargs),
+        "render_output_header",
+        lambda title, *_args, **_kwargs: render_events.append(str(title)),
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "_render_esco_coverage_kpis", lambda: None)
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "_render_summary_facts_matrix",
+        lambda _vm: render_events.append("facts"),
+    )
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "_render_summary_critical_gaps_table",
+        lambda _vm: render_events.append("gaps"),
+    )
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "_render_summary_artifact_grid",
+        lambda **_kwargs: render_events.append("grid"),
+    )
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "_render_summary_output_workspace",
+        lambda **_kwargs: render_events.append("output"),
     )
 
     called_generate = {"count": 0}
@@ -100,8 +114,13 @@ def test_render_entry_without_brief_still_renders_summary(monkeypatch) -> None:
     assert called_generate["count"] == 0, (
         "Expected no auto-generation at summary entry; actual generator call count > 0"
     )
-    assert len(readiness_calls) == 1
-    assert readiness_calls[0]["brief"] is None
+    assert render_events == [
+        "Alles bereit für Recruiting und Hiring-Team",
+        "facts",
+        "gaps",
+        "grid",
+        "output",
+    ]
     assert fake_st.info_calls == []
 
 

@@ -1,10 +1,11 @@
 # wizard_pages/08_summary.py
 
 import io
+import hashlib
 import json
 import textwrap
 from contextlib import nullcontext
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from collections import defaultdict
 from html import escape
 from typing import Any, Callable, Final, Mapping, Protocol, Sequence, TypedDict
@@ -14,8 +15,15 @@ import docx
 
 from constants import (
     FactKey,
+    FactResolutionStatus,
+    FactSourceType,
     NON_INTAKE_STEP_KEYS,
     SSKey,
+    STEP_KEY_BENEFITS,
+    STEP_KEY_COMPANY,
+    STEP_KEY_INTERVIEW,
+    STEP_KEY_ROLE_TASKS,
+    STEP_KEY_SKILLS,
 )
 from interview_process import (
     build_candidate_stage_values,
@@ -29,6 +37,7 @@ from intake_facts import (
     get_intake_fact_evidence_state,
     get_intake_fact_state,
     mark_intake_facts_used_by_artifact,
+    write_intake_fact,
 )
 from homepage_research import (
     normalize_company_website_research_payload as _normalize_company_website_research_payload,
@@ -69,6 +78,7 @@ from schemas import (
     QuestionFlowProvenance,
     QuestionPlan,
     VacancyBrief,
+    VacancyStructuredData,
     CompanyWebsiteResearch,
 )
 from settings_openai import load_openai_settings
@@ -79,6 +89,7 @@ from state import (
     has_confirmed_esco_anchor,
     get_model_override,
     handle_unexpected_exception,
+    set_answer,
 )
 from components.design_system import (
     render_card_start,
@@ -371,6 +382,49 @@ class SummaryAction(TypedDict):
 
 
 SUMMARY_FACT_OVERVIEW_COLUMNS = 3
+SUMMARY_FACT_EMPTY_VALUES: Final[set[str]] = {
+    "",
+    "—",
+    "Nicht angegeben",
+    "Nicht beantwortet",
+    "Nicht gesetzt",
+    "Noch nicht generiert",
+}
+SUMMARY_FACT_STEP_ORDER: Final[tuple[str, ...]] = (
+    STEP_KEY_COMPANY,
+    STEP_KEY_ROLE_TASKS,
+    STEP_KEY_SKILLS,
+    STEP_KEY_BENEFITS,
+    STEP_KEY_INTERVIEW,
+)
+SUMMARY_FACT_STEP_LABELS: Final[dict[str, str]] = {
+    STEP_KEY_COMPANY: "Unternehmen",
+    STEP_KEY_ROLE_TASKS: "Rolle & Aufgaben",
+    STEP_KEY_SKILLS: "Skills & Anforderungen",
+    STEP_KEY_BENEFITS: "Benefits & Rahmenbedingungen",
+    STEP_KEY_INTERVIEW: "Interviewprozess",
+}
+SUMMARY_AREA_TO_STEP_KEY: Final[dict[str, str]] = {
+    "Kernprofil": STEP_KEY_COMPANY,
+    "Klassifikation": STEP_KEY_ROLE_TASKS,
+    "Routing": STEP_KEY_COMPANY,
+    "Unternehmen": STEP_KEY_COMPANY,
+    "Team": STEP_KEY_COMPANY,
+    "Rolle": STEP_KEY_ROLE_TASKS,
+    "Rolle & Aufgaben": STEP_KEY_ROLE_TASKS,
+    "Skills": STEP_KEY_SKILLS,
+    "Benefits": STEP_KEY_BENEFITS,
+    "Legal": STEP_KEY_BENEFITS,
+    "Timeline": STEP_KEY_INTERVIEW,
+    "Interview": STEP_KEY_INTERVIEW,
+    "Candidate Communication": STEP_KEY_INTERVIEW,
+}
+SUMMARY_PRIMARY_ARTIFACT_IDS: Final[tuple[str, ...]] = (
+    "job_ad",
+    "interview",
+    "boolean_search",
+    "employment_contract",
+)
 
 
 @dataclass(frozen=True)
@@ -1793,25 +1847,18 @@ def _build_summary_status(
     )
     brief_state = brief_status.state
     brief_status_label = brief_status.message
-
-    if brief_state in {"missing", "blocked"}:
-        next_step = "Recruiting Brief erstellen"
-    elif brief_state in {"invalid", "stale"}:
-        next_step = "Recruiting Brief aktualisieren"
-    else:
-        next_step = "Gewünschtes Folge-Artefakt erzeugen"
+    next_step = "Gewünschtes Recruiting-Artefakt erzeugen"
 
     readiness_checks = [
         bool(meta.role_label),
         bool(meta.company_label),
         bool(meta.country_label),
         esco_ready,
-        brief_status.ready_for_follow_ups,
     ]
     readiness_percent = round(
         (sum(1 for item in readiness_checks if item) / len(readiness_checks)) * 100
     )
-    ready_for_follow_ups = brief_status.ready_for_follow_ups
+    ready_for_follow_ups = bool(meta.role_label)
 
     return SummaryStatus(
         completion_ratio=completion_ratio,
@@ -1991,6 +2038,64 @@ def _build_summary_artifact_state(
     )
 
 
+def _build_internal_fallback_brief(vm: SummaryViewModel) -> VacancyBrief:
+    job = vm.job
+    role_title = str(job.job_title or vm.meta.role_label or "Rolle").strip() or "Rolle"
+    company = str(job.company_name or vm.meta.company_label or "").strip()
+    one_liner = f"{role_title} bei {company}" if company else role_title
+    responsibilities = [
+        str(item).strip()
+        for item in [*vm.artifacts.selected_role_tasks, *list(job.responsibilities or [])]
+        if str(item).strip()
+    ][:6]
+    must_have = [
+        str(item).strip()
+        for item in [*vm.artifacts.selected_skills, *list(job.must_have_skills or [])]
+        if str(item).strip()
+    ][:8]
+    nice_to_have = [str(item).strip() for item in job.nice_to_have_skills or [] if str(item).strip()][:6]
+    benefits = [str(item).strip() for item in vm.artifacts.selected_benefits if str(item).strip()]
+    structured_data = VacancyStructuredData.model_validate(
+        {
+            "job_extract": job.model_dump(mode="json"),
+            "answers": vm.answers,
+            "selected_role_tasks": vm.artifacts.selected_role_tasks or None,
+            "selected_skills": vm.artifacts.selected_skills or None,
+            "selected_benefits": vm.artifacts.selected_benefits or None,
+        }
+    )
+    return VacancyBrief(
+        language="de",
+        one_liner=one_liner,
+        hiring_context="Aus den vorhandenen Intake-Daten abgeleiteter interner Kontext.",
+        role_summary=str(job.role_overview or one_liner),
+        top_responsibilities=responsibilities,
+        must_have=must_have,
+        nice_to_have=nice_to_have,
+        dealbreakers=[],
+        interview_plan=[
+            str(step.name).strip()
+            for step in job.recruitment_steps or []
+            if str(step.name).strip()
+        ],
+        evaluation_rubric=[],
+        sourcing_channels=[],
+        risks_open_questions=[
+            row.feld for row in vm.fact_rows if row.status in {"Fehlend", "Teilweise"}
+        ][:8],
+        job_ad_draft="\n".join(
+            item
+            for item in (
+                one_liner,
+                str(job.role_overview or "").strip(),
+                "Benefits: " + ", ".join(benefits) if benefits else "",
+            )
+            if item
+        ),
+        structured_data=structured_data,
+    )
+
+
 def _build_country_readiness_items(job: JobAdExtract) -> list[tuple[str, str, bool]]:
     selected_occupation = get_esco_occupation_selected()
     show_esco_sections = _show_semantic_esco_sections()
@@ -2064,6 +2169,45 @@ def _render_summary_facts_section(vm: SummaryViewModel) -> None:
     _render_summary_facts_table([row.to_dict() for row in vm.fact_rows])
 
 
+def _summary_step_key_for_area(area: str) -> str:
+    return SUMMARY_AREA_TO_STEP_KEY.get(str(area or "").strip(), STEP_KEY_ROLE_TASKS)
+
+
+def _with_summary_row_metadata(
+    row: SummaryFactsRow,
+    *,
+    step_key: str | None = None,
+    fact_key: FactKey | str | None = None,
+    question_id: str = "",
+    editable: bool | None = None,
+    value_type: str = "text",
+) -> SummaryFactsRow:
+    resolved_fact_key = fact_key.value if isinstance(fact_key, FactKey) else (fact_key or "")
+    resolved_step_key = step_key or row.step_key or _summary_step_key_for_area(row.bereich)
+    resolved_editable = (
+        bool(editable)
+        if editable is not None
+        else bool(resolved_fact_key or question_id or row.fact_key or row.question_id)
+    )
+    return replace(
+        row,
+        step_key=resolved_step_key,
+        fact_key=str(resolved_fact_key or row.fact_key or ""),
+        question_id=question_id or row.question_id,
+        editable=resolved_editable,
+        value_type=value_type or row.value_type,
+    )
+
+
+def _is_meaningful_summary_fact_row(row: SummaryFactsRow) -> bool:
+    if row.bereich == "Artefakte":
+        return False
+    if row.status == "Fehlend":
+        return False
+    value = str(row.wert or "").strip()
+    return value not in SUMMARY_FACT_EMPTY_VALUES
+
+
 def _build_summary_fact_rows(
     *,
     job: JobAdExtract,
@@ -2076,43 +2220,63 @@ def _build_summary_fact_rows(
     intake_facts = get_intake_fact_state(st.session_state)
     intake_fact_evidence = get_intake_fact_evidence_state(st.session_state)
     rows: list[SummaryFactsRow] = [
-        _summary_core_fact_row(
-            label="Rolle",
+        _with_summary_row_metadata(
+            _summary_core_fact_row(
+                label="Rolle",
+                fact_key=FactKey.ROLE_JOB_TITLE,
+                fallback_value=job.job_title,
+                intake_facts=intake_facts,
+                intake_fact_evidence=intake_fact_evidence,
+            ),
+            step_key=STEP_KEY_ROLE_TASKS,
             fact_key=FactKey.ROLE_JOB_TITLE,
-            fallback_value=job.job_title,
-            intake_facts=intake_facts,
-            intake_fact_evidence=intake_fact_evidence,
         ),
-        _summary_core_fact_row(
-            label="Unternehmen",
+        _with_summary_row_metadata(
+            _summary_core_fact_row(
+                label="Unternehmen",
+                fact_key=FactKey.COMPANY_COMPANY_NAME,
+                fallback_value=job.company_name,
+                intake_facts=intake_facts,
+                intake_fact_evidence=intake_fact_evidence,
+            ),
+            step_key=STEP_KEY_COMPANY,
             fact_key=FactKey.COMPANY_COMPANY_NAME,
-            fallback_value=job.company_name,
-            intake_facts=intake_facts,
-            intake_fact_evidence=intake_fact_evidence,
         ),
-        _summary_core_fact_row(
-            label="Land",
+        _with_summary_row_metadata(
+            _summary_core_fact_row(
+                label="Land",
+                fact_key=FactKey.COMPANY_LOCATION_COUNTRY,
+                fallback_value=job.location_country,
+                intake_facts=intake_facts,
+                intake_fact_evidence=intake_fact_evidence,
+            ),
+            step_key=STEP_KEY_COMPANY,
             fact_key=FactKey.COMPANY_LOCATION_COUNTRY,
-            fallback_value=job.location_country,
-            intake_facts=intake_facts,
-            intake_fact_evidence=intake_fact_evidence,
         ),
-        _summary_core_fact_row(
-            label="Stadt",
+        _with_summary_row_metadata(
+            _summary_core_fact_row(
+                label="Stadt",
+                fact_key=FactKey.COMPANY_LOCATION_CITY,
+                fallback_value=job.location_city,
+                intake_facts=intake_facts,
+                intake_fact_evidence=intake_fact_evidence,
+            ),
+            step_key=STEP_KEY_COMPANY,
             fact_key=FactKey.COMPANY_LOCATION_CITY,
-            fallback_value=job.location_city,
-            intake_facts=intake_facts,
-            intake_fact_evidence=intake_fact_evidence,
         ),
     ]
     if show_esco_sections:
         rows.append(
-            SummaryFactsRow(
-                "Klassifikation",
-                "ESCO Occupation",
-                meta.selected_occupation_title or "Nicht gesetzt",
-                "Jobspec-Review",
-                _status_for_classification_value(meta.selected_occupation_title),
+            _with_summary_row_metadata(
+                SummaryFactsRow(
+                    "Klassifikation",
+                    "ESCO Occupation",
+                    meta.selected_occupation_title or "Nicht gesetzt",
+                    "Jobspec-Review",
+                    _status_for_classification_value(meta.selected_occupation_title),
+                ),
+                step_key=STEP_KEY_ROLE_TASKS,
+                editable=False,
             ),
         )
     for label, fact_key, fallback_value in (
@@ -2149,12 +2313,15 @@ def _build_summary_fact_rows(
         ):
             continue
         rows.append(
-            _summary_core_fact_row(
-                label=label,
+            _with_summary_row_metadata(
+                _summary_core_fact_row(
+                    label=label,
+                    fact_key=fact_key,
+                    fallback_value=fallback_value,
+                    intake_facts=intake_facts,
+                    intake_fact_evidence=intake_fact_evidence,
+                ),
                 fact_key=fact_key,
-                fallback_value=fallback_value,
-                intake_facts=intake_facts,
-                intake_fact_evidence=intake_fact_evidence,
             )
         )
     for area, label, fact_key in (
@@ -2211,32 +2378,31 @@ def _build_summary_fact_rows(
         evidence_raw = intake_fact_evidence.get(fact_key.value)
         evidence = evidence_raw if isinstance(evidence_raw, Mapping) else {}
         rows.append(
-            SummaryFactsRow(
-                area,
-                label,
-                _format_summary_fact_value(value) or "Nicht angegeben",
-                str(evidence.get("source_label") or "Intake-Fakt").strip(),
-                _status_for_value(value),
-                str(evidence.get("resolution_status") or "").strip(),
+            _with_summary_row_metadata(
+                SummaryFactsRow(
+                    area,
+                    label,
+                    _format_summary_fact_value(value) or "Nicht angegeben",
+                    str(evidence.get("source_label") or "Intake-Fakt").strip(),
+                    _status_for_value(value),
+                    str(evidence.get("resolution_status") or "").strip(),
+                ),
+                step_key=_summary_step_key_for_area(area),
+                fact_key=fact_key,
             )
         )
-    rows.append(
-        SummaryFactsRow(
-            "Artefakte",
-            "Recruiting Brief",
-            "Vorhanden" if artifacts.brief is not None else "Noch nicht generiert",
-            "Summary",
-            "Vollständig" if artifacts.brief is not None else "Teilweise",
-        )
-    )
     if artifacts.selected_benefits:
         rows.append(
-            SummaryFactsRow(
-                "Benefits",
-                "Ausgewählte Benefits",
-                " | ".join(artifacts.selected_benefits),
-                "Auswahl",
-                "Vollständig",
+            _with_summary_row_metadata(
+                SummaryFactsRow(
+                    "Benefits",
+                    "Ausgewählte Benefits",
+                    " | ".join(artifacts.selected_benefits),
+                    "Auswahl",
+                    "Vollständig",
+                ),
+                step_key=STEP_KEY_BENEFITS,
+                fact_key=FactKey.BENEFITS_BENEFITS,
             )
         )
 
@@ -2249,12 +2415,16 @@ def _build_summary_fact_rows(
         plan=plan,
     )
     rows.append(
-        SummaryFactsRow(
-            "Interview",
-            "Interviewphasen",
-            " | ".join(candidate_stages) if candidate_stages else "Nicht beantwortet",
-            "Jobspec" if job.recruitment_steps else "Intake-Antwort",
-            _status_for_value(candidate_stages),
+        _with_summary_row_metadata(
+            SummaryFactsRow(
+                "Interview",
+                "Interviewphasen",
+                " | ".join(candidate_stages) if candidate_stages else "Nicht beantwortet",
+                "Jobspec" if job.recruitment_steps else "Intake-Antwort",
+                _status_for_value(candidate_stages),
+            ),
+            step_key=STEP_KEY_INTERVIEW,
+            fact_key=FactKey.INTERVIEW_RECRUITMENT_STEPS,
         )
     )
 
@@ -2280,12 +2450,16 @@ def _build_summary_fact_rows(
         if row_key in existing_fact_keys:
             continue
         rows.append(
-            SummaryFactsRow(
-                value_row["Bereich"],
-                value_row["Feld"],
-                value_row["Wert"],
-                row_key[2],
-                value_row["Status"],
+            _with_summary_row_metadata(
+                SummaryFactsRow(
+                    value_row["Bereich"],
+                    value_row["Feld"],
+                    value_row["Wert"],
+                    row_key[2],
+                    value_row["Status"],
+                ),
+                step_key=_summary_step_key_for_area(value_row["Bereich"]),
+                editable=False,
             )
         )
         existing_fact_keys.add(row_key)
@@ -2304,16 +2478,21 @@ def _build_summary_fact_rows(
             raw_value = answers.get(question.id)
             formatted = _format_summary_answer_value(question, raw_value)
             rows.append(
-                SummaryFactsRow(
-                    step.title_de,
-                    question.label,
-                    formatted or "Nicht beantwortet",
-                    "Intake-Antwort",
-                    _status_for_answer_value(
-                        question=question,
-                        raw_value=raw_value,
-                        formatted=formatted,
+                _with_summary_row_metadata(
+                    SummaryFactsRow(
+                        step.title_de,
+                        question.label,
+                        formatted or "Nicht beantwortet",
+                        "Intake-Antwort",
+                        _status_for_answer_value(
+                            question=question,
+                            raw_value=raw_value,
+                            formatted=formatted,
+                        ),
                     ),
+                    step_key=step.step_key,
+                    fact_key=question.fact_key or "",
+                    question_id=question.id,
                 )
             )
             seen_row_keys.add(row_key)
@@ -2369,7 +2548,188 @@ def _render_summary_facts_table(rows: list[dict[str, str]]) -> None:
 
 
 def _is_visible_summary_fact_row(row: Mapping[str, str]) -> bool:
-    return str(row.get("Status", "")).strip() != "Fehlend"
+    if str(row.get("Bereich", "")).strip() == "Artefakte":
+        return False
+    if str(row.get("Status", "")).strip() == "Fehlend":
+        return False
+    value = str(row.get("Wert", "")).strip()
+    return value not in SUMMARY_FACT_EMPTY_VALUES
+
+
+def _summary_fact_row_id(row: SummaryFactsRow) -> str:
+    source = "|".join(
+        (
+            row.step_key,
+            row.bereich,
+            row.feld,
+            row.fact_key,
+            row.question_id,
+            row.quelle,
+        )
+    )
+    return hashlib.sha1(source.encode("utf-8")).hexdigest()[:12]
+
+
+def _summary_visible_fact_rows(vm: SummaryViewModel) -> list[SummaryFactsRow]:
+    return [row for row in vm.fact_rows if _is_meaningful_summary_fact_row(row)]
+
+
+def _summary_fact_rows_by_step(
+    rows: Sequence[SummaryFactsRow],
+) -> dict[str, list[SummaryFactsRow]]:
+    grouped = {step_key: [] for step_key in SUMMARY_FACT_STEP_ORDER}
+    for row in rows:
+        step_key = row.step_key or _summary_step_key_for_area(row.bereich)
+        if step_key not in grouped:
+            continue
+        grouped[step_key].append(row)
+    return grouped
+
+
+def _apply_summary_fact_edits(
+    *,
+    edited_rows: list[dict[str, Any]],
+    row_lookup: Mapping[str, SummaryFactsRow],
+) -> bool:
+    changed = False
+    for edited_row in edited_rows:
+        row_id = str(edited_row.get("_id") or "")
+        source_row = row_lookup.get(row_id)
+        if source_row is None or not source_row.editable:
+            continue
+        new_value = str(edited_row.get("Wert") or "").strip()
+        old_value = str(source_row.wert or "").strip()
+        if new_value == old_value:
+            continue
+        if source_row.question_id:
+            set_answer(
+                source_row.question_id,
+                new_value,
+                fact_key=source_row.fact_key or None,
+            )
+        elif source_row.fact_key:
+            write_intake_fact(
+                st.session_state,
+                source_row.fact_key,
+                new_value,
+                source_type=FactSourceType.MANUAL,
+                source_label="Summary edit",
+                confirmed=True,
+                resolution_status=FactResolutionStatus.CONFIRMED,
+            )
+        else:
+            continue
+        changed = True
+    if changed:
+        st.session_state[SSKey.SUMMARY_DIRTY.value] = True
+    return changed
+
+
+def _render_summary_facts_matrix(vm: SummaryViewModel) -> None:
+    visible_rows = _summary_visible_fact_rows(vm)
+    grouped_rows = _summary_fact_rows_by_step(visible_rows)
+    st.markdown("### Fakten je Schritt")
+    st.caption("Nur vorhandene Werte werden angezeigt. Änderungen werden in die kanonischen Intake-Daten zurückgeschrieben.")
+    if not any(grouped_rows.values()):
+        st.info("Keine auswertbaren Fakten vorhanden.")
+        return
+
+    columns = st.columns(len(SUMMARY_FACT_STEP_ORDER), gap="small")
+    for column, step_key in zip(columns, SUMMARY_FACT_STEP_ORDER):
+        rows = grouped_rows[step_key]
+        with column:
+            with st.container(border=True):
+                st.markdown(f"**{SUMMARY_FACT_STEP_LABELS[step_key]}**")
+                if not rows:
+                    st.caption("Keine Werte vorhanden.")
+                    continue
+                row_lookup = {_summary_fact_row_id(row): row for row in rows}
+                editor_rows = [
+                    {
+                        "_id": row_id,
+                        "Feld": row.feld,
+                        "Wert": row.wert,
+                        "Quelle": row.quelle,
+                    }
+                    for row_id, row in row_lookup.items()
+                ]
+                data_editor = getattr(st, "data_editor", None)
+                if callable(data_editor):
+                    edited = data_editor(
+                        editor_rows,
+                        key=_widget_key(
+                            SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
+                            f"facts.{step_key}",
+                        ),
+                        width="stretch",
+                        hide_index=True,
+                        column_order=["Feld", "Wert", "Quelle"],
+                        column_config={
+                            "Feld": st.column_config.TextColumn("Feld", disabled=True),
+                            "Wert": st.column_config.TextColumn("Wert"),
+                            "Quelle": st.column_config.TextColumn("Quelle", disabled=True),
+                        },
+                    )
+                else:
+                    st.dataframe(
+                        editor_rows,
+                        width="stretch",
+                        hide_index=True,
+                        column_order=["Feld", "Wert", "Quelle"],
+                    )
+                    edited = editor_rows
+                editable_count = sum(1 for row in rows if row.editable)
+                if st.button(
+                    "Änderungen speichern",
+                    key=_widget_key(
+                        SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
+                        f"facts.save.{step_key}",
+                    ),
+                    width="stretch",
+                    disabled=editable_count == 0,
+                ):
+                    if _apply_summary_fact_edits(
+                        edited_rows=list(edited),
+                        row_lookup=row_lookup,
+                    ):
+                        st.success("Änderungen gespeichert.")
+                        st.rerun()
+                    else:
+                        st.info("Keine Änderungen erkannt.")
+
+
+def _build_summary_critical_gap_rows(vm: SummaryViewModel) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for row in vm.fact_rows:
+        if row.bereich == "Artefakte" or row.status not in {"Fehlend", "Teilweise"}:
+            continue
+        step_key = row.step_key or _summary_step_key_for_area(row.bereich)
+        if step_key not in SUMMARY_FACT_STEP_LABELS:
+            continue
+        reason = "Teilweise geklärt" if row.status == "Teilweise" else "Noch offen"
+        rows.append(
+            {
+                "Schritt": SUMMARY_FACT_STEP_LABELS[step_key],
+                "Feld": row.feld,
+                "Status": row.status,
+                "Aktion": f"{reason}: {row.feld} im Schritt „{SUMMARY_FACT_STEP_LABELS[step_key]}“ prüfen.",
+            }
+        )
+    return rows
+
+
+def _render_summary_critical_gaps_table(vm: SummaryViewModel) -> None:
+    st.markdown("### Kritische Lücken")
+    gap_rows = _build_summary_critical_gap_rows(vm)
+    if not gap_rows:
+        st.success("Keine kritischen Lücken erkannt.")
+        return
+    st.dataframe(
+        gap_rows,
+        width="stretch",
+        hide_index=True,
+        column_order=["Schritt", "Feld", "Status", "Aktion"],
+    )
 
 
 def _has_required_state(requirements: tuple[SSKey, ...]) -> bool:
@@ -2394,6 +2754,422 @@ def _get_brief_status(
         has_brief_prerequisites=_has_required_state(primary_action["requires"]),
     )
     return (status.state, status.message, status.cta_label)
+
+
+def _summary_nested_dict_state(key: SSKey) -> dict[str, Any]:
+    raw_value = st.session_state.get(key.value)
+    if isinstance(raw_value, dict):
+        return raw_value
+    st.session_state[key.value] = {}
+    return st.session_state[key.value]
+
+
+def _read_artifact_options(artifact_id: str) -> dict[str, Any]:
+    state = _summary_nested_dict_state(SSKey.SUMMARY_ARTIFACT_OPTIONS)
+    value = state.get(artifact_id)
+    return value if isinstance(value, dict) else {}
+
+
+def _write_artifact_options(artifact_id: str, options: Mapping[str, Any]) -> None:
+    state = _summary_nested_dict_state(SSKey.SUMMARY_ARTIFACT_OPTIONS)
+    state[artifact_id] = dict(options)
+    st.session_state[SSKey.SUMMARY_ARTIFACT_OPTIONS.value] = state
+
+
+def _read_artifact_change_request(artifact_id: str) -> str:
+    state = _summary_nested_dict_state(SSKey.SUMMARY_ARTIFACT_CHANGE_REQUESTS)
+    return str(state.get(artifact_id) or "").strip()
+
+
+def _write_artifact_change_request(artifact_id: str, value: str) -> None:
+    state = _summary_nested_dict_state(SSKey.SUMMARY_ARTIFACT_CHANGE_REQUESTS)
+    state[artifact_id] = value
+    st.session_state[SSKey.SUMMARY_ARTIFACT_CHANGE_REQUESTS.value] = state
+
+
+def _artifact_current_fingerprint(vm: SummaryViewModel, artifact_id: str) -> str:
+    payload = {
+        "summary_input": vm.artifacts.input_fingerprint,
+        "artifact_id": artifact_id,
+        "options": _read_artifact_options(artifact_id),
+        "change_request": _read_artifact_change_request(artifact_id),
+    }
+    serialized = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _mark_artifact_current(vm: SummaryViewModel, artifact_id: str) -> None:
+    fingerprints = _summary_nested_dict_state(SSKey.SUMMARY_ARTIFACT_FINGERPRINTS)
+    fingerprints[artifact_id] = _artifact_current_fingerprint(vm, artifact_id)
+    st.session_state[SSKey.SUMMARY_ARTIFACT_FINGERPRINTS.value] = fingerprints
+
+
+def _artifact_result_key(artifact_id: str) -> SSKey | None:
+    return {
+        "job_ad": SSKey.JOB_AD_DRAFT_CUSTOM,
+        "interview_hr": SSKey.INTERVIEW_PREP_HR,
+        "interview_fach": SSKey.INTERVIEW_PREP_FACH,
+        "boolean_search": SSKey.BOOLEAN_SEARCH_STRING,
+        "employment_contract": SSKey.EMPLOYMENT_CONTRACT_DRAFT,
+    }.get(artifact_id)
+
+
+def _artifact_has_result(artifact_id: str) -> bool:
+    result_key = _artifact_result_key(artifact_id)
+    return bool(result_key and st.session_state.get(result_key.value))
+
+
+def _artifact_status_label(vm: SummaryViewModel, artifact_id: str) -> tuple[str, str]:
+    if not _artifact_has_result(artifact_id):
+        return "open", "Offen"
+    fingerprints = _summary_nested_dict_state(SSKey.SUMMARY_ARTIFACT_FINGERPRINTS)
+    stored = str(fingerprints.get(artifact_id) or "")
+    if stored and stored != _artifact_current_fingerprint(vm, artifact_id):
+        return "stale", "Veraltet"
+    return "current", "Aktuell"
+
+
+def _default_job_ad_selected_values(vm: SummaryViewModel) -> dict[str, list[str]]:
+    rows = _build_selection_rows(vm.job, vm.answers)
+    grouped_values = _selection_options_by_group(rows)
+    selected_values: dict[str, list[str]] = {}
+    for group_key, max_items in (
+        (_first_existing_group(grouped_values, ("Rolle · Kurzbeschreibung", "Manager-Input · role_tasks")), 3),
+        (_first_existing_group(grouped_values, ("Skills · Must-have", "Manager-Input · must_have_skills")), 5),
+        (_first_existing_group(grouped_values, ("Benefits · Ausgewählter Benefit", "Benefits · Benefit")), 5),
+    ):
+        values = grouped_values.get(group_key)
+        if values:
+            selected_values[group_key] = values[:max_items]
+    for group_key in (
+        "Basis · Titel",
+        "Basis · Unternehmen",
+        "Basis · Anstellungsart",
+        "Basis · Vertragsart",
+        "Standort · Ort",
+        "Standort · Land",
+        "Standort · Remote",
+        "Kontakt · Ansprechpartner",
+        "Kontakt · Kontakt E-Mail",
+    ):
+        values = grouped_values.get(group_key)
+        if values:
+            selected_values[group_key] = values
+    return selected_values
+
+
+def _read_optional_text_upload(uploaded_file: Any) -> str:
+    if uploaded_file is None:
+        return ""
+    try:
+        raw_bytes = uploaded_file.getvalue()
+    except Exception:
+        return ""
+    try:
+        return raw_bytes.decode("utf-8").strip()
+    except UnicodeDecodeError:
+        return raw_bytes.decode("latin-1", errors="ignore").strip()
+
+
+def _render_job_ad_compact_controls(vm: SummaryViewModel) -> None:
+    preset = st.selectbox(
+        "Zielgruppe",
+        options=list(JOB_AD_PRESET_BLOCKS.keys()),
+        index=0,
+        key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "job_ad.target_group"),
+    )
+    left, right = st.columns(2)
+    with left:
+        address = st.selectbox(
+            "Ansprache",
+            options=list(JOB_AD_ADDRESS_BLOCKS.keys()),
+            index=0,
+            key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "job_ad.address.compact"),
+        )
+        length = st.selectbox(
+            "Länge",
+            options=list(JOB_AD_LENGTH_BLOCKS.keys()),
+            index=0,
+            key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "job_ad.length.compact"),
+        )
+    with right:
+        tone = st.selectbox(
+            "Tonalität",
+            options=list(JOB_AD_TONE_BLOCKS.keys()),
+            index=0,
+            key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "job_ad.tone.compact"),
+        )
+        cta = st.selectbox(
+            "CTA",
+            options=list(JOB_AD_CTA_BLOCKS.keys()),
+            index=0,
+            key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "job_ad.cta.compact"),
+        )
+    logo_file = st.file_uploader(
+        "Logo (PNG/JPG)",
+        type=["png", "jpg", "jpeg"],
+        key=SSKey.SUMMARY_LOGO_UPLOAD_WIDGET.value,
+    )
+    normalized_logo = _normalize_logo_payload(logo_file)
+    st.session_state[SSKey.SUMMARY_LOGO.value] = normalized_logo
+    style_upload = st.file_uploader(
+        "Styleguide (TXT/MD)",
+        type=["txt", "md"],
+        key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "job_ad.style_upload"),
+    )
+    manual_styleguide = st.text_area(
+        "Styleguide / No-Gos",
+        value="",
+        placeholder="z. B. Corporate Language, Wording, No-Gos",
+        key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "job_ad.style_text"),
+        height=90,
+    )
+    uploaded_styleguide = _read_optional_text_upload(style_upload)
+    styleguide = _build_job_ad_styleguide_text(
+        preset=preset,
+        address=address,
+        tone=tone,
+        length=length,
+        cta=cta,
+        manual_styleguide="\n".join(
+            item for item in (uploaded_styleguide, manual_styleguide) if item
+        ),
+    )
+    selected_values = _default_job_ad_selected_values(vm)
+    st.session_state[SSKey.SUMMARY_SELECTIONS.value] = selected_values
+    st.session_state[SSKey.SUMMARY_STYLEGUIDE_TEXT.value] = styleguide
+    _write_artifact_options(
+        "job_ad",
+        {
+            "target_group": preset,
+            "address": address,
+            "tone": tone,
+            "length": length,
+            "cta": cta,
+            "logo_filename": normalized_logo.get("name") if normalized_logo else "",
+            "styleguide_uploaded": bool(uploaded_styleguide),
+        },
+    )
+
+
+def _render_interview_compact_controls() -> str:
+    sheet_type = st.selectbox(
+        "Sheet",
+        options=["HR", "Fachbereich"],
+        key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "interview.sheet_type"),
+    )
+    left, right = st.columns(2)
+    with left:
+        stage = st.selectbox(
+            "Stage",
+            options=["Screening", "Erstgespräch", "Fachinterview", "Finale Runde"],
+            index=0,
+            key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "interview.stage"),
+        )
+        duration = st.selectbox(
+            "Dauer",
+            options=[30, 45, 60, 90],
+            index=1,
+            key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "interview.duration"),
+        )
+    with right:
+        focus = st.selectbox(
+            "Fokus",
+            options=["Kultur & Motivation", "Must-haves", "Deep Dive", "Scorecard"],
+            index=1,
+            key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "interview.focus"),
+        )
+        depth = st.selectbox(
+            "Bewertung",
+            options=["kompakt", "standard", "detailliert"],
+            index=1,
+            key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "interview.depth"),
+        )
+    artifact_id = "interview_fach" if sheet_type == "Fachbereich" else "interview_hr"
+    options = {
+        "sheet_type": sheet_type,
+        "stage": stage,
+        "duration_minutes": duration,
+        "focus": focus,
+        "evaluation_depth": depth,
+    }
+    _write_artifact_options(artifact_id, options)
+    return artifact_id
+
+
+def _render_boolean_compact_controls() -> None:
+    channels = st.multiselect(
+        "Kanäle",
+        options=["Google", "LinkedIn", "XING"],
+        default=["Google", "LinkedIn", "XING"],
+        key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "boolean.channels"),
+    )
+    breadth = st.selectbox(
+        "Suchbreite",
+        options=["breit", "ausgewogen", "fokussiert"],
+        index=1,
+        key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "boolean.breadth"),
+    )
+    locations = st.text_input(
+        "Zielregionen",
+        value="",
+        placeholder="z. B. Berlin, remote DACH",
+        key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "boolean.locations"),
+    )
+    exclusions = st.text_input(
+        "Ausschlüsse",
+        value="",
+        placeholder="z. B. Praktikum, Werkstudent",
+        key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "boolean.exclusions"),
+    )
+    _write_artifact_options(
+        "boolean_search",
+        {
+            "channels": channels,
+            "breadth": breadth,
+            "target_locations": locations,
+            "exclusions": exclusions,
+        },
+    )
+
+
+def _render_contract_compact_controls() -> None:
+    left, right = st.columns(2)
+    with left:
+        contract_type = st.selectbox(
+            "Vertragsart",
+            options=["Unbefristet", "Befristet", "Teilzeit", "Freelance"],
+            index=0,
+            key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "contract.type"),
+        )
+        jurisdiction = st.text_input(
+            "Jurisdiction",
+            value="Deutschland",
+            key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "contract.jurisdiction"),
+        )
+    with right:
+        probation = st.selectbox(
+            "Probezeit",
+            options=["offen", "3 Monate", "6 Monate"],
+            index=0,
+            key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "contract.probation"),
+        )
+        language = st.selectbox(
+            "Sprache",
+            options=["de", "en"],
+            index=0,
+            key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "contract.language"),
+        )
+    working_hours = st.text_input(
+        "Arbeitszeit / Gehaltshinweis",
+        value="",
+        placeholder="z. B. 40h/Woche, Gehaltsband aus Intake übernehmen",
+        key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "contract.working_hours"),
+    )
+    st.caption("Legal Review bleibt erforderlich; der Output ist nur ein Template-Draft.")
+    _write_artifact_options(
+        "employment_contract",
+        {
+            "contract_type": contract_type,
+            "jurisdiction": jurisdiction,
+            "probation": probation,
+            "language": language,
+            "working_hours_salary_note": working_hours,
+        },
+    )
+
+
+def _render_summary_artifact_grid(
+    *,
+    vm: SummaryViewModel,
+    generator_by_id: Mapping[str, Callable[[], None]],
+) -> None:
+    st.markdown("### Artefakte")
+    st.caption("Wähle ein Output, schärfe die wichtigsten Einflussfaktoren und generiere direkt aus den aktuellen Daten.")
+    specs: list[dict[str, Any]] = [
+        {
+            "id": "job_ad",
+            "title": "Job-Ad-Generator",
+            "description": "Zielgruppenorientierte Stellenanzeige mit AGG-Check.",
+            "controls": lambda: _render_job_ad_compact_controls(vm),
+            "cta": "Stellenanzeige erstellen",
+        },
+        {
+            "id": "interview",
+            "title": "Interview-Vorbereitungssheet",
+            "description": "HR- oder Fachbereich-Sheet mit Fragen und Bewertungslogik.",
+            "controls": _render_interview_compact_controls,
+            "cta": "Interview-Sheet erstellen",
+        },
+        {
+            "id": "boolean_search",
+            "title": "Boolean Search",
+            "description": "Kanal-spezifische Suchstrings für aktive Sourcing-Recherche.",
+            "controls": _render_boolean_compact_controls,
+            "cta": "Boolean Search erstellen",
+        },
+        {
+            "id": "employment_contract",
+            "title": "Arbeitsvertrag",
+            "description": "Template-Draft mit Platzhaltern und Review-Hinweisen.",
+            "controls": _render_contract_compact_controls,
+            "cta": "Arbeitsvertrag erstellen",
+        },
+        {
+            "id": "reserved_export",
+            "title": "Weitere Exportformate",
+            "description": "Reserviert für zusätzliche Download-Workflows.",
+        },
+        {
+            "id": "reserved_templates",
+            "title": "Weitere Vorlagen",
+            "description": "Reserviert für künftige Hiring-Team-Artefakte.",
+        },
+    ]
+    for row_start in range(0, len(specs), 3):
+        columns = st.columns(3, gap="medium")
+        for column, spec in zip(columns, specs[row_start : row_start + 3]):
+            with column:
+                with st.container(border=True):
+                    st.markdown(f"**{spec['title']}**")
+                    st.caption(str(spec["description"]))
+                    if spec["id"].startswith("reserved_"):
+                        st.caption("Reservierter Slot")
+                        st.button(
+                            "Noch nicht aktiv",
+                            disabled=True,
+                            width="stretch",
+                            key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, spec["id"]),
+                        )
+                        continue
+                    artifact_id = str(spec["id"])
+                    controls = spec.get("controls")
+                    if callable(controls):
+                        maybe_artifact_id = controls()
+                        if isinstance(maybe_artifact_id, str) and maybe_artifact_id:
+                            artifact_id = maybe_artifact_id
+                    status_key, status_label = _artifact_status_label(vm, artifact_id)
+                    st.caption(f"Status: {status_label}")
+                    button_type = "primary" if status_key in {"open", "stale"} else "secondary"
+                    if st.button(
+                        str(spec["cta"]),
+                        type=button_type,
+                        width="stretch",
+                        key=_widget_key(
+                            SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
+                            f"grid.generate.{spec['id']}",
+                        ),
+                    ):
+                        st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = artifact_id
+                        generator = generator_by_id.get(artifact_id)
+                        if generator is not None:
+                            generator()
+                            st.rerun()
 
 
 def _render_action_card(action: SummaryAction) -> bool:
@@ -3614,6 +4390,127 @@ def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
             st.info("Für dieses Artefakt liegt noch kein Ergebnis vor.")
 
 
+def _generated_summary_artifact_ids() -> list[str]:
+    ordered_ids = [
+        "job_ad",
+        "interview_hr",
+        "interview_fach",
+        "boolean_search",
+        "employment_contract",
+    ]
+    return [artifact_id for artifact_id in ordered_ids if _artifact_has_result(artifact_id)]
+
+
+def _resolve_output_artifact_id(
+    *,
+    available_artifact_ids: list[str],
+    generator_by_id: Mapping[str, Callable[[], None]],
+) -> str:
+    active_raw = st.session_state.get(SSKey.SUMMARY_ACTIVE_ARTIFACT.value, "")
+    active_id = _to_canonical_artifact_id(active_raw)
+    if active_id == "brief":
+        active_id = ""
+    if active_id in available_artifact_ids or active_id in generator_by_id:
+        return active_id
+    if available_artifact_ids:
+        return available_artifact_ids[0]
+    return "job_ad"
+
+
+def _render_artifact_result_switcher(
+    *, active_artifact_id: str, available_artifact_ids: list[str]
+) -> None:
+    if len(available_artifact_ids) <= 1:
+        return
+    st.caption("Vorhandene Outputs")
+    columns = st.columns(min(len(available_artifact_ids), 4), gap="small")
+    for index, artifact_id in enumerate(available_artifact_ids):
+        with columns[index % len(columns)]:
+            if st.button(
+                _artifact_display_label(artifact_id),
+                width="stretch",
+                type="primary" if artifact_id == active_artifact_id else "secondary",
+                key=_widget_key(
+                    SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
+                    f"output.switch.{artifact_id}",
+                ),
+            ):
+                st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = artifact_id
+                st.rerun()
+
+
+def _render_artifact_refinement_box(
+    *,
+    vm: SummaryViewModel,
+    artifact_id: str,
+    generator_by_id: Mapping[str, Callable[[], None]],
+) -> None:
+    st.markdown("### Anpassungswünsche")
+    current_value = _read_artifact_change_request(artifact_id)
+    request_value = st.text_area(
+        "Was soll am Output angepasst werden?",
+        value=current_value,
+        placeholder="z. B. kürzer, stärker auf Senior-Profile, mehr Interviewfragen zu Stakeholder-Management …",
+        key=_widget_key(
+            SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
+            f"refinement.{artifact_id}",
+        ),
+        height=110,
+    )
+    _write_artifact_change_request(artifact_id, request_value)
+    generator = generator_by_id.get(artifact_id)
+    if st.button(
+        "Anpassungen übernehmen",
+        width="stretch",
+        type="primary",
+        disabled=generator is None,
+        key=_widget_key(
+            SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
+            f"refinement.apply.{artifact_id}",
+        ),
+    ):
+        if generator is not None:
+            st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = artifact_id
+            generator()
+            _mark_artifact_current(vm, artifact_id)
+            st.rerun()
+
+
+def _render_summary_output_workspace(
+    *,
+    vm: SummaryViewModel,
+    brief: VacancyBrief,
+    generator_by_id: Mapping[str, Callable[[], None]],
+) -> None:
+    st.markdown("### Output")
+    available_artifact_ids = _generated_summary_artifact_ids()
+    active_artifact_id = _resolve_output_artifact_id(
+        available_artifact_ids=available_artifact_ids,
+        generator_by_id=generator_by_id,
+    )
+    st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = active_artifact_id
+    _render_artifact_result_switcher(
+        active_artifact_id=active_artifact_id,
+        available_artifact_ids=available_artifact_ids,
+    )
+    status_key, status_label = _artifact_status_label(vm, active_artifact_id)
+    render_output_header(
+        _artifact_display_label(active_artifact_id),
+        f"Status: {status_label}",
+    )
+    if status_key == "stale":
+        st.warning("Dieser Output basiert auf älteren Fakten oder Optionen. Bitte neu generieren.")
+    if active_artifact_id in available_artifact_ids:
+        _render_active_artifact(artifact_id=active_artifact_id, brief=brief)
+    else:
+        st.info("Für dieses Artefakt liegt noch kein Ergebnis vor.")
+    _render_artifact_refinement_box(
+        vm=vm,
+        artifact_id=active_artifact_id,
+        generator_by_id=generator_by_id,
+    )
+
+
 def _render_secondary_artifacts(
     *, active_artifact_id: str, available_artifact_ids: list[str]
 ) -> None:
@@ -3776,6 +4673,7 @@ def render(ctx: WizardContext) -> None:
         mode: str = "standard_draft",
         spinner_text: str = "Generiere Recruiting Brief…",
         error_step: str = "summary.generate_brief",
+        show_errors: bool = True,
     ) -> bool:
         clear_error()
         store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
@@ -3797,10 +4695,11 @@ def render(ctx: WizardContext) -> None:
                     company_website_research.model_dump(mode="json")
                 )
             except ValueError:
-                st.error(
-                    "Die Firmen-Website-Research-Daten sind ungültig. "
-                    "Bitte prüfe die Angaben im Unternehmensschritt und versuche es erneut."
-                )
+                if show_errors:
+                    st.error(
+                        "Die Firmen-Website-Research-Daten sind ungültig. "
+                        "Bitte prüfe die Angaben im Unternehmensschritt und versuche es erneut."
+                    )
                 return False
 
         try:
@@ -3836,7 +4735,8 @@ def render(ctx: WizardContext) -> None:
                 st.info("Recruiting Brief aus dem Cache geladen.")
             return True
         except OpenAICallError as e:
-            render_openai_error(e)
+            if show_errors:
+                render_openai_error(e)
             return False
         except Exception as exc:
             error_type = type(exc).__name__
@@ -3855,7 +4755,7 @@ def render(ctx: WizardContext) -> None:
         clear_error()
         selected_values = st.session_state.get(SSKey.SUMMARY_SELECTIONS.value, {})
         styleguide = str(st.session_state.get(SSKey.SUMMARY_STYLEGUIDE_TEXT.value, ""))
-        change_request = str(
+        change_request = _read_artifact_change_request("job_ad") or str(
             st.session_state.get(SSKey.SUMMARY_CHANGE_REQUEST_TEXT.value, "")
         )
         logo_payload = _read_logo_payload()
@@ -3881,6 +4781,8 @@ def render(ctx: WizardContext) -> None:
             )
             st.session_state[SSKey.JOB_AD_DRAFT_CUSTOM.value] = payload
             st.session_state[SSKey.JOB_AD_LAST_USAGE.value] = usage or {}
+            _mark_artifact_current(vm, "job_ad")
+            st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = "job_ad"
             _record_artifact_generated_with_fact_usage(
                 st.session_state,
                 artifact_id="job_ad",
@@ -3911,35 +4813,33 @@ def render(ctx: WizardContext) -> None:
             return "stale", brief
         return "ready", brief
 
-    def _resolve_brief_for_follow_up_action() -> VacancyBrief | None:
+    def _resolve_brief_for_follow_up_action() -> VacancyBrief:
         brief_status, brief_model = _get_brief_status()
         if brief_status == "ready":
             return brief_model
-        if brief_status == "missing":
-            st.info(
-                "Kein Recruiting Brief vorhanden. Bitte zuerst die Karte "
-                "„Recruiting Brief erstellen“ ausführen."
-            )
-            return None
-        if brief_status == "invalid":
-            st.warning(
-                "Recruiting Brief ist ungültig. Bitte über „Recruiting Brief erstellen“ neu erstellen."
-            )
-            return None
-        st.info("Recruiting Brief ist veraltet. Bitte aktualisiere den Recruiting Brief.")
-        return None
+        generated = _run_generate_recruiting_brief(
+            mode="internal_context",
+            spinner_text="Bereite internen Kontext vor…",
+            error_step="summary.internal_brief_context",
+            show_errors=False,
+        )
+        if generated:
+            _, generated_brief = _get_brief_status()
+            if generated_brief is not None:
+                return generated_brief
+        return _build_internal_fallback_brief(vm)
 
     def _generate_interview_prep_hr() -> None:
         clear_error()
         brief_model = _resolve_brief_for_follow_up_action()
-        if brief_model is None:
-            return
         try:
             store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
             with st.spinner("Generiere Interview-Sheet (HR)…"):
                 sheet, usage = generate_interview_sheet_hr(
                     brief=brief_model,
                     model=resolved_hr_sheet_model,
+                    generation_options=_read_artifact_options("interview_hr"),
+                    change_request=_read_artifact_change_request("interview_hr"),
                     store=store,
                 )
             st.session_state[SSKey.INTERVIEW_PREP_HR.value] = sheet.model_dump(
@@ -3953,6 +4853,8 @@ def render(ctx: WizardContext) -> None:
             st.session_state[SSKey.INTERVIEW_PREP_HR_LAST_MODELS.value] = {
                 "draft_model": resolved_hr_sheet_model
             }
+            _mark_artifact_current(vm, "interview_hr")
+            st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = "interview_hr"
             _record_artifact_generated_with_fact_usage(
                 st.session_state,
                 artifact_id="interview_hr",
@@ -3972,14 +4874,14 @@ def render(ctx: WizardContext) -> None:
     def _generate_interview_prep_fach() -> None:
         clear_error()
         brief_model = _resolve_brief_for_follow_up_action()
-        if brief_model is None:
-            return
         try:
             store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
             with st.spinner("Generiere Interview-Sheet (Fachbereich)…"):
                 sheet, usage = generate_interview_sheet_hm(
                     brief=brief_model,
                     model=resolved_fach_sheet_model,
+                    generation_options=_read_artifact_options("interview_fach"),
+                    change_request=_read_artifact_change_request("interview_fach"),
                     store=store,
                 )
             st.session_state[SSKey.INTERVIEW_PREP_FACH.value] = sheet.model_dump(
@@ -3993,6 +4895,8 @@ def render(ctx: WizardContext) -> None:
             st.session_state[SSKey.INTERVIEW_PREP_FACH_LAST_MODELS.value] = {
                 "draft_model": resolved_fach_sheet_model
             }
+            _mark_artifact_current(vm, "interview_fach")
+            st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = "interview_fach"
             _record_artifact_generated_with_fact_usage(
                 st.session_state,
                 artifact_id="interview_fach",
@@ -4012,14 +4916,14 @@ def render(ctx: WizardContext) -> None:
     def _generate_boolean_search_pack() -> None:
         clear_error()
         brief_model = _resolve_brief_for_follow_up_action()
-        if brief_model is None:
-            return
         try:
             store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
             with st.spinner("Generiere Boolean Search Pack…"):
                 pack, usage = generate_boolean_search_pack(
                     brief=brief_model,
                     model=resolved_boolean_search_model,
+                    generation_options=_read_artifact_options("boolean_search"),
+                    change_request=_read_artifact_change_request("boolean_search"),
                     store=store,
                 )
             st.session_state[SSKey.BOOLEAN_SEARCH_STRING.value] = pack.model_dump(
@@ -4033,6 +4937,8 @@ def render(ctx: WizardContext) -> None:
             st.session_state[SSKey.BOOLEAN_SEARCH_LAST_MODELS.value] = {
                 "draft_model": resolved_boolean_search_model
             }
+            _mark_artifact_current(vm, "boolean_search")
+            st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = "boolean_search"
             _record_artifact_generated_with_fact_usage(
                 st.session_state,
                 artifact_id="boolean_search",
@@ -4052,14 +4958,14 @@ def render(ctx: WizardContext) -> None:
     def _generate_employment_contract() -> None:
         clear_error()
         brief_model = _resolve_brief_for_follow_up_action()
-        if brief_model is None:
-            return
         try:
             store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
             with st.spinner("Generiere Arbeitsvertrags-Template…"):
                 draft, usage = generate_employment_contract_draft(
                     brief=brief_model,
                     model=resolved_employment_contract_model,
+                    generation_options=_read_artifact_options("employment_contract"),
+                    change_request=_read_artifact_change_request("employment_contract"),
                     store=store,
                 )
             st.session_state[SSKey.EMPLOYMENT_CONTRACT_DRAFT.value] = draft.model_dump(
@@ -4073,6 +4979,8 @@ def render(ctx: WizardContext) -> None:
             st.session_state[SSKey.EMPLOYMENT_CONTRACT_LAST_MODELS.value] = {
                 "draft_model": resolved_employment_contract_model
             }
+            _mark_artifact_current(vm, "employment_contract")
+            st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = "employment_contract"
             _record_artifact_generated_with_fact_usage(
                 st.session_state,
                 artifact_id="employment_contract",
@@ -4308,11 +5216,27 @@ def render(ctx: WizardContext) -> None:
         except Exception:
             brief = None
 
-    _render_readiness_tab(
+    internal_brief = brief or _build_internal_fallback_brief(vm)
+    generator_by_id: dict[str, Callable[[], None]] = {
+        "job_ad": _generate_job_ad,
+        "interview_hr": _generate_interview_prep_hr,
+        "interview_fach": _generate_interview_prep_fach,
+        "boolean_search": _generate_boolean_search_pack,
+        "employment_contract": _generate_employment_contract,
+    }
+
+    render_output_header(
+        "Alles bereit für Recruiting und Hiring-Team",
+        "Prüfe die vorhandenen Fakten, schließe kritische Lücken und erstelle die passenden Outputs.",
+    )
+    _render_esco_coverage_kpis()
+    _render_summary_facts_matrix(vm)
+    _render_summary_critical_gaps_table(vm)
+    _render_summary_artifact_grid(vm=vm, generator_by_id=generator_by_id)
+    _render_summary_output_workspace(
         vm=vm,
-        action_registry=action_registry,
-        resolved_brief_model=resolved_brief_model,
-        brief=brief,
+        brief=internal_brief,
+        generator_by_id=generator_by_id,
     )
 
     nav_buttons(ctx, disable_next=True)

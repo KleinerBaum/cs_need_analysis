@@ -111,12 +111,11 @@ def test_build_summary_fact_rows_prefer_canonical_core_facts(monkeypatch) -> Non
     )
 
     fields = {row.feld: row.to_dict() for row in rows}
-    assert [row.feld for row in rows[:5]] == [
+    assert [row.feld for row in rows[:4]] == [
         "Rolle",
         "Unternehmen",
         "Land",
         "Stadt",
-        "Recruiting Brief",
     ]
     assert fields["Rolle"]["Wert"] == "Analytics Engineer"
     assert fields["Rolle"]["Quelle"] == "Manual input"
@@ -348,13 +347,12 @@ def test_build_summary_fact_rows_have_deterministic_ordering() -> None:
         meta=_meta(selected_occupation_title=None),
     )
 
-    ordered_fields = [row.feld for row in rows[:5]]
+    ordered_fields = [row.feld for row in rows[:4]]
     assert ordered_fields == [
         "Rolle",
         "Unternehmen",
         "Land",
         "Stadt",
-        "Recruiting Brief",
     ]
 
 

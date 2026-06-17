@@ -55,7 +55,7 @@ def test_stale_model_mismatch_is_consistent_across_summary_and_gating(
         resolved_brief_model="gpt-5-mini",
     )
     assert status.brief_state == "stale"
-    assert status.ready_for_follow_ups is False
+    assert status.ready_for_follow_ups is True
 
     requirement_ok, requirement_message = SUMMARY_MODULE._get_brief_requirement_status(
         "gpt-5-mini"
