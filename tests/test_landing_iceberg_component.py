@@ -12,6 +12,14 @@ from components.iceberg_need_analysis import (
 )
 
 
+def test_landing_page_uses_current_iframe_api() -> None:
+    landing_page = Path("wizard_pages/00_landing.py").read_text(encoding="utf-8")
+
+    assert "streamlit.components.v1" not in landing_page
+    assert "components.html" not in landing_page
+    assert "st.iframe(" in landing_page
+
+
 def test_iceberg_content_loads_required_sections() -> None:
     content = load_iceberg_content()
 

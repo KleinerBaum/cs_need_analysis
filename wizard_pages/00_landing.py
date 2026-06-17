@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import streamlit as st
-import streamlit.components.v1 as components
 from components.iceberg_need_analysis import (
     COMPONENT_HEIGHT,
     build_iceberg_need_analysis_html,
@@ -226,10 +225,9 @@ def _render_landing_flow_cards() -> None:
 
 
 def _render_landing_explainer_sections() -> None:
-    components.html(
+    st.iframe(
         build_iceberg_need_analysis_html(),
         height=COMPONENT_HEIGHT,
-        scrolling=False,
     )
 
 
