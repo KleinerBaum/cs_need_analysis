@@ -642,6 +642,7 @@ def _render_structured_company_context(
     job: JobAdExtract,
     *,
     ctx: WizardContext,
+    plan: QuestionPlan,
 ) -> None:
     with section_container(border=True):
         st.markdown("#### Unternehmensprofil")
@@ -672,6 +673,8 @@ def _render_structured_company_context(
                     "Sonstiges",
                 ],
             )
+
+    _render_website_enrichment(job, plan)
 
     with section_container(border=True):
         st.markdown("#### Team & Reporting")
@@ -844,9 +847,7 @@ def render(ctx: WizardContext) -> None:
 
     def _render_source_comparison_slot() -> None:
         render_error_banner()
-        _render_structured_company_context(job, ctx=ctx)
-        st.divider()
-        _render_website_enrichment(job, plan)
+        _render_structured_company_context(job, ctx=ctx, plan=plan)
 
     def _render_open_questions_slot() -> None:
         if step_company is None or not step_company.questions:
