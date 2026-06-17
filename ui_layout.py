@@ -214,6 +214,8 @@ def _render_step_status(status: StepStatusPayload | None) -> None:
 
 
 def _render_step_section_heading(label: str) -> None:
+    if not str(label or "").strip():
+        return
     st.markdown(
         f'<div class="cs-step-section-heading">{label}</div>',
         unsafe_allow_html=True,

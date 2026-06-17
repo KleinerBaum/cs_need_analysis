@@ -295,7 +295,7 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
     if not candidates:
         return
 
-    st.markdown("### Hinweise aus der Website-Analyse")
+    st.markdown("### Kontext aus der Website-Analyse")
     st.caption(
         "Belastbare Website-Funde werden vor dem Speichern einem kanonischen Key zugeordnet."
     )
@@ -383,7 +383,7 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
             )
 
         submitted = st.form_submit_button(
-            "Ausgewählte Website-Hinweise übernehmen", width="stretch"
+            "Ausgewählten Website-Kontext übernehmen", width="stretch"
         )
 
     st.session_state[SSKey.COMPANY_WEBSITE_FACT_REVIEW.value] = next_review_state
@@ -411,9 +411,9 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
         saved_count += 1
 
     if saved_count:
-        st.success(f"{saved_count} Website-Hinweise gespeichert.")
+        st.success(f"{saved_count} Website-Kontextwerte gespeichert.")
     if skipped_count:
-        st.warning(f"{skipped_count} ausgewählte Hinweise wurden nicht gespeichert.")
+        st.warning(f"{skipped_count} ausgewählte Kontextwerte wurden nicht gespeichert.")
 
 
 def _render_website_candidate_value_input(
@@ -633,11 +633,6 @@ def _render_structured_company_context(
     *,
     ctx: WizardContext,
 ) -> None:
-    st.markdown("### Strukturierter Kontext")
-    st.caption(
-        "Diese Angaben werden als kanonische Fakten gespeichert und in Folgefragen, Summary und Exporten genutzt."
-    )
-
     with section_container(border=True):
         st.markdown("#### Unternehmensprofil")
         left, right = responsive_two_columns(gap="large")
@@ -859,13 +854,9 @@ def render(ctx: WizardContext) -> None:
             "Hier schärfst du das Bild hinter der Vakanz: Unternehmen, Markt, "
             "Positionierung und Arbeitskontext."
         ),
-        outcome_text=(
-            "Ein klarer Company-Kontext (Mission, Markt, Brand, Rahmenbedingungen), "
-            "den Recruiting und Kandidat:innen einheitlich nutzen."
-        ),
         step=step_company,
         extracted_from_jobspec_slot=_render_extracted_slot,
-        extracted_from_jobspec_label="Aus Jobspec extrahiert (Company & Location)",
+        extracted_from_jobspec_label="",
         source_comparison_slot=_render_source_comparison_slot,
         open_questions_slot=_render_open_questions_slot,
         review_slot=lambda: render_standard_step_review(

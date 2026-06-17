@@ -56,13 +56,13 @@ def test_append_context_to_team_notes_uses_clean_user_facing_line(monkeypatch) -
 
     result = team_section._append_context_to_team_notes(
         step=step,
-        context_line="ESCO-Hinweis: Zusammenarbeit / Kommunikation",
+        context_line="ESCO-Kontext: Zusammenarbeit / Kommunikation",
     )
 
     assert result is True
     assert captured["question_id"] == "team_notes"
     assert "Confirmed selection" not in captured["value"]
-    assert "ESCO-Hinweis: Zusammenarbeit / Kommunikation" in captured["value"]
+    assert "ESCO-Kontext: Zusammenarbeit / Kommunikation" in captured["value"]
 
 
 def test_role_context_ui_texts_do_not_contain_forbidden_terms() -> None:
@@ -137,4 +137,4 @@ def test_role_context_enrichment_uses_optional_adoption_callback(monkeypatch) ->
     )
 
     assert adopted_lines
-    assert all(line.startswith("ESCO-Hinweis: ") for line in adopted_lines)
+    assert all(line.startswith("ESCO-Kontext: ") for line in adopted_lines)

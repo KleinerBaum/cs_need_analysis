@@ -1035,13 +1035,16 @@ def _build_step_header_html(
     outcome_html = (
         f'<span class="cs-pill cs-pill--primary">{escape(outcome)}</span>' if outcome else ""
     )
+    subtitle_html = (
+        f'<p class="cs-step-subtitle">{escape(subtitle)}</p>' if subtitle else ""
+    )
     return f"""
         <section class="cs-step-header">
             <div class="cs-step-topline">
                 <h2 class="cs-step-title">{escape(title)}</h2>
                 <div class="cs-step-meta">{outcome_html}</div>
             </div>
-            <p class="cs-step-subtitle">{escape(subtitle)}</p>
+            {subtitle_html}
             {_render_meta_items(meta_items)}
         </section>
         """
@@ -1052,13 +1055,16 @@ def render_output_header(
     context: str,
     meta_items: Sequence[tuple[str, str, str]] = (),
 ) -> None:
+    context_html = (
+        f'<p class="cs-output-context">{escape(context)}</p>' if context else ""
+    )
     _render_html_block(
         f"""
         <section class="cs-output-header">
             <div class="cs-output-topline">
                 <h3 class="cs-output-title">{escape(title)}</h3>
             </div>
-            <p class="cs-output-context">{escape(context)}</p>
+            {context_html}
             {_render_meta_items(meta_items)}
         </section>
         """

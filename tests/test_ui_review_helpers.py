@@ -437,7 +437,7 @@ def test_render_question_step_hides_verbose_progress_captions(monkeypatch) -> No
     )
 
 
-def test_render_question_step_shows_group_provenance_counts_without_sensitive_details(
+def test_render_question_step_hides_group_provenance_counts_and_sensitive_details(
     monkeypatch,
 ) -> None:
     class _FakeStepStreamlit:
@@ -536,12 +536,7 @@ def test_render_question_step_shows_group_provenance_counts_without_sensitive_de
 
     ui_components.render_question_step(step)
 
-    provenance_captions = [
-        caption for caption in fake_st.captions if caption.startswith("Aus Start:")
-    ]
-    assert provenance_captions == [
-        "Aus Start: Jobspec/Fakten gedeckt 1 · ESCO/Kontext ergänzt 1 · offen 3 · Evidenz prüfen 1"
-    ]
+    assert not any(caption.startswith("Aus Start:") for caption in fake_st.captions)
     joined_captions = " ".join(fake_st.captions)
     assert "uri:skill:python" not in joined_captions
     assert "Do not leak this evidence snippet" not in joined_captions
@@ -791,8 +786,9 @@ def test_render_step_review_card_full_mode_shows_group_level_open_question_count
     assert "1 offene Frage(n) in dieser Gruppe." in fake_st.captions
 
 
-def test_render_compare_adopt_intro_uses_html_helper(monkeypatch) -> None:
+def test_render_compare_adopt_intro_renders_no_explanatory_copy(monkeypatch) -> None:
     calls: list[str] = []
+    captions: list[str] = []
 
     class _FakeStreamlit:
         def __init__(self) -> None:
@@ -801,8 +797,8 @@ def test_render_compare_adopt_intro_uses_html_helper(monkeypatch) -> None:
         def markdown(self, *_: Any, **__: Any) -> None:
             raise AssertionError("markdown fallback should not be used when html exists")
 
-        def caption(self, *_: Any, **__: Any) -> None:
-            return None
+        def caption(self, text: str, *_: Any, **__: Any) -> None:
+            captions.append(text)
 
         def expander(self, *_: Any, **__: Any) -> _NoopContext:
             return _NoopContext()
@@ -816,7 +812,8 @@ def test_render_compare_adopt_intro_uses_html_helper(monkeypatch) -> None:
         adopt_target="Skills",
         canonical_target="SSKey.SKILLS_SELECTED",
         source_labels=("Jobspec", "ESCO", "AI"),
+        render_explanatory_copy=False,
     )
 
-    assert calls
-    assert "Vorschläge" in calls[0]
+    assert calls == []
+    assert captions == []

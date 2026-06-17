@@ -1430,10 +1430,6 @@ def _render_secondary_anchor_controls(*, primary_uri: str) -> None:
     current_raw = st.session_state.get(SSKey.ESCO_SECONDARY_ANCHORS.value, [])
     current = current_raw if isinstance(current_raw, list) else []
     with st.expander("Optionale Kontextanker", expanded=False):
-        st.caption(
-            "Dokumentiert Grenzrollen oder Mischprofile; ohne Einfluss auf "
-            "Primäranker und Kernexport."
-        )
         if current:
             for index, anchor in enumerate(
                 current[:ESCO_SECONDARY_ANCHOR_MAX], start=1

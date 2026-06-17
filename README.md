@@ -351,6 +351,8 @@ Canonical summary artifact IDs:
 
 Additional structured exports include ESCO mapping CSV/JSON and Summary payload fields for intake facts/evidence/resolution, supplemental routing/company/team/role/benefit/interview facts, interview process data, ESCO anchor metadata, ESCO skills, unmapped terms, occupation context, and question-flow provenance.
 
+Job ad DOCX/PDF exports use the uploaded PNG/JPG logo when available; Styleguide input controls generation only and is not included in publishable exports.
+
 When `semantic_export_mode="degraded"`, URI-based ESCO core exports are intentionally suppressed.
 
 ## Installation

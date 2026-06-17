@@ -6,6 +6,7 @@ import base64
 import io
 from typing import Any, Literal, cast
 
+import pytest
 from streamlit.errors import StreamlitAPIException
 
 from constants import SSKey
@@ -301,6 +302,77 @@ def test_job_ad_docx_contains_logo_media_when_logo_present() -> None:
             name for name in archive.namelist() if name.startswith("word/media/")
         ]
     assert media_entries
+
+
+def test_job_ad_docx_excludes_styleguide_from_publishable_export() -> None:
+    job_ad = SUMMARY_MODULE.JobAdGenerationResult(
+        headline="Titel",
+        target_group=[],
+        agg_checklist=[],
+        job_ad_text="Text",
+        intro="Intro",
+        responsibilities=["Aufgabe"],
+        profile=["Profil"],
+        offer=["Benefit"],
+        cta="Jetzt bewerben.",
+        equal_opportunity_note="Alle Bewerbungen sind willkommen.",
+    )
+
+    docx_bytes = SUMMARY_MODULE._job_ad_to_docx_bytes(
+        job_ad, styleguide="Styleguide darf nicht exportiert werden."
+    )
+
+    with ZipFile(io.BytesIO(docx_bytes), "r") as archive:
+        document_xml = archive.read("word/document.xml").decode("utf-8")
+    assert "Styleguide darf nicht exportiert werden" not in document_xml
+    assert "Aufgabe" in document_xml
+
+
+def test_job_ad_pdf_contains_logo_media_when_logo_present() -> None:
+    pytest.importorskip("reportlab")
+    png_bytes = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5vS3wAAAAASUVORK5CYII="
+    )
+    job_ad = SUMMARY_MODULE.JobAdGenerationResult(
+        headline="Titel",
+        target_group=[],
+        agg_checklist=[],
+        job_ad_text="Text",
+        intro="Intro",
+    )
+
+    pdf_bytes = SUMMARY_MODULE._job_ad_to_pdf_bytes(
+        job_ad,
+        logo_payload={
+            "name": "logo.png",
+            "mime_type": "image/png",
+            "bytes": png_bytes,
+        },
+    )
+
+    assert pdf_bytes is not None
+    assert b"/Image" in pdf_bytes
+
+
+def test_job_ad_pdf_excludes_styleguide_and_raw_markdown_tokens() -> None:
+    pytest.importorskip("reportlab")
+    source = SUMMARY_MODULE.JobAdGenerationResult(
+        headline="**Senior Engineer**",
+        target_group=[],
+        agg_checklist=[],
+        job_ad_text="Fallback",
+        intro="**Intro**",
+        responsibilities=["**Aufgabe**"],
+    )
+    job_ad, _ = SUMMARY_MODULE._sanitize_generated_job_ad(source)
+
+    pdf_bytes = SUMMARY_MODULE._job_ad_to_pdf_bytes(
+        job_ad, styleguide="Styleguide darf nicht exportiert werden."
+    )
+
+    assert pdf_bytes is not None
+    assert b"Styleguide darf nicht exportiert werden" not in pdf_bytes
+    assert b"**" not in pdf_bytes
 
 
 def test_sanitize_generated_job_ad_removes_embedded_sections() -> None:

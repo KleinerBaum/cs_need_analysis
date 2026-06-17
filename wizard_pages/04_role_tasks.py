@@ -409,9 +409,6 @@ def _render_travel_profile() -> None:
 
 def _render_structured_role_scope(job: JobAdExtract, candidate_tasks: list[str]) -> None:
     st.markdown("### Outcome & Scope")
-    st.caption(
-        "Diese Struktur trennt Day-1-Scope, spätere Ausbaustufen und messbare Erfolgssignale."
-    )
     with section_container(border=True):
         render_text_fact(
             FactKey.ROLE_BUSINESS_OUTCOME_PRIMARY,
@@ -588,10 +585,11 @@ def render(ctx: WizardContext) -> None:
             adopt_target="Aufgaben",
             canonical_target="SSKey.ROLE_TASKS_SELECTED",
             source_labels=("Jobspec", "ESCO/Kontext", "AI"),
+            render_explanatory_copy=False,
         )
         render_output_header(
             "Aufgaben auswählen",
-            "Wählen Sie die Aufgaben aus, die im Recruiting-Brief, in der Gehaltsprognose und in Folgeartefakten verwendet werden sollen.",
+            "",
         )
         ai_control_col, ai_action_col = st.columns([1, 2], gap="small")
         with ai_control_col:
@@ -723,18 +721,10 @@ def render(ctx: WizardContext) -> None:
 
     render_step_shell(
         title="Rolle und Kernaufgaben festzurren",
-        subtitle=(
-            "Bestätige, was die Rolle wirklich leisten soll. Aus Aufgaben, "
-            "Deliverables und Erfolgskriterien entsteht die fachliche Grundlage "
-            "für Briefing, Ansprache und Gehaltsprognose."
-        ),
-        outcome_text=(
-            "Ein belastbarer Rollen-Scope mit priorisierten Aufgaben und klaren Erfolgskriterien "
-            "als Basis für Briefing und Interviewleitfaden."
-        ),
+        subtitle="",
         step=step,
         extracted_from_jobspec_slot=_render_extracted_slot,
-        extracted_from_jobspec_label="Welche Aufgaben sollen sicher in den Recruiting Brief?",
+        extracted_from_jobspec_label="",
         extracted_from_jobspec_use_expander=False,
         source_comparison_slot=_render_source_comparison_slot,
         salary_forecast_slot=_render_salary_forecast_slot,

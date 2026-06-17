@@ -16,24 +16,15 @@ from ui_components import (
 )
 from wizard_pages.base import WizardContext
 
-ROLE_CONTEXT_TITLE = "#### Rollenprofil mit ESCO-Hinweisen ergänzen"
-ROLE_CONTEXT_HELP = (
-    "Wählen Sie nur Hinweise aus, die für diese konkrete Stelle relevant sind. "
-    "Übernommene Hinweise werden in der Team-Notiz gespeichert."
-)
-ROLE_CONTEXT_BUTTON_LABEL = "Ausgewählte Hinweise übernehmen"
-ROLE_CONTEXT_EMPTY_SELECTION = "Bitte zuerst mindestens einen Hinweis auswählen."
-ROLE_CONTEXT_NO_THEMES = "Keine belastbaren ESCO-Hinweise für diese Rolle gefunden."
-ROLE_CONTEXT_QUALITY_PREFIX = "Trefferqualität: "
-ROLE_CONTEXT_REASON_PREFIX = "Warum vorgeschlagen: "
+ROLE_CONTEXT_TITLE = "#### Rollenprofil mit ESCO-Kontext ergänzen"
+ROLE_CONTEXT_BUTTON_LABEL = "Ausgewählten Kontext übernehmen"
+ROLE_CONTEXT_EMPTY_SELECTION = "Bitte zuerst mindestens einen Kontext auswählen."
+ROLE_CONTEXT_NO_THEMES = "Kein belastbarer ESCO-Kontext für diese Rolle gefunden."
 ROLE_CONTEXT_UI_TEXTS: tuple[str, ...] = (
     ROLE_CONTEXT_TITLE,
-    ROLE_CONTEXT_HELP,
     ROLE_CONTEXT_BUTTON_LABEL,
     ROLE_CONTEXT_EMPTY_SELECTION,
     ROLE_CONTEXT_NO_THEMES,
-    ROLE_CONTEXT_QUALITY_PREFIX,
-    ROLE_CONTEXT_REASON_PREFIX,
 )
 
 
@@ -152,29 +143,6 @@ def _read_confirmed_team_notes(step: QuestionStep | None) -> str:
     return str(answers.get(target_question.id) or "").strip()
 
 
-def _esco_quality_label(raw_confidence: object) -> str:
-    normalized = str(raw_confidence or "").strip().lower()
-    mapping = {"low": "niedrig", "medium": "mittel", "high": "hoch"}
-    return mapping.get(normalized, "nicht geladen")
-
-
-def _esco_reason_labels(provenance: object) -> list[str]:
-    if not isinstance(provenance, list):
-        return []
-    mapping = {
-        "synonym/hidden-term match": "ähnlicher Begriff",
-        "manually selected by user": "manuell gewählt",
-        "exact label match": "exakte Bezeichnung",
-    }
-    resolved: list[str] = []
-    for item in provenance:
-        key = str(item or "").strip().lower()
-        label = mapping.get(key)
-        if label and label not in resolved:
-            resolved.append(label)
-    return resolved
-
-
 def render_role_context_enrichment(
     *,
     step: QuestionStep | None,
@@ -182,7 +150,6 @@ def render_role_context_enrichment(
     adopt_context_callback: Callable[[str], bool] | None = None,
 ) -> None:
     st.markdown(ROLE_CONTEXT_TITLE)
-    st.caption(ROLE_CONTEXT_HELP)
 
     semantic_context = get_esco_semantic_context()
     occupation_uri = (
@@ -213,15 +180,6 @@ def render_role_context_enrichment(
         st.info(ROLE_CONTEXT_NO_THEMES)
         return
 
-    match_confidence = str(
-        st.session_state.get(SSKey.ESCO_MATCH_CONFIDENCE.value) or ""
-    ).strip()
-    match_provenance_raw = st.session_state.get(SSKey.ESCO_MATCH_PROVENANCE.value)
-    st.caption(f"{ROLE_CONTEXT_QUALITY_PREFIX}{_esco_quality_label(match_confidence)}")
-    reason_labels = _esco_reason_labels(match_provenance_raw)
-    if reason_labels:
-        st.caption(f"{ROLE_CONTEXT_REASON_PREFIX}{' / '.join(reason_labels)}")
-
     grouped_themes: dict[str, list[dict[str, Any]]] = {}
     for theme in themes:
         group = str(theme.get("group") or "Allgemein").strip() or "Allgemein"
@@ -248,7 +206,7 @@ def render_role_context_enrichment(
         if hasattr(st, "pills"):
             selected_labels = (
                 st.pills(
-                    f"Hinweise · {group_name}",
+                    group_name,
                     options=labels,
                     selection_mode="multi",
                     key=f"team.esco.pills.{group_name.casefold().replace(' ', '_')}",
@@ -257,7 +215,7 @@ def render_role_context_enrichment(
             )
         else:
             selected_labels = st.multiselect(
-                f"Hinweise · {group_name}",
+                group_name,
                 options=labels,
                 key=f"team.esco.multiselect.{group_name.casefold().replace(' ', '_')}",
             )
@@ -276,7 +234,7 @@ def render_role_context_enrichment(
         else:
             adopted_count = 0
             for label in selected_theme_labels:
-                context_line = f"ESCO-Hinweis: {label}"
+                context_line = f"ESCO-Kontext: {label}"
                 adopted = (
                     adopt_context_callback(context_line)
                     if adopt_context_callback is not None
@@ -288,7 +246,7 @@ def render_role_context_enrichment(
                 if adopted:
                     adopted_count += 1
             if adopted_count:
-                st.success(f"{adopted_count} Hinweis(e) übernommen.")
+                st.success(f"{adopted_count} Kontextwert(e) übernommen.")
             else:
                 st.info("Keine geeignete Team-Notizfrage zum Übernehmen gefunden.")
 
@@ -298,7 +256,7 @@ def render_role_context_enrichment(
         else _read_confirmed_team_notes(step)
     )
     if current_notes:
-        st.caption("Übernommene Hinweise sind in der Team-Notiz gespeichert.")
+        st.caption("Übernommener Kontext ist in der Team-Notiz gespeichert.")
 
 
 def render_team_questions_with_optional_esco_context(

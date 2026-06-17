@@ -2328,7 +2328,6 @@ def _render_skills_source_comparison_block(
             f"{open_count} offene Begriffe · {status_label}"
         )
         with st.expander("Advanced / Technische Prüfung", expanded=False):
-            st.caption("Status: inferred context")
             st.caption("SSKey.SKILLS_SELECTED")
             st.caption("contains/filter")
             st.caption("map_to_esco_skill · keep_free_text · retry_search")

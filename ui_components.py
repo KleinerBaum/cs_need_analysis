@@ -952,11 +952,6 @@ def render_esco_picker_card(
             "Der Begriff steuert nur den Berufsabgleich; deine Rollenbeschreibung "
             "und spätere Antworten bleiben unverändert."
         )
-    elif use_secondary_anchor_card:
-        st.caption(
-            "Diese Auswahl dokumentiert Kontextrollen; Primäranker und "
-            "Kernexport bleiben unverändert."
-        )
 
     suggestions: list[dict[str, str]] = []
     used_fallback_path = False
@@ -2406,10 +2401,6 @@ def render_question_step(step: QuestionStep) -> None:
                 answers,
                 answer_meta=answer_meta,
                 answered_lookup=answered_lookup,
-                intake_facts=intake_facts,
-                intake_fact_evidence=intake_fact_evidence,
-                confidence_threshold=confidence_threshold,
-                question_flow_provenance=_read_question_flow_provenance(),
                 persist=False,
             )
             submitted = st.form_submit_button(
@@ -2426,10 +2417,6 @@ def render_question_step(step: QuestionStep) -> None:
             answers,
             answer_meta=answer_meta,
             answered_lookup=answered_lookup,
-            intake_facts=intake_facts,
-            intake_fact_evidence=intake_fact_evidence,
-            confidence_threshold=confidence_threshold,
-            question_flow_provenance=_read_question_flow_provenance(),
             persist=True,
         )
 
@@ -2442,10 +2429,6 @@ def _render_grouped_question_inputs(
     *,
     answer_meta: dict[str, Any],
     answered_lookup: dict[str, bool],
-    intake_facts: Mapping[str, Any],
-    intake_fact_evidence: Mapping[str, Any],
-    confidence_threshold: float | None,
-    question_flow_provenance: Mapping[str, Any],
     persist: bool,
 ) -> list[QuestionInputResult]:
     pending_inputs: list[QuestionInputResult] = []
@@ -2457,11 +2440,6 @@ def _render_grouped_question_inputs(
             answered_lookup=answered_lookup,
         )
         with st.container(border=True):
-            required_note = (
-                f"{progress['required_unanswered']} Pflichtfragen offen"
-                if progress["required_unanswered"] > 0
-                else "vollständig beantwortet"
-            )
             st.markdown(
                 """
                 <div class="cs-question-group-title">
@@ -2475,20 +2453,8 @@ def _render_grouped_question_inputs(
                 ),
                 unsafe_allow_html=True,
             )
-            provenance_caption = _question_group_provenance_caption(
-                group_questions,
-                answers=answers,
-                answer_meta=answer_meta,
-                answered_lookup=answered_lookup,
-                intake_facts=intake_facts,
-                intake_fact_evidence=intake_fact_evidence,
-                confidence_threshold=confidence_threshold,
-                question_flow_provenance=question_flow_provenance,
-            )
-            if provenance_caption:
-                st.caption(provenance_caption)
             if progress["required_unanswered"] > 0:
-                st.caption(required_note)
+                st.caption(f"{progress['required_unanswered']} offen")
             pending_inputs.extend(
                 _render_questions_two_columns(
                     group_questions,
@@ -2497,115 +2463,6 @@ def _render_grouped_question_inputs(
                 )
             )
     return pending_inputs
-
-
-def _read_question_flow_provenance() -> Mapping[str, Any]:
-    raw_provenance = st.session_state.get(SSKey.QUESTION_FLOW_PROVENANCE.value, {})
-    return raw_provenance if isinstance(raw_provenance, Mapping) else {}
-
-
-def _question_group_provenance_caption(
-    questions: list[Question],
-    *,
-    answers: Mapping[str, Any],
-    answer_meta: dict[str, Any],
-    answered_lookup: Mapping[str, bool],
-    intake_facts: Mapping[str, Any],
-    intake_fact_evidence: Mapping[str, Any],
-    confidence_threshold: float | None,
-    question_flow_provenance: Mapping[str, Any],
-) -> str:
-    if not questions:
-        return ""
-
-    injected_question_ids = _question_flow_id_set(
-        question_flow_provenance.get("injected_question_ids")
-    )
-    source_uris_by_question_id = question_flow_provenance.get(
-        "source_uris_by_question_id"
-    )
-    esco_question_ids = (
-        {
-            str(question_id)
-            for question_id, uris in source_uris_by_question_id.items()
-            if str(question_id).strip() and isinstance(uris, list) and uris
-        }
-        if isinstance(source_uris_by_question_id, Mapping)
-        else set()
-    )
-
-    covered_count = 0
-    esco_count = 0
-    open_count = 0
-    review_evidence_count = 0
-    for question in questions:
-        if question.id in injected_question_ids or question.id in esco_question_ids:
-            esco_count += 1
-
-        manually_answered = is_answered(
-            question,
-            answers.get(question.id),
-            answer_meta.get(question.id),
-        )
-        covered = bool(answered_lookup.get(question.id, False))
-        if not manually_answered and covered:
-            covered_count += 1
-        elif not manually_answered:
-            open_count += 1
-
-        if _question_has_low_confidence_intake_fact(
-            question,
-            intake_facts=intake_facts,
-            intake_fact_evidence=intake_fact_evidence,
-            confidence_threshold=confidence_threshold,
-        ):
-            review_evidence_count += 1
-
-    parts: list[str] = []
-    if covered_count:
-        parts.append(f"Jobspec/Fakten gedeckt {covered_count}")
-    if esco_count:
-        parts.append(f"ESCO/Kontext ergänzt {esco_count}")
-    if open_count:
-        parts.append(f"offen {open_count}")
-    if review_evidence_count:
-        parts.append(f"Evidenz prüfen {review_evidence_count}")
-    return f"Aus Start: {' · '.join(parts)}" if parts else ""
-
-
-def _question_flow_id_set(raw_value: Any) -> set[str]:
-    if not isinstance(raw_value, list):
-        return set()
-    return {str(item).strip() for item in raw_value if str(item).strip()}
-
-
-def _question_has_low_confidence_intake_fact(
-    question: Question,
-    *,
-    intake_facts: Mapping[str, Any],
-    intake_fact_evidence: Mapping[str, Any],
-    confidence_threshold: float | None,
-) -> bool:
-    if confidence_threshold is None or not intake_facts:
-        return False
-    raw_fact_value = resolve_question_job_extract_value(
-        question,
-        None,
-        intake_facts=intake_facts,
-        intake_fact_evidence=intake_fact_evidence,
-        confidence_threshold=None,
-    )
-    if not has_meaningful_value(raw_fact_value):
-        return False
-    threshold_fact_value = resolve_question_job_extract_value(
-        question,
-        None,
-        intake_facts=intake_facts,
-        intake_fact_evidence=intake_fact_evidence,
-        confidence_threshold=confidence_threshold,
-    )
-    return not has_meaningful_value(threshold_fact_value)
-
 
 def _can_render_question_step_form(questions: list[Question]) -> bool:
     return (
@@ -3077,31 +2934,9 @@ def render_compare_adopt_intro(
     canonical_target: str,
     source_labels: Sequence[str] = ("Jobspec", "ESCO", "AI"),
     include_inferred_confirmed_note: bool = False,
+    render_explanatory_copy: bool = False,
 ) -> None:
-    badge_html = " ".join(
-        (
-            "<span style='display:inline-block;padding:0.15rem 0.45rem;border-radius:0.6rem;"
-            "border:1px solid #D9E2EC;font-size:0.78rem;'>"
-            f"{badge}</span>"
-        )
-        for badge in ([f"{'/'.join(source_labels)} = Vorschläge"] if source_labels else [])
-    )
-    _render_html_block(badge_html)
-    st.caption(
-        f"Vergleiche die Vorschläge aus {', '.join(source_labels)} und übernimm, was am besten "
-        "zum Bedarf passt. Unterschiede helfen dir, Lücken und Prioritäten schneller zu entscheiden."
-    )
-    with st.expander("Advanced", expanded=False):
-        st.caption("Status: inferred context")
-        st.caption(
-            f"„Übernehmen“ schreibt dedupliziert in `{canonical_target}` "
-            f"(canonical selected list für {adopt_target})."
-        )
-        if include_inferred_confirmed_note:
-            st.caption(
-                "Inferred = Vorschlag/Arbeitskontext; confirmed = durch Nutzer bestätigt "
-                "und für Summary/Exporte priorisiert."
-            )
+    return None
 
 
 def render_compact_requirement_board(

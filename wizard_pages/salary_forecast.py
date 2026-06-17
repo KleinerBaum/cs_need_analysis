@@ -273,9 +273,10 @@ def render_sidebar_salary_forecast(
         if forecast is None
         else "Neue gespeicherte Werte verfügbar"
         if is_stale
-        else "Aktuell für die aktive Auswahl"
+        else ""
     )
-    st.sidebar.caption(status_label)
+    if status_label:
+        st.sidebar.caption(status_label)
 
     active_count = sum(
         1

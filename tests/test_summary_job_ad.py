@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from llm_client import JobAdGenerationResult
 from summary_job_ad import (
+    build_publishable_job_ad_markdown,
+    build_publishable_job_ad_plain_text,
     dedupe_preserve_order,
     estimate_text_area_height,
     normalize_list_item,
@@ -47,6 +49,58 @@ def test_sanitize_generated_job_ad_removes_embedded_sections() -> None:
         in sanitized.agg_checklist
     )
     assert notes == ["Startdatum ist nicht angegeben."]
+
+
+def test_job_ad_generation_result_accepts_structured_sections_and_legacy_payload() -> None:
+    legacy = JobAdGenerationResult.model_validate(
+        {
+            "headline": "Titel",
+            "target_group": [],
+            "agg_checklist": [],
+            "job_ad_text": "Legacy text",
+        }
+    )
+    structured = JobAdGenerationResult.model_validate(
+        {
+            "headline": "Titel",
+            "target_group": ["Senior Professionals"],
+            "agg_checklist": ["AGG-konform formuliert."],
+            "job_ad_text": "Fallback",
+            "intro": "Intro",
+            "responsibilities": ["Aufgabe"],
+            "profile": ["Profil"],
+            "offer": ["Benefit"],
+            "cta": "Jetzt bewerben.",
+            "equal_opportunity_note": "Alle Bewerbungen sind willkommen.",
+        }
+    )
+
+    assert legacy.intro == ""
+    assert structured.responsibilities == ["Aufgabe"]
+
+
+def test_publishable_job_ad_markdown_uses_structured_sections_without_raw_markdown() -> None:
+    source = JobAdGenerationResult(
+        headline="**Senior Engineer**",
+        target_group=[],
+        agg_checklist=[],
+        job_ad_text="Fallback",
+        intro="Gestalte Plattformen.",
+        responsibilities=["**Baue Pipelines**"],
+        profile=["Python"],
+        offer=["Mentoring"],
+        cta="Bewirb dich jetzt.",
+        equal_opportunity_note="Alle Menschen sind willkommen.",
+    )
+    sanitized, _ = sanitize_generated_job_ad(source)
+
+    markdown = build_publishable_job_ad_markdown(sanitized)
+    plain_text = build_publishable_job_ad_plain_text(sanitized)
+
+    assert "# Senior Engineer" in markdown
+    assert "- Baue Pipelines" in markdown
+    assert "**" not in markdown
+    assert "# " not in plain_text
 
 
 def test_estimate_text_area_height_has_minimum_and_cap() -> None:

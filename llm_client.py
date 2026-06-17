@@ -35,7 +35,7 @@ from openai import (
     AuthenticationError,
     OpenAI,
 )
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from constants import (
     AnswerType,
@@ -421,6 +421,12 @@ class JobAdGenerationResult(BaseModel):
     target_group: list[str]
     agg_checklist: list[str]
     job_ad_text: str
+    intro: str = ""
+    responsibilities: list[str] = Field(default_factory=list)
+    profile: list[str] = Field(default_factory=list)
+    offer: list[str] = Field(default_factory=list)
+    cta: str = ""
+    equal_opportunity_note: str = ""
 
 
 @dataclass(frozen=True)
@@ -2216,12 +2222,26 @@ def generate_custom_job_ad(
         "Schreibe eine zielgruppen-optimierte, AGG-konforme Stellenanzeige auf Basis "
         "explizit ausgewählter Informationen. "
         "Wenn Informationen fehlen, markiere sie klar in agg_checklist ohne zu halluzinieren. "
+        "Alle Felder sind Plain Text ohne Markdown, HTML, Tabellen oder Link-Markup. "
+        "Der Styleguide ist nur eine Schreibanweisung und darf nicht als Abschnitt, "
+        "Zitat oder Anhang in die Stellenanzeige übernommen werden. "
         f"Sprache: {language}."
         f"{task_limits_suffix}"
     )
     user = (
         "Erzeuge eine finale Stellenanzeige nur aus den ausgewählten Daten. "
         "Verwende klare, inklusive Sprache und vermeide diskriminierende Formulierungen.\n\n"
+        "Struktur der Anzeige:\n"
+        "- headline: kandidatensichtbarer Titel ohne Markdown.\n"
+        "- intro: kurzer Einstieg mit Arbeitgeber, Rolle und Wirkung.\n"
+        "- responsibilities: 3-6 konkrete Aufgaben als Liste.\n"
+        "- profile: 3-6 Anforderungen als Liste, getrennt von Benefits.\n"
+        "- offer: 3-6 konkrete Arbeitgeberangebote oder Benefits als Liste.\n"
+        "- cta: klare Handlungsaufforderung mit Bewerbungsweg, falls bekannt.\n"
+        "- equal_opportunity_note: kurzer inklusiver Hinweis, ohne rechtliche Übertreibung.\n"
+        "- job_ad_text: dieselbe Anzeige als Plain-Text-Fallback mit Abschnittsüberschriften, "
+        "ohne Markdown-Zeichen wie **, #, Tabellen oder Link-Syntax.\n"
+        "- target_group und agg_checklist bleiben interne Review-Felder, nicht Teil des publishable Body.\n\n"
         "Jobspec (JSON):\n"
         f"{json.dumps(job.model_dump(mode='json'), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
         "Manager-Antworten (JSON):\n"
@@ -2230,7 +2250,9 @@ def generate_custom_job_ad(
         f"{json.dumps(selected_values, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
         f"Styleguide:\n{style_guide.strip() or 'Nicht angegeben.'}\n\n"
         f"Anpassungswunsch:\n{(change_request or '').strip() or 'Kein zusätzlicher Änderungswunsch.'}\n\n"
-        "Pflicht: headline, target_group (Liste), agg_checklist (Liste), job_ad_text liefern."
+        "Pflicht: headline, target_group (Liste), agg_checklist (Liste), job_ad_text, "
+        "intro, responsibilities, profile, offer, cta und equal_opportunity_note liefern. "
+        "Kopiere den Styleguide niemals in job_ad_text oder die publishable Felder."
     )
     normalized_content = _canonicalize_for_cache(
         {

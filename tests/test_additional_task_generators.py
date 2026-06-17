@@ -11,8 +11,10 @@ from llm_client import (
     TASK_GENERATE_BOOLEAN_SEARCH,
     TASK_GENERATE_INTERVIEW_SHEET_HM,
     TASK_GENERATE_INTERVIEW_SHEET_HR,
+    TASK_GENERATE_JOB_AD,
     TASK_GENERATE_REQUIREMENT_GAP_SUGGESTIONS,
     generate_boolean_search_pack,
+    generate_custom_job_ad,
     generate_employment_contract_draft,
     generate_interview_sheet_hr,
     generate_interview_sheet_hm,
@@ -297,6 +299,54 @@ def test_generate_boolean_search_appends_runtime_output_limits_to_system_prompt(
     assert "kein Wildcard-Operator '*'" in system_prompt
     assert "Google darf site:-Operatoren" in system_prompt
     assert "XING nutzt AND/OR/NOT" in system_prompt
+
+
+def test_generate_custom_job_ad_prompt_requires_structured_plain_text_sections(
+    monkeypatch,
+) -> None:
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(
+        llm_client,
+        "_resolve_runtime_config",
+        lambda **_: _runtime_config(),
+    )
+    llm_client.st.session_state.clear()
+
+    def _capture_parse(**kwargs: Any) -> tuple[Any, dict[str, Any]]:
+        captured["messages"] = kwargs["messages"]
+        payload = {
+            "headline": "Senior Data Engineer",
+            "target_group": ["Senior Professionals"],
+            "agg_checklist": ["AGG-konform formuliert."],
+            "job_ad_text": "Senior Data Engineer\nIntro",
+            "intro": "Intro",
+            "responsibilities": ["Build pipelines"],
+            "profile": ["Python"],
+            "offer": ["Mentoring"],
+            "cta": "Bewirb dich jetzt.",
+            "equal_opportunity_note": "Alle Bewerbungen sind willkommen.",
+        }
+        return kwargs["out_model"].model_validate(payload), {"total_tokens": 13}
+
+    monkeypatch.setattr(llm_client, "_parse_with_structured_outputs", _capture_parse)
+
+    result, usage = generate_custom_job_ad(
+        job=JobAdExtract(job_title="Senior Data Engineer"),
+        answers={"team_size": 6},
+        selected_values={"Skills · Must-have": ["Python"]},
+        style_guide="Nutze Du-Form.",
+        change_request="Kompakt halten.",
+        model="gpt-5-mini",
+    )
+
+    combined_prompt = "\n".join(message["content"] for message in captured["messages"])
+    assert result.responsibilities == ["Build pipelines"]
+    assert usage["total_tokens"] == 13
+    assert "Alle Felder sind Plain Text ohne Markdown" in combined_prompt
+    assert "Styleguide ist nur eine Schreibanweisung" in combined_prompt
+    assert "Kopiere den Styleguide niemals" in combined_prompt
+    assert "intro, responsibilities, profile, offer, cta" in combined_prompt
+    assert TASK_GENERATE_JOB_AD == "generate_job_ad"
 
 
 def test_generate_interview_sheet_hm_returns_validated_payload(monkeypatch) -> None:
