@@ -1304,7 +1304,7 @@ def _render_note_block(title: str, notes: Sequence[str], *, tone: str) -> None:
 def _field_evidence_column_config() -> dict[str, Any]:
     return {
         "confidence": st.column_config.TextColumn("Sicherheit", disabled=True),
-        "evidence": st.column_config.TextColumn("Textstelle", disabled=True),
+        "evidence": st.column_config.TextColumn("Fundstelle", disabled=True),
     }
 
 
@@ -1480,11 +1480,7 @@ def render_job_extract_overview(
             ]
             if value
         ]
-        location_value = (
-            str(job.place_of_work or "").strip()
-            or ", ".join(location_parts)
-            or "—"
-        )
+        location_value = str(job.place_of_work or "").strip() or ", ".join(location_parts)
         evidence_by_field = job_extract_field_evidence_by_name(job)
         core_rows = [
             ("job_title", "Rolle", _normalize_display_text(job.job_title)),
@@ -1503,17 +1499,28 @@ def render_job_extract_overview(
         has_core_evidence = any(evidence_by_field.get(field) for field, _, _ in core_rows)
         table_rows = []
         for field, label, value in core_rows:
+            if not has_meaningful_value(value):
+                continue
             row = {"Attribut": label, "Wert": value}
             if has_core_evidence:
                 evidence = evidence_by_field.get(field)
                 row["Sicherheit"] = format_field_evidence_confidence(evidence)
                 row["Textstelle"] = format_field_evidence_snippet(evidence)
             table_rows.append(row)
-        st.dataframe(
-            table_rows,
-            hide_index=True,
-            width="stretch",
-        )
+        if table_rows:
+            st.dataframe(
+                table_rows,
+                hide_index=True,
+                width="stretch",
+                column_config={
+                    "Attribut": st.column_config.TextColumn("Angabe"),
+                    "Wert": st.column_config.TextColumn("Inhalt"),
+                    "Sicherheit": st.column_config.TextColumn("Sicherheit"),
+                    "Textstelle": st.column_config.TextColumn("Fundstelle"),
+                },
+            )
+        else:
+            st.info("Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions.")
         if show_editor:
             _render_editable_job_extract(job, show_notes=show_notes)
         return
@@ -1601,11 +1608,7 @@ def _render_editable_job_extract(job: JobAdExtract, *, show_notes: bool = True) 
                 "value": values.get(field) or "",
             }
             for field in core_fields
-            if field in values
-            and (
-                has_meaningful_value(values.get(field))
-                or field in JOB_EXTRACT_REVIEW_EMPTY_FIELDS
-            )
+            if field in values and has_meaningful_value(values.get(field))
         ]
         core_rows = add_field_evidence_columns(core_rows, evidence_by_field)
         if core_rows:
@@ -1615,10 +1618,10 @@ def _render_editable_job_extract(job: JobAdExtract, *, show_notes: bool = True) 
                 width="stretch",
                 hide_index=True,
                 num_rows="fixed",
+                column_order=["label", "value", "confidence", "evidence"],
                 column_config={
-                    "field": st.column_config.TextColumn("Attribut", disabled=True),
-                    "label": st.column_config.TextColumn("Bezeichnung", disabled=True),
-                    "value": st.column_config.TextColumn("Wert"),
+                    "label": st.column_config.TextColumn("Angabe", disabled=True),
+                    "value": st.column_config.TextColumn("Inhalt"),
                     **_field_evidence_column_config(),
                 },
             )
@@ -1649,11 +1652,7 @@ def _render_editable_job_extract(job: JobAdExtract, *, show_notes: bool = True) 
                 "value": values.get(field) or "",
             }
             for field in location_fields
-            if field in values
-            and (
-                has_meaningful_value(values.get(field))
-                or field in JOB_EXTRACT_REVIEW_EMPTY_FIELDS
-            )
+            if field in values and has_meaningful_value(values.get(field))
         ]
         location_rows = add_field_evidence_columns(location_rows, evidence_by_field)
         if location_rows:
@@ -1663,10 +1662,10 @@ def _render_editable_job_extract(job: JobAdExtract, *, show_notes: bool = True) 
                 width="stretch",
                 hide_index=True,
                 num_rows="fixed",
+                column_order=["label", "value", "confidence", "evidence"],
                 column_config={
-                    "field": st.column_config.TextColumn("Attribut", disabled=True),
-                    "label": st.column_config.TextColumn("Bezeichnung", disabled=True),
-                    "value": st.column_config.TextColumn("Wert"),
+                    "label": st.column_config.TextColumn("Angabe", disabled=True),
+                    "value": st.column_config.TextColumn("Inhalt"),
                     **_field_evidence_column_config(),
                 },
             )
@@ -1843,8 +1842,15 @@ def _render_list_editor(*, label: str, key: str, entries: Any) -> list[str]:
 
 def _render_salary_editor(salary_data: Any) -> dict[str, Any] | None:
     salary = MoneyRange.model_validate(salary_data or {}).model_dump()
+    salary_labels = {
+        "min": "Mindestgehalt",
+        "max": "Maximalgehalt",
+        "currency": "Währung",
+        "period": "Zeitraum",
+        "notes": "Hinweis",
+    }
     salary_rows = [
-        {"field": field, "value": salary.get(field)}
+        {"field": field, "label": salary_labels.get(field, field), "value": salary.get(field)}
         for field in ("min", "max", "currency", "period", "notes")
         if has_meaningful_value(salary.get(field))
     ]
@@ -1856,9 +1862,10 @@ def _render_salary_editor(salary_data: Any) -> dict[str, Any] | None:
         width="stretch",
         hide_index=True,
         num_rows="fixed",
+        column_order=["label", "value"],
         column_config={
-            "field": st.column_config.TextColumn("Salary Feld", disabled=True),
-            "value": st.column_config.TextColumn("Wert"),
+            "label": st.column_config.TextColumn("Gehaltsangabe", disabled=True),
+            "value": st.column_config.TextColumn("Inhalt"),
         },
     )
     result: dict[str, Any] = {}
@@ -3883,9 +3890,6 @@ def _first_boolean_query(pack: BooleanSearchPack) -> tuple[str, str, str] | None
         ("Google", "Broad", pack.google.broad),
         ("LinkedIn", "Broad", pack.linkedin.broad),
         ("XING", "Broad", pack.xing.broad),
-        ("Google", "Fallback", pack.google.fallback),
-        ("LinkedIn", "Fallback", pack.linkedin.fallback),
-        ("XING", "Fallback", pack.xing.fallback),
     )
     for channel, variant, entries in prioritized_queries:
         for entry in entries:
@@ -3900,18 +3904,15 @@ def _render_boolean_code_card(
     variant: str,
     queries: Sequence[str],
     *,
-    primary: bool = False,
     key_prefix: str,
 ) -> None:
     del key_prefix
-    st.markdown(f"**{channel} · {variant}**")
+    del channel
+    st.markdown(f"**{variant}**")
     normalized_queries = [query.strip() for query in queries if query.strip()]
     if not normalized_queries:
         st.caption("Keine Queries vorhanden.")
         return
-
-    if primary:
-        st.caption("Primäre Query")
 
     for index, query in enumerate(normalized_queries, start=1):
         if len(normalized_queries) > 1:
@@ -3919,35 +3920,25 @@ def _render_boolean_code_card(
         st.code(query, language="text")
 
 
-def _render_boolean_terms_section(pack: BooleanSearchPack) -> None:
+def render_boolean_supporting_terms(pack: BooleanSearchPack) -> None:
     st.markdown("### Supporting Terms")
-    metadata_columns = st.columns(4)
     metadata_fields = (
         ("Must-have Terms", pack.must_have_terms),
         ("Seniority Terms", pack.seniority_terms),
         ("Exclusion Terms", pack.exclusion_terms),
         ("Target Locations", pack.target_locations),
     )
-    for column, (label, values) in zip(metadata_columns, metadata_fields):
-        with column:
-            st.markdown(f"**{label}**")
-            if values:
-                for value in values:
-                    st.write(f"- {value}")
-            else:
-                st.caption("—")
+    for label, values in metadata_fields:
+        st.markdown(f"**{label}**")
+        if values:
+            for value in values:
+                st.write(f"- {value}")
+        else:
+            st.caption("—")
 
 
-def _render_boolean_risks_section(pack: BooleanSearchPack) -> None:
-    st.markdown("### Risks")
-    st.markdown("**Channel Limitations**")
-    if pack.channel_limitations:
-        for limitation in pack.channel_limitations:
-            st.write(f"- {limitation}")
-    else:
-        st.info("Keine kanalbezogenen Einschränkungen hinterlegt.")
-
-    st.markdown("**Usage Notes**")
+def render_boolean_usage_notes(pack: BooleanSearchPack) -> None:
+    st.markdown("### Usage Notes")
     if pack.usage_notes:
         for note in pack.usage_notes:
             st.write(f"- {note}")
@@ -3955,48 +3946,61 @@ def _render_boolean_risks_section(pack: BooleanSearchPack) -> None:
         st.info("Keine Usage Notes hinterlegt.")
 
 
+def render_boolean_risks(pack: BooleanSearchPack) -> None:
+    st.markdown("### Risks")
+    if pack.channel_limitations:
+        for limitation in pack.channel_limitations:
+            st.write(f"- {limitation}")
+    else:
+        st.info("Keine kanalbezogenen Einschränkungen hinterlegt.")
+
+
+def _visible_boolean_channels(pack: BooleanSearchPack) -> tuple[tuple[str, Any], ...]:
+    return (
+        ("Google", pack.google),
+        ("LinkedIn", pack.linkedin),
+        ("XING", pack.xing),
+    )
+
+
+def _has_visible_boolean_queries(pack: BooleanSearchPack) -> bool:
+    for _, channel_queries in _visible_boolean_channels(pack):
+        if any(query.strip() for query in channel_queries.broad):
+            return True
+        if any(query.strip() for query in channel_queries.focused):
+            return True
+    return False
+
+
 def render_boolean_search_pack(pack: BooleanSearchPack) -> None:
     st.markdown("## Boolean Search")
     locations = ", ".join(pack.target_locations) if pack.target_locations else "—"
     st.caption(f"Rolle: {pack.role_title} · Zielregionen: {locations}")
 
-    primary_query = _first_boolean_query(pack)
-    if primary_query is None:
+    if not _has_visible_boolean_queries(pack):
         st.info("Keine Boolean Queries vorhanden.")
-    else:
-        st.markdown("### Primary Output")
-        channel, variant, query = primary_query
-        _render_boolean_code_card(
-            channel,
-            variant,
-            [query],
-            primary=True,
-            key_prefix="primary",
-        )
+        return
 
     st.markdown("### Channel Variants")
-    for channel_name, channel_queries in (
-        ("Google", pack.google),
-        ("LinkedIn", pack.linkedin),
-        ("XING", pack.xing),
-    ):
-        st.markdown(f"#### {channel_name}")
-        broad_col, focused_col, fallback_col = st.columns(3)
-        for column, variant_label, entries in (
-            (broad_col, "Broad", channel_queries.broad),
-            (focused_col, "Focused", channel_queries.focused),
-            (fallback_col, "Fallback", channel_queries.fallback),
-        ):
-            with column:
+    visible_channels = _visible_boolean_channels(pack)
+    columns = st.columns(min(len(visible_channels), 5))
+    for column, (channel_name, channel_queries) in zip(columns, visible_channels):
+        with column:
+            st.markdown(f"#### {channel_name}")
+            _render_boolean_code_card(
+                channel_name,
+                "Broad",
+                channel_queries.broad,
+                key_prefix=f"{channel_name.lower()}.broad",
+            )
+            with st.expander("Focused", expanded=False):
                 _render_boolean_code_card(
                     channel_name,
-                    variant_label,
-                    entries,
-                    key_prefix=f"{channel_name.lower()}.{variant_label.lower()}",
+                    "Focused",
+                    channel_queries.focused,
+                    key_prefix=f"{channel_name.lower()}.focused",
                 )
 
-    _render_boolean_terms_section(pack)
-    _render_boolean_risks_section(pack)
 
 def render_employment_contract_draft(draft: EmploymentContractDraft) -> None:
     st.info(

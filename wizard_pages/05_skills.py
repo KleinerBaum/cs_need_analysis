@@ -1540,7 +1540,18 @@ def _render_matrix_coverage_section(snapshot: dict[str, Any], *, ui_mode: str) -
             }
             for row in rows
         ]
-        st.dataframe(compact_rows, width="stretch", hide_index=True)
+        st.dataframe(
+            compact_rows,
+            width="stretch",
+            hide_index=True,
+            column_config={
+                "Bucket": st.column_config.TextColumn("Kompetenzbereich"),
+                "Skill Group": st.column_config.TextColumn("Skill-Gruppe"),
+                "Expected %": st.column_config.NumberColumn("Erwarteter Anteil (%)"),
+                "Matched Skills": st.column_config.NumberColumn("Gefundene Skills"),
+                "Status": st.column_config.TextColumn("Status"),
+            },
+        )
 
 
 def _generate_ai_skill_suggestions(

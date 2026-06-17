@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import html
 import math
 from contextlib import nullcontext
 from time import perf_counter
@@ -44,7 +46,7 @@ from intake_facts import (
     write_job_extract_intake_facts,
 )
 from occupation_context import build_occupation_question_context, classify_occupation_context
-from parsing import extract_text_from_uploaded_file, redact_pii
+from parsing import extract_docx_preview_blocks, extract_text_from_uploaded_file, redact_pii
 from question_progress import (
     is_answered,
     resolve_question_job_extract_value,
@@ -364,6 +366,156 @@ def _manual_input_height_for_text(text: str) -> int:
     return max(min_height_px, min(_preview_height_for_text(text), max_height_px))
 
 
+def _read_upload_preview_bytes(upload: object) -> bytes | None:
+    try:
+        upload.seek(0)  # type: ignore[attr-defined]
+    except Exception:
+        pass
+    try:
+        raw = upload.read()  # type: ignore[attr-defined]
+    except Exception:
+        return None
+    finally:
+        try:
+            upload.seek(0)  # type: ignore[attr-defined]
+        except Exception:
+            pass
+    return raw if isinstance(raw, bytes) and raw else None
+
+
+def _document_preview_shell(inner_html: str, *, height_px: int = 460) -> str:
+    return f"""
+        <style>
+        .cs-jobad-preview-wrap {{
+            border: 1px solid var(--cs-border);
+            background: color-mix(in srgb, var(--cs-surface) 72%, #ffffff 28%);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }}
+        .cs-jobad-preview-title {{
+            color: var(--cs-text);
+            font-weight: 700;
+            margin: 0 0 10px;
+        }}
+        .cs-jobad-document-preview {{
+            background: #f3f4f6;
+            border: 1px solid color-mix(in srgb, var(--cs-border) 70%, transparent);
+            border-radius: 6px;
+            height: {height_px}px;
+            overflow: auto;
+            padding: 18px;
+        }}
+        .cs-jobad-page {{
+            background: #ffffff;
+            color: #111827;
+            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
+            font-family: Arial, Helvetica, sans-serif;
+            line-height: 1.55;
+            margin: 0 auto;
+            max-width: 780px;
+            min-height: 360px;
+            padding: 38px 44px;
+        }}
+        .cs-jobad-page h1,
+        .cs-jobad-page h2,
+        .cs-jobad-page h3 {{
+            color: #111827;
+            line-height: 1.2;
+            margin: 0 0 14px;
+        }}
+        .cs-jobad-page h1 {{ font-size: 1.7rem; }}
+        .cs-jobad-page h2 {{ font-size: 1.3rem; margin-top: 22px; }}
+        .cs-jobad-page h3 {{ font-size: 1.08rem; margin-top: 18px; }}
+        .cs-jobad-page p {{
+            margin: 0 0 12px;
+            white-space: pre-wrap;
+        }}
+        .cs-jobad-page table {{
+            border-collapse: collapse;
+            margin: 14px 0;
+            width: 100%;
+        }}
+        .cs-jobad-page td {{
+            border: 1px solid #d1d5db;
+            padding: 8px 10px;
+            vertical-align: top;
+        }}
+        .cs-jobad-pdf-frame {{
+            border: 0;
+            height: 100%;
+            width: 100%;
+        }}
+        </style>
+        <div class="cs-jobad-preview-wrap">
+            <div class="cs-jobad-preview-title">Dokumentvorschau</div>
+            <div class="cs-jobad-document-preview">{inner_html}</div>
+        </div>
+    """
+
+
+def _docx_preview_html(raw: bytes) -> str:
+    parts: list[str] = ['<article class="cs-jobad-page">']
+    for block in extract_docx_preview_blocks(raw):
+        block_type = block.get("type")
+        if block_type == "table":
+            rows = block.get("rows") if isinstance(block.get("rows"), list) else []
+            parts.append("<table><tbody>")
+            for row in rows:
+                if not isinstance(row, list):
+                    continue
+                parts.append("<tr>")
+                for cell in row:
+                    parts.append(f"<td>{html.escape(str(cell))}</td>")
+                parts.append("</tr>")
+            parts.append("</tbody></table>")
+            continue
+        text = html.escape(str(block.get("text") or ""))
+        if not text:
+            continue
+        level = block.get("level")
+        heading_level = level if isinstance(level, int) and 1 <= level <= 3 else 0
+        if block_type == "heading" and heading_level:
+            parts.append(f"<h{heading_level}>{text}</h{heading_level}>")
+        else:
+            parts.append(f"<p>{text}</p>")
+    parts.append("</article>")
+    return "".join(parts)
+
+
+def _text_preview_html(text: str) -> str:
+    lines = [
+        f"<p>{html.escape(line)}</p>"
+        for line in text.splitlines()
+        if line.strip()
+    ]
+    return '<article class="cs-jobad-page">' + "".join(lines or ["<p></p>"]) + "</article>"
+
+
+def _render_uploaded_document_preview(upload: object | None, fallback_text: str) -> bool:
+    if upload is None:
+        return False
+    file_name = str(getattr(upload, "name", "") or "").lower()
+    raw = _read_upload_preview_bytes(upload)
+    inner_html = ""
+    if raw and file_name.endswith(".pdf"):
+        encoded = base64.b64encode(raw).decode("ascii")
+        inner_html = (
+            f'<iframe class="cs-jobad-pdf-frame" title="Dokumentvorschau" '
+            f'src="data:application/pdf;base64,{encoded}"></iframe>'
+        )
+    elif raw and file_name.endswith(".docx"):
+        try:
+            inner_html = _docx_preview_html(raw)
+        except Exception:
+            inner_html = _text_preview_html(fallback_text)
+    else:
+        inner_html = _text_preview_html(fallback_text)
+
+    st.markdown(_document_preview_shell(inner_html), unsafe_allow_html=True)
+    return True
+
+
 def _coerce_hypothesis_edit_value(original_value: Any, edited_text: str) -> Any:
     cleaned = str(edited_text or "").strip()
     if isinstance(original_value, list):
@@ -573,11 +725,11 @@ def _render_job_extract_hypothesis_form(job: JobAdExtract) -> None:
                     column_order=("Feld", "Wert", "Status", "Sicherheit", "Textstelle"),
                     disabled=["Feld", "Status", "Sicherheit", "Textstelle"],
                     column_config={
-                        "Feld": st.column_config.TextColumn("Feld"),
-                        "Wert": st.column_config.TextColumn("Wert"),
+                        "Feld": st.column_config.TextColumn("Angabe"),
+                        "Wert": st.column_config.TextColumn("Inhalt"),
                         "Status": st.column_config.TextColumn("Status"),
                         "Sicherheit": st.column_config.TextColumn("Sicherheit"),
-                        "Textstelle": st.column_config.TextColumn("Textstelle"),
+                        "Textstelle": st.column_config.TextColumn("Fundstelle"),
                     },
                 )
                 submitted_rows.extend(
@@ -845,13 +997,33 @@ def _render_phase_a_source_and_privacy_controls() -> bool:
         _render_esco_operating_block()
     with text_col:
         manual_text = str(st.session_state.get(SOURCE_TEXT_INPUT_KEY, ""))
-        st.text_area(
-            "Stellenanzeige oder Jobspec",
-            key=SOURCE_TEXT_INPUT_KEY,
-            height=min(420, max(280, _manual_input_height_for_text(manual_text))),
-            on_change=_on_manual_text_change,
-            placeholder="Füge hier den vollständigen Ausschreibungstext ein …",
-        )
+        upload = st.session_state.get("cs.source_upload_file")
+        if upload is not None:
+            _render_uploaded_document_preview(upload, manual_text)
+            text_area_context = (
+                st.expander(
+                    "Extrahierter Text für die Analyse",
+                    expanded=not bool(manual_text.strip()),
+                )
+                if hasattr(st, "expander")
+                else nullcontext()
+            )
+            with text_area_context:
+                st.text_area(
+                    "Extrahierter Text für die Analyse",
+                    key=SOURCE_TEXT_INPUT_KEY,
+                    height=min(320, max(180, _manual_input_height_for_text(manual_text))),
+                    on_change=_on_manual_text_change,
+                    placeholder="Füge hier den vollständigen Ausschreibungstext ein …",
+                )
+        else:
+            st.text_area(
+                "Stellenanzeige oder Jobspec",
+                key=SOURCE_TEXT_INPUT_KEY,
+                height=min(420, max(280, _manual_input_height_for_text(manual_text))),
+                on_change=_on_manual_text_change,
+                placeholder="Füge hier den vollständigen Ausschreibungstext ein …",
+            )
 
     uploaded_text = str(st.session_state.get(SOURCE_UPLOAD_TEXT_KEY, ""))
     upload_meta = st.session_state.get(SSKey.SOURCE_FILE_META.value, {})

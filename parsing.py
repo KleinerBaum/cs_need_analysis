@@ -12,6 +12,8 @@ from xml.etree import ElementTree
 
 import docx  # python-docx
 import pdfplumber
+from docx.table import Table
+from docx.text.paragraph import Paragraph
 
 
 def _normalize_text(text: str) -> str:
@@ -116,6 +118,64 @@ def _extract_docx(raw: bytes) -> str:
         _append_text(text)
 
     return "\n".join(dict.fromkeys(out_lines))
+
+
+def extract_docx_preview_blocks(raw: bytes) -> list[dict[str, Any]]:
+    """Return body-order DOCX blocks for an approximate visual preview."""
+
+    doc = docx.Document(io.BytesIO(raw))
+    blocks: list[dict[str, Any]] = []
+
+    for child in doc.element.body.iterchildren():
+        if child.tag.endswith("}p"):
+            paragraph = Paragraph(child, doc)
+            text = paragraph.text.strip()
+            if not text:
+                continue
+            style_name = str(getattr(paragraph.style, "name", "") or "")
+            level = _docx_heading_level(style_name)
+            blocks.append(
+                {
+                    "type": "heading" if level else "paragraph",
+                    "text": text,
+                    "level": level,
+                }
+            )
+        elif child.tag.endswith("}tbl"):
+            table = Table(child, doc)
+            rows: list[list[str]] = []
+            for row in table.rows:
+                cells = [cell.text.strip() for cell in row.cells]
+                if any(cells):
+                    rows.append(cells)
+            if rows:
+                blocks.append({"type": "table", "rows": rows})
+
+    if not blocks:
+        fallback_text = _extract_docx(raw)
+        blocks.extend(
+            {"type": "paragraph", "text": line, "level": 0}
+            for line in fallback_text.splitlines()
+            if line.strip()
+        )
+    return blocks
+
+
+def _docx_heading_level(style_name: str) -> int:
+    normalized = style_name.strip().lower()
+    if normalized.startswith("heading"):
+        tail = normalized.removeprefix("heading").strip()
+        if tail.isdigit():
+            return min(max(int(tail), 1), 6)
+        return 2
+    if normalized.startswith("\u00fcberschrift"):
+        tail = normalized.removeprefix("\u00fcberschrift").strip()
+        if tail.isdigit():
+            return min(max(int(tail), 1), 6)
+        return 2
+    if normalized in {"title", "titel"}:
+        return 1
+    return 0
 
 
 def _extract_docx_ooxml_text(raw: bytes) -> list[str]:

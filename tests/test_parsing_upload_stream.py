@@ -6,7 +6,7 @@ import docx
 import pytest
 
 import parsing
-from parsing import extract_text_from_uploaded_file
+from parsing import extract_docx_preview_blocks, extract_text_from_uploaded_file
 
 
 class _FakeUpload:
@@ -80,6 +80,29 @@ def test_extract_text_from_uploaded_file_reads_docx_headers_and_footers() -> Non
     assert "Senior AI Consultant" in text
     assert "Main body requirements" in text
     assert "Reference R001" in text
+
+
+def test_extract_docx_preview_blocks_preserves_body_order() -> None:
+    def _build(document: docx.Document) -> None:
+        document.add_heading("Senior Data Engineer", level=1)
+        document.add_paragraph("Build reliable data products.")
+        table = document.add_table(rows=1, cols=2)
+        table.rows[0].cells[0].text = "Python"
+        table.rows[0].cells[1].text = "Airflow"
+
+    blocks = extract_docx_preview_blocks(_docx_payload(_build))
+
+    assert blocks[0] == {
+        "type": "heading",
+        "text": "Senior Data Engineer",
+        "level": 1,
+    }
+    assert blocks[1] == {
+        "type": "paragraph",
+        "text": "Build reliable data products.",
+        "level": 0,
+    }
+    assert blocks[2] == {"type": "table", "rows": [["Python", "Airflow"]]}
 
 
 def test_extract_text_from_uploaded_file_pdf_without_ocr_has_specific_error(

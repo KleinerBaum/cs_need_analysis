@@ -14,10 +14,22 @@ class _NoopContext:
         return False
 
 
+class _FakeExpander(_NoopContext):
+    def __init__(self, owner: "_FakeStreamlit", label: str, expanded: bool) -> None:
+        self._owner = owner
+        self._label = label
+        self._expanded = expanded
+
+    def __enter__(self) -> "_FakeExpander":
+        self._owner.expander_calls.append((self._label, self._expanded))
+        return self
+
+
 class _FakeStreamlit:
     def __init__(self) -> None:
         self.info_calls: list[str] = []
         self.code_calls: list[str] = []
+        self.expander_calls: list[tuple[str, bool]] = []
 
     def markdown(self, *_: Any, **__: Any) -> None:
         return None
@@ -36,6 +48,9 @@ class _FakeStreamlit:
 
     def columns(self, count: int) -> list[_NoopContext]:
         return [_NoopContext() for _ in range(count)]
+
+    def expander(self, label: str, *, expanded: bool = False) -> _FakeExpander:
+        return _FakeExpander(self, label, expanded)
 
 
 def _pack(**overrides: Any) -> BooleanSearchPack:
@@ -72,12 +87,19 @@ def test_render_boolean_search_pack_shows_empty_message(monkeypatch) -> None:
     fake_st = _FakeStreamlit()
     monkeypatch.setattr(ui_components, "st", fake_st)
 
-    ui_components.render_boolean_search_pack(_pack())
+    ui_components.render_boolean_search_pack(
+        _pack(
+            google={"broad": [], "focused": [], "fallback": ["g-x"]},
+            linkedin={"broad": [], "focused": [], "fallback": ["li-x"]},
+            xing={"broad": [], "focused": [], "fallback": ["x-x"]},
+        )
+    )
 
     assert "Keine Boolean Queries vorhanden." in fake_st.info_calls
+    assert fake_st.code_calls == []
 
 
-def test_render_boolean_search_pack_renders_all_queries(monkeypatch) -> None:
+def test_render_boolean_search_pack_renders_visible_queries_only(monkeypatch) -> None:
     fake_st = _FakeStreamlit()
     monkeypatch.setattr(ui_components, "st", fake_st)
     pack = _pack(
@@ -88,4 +110,11 @@ def test_render_boolean_search_pack_renders_all_queries(monkeypatch) -> None:
 
     ui_components.render_boolean_search_pack(pack)
 
-    assert set(fake_st.code_calls) >= {"g-b1", "g-b2", "g-f1", "g-x", "li-b", "li-x", "x-f"}
+    assert set(fake_st.code_calls) == {"g-b1", "g-b2", "g-f1", "li-b", "x-f"}
+    assert "g-x" not in fake_st.code_calls
+    assert "li-x" not in fake_st.code_calls
+    assert fake_st.expander_calls == [
+        ("Focused", False),
+        ("Focused", False),
+        ("Focused", False),
+    ]

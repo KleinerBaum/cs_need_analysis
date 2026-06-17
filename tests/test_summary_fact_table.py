@@ -335,7 +335,7 @@ def test_build_summary_fact_rows_include_esco_row_when_anchor_confirmed(
     )
 
     fields = {row.feld: row.to_dict() for row in rows}
-    assert fields["ESCO Occupation"]["Status"] == "Automatisch erkannt"
+    assert fields["Beruf (ESCO)"]["Status"] == "Automatisch erkannt"
 
 
 def test_build_summary_fact_rows_have_deterministic_ordering() -> None:
@@ -500,6 +500,7 @@ def test_render_summary_facts_table_hides_missing_rows(monkeypatch) -> None:
         def __init__(self) -> None:
             self.dataframe_rows: list[dict[str, str]] = []
             self.selectbox_options: list[str] = []
+            self.column_config = SimpleNamespace(TextColumn=lambda *args, **kwargs: None)
 
         def columns(self, *_: Any, **__: Any) -> list[_FakeColumn]:
             return [_FakeColumn(), _FakeColumn()]

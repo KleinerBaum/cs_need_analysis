@@ -288,7 +288,15 @@ def test_generate_boolean_search_appends_runtime_output_limits_to_system_prompt(
 
     monkeypatch.setattr(llm_client, "_parse_with_structured_outputs", _capture_parse)
 
-    generate_boolean_search_pack(brief=_brief(), model="gpt-5-mini")
+    generate_boolean_search_pack(
+        brief=_brief(),
+        model="gpt-5-mini",
+        generation_options={
+            "channels": ["Google", "LinkedIn"],
+            "keyword_count": 6,
+            "operators": ["AND", "OR", "NOT", '"..."', "site:"],
+        },
+    )
 
     messages = captured["messages"]
     system_prompt = messages[0]["content"]
@@ -299,6 +307,9 @@ def test_generate_boolean_search_appends_runtime_output_limits_to_system_prompt(
     assert "kein Wildcard-Operator '*'" in system_prompt
     assert "Google darf site:-Operatoren" in system_prompt
     assert "XING nutzt AND/OR/NOT" in system_prompt
+    assert "maximal 6 Schlagworte" in system_prompt
+    assert "Priorisierte Kanäle: Google, LinkedIn" in system_prompt
+    assert 'Zugelassene Nutzer-Operatoren: AND, OR, NOT, "...", site:' in system_prompt
 
 
 def test_generate_custom_job_ad_prompt_requires_structured_plain_text_sections(

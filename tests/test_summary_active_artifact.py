@@ -170,9 +170,6 @@ def test_active_artifact_renderer_uses_expected_payload(monkeypatch) -> None:
     monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
     monkeypatch.setattr(SUMMARY_MODULE, "render_boolean_search_pack", _capture)
     monkeypatch.setattr(
-        SUMMARY_MODULE, "_boolean_search_pack_to_markdown", lambda _pack: "x"
-    )
-    monkeypatch.setattr(
         SUMMARY_MODULE,
         "BooleanSearchPack",
         type(
@@ -197,6 +194,8 @@ def test_active_artifact_renderer_uses_expected_payload(monkeypatch) -> None:
 
     dumped = calls["payload"].model_dump(mode="json")
     assert dumped["channel_queries"][0]["channel"] == "linkedin"
+    assert "Download Boolean Search JSON" not in fake_st.download_button_labels
+    assert "Download Boolean Search Markdown" not in fake_st.download_button_labels
 
 
 def test_secondary_artifact_switching_updates_active_artifact(monkeypatch) -> None:

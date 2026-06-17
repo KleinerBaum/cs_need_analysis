@@ -2642,6 +2642,24 @@ def generate_boolean_search_pack(
 ) -> tuple[BooleanSearchPack, dict[str, Any]]:
     """Generate structured sourcing-ready boolean queries with safe fallback."""
 
+    options = dict(generation_options or {})
+    channels = _option_text_list(options, "channels", limit=3) or [
+        "Google",
+        "LinkedIn",
+        "XING",
+    ]
+    operators = _option_text_list(options, "operators", limit=8) or [
+        "AND",
+        "OR",
+        "NOT",
+        '"..."',
+        "(...)",
+    ]
+    try:
+        keyword_count = int(options.get("keyword_count") or 8)
+    except (TypeError, ValueError):
+        keyword_count = 8
+    keyword_count = max(3, min(keyword_count, 15))
     role_title = brief.one_liner.strip() or "Rolle"
     system = (
         "Du bist ein Senior Sourcing Specialist. "
@@ -2652,6 +2670,11 @@ def generate_boolean_search_pack(
         "und kein Wildcard-Operator '*'. "
         "Google darf site:-Operatoren, Anführungszeichen und Minus-Operatoren für Ausschlüsse nutzen. "
         "XING nutzt AND/OR/NOT sowie Klammern und Anführungszeichen. "
+        f"Nutze maximal {keyword_count} Schlagworte über Rolle, Skills, Seniorität und Standort hinweg. "
+        f"Priorisierte Kanäle: {', '.join(channels)}. "
+        f"Zugelassene Nutzer-Operatoren: {', '.join(operators)}. "
+        "Verwende nur zugelassene Operatoren, soweit sie mit den jeweiligen Kanalregeln kompatibel sind. "
+        "Fülle Fallback-Felder schema-kompatibel, optimiere aber Broad und Focused als sichtbare Varianten. "
         f"Sprache: {language}."
     )
     user = (
@@ -2661,7 +2684,7 @@ def generate_boolean_search_pack(
         f"{json.dumps(brief.model_dump(mode='json'), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}"
         f"{_artifact_context_block(generation_options=generation_options, change_request=change_request)}"
     )
-    must_have_terms = brief.must_have[:8]
+    must_have_terms = brief.must_have[:keyword_count]
     fallback_query = (
         " AND ".join(term for term in must_have_terms[:3] if term) or role_title
     )

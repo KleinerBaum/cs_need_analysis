@@ -386,6 +386,13 @@ def _render_interview_value_board(
         width="stretch",
         hide_index=True,
         column_order=["Bereich", "Feld", "Wert", "Quelle", "Status"],
+        column_config={
+            "Bereich": st.column_config.TextColumn("Abschnitt"),
+            "Feld": st.column_config.TextColumn("Angabe"),
+            "Wert": st.column_config.TextColumn("Inhalt"),
+            "Quelle": st.column_config.TextColumn("Quelle"),
+            "Status": st.column_config.TextColumn("Status"),
+        },
     )
 
     option_by_label = {

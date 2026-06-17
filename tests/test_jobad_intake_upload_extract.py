@@ -81,6 +81,8 @@ class _FakeStreamlitPhaseA:
         self.errors: list[str] = []
         self.successes: list[str] = []
         self.infos: list[str] = []
+        self.text_area_labels: list[str] = []
+        self.warnings: list[str] = []
 
     def container(self, **_kwargs: Any) -> _DummyContext:
         return _DummyContext()
@@ -98,7 +100,8 @@ class _FakeStreamlitPhaseA:
     def caption(self, text: str, *_args: Any, **_kwargs: Any) -> None:
         self.captions.append(text)
 
-    def text_area(self, *_args: Any, **_kwargs: Any) -> None:
+    def text_area(self, label: str, *_args: Any, **_kwargs: Any) -> None:
+        self.text_area_labels.append(label)
         return None
 
     def metric(self, *_args: Any, **_kwargs: Any) -> None:
@@ -115,6 +118,9 @@ class _FakeStreamlitPhaseA:
 
     def error(self, text: str, *_args: Any, **_kwargs: Any) -> None:
         self.errors.append(text)
+
+    def warning(self, text: str, *_args: Any, **_kwargs: Any) -> None:
+        self.warnings.append(text)
 
 
 def test_phase_a_shows_failed_extraction_status_without_no_file_caption(
@@ -169,6 +175,87 @@ def test_phase_a_shows_pdf_ocr_error_message(monkeypatch) -> None:
         "Extraktion fehlgeschlagen: PDF enthält keinen Textlayer (OCR fehlt)."
         in fake_st.errors
     )
+
+
+def test_phase_a_keeps_editable_extracted_text_after_upload(monkeypatch) -> None:
+    upload = type("Upload", (), {"name": "jobspec.txt", "size": 12})()
+    fake_st = _FakeStreamlitPhaseA(
+        {
+            "cs.source_upload_file": upload,
+            jobad_intake.SOURCE_UPLOAD_TEXT_KEY: "Extrahierter Inhalt",
+            jobad_intake.SOURCE_UPLOAD_SIG_KEY: ("jobspec.txt", 12),
+            SSKey.LAST_ERROR.value: "",
+            SSKey.SOURCE_TEXT.value: "Extrahierter Inhalt",
+            jobad_intake.SOURCE_TEXT_INPUT_KEY: "Extrahierter Inhalt",
+            SSKey.SOURCE_FILE_META.value: {"name": "jobspec.txt"},
+        }
+    )
+
+    monkeypatch.setattr(jobad_intake, "st", fake_st)
+    monkeypatch.setattr(jobad_intake, "render_ui_mode_selector", lambda **_kwargs: None)
+
+    jobad_intake._render_phase_a_source_and_privacy_controls()
+
+    assert "Extrahierter Text für die Analyse" in fake_st.text_area_labels
+
+
+class _FakeUploadPreview:
+    def __init__(self, payload: bytes, *, name: str) -> None:
+        self.name = name
+        self.size = len(payload)
+        self._payload = payload
+        self._pos = 0
+
+    def seek(self, pos: int) -> int:
+        self._pos = pos
+        return pos
+
+    def read(self) -> bytes:
+        if self._pos:
+            payload = self._payload[self._pos :]
+        else:
+            payload = self._payload
+        self._pos = len(self._payload)
+        return payload
+
+
+class _PreviewStreamlit:
+    def __init__(self) -> None:
+        self.markdowns: list[str] = []
+
+    def markdown(self, text: str, *_args: Any, **_kwargs: Any) -> None:
+        self.markdowns.append(text)
+
+
+def test_render_uploaded_document_preview_embeds_pdf_bytes(monkeypatch) -> None:
+    fake_st = _PreviewStreamlit()
+    monkeypatch.setattr(jobad_intake, "st", fake_st)
+    upload = _FakeUploadPreview(b"%PDF-1.4\nbody", name="jobspec.pdf")
+
+    rendered = jobad_intake._render_uploaded_document_preview(upload, "")
+
+    assert rendered is True
+    assert "data:application/pdf;base64," in fake_st.markdowns[0]
+
+
+def test_text_preview_html_escapes_fallback_text() -> None:
+    html = jobad_intake._text_preview_html("<script>alert(1)</script>")
+
+    assert "<script>" not in html
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+
+
+def test_docx_preview_html_escapes_blocks(monkeypatch) -> None:
+    monkeypatch.setattr(
+        jobad_intake,
+        "extract_docx_preview_blocks",
+        lambda _raw: [{"type": "paragraph", "text": "<b>unsafe</b>", "level": 0}],
+    )
+
+    html = jobad_intake._docx_preview_html(b"docx")
+
+    assert "<b>unsafe</b>" not in html
+    assert "&lt;b&gt;unsafe&lt;/b&gt;" in html
 
 
 class _FakeStreamlitSourceSection:

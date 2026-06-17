@@ -113,7 +113,6 @@ from summary_artifacts import (
     to_canonical_artifact_id as _to_canonical_artifact_id,
 )
 from summary_exports import (
-    boolean_search_pack_to_markdown as _boolean_search_pack_to_markdown,
     brief_to_markdown as _brief_to_markdown,
     build_summary_input_fingerprint as _build_summary_input_fingerprint,
 )
@@ -134,7 +133,10 @@ from summary_job_ad import (
     sanitize_generated_job_ad as _sanitize_generated_job_ad,
 )
 from ui_components import (
+    render_boolean_risks,
     render_boolean_search_pack,
+    render_boolean_supporting_terms,
+    render_boolean_usage_notes,
     render_brief,
     render_employment_contract_draft,
     render_error_banner,
@@ -1210,18 +1212,18 @@ def _build_selection_rows(
     add_row("Basis", "Titel", job.job_title or "", "Jobspec", True)
     add_row(
         "Basis",
-        "ESCO Occupation",
+        "Beruf (ESCO)",
         (selected_occupation or {}).get("title", ""),
         "ESCO",
         False,
     )
     add_row("Basis", "Unternehmen", job.company_name or "", "Jobspec", True)
-    add_row("Basis", "Brand", job.brand_name or "", "Jobspec", False)
+    add_row("Basis", "Marke", job.brand_name or "", "Jobspec", False)
     add_row("Basis", "Anstellungsart", job.employment_type or "", "Jobspec", True)
     add_row("Basis", "Vertragsart", job.contract_type or "", "Jobspec", True)
     add_row("Standort", "Ort", job.location_city or "", "Jobspec", True)
     add_row("Standort", "Land", job.location_country or "", "Jobspec", True)
-    add_row("Standort", "Remote", job.remote_policy or "", "Jobspec", False)
+    add_row("Standort", "Remote-Regelung", job.remote_policy or "", "Jobspec", False)
     add_row("Rolle", "Kurzbeschreibung", job.role_overview or "", "Jobspec", True)
     for value in job.must_have_skills:
         add_row("Skills", "Must-have", value, "Jobspec", True)
@@ -1400,13 +1402,24 @@ def _render_selection_matrix(
 ) -> tuple[dict[str, list[str]], list[str]]:
     rows = _build_selection_rows(job, answers)
     st.subheader("Datenmatrix für Stellenanzeigen-Generierung")
-    st.dataframe(rows, width="stretch", hide_index=True)
+    st.dataframe(
+        rows,
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "Kategorie": st.column_config.TextColumn("Abschnitt"),
+            "Feld": st.column_config.TextColumn("Angabe"),
+            "Wert": st.column_config.TextColumn("Inhalt"),
+            "Quelle": st.column_config.TextColumn("Quelle"),
+            "Kritisch": st.column_config.TextColumn("Wichtig"),
+        },
+    )
 
     grouped: dict[str, list[str]] = defaultdict(list)
     for row in rows:
         grouped[f"{row['Kategorie']} · {row['Feld']}"].append(row["Wert"])
 
-    st.markdown("**Auswahl (Multi-Select Pills pro Feld)**")
+    st.markdown("**Auswahl (Multi-Select Pills pro Angabe)**")
     selected: dict[str, list[str]] = {}
     for group_key in sorted(grouped.keys()):
         distinct_values = sorted(set(grouped[group_key]))
@@ -2531,7 +2544,7 @@ def _build_summary_fact_rows(
             _with_summary_row_metadata(
                 SummaryFactsRow(
                     "Klassifikation",
-                    "ESCO Occupation",
+                    "Beruf (ESCO)",
                     meta.selected_occupation_title or "Nicht gesetzt",
                     "Jobspec-Review",
                     _status_for_classification_value(meta.selected_occupation_title),
@@ -2805,6 +2818,13 @@ def _render_summary_facts_table(rows: list[dict[str, str]]) -> None:
             width="stretch",
             hide_index=True,
             column_order=["Bereich", "Feld", "Wert", "Quelle", "Status"],
+            column_config={
+                "Bereich": st.column_config.TextColumn("Abschnitt"),
+                "Feld": st.column_config.TextColumn("Angabe"),
+                "Wert": st.column_config.TextColumn("Inhalt"),
+                "Quelle": st.column_config.TextColumn("Quelle"),
+                "Status": st.column_config.TextColumn("Status"),
+            },
         )
 
 
@@ -2926,8 +2946,8 @@ def _render_summary_facts_matrix(vm: SummaryViewModel) -> None:
                         hide_index=True,
                         column_order=["Feld", "Wert", "Quelle"],
                         column_config={
-                            "Feld": st.column_config.TextColumn("Feld", disabled=True),
-                            "Wert": st.column_config.TextColumn("Wert"),
+                            "Feld": st.column_config.TextColumn("Angabe", disabled=True),
+                            "Wert": st.column_config.TextColumn("Inhalt"),
                             "Quelle": st.column_config.TextColumn("Quelle", disabled=True),
                         },
                     )
@@ -2937,6 +2957,11 @@ def _render_summary_facts_matrix(vm: SummaryViewModel) -> None:
                         width="stretch",
                         hide_index=True,
                         column_order=["Feld", "Wert", "Quelle"],
+                        column_config={
+                            "Feld": st.column_config.TextColumn("Angabe"),
+                            "Wert": st.column_config.TextColumn("Inhalt"),
+                            "Quelle": st.column_config.TextColumn("Quelle"),
+                        },
                     )
                     edited = editor_rows
                 editable_count = sum(1 for row in rows if row.editable)
@@ -2990,6 +3015,12 @@ def _render_summary_critical_gaps_table(vm: SummaryViewModel) -> None:
         width="stretch",
         hide_index=True,
         column_order=["Schritt", "Feld", "Status", "Aktion"],
+        column_config={
+            "Schritt": st.column_config.TextColumn("Schritt"),
+            "Feld": st.column_config.TextColumn("Angabe"),
+            "Status": st.column_config.TextColumn("Status"),
+            "Aktion": st.column_config.TextColumn("Nächster Schritt"),
+        },
     )
 
 
@@ -3360,18 +3391,35 @@ def _render_interview_compact_controls(vm: SummaryViewModel) -> str:
 
 
 def _render_boolean_compact_controls() -> None:
-    channels = st.multiselect(
-        "Kanäle",
-        options=["Google", "LinkedIn", "XING"],
-        default=["Google", "LinkedIn", "XING"],
-        key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "boolean.channels"),
-    )
-    breadth = st.selectbox(
-        "Suchbreite",
-        options=["breit", "ausgewogen", "fokussiert"],
-        index=1,
-        key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "boolean.breadth"),
-    )
+    left, right = st.columns(2)
+    with left:
+        channels = st.multiselect(
+            "Kanäle",
+            options=["Google", "LinkedIn", "XING"],
+            default=["Google", "LinkedIn", "XING"],
+            key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "boolean.channels"),
+        )
+        breadth = st.selectbox(
+            "Suchbreite",
+            options=["breit", "ausgewogen", "fokussiert"],
+            index=1,
+            key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "boolean.breadth"),
+        )
+    with right:
+        keyword_count = st.number_input(
+            "Schlagworte",
+            min_value=3,
+            max_value=15,
+            value=8,
+            step=1,
+            key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "boolean.keyword_count"),
+        )
+        operators = st.multiselect(
+            "Operatoren",
+            options=["AND", "OR", "NOT", '"..."', "(...)", "site:", "-"],
+            default=["AND", "OR", "NOT", '"..."', "(...)"],
+            key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "boolean.operators"),
+        )
     locations = st.text_input(
         "Zielregionen",
         value="",
@@ -3389,6 +3437,8 @@ def _render_boolean_compact_controls() -> None:
         {
             "channels": channels,
             "breadth": breadth,
+            "keyword_count": int(keyword_count),
+            "operators": operators,
             "target_locations": locations,
             "exclusions": exclusions,
         },
@@ -4244,11 +4294,28 @@ def _render_summary_workspace_tabs(
                 _build_artifact_status_rows(action_registry=action_registry),
                 width="stretch",
                 hide_index=True,
+                column_config={
+                    "Artefakt": st.column_config.TextColumn("Dokument"),
+                    "Status": st.column_config.TextColumn("Status"),
+                    "Voraussetzungen": st.column_config.TextColumn("Voraussetzungen"),
+                },
             )
         with st.expander("Enrichment Timing", expanded=False):
             timing_rows = _build_enrichment_timing_rows(st.session_state)
             if timing_rows:
-                st.dataframe(timing_rows, width="stretch", hide_index=True)
+                st.dataframe(
+                    timing_rows,
+                    width="stretch",
+                    hide_index=True,
+                    column_config={
+                        "Stage": st.column_config.TextColumn("Schritt"),
+                        "Pfad": st.column_config.TextColumn("Pfad"),
+                        "Status": st.column_config.TextColumn("Status"),
+                        "Dauer (ms)": st.column_config.NumberColumn("Dauer (ms)"),
+                        "Cache": st.column_config.CheckboxColumn("Aus Cache"),
+                        "Treffer": st.column_config.NumberColumn("Treffer"),
+                    },
+                )
             else:
                 st.info("Noch keine Timing-Daten für Enrichment-Pfade verfügbar.")
 
@@ -4724,25 +4791,6 @@ def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
         if isinstance(payload, dict):
             boolean_pack = BooleanSearchPack.model_validate(payload)
             render_boolean_search_pack(boolean_pack)
-            boolean_json_bytes = json.dumps(
-                boolean_pack.model_dump(mode="json"), indent=2, ensure_ascii=False
-            ).encode("utf-8")
-            boolean_md = _boolean_search_pack_to_markdown(boolean_pack).encode("utf-8")
-            x1, x2 = st.columns(2)
-            with x1:
-                st.download_button(
-                    "Download Boolean Search JSON",
-                    data=boolean_json_bytes,
-                    file_name="boolean_search_pack.json",
-                    mime="application/json",
-                )
-            with x2:
-                st.download_button(
-                    "Download Boolean Search Markdown",
-                    data=boolean_md,
-                    file_name="boolean_search_pack.md",
-                    mime="text/markdown",
-                )
         else:
             st.info("Für dieses Artefakt liegt noch kein Ergebnis vor.")
         return
@@ -4829,8 +4877,9 @@ def _render_artifact_refinement_box(
     vm: SummaryViewModel,
     artifact_id: str,
     generator_by_id: Mapping[str, Callable[[], None]],
+    heading: str = "### Anpassungswünsche",
 ) -> None:
-    st.markdown("### Anpassungswünsche")
+    st.markdown(heading)
     current_value = _read_artifact_change_request(artifact_id)
     request_value = st.text_area(
         "Was soll am Output angepasst werden?",
@@ -4861,6 +4910,42 @@ def _render_artifact_refinement_box(
             st.rerun()
 
 
+def _current_boolean_search_pack() -> BooleanSearchPack | None:
+    payload = st.session_state.get(SSKey.BOOLEAN_SEARCH_STRING.value)
+    if not isinstance(payload, dict):
+        return None
+    try:
+        return BooleanSearchPack.model_validate(payload)
+    except Exception:
+        return None
+
+
+def _render_boolean_artifact_context_panels(
+    *,
+    vm: SummaryViewModel,
+    generator_by_id: Mapping[str, Callable[[], None]],
+) -> bool:
+    boolean_pack = _current_boolean_search_pack()
+    if boolean_pack is None:
+        return False
+
+    columns = st.columns(4)
+    with columns[0]:
+        render_boolean_supporting_terms(boolean_pack)
+    with columns[1]:
+        render_boolean_usage_notes(boolean_pack)
+    with columns[2]:
+        render_boolean_risks(boolean_pack)
+    with columns[3]:
+        _render_artifact_refinement_box(
+            vm=vm,
+            artifact_id="boolean_search",
+            generator_by_id=generator_by_id,
+            heading="### Anpassungswünsche",
+        )
+    return True
+
+
 def _render_summary_output_workspace(
     *,
     vm: SummaryViewModel,
@@ -4889,6 +4974,13 @@ def _render_summary_output_workspace(
         _render_active_artifact(artifact_id=active_artifact_id, brief=brief)
     else:
         st.info("Für dieses Artefakt liegt noch kein Ergebnis vor.")
+    if active_artifact_id == "boolean_search":
+        rendered_context = _render_boolean_artifact_context_panels(
+            vm=vm,
+            generator_by_id=generator_by_id,
+        )
+        if rendered_context:
+            return
     _render_artifact_refinement_box(
         vm=vm,
         artifact_id=active_artifact_id,

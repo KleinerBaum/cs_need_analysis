@@ -185,6 +185,52 @@ def _get_selected_plotly_point(selection: Any) -> dict[str, Any] | None:
     return first if isinstance(first, dict) else None
 
 
+def _salary_scenario_table_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    group_labels = {
+        "baseline": "Basis",
+        "skill_delta": "Skill",
+        "location_compare": "Standort",
+        "radius_sweep": "Suchradius",
+        "remote_share_sweep": "Remote-Anteil",
+        "seniority_sweep": "Seniority",
+    }
+    table_rows: list[dict[str, Any]] = []
+    for row in rows:
+        details: list[str] = []
+        city = str(row.get("city") or "").strip()
+        country = str(row.get("country") or "").strip()
+        if city or country:
+            details.append(", ".join(part for part in (city, country) if part))
+        if row.get("radius_km") not in (None, ""):
+            details.append(f"{row['radius_km']} km Suchradius")
+        if row.get("remote_share_percent") not in (None, ""):
+            details.append(f"{row['remote_share_percent']}% remote")
+        seniority = str(row.get("seniority_override") or "").strip()
+        if seniority:
+            details.append(f"Seniority: {seniority}")
+        skills = [
+            str(skill).strip()
+            for skill in row.get("skills_add", [])
+            if str(skill).strip()
+        ]
+        if skills:
+            details.append("Skills: " + ", ".join(skills))
+        table_rows.append(
+            {
+                "Typ": group_labels.get(
+                    str(row.get("group") or ""), str(row.get("group") or "")
+                ),
+                "Szenario": str(row.get("label") or ""),
+                "Unteres Gehalt": row.get("p10"),
+                "Mittleres Gehalt": row.get("p50"),
+                "Oberes Gehalt": row.get("p90"),
+                "Unterschied": row.get("delta_p50"),
+                "Details": " | ".join(details),
+            }
+        )
+    return table_rows
+
+
 def _session_esco_context() -> SalaryEscoContext:
     return extract_esco_context(
         occupation_selected=st.session_state.get(SSKey.ESCO_OCCUPATION_SELECTED.value),
@@ -709,8 +755,21 @@ def render_salary_forecast_panel(job: JobAdExtract, answers: dict[str, Any]) -> 
                     selected_row_id=str(selected_seniority.get("customdata") or ""),
                 )
 
-        st.markdown("**Scenario Table**")
-        st.dataframe(scenario_rows, hide_index=True, width="stretch")
+        st.markdown("**Szenario-Tabelle**")
+        st.dataframe(
+            _salary_scenario_table_rows(scenario_rows),
+            hide_index=True,
+            width="stretch",
+            column_config={
+                "Typ": st.column_config.TextColumn("Typ"),
+                "Szenario": st.column_config.TextColumn("Szenario"),
+                "Unteres Gehalt": st.column_config.NumberColumn("Unteres Gehalt"),
+                "Mittleres Gehalt": st.column_config.NumberColumn("Mittleres Gehalt"),
+                "Oberes Gehalt": st.column_config.NumberColumn("Oberes Gehalt"),
+                "Unterschied": st.column_config.NumberColumn("Unterschied"),
+                "Details": st.column_config.TextColumn("Details"),
+            },
+        )
 
     st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = (
         _build_salary_forecast_snapshot(

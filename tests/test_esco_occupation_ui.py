@@ -121,10 +121,15 @@ def test_render_secondary_anchor_controls_uses_friendly_expander_and_labels(
             self.markdown_messages: list[str] = []
             self.selectbox_labels: list[str] = []
             self.button_labels: list[str] = []
+            self.column_calls: list[tuple[list[float], str | None]] = []
 
         def expander(self, label: str, **kwargs: object) -> _DummyContext:
             self.expander_calls.append((label, kwargs.get("expanded")))
             return _DummyContext()
+
+        def columns(self, spec: list[float], **kwargs: object) -> list[_DummyContext]:
+            self.column_calls.append((spec, kwargs.get("gap")))
+            return [_DummyContext() for _ in spec]
 
         def caption(self, message: str) -> None:
             self.caption_messages.append(message)
@@ -157,6 +162,7 @@ def test_render_secondary_anchor_controls_uses_friendly_expander_and_labels(
     esco_occupation_ui._render_secondary_anchor_controls(primary_uri="uri:occ:primary")
 
     assert ("Optionale Kontextanker", False) in fake_st.expander_calls
+    assert fake_st.column_calls == [([1, 1.4], "large")]
     assert any(
         "Grenzrollen oder Mischprofile" in message
         and "Primäranker und Kernexport" in message
@@ -223,6 +229,9 @@ def test_render_secondary_anchor_controls_persists_confirmed_picker_selection(
 
         def expander(self, _label: str, **_kwargs: object) -> _DummyContext:
             return _DummyContext()
+
+        def columns(self, spec: list[float], **_kwargs: object) -> list[_DummyContext]:
+            return [_DummyContext() for _ in spec]
 
         def caption(self, _message: str) -> None:
             return None
@@ -292,10 +301,15 @@ def test_render_secondary_anchor_controls_keeps_expander_when_anchor_limit_reach
             self.expander_labels: list[str] = []
             self.markdown_messages: list[str] = []
             self.info_messages: list[str] = []
+            self.column_calls: list[tuple[list[float], str | None]] = []
 
         def expander(self, label: str, **_kwargs: object) -> _DummyContext:
             self.expander_labels.append(label)
             return _DummyContext()
+
+        def columns(self, spec: list[float], **kwargs: object) -> list[_DummyContext]:
+            self.column_calls.append((spec, kwargs.get("gap")))
+            return [_DummyContext() for _ in spec]
 
         def caption(self, _message: str) -> None:
             return None
@@ -324,6 +338,7 @@ def test_render_secondary_anchor_controls_keeps_expander_when_anchor_limit_reach
     esco_occupation_ui._render_secondary_anchor_controls(primary_uri="uri:primary")
 
     assert "Optionale Kontextanker" in fake_st.expander_labels
+    assert fake_st.column_calls == [([1, 1.4], "large")]
     assert any("Rolle 1" in message for message in fake_st.markdown_messages)
     assert any("Rolle 2" in message for message in fake_st.markdown_messages)
     assert fake_st.info_messages == [

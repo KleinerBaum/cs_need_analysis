@@ -259,10 +259,7 @@ def test_job_extract_overview_maps_gap_labels_to_german(monkeypatch) -> None:
     table_rows, dataframe_kwargs = fake_st.dataframes[0]
     assert dataframe_kwargs["hide_index"] is True
     assert dataframe_kwargs["width"] == "stretch"
-    assert {"Attribut": "Location City", "Wert": "—"} in table_rows
-    assert {"Attribut": "Start Date", "Wert": "—"} in table_rows
-    assert {"Attribut": "Salary Range", "Wert": "—"} in table_rows
-    assert {"Attribut": "Recruitment Steps", "Wert": "—"} in table_rows
+    assert table_rows == [{"Attribut": "Rolle", "Wert": "Data Engineer"}]
     assert all("Feld" not in row for row in table_rows)
 
 
@@ -310,10 +307,11 @@ def test_editable_job_extract_renders_empty_job_title_for_review(
 
     core_rows = fake_st.editor_rows_by_key["cs.job_extract.core"]
     assert {
-        "field": "job_title",
-        "label": "Jobtitel",
-        "value": "",
+        "field": "company_name",
+        "label": "Unternehmen",
+        "value": "Acme",
     } in core_rows
+    assert all(row["field"] != "job_title" for row in core_rows)
 
 
 def test_editable_job_extract_includes_field_evidence_columns(monkeypatch) -> None:

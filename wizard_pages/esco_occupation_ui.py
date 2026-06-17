@@ -1430,42 +1430,51 @@ def _render_secondary_anchor_controls(*, primary_uri: str) -> None:
     current_raw = st.session_state.get(SSKey.ESCO_SECONDARY_ANCHORS.value, [])
     current = current_raw if isinstance(current_raw, list) else []
     with st.expander("Optionale Kontextanker", expanded=False):
-        if current:
-            for index, anchor in enumerate(
-                current[:ESCO_SECONDARY_ANCHOR_MAX], start=1
-            ):
-                if not isinstance(anchor, dict):
-                    continue
-                title = str(anchor.get("title") or anchor.get("uri") or "—").strip()
-                reason = str(anchor.get("reason") or "context").strip()
-                st.markdown(f"- **{index}. {title}**  \n  Grund: {reason}")
+        st.caption(
+            "Für Grenzrollen oder Mischprofile: Kontextanker ergänzen die "
+            "Einordnung, ersetzen aber nicht Primäranker und Kernexport."
+        )
+        existing_column, picker_column = st.columns([1, 1.4], gap="large")
+        with existing_column:
+            if current:
+                for index, anchor in enumerate(
+                    current[:ESCO_SECONDARY_ANCHOR_MAX], start=1
+                ):
+                    if not isinstance(anchor, dict):
+                        continue
+                    title = str(anchor.get("title") or anchor.get("uri") or "—").strip()
+                    reason = str(anchor.get("reason") or "context").strip()
+                    st.markdown(f"- **{index}. {title}**  \n  Grund: {reason}")
+            else:
+                st.caption("Noch keine Kontextanker hinterlegt.")
         if len(current) >= ESCO_SECONDARY_ANCHOR_MAX:
             st.info("Maximal zwei sekundäre Kontextanker sind hinterlegt.")
             return
 
         secondary_key = "cs.esco_secondary_anchor_picker"
-        render_esco_picker_card(
-            concept_type="occupation",
-            target_state_key=secondary_key,
-            enable_preview=False,
-            apply_label="Kontextrolle bestätigen",
-            selection_label="Kontextrolle auswählen",
-            query_label="Suchbegriff für Kontextrolle",
-            query_placeholder="Benachbarte Rolle oder Alternativtitel eingeben",
-            confirmed_summary_label="Ausgewählte Kontextrolle",
-            show_results_overview=True,
-            taxonomy_auto_load=True,
-            layout_variant="secondary_anchor",
-        )
-        reason = st.selectbox(
-            "Grund",
-            options=[
-                "benachbarte Rolle",
-                "spezialisierende Variante",
-                "arbeitsmarktüblicher Alternativtitel",
-            ],
-            key="cs.esco_secondary_anchor.reason",
-        )
+        with picker_column:
+            render_esco_picker_card(
+                concept_type="occupation",
+                target_state_key=secondary_key,
+                enable_preview=False,
+                apply_label="Kontextrolle bestätigen",
+                selection_label="Kontextrolle auswählen",
+                query_label="Suchbegriff für Kontextrolle",
+                query_placeholder="Benachbarte Rolle oder Alternativtitel eingeben",
+                confirmed_summary_label="Ausgewählte Kontextrolle",
+                show_results_overview=True,
+                taxonomy_auto_load=True,
+                layout_variant="secondary_anchor",
+            )
+            reason = st.selectbox(
+                "Grund",
+                options=[
+                    "benachbarte Rolle",
+                    "spezialisierende Variante",
+                    "arbeitsmarktüblicher Alternativtitel",
+                ],
+                key="cs.esco_secondary_anchor.reason",
+            )
         picked_raw = st.session_state.get(secondary_key)
         picked = picked_raw if isinstance(picked_raw, dict) else None
         picked_uri = str((picked or {}).get("uri") or "").strip()

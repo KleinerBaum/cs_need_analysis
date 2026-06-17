@@ -516,6 +516,10 @@ def test_salary_panel_chart_selection_uses_pending_keys_on_rerun(monkeypatch) ->
     class _FakeStreamlit:
         def __init__(self) -> None:
             self.session_state = _LockedSessionState()
+            self.column_config = SimpleNamespace(
+                TextColumn=lambda *args, **kwargs: None,
+                NumberColumn=lambda *args, **kwargs: None,
+            )
             self._selections_by_run = [
                 {
                     "salary_tornado_chart": {
