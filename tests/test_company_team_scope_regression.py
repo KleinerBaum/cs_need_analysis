@@ -5,18 +5,31 @@ from pathlib import Path
 from types import SimpleNamespace
 import sys
 
-from constants import AnswerType, SSKey
+from constants import AnswerType, FactKey, SSKey
 from schemas import Question, QuestionPlan, QuestionStep
 import ui_components
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE_PATH = ROOT / "wizard_pages" / "base.py"
+COMPANY_PATH = ROOT / "wizard_pages" / "02_company.py"
 SPEC = spec_from_file_location("wizard_pages.base_scope_regression", BASE_PATH)
 if SPEC is None or SPEC.loader is None:
     raise RuntimeError("Could not load base module")
 BASE_MODULE = module_from_spec(SPEC)
 sys.modules[SPEC.name] = BASE_MODULE
 SPEC.loader.exec_module(BASE_MODULE)  # type: ignore[attr-defined]
+
+
+def _load_company_module():
+    spec = spec_from_file_location(
+        "wizard_pages.company_question_dedupe_regression", COMPANY_PATH
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError("Could not load company module")
+    module = module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)  # type: ignore[attr-defined]
+    return module
 
 
 def _noop_render(_: object) -> None:
@@ -86,3 +99,129 @@ def test_company_scope_excludes_team_questions_and_keeps_progress_denominator(mo
 
     assert statuses[0]["total"] == review_payload["step_status"]["total"]
     assert statuses[0]["answered"] == review_payload["step_status"]["answered"]
+
+
+def test_company_open_questions_filter_structured_fact_key_duplicates() -> None:
+    company_module = _load_company_module()
+    step = QuestionStep(
+        step_key="company",
+        title_de="Company",
+        questions=[
+            Question(
+                id="ctx_team_size_direct",
+                label="Wie groß ist das unmittelbare Team?",
+                answer_type=AnswerType.NUMBER,
+                fact_key=FactKey.TEAM_SIZE_DIRECT.value,
+            ),
+            Question(
+                id="ctx_team_leadership_scope",
+                label="Welche Führungsverantwortung hat die Rolle?",
+                answer_type=AnswerType.SINGLE_SELECT,
+                fact_key=FactKey.TEAM_LEADERSHIP_SCOPE.value,
+            ),
+            Question(
+                id="ctx_company_work_arrangement",
+                label="Welches Arbeitsmodell gilt für diese Rolle?",
+                answer_type=AnswerType.SINGLE_SELECT,
+                target_path=FactKey.COMPANY_WORK_ARRANGEMENT.value,
+            ),
+            Question(
+                id="ctx_company_non_negotiables",
+                label="Welche Rahmenbedingungen sind nicht verhandelbar?",
+                answer_type=AnswerType.MULTI_SELECT,
+                fact_key=FactKey.COMPANY_NON_NEGOTIABLES.value,
+            ),
+            Question(
+                id="ctx_confidential_external_narrative",
+                label="Welche Details sollen extern neutralisiert werden?",
+                answer_type=AnswerType.LONG_TEXT,
+                fact_key=FactKey.COMPANY_NON_NEGOTIABLES.value,
+            ),
+            Question(
+                id="ctx_hiring_growth_context",
+                label="Welcher Wachstumskontext macht die Rolle nötig?",
+                answer_type=AnswerType.LONG_TEXT,
+                fact_key=FactKey.COMPANY_ROLE_RELEVANT_POSITIONING.value,
+            ),
+            Question(
+                id="ctx_same_label_distinct_fact",
+                label="Wie groß ist das unmittelbare Team?",
+                answer_type=AnswerType.LONG_TEXT,
+                fact_key=FactKey.ROLE_ASSUMPTIONS.value,
+            ),
+        ],
+    )
+
+    filtered_step = company_module._filtered_company_open_question_step(step)
+
+    assert filtered_step is not None
+    assert [question.id for question in filtered_step.questions] == [
+        "ctx_confidential_external_narrative",
+        "ctx_hiring_growth_context",
+        "ctx_same_label_distinct_fact",
+    ]
+
+
+def test_structured_company_facts_still_cover_original_step_review(monkeypatch) -> None:
+    questions = [
+        Question(
+            id="ctx_team_size_direct",
+            label="Wie groß ist das unmittelbare Team?",
+            answer_type=AnswerType.NUMBER,
+            fact_key=FactKey.TEAM_SIZE_DIRECT.value,
+        ),
+        Question(
+            id="ctx_team_leadership_scope",
+            label="Welche Führungsverantwortung hat die Rolle?",
+            answer_type=AnswerType.SINGLE_SELECT,
+            fact_key=FactKey.TEAM_LEADERSHIP_SCOPE.value,
+        ),
+        Question(
+            id="ctx_company_work_arrangement",
+            label="Welches Arbeitsmodell gilt für diese Rolle?",
+            answer_type=AnswerType.SINGLE_SELECT,
+            fact_key=FactKey.COMPANY_WORK_ARRANGEMENT.value,
+        ),
+        Question(
+            id="ctx_company_non_negotiables",
+            label="Welche Rahmenbedingungen sind nicht verhandelbar?",
+            answer_type=AnswerType.MULTI_SELECT,
+            fact_key=FactKey.COMPANY_NON_NEGOTIABLES.value,
+        ),
+    ]
+    company_step = QuestionStep(
+        step_key="company",
+        title_de="Company",
+        questions=questions,
+    )
+    intake_facts = {
+        FactKey.TEAM_SIZE_DIRECT.value: 8,
+        FactKey.TEAM_LEADERSHIP_SCOPE.value: "fachliche_fuehrung",
+        FactKey.COMPANY_WORK_ARRANGEMENT.value: "hybrid",
+        FactKey.COMPANY_NON_NEGOTIABLES.value: ["Standort"],
+    }
+
+    monkeypatch.setattr(ui_components, "get_answers", lambda: {})
+    monkeypatch.setattr(ui_components, "get_answer_meta", lambda: {})
+    monkeypatch.setattr(
+        ui_components,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.INTAKE_FACTS.value: intake_facts,
+                SSKey.INTAKE_FACT_EVIDENCE.value: {},
+                SSKey.UI_PREFERENCES.value: {},
+                SSKey.JOB_EXTRACT.value: None,
+            }
+        ),
+    )
+
+    review_payload = ui_components.build_step_review_payload(company_step)
+
+    assert review_payload["answered_lookup"] == {
+        "ctx_team_size_direct": True,
+        "ctx_team_leadership_scope": True,
+        "ctx_company_work_arrangement": True,
+        "ctx_company_non_negotiables": True,
+    }
+    assert review_payload["step_status"]["answered"] == 4

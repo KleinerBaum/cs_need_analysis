@@ -44,7 +44,7 @@ from homepage_research import (
     normalize_url as _normalize_url,
     strip_html as _strip_html,
 )
-from schemas import JobAdExtract, QuestionPlan
+from schemas import JobAdExtract, QuestionPlan, QuestionStep
 from ui_components import (
     has_meaningful_value,
     render_error_banner,
@@ -95,6 +95,78 @@ _FACT_OPTION_LABELS = {
     fact.fact_key.value: f"{fact.label} ({fact.fact_key.value})"
     for fact in INTAKE_FACTS
 }
+_STRUCTURED_COMPANY_FACT_KEYS = frozenset(
+    {
+        FactKey.COMPANY_EMPLOYER_PITCH,
+        FactKey.COMPANY_BUSINESS_UNIT,
+        FactKey.COMPANY_ROLE_RELEVANT_POSITIONING,
+        FactKey.TEAM_NAME,
+        FactKey.TEAM_LEADERSHIP_SCOPE,
+        FactKey.TEAM_SIZE_DIRECT,
+        FactKey.TEAM_STAKEHOLDERS_PRIMARY,
+        FactKey.TEAM_SUCCESS_CONTEXT_90D,
+        FactKey.COMPANY_WORK_ARRANGEMENT,
+        FactKey.COMPANY_OFFICE_DAYS_PER_WEEK,
+        FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES,
+        FactKey.COMPANY_LANGUAGE_INTERNAL,
+        FactKey.COMPANY_LANGUAGE_EXTERNAL,
+        FactKey.COMPANY_NON_NEGOTIABLES,
+        FactKey.COMPANY_COMPLIANCE_CONTEXT,
+        FactKey.COMPANY_TARIFF_CONTEXT,
+    }
+)
+_COMPANY_DISTINCT_FOLLOW_UP_QUESTION_IDS = frozenset(
+    {
+        "ctx_confidential_external_narrative",
+        "ctx_hiring_growth_context",
+    }
+)
+
+
+def _filtered_company_open_question_step(
+    step: QuestionStep | None,
+) -> QuestionStep | None:
+    if step is None:
+        return None
+    questions = list(getattr(step, "questions", []) or [])
+    if not questions:
+        return None
+
+    filtered_questions = [
+        question
+        for question in questions
+        if not _is_structured_company_duplicate_question(question)
+    ]
+    if len(filtered_questions) == len(questions):
+        return step
+    return QuestionStep(
+        step_key=step.step_key,
+        title_de=step.title_de,
+        description_de=step.description_de,
+        questions=filtered_questions,
+    )
+
+
+def _is_structured_company_duplicate_question(question: Any) -> bool:
+    question_id = str(getattr(question, "id", "") or "").strip()
+    if question_id in _COMPANY_DISTINCT_FOLLOW_UP_QUESTION_IDS:
+        return False
+    fact_key = _question_canonical_fact_key(question)
+    return fact_key in _STRUCTURED_COMPANY_FACT_KEYS
+
+
+def _question_canonical_fact_key(question: Any) -> FactKey | None:
+    for raw_key in (
+        getattr(question, "fact_key", None),
+        getattr(question, "target_path", None),
+    ):
+        if not isinstance(raw_key, str):
+            continue
+        try:
+            return FactKey(raw_key.strip())
+        except ValueError:
+            continue
+    return None
 
 
 def _collect_open_questions(plan: QuestionPlan) -> list[dict[str, str]]:
@@ -826,6 +898,7 @@ def render(ctx: WizardContext) -> None:
         return
     job, plan = preflight
     step_company = next((s for s in plan.steps if s.step_key == "company"), None)
+    open_question_step = _filtered_company_open_question_step(step_company)
 
     def _render_extracted_slot() -> None:
         extracted_rows = [
@@ -850,12 +923,12 @@ def render(ctx: WizardContext) -> None:
         _render_structured_company_context(job, ctx=ctx, plan=plan)
 
     def _render_open_questions_slot() -> None:
-        if step_company is None or not step_company.questions:
+        if open_question_step is None or not open_question_step.questions:
             st.info(
                 "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
             )
         else:
-            render_question_step(step_company)
+            render_question_step(open_question_step)
 
 
     render_step_shell(
