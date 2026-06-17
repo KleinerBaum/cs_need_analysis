@@ -411,6 +411,7 @@ def init_session_state() -> None:
         },
         SSKey.COMPANY_WEBSITE_RESEARCH.value: {},
         SSKey.COMPANY_WEBSITE_SELECTED_MATCHES.value: [],
+        SSKey.COMPANY_WEBSITE_FACT_REVIEW.value: {},
         SSKey.COMPANY_WEBSITE_LAST_ERROR.value: None,
         SSKey.COMPANY_WEBSITE_MANUAL_URL.value: "",
         SSKey.ROLE_TASKS_JOBSPEC_SUGGESTED.value: [],
@@ -613,6 +614,7 @@ def reset_vacancy() -> None:
     }
     st.session_state[SSKey.COMPANY_WEBSITE_RESEARCH.value] = {}
     st.session_state[SSKey.COMPANY_WEBSITE_SELECTED_MATCHES.value] = []
+    st.session_state[SSKey.COMPANY_WEBSITE_FACT_REVIEW.value] = {}
     st.session_state[SSKey.COMPANY_WEBSITE_LAST_ERROR.value] = None
     st.session_state[SSKey.COMPANY_WEBSITE_MANUAL_URL.value] = ""
     st.session_state[SSKey.ROLE_TASKS_JOBSPEC_SUGGESTED.value] = []

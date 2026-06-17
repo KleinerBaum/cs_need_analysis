@@ -401,8 +401,33 @@ def build_iceberg_need_analysis_html(
         }}
 
         .ina-stage {{
-            min-height: 760px;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            gap: 0.52rem;
+            min-height: auto;
+            padding: 0.62rem;
             aspect-ratio: auto;
+            overflow: visible;
+        }}
+
+        .ina-stage::after,
+        .ina-guides,
+        .ina-vs {{
+            display: none;
+        }}
+
+        .ina-bg {{
+            position: relative;
+            inset: auto;
+            z-index: 1;
+            order: 1;
+            width: 100%;
+            height: auto;
+            max-height: 185px;
+            aspect-ratio: 1672 / 941;
+            border: 1px solid rgba(255, 255, 255, 0.10);
+            border-radius: 8px;
+            object-fit: cover;
         }}
 
         .ina-side-header,
@@ -413,51 +438,87 @@ def build_iceberg_need_analysis_html(
         .ina-right-card,
         .ina-result,
         .ina-kpi-bar {{
-            left: 5%;
-            right: 5%;
+            position: relative;
+            top: auto;
+            left: auto;
+            right: auto;
+            bottom: auto;
+            z-index: 2;
             width: auto;
             text-align: left;
         }}
 
+        .ina-side-header {{
+            margin-top: 0.15rem;
+            padding-top: 0.3rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.14);
+        }}
+
+        .ina-side-header h2 {{
+            font-size: clamp(1.08rem, 5.7vw, 1.42rem);
+        }}
+
+        .ina-side-header p {{
+            margin-top: 0.24rem;
+            font-size: 0.8rem;
+        }}
+
         .ina-side-header.left {{
-            top: 5%;
+            order: 2;
         }}
 
         .ina-side-header.right {{
-            top: 15.5%;
-        }}
-
-        .ina-vs {{
-            top: 12.6%;
+            order: 6;
         }}
 
         .ina-surface.ina-left-card {{
-            top: 26%;
+            order: 3;
         }}
 
         .ina-surface.ina-right-card {{
-            top: 38%;
+            order: 7;
         }}
 
         .ina-deep.ina-left-card {{
-            top: 50%;
+            order: 4;
         }}
 
         .ina-deep.ina-right-card {{
-            top: 62%;
+            order: 8;
         }}
 
         .ina-result.ina-left-card {{
-            top: 74%;
+            order: 5;
         }}
 
         .ina-result.ina-right-card {{
-            top: 84%;
+            order: 9;
+        }}
+
+        .ina-card {{
+            min-height: auto;
+            padding: 0.58rem;
+        }}
+
+        .ina-card h3 {{
+            margin-bottom: 0.26rem;
+            font-size: 0.9rem;
+        }}
+
+        .ina-card p {{
+            font-size: 0.78rem;
+            line-height: 1.28;
         }}
 
         .ina-kpi-bar {{
-            bottom: 2%;
+            order: 10;
             grid-template-columns: repeat(2, minmax(0, 1fr));
+            margin-top: 0.12rem;
+            padding: 0.48rem;
+        }}
+
+        .ina-kpi-bar li {{
+            font-size: 0.68rem;
         }}
     }}
 

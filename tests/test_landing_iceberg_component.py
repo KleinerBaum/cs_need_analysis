@@ -87,6 +87,19 @@ def test_iceberg_html_includes_css_motion_controls() -> None:
     assert "@media (prefers-reduced-motion: reduce)" in html
 
 
+def test_iceberg_html_includes_mobile_stacked_layout_rules() -> None:
+    html = build_iceberg_need_analysis_html()
+
+    assert "@media (max-width: 760px)" in html
+    assert "grid-template-columns: minmax(0, 1fr);" in html
+    assert "position: relative;" in html
+    assert ".ina-stage::after,\n        .ina-guides,\n        .ina-vs" in html
+    assert ".ina-bg" in html
+    assert "aspect-ratio: 1672 / 941;" in html
+    assert "order: 10;" in html
+    assert "grid-template-columns: repeat(2, minmax(0, 1fr));" in html
+
+
 def test_iceberg_html_requires_core_content_sections() -> None:
     with pytest.raises(ValueError, match="Missing iceberg content section: right"):
         build_iceberg_need_analysis_html(

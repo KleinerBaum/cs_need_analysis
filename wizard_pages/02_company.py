@@ -1,6 +1,7 @@
 # wizard_pages/02_company.py
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from time import perf_counter
 from typing import Any
@@ -8,7 +9,11 @@ from typing import Any
 import streamlit as st
 
 from constants import (
+    INTAKE_FACTS,
     FactKey,
+    FactResolutionStatus,
+    FactSourceType,
+    FactValueType,
     SSKey,
     WEBSITE_RESEARCH_HOMEPAGE_URL,
     WEBSITE_RESEARCH_OPEN_QUESTION_MATCHES,
@@ -25,6 +30,7 @@ from homepage_research import (
     PAGE_KEYWORDS as _PAGE_KEYWORDS,
     WEBSITE_TOPIC_LABELS as _TOPIC_LABELS,
     build_open_question_match_options as _build_open_question_match_options,
+    build_website_fact_candidates as _build_website_fact_candidates,
     derive_insights_from_open_questions as _derive_insights_from_open_questions,
     derive_topic_facts as _derive_topic_facts,
     extract_essential_sentences as _extract_essential_sentences,
@@ -63,6 +69,8 @@ from wizard_pages.fact_inputs import (
     render_text_fact,
     split_lines,
 )
+from intake_facts import write_intake_fact
+from state import mark_answer_touched
 from wizard_pages.team_section import render_role_context_enrichment
 
 
@@ -81,6 +89,12 @@ _WORK_ARRANGEMENT_LABELS = {
     "unknown": "Noch unklar",
 }
 _CEFR_LEVELS = ("A1", "A2", "B1", "B2", "C1", "C2")
+_FACT_DEFS_BY_KEY = {fact.fact_key.value: fact for fact in INTAKE_FACTS}
+_FACT_OPTION_VALUES = tuple(fact.fact_key.value for fact in INTAKE_FACTS)
+_FACT_OPTION_LABELS = {
+    fact.fact_key.value: f"{fact.label} ({fact.fact_key.value})"
+    for fact in INTAKE_FACTS
+}
 
 
 def _collect_open_questions(plan: QuestionPlan) -> list[dict[str, str]]:
@@ -273,82 +287,284 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
                 for line in summary:
                     st.write(f"- {str(line).strip()}")
 
-        matches_raw = research.get(WEBSITE_RESEARCH_OPEN_QUESTION_MATCHES, [])
-        matches = [
-            match for match in (matches_raw if isinstance(matches_raw, list) else [])
-            if isinstance(match, dict)
-        ]
-        match_options = _build_open_question_match_options(matches)
-        if match_options:
-            st.markdown("### Hinweise aus der Website-Analyse")
-            st.caption(
-                "Die Website-Analyse soll offene Fragen abkürzen, nicht fachliche Entscheidungen ersetzen."
+        _render_website_fact_review(research)
+
+
+def _render_website_fact_review(research: dict[str, Any]) -> None:
+    candidates = _build_website_fact_candidates(research)
+    if not candidates:
+        return
+
+    st.markdown("### Hinweise aus der Website-Analyse")
+    st.caption(
+        "Belastbare Website-Funde werden vor dem Speichern einem kanonischen Key zugeordnet."
+    )
+    review_raw = st.session_state.get(SSKey.COMPANY_WEBSITE_FACT_REVIEW.value, {})
+    review_state = review_raw if isinstance(review_raw, dict) else {}
+    next_review_state: dict[str, dict[str, Any]] = {}
+    rows: list[dict[str, Any]] = []
+
+    with st.form("company.website.fact_review.form"):
+        for index, candidate in enumerate(candidates, start=1):
+            candidate_id = str(candidate.get("candidate_id") or "").strip()
+            if not candidate_id:
+                continue
+            draft_raw = review_state.get(candidate_id, {})
+            draft = draft_raw if isinstance(draft_raw, dict) else {}
+            default_fact_key = str(
+                draft.get("fact_key") or candidate.get("fact_key") or ""
+            ).strip()
+            if default_fact_key not in _FACT_OPTION_VALUES:
+                default_fact_key = str(candidate.get("fact_key") or "").strip()
+            if default_fact_key not in _FACT_OPTION_VALUES:
+                continue
+
+            candidate_value = candidate.get("value")
+            draft_value = draft.get("value", candidate_value)
+            value_type = _value_type_for_fact_key(default_fact_key)
+            default_selected = (
+                bool(draft.get("selected"))
+                if "selected" in draft
+                else _default_select_website_candidate(default_fact_key, draft_value)
             )
-            selected_matches_raw = st.session_state.get(
-                SSKey.COMPANY_WEBSITE_SELECTED_MATCHES.value, []
-            )
-            selected_matches = (
-                selected_matches_raw if isinstance(selected_matches_raw, list) else []
-            )
-            selected_option_ids = [
-                str(item.get("option_id") or "").strip()
-                for item in selected_matches
-                if isinstance(item, dict)
-            ]
-            valid_option_ids = {item["option_id"] for item in match_options}
-            default_selected_ids = [
-                option_id
-                for option_id in selected_option_ids
-                if option_id in valid_option_ids
-            ]
-            options_map = {item["option_id"]: item for item in match_options}
-            option_ids = [item["option_id"] for item in match_options]
-            option_labels = {item["option_id"]: item["display_label"] for item in match_options}
-            if hasattr(st, "pills"):
-                selected_ids = st.pills(
-                    "Welche Website-Hinweise sollen wir für offene Fragen vormerken?",
-                    options=option_ids,
-                    default=default_selected_ids,
-                    selection_mode="multi",
-                    format_func=lambda value: option_labels.get(value, value),
-                    key="company.website.match_selection.pills",
+
+            key_col, value_col, source_col = responsive_three_columns(gap="small")
+            with key_col:
+                selected_fact_key = st.selectbox(
+                    f"Key {index}",
+                    options=_FACT_OPTION_VALUES,
+                    index=_FACT_OPTION_VALUES.index(default_fact_key),
+                    format_func=lambda value: _FACT_OPTION_LABELS.get(value, value),
+                    key=f"company.website.fact_review.{candidate_id}.fact_key",
                 )
-            else:
-                selected_ids = st.multiselect(
-                    "Welche Website-Hinweise sollen wir für offene Fragen vormerken?",
-                    options=option_ids,
-                    default=default_selected_ids,
-                    format_func=lambda value: option_labels.get(value, value),
-                    key="company.website.match_selection.multiselect",
+            value_type = _value_type_for_fact_key(selected_fact_key)
+            with value_col:
+                parsed_value, parse_error = _render_website_candidate_value_input(
+                    candidate_id=candidate_id,
+                    label=f"Wert {index}",
+                    value=draft_value,
+                    value_type=value_type,
                 )
-            selected_ids = selected_ids if isinstance(selected_ids, list) else []
-            resolved_selection = [
+            with source_col:
+                source_label = str(candidate.get("source_label") or "Website").strip()
+                confidence = candidate.get("confidence")
+                evidence = str(candidate.get("evidence_snippet") or "").strip()
+                st.caption(
+                    f"Quelle: {source_label}"
+                    + (
+                        f" · Sicherheit: {float(confidence):.0%}"
+                        if isinstance(confidence, (int, float))
+                        else ""
+                    )
+                )
+                if evidence:
+                    st.caption(evidence)
+                if parse_error:
+                    st.caption(parse_error)
+                selected = st.checkbox(
+                    "Übernehmen",
+                    value=default_selected,
+                    key=f"company.website.fact_review.{candidate_id}.selected",
+                )
+
+            next_review_state[candidate_id] = {
+                "fact_key": selected_fact_key,
+                "value": parsed_value,
+                "selected": selected,
+            }
+            rows.append(
                 {
-                    "option_id": option_id,
-                    "question_id": options_map[option_id]["question_id"],
-                    "question_label": options_map[option_id]["question_label"],
-                    "source_topic": options_map[option_id]["source_topic"],
-                    "source_label": options_map[option_id]["source_label"],
-                    "match_tokens": options_map[option_id]["match_tokens"],
-                    "display_label": options_map[option_id]["display_label"],
+                    "candidate": candidate,
+                    "fact_key": selected_fact_key,
+                    "value": parsed_value,
+                    "selected": selected,
+                    "parse_error": parse_error,
                 }
-                for option_id in selected_ids
-                if option_id in options_map
-            ]
-            st.session_state[SSKey.COMPANY_WEBSITE_SELECTED_MATCHES.value] = (
-                resolved_selection
             )
-            st.caption(
-                f"Ausgewählt: {len(resolved_selection)}/{len(match_options)} Hinweise"
-            )
-            if resolved_selection:
-                with st.expander("Ausgewählte Hinweise (Details)", expanded=False):
-                    for item in resolved_selection:
-                        tokens = str(item.get("match_tokens") or "").strip()
-                        if tokens:
-                            st.caption(
-                                f"{str(item.get('display_label') or '').strip()} · Treffer: {tokens}"
-                            )
+
+        submitted = st.form_submit_button(
+            "Ausgewählte Website-Hinweise übernehmen", width="stretch"
+        )
+
+    st.session_state[SSKey.COMPANY_WEBSITE_FACT_REVIEW.value] = next_review_state
+    if not submitted:
+        return
+
+    saved_count = 0
+    skipped_count = 0
+    for row in rows:
+        if not row["selected"]:
+            continue
+        value = row["value"]
+        if row["parse_error"] or _is_empty_fact_value(value):
+            skipped_count += 1
+            continue
+        fact_key = _coerce_fact_key(row["fact_key"])
+        if fact_key is None:
+            skipped_count += 1
+            continue
+        _persist_homepage_fact_candidate(
+            fact_key=fact_key,
+            value=value,
+            candidate=row["candidate"],
+        )
+        saved_count += 1
+
+    if saved_count:
+        st.success(f"{saved_count} Website-Hinweise gespeichert.")
+    if skipped_count:
+        st.warning(f"{skipped_count} ausgewählte Hinweise wurden nicht gespeichert.")
+
+
+def _render_website_candidate_value_input(
+    *,
+    candidate_id: str,
+    label: str,
+    value: Any,
+    value_type: FactValueType,
+) -> tuple[Any, str | None]:
+    if value_type in {FactValueType.STRING, FactValueType.DATE_STRING}:
+        current = compact_text(value)
+        rendered = st.text_area(
+            label,
+            value=current,
+            height=70,
+            key=f"company.website.fact_review.{candidate_id}.value.string",
+        )
+        return rendered.strip(), None
+    if value_type == FactValueType.STRING_LIST:
+        current = "\n".join(split_lines(value))
+        rendered = st.text_area(
+            label,
+            value=current,
+            height=90,
+            key=f"company.website.fact_review.{candidate_id}.value.list",
+        )
+        return split_lines(rendered), None
+    if value_type == FactValueType.INTEGER:
+        current = _coerce_int(value, default=0)
+        rendered = st.number_input(
+            label,
+            min_value=0,
+            max_value=1_000_000,
+            value=current,
+            step=1,
+            key=f"company.website.fact_review.{candidate_id}.value.int",
+        )
+        return int(rendered), None
+    if value_type == FactValueType.BOOLEAN:
+        current = bool(value) if isinstance(value, bool) else False
+        rendered = st.selectbox(
+            label,
+            options=[True, False],
+            index=0 if current else 1,
+            format_func=lambda item: "Ja" if item else "Nein",
+            key=f"company.website.fact_review.{candidate_id}.value.bool",
+        )
+        return bool(rendered), None
+
+    current_text = _format_jsonish_value(value)
+    rendered = st.text_area(
+        label,
+        value=current_text,
+        height=110,
+        key=f"company.website.fact_review.{candidate_id}.value.json",
+    )
+    parsed, error = _parse_jsonish_value(rendered, value_type)
+    return parsed, error
+
+
+def _persist_homepage_fact_candidate(
+    *,
+    fact_key: FactKey,
+    value: Any,
+    candidate: dict[str, Any],
+) -> None:
+    answers_raw = st.session_state.get(SSKey.ANSWERS.value, {})
+    answers = answers_raw if isinstance(answers_raw, dict) else {}
+    previous_value = answers.get(fact_key.value)
+    mark_answer_touched(fact_key.value, previous_value, value)
+    answers[fact_key.value] = value
+    st.session_state[SSKey.ANSWERS.value] = answers
+    write_intake_fact(
+        st.session_state,
+        fact_key,
+        value,
+        source_type=FactSourceType.HOMEPAGE,
+        source_label=str(candidate.get("source_label") or "Website-Analyse").strip(),
+        confidence=candidate.get("confidence"),
+        evidence_snippet=str(candidate.get("evidence_snippet") or "").strip() or None,
+        confirmed=True,
+        resolution_status=FactResolutionStatus.CONFIRMED,
+    )
+
+
+def _default_select_website_candidate(fact_key: str, value: Any) -> bool:
+    resolved_fact_key = _coerce_fact_key(fact_key)
+    if resolved_fact_key is None:
+        return False
+    current = fact_value(resolved_fact_key)
+    return _is_empty_fact_value(current) or _fact_values_equal(current, value)
+
+
+def _value_type_for_fact_key(fact_key: str) -> FactValueType:
+    fact_def = _FACT_DEFS_BY_KEY.get(fact_key)
+    return fact_def.value_type if fact_def is not None else FactValueType.STRING
+
+
+def _coerce_fact_key(value: Any) -> FactKey | None:
+    try:
+        return FactKey(str(value or "").strip())
+    except ValueError:
+        return None
+
+
+def _coerce_int(value: Any, *, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _format_jsonish_value(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, ensure_ascii=False, indent=2)
+
+
+def _parse_jsonish_value(
+    value: str,
+    value_type: FactValueType,
+) -> tuple[Any, str | None]:
+    text = value.strip()
+    if not text:
+        return None, None
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        return None, "JSON prüfen: Wert wurde nicht gespeichert."
+    if value_type == FactValueType.OBJECT_LIST and not isinstance(parsed, list):
+        return None, "JSON-Liste erwartet."
+    if value_type != FactValueType.OBJECT_LIST and not isinstance(parsed, dict):
+        return None, "JSON-Objekt erwartet."
+    return parsed, None
+
+
+def _is_empty_fact_value(value: Any) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return not value.strip()
+    if isinstance(value, (list, dict, tuple, set)):
+        return len(value) == 0
+    return False
+
+
+def _fact_values_equal(left: Any, right: Any) -> bool:
+    return (
+        json.dumps(left, ensure_ascii=False, sort_keys=True, default=str)
+        == json.dumps(right, ensure_ascii=False, sort_keys=True, default=str)
+    )
 
 
 def _format_company_header(job: JobAdExtract) -> str:

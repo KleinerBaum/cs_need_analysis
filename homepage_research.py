@@ -8,11 +8,16 @@ import logging
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from hashlib import sha1
 from typing import Any
 from urllib.parse import urljoin, urlparse, urlunparse
 from urllib.request import Request, urlopen
 
 from constants import (
+    INTAKE_FACTS,
+    FactKey,
+    FactValueType,
+    WEBSITE_RESEARCH_HOMEPAGE_URL,
     WEBSITE_RESEARCH_SECTIONS,
     WEBSITE_SECTION_FACTS,
     WEBSITE_SECTION_SUMMARY,
@@ -41,6 +46,55 @@ WEBSITE_TOPIC_LABELS: dict[str, str] = {
     WEBSITE_TOPIC_IMPRINT: "Impressum",
     WEBSITE_TOPIC_VISION_MISSION: "Vision und Mission",
 }
+_FACT_DEFS_BY_KEY = {fact.fact_key: fact for fact in INTAKE_FACTS}
+_POSITIONING_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("Marktposition", ("führend", "leader", "marktführer", "market leader")),
+    ("Produkt", ("produkt", "platform", "plattform", "lösung", "solution")),
+    ("Wachstum", ("wachstum", "growth", "skalier", "expand")),
+    ("Stabilität", ("gegründet", "seit ", "weltweit", "global", "employees")),
+    ("Technologie", ("technolog", "cloud", "software", "digital", "ki", " ai ")),
+    ("Mission", ("mission", "vision", "purpose", "leitbild", "werte")),
+    ("Kundennutzen", ("kund", "client", "customer", "nutzen")),
+)
+_COMPLIANCE_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("Regulierte Branche", ("reguliert", "regulated", "bank", "finance", "healthcare")),
+    ("Datenschutz", ("datenschutz", "privacy", "gdpr", "dsgvo")),
+    ("Arbeitssicherheit", ("arbeitssicherheit", "occupational safety")),
+    ("Zertifizierungen", ("zertifiz", "certified", "iso ")),
+    ("Betriebsrat", ("betriebsrat", "works council")),
+    ("Öffentlicher Sektor", ("public sector", "öffentlicher sektor", "government")),
+)
+_TECH_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("AI", (" künstliche intelligenz", " artificial intelligence", " ai ", " ki ")),
+    ("Cloud", (" cloud",)),
+    ("Data", (" data", "daten", "analytics")),
+    ("SAP", (" sap",)),
+    ("Salesforce", ("salesforce",)),
+    ("AWS", (" aws", "amazon web services")),
+    ("Azure", (" azure", "microsoft cloud")),
+    ("Python", (" python",)),
+    ("Java", (" java",)),
+    ("Kubernetes", ("kubernetes", " k8s")),
+)
+_DOMAIN_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("Consulting", ("beratung", "consulting")),
+    ("Automotive", ("automotive", "mobilität", "mobility")),
+    ("Financial Services", ("financial services", "bank", "versicherung", "insurance")),
+    ("Healthcare", ("healthcare", "gesundheit", "pharma")),
+    ("Public Sector", ("public sector", "öffentlicher sektor", "government")),
+    ("Retail", ("retail", "handel", "e-commerce")),
+    ("Energy", ("energie", "energy", "utilities")),
+    ("Telecommunications", ("telekommunikation", "telecommunications", "telco")),
+)
+_BENEFIT_TERMS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("Homeoffice", ("homeoffice", "remote work", "mobiles arbeiten")),
+    ("Flexible Arbeitszeiten", ("flexible arbeitszeiten", "flexitime")),
+    ("Weiterbildung", ("weiterbildung", "learning", "training", "development")),
+    ("Betriebliche Altersvorsorge", ("altersvorsorge", "pension")),
+    ("Gesundheitsangebote", ("gesundheit", "health benefit", "wellbeing")),
+    ("Jobticket", ("jobticket", "public transport")),
+    ("Urlaub", ("urlaub", "vacation", "annual leave")),
+)
 NOISE_PATTERNS: tuple[str, ...] = (
     "window.adobedatalayer",
     "adobedatalayer.push",
@@ -374,6 +428,454 @@ def normalize_company_website_research_payload(raw_research: Any) -> Any:
         normalized_sections[str(topic_key)] = section
     research[WEBSITE_RESEARCH_SECTIONS] = normalized_sections
     return research
+
+
+def build_website_fact_candidates(raw_research: Any) -> list[dict[str, Any]]:
+    """Build deterministic, type-compatible FactKey candidates from website research."""
+
+    normalized_research = normalize_company_website_research_payload(raw_research)
+    if not isinstance(normalized_research, Mapping):
+        return []
+
+    sections_raw = normalized_research.get(WEBSITE_RESEARCH_SECTIONS, {})
+    sections = sections_raw if isinstance(sections_raw, Mapping) else {}
+    candidates: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+
+    homepage_url = normalize_url(
+        str(normalized_research.get(WEBSITE_RESEARCH_HOMEPAGE_URL) or "")
+    )
+    if homepage_url:
+        _append_fact_candidate(
+            candidates,
+            seen,
+            fact_key=FactKey.COMPANY_COMPANY_WEBSITE,
+            value=homepage_url,
+            source_topic="homepage",
+            evidence_snippet=homepage_url,
+            confidence=0.9,
+        )
+
+    section_texts = _collect_section_texts(sections)
+    all_text = " ".join(section_texts.values())
+    lowered_all_text = f" {all_text.casefold()} "
+
+    imprint_section = sections.get(WEBSITE_TOPIC_IMPRINT)
+    imprint_facts = _section_facts(imprint_section)
+    company_name = imprint_facts.get("Firma")
+    if company_name:
+        _append_fact_candidate(
+            candidates,
+            seen,
+            fact_key=FactKey.COMPANY_COMPANY_NAME,
+            value=company_name,
+            source_topic=WEBSITE_TOPIC_IMPRINT,
+            evidence_snippet=f"Firma: {company_name}",
+            confidence=0.85,
+        )
+    address = imprint_facts.get("Anschrift")
+    city = _extract_city_from_address(address)
+    if city:
+        _append_fact_candidate(
+            candidates,
+            seen,
+            fact_key=FactKey.COMPANY_LOCATION_CITY,
+            value=city,
+            source_topic=WEBSITE_TOPIC_IMPRINT,
+            evidence_snippet=f"Anschrift: {address}",
+            confidence=0.75,
+        )
+    if _contains_any(lowered_all_text, (" deutschland ", " germany ", ".de ")):
+        _append_fact_candidate(
+            candidates,
+            seen,
+            fact_key=FactKey.COMPANY_LOCATION_COUNTRY,
+            value="Deutschland",
+            source_topic=WEBSITE_TOPIC_IMPRINT if address else "homepage",
+            evidence_snippet=address or homepage_url,
+            confidence=0.65,
+        )
+
+    for topic_key in (WEBSITE_TOPIC_ABOUT, WEBSITE_TOPIC_VISION_MISSION):
+        summary = _section_summary(sections.get(topic_key))
+        if not summary:
+            continue
+        _append_fact_candidate(
+            candidates,
+            seen,
+            fact_key=FactKey.COMPANY_EMPLOYER_PITCH,
+            value=summary[0],
+            source_topic=topic_key,
+            evidence_snippet=summary[0],
+            confidence=0.7,
+        )
+
+    positioning = _match_terms(lowered_all_text, _POSITIONING_TERMS)
+    if positioning:
+        _append_fact_candidate(
+            candidates,
+            seen,
+            fact_key=FactKey.COMPANY_ROLE_RELEVANT_POSITIONING,
+            value=positioning,
+            source_topic=_best_source_topic(section_texts, _POSITIONING_TERMS),
+            evidence_snippet=_first_evidence_sentence(sections, positioning),
+            confidence=0.65,
+        )
+
+    compliance = _match_terms(lowered_all_text, _COMPLIANCE_TERMS)
+    if compliance:
+        _append_fact_candidate(
+            candidates,
+            seen,
+            fact_key=FactKey.COMPANY_COMPLIANCE_CONTEXT,
+            value=compliance,
+            source_topic=_best_source_topic(section_texts, _COMPLIANCE_TERMS),
+            evidence_snippet=_first_evidence_sentence(sections, compliance),
+            confidence=0.65,
+        )
+
+    work_arrangement = _derive_work_arrangement(lowered_all_text)
+    if work_arrangement:
+        _append_fact_candidate(
+            candidates,
+            seen,
+            fact_key=FactKey.COMPANY_WORK_ARRANGEMENT,
+            value=work_arrangement,
+            source_topic="homepage",
+            evidence_snippet=_first_evidence_sentence(
+                sections, ("hybrid", "remote", "homeoffice", "vor ort")
+            ),
+            confidence=0.7,
+        )
+
+    office_days = _derive_office_days(all_text)
+    if office_days is not None:
+        _append_fact_candidate(
+            candidates,
+            seen,
+            fact_key=FactKey.COMPANY_OFFICE_DAYS_PER_WEEK,
+            value=office_days,
+            source_topic="homepage",
+            evidence_snippet=_first_evidence_sentence(sections, (str(office_days),)),
+            confidence=0.75,
+        )
+
+    allowed_regions = _derive_allowed_regions(lowered_all_text)
+    if allowed_regions:
+        _append_fact_candidate(
+            candidates,
+            seen,
+            fact_key=FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES,
+            value=allowed_regions,
+            source_topic="homepage",
+            evidence_snippet=_first_evidence_sentence(sections, allowed_regions),
+            confidence=0.65,
+        )
+
+    language_object = _derive_language_object(lowered_all_text)
+    if language_object:
+        _append_fact_candidate(
+            candidates,
+            seen,
+            fact_key=FactKey.COMPANY_LANGUAGE_INTERNAL,
+            value=language_object,
+            source_topic="homepage",
+            evidence_snippet=_first_evidence_sentence(
+                sections, ("sprache", "language", "deutsch", "english", "englisch")
+            ),
+            confidence=0.65,
+        )
+
+    tech_stack = _match_terms(lowered_all_text, _TECH_TERMS)
+    if tech_stack:
+        _append_fact_candidate(
+            candidates,
+            seen,
+            fact_key=FactKey.ROLE_TECH_STACK,
+            value=tech_stack,
+            source_topic=_best_source_topic(section_texts, _TECH_TERMS),
+            evidence_snippet=_first_evidence_sentence(sections, tech_stack),
+            confidence=0.6,
+        )
+
+    domain_expertise = _match_terms(lowered_all_text, _DOMAIN_TERMS)
+    if domain_expertise:
+        _append_fact_candidate(
+            candidates,
+            seen,
+            fact_key=FactKey.ROLE_DOMAIN_EXPERTISE,
+            value=domain_expertise,
+            source_topic=_best_source_topic(section_texts, _DOMAIN_TERMS),
+            evidence_snippet=_first_evidence_sentence(sections, domain_expertise),
+            confidence=0.6,
+        )
+
+    benefits = _match_terms(lowered_all_text, _BENEFIT_TERMS)
+    if benefits:
+        _append_fact_candidate(
+            candidates,
+            seen,
+            fact_key=FactKey.BENEFITS_BENEFITS,
+            value=benefits,
+            source_topic=_best_source_topic(section_texts, _BENEFIT_TERMS),
+            evidence_snippet=_first_evidence_sentence(sections, benefits),
+            confidence=0.6,
+        )
+
+    return candidates
+
+
+def _append_fact_candidate(
+    candidates: list[dict[str, Any]],
+    seen: set[tuple[str, str, str]],
+    *,
+    fact_key: FactKey,
+    value: Any,
+    source_topic: str,
+    evidence_snippet: str | None,
+    confidence: float,
+) -> None:
+    fact_def = _FACT_DEFS_BY_KEY.get(fact_key)
+    if fact_def is None:
+        return
+    normalized_value = _normalize_candidate_value(value, fact_def.value_type)
+    if normalized_value is None:
+        return
+    source_topic = str(source_topic or "homepage").strip() or "homepage"
+    identity = (fact_key.value, source_topic, repr(normalized_value))
+    if identity in seen:
+        return
+    seen.add(identity)
+    candidate_hash = sha1("|".join(identity).encode("utf-8")).hexdigest()[:12]
+    candidates.append(
+        {
+            "candidate_id": f"{fact_key.value}:{source_topic}:{candidate_hash}",
+            "fact_key": fact_key.value,
+            "fact_label": fact_def.label,
+            "value_type": fact_def.value_type.value,
+            "value": normalized_value,
+            "source_topic": source_topic,
+            "source_label": _source_label(source_topic),
+            "evidence_snippet": _compact_text(evidence_snippet),
+            "confidence": max(0.0, min(1.0, float(confidence))),
+        }
+    )
+
+
+def _normalize_candidate_value(value: Any, value_type: FactValueType) -> Any | None:
+    if value_type in {FactValueType.STRING, FactValueType.DATE_STRING}:
+        return _compact_text(value)
+    if value_type == FactValueType.STRING_LIST:
+        return _normalize_string_list(value)
+    if value_type == FactValueType.INTEGER:
+        return _normalize_integer(value)
+    if value_type == FactValueType.BOOLEAN:
+        return _normalize_boolean(value)
+    if value_type in {FactValueType.OBJECT, FactValueType.MONEY_RANGE}:
+        return _normalize_object(value)
+    if value_type == FactValueType.OBJECT_LIST:
+        return _normalize_object_list(value)
+    return None
+
+
+def _normalize_string_list(value: Any) -> list[str] | None:
+    raw_items = (
+        value
+        if isinstance(value, list)
+        else str(value or "").replace(";", "\n").replace(",", "\n").splitlines()
+    )
+    output: list[str] = []
+    seen: set[str] = set()
+    for item in raw_items:
+        text = _compact_text(item)
+        key = text.casefold() if text else ""
+        if not text or key in seen:
+            continue
+        seen.add(key)
+        output.append(text)
+    return output or None
+
+
+def _normalize_integer(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    match = re.search(r"\d+", str(value or "").replace(".", "").replace(",", ""))
+    return int(match.group(0)) if match else None
+
+
+def _normalize_boolean(value: Any) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    lowered = str(value or "").strip().casefold()
+    if lowered in {"true", "yes", "ja", "1"}:
+        return True
+    if lowered in {"false", "no", "nein", "0"}:
+        return False
+    return None
+
+
+def _normalize_object(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, Mapping):
+        return None
+    cleaned = {
+        str(key): item
+        for key, item in value.items()
+        if _compact_text(item) or isinstance(item, (bool, int, float))
+    }
+    return cleaned or None
+
+
+def _normalize_object_list(value: Any) -> list[dict[str, Any]] | None:
+    if not isinstance(value, list):
+        return None
+    output = [
+        item
+        for item in (_normalize_object(raw_item) for raw_item in value)
+        if item is not None
+    ]
+    return output or None
+
+
+def _collect_section_texts(sections: Mapping[Any, Any]) -> dict[str, str]:
+    output: dict[str, str] = {}
+    for topic_key, section in sections.items():
+        if not isinstance(section, Mapping):
+            continue
+        summary_text = " ".join(_section_summary(section))
+        fact_text = " ".join(
+            f"{label}: {value}" for label, value in _section_facts(section).items()
+        )
+        output[str(topic_key)] = f"{summary_text} {fact_text}".strip()
+    return output
+
+
+def _section_summary(section: Any) -> list[str]:
+    if not isinstance(section, Mapping):
+        return []
+    summary = section.get(WEBSITE_SECTION_SUMMARY, [])
+    if not isinstance(summary, list):
+        return []
+    return [_compact_text(item) for item in summary if _compact_text(item)]
+
+
+def _section_facts(section: Any) -> dict[str, str]:
+    if not isinstance(section, Mapping):
+        return {}
+    return normalize_research_facts(section.get(WEBSITE_SECTION_FACTS, {}))
+
+
+def _extract_city_from_address(address: str | None) -> str | None:
+    if not address:
+        return None
+    match = re.search(r"\b\d{4,5}\s+([A-ZÄÖÜ][\wÄÖÜäöüß .-]{2,40})", address)
+    if not match:
+        return None
+    return _compact_text(match.group(1).split(",", 1)[0])
+
+
+def _derive_work_arrangement(lowered_text: str) -> str | None:
+    if _contains_any(lowered_text, (" hybrid", "hybrides", "hybrid work")):
+        return "hybrid"
+    if _contains_any(lowered_text, (" remote", "homeoffice", "mobiles arbeiten")):
+        return "remote_country"
+    if _contains_any(lowered_text, (" vor ort", "onsite", "on-site")):
+        return "onsite"
+    return None
+
+
+def _derive_office_days(text: str) -> int | None:
+    match = re.search(
+        r"(\d)\s*(?:tage|days)\s*(?:pro|per)?\s*(?:woche|week)?.{0,30}(?:büro|office|vor ort|onsite)",
+        text,
+        flags=re.I,
+    )
+    if not match:
+        return None
+    return max(0, min(5, int(match.group(1))))
+
+
+def _derive_allowed_regions(lowered_text: str) -> list[str] | None:
+    regions: list[str] = []
+    for label, tokens in (
+        ("Deutschland", (" deutschland ", " germany ")),
+        ("DACH", (" dach ",)),
+        ("EU", (" eu ", " european union ", " europäische union ")),
+        ("CET", (" cet ", " mez ")),
+    ):
+        if _contains_any(lowered_text, tokens):
+            regions.append(label)
+    return regions or None
+
+
+def _derive_language_object(lowered_text: str) -> dict[str, str] | None:
+    if not _contains_any(lowered_text, ("sprache", "language", "sprachen")):
+        return None
+    languages: list[str] = []
+    if _contains_any(lowered_text, (" deutsch", " german")):
+        languages.append("Deutsch")
+    if _contains_any(lowered_text, (" englisch", " english")):
+        languages.append("Englisch")
+    if not languages:
+        return None
+    return {
+        "language": ", ".join(languages),
+        "level": "B2",
+        "context": "Website-Hinweis",
+    }
+
+
+def _match_terms(
+    lowered_text: str, term_groups: tuple[tuple[str, tuple[str, ...]], ...]
+) -> list[str] | None:
+    matches = [
+        label for label, tokens in term_groups if _contains_any(lowered_text, tokens)
+    ]
+    return matches or None
+
+
+def _best_source_topic(
+    section_texts: Mapping[str, str],
+    term_groups: tuple[tuple[str, tuple[str, ...]], ...],
+) -> str:
+    for topic_key, text in section_texts.items():
+        lowered = f" {text.casefold()} "
+        if any(_contains_any(lowered, tokens) for _, tokens in term_groups):
+            return topic_key
+    return "homepage"
+
+
+def _first_evidence_sentence(
+    sections: Mapping[Any, Any], needles: Any
+) -> str | None:
+    raw_needles = needles if isinstance(needles, (list, tuple, set)) else [needles]
+    normalized_needles = [
+        str(needle).casefold()
+        for needle in raw_needles
+        if str(needle or "").strip()
+    ]
+    for section in sections.values():
+        for sentence in _section_summary(section):
+            lowered = sentence.casefold()
+            if any(needle in lowered for needle in normalized_needles):
+                return sentence
+    return None
+
+
+def _contains_any(text: str, tokens: tuple[str, ...]) -> bool:
+    return any(token in text for token in tokens)
+
+
+def _source_label(source_topic: str) -> str:
+    if source_topic == "homepage":
+        return "Homepage"
+    return WEBSITE_TOPIC_LABELS.get(source_topic, "Website")
+
+
+def _compact_text(value: Any) -> str | None:
+    text = " ".join(str(value or "").split()).strip()
+    return text or None
 
 
 def derive_topic_facts(topic_key: str, text: str, raw_html: str) -> dict[str, str]:

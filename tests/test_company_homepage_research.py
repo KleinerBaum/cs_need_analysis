@@ -7,7 +7,14 @@ from types import SimpleNamespace
 import pytest
 
 import homepage_research
-from constants import SSKey, WEBSITE_TOPIC_ABOUT
+import state as state_module
+from constants import (
+    FactKey,
+    FactResolutionStatus,
+    FactSourceType,
+    SSKey,
+    WEBSITE_TOPIC_ABOUT,
+)
 from schemas import CompanyWebsiteResearch, QuestionPlan
 from usage_events import get_usage_events
 
@@ -183,6 +190,145 @@ def test_normalize_company_website_research_payload_accepts_legacy_fact_lists() 
     facts = research.sections["about"].facts
     assert facts["Gegründet"] == "2001"
     assert facts["fact_2"] == "Cloud delivery focus"
+
+
+def test_build_website_fact_candidates_maps_homepage_imprint_and_positioning() -> None:
+    payload = {
+        "homepage_url": "https://www.accenture.com/de-de",
+        "sections": {
+            "about": {
+                "source_url": "https://www.accenture.com/de-de/about",
+                "summary": [
+                    "Accenture ist ein weltweit führendes Beratungsunternehmen für Technologie, Cloud, Data und AI mit Kundennutzen im Fokus."
+                ],
+                "facts": {"Mitarbeitende (Hinweis)": "745000"},
+            },
+            "vision_mission": {
+                "summary": [
+                    "Unsere Mission ist es, Kunden mit digitalen Lösungen und nachhaltigem Wachstum zu unterstützen."
+                ],
+                "facts": {},
+            },
+            "imprint": {
+                "source_url": "https://www.accenture.com/de-de/impressum",
+                "summary": ["Impressum der Accenture GmbH mit Sitz in 10115 Berlin."],
+                "facts": {
+                    "Firma": "Accenture GmbH",
+                    "Anschrift": "Musterstraße 12, 10115 Berlin",
+                    "E-Mail": "info@example.com",
+                    "Geschäftsführung/Vorstand": "Erika Muster",
+                },
+            },
+        },
+        "open_question_matches": [],
+    }
+
+    candidates = homepage_research.build_website_fact_candidates(payload)
+    by_key = {candidate["fact_key"]: candidate for candidate in candidates}
+
+    assert by_key[FactKey.COMPANY_COMPANY_WEBSITE.value]["value"] == (
+        "https://www.accenture.com/de-de"
+    )
+    assert by_key[FactKey.COMPANY_COMPANY_NAME.value]["value"] == "Accenture GmbH"
+    assert by_key[FactKey.COMPANY_LOCATION_CITY.value]["value"] == "Berlin"
+    assert FactKey.COMPANY_EMPLOYER_PITCH.value in by_key
+    assert "Technologie" in by_key[
+        FactKey.COMPANY_ROLE_RELEVANT_POSITIONING.value
+    ]["value"]
+    assert FactKey.INTERVIEW_CONTACTS.value not in by_key
+
+
+def test_build_website_fact_candidates_skips_personal_contact_auto_mapping() -> None:
+    payload = {
+        "homepage_url": "https://example.com",
+        "sections": {
+            "imprint": {
+                "summary": ["Kontakt: info@example.com. Geschäftsführer: Erika Muster."],
+                "facts": {
+                    "E-Mail": "info@example.com",
+                    "Geschäftsführung/Vorstand": "Erika Muster",
+                },
+            }
+        },
+        "open_question_matches": [],
+    }
+
+    candidates = homepage_research.build_website_fact_candidates(payload)
+    candidate_keys = {candidate["fact_key"] for candidate in candidates}
+
+    assert FactKey.INTERVIEW_CONTACTS.value not in candidate_keys
+
+
+def test_persist_homepage_fact_candidate_writes_fact_evidence_and_answer(
+    monkeypatch,
+) -> None:
+    fake_st = SimpleNamespace(
+        session_state={
+            SSKey.ANSWERS.value: {},
+            SSKey.ANSWER_META.value: {},
+            SSKey.INTAKE_FACTS.value: {},
+            SSKey.INTAKE_FACT_EVIDENCE.value: {},
+        }
+    )
+    monkeypatch.setattr(COMPANY_MODULE, "st", fake_st)
+    monkeypatch.setattr(state_module, "st", fake_st)
+
+    COMPANY_MODULE._persist_homepage_fact_candidate(
+        fact_key=FactKey.COMPANY_COMPANY_NAME,
+        value="Accenture GmbH",
+        candidate={
+            "source_label": "Impressum",
+            "confidence": 0.85,
+            "evidence_snippet": "Firma: Accenture GmbH",
+        },
+    )
+
+    assert fake_st.session_state[SSKey.ANSWERS.value][
+        FactKey.COMPANY_COMPANY_NAME.value
+    ] == "Accenture GmbH"
+    assert fake_st.session_state[SSKey.INTAKE_FACTS.value] == {
+        FactKey.COMPANY_COMPANY_NAME.value: "Accenture GmbH"
+    }
+    evidence = fake_st.session_state[SSKey.INTAKE_FACT_EVIDENCE.value][
+        FactKey.COMPANY_COMPANY_NAME.value
+    ]
+    assert evidence["source_type"] == FactSourceType.HOMEPAGE.value
+    assert evidence["source_label"] == "Impressum"
+    assert evidence["confirmed"] is True
+    assert evidence["resolution_status"] == FactResolutionStatus.CONFIRMED.value
+    assert evidence["evidence_snippet"] == "Firma: Accenture GmbH"
+    assert fake_st.session_state[SSKey.ANSWER_META.value][
+        FactKey.COMPANY_COMPANY_NAME.value
+    ]["touched"] is True
+
+
+def test_website_candidate_default_selection_protects_existing_values(
+    monkeypatch,
+) -> None:
+    fake_st = SimpleNamespace(
+        session_state={
+            SSKey.ANSWERS.value: {
+                FactKey.COMPANY_COMPANY_NAME.value: "Existing GmbH"
+            },
+            SSKey.INTAKE_FACTS.value: {},
+        }
+    )
+    monkeypatch.setattr(state_module, "st", fake_st)
+
+    assert (
+        COMPANY_MODULE._default_select_website_candidate(
+            FactKey.COMPANY_COMPANY_NAME.value,
+            "Accenture GmbH",
+        )
+        is False
+    )
+    assert (
+        COMPANY_MODULE._default_select_website_candidate(
+            FactKey.COMPANY_COMPANY_NAME.value,
+            "Existing GmbH",
+        )
+        is True
+    )
 
 
 def test_derive_insights_from_open_questions_retains_ids_and_labels() -> None:

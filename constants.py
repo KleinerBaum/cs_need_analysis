@@ -434,6 +434,7 @@ class SSKey(str, Enum):
     ESCO_MATRIX_COVERAGE_CONTEXT = "cs.esco_matrix_coverage_context"
     COMPANY_WEBSITE_RESEARCH = "cs.company_website_research"
     COMPANY_WEBSITE_SELECTED_MATCHES = "cs.company_website_selected_matches"
+    COMPANY_WEBSITE_FACT_REVIEW = "cs.company_website_fact_review"
     COMPANY_WEBSITE_LAST_ERROR = "cs.company_website_last_error"
     COMPANY_WEBSITE_MANUAL_URL = "cs.company_website_manual_url"
     ROLE_TASKS_JOBSPEC_SUGGESTED = "cs.role_tasks.jobspec_suggested"

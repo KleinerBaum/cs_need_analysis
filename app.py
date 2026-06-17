@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+from pathlib import Path
 
 import streamlit as st
 
@@ -50,12 +51,22 @@ SIDEBAR_FOOTER_PAGE_LINKS: tuple[tuple[str, str], ...] = (
     SIDEBAR_PAGE_LINKS[3],
     SIDEBAR_PAGE_LINKS[2],
 )
+ROOT_DIR = Path(__file__).resolve().parent
+LIGHT_BACKGROUND_PATH = ROOT_DIR / "images" / "light.png"
+DARK_BACKGROUND_PATH = ROOT_DIR / "images" / "dark.png"
+
+
+def _image_data_uri(path: Path) -> str:
+    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
 
 
 def _inject_theme_styles() -> None:
     """Inject global design-system styles plus minimal app-shell overrides."""
 
     render_ui_styles()
+    light_background_uri = _image_data_uri(LIGHT_BACKGROUND_PATH)
+    dark_background_uri = _image_data_uri(DARK_BACKGROUND_PATH)
 
     # App-shell specific styles (header/sidebar spacing/layout quirks).
     st.markdown(
@@ -67,6 +78,7 @@ def _inject_theme_styles() -> None:
 
             .stApp {{
                 --cs-app-bg: var(--background-color, Canvas);
+                --cs-step-background-image: url("{light_background_uri}");
                 --cs-app-text: var(--text-color, CanvasText);
                 --cs-app-surface: var(
                     --secondary-background-color,
@@ -93,8 +105,17 @@ def _inject_theme_styles() -> None:
                 --cs-text: var(--cs-app-text);
                 --cs-text-muted: color-mix(in srgb, var(--cs-app-text) 76%, var(--cs-app-bg));
                 --cs-text-subtle: color-mix(in srgb, var(--cs-app-text) 60%, var(--cs-app-bg));
-                background: var(--cs-app-bg) !important;
+                background-color: var(--cs-app-bg) !important;
+                background-image: var(--cs-step-background-image) !important;
+                background-position: center top !important;
+                background-repeat: no-repeat !important;
+                background-size: cover !important;
+                background-attachment: fixed !important;
                 color: var(--cs-app-text);
+            }}
+
+            :root[data-theme="dark"] .stApp {{
+                --cs-step-background-image: url("{dark_background_uri}");
             }}
 
             [data-testid="stAppViewContainer"],

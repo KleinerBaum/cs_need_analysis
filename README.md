@@ -291,13 +291,20 @@ The company step can analyze public company pages for:
 - `imprint`
 - `vision_mission`
 
+After analysis, deterministic website findings are matched against the canonical
+`FactKey` registry. Matching values are shown as editable review rows under
+“Hinweise aus der Website-Analyse” with target key, value, and source/evidence;
+confirmed rows are stored as homepage-sourced intake facts and mirrored into
+wizard answers for downstream questions, summaries, and exports.
+
 Safety constraints in `homepage_research.py`:
 
 - public HTTP(S) only
 - content-type and size checks
 - in-process cache
 - no sensitive URL/payload logging through usage events
-- normalized facts and open-question matches stored in session state
+- normalized facts, backward-compatible open-question matches, and review
+  decisions stored in session state
 
 ## Salary forecast
 

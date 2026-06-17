@@ -128,6 +128,7 @@ RESET_EXPECTATIONS: dict[SSKey, object] = {
     },
     SSKey.COMPANY_WEBSITE_RESEARCH: {},
     SSKey.COMPANY_WEBSITE_SELECTED_MATCHES: [],
+    SSKey.COMPANY_WEBSITE_FACT_REVIEW: {},
     SSKey.COMPANY_WEBSITE_LAST_ERROR: None,
     SSKey.COMPANY_WEBSITE_MANUAL_URL: "",
     SSKey.ROLE_TASKS_JOBSPEC_SUGGESTED: [],
@@ -216,6 +217,13 @@ def test_reset_vacancy_clears_progressive_disclosure_state(
         SSKey.COMPANY_WEBSITE_SELECTED_MATCHES.value: [
             {"option_id": "company_q::about::1"}
         ],
+        SSKey.COMPANY_WEBSITE_FACT_REVIEW.value: {
+            "company.company_name:imprint:abc": {
+                "fact_key": "company.company_name",
+                "value": "Example GmbH",
+                "selected": True,
+            }
+        },
         SSKey.ESCO_SELECTED_OCCUPATION_URI.value: "http://data.europa.eu/esco/occupation/123",
         SSKey.INTERVIEW_INTERNAL_FLOW.value: {
             "contacts": [{"role": "Money", "name": "M. Example"}],
