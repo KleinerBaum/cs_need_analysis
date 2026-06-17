@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from constants import AnswerType, FactKey
 from question_dependencies import should_show_question
+from question_limits import select_questions_for_step_scope
 from schemas import JobAdExtract, Question, QuestionStep
 from step_status import build_step_status_payload
 
@@ -224,3 +225,46 @@ def test_build_step_status_payload_keeps_jobspec_fallback_without_facts() -> Non
     assert payload["total"] == 1
     assert payload["answered"] == 1
     assert payload["missing_essential_ids"] == []
+
+
+def test_step_status_payload_matches_adaptive_selected_question_scope() -> None:
+    covered_detail = Question(
+        id="covered_detail",
+        label="Already covered",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="detail",
+        target_path=FactKey.COMPANY_COMPANY_NAME.value,
+    )
+    uncovered_core = Question(
+        id="uncovered_core",
+        label="Hiring goal",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="core",
+    )
+    selected_questions = select_questions_for_step_scope(
+        [covered_detail, uncovered_core],
+        step_key="company",
+        question_limits={"company": 1},
+        answers={},
+        answer_meta={},
+        job_extract=None,
+        intake_facts={FactKey.COMPANY_COMPANY_NAME.value: "Example GmbH"},
+    )
+
+    payload = build_step_status_payload(
+        step=QuestionStep(
+            step_key="company",
+            title_de="Company",
+            questions=selected_questions,
+        ),
+        answers={},
+        answer_meta={},
+        should_show_question=_always_visible,
+        step_key="company",
+        intake_facts={FactKey.COMPANY_COMPANY_NAME.value: "Example GmbH"},
+    )
+
+    assert [question.id for question in selected_questions] == ["uncovered_core"]
+    assert payload["total"] == 1
+    assert payload["answered"] == 0
+    assert payload["missing_essential_ids"] == ["uncovered_core"]

@@ -280,6 +280,63 @@ def test_intake_process_progress_excludes_start_and_marks_summary_from_brief(
     assert items[-1]["current"] is True
 
 
+def test_intake_process_progress_uses_adaptive_selection_instead_of_prefix_slice(
+    monkeypatch,
+) -> None:
+    covered_detail = Question(
+        id="covered_detail",
+        label="Already covered",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="detail",
+        target_path=FactKey.COMPANY_COMPANY_NAME.value,
+    )
+    uncovered_core = Question(
+        id="uncovered_core",
+        label="Hiring goal",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="core",
+    )
+    plan = QuestionPlan(
+        steps=[
+            QuestionStep(
+                step_key="company",
+                title_de="Company",
+                questions=[covered_detail, uncovered_core],
+            )
+        ]
+    )
+    rendered_items: list[list[dict[str, object]]] = []
+    monkeypatch.setattr(
+        UI_LAYOUT_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.QUESTION_PLAN.value: plan.model_dump(mode="json"),
+                SSKey.QUESTION_LIMITS.value: {"company": 1},
+                SSKey.INTAKE_FACTS.value: {
+                    FactKey.COMPANY_COMPANY_NAME.value: "Example GmbH"
+                },
+                SSKey.JOB_EXTRACT.value: None,
+                SSKey.BRIEF.value: None,
+            }
+        ),
+    )
+    monkeypatch.setattr(UI_LAYOUT_MODULE, "get_answers", lambda: {})
+    monkeypatch.setattr(UI_LAYOUT_MODULE, "get_answer_meta", lambda: {})
+    monkeypatch.setattr(
+        UI_LAYOUT_MODULE,
+        "render_process_progress",
+        lambda items: rendered_items.append(list(items)),
+    )
+
+    UI_LAYOUT_MODULE.render_intake_process_progress(STEP_KEY_SUMMARY)
+
+    company_item = rendered_items[0][0]
+    assert company_item["status"] == "not_started"
+    assert company_item["count"] == "0/1"
+    assert company_item["title"] == "Unternehmen: 0/1 beantwortet"
+
+
 def test_sidebar_navigation_uses_navigation_only_labels(monkeypatch) -> None:
     captured_labels: list[str] = []
 

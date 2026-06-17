@@ -139,6 +139,68 @@ def select_questions_for_adaptive_limit(
     return [question for _, _, question in selected_questions]
 
 
+def select_questions_for_step_scope(
+    questions: list[Question],
+    *,
+    step_key: str,
+    question_limits: Mapping[str, Any] | None,
+    answers: dict[str, Any],
+    answer_meta: AnswerMetaMap,
+    job_extract: JobAdExtract | None,
+    intake_facts: Mapping[str, Any] | None = None,
+    intake_fact_evidence: Mapping[str, Any] | None = None,
+    confidence_threshold: float | None = None,
+) -> list[Question]:
+    """Return the step question scope after applying the adaptive limit."""
+
+    step_limit = _read_step_limit(question_limits, step_key)
+    if step_limit is None or step_limit <= 0:
+        return questions
+    return select_questions_for_adaptive_limit(
+        questions,
+        step_key=step_key,
+        limit=step_limit,
+        answers=answers,
+        answer_meta=answer_meta,
+        job_extract=job_extract,
+        intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
+    )
+
+
+def select_questions_for_step_scope_from_plan(
+    plan: QuestionPlan | None,
+    step_key: str,
+    *,
+    question_limits: Mapping[str, Any] | None,
+    answers: dict[str, Any],
+    answer_meta: AnswerMetaMap,
+    job_extract: JobAdExtract | None,
+    intake_facts: Mapping[str, Any] | None = None,
+    intake_fact_evidence: Mapping[str, Any] | None = None,
+    confidence_threshold: float | None = None,
+) -> list[Question]:
+    """Return a plan step's canonical adaptive question scope."""
+
+    if plan is None:
+        return []
+    step = next((entry for entry in plan.steps if entry.step_key == step_key), None)
+    if step is None:
+        return []
+    return select_questions_for_step_scope(
+        step.questions,
+        step_key=step_key,
+        question_limits=question_limits,
+        answers=answers,
+        answer_meta=answer_meta,
+        job_extract=job_extract,
+        intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
+    )
+
+
 def compute_adaptive_question_limits(
     *,
     plan: QuestionPlan,
@@ -203,6 +265,21 @@ def compute_adaptive_question_limits(
         limits[step.step_key] = max(1, min(total, limit))
 
     return limits
+
+
+def _read_step_limit(
+    question_limits: Mapping[str, Any] | None,
+    step_key: str,
+) -> int | None:
+    if not isinstance(question_limits, Mapping):
+        return None
+    raw_limit = question_limits.get(step_key)
+    if not isinstance(raw_limit, (int, float, str)):
+        return None
+    try:
+        return int(raw_limit)
+    except (TypeError, ValueError):
+        return None
 
 
 def _step_min_questions(ui_mode: str, step_key: str) -> int:

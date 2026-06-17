@@ -4,6 +4,7 @@ from constants import AnswerType, FactKey
 from question_limits import (
     compute_adaptive_question_limits,
     select_questions_for_adaptive_limit,
+    select_questions_for_step_scope,
 )
 from schemas import JobAdExtract, Question, QuestionDependency, QuestionPlan, QuestionStep
 
@@ -319,6 +320,34 @@ def test_select_questions_for_limit_prioritizes_uncovered_core_question() -> Non
     )
 
     assert [question.id for question in selected] == ["hiring_goal"]
+
+
+def test_select_questions_for_step_scope_uses_adaptive_limit_mapping() -> None:
+    covered_detail = Question(
+        id="covered_detail",
+        label="Already covered",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="detail",
+        target_path=FactKey.COMPANY_COMPANY_NAME.value,
+    )
+    uncovered_core = Question(
+        id="uncovered_core",
+        label="Hiring goal",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="core",
+    )
+
+    selected = select_questions_for_step_scope(
+        [covered_detail, uncovered_core],
+        step_key="company",
+        question_limits={"company": 1},
+        answers={},
+        answer_meta={},
+        job_extract=None,
+        intake_facts={FactKey.COMPANY_COMPANY_NAME.value: "Example GmbH"},
+    )
+
+    assert [question.id for question in selected] == ["uncovered_core"]
 
 
 def test_select_questions_for_limit_ranks_information_gain_metadata() -> None:

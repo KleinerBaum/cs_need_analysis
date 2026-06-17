@@ -45,7 +45,7 @@ from job_extract_review_helpers import (
     sanitize_display_value as _sanitize_display_value,
 )
 from llm_client import OpenAICallError
-from question_limits import select_questions_for_adaptive_limit
+from question_limits import select_questions_for_step_scope
 from question_dependencies import should_show_question
 from question_progress import (
     build_answers_with_job_extract_coverage,
@@ -2452,29 +2452,19 @@ def render_question_step(step: QuestionStep) -> None:
         st.caption(step.description_de)
 
     limits_raw = st.session_state.get(SSKey.QUESTION_LIMITS.value, {})
-    step_limit: int | None = None
-    if isinstance(limits_raw, dict):
-        raw_limit = limits_raw.get(step.step_key)
-        if isinstance(raw_limit, (int, float, str)):
-            try:
-                step_limit = int(raw_limit)
-            except ValueError:
-                step_limit = None
 
     all_questions = _sort_questions_for_progressive_disclosure(step.questions)
-    questions = all_questions
-    if step_limit is not None and step_limit > 0:
-        questions = select_questions_for_adaptive_limit(
-            all_questions,
-            step_key=step.step_key,
-            limit=step_limit,
-            answers=answers,
-            answer_meta=answer_meta,
-            job_extract=job_extract,
-            intake_facts=intake_facts,
-            intake_fact_evidence=intake_fact_evidence,
-            confidence_threshold=confidence_threshold,
-        )
+    questions = select_questions_for_step_scope(
+        all_questions,
+        step_key=step.step_key,
+        question_limits=limits_raw if isinstance(limits_raw, dict) else None,
+        answers=answers,
+        answer_meta=answer_meta,
+        job_extract=job_extract,
+        intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
+    )
     effective_answers = build_answers_with_job_extract_coverage(
         all_questions,
         answers,

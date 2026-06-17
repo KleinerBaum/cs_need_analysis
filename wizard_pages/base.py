@@ -53,7 +53,7 @@ from intake_facts import collect_legacy_facts
 from i18n import sync_language_state, sync_streamlit_language_widget, t
 from question_dependencies import should_show_question
 from question_limits import (
-    select_questions_for_adaptive_limit,
+    select_questions_for_step_scope_from_plan,
     sync_adaptive_question_limits,
 )
 from question_progress import AnswerMetaMap
@@ -754,36 +754,18 @@ def _get_step_questions(
     intake_fact_evidence: Mapping[str, object] | None = None,
     confidence_threshold: float | None = None,
 ) -> list[Question]:
-    if plan is None:
-        return []
-    step = next((entry for entry in plan.steps if entry.step_key == step_key), None)
-    if step is None:
-        return []
-
     limits_raw = st.session_state.get(SSKey.QUESTION_LIMITS.value, {})
-    step_limit: int | None = None
-    if isinstance(limits_raw, dict):
-        raw_limit = limits_raw.get(step_key)
-        if isinstance(raw_limit, (int, float, str)):
-            try:
-                step_limit = int(raw_limit)
-            except ValueError:
-                step_limit = None
-
-    questions = step.questions
-    if step_limit is not None and step_limit > 0:
-        questions = select_questions_for_adaptive_limit(
-            step.questions,
-            step_key=step_key,
-            limit=step_limit,
-            answers=answers or {},
-            answer_meta=answer_meta or {},
-            job_extract=job_extract,
-            intake_facts=intake_facts,
-            intake_fact_evidence=intake_fact_evidence,
-            confidence_threshold=confidence_threshold,
-        )
-    return questions
+    return select_questions_for_step_scope_from_plan(
+        plan,
+        step_key,
+        question_limits=limits_raw if isinstance(limits_raw, Mapping) else None,
+        answers=answers or {},
+        answer_meta=answer_meta or {},
+        job_extract=job_extract,
+        intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
+    )
 
 
 def _read_sidebar_confidence_threshold() -> float | None:
