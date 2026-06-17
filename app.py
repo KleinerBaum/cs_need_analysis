@@ -52,8 +52,7 @@ SIDEBAR_FOOTER_PAGE_LINKS: tuple[tuple[str, str], ...] = (
     SIDEBAR_PAGE_LINKS[2],
 )
 ROOT_DIR = Path(__file__).resolve().parent
-LIGHT_BACKGROUND_PATH = ROOT_DIR / "images" / "light.png"
-DARK_BACKGROUND_PATH = ROOT_DIR / "images" / "dark.png"
+WIZARD_BACKGROUND_PATH = ROOT_DIR / "images" / "dark2.png"
 
 
 def _image_data_uri(path: Path) -> str:
@@ -65,8 +64,7 @@ def _inject_theme_styles() -> None:
     """Inject global design-system styles plus minimal app-shell overrides."""
 
     render_ui_styles()
-    light_background_uri = _image_data_uri(LIGHT_BACKGROUND_PATH)
-    dark_background_uri = _image_data_uri(DARK_BACKGROUND_PATH)
+    wizard_background_uri = _image_data_uri(WIZARD_BACKGROUND_PATH)
 
     # App-shell specific styles (header/sidebar spacing/layout quirks).
     st.markdown(
@@ -78,7 +76,7 @@ def _inject_theme_styles() -> None:
 
             .stApp {{
                 --cs-app-bg: var(--background-color, Canvas);
-                --cs-step-background-image: url("{light_background_uri}");
+                --cs-step-background-image: url("{wizard_background_uri}");
                 --cs-app-text: var(--text-color, CanvasText);
                 --cs-app-surface: var(
                     --secondary-background-color,
@@ -115,7 +113,7 @@ def _inject_theme_styles() -> None:
             }}
 
             :root[data-theme="dark"] .stApp {{
-                --cs-step-background-image: url("{dark_background_uri}");
+                --cs-step-background-image: url("{wizard_background_uri}");
             }}
 
             [data-testid="stAppViewContainer"],
