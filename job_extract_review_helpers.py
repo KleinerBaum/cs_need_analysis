@@ -253,6 +253,19 @@ JOB_EXTRACT_HYPOTHESIS_GROUP_LABELS: dict[str, str] = {
     "needs_clarification": "Aktiv klären",
 }
 
+MIXED_SOURCE_TEXT_MARKERS: tuple[str, ...] = (
+    "chatgpt:",
+    "du:",
+    "quellen",
+    "linkedin",
+    "interview",
+    "networking",
+    "vorbereitung",
+    "case-interview",
+    "frage",
+    "antwort",
+)
+
 
 class JobExtractHypothesisRow(TypedDict):
     field_name: str
@@ -353,6 +366,33 @@ def is_simple_review_editable(value: Any) -> bool:
     if isinstance(value, list):
         return all(not isinstance(item, (dict, list)) for item in value)
     return False
+
+
+def looks_like_mixed_source_notes(
+    source_text: str,
+    *,
+    gaps: Sequence[str] | None = None,
+    assumptions: Sequence[str] | None = None,
+) -> bool:
+    """Detect research/interview notes pasted into the job-ad intake."""
+
+    normalized = " ".join(str(source_text or "").casefold().split())
+    if not normalized:
+        return False
+
+    marker_hits = sum(1 for marker in MIXED_SOURCE_TEXT_MARKERS if marker in normalized)
+    conversation_like = "chatgpt:" in normalized and "du:" in normalized
+    source_like = "quellen" in normalized and (
+        "wikipedia" in normalized or "newsroom" in normalized
+    )
+    prep_like = "interview" in normalized and "vorbereitung" in normalized
+    note_count = len([note for note in (gaps or []) if str(note).strip()]) + len(
+        [note for note in (assumptions or []) if str(note).strip()]
+    )
+
+    return conversation_like or source_like or prep_like or (
+        marker_hits >= 4 and note_count > 0
+    )
 
 
 def classify_job_extract_hypothesis(

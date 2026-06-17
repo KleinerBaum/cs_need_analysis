@@ -29,6 +29,7 @@ class _FakeStreamlit:
         self.button_disabled: dict[str, bool] = {}
         self.captions: list[str] = []
         self.successes: list[str] = []
+        self.warnings: list[str] = []
         self.expanders: list[str] = []
         self.rerun_called = False
         self.writes: list[str] = []
@@ -87,6 +88,9 @@ class _FakeStreamlit:
             count = len(spec)
         return tuple(_DummyColumn() for _ in range(count))
 
+    def container(self, **_kwargs):
+        return _DummyColumn()
+
     def write(self, *_args, **_kwargs) -> None:
         if _args:
             self.writes.append(str(_args[0]))
@@ -106,6 +110,8 @@ class _FakeStreamlit:
         return None
 
     def warning(self, *_args, **_kwargs) -> None:
+        if _args:
+            self.warnings.append(str(_args[0]))
         return None
 
     def success(self, text: str, *_args, **_kwargs) -> None:
@@ -131,6 +137,44 @@ def _minimal_identified_info_state() -> dict[str, object]:
         SSKey.QUESTION_PLAN.value: {"steps": []},
         SSKey.ESCO_SELECTED_OCCUPATION_URI.value: "",
     }
+
+
+def test_identified_info_shows_mixed_source_warning_and_provenance(monkeypatch) -> None:
+    fake_st = _FakeStreamlit(
+        session_state={
+            SSKey.JOB_EXTRACT.value: JobAdExtract(
+                job_title="Senior Manager Talent & Organization",
+                gaps=["Salary not stated"],
+                assumptions=["Company inferred from research notes"],
+                field_evidence=[
+                    JobAdFieldEvidence(
+                        field_name="job_title",
+                        confidence=0.6,
+                        evidence_snippet="title=(Senior) Manager - Talent & Organization",
+                        needs_confirmation=True,
+                    )
+                ],
+            ).model_dump(mode="json"),
+            SSKey.QUESTION_PLAN.value: {"steps": []},
+            SSKey.ESCO_SELECTED_OCCUPATION_URI.value: "",
+            SSKey.SOURCE_TEXT.value: "Du: Welche Fragen? ChatGPT: Antwort Quellen LinkedIn Interview Vorbereitung",
+        }
+    )
+    ctx = cast(
+        jobad_intake.WizardContext,
+        SimpleNamespace(prev=lambda: None, next=lambda: None),
+    )
+
+    monkeypatch.setattr(jobad_intake, "st", fake_st)
+    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(jobad_intake, "get_esco_occupation_selected", lambda: None)
+    monkeypatch.setattr(jobad_intake, "has_confirmed_esco_anchor", lambda: False)
+
+    jobad_intake._render_identified_information_block(ctx)
+
+    assert any("gemischte Research- oder Interviewnotizen" in warning for warning in fake_st.warnings)
+    assert "#### Herkunft der Informationen" in fake_st.markdowns
+    assert any("Senior Manager Talent & Organization" in str(rows) for rows, _ in fake_st.dataframes)
 
 
 def test_identified_info_next_is_enabled_without_esco_anchor(monkeypatch) -> None:
@@ -259,7 +303,9 @@ def test_job_extract_overview_maps_gap_labels_to_german(monkeypatch) -> None:
     table_rows, dataframe_kwargs = fake_st.dataframes[0]
     assert dataframe_kwargs["hide_index"] is True
     assert dataframe_kwargs["width"] == "stretch"
-    assert table_rows == [{"Attribut": "Rolle", "Wert": "Data Engineer"}]
+    assert table_rows == [
+        {"Angabe": "Rolle", "Inhalt": "Data Engineer", "Sicherheit": ""}
+    ]
     assert all("Feld" not in row for row in table_rows)
 
 
@@ -287,11 +333,13 @@ def test_job_extract_overview_shows_redacted_field_evidence(monkeypatch) -> None
     ui_components.render_job_extract_overview(extract, mode="compact")
 
     table_rows, _dataframe_kwargs = fake_st.dataframes[0]
-    role_row = next(row for row in table_rows if row["Attribut"] == "Rolle")
+    role_row = next(row for row in table_rows if row["Angabe"] == "Rolle")
     assert role_row["Sicherheit"] == "82% · prüfen"
-    assert "recruiting@example.com" not in role_row["Textstelle"]
-    assert "[REDACTED]" in role_row["Textstelle"]
-    assert "Data Engineer" in role_row["Textstelle"]
+    assert "Fundstelle anzeigen: Rolle" in fake_st.expanders
+    evidence_captions = " ".join(fake_st.captions)
+    assert "recruiting@example.com" not in evidence_captions
+    assert "[REDACTED]" in evidence_captions
+    assert "Data Engineer" in evidence_captions
 
 
 def test_editable_job_extract_renders_empty_job_title_for_review(

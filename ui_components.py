@@ -1465,62 +1465,7 @@ def render_job_extract_overview(
 ) -> None:
     del plan, show_question_limits
     if mode == "compact":
-        if show_heading:
-            st.markdown("### Analyseergebnis")
-        st.caption(
-            "Die wichtigsten Angaben sind kompakt zusammengefasst. "
-            "Die vollständige Bearbeitung erfolgt in den Tabs darunter."
-        )
-        st.markdown("**Kernprofil**")
-        location_parts = [
-            value
-            for value in [
-                str(job.location_city or "").strip(),
-                str(job.location_country or "").strip(),
-            ]
-            if value
-        ]
-        location_value = str(job.place_of_work or "").strip() or ", ".join(location_parts)
-        evidence_by_field = job_extract_field_evidence_by_name(job)
-        core_rows = [
-            ("job_title", "Rolle", _normalize_display_text(job.job_title)),
-            ("company_name", "Unternehmen", _normalize_display_text(job.company_name)),
-            ("brand_name", "Marke", _normalize_display_text(job.brand_name)),
-            ("place_of_work", "Ort", location_value),
-            ("location_city", "Location City", _normalize_display_text(job.location_city)),
-            ("start_date", "Start Date", _normalize_display_text(job.start_date)),
-            ("salary_range", "Salary Range", _format_salary_range_value(job.salary_range)),
-            (
-                "recruitment_steps",
-                "Recruitment Steps",
-                _format_recruitment_steps_value(job.recruitment_steps),
-            ),
-        ]
-        has_core_evidence = any(evidence_by_field.get(field) for field, _, _ in core_rows)
-        table_rows = []
-        for field, label, value in core_rows:
-            if not has_meaningful_value(value):
-                continue
-            row = {"Attribut": label, "Wert": value}
-            if has_core_evidence:
-                evidence = evidence_by_field.get(field)
-                row["Sicherheit"] = format_field_evidence_confidence(evidence)
-                row["Textstelle"] = format_field_evidence_snippet(evidence)
-            table_rows.append(row)
-        if table_rows:
-            st.dataframe(
-                table_rows,
-                hide_index=True,
-                width="stretch",
-                column_config={
-                    "Attribut": st.column_config.TextColumn("Angabe"),
-                    "Wert": st.column_config.TextColumn("Inhalt"),
-                    "Sicherheit": st.column_config.TextColumn("Sicherheit"),
-                    "Textstelle": st.column_config.TextColumn("Fundstelle"),
-                },
-            )
-        else:
-            st.info("Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions.")
+        _render_compact_job_extract_overview(job, show_heading=show_heading)
         if show_editor:
             _render_editable_job_extract(job, show_notes=show_notes)
         return
@@ -1529,6 +1474,202 @@ def render_job_extract_overview(
         st.markdown("### Identifizierte Informationen")
     if show_editor:
         _render_editable_job_extract(job, show_notes=show_notes)
+
+
+def _join_compact_location(job: JobAdExtract) -> str:
+    location_parts = [
+        value
+        for value in [
+            str(job.location_city or "").strip(),
+            str(job.location_country or "").strip(),
+        ]
+        if value
+    ]
+    return str(job.place_of_work or "").strip() or ", ".join(location_parts)
+
+
+def _compact_value_rows(
+    fields: Sequence[tuple[str, str, Any]],
+    evidence_by_field: Mapping[str, Any],
+) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for field, label, value in fields:
+        if not has_meaningful_value(value):
+            continue
+        evidence = evidence_by_field.get(field)
+        rows.append(
+            {
+                "Angabe": label,
+                "Inhalt": str(value),
+                "Sicherheit": format_field_evidence_confidence(evidence),
+            }
+        )
+    return rows
+
+
+def _render_compact_field_evidence(
+    fields: Sequence[tuple[str, str, Any]],
+    evidence_by_field: Mapping[str, Any],
+) -> None:
+    for field, label, _value in fields:
+        snippet = format_field_evidence_snippet(
+            evidence_by_field.get(field), max_chars=260
+        )
+        if not snippet:
+            continue
+        with st.expander(f"Fundstelle anzeigen: {label}", expanded=False):
+            st.caption(snippet)
+
+
+def _render_compact_value_section(
+    title: str,
+    fields: Sequence[tuple[str, str, Any]],
+    evidence_by_field: Mapping[str, Any],
+) -> bool:
+    rows = _compact_value_rows(fields, evidence_by_field)
+    if not rows:
+        return False
+    st.markdown(f"**{title}**")
+    st.dataframe(
+        rows,
+        hide_index=True,
+        width="stretch",
+        column_config={
+            "Angabe": st.column_config.TextColumn("Angabe"),
+            "Inhalt": st.column_config.TextColumn("Inhalt"),
+            "Sicherheit": st.column_config.TextColumn("Sicherheit"),
+        },
+    )
+    _render_compact_field_evidence(fields, evidence_by_field)
+    return True
+
+
+def _render_compact_list_section(
+    title: str,
+    entries: Any,
+    *,
+    evidence_field: str,
+    evidence_by_field: Mapping[str, Any],
+    key: str,
+) -> bool:
+    source = entries if isinstance(entries, list) else []
+    cleaned = [str(item).strip() for item in source if has_meaningful_value(item)]
+    if not cleaned:
+        return False
+
+    st.markdown(f"**{title}**")
+    preview = cleaned[:5]
+    st.table([{"#": index + 1, "Eintrag": value} for index, value in enumerate(preview)])
+    remaining = len(cleaned) - len(preview)
+    if remaining > 0:
+        with st.expander(f"Alle {len(cleaned)} Einträge anzeigen", expanded=False):
+            st.dataframe(
+                [{"#": index + 1, "Eintrag": value} for index, value in enumerate(cleaned)],
+                key=key,
+                hide_index=True,
+                width="stretch",
+            )
+    snippet = format_field_evidence_snippet(
+        evidence_by_field.get(evidence_field), max_chars=260
+    )
+    if snippet:
+        with st.expander(f"Fundstelle anzeigen: {title}", expanded=False):
+            st.caption(snippet)
+    return True
+
+
+def _render_compact_job_extract_overview(
+    job: JobAdExtract,
+    *,
+    show_heading: bool,
+) -> None:
+    if show_heading:
+        st.markdown("### Analyseergebnis")
+    st.caption(
+        "Die wichtigsten Angaben sind nach Themen gruppiert. Fundstellen bleiben "
+        "einklappbar, damit die Review kompakt bleibt."
+    )
+    evidence_by_field = job_extract_field_evidence_by_name(job)
+    rendered_any = False
+
+    rendered_any = (
+        _render_compact_value_section(
+            "Kernprofil",
+            (
+                ("job_title", "Rolle", _normalize_display_text(job.job_title)),
+                ("company_name", "Unternehmen", _normalize_display_text(job.company_name)),
+                ("brand_name", "Marke", _normalize_display_text(job.brand_name)),
+                ("place_of_work", "Ort", _join_compact_location(job)),
+                (
+                    "employment_type",
+                    "Beschäftigungsart",
+                    _normalize_display_text(job.employment_type),
+                ),
+                (
+                    "contract_type",
+                    "Vertragsart",
+                    _normalize_display_text(job.contract_type),
+                ),
+                (
+                    "seniority_level",
+                    "Seniorität",
+                    _normalize_display_text(job.seniority_level),
+                ),
+            ),
+            evidence_by_field,
+        )
+        or rendered_any
+    )
+    rendered_any = (
+        _render_compact_value_section(
+            "Rahmenbedingungen",
+            (
+                (
+                    "remote_policy",
+                    "Remote-Regelung",
+                    _normalize_display_text(job.remote_policy),
+                ),
+                ("start_date", "Startdatum", _normalize_display_text(job.start_date)),
+                ("salary_range", "Gehaltsrahmen", _format_salary_range_value(job.salary_range)),
+                (
+                    "travel_required",
+                    "Reisebereitschaft",
+                    _normalize_display_text(job.travel_required),
+                ),
+                ("on_call", "Rufbereitschaft", _normalize_display_text(job.on_call)),
+                (
+                    "recruitment_steps",
+                    "Recruiting-Prozess",
+                    _format_recruitment_steps_value(job.recruitment_steps),
+                ),
+            ),
+            evidence_by_field,
+        )
+        or rendered_any
+    )
+
+    list_sections = (
+        ("Rolle & Aufgaben", job.responsibilities, "responsibilities"),
+        ("Lieferergebnisse", job.deliverables, "deliverables"),
+        ("Erfolgskriterien", job.success_metrics, "success_metrics"),
+        ("Must-have Skills", job.must_have_skills, "must_have_skills"),
+        ("Nice-to-have Skills", job.nice_to_have_skills, "nice_to_have_skills"),
+        ("Benefits", job.benefits, "benefits"),
+    )
+    for title, entries, field in list_sections:
+        rendered_any = (
+            _render_compact_list_section(
+                title,
+                entries,
+                evidence_field=field,
+                evidence_by_field=evidence_by_field,
+                key=f"cs.job_extract.preview.{field}",
+            )
+            or rendered_any
+        )
+
+    if not rendered_any:
+        st.info("Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions.")
 
 
 def _render_compact_extract_lists(job: JobAdExtract) -> None:

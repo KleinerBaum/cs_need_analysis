@@ -7,6 +7,7 @@ from job_extract_review_helpers import (
     format_salary_range_value,
     group_extract_notes_by_tab,
     has_meaningful_value,
+    looks_like_mixed_source_notes,
     normalize_optional_string,
     parse_optional_int,
     sanitize_display_value,
@@ -67,3 +68,14 @@ def test_value_helpers_normalize_empty_sentinels_and_parse_numbers() -> None:
     assert sanitize_display_value(
         {"name": "Rolle", "items": ["Skill", "n/a", None], "empty": "-"}
     ) == {"name": "Rolle", "items": ["Skill"], "empty": None}
+
+
+def test_looks_like_mixed_source_notes_detects_research_chat_context() -> None:
+    assert looks_like_mixed_source_notes(
+        "Du: Was sollte ich fragen? ChatGPT: Antwort mit Quellen, LinkedIn und Interview-Vorbereitung.",
+        gaps=["Salary not stated"],
+    )
+    assert not looks_like_mixed_source_notes(
+        "Senior Data Engineer. Responsibilities: build data pipelines. Benefits: hybrid work.",
+        gaps=["Salary not stated"],
+    )

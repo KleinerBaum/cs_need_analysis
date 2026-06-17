@@ -30,8 +30,10 @@ from job_extract_evidence import (
 from job_extract_review_helpers import (
     JOB_EXTRACT_TAB_FIELDS,
     JOB_EXTRACT_HYPOTHESIS_GROUP_LABELS,
+    JOB_EXTRACT_DISPLAY_LABELS,
     build_job_extract_hypothesis_groups,
     has_meaningful_value,
+    looks_like_mixed_source_notes,
 )
 from llm_client import (
     OpenAICallError,
@@ -683,6 +685,94 @@ def _normalize_hypothesis_editor_rows(edited_rows: Any) -> list[dict[str, Any]]:
     return []
 
 
+def _render_input_quality_hint(job: JobAdExtract) -> None:
+    source_text = str(st.session_state.get(SSKey.SOURCE_TEXT.value, "") or "")
+    if not looks_like_mixed_source_notes(
+        source_text,
+        gaps=job.gaps,
+        assumptions=job.assumptions,
+    ):
+        return
+    st.warning(
+        "Der Upload wirkt wie gemischte Research- oder Interviewnotizen statt wie "
+        "eine reine Stellenanzeige. Bitte prüfen Sie die erkannten Werte besonders "
+        "sorgfältig, bevor Sie sie in den Wizard übernehmen."
+    )
+
+
+def _evidence_confidence(evidence: Any) -> float | None:
+    if not isinstance(evidence, dict):
+        return None
+    try:
+        return max(0.0, min(1.0, float(evidence.get("confidence"))))
+    except (TypeError, ValueError):
+        return None
+
+
+def _source_bucket_preview(items: list[str], *, limit: int = 3) -> str:
+    cleaned = [item for item in items if item.strip()]
+    if not cleaned:
+        return "Keine"
+    preview = cleaned[:limit]
+    suffix = f" +{len(cleaned) - limit} weitere" if len(cleaned) > limit else ""
+    return " · ".join(preview) + suffix
+
+
+def _render_source_bucket(title: str, items: list[str], caption: str) -> None:
+    with st.container(border=True):
+        st.markdown(f"**{title}**")
+        st.write(_source_bucket_preview(items))
+        st.caption(caption)
+
+
+def _render_job_extract_provenance_block(job: JobAdExtract) -> None:
+    evidence_by_field = job_extract_field_evidence_by_name(job)
+    upload_backed: list[str] = []
+    uncertain: list[str] = []
+
+    for field_name, evidence in evidence_by_field.items():
+        if not isinstance(evidence, dict):
+            continue
+        label = JOB_EXTRACT_DISPLAY_LABELS.get(field_name, field_name)
+        if str(evidence.get("evidence_snippet") or "").strip():
+            upload_backed.append(label)
+        confidence = _evidence_confidence(evidence)
+        if bool(evidence.get("needs_confirmation")) or (
+            confidence is not None and confidence < 0.85
+        ):
+            uncertain.append(label)
+
+    gaps = [str(note).strip() for note in job.gaps if str(note).strip()]
+    assumptions = [
+        str(note).strip() for note in job.assumptions if str(note).strip()
+    ]
+
+    st.markdown("#### Herkunft der Informationen")
+    st.caption(
+        "Die Buckets trennen belegte Upload-Fundstellen, unsichere Ableitungen, "
+        "offene Lücken und explizite Annahmen. ESCO-/Kontextvorschläge erscheinen "
+        "separat als bestätigungspflichtige Vorschläge."
+    )
+    columns = st.columns(4, gap="small")
+    bucket_specs = (
+        (
+            "Aus Upload belegt",
+            upload_backed,
+            "Felder mit kurzer Fundstelle aus dem hochgeladenen Text.",
+        ),
+        (
+            "Unsicher / prüfen",
+            uncertain,
+            "Niedrige Sicherheit oder vom Modell als prüfpflichtig markiert.",
+        ),
+        ("Offene Lücken", gaps, "Nicht gefundene oder unklare Angaben."),
+        ("Annahmen", assumptions, "Vom Modell dokumentierte Ableitungen."),
+    )
+    for column, (title, items, caption) in zip(columns, bucket_specs):
+        with column:
+            _render_source_bucket(title, items, caption)
+
+
 def _render_job_extract_hypothesis_form(job: JobAdExtract) -> None:
     values = job.model_dump(mode="json")
     evidence_by_field = job_extract_field_evidence_by_name(job)
@@ -770,6 +860,7 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
         "Die wichtigsten Angaben sind vorbereitet. Prüfen Sie kurz die Basisdaten "
         "und bestätigen Sie anschließend den passenden Beruf für den Abgleich."
     )
+    _render_input_quality_hint(job)
     render_job_extract_overview(
         job,
         plan=plan,
@@ -779,6 +870,7 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
         show_notes=False,
         show_editor=False,
     )
+    _render_job_extract_provenance_block(job)
     _render_job_extract_hypothesis_form(job)
 
     nav_col_back, nav_col_anchor = st.columns([1, 2], gap="small")
@@ -954,9 +1046,7 @@ def _has_completed_intake_analysis() -> bool:
     return _has_completed_landing_analysis()
 
 
-def _render_phase_a_source_and_privacy_controls() -> bool:
-    do_extract = False
-
+def _render_phase_a_style_overrides() -> None:
     st.markdown(
         """
         <style>
@@ -970,87 +1060,113 @@ def _render_phase_a_source_and_privacy_controls() -> bool:
         """,
         unsafe_allow_html=True,
     )
-    upload_col, text_col = st.columns([1, 1.4], gap="large")
-    with upload_col:
-        st.file_uploader(
-            "PDF, DOCX oder TXT hochladen",
-            type=["pdf", "docx", "txt"],
-            accept_multiple_files=False,
-            key="cs.source_upload_file",
-            on_change=_on_upload_change,
-        )
-        upload = st.session_state.get("cs.source_upload_file")
-        if upload is not None:
-            current_sig = (
-                str(getattr(upload, "name", "") or ""),
-                int(getattr(upload, "size", 0) or 0),
-            )
-            if st.session_state.get(SOURCE_UPLOAD_SIG_KEY) != current_sig:
-                _extract_upload_to_state(
-                    upload,
-                    step="_render_phase_a_source_and_privacy_controls.sync_upload",
-                    update_text_widget=True,
-                )
-        st.markdown("#### Detailgrad")
-        render_ui_mode_selector()
-        _render_start_routing_controls()
-        _render_esco_operating_block()
-    with text_col:
-        manual_text = str(st.session_state.get(SOURCE_TEXT_INPUT_KEY, ""))
-        upload = st.session_state.get("cs.source_upload_file")
-        if upload is not None:
-            _render_uploaded_document_preview(upload, manual_text)
-            text_area_context = (
-                st.expander(
-                    "Extrahierter Text für die Analyse",
-                    expanded=not bool(manual_text.strip()),
-                )
-                if hasattr(st, "expander")
-                else nullcontext()
-            )
-            with text_area_context:
-                st.text_area(
-                    "Extrahierter Text für die Analyse",
-                    key=SOURCE_TEXT_INPUT_KEY,
-                    height=min(320, max(180, _manual_input_height_for_text(manual_text))),
-                    on_change=_on_manual_text_change,
-                    placeholder="Füge hier den vollständigen Ausschreibungstext ein …",
-                )
-        else:
-            st.text_area(
-                "Stellenanzeige oder Jobspec",
-                key=SOURCE_TEXT_INPUT_KEY,
-                height=min(420, max(280, _manual_input_height_for_text(manual_text))),
-                on_change=_on_manual_text_change,
-                placeholder="Füge hier den vollständigen Ausschreibungstext ein …",
-            )
 
+
+def _render_source_upload_controls() -> None:
+    st.file_uploader(
+        "PDF, DOCX oder TXT hochladen",
+        type=["pdf", "docx", "txt"],
+        accept_multiple_files=False,
+        key="cs.source_upload_file",
+        on_change=_on_upload_change,
+    )
+    upload = st.session_state.get("cs.source_upload_file")
+    if upload is None:
+        return
+
+    current_sig = (
+        str(getattr(upload, "name", "") or ""),
+        int(getattr(upload, "size", 0) or 0),
+    )
+    if st.session_state.get(SOURCE_UPLOAD_SIG_KEY) != current_sig:
+        _extract_upload_to_state(
+            upload,
+            step="_render_phase_a_source_and_privacy_controls.sync_upload",
+            update_text_widget=True,
+        )
+
+
+def _render_source_upload_status() -> None:
     uploaded_text = str(st.session_state.get(SOURCE_UPLOAD_TEXT_KEY, ""))
     upload_meta = st.session_state.get(SSKey.SOURCE_FILE_META.value, {})
     upload = st.session_state.get("cs.source_upload_file")
     last_error = str(st.session_state.get(SSKey.LAST_ERROR.value, "") or "")
+    file_name = str(upload_meta.get("name") or getattr(upload, "name", "") or "")
 
-    st.markdown("---")
-    status_col, chars_col, action_col = st.columns([1.6, 1, 1], gap="small")
-    with status_col:
-        file_name = str(upload_meta.get("name") or getattr(upload, "name", "") or "")
-        if upload is not None:
-            st.info(f"Datei bereit: {file_name or 'Unbekannt'}")
+    if upload is not None:
+        st.info(f"Datei bereit: {file_name or 'Unbekannt'}")
 
-        if upload is not None and not uploaded_text and last_error:
-            st.error(f"Extraktion fehlgeschlagen: {last_error}")
-    with chars_col:
-        active_source_text = str(st.session_state.get(SSKey.SOURCE_TEXT.value, ""))
-        char_count = len(active_source_text.strip()) if active_source_text else 0
-        st.metric("Zeichen", f"{char_count:,}".replace(",", "."))
-        if 0 < char_count < 250:
-            st.warning("Die Quelle ist sehr kurz. Die Extraktion kann unvollstaendig sein.")
-    with action_col:
-        do_extract = st.button(
-            "Analyse starten",
-            width="stretch",
-            help="Es wird immer nur die aktuell aktive Quelle analysiert.",
+    if upload is not None and not uploaded_text and last_error:
+        st.error(f"Extraktion fehlgeschlagen: {last_error}")
+
+
+def _render_phase_a_configuration_controls() -> None:
+    st.markdown("#### Detailgrad")
+    render_ui_mode_selector()
+    _render_start_routing_controls()
+    _render_esco_operating_block()
+
+
+def _render_source_character_metric() -> None:
+    active_source_text = str(st.session_state.get(SSKey.SOURCE_TEXT.value, ""))
+    char_count = len(active_source_text.strip()) if active_source_text else 0
+    st.metric("Zeichen", f"{char_count:,}".replace(",", "."))
+    if 0 < char_count < 250:
+        st.warning("Die Quelle ist sehr kurz. Die Extraktion kann unvollstaendig sein.")
+
+
+def _render_phase_a_action_controls() -> bool:
+    return st.button(
+        "Analyse starten",
+        width="stretch",
+        help="Es wird immer nur die aktuell aktive Quelle analysiert.",
+    )
+
+
+def _render_source_text_or_preview() -> None:
+    manual_text = str(st.session_state.get(SOURCE_TEXT_INPUT_KEY, ""))
+    upload = st.session_state.get("cs.source_upload_file")
+    if upload is not None:
+        _render_uploaded_document_preview(upload, manual_text)
+        text_area_context = (
+            st.expander(
+                "Extrahierter Text für die Analyse",
+                expanded=not bool(manual_text.strip()),
+            )
+            if hasattr(st, "expander")
+            else nullcontext()
         )
+        with text_area_context:
+            st.text_area(
+                "Extrahierter Text für die Analyse",
+                key=SOURCE_TEXT_INPUT_KEY,
+                height=min(320, max(180, _manual_input_height_for_text(manual_text))),
+                on_change=_on_manual_text_change,
+                placeholder="Füge hier den vollständigen Ausschreibungstext ein …",
+            )
+        return
+
+    st.text_area(
+        "Stellenanzeige oder Jobspec",
+        key=SOURCE_TEXT_INPUT_KEY,
+        height=min(420, max(280, _manual_input_height_for_text(manual_text))),
+        on_change=_on_manual_text_change,
+        placeholder="Füge hier den vollständigen Ausschreibungstext ein …",
+    )
+
+
+def _render_phase_a_source_and_privacy_controls() -> bool:
+    _render_phase_a_style_overrides()
+    control_col, source_col = st.columns([1, 1.4], gap="large")
+    with control_col:
+        _render_source_upload_controls()
+        _render_source_upload_status()
+        _render_phase_a_configuration_controls()
+        st.markdown("---")
+        _render_source_character_metric()
+        do_extract = _render_phase_a_action_controls()
+    with source_col:
+        _render_source_text_or_preview()
 
     return do_extract
 
