@@ -33,6 +33,7 @@ from job_extract_review_helpers import (
     JOB_EXTRACT_HYPOTHESIS_GROUP_LABELS,
     JOB_EXTRACT_DISPLAY_LABELS,
     build_job_extract_hypothesis_groups,
+    format_review_value,
     has_meaningful_value,
     looks_like_mixed_source_notes,
 )
@@ -566,10 +567,13 @@ def _apply_job_extract_hypothesis_updates(
             resolution_status = FactResolutionStatus.MISSING
             fact_value = None
         elif action == HYPOTHESIS_ACTION_EDIT:
-            values[field_name] = _coerce_hypothesis_edit_value(
-                original_value,
-                str(row.get("edited_value") or ""),
-            )
+            if "resolved_value" in row:
+                values[field_name] = row.get("resolved_value")
+            else:
+                values[field_name] = _coerce_hypothesis_edit_value(
+                    original_value,
+                    str(row.get("edited_value") or ""),
+                )
             resolution_status = FactResolutionStatus.CONFIRMED
             fact_value = values[field_name]
         else:
@@ -593,6 +597,69 @@ def _apply_job_extract_hypothesis_updates(
     return JobAdExtract.model_validate(values)
 
 
+def _format_hypothesis_entry_value(field_name: str, value: Any) -> str:
+    if isinstance(value, dict):
+        if field_name == "recruitment_steps":
+            name = str(value.get("name") or "").strip()
+            details = str(value.get("details") or "").strip()
+            return f"{name} ({details})" if name and details else name or details
+        if field_name == "contacts":
+            parts = [
+                str(value.get(key) or "").strip()
+                for key in ("name", "role", "email", "phone")
+                if str(value.get(key) or "").strip()
+            ]
+            return " · ".join(parts)
+        parts = [
+            f"{JOB_EXTRACT_DISPLAY_LABELS.get(str(key), str(key))}: {format_review_value(item)}"
+            for key, item in value.items()
+            if has_meaningful_value(item)
+        ]
+        return " · ".join(parts)
+    return format_review_value(value)
+
+
+def _expanded_hypothesis_rows(row: dict[str, Any]) -> list[dict[str, Any]]:
+    field_name = str(row.get("field_name") or "")
+    value = row.get("value")
+    if isinstance(value, list):
+        rows: list[dict[str, Any]] = []
+        for index, item in enumerate(value):
+            if not has_meaningful_value(item):
+                continue
+            rows.append(
+                {
+                    **row,
+                    "row_id": f"{field_name}[{index}]",
+                    "parent_kind": "list",
+                    "item_index": index,
+                    "value": item,
+                    "display_value": _format_hypothesis_entry_value(field_name, item),
+                    "editable": not isinstance(item, (dict, list)),
+                }
+            )
+        return rows
+    if isinstance(value, dict):
+        rows = []
+        for key, item in value.items():
+            if not has_meaningful_value(item):
+                continue
+            rows.append(
+                {
+                    **row,
+                    "row_id": f"{field_name}.{key}",
+                    "parent_kind": "dict",
+                    "item_key": key,
+                    "label": f"{row.get('label') or field_name} · {key}",
+                    "value": item,
+                    "display_value": format_review_value(item),
+                    "editable": not isinstance(item, (dict, list)),
+                }
+            )
+        return rows
+    return [{**row, "row_id": field_name, "parent_kind": "scalar"}]
+
+
 def _build_hypothesis_rows_by_tab(
     groups: dict[str, list[dict[str, Any]]],
 ) -> dict[str, list[dict[str, Any]]]:
@@ -603,10 +670,11 @@ def _build_hypothesis_rows_by_tab(
     }
     return {
         tab_name: [
-            rows_by_field[field_name]
+            expanded_row
             for field_name in field_names
             if field_name in rows_by_field
             and has_meaningful_value(rows_by_field[field_name].get("value"))
+            for expanded_row in _expanded_hypothesis_rows(rows_by_field[field_name])
         ]
         for tab_name, field_names in JOB_EXTRACT_TAB_FIELDS.items()
     }
@@ -621,6 +689,7 @@ def _build_hypothesis_editor_rows(
         field_name = str(row.get("field_name") or "")
         editor_rows.append(
             {
+                "row_id": str(row.get("row_id") or field_name),
                 "field_name": field_name,
                 "Feld": row.get("label") or field_name,
                 "Wert": row.get("display_value") or "",
@@ -639,38 +708,115 @@ def _build_hypothesis_editor_rows(
     return editor_rows
 
 
+def _hypothesis_editor_row_id(row: dict[str, Any]) -> str:
+    return str(row.get("row_id") or row.get("field_name") or "").strip()
+
+
+def _collect_scalar_hypothesis_update(
+    row: dict[str, Any],
+    edited_row: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if edited_row is None:
+        return {**row, "action": HYPOTHESIS_ACTION_SKIP}
+    edited_value = str(edited_row.get("Wert") or "")
+    original_value = str(row.get("display_value") or "")
+    if not has_meaningful_value(edited_value):
+        action = HYPOTHESIS_ACTION_SKIP
+    elif not bool(row.get("editable", True)):
+        action = HYPOTHESIS_ACTION_ACCEPT
+    elif edited_value.strip() != original_value.strip():
+        action = HYPOTHESIS_ACTION_EDIT
+    else:
+        action = HYPOTHESIS_ACTION_ACCEPT
+    return {
+        **row,
+        "action": action,
+        "edited_value": edited_value,
+    }
+
+
+def _collect_grouped_hypothesis_update(
+    field_name: str,
+    rows: list[dict[str, Any]],
+    edited_by_row_id: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    parent_kind = str(rows[0].get("parent_kind") or "scalar")
+    if parent_kind == "scalar":
+        return _collect_scalar_hypothesis_update(
+            rows[0],
+            edited_by_row_id.get(_hypothesis_editor_row_id(rows[0])),
+        )
+
+    changed = False
+    if parent_kind == "dict":
+        resolved: dict[str, Any] = {}
+    else:
+        resolved = []
+
+    for row in rows:
+        row_id = _hypothesis_editor_row_id(row)
+        edited_row = edited_by_row_id.get(row_id)
+        if edited_row is None:
+            changed = True
+            continue
+        edited_value = str(edited_row.get("Wert") or "")
+        if not has_meaningful_value(edited_value):
+            changed = True
+            continue
+        original_display_value = str(row.get("display_value") or "")
+        if not bool(row.get("editable", True)):
+            item_value = row.get("value")
+        elif edited_value.strip() != original_display_value.strip():
+            changed = True
+            item_value = _coerce_hypothesis_edit_value(
+                row.get("value"),
+                edited_value,
+            )
+        else:
+            item_value = row.get("value")
+
+        if parent_kind == "dict":
+            item_key = str(row.get("item_key") or "").strip()
+            if item_key:
+                resolved[item_key] = item_value
+        else:
+            resolved.append(item_value)
+
+    base_row = {**rows[0], "field_name": field_name}
+    if not has_meaningful_value(resolved):
+        return {**base_row, "action": HYPOTHESIS_ACTION_SKIP}
+    if changed:
+        return {
+            **base_row,
+            "action": HYPOTHESIS_ACTION_EDIT,
+            "resolved_value": resolved,
+        }
+    return {**base_row, "action": HYPOTHESIS_ACTION_ACCEPT}
+
+
 def _collect_hypothesis_editor_updates(
     rows: list[dict[str, Any]],
     edited_rows: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    rows_by_field = {str(row.get("field_name") or ""): row for row in rows}
-    edited_by_field = {
-        str(row.get("field_name") or ""): row
+    rows_by_field: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        field_name = str(row.get("field_name") or "").strip()
+        if not field_name:
+            continue
+        rows_by_field.setdefault(field_name, []).append(row)
+    edited_by_row_id = {
+        _hypothesis_editor_row_id(row): row
         for row in edited_rows
-        if str(row.get("field_name") or "").strip()
+        if _hypothesis_editor_row_id(row)
     }
     submitted_rows: list[dict[str, Any]] = []
-    for field_name, row in rows_by_field.items():
-        edited_row = edited_by_field.get(field_name)
-        if edited_row is None:
-            submitted_rows.append({**row, "action": HYPOTHESIS_ACTION_SKIP})
-            continue
-        edited_value = str(edited_row.get("Wert") or "")
-        original_value = str(row.get("display_value") or "")
-        if not has_meaningful_value(edited_value):
-            action = HYPOTHESIS_ACTION_SKIP
-        elif not bool(row.get("editable", True)):
-            action = HYPOTHESIS_ACTION_ACCEPT
-        elif edited_value.strip() != original_value.strip():
-            action = HYPOTHESIS_ACTION_EDIT
-        else:
-            action = HYPOTHESIS_ACTION_ACCEPT
+    for field_name, field_rows in rows_by_field.items():
         submitted_rows.append(
-            {
-                **row,
-                "action": action,
-                "edited_value": edited_value,
-            }
+            _collect_grouped_hypothesis_update(
+                field_name,
+                field_rows,
+                edited_by_row_id,
+            )
         )
     return submitted_rows
 

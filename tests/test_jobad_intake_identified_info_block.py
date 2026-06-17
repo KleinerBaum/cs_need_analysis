@@ -447,6 +447,41 @@ def test_phase_b_hypothesis_form_groups_and_batches_submit(monkeypatch) -> None:
     )
 
 
+def test_phase_b_hypothesis_form_splits_list_values_into_review_rows(
+    monkeypatch,
+) -> None:
+    fake_st = _FakeStreamlit(session_state={})
+    monkeypatch.setattr(jobad_intake, "st", fake_st)
+
+    job = JobAdExtract(
+        responsibilities=["Build pipelines", "Own data quality"],
+        must_have_skills=[f"Skill {index}" for index in range(1, 10)],
+        benefits=["Hybrid work", "Training budget"],
+    )
+
+    jobad_intake._render_job_extract_hypothesis_form(job)
+
+    role_rows = fake_st.editor_rows_by_key[
+        "cs.jobspec.hypothesis.Rolle & Aufgaben.editor"
+    ]
+    skills_rows = fake_st.editor_rows_by_key[
+        "cs.jobspec.hypothesis.Skills & Anforderungen.editor"
+    ]
+    benefits_rows = fake_st.editor_rows_by_key[
+        "cs.jobspec.hypothesis.Benefits & Rahmenbedingungen.editor"
+    ]
+
+    assert [
+        row["Wert"] for row in role_rows if row["field_name"] == "responsibilities"
+    ] == ["Build pipelines", "Own data quality"]
+    assert [
+        row["Wert"] for row in skills_rows if row["field_name"] == "must_have_skills"
+    ] == [f"Skill {index}" for index in range(1, 10)]
+    assert [
+        row["Wert"] for row in benefits_rows if row["field_name"] == "benefits"
+    ] == ["Hybrid work", "Training budget"]
+
+
 def test_phase_b_hypothesis_form_saves_table_edits_and_deleted_rows(monkeypatch) -> None:
     fake_st = _FakeStreamlit(session_state={})
     fake_st.form_submit_returns["Angaben übernehmen"] = True
@@ -491,6 +526,48 @@ def test_phase_b_hypothesis_form_saves_table_edits_and_deleted_rows(monkeypatch)
     evidence = fake_st.session_state[SSKey.INTAKE_FACT_EVIDENCE.value]
     assert evidence["company.company_name"]["confirmed"] is True
     assert evidence["company.company_name"]["resolution_status"] == (
+        FactResolutionStatus.CONFIRMED.value
+    )
+
+
+def test_phase_b_hypothesis_form_saves_split_list_edits_and_deleted_rows(
+    monkeypatch,
+) -> None:
+    fake_st = _FakeStreamlit(session_state={})
+    fake_st.form_submit_returns["Angaben übernehmen"] = True
+    fake_st.editor_returns_by_key[
+        "cs.jobspec.hypothesis.Skills & Anforderungen.editor"
+    ] = [
+        {
+            "row_id": "must_have_skills[0]",
+            "field_name": "must_have_skills",
+            "Feld": "Muss-Skills",
+            "Wert": "Python 3",
+            "Status": "Kurz bestätigen",
+            "Sicherheit": "",
+            "Textstelle": "",
+        },
+        {
+            "row_id": "must_have_skills[2]",
+            "field_name": "must_have_skills",
+            "Feld": "Muss-Skills",
+            "Wert": "SQL",
+            "Status": "Kurz bestätigen",
+            "Sicherheit": "",
+            "Textstelle": "",
+        },
+    ]
+    monkeypatch.setattr(jobad_intake, "st", fake_st)
+
+    job = JobAdExtract(must_have_skills=["Python", "Excel", "SQL"])
+
+    jobad_intake._render_job_extract_hypothesis_form(job)
+
+    reviewed = fake_st.session_state[SSKey.JOB_EXTRACT.value]
+    assert reviewed["must_have_skills"] == ["Python 3", "SQL"]
+    evidence = fake_st.session_state[SSKey.INTAKE_FACT_EVIDENCE.value]
+    assert evidence["skills.must_have_skills"]["confirmed"] is True
+    assert evidence["skills.must_have_skills"]["resolution_status"] == (
         FactResolutionStatus.CONFIRMED.value
     )
 
