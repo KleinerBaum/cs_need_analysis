@@ -2317,30 +2317,36 @@ def _render_skills_source_comparison_block(
     flagged_terms = _dedupe_terms([*ambiguous_terms, *unmapped_terms])
     selected_count = len(_get_selected_skill_labels())
     open_count = len(flagged_terms)
-    status_label = (
-        "Bereit für Recruiting Brief und Interviewfragen"
-        if open_count == 0
-        else "Bitte offene Begriffe technisch prüfen"
-    )
-    st.info(
-        f"{selected_count} Skills übernommen · "
-        f"{open_count} offene Begriffe · {status_label}"
-    )
-    with st.expander("Advanced / Technische Prüfung", expanded=False):
-        st.caption("Status: inferred context")
-        st.caption("SSKey.SKILLS_SELECTED")
-        st.caption("contains/filter")
-        st.caption("map_to_esco_skill · keep_free_text · retry_search")
-        if show_esco_sections:
-            _render_matrix_coverage_section(matrix_snapshot, ui_mode=ui_mode)
-        if show_esco_sections and flagged_terms:
-            _render_unmapped_term_workflow(flagged_terms)
-        else:
-            st.caption(
-                "Keine offenen oder mehrdeutigen Skill-Begriffe vorhanden."
-                if show_esco_sections
-                else "ESCO-spezifische Normalisierung ist ohne bestätigten ESCO-Anker ausgeblendet."
-            )
+    if ui_mode == "expert":
+        status_label = (
+            "Bereit für Recruiting Brief und Interviewfragen"
+            if open_count == 0
+            else "Bitte offene Begriffe technisch prüfen"
+        )
+        st.info(
+            f"{selected_count} Skills übernommen · "
+            f"{open_count} offene Begriffe · {status_label}"
+        )
+        with st.expander("Advanced / Technische Prüfung", expanded=False):
+            st.caption("Status: inferred context")
+            st.caption("SSKey.SKILLS_SELECTED")
+            st.caption("contains/filter")
+            st.caption("map_to_esco_skill · keep_free_text · retry_search")
+            if show_esco_sections:
+                _render_matrix_coverage_section(matrix_snapshot, ui_mode=ui_mode)
+            if show_esco_sections and flagged_terms:
+                _render_unmapped_term_workflow(flagged_terms)
+            else:
+                st.caption(
+                    "Keine offenen oder mehrdeutigen Skill-Begriffe vorhanden."
+                    if show_esco_sections
+                    else "ESCO-spezifische Normalisierung ist ohne bestätigten ESCO-Anker ausgeblendet."
+                )
+    else:
+        st.info(
+            f"{selected_count} Skills übernommen · "
+            "Bereit für Recruiting Brief, Matching und Interviewfragen."
+        )
     return selection_result["source_counts"]
 
 
@@ -2544,8 +2550,10 @@ def render(ctx: WizardContext) -> None:
 
     if show_esco_sections and selected_occupation:
         st.caption(
-            "ESCO Occupation aus Start → Phase C: Semantischen Anker bestätigen: "
-            f"{selected_occupation.get('title', '—')}"
+            "Automatische Skill-Vorschläge basieren auf dem im Start bestätigten "
+            f"Referenzberuf: {selected_occupation.get('title', '—')}. "
+            "Übernommene Skills fließen in Summary, Matching, Interviewfragen "
+            "und Gehaltsprognose ein."
         )
 
     def _render_source_comparison_slot() -> None:

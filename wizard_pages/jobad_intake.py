@@ -909,7 +909,9 @@ def _render_esco_operating_block() -> None:
         else:
             st.caption(
                 "Mithilfe der ESCO-Taxonomie nutzt diese App einen standardisierten "
-                "Berufs- und Skill-Bezug, damit Folgefragen besser zur Rolle passen."
+                "Berufs- und Skill-Bezug. Sie bestätigen nur den passenden "
+                "Referenzberuf; Aufgaben- und Skill-Vorschläge werden danach "
+                "automatisch daraus abgeleitet."
             )
             esco_popover = getattr(st, "popover", None)
             if callable(esco_popover):

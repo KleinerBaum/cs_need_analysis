@@ -31,7 +31,13 @@ from ui_components import (
     render_standard_step_review,
 )
 from ui_layout import render_step_shell, responsive_three_columns
-from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
+from wizard_pages.base import (
+    WizardContext,
+    WizardPage,
+    get_current_ui_mode,
+    guard_job_and_plan,
+    nav_buttons,
+)
 from wizard_pages.fact_inputs import (
     compact_text,
     fact_value,
@@ -548,15 +554,26 @@ def render(ctx: WizardContext) -> None:
                     f"ESCO-Hinweis: Occupation-Details konnten nicht geladen werden ({esco_error})."
                 )
             elif esco_suggestions:
-                render_esco_explainability(
-                    labels=["derived from occupation relation"],
-                    confidence="medium",
-                    reason=(
-                        "Aufgaben werden aus ESCO Occupation-Beschreibung abgeleitet "
-                        "und sollten vor Übernahme kurz geprüft werden."
-                    ),
-                    caption_prefix="Task Suggestion Explainability",
-        )
+                occupation_title = (
+                    str(selected_occupation.get("title") or "").strip()
+                    if selected_occupation
+                    else ""
+                )
+                if occupation_title:
+                    st.caption(
+                        "Vorschläge basieren auf dem bestätigten Referenzberuf: "
+                        f"{occupation_title}."
+                    )
+                if get_current_ui_mode() == "expert":
+                    render_esco_explainability(
+                        labels=["derived from occupation relation"],
+                        confidence="medium",
+                        reason=(
+                            "Aufgaben werden aus ESCO Occupation-Beschreibung "
+                            "abgeleitet und sollten vor Übernahme kurz geprüft werden."
+                        ),
+                        caption_prefix="Task Suggestion Explainability",
+                    )
         st.session_state[SSKey.ROLE_TASKS_ESCO_SUGGESTED.value] = esco_suggestions
 
         llm_suggested_raw = st.session_state.get(SSKey.ROLE_TASKS_LLM_SUGGESTED.value, [])
