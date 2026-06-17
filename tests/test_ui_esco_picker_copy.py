@@ -24,6 +24,7 @@ class _FakeStreamlit:
         self.expander_calls: list[tuple[str, bool | None]] = []
         self.captions: list[str] = []
         self.container_calls: list[dict[str, Any]] = []
+        self.columns_calls: list[tuple[Any, str | None]] = []
         self.markdown_calls: list[str] = []
         self.write_calls: list[Any] = []
         self.text_input_value = ""
@@ -49,6 +50,11 @@ class _FakeStreamlit:
     def container(self, **kwargs: Any) -> _NoopContext:
         self.container_calls.append(kwargs)
         return _NoopContext()
+
+    def columns(self, spec: Any, **kwargs: Any) -> list[_NoopContext]:
+        self.columns_calls.append((spec, kwargs.get("gap")))
+        count = spec if isinstance(spec, int) else len(spec)
+        return [_NoopContext() for _ in range(count)]
 
     def caption(self, message: str) -> None:
         self.captions.append(message)
@@ -306,7 +312,7 @@ def test_render_esco_picker_card_does_not_clean_skill_queries(monkeypatch) -> No
     ]
 
 
-def test_render_esco_picker_card_results_overview_uses_candidate_cards(
+def test_render_esco_picker_card_results_overview_uses_three_candidate_columns(
     monkeypatch,
 ) -> None:
     fake_st = _FakeStreamlit()
@@ -346,15 +352,13 @@ def test_render_esco_picker_card_results_overview_uses_candidate_cards(
         show_apply_button=False,
     )
 
-    assert "**Vorschläge**" in fake_st.markdown_calls
+    assert "**Vorschläge**" not in fake_st.markdown_calls
     assert "**1. Data Engineer**" in fake_st.markdown_calls
     assert "**2. Data Analyst**" in fake_st.markdown_calls
     assert fake_st.captions.count("Alternative") == 2
     assert fake_st.captions.count("Ausgewählt") == 1
-    assert any(
-        "Data Analyst · https://example.test/occupation/2 · manual" in caption
-        for caption in fake_st.captions
-    )
+    assert not any("https://example.test" in caption for caption in fake_st.captions)
+    assert fake_st.columns_calls == [(3, "small")]
     assert fake_st.container_calls == [
         {"border": True},
         {"border": True},

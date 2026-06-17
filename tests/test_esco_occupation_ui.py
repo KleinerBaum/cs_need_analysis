@@ -171,17 +171,102 @@ def test_render_secondary_anchor_controls_uses_friendly_expander_and_labels(
             "concept_type": "occupation",
             "target_state_key": "cs.esco_secondary_anchor_picker",
             "enable_preview": False,
-            "apply_label": "Kontextrolle auswählen",
+            "apply_label": "Kontextrolle bestätigen",
             "selection_label": "Kontextrolle auswählen",
             "query_label": "Suchbegriff für Kontextrolle",
             "query_placeholder": "Benachbarte Rolle oder Alternativtitel eingeben",
             "confirmed_summary_label": "Ausgewählte Kontextrolle",
             "show_results_overview": True,
+            "taxonomy_auto_load": True,
             "layout_variant": "secondary_anchor",
         }
     ]
     assert "Grund" in fake_st.selectbox_labels
-    assert "Als Kontextanker hinzufügen" in fake_st.button_labels
+    assert "Als Kontextanker hinzufügen" not in fake_st.button_labels
+
+
+def test_render_secondary_anchor_controls_persists_confirmed_picker_selection(
+    monkeypatch,
+) -> None:
+    class _DummyContext:
+        def __enter__(self) -> "_DummyContext":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> bool:
+            del exc_type, exc, tb
+            return False
+
+    class _FakeStreamlit:
+        def __init__(self) -> None:
+            self.session_state: dict[str, object] = {
+                SSKey.UI_MODE.value: "standard",
+                SSKey.ESCO_PRIMARY_ANCHOR.value: {
+                    "uri": "uri:occ:primary",
+                    "title": "Data Engineer",
+                    "type": "occupation",
+                    "selected_as": "primary",
+                },
+                SSKey.ESCO_SECONDARY_ANCHORS.value: [
+                    {
+                        "uri": "uri:occ:existing",
+                        "title": "Product Analyst",
+                        "reason": "benachbarte Rolle",
+                        "selected_as": "secondary",
+                    }
+                ],
+                "cs.esco_secondary_anchor_picker": {
+                    "uri": "uri:occ:secondary",
+                    "title": "Analytics Engineer",
+                    "type": "occupation",
+                },
+            }
+
+        def expander(self, _label: str, **_kwargs: object) -> _DummyContext:
+            return _DummyContext()
+
+        def caption(self, _message: str) -> None:
+            return None
+
+        def markdown(self, _message: str, **_kwargs: object) -> None:
+            return None
+
+        def selectbox(self, _label: str, **kwargs: object) -> str:
+            options = kwargs.get("options")
+            return list(options)[1] if options else ""
+
+        def info(self, _message: str) -> None:
+            return None
+
+        def warning(self, _message: str) -> None:
+            return None
+
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(esco_occupation_ui, "st", fake_st)
+    monkeypatch.setattr(
+        esco_occupation_ui,
+        "render_esco_picker_card",
+        lambda **_kwargs: None,
+    )
+
+    esco_occupation_ui._render_secondary_anchor_controls(primary_uri="uri:occ:primary")
+
+    assert fake_st.session_state[SSKey.ESCO_SECONDARY_ANCHORS.value] == [
+        {
+            "uri": "uri:occ:existing",
+            "title": "Product Analyst",
+            "type": "occupation",
+            "reason": "benachbarte Rolle",
+            "selected_as": "secondary",
+        },
+        {
+            "uri": "uri:occ:secondary",
+            "title": "Analytics Engineer",
+            "type": "occupation",
+            "reason": "spezialisierende Variante",
+            "selected_as": "secondary",
+        },
+    ]
+    assert fake_st.session_state[SSKey.ESCO_ANCHOR_STATE.value] == "anchored_with_context"
 
 
 def test_render_secondary_anchor_controls_keeps_expander_when_anchor_limit_reached(

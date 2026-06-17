@@ -1419,9 +1419,11 @@ def _sync_primary_anchor(selected: dict[str, object]) -> None:
 
 
 def _render_secondary_anchor_controls(*, primary_uri: str) -> None:
-    if not all(hasattr(st, name) for name in ("expander", "selectbox", "button")):
+    if not all(hasattr(st, name) for name in ("expander", "selectbox")):
         return
-    ui_mode = str(st.session_state.get(SSKey.UI_MODE.value, "standard")).strip().lower()
+    ui_mode = (
+        str(st.session_state.get(SSKey.UI_MODE.value, "standard")).strip().lower()
+    )
     if ui_mode not in {"standard", "expert"}:
         return
 
@@ -1433,7 +1435,9 @@ def _render_secondary_anchor_controls(*, primary_uri: str) -> None:
             "Primäranker und Kernexport."
         )
         if current:
-            for index, anchor in enumerate(current[:ESCO_SECONDARY_ANCHOR_MAX], start=1):
+            for index, anchor in enumerate(
+                current[:ESCO_SECONDARY_ANCHOR_MAX], start=1
+            ):
                 if not isinstance(anchor, dict):
                     continue
                 title = str(anchor.get("title") or anchor.get("uri") or "—").strip()
@@ -1448,12 +1452,13 @@ def _render_secondary_anchor_controls(*, primary_uri: str) -> None:
             concept_type="occupation",
             target_state_key=secondary_key,
             enable_preview=False,
-            apply_label="Kontextrolle auswählen",
+            apply_label="Kontextrolle bestätigen",
             selection_label="Kontextrolle auswählen",
             query_label="Suchbegriff für Kontextrolle",
             query_placeholder="Benachbarte Rolle oder Alternativtitel eingeben",
             confirmed_summary_label="Ausgewählte Kontextrolle",
             show_results_overview=True,
+            taxonomy_auto_load=True,
             layout_variant="secondary_anchor",
         )
         reason = st.selectbox(
@@ -1468,33 +1473,33 @@ def _render_secondary_anchor_controls(*, primary_uri: str) -> None:
         picked_raw = st.session_state.get(secondary_key)
         picked = picked_raw if isinstance(picked_raw, dict) else None
         picked_uri = str((picked or {}).get("uri") or "").strip()
-        disabled = not picked_uri or picked_uri == primary_uri
-        if st.button(
-            "Als Kontextanker hinzufügen",
-            key="cs.esco_secondary_anchor.add",
-            disabled=disabled,
-        ):
-            anchor = normalize_anchor_ref(
-                {**(picked or {}), "reason": reason},
-                selected_as="secondary",
-                default_reason=reason,
+        if not picked_uri:
+            return
+        if picked_uri == primary_uri:
+            st.warning(
+                "Primäranker kann nicht zusätzlich als Kontextanker genutzt werden."
             )
-            if anchor is None:
-                st.warning("Kontextanker konnte nicht validiert werden.")
-                return
-            existing = [
-                item
-                for item in current
-                if isinstance(item, dict)
-                and str(item.get("uri") or "").strip()
-                and str(item.get("uri") or "").strip() != picked_uri
-            ]
-            st.session_state[SSKey.ESCO_SECONDARY_ANCHORS.value] = [
-                *existing,
-                anchor,
-            ][:ESCO_SECONDARY_ANCHOR_MAX]
+            return
+
+        anchor = normalize_anchor_ref(
+            {**(picked or {}), "reason": reason},
+            selected_as="secondary",
+            default_reason=reason,
+        )
+        if anchor is None:
+            st.warning("Kontextanker konnte nicht validiert werden.")
+            return
+        existing = [
+            item
+            for item in current
+            if isinstance(item, dict)
+            and str(item.get("uri") or "").strip()
+            and str(item.get("uri") or "").strip() != picked_uri
+        ]
+        next_anchors = [*existing, anchor][:ESCO_SECONDARY_ANCHOR_MAX]
+        if next_anchors != current:
+            st.session_state[SSKey.ESCO_SECONDARY_ANCHORS.value] = next_anchors
             sync_esco_semantic_state(st.session_state)
-            st.success("Kontextanker hinzugefügt.")
 
 
 def render_esco_occupation_confirmation(

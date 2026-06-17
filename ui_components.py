@@ -1019,10 +1019,7 @@ def render_esco_picker_card(
             )
 
     def _label_for_option(item: dict[str, str]) -> str:
-        title = item.get("title", "—")
-        if ui_mode == "expert":
-            return f"{title} · {item.get('uri', '—')} · {item.get('source', 'auto')}"
-        return title
+        return item.get("title", "—")
 
     option_labels = [_label_for_option(item) for item in options]
     selected_payload: list[dict[str, str]] = []
@@ -1062,8 +1059,6 @@ def render_esco_picker_card(
                 default=0 if options else None,
                 key=selected_key,
             )
-            if options and show_results_overview:
-                st.caption("Vorschläge")
         else:
             selected_index = st.selectbox(
                 resolved_selection_label,
@@ -1074,17 +1069,18 @@ def render_esco_picker_card(
                 placeholder="Keine Vorschläge verfügbar",
             )
             if options and show_results_overview:
-                st.markdown("**Vorschläge**")
+                overview_columns = st.columns(3, gap="small")
                 for idx, concept in enumerate(options[:3]):
-                    concept_title = str(concept.get("title") or "—").strip() or "—"
-                    status_label = (
-                        "Ausgewählt" if idx == selected_index else "Alternative"
-                    )
-                    with st.container(border=True):
-                        st.markdown(f"**{idx + 1}. {concept_title}**")
-                        st.caption(status_label)
-                        if ui_mode == "expert":
-                            st.caption(_label_for_option(concept))
+                    with overview_columns[idx % 3]:
+                        concept_title = (
+                            str(concept.get("title") or "—").strip() or "—"
+                        )
+                        status_label = (
+                            "Ausgewählt" if idx == selected_index else "Alternative"
+                        )
+                        with st.container(border=True):
+                            st.markdown(f"**{idx + 1}. {concept_title}**")
+                            st.caption(status_label)
         if selected_index is not None and selected_index < len(options):
             selected_payload = [options[selected_index]]
 
