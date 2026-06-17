@@ -6,7 +6,15 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from constants import AnswerType, FactKey, FactResolutionStatus
+from constants import (
+    FACT_REQUIREMENT_STAGE_DISPLAY_LABELS,
+    FACT_SALARY_IMPACT_DISPLAY_LABELS,
+    AnswerType,
+    FactKey,
+    FactRequirementStage,
+    FactResolutionStatus,
+    FactSalaryImpact,
+)
 from schemas import Question, question_option_label_map
 
 
@@ -23,6 +31,9 @@ class SummaryFactsRow:
     question_id: str = ""
     editable: bool = False
     value_type: str = "text"
+    salary_impact: str = ""
+    requirement_stage: str = ""
+    website_enrichable: bool = False
 
     def to_dict(self) -> dict[str, str]:
         row = {
@@ -33,6 +44,36 @@ class SummaryFactsRow:
             "Status": self.status,
         }
         return row
+
+
+def summary_fact_row_to_table_dict(row: SummaryFactsRow) -> dict[str, str]:
+    payload = row.to_dict()
+    payload.update(
+        {
+            "Salary": display_salary_impact(row.salary_impact),
+            "Pflichtigkeit": display_requirement_stage(row.requirement_stage),
+            "Second Source": "Website-Review" if row.website_enrichable else "",
+        }
+    )
+    return payload
+
+
+def display_salary_impact(value: str | FactSalaryImpact) -> str:
+    if isinstance(value, FactSalaryImpact):
+        return FACT_SALARY_IMPACT_DISPLAY_LABELS[value]
+    try:
+        return FACT_SALARY_IMPACT_DISPLAY_LABELS[FactSalaryImpact(str(value))]
+    except ValueError:
+        return ""
+
+
+def display_requirement_stage(value: str | FactRequirementStage) -> str:
+    if isinstance(value, FactRequirementStage):
+        return FACT_REQUIREMENT_STAGE_DISPLAY_LABELS[value]
+    try:
+        return FACT_REQUIREMENT_STAGE_DISPLAY_LABELS[FactRequirementStage(str(value))]
+    except ValueError:
+        return ""
 
 
 def group_summary_fact_rows_by_area(
@@ -127,7 +168,11 @@ def format_summary_fact_value(value: Any) -> str:
         )
     if isinstance(value, dict):
         return _format_summary_mapping(value)
-    return str(value or "").strip()
+    if isinstance(value, bool):
+        return "Ja" if value else "Nein"
+    if value is None:
+        return ""
+    return str(value).strip()
 
 
 def _format_summary_collection_item(value: Any) -> str:
@@ -138,7 +183,11 @@ def _format_summary_collection_item(value: Any) -> str:
         return _format_summary_mapping(value)
     if isinstance(value, list):
         return format_summary_fact_value(value)
-    return str(value or "").strip()
+    if isinstance(value, bool):
+        return "Ja" if value else "Nein"
+    if value is None:
+        return ""
+    return str(value).strip()
 
 
 def _mapping_primary_label(value: Mapping[str, Any]) -> str:

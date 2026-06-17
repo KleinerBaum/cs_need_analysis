@@ -13,7 +13,9 @@ import streamlit as st
 import docx
 
 from constants import (
+    INTAKE_FACTS,
     FactKey,
+    FactRequirementStage,
     FactResolutionStatus,
     FactSourceType,
     NON_INTAKE_STEP_KEYS,
@@ -99,6 +101,8 @@ from components.design_system import (
 )
 from summary_facts import (
     SummaryFactsRow,
+    display_requirement_stage as _display_requirement_stage,
+    display_salary_impact as _display_salary_impact,
     format_summary_answer_value as _format_summary_answer_value,
     format_summary_fact_value as _format_summary_fact_value,
     group_summary_fact_rows_by_area as _group_summary_fact_rows_by_area,
@@ -106,6 +110,7 @@ from summary_facts import (
     status_for_classification_value as _status_for_classification_value,
     status_for_value as _status_for_value,
     summary_core_fact_row as _summary_core_fact_row,
+    summary_fact_row_to_table_dict as _summary_fact_row_to_table_dict,
 )
 from summary_artifacts import (
     artifact_display_label as _artifact_display_label,
@@ -422,6 +427,7 @@ SUMMARY_AREA_TO_STEP_KEY: Final[dict[str, str]] = {
     "Interview": STEP_KEY_INTERVIEW,
     "Candidate Communication": STEP_KEY_INTERVIEW,
 }
+SUMMARY_FACT_DEFS_BY_KEY = {fact.fact_key.value: fact for fact in INTAKE_FACTS}
 SUMMARY_PRIMARY_ARTIFACT_IDS: Final[tuple[str, ...]] = (
     "job_ad",
     "interview",
@@ -2434,13 +2440,28 @@ def _render_summary_facts_column_overview(vm: SummaryViewModel) -> None:
                         value = str(fact.wert or "").strip() or "Nicht beantwortet"
                         st.markdown(f"**{fact.feld}**")
                         st.write(value)
-                        st.caption(f"{fact.status} · Quelle: {fact.quelle}")
+                        st.caption(_summary_fact_caption(fact))
 
 
 def _render_summary_facts_section(vm: SummaryViewModel) -> None:
     st.markdown("### Fakten")
     _render_esco_coverage_kpis()
-    _render_summary_facts_table([row.to_dict() for row in vm.fact_rows])
+    _render_summary_facts_table(
+        [_summary_fact_row_to_table_dict(row) for row in vm.fact_rows]
+    )
+
+
+def _summary_fact_caption(row: SummaryFactsRow) -> str:
+    parts = [row.status, f"Quelle: {row.quelle}"]
+    salary = _display_salary_impact(row.salary_impact)
+    if salary and salary != "Kein Salary-Einfluss":
+        parts.append(f"Salary: {salary}")
+    requirement = _display_requirement_stage(row.requirement_stage)
+    if requirement and requirement != "Optional":
+        parts.append(requirement)
+    if row.website_enrichable:
+        parts.append("Second Source: Website-Review")
+    return " · ".join(parts)
 
 
 def _summary_step_key_for_area(area: str) -> str:
@@ -2463,6 +2484,7 @@ def _with_summary_row_metadata(
         if editable is not None
         else bool(resolved_fact_key or question_id or row.fact_key or row.question_id)
     )
+    fact_def = SUMMARY_FACT_DEFS_BY_KEY.get(str(resolved_fact_key or row.fact_key or ""))
     return replace(
         row,
         step_key=resolved_step_key,
@@ -2470,6 +2492,17 @@ def _with_summary_row_metadata(
         question_id=question_id or row.question_id,
         editable=resolved_editable,
         value_type=value_type or row.value_type,
+        salary_impact=(
+            fact_def.salary_impact.value if fact_def is not None else row.salary_impact
+        ),
+        requirement_stage=(
+            fact_def.requirement_stage.value
+            if fact_def is not None
+            else row.requirement_stage
+        ),
+        website_enrichable=(
+            fact_def.website_enrichable if fact_def is not None else row.website_enrichable
+        ),
     )
 
 
@@ -2480,6 +2513,13 @@ def _is_meaningful_summary_fact_row(row: SummaryFactsRow) -> bool:
         return False
     value = str(row.wert or "").strip()
     return value not in SUMMARY_FACT_EMPTY_VALUES
+
+
+def _should_include_missing_summary_fact(fact_key: FactKey) -> bool:
+    fact_def = SUMMARY_FACT_DEFS_BY_KEY.get(fact_key.value)
+    if fact_def is None:
+        return False
+    return fact_def.requirement_stage == FactRequirementStage.BEFORE_SUMMARY
 
 
 def _build_summary_fact_rows(
@@ -2584,6 +2624,7 @@ def _build_summary_fact_rows(
         if (
             fact_key.value not in intake_facts
             and _status_for_value(fallback_value) == "Fehlend"
+            and not _should_include_missing_summary_fact(fact_key)
         ):
             continue
         rows.append(
@@ -2604,6 +2645,7 @@ def _build_summary_fact_rows(
         ("Routing", "Besetzungsvolumen", FactKey.INTAKE_HIRING_VOLUME),
         ("Routing", "Suchvertraulichkeit", FactKey.INTAKE_SEARCH_CONFIDENTIALITY),
         ("Routing", "Rollenreife", FactKey.INTAKE_ROLE_DEFINITION_MATURITY),
+        ("Unternehmen", "Brand", FactKey.COMPANY_BRAND_NAME),
         ("Unternehmen", "Employer Pitch", FactKey.COMPANY_EMPLOYER_PITCH),
         ("Unternehmen", "Business Unit", FactKey.COMPANY_BUSINESS_UNIT),
         ("Unternehmen", "Rollenrelevante Positionierung", FactKey.COMPANY_ROLE_RELEVANT_POSITIONING),
@@ -2615,20 +2657,36 @@ def _build_summary_fact_rows(
         ("Unternehmen", "Nicht verhandelbar", FactKey.COMPANY_NON_NEGOTIABLES),
         ("Unternehmen", "Compliance-Kontext", FactKey.COMPANY_COMPLIANCE_CONTEXT),
         ("Unternehmen", "Tarifkontext", FactKey.COMPANY_TARIFF_CONTEXT),
+        ("Unternehmen", "Abteilung", FactKey.COMPANY_DEPARTMENT_NAME),
+        ("Unternehmen", "Berichtet an", FactKey.COMPANY_REPORTS_TO),
+        ("Unternehmen", "Direkte Reports", FactKey.COMPANY_DIRECT_REPORTS_COUNT),
         ("Team", "Team", FactKey.TEAM_NAME),
         ("Team", "Leadership Scope", FactKey.TEAM_LEADERSHIP_SCOPE),
         ("Team", "Teamgroesse", FactKey.TEAM_SIZE_DIRECT),
         ("Team", "Stakeholder", FactKey.TEAM_STAKEHOLDERS_PRIMARY),
         ("Team", "90-Tage Kontext", FactKey.TEAM_SUCCESS_CONTEXT_90D),
+        ("Rolle", "Rollenueberblick", FactKey.ROLE_ROLE_OVERVIEW),
         ("Rolle", "Business Outcome", FactKey.ROLE_BUSINESS_OUTCOME_PRIMARY),
         ("Rolle", "Day-1 Aufgaben", FactKey.ROLE_DAY1_RESPONSIBILITIES),
         ("Rolle", "Aufgaben spaeter ausbaubar", FactKey.ROLE_EXPANSION_SCOPE),
+        ("Rolle", "Deliverables", FactKey.ROLE_DELIVERABLES),
+        ("Rolle", "Erfolgsmetriken", FactKey.ROLE_SUCCESS_METRICS),
         ("Rolle", "Priorisierte Aufgaben", FactKey.ROLE_RESPONSIBILITIES_PRIORITIZED),
         ("Rolle", "Success Timeline", FactKey.ROLE_SUCCESS_METRICS_TIMELINE),
         ("Rolle", "Decision Scope", FactKey.ROLE_DECISION_SCOPE),
         ("Rolle", "12-Monats Erfolgssignale", FactKey.ROLE_YEAR1_SUCCESS_SIGNALS),
+        ("Rolle", "Tech Stack", FactKey.ROLE_TECH_STACK),
+        ("Rolle", "Domaenen-Expertise", FactKey.ROLE_DOMAIN_EXPERTISE),
+        ("Rolle", "Reise erforderlich", FactKey.ROLE_TRAVEL_REQUIRED),
         ("Rolle", "Reiseprofil", FactKey.ROLE_TRAVEL_PROFILE),
+        ("Rolle", "Rufbereitschaft", FactKey.ROLE_ON_CALL),
+        ("Rolle", "Onboarding Notes", FactKey.ROLE_ONBOARDING_NOTES),
+        ("Rolle", "Extraktionsluecken", FactKey.ROLE_GAPS),
+        ("Rolle", "Annahmen", FactKey.ROLE_ASSUMPTIONS),
         ("Skills", "Skill Items", FactKey.SKILLS_ITEMS),
+        ("Skills", "Soft Skills", FactKey.SKILLS_SOFT_SKILLS),
+        ("Skills", "Ausbildung", FactKey.SKILLS_EDUCATION),
+        ("Skills", "Zertifikate", FactKey.SKILLS_CERTIFICATIONS),
         ("Skills", "Skill Timing", FactKey.SKILLS_READINESS_TIMING),
         ("Skills", "Free-Text Begruendung", FactKey.SKILLS_FREE_TEXT_REASON),
         ("Skills", "KO-Kriterien", FactKey.SKILLS_KNOCKOUT_CRITERIA),
@@ -2645,19 +2703,26 @@ def _build_summary_fact_rows(
         ("Interview", "Kernfragen", FactKey.INTERVIEW_CORE_QUESTIONS),
         ("Interview", "Candidate SLA", FactKey.INTERVIEW_COMMUNICATION_SLA),
         ("Interview", "Compliance Notes", FactKey.INTERVIEW_COMPLIANCE_NOTES),
+        ("Interview", "Kontaktpersonen", FactKey.INTERVIEW_CONTACTS),
     ):
         if fact_key.value not in intake_facts:
-            continue
-        value = intake_facts.get(fact_key.value)
-        evidence_raw = intake_fact_evidence.get(fact_key.value)
-        evidence = evidence_raw if isinstance(evidence_raw, Mapping) else {}
+            if not _should_include_missing_summary_fact(fact_key):
+                continue
+            value = None
+            evidence: Mapping[str, Any] = {}
+        else:
+            value = intake_facts.get(fact_key.value)
+            evidence_raw = intake_fact_evidence.get(fact_key.value)
+            evidence = evidence_raw if isinstance(evidence_raw, Mapping) else {}
         rows.append(
             _with_summary_row_metadata(
                 SummaryFactsRow(
                     area,
                     label,
                     _format_summary_fact_value(value) or "Nicht angegeben",
-                    str(evidence.get("source_label") or "Intake-Fakt").strip(),
+                    str(evidence.get("source_label") or "Offen").strip()
+                    if _status_for_value(value) == "Fehlend"
+                    else str(evidence.get("source_label") or "Intake-Fakt").strip(),
                     _status_for_value(value),
                     str(evidence.get("resolution_status") or "").strip(),
                 ),
@@ -2804,7 +2869,16 @@ def _render_summary_facts_table(rows: list[dict[str, str]]) -> None:
             if search_query
             in " ".join(
                 str(row.get(column, "")).lower()
-                for column in ("Bereich", "Feld", "Wert", "Quelle", "Status")
+                for column in (
+                    "Bereich",
+                    "Feld",
+                    "Wert",
+                    "Quelle",
+                    "Status",
+                    "Salary",
+                    "Pflichtigkeit",
+                    "Second Source",
+                )
             )
         ]
     if status_filter != "Alle":
@@ -2817,13 +2891,25 @@ def _render_summary_facts_table(rows: list[dict[str, str]]) -> None:
             filtered_rows,
             width="stretch",
             hide_index=True,
-            column_order=["Bereich", "Feld", "Wert", "Quelle", "Status"],
+            column_order=[
+                "Bereich",
+                "Feld",
+                "Wert",
+                "Quelle",
+                "Status",
+                "Salary",
+                "Pflichtigkeit",
+                "Second Source",
+            ],
             column_config={
                 "Bereich": st.column_config.TextColumn("Abschnitt"),
                 "Feld": st.column_config.TextColumn("Angabe"),
                 "Wert": st.column_config.TextColumn("Inhalt"),
                 "Quelle": st.column_config.TextColumn("Quelle"),
                 "Status": st.column_config.TextColumn("Status"),
+                "Salary": st.column_config.TextColumn("Salary"),
+                "Pflichtigkeit": st.column_config.TextColumn("Pflichtigkeit"),
+                "Second Source": st.column_config.TextColumn("Second Source"),
             },
         )
 
@@ -2931,6 +3017,13 @@ def _render_summary_facts_matrix(vm: SummaryViewModel) -> None:
                         "Feld": row.feld,
                         "Wert": row.wert,
                         "Quelle": row.quelle,
+                        "Salary": _display_salary_impact(row.salary_impact),
+                        "Pflichtigkeit": _display_requirement_stage(
+                            row.requirement_stage
+                        ),
+                        "Second Source": (
+                            "Website-Review" if row.website_enrichable else ""
+                        ),
                     }
                     for row_id, row in row_lookup.items()
                 ]
@@ -2944,11 +3037,27 @@ def _render_summary_facts_matrix(vm: SummaryViewModel) -> None:
                         ),
                         width="stretch",
                         hide_index=True,
-                        column_order=["Feld", "Wert", "Quelle"],
+                        column_order=[
+                            "Feld",
+                            "Wert",
+                            "Quelle",
+                            "Salary",
+                            "Pflichtigkeit",
+                            "Second Source",
+                        ],
                         column_config={
                             "Feld": st.column_config.TextColumn("Angabe", disabled=True),
                             "Wert": st.column_config.TextColumn("Inhalt"),
                             "Quelle": st.column_config.TextColumn("Quelle", disabled=True),
+                            "Salary": st.column_config.TextColumn("Salary", disabled=True),
+                            "Pflichtigkeit": st.column_config.TextColumn(
+                                "Pflichtigkeit",
+                                disabled=True,
+                            ),
+                            "Second Source": st.column_config.TextColumn(
+                                "Second Source",
+                                disabled=True,
+                            ),
                         },
                     )
                 else:
@@ -2956,11 +3065,21 @@ def _render_summary_facts_matrix(vm: SummaryViewModel) -> None:
                         editor_rows,
                         width="stretch",
                         hide_index=True,
-                        column_order=["Feld", "Wert", "Quelle"],
+                        column_order=[
+                            "Feld",
+                            "Wert",
+                            "Quelle",
+                            "Salary",
+                            "Pflichtigkeit",
+                            "Second Source",
+                        ],
                         column_config={
                             "Feld": st.column_config.TextColumn("Angabe"),
                             "Wert": st.column_config.TextColumn("Inhalt"),
                             "Quelle": st.column_config.TextColumn("Quelle"),
+                            "Salary": st.column_config.TextColumn("Salary"),
+                            "Pflichtigkeit": st.column_config.TextColumn("Pflichtigkeit"),
+                            "Second Source": st.column_config.TextColumn("Second Source"),
                         },
                     )
                     edited = editor_rows
@@ -2998,6 +3117,7 @@ def _build_summary_critical_gap_rows(vm: SummaryViewModel) -> list[dict[str, str
                 "Schritt": SUMMARY_FACT_STEP_LABELS[step_key],
                 "Feld": row.feld,
                 "Status": row.status,
+                "Pflichtigkeit": _display_requirement_stage(row.requirement_stage),
                 "Aktion": f"{reason}: {row.feld} im Schritt „{SUMMARY_FACT_STEP_LABELS[step_key]}“ prüfen.",
             }
         )
@@ -3014,11 +3134,12 @@ def _render_summary_critical_gaps_table(vm: SummaryViewModel) -> None:
         gap_rows,
         width="stretch",
         hide_index=True,
-        column_order=["Schritt", "Feld", "Status", "Aktion"],
+        column_order=["Schritt", "Feld", "Status", "Pflichtigkeit", "Aktion"],
         column_config={
             "Schritt": st.column_config.TextColumn("Schritt"),
             "Feld": st.column_config.TextColumn("Angabe"),
             "Status": st.column_config.TextColumn("Status"),
+            "Pflichtigkeit": st.column_config.TextColumn("Pflichtigkeit"),
             "Aktion": st.column_config.TextColumn("Nächster Schritt"),
         },
     )

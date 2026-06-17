@@ -166,6 +166,87 @@ def test_build_summary_fact_rows_include_populated_extended_core_facts(
     assert fields["Beschäftigungsart"]["Wert"] == "Vollzeit"
     assert fields["Gehalt"]["Wert"] == "min: 60000.0 | max: 80000.0 | currency: EUR"
     assert fields["Must-have Skills"]["Wert"] == "Python | SQL"
+    remote_row = next(row for row in rows if row.feld == "Remote-Regelung")
+    assert remote_row.salary_impact == "p50_direct"
+    assert remote_row.requirement_stage == "before_summary"
+
+
+def test_build_summary_fact_rows_include_extracted_gap_facts(monkeypatch) -> None:
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.INTAKE_FACTS.value: {
+                    FactKey.COMPANY_BRAND_NAME.value: "Acme Jobs",
+                    FactKey.COMPANY_DEPARTMENT_NAME.value: "Data Platform",
+                    FactKey.COMPANY_REPORTS_TO.value: "CTO",
+                    FactKey.COMPANY_DIRECT_REPORTS_COUNT.value: 2,
+                    FactKey.ROLE_ROLE_OVERVIEW.value: "Own the data platform",
+                    FactKey.ROLE_DELIVERABLES.value: ["Lakehouse"],
+                    FactKey.ROLE_SUCCESS_METRICS.value: ["Reliable reporting"],
+                    FactKey.ROLE_TECH_STACK.value: ["Python", "SQL"],
+                    FactKey.ROLE_DOMAIN_EXPERTISE.value: ["Retail"],
+                    FactKey.ROLE_TRAVEL_REQUIRED.value: False,
+                    FactKey.ROLE_ON_CALL.value: True,
+                    FactKey.ROLE_ONBOARDING_NOTES.value: "Buddy program",
+                    FactKey.ROLE_GAPS.value: ["Budget klaeren"],
+                    FactKey.ROLE_ASSUMPTIONS.value: ["Hybrid possible"],
+                    FactKey.SKILLS_SOFT_SKILLS.value: ["Kommunikation"],
+                    FactKey.SKILLS_EDUCATION.value: ["Bachelor"],
+                    FactKey.SKILLS_CERTIFICATIONS.value: ["AWS"],
+                    FactKey.INTERVIEW_CONTACTS.value: [{"name": "Hiring Team"}],
+                },
+                SSKey.INTAKE_FACT_EVIDENCE.value: {},
+                SSKey.INTERVIEW_INTERNAL_FLOW.value: {},
+            }
+        ),
+    )
+
+    rows = SUMMARY_MODULE._build_summary_fact_rows(
+        job=JobAdExtract(job_title="Data Engineer"),
+        answers={},
+        plan=None,
+        artifacts=_artifacts(),
+        meta=_meta(selected_occupation_title=None),
+    )
+
+    fields = {row.feld: row for row in rows}
+    assert fields["Brand"].wert == "Acme Jobs"
+    assert fields["Abteilung"].wert == "Data Platform"
+    assert fields["Berichtet an"].wert == "CTO"
+    assert fields["Direkte Reports"].wert == "2"
+    assert fields["Rollenueberblick"].wert == "Own the data platform"
+    assert fields["Deliverables"].wert == "Lakehouse"
+    assert fields["Erfolgsmetriken"].wert == "Reliable reporting"
+    assert fields["Tech Stack"].wert == "Python | SQL"
+    assert fields["Domaenen-Expertise"].wert == "Retail"
+    assert fields["Reise erforderlich"].wert == "Nein"
+    assert fields["Rufbereitschaft"].wert == "Ja"
+    assert fields["Onboarding Notes"].wert == "Buddy program"
+    assert fields["Extraktionsluecken"].wert == "Budget klaeren"
+    assert fields["Annahmen"].wert == "Hybrid possible"
+    assert fields["Soft Skills"].wert == "Kommunikation"
+    assert fields["Ausbildung"].wert == "Bachelor"
+    assert fields["Zertifikate"].wert == "AWS"
+    assert fields["Kontaktpersonen"].wert == "Hiring Team"
+    assert fields["Zertifikate"].salary_impact == "p50_direct"
+    assert fields["Tech Stack"].website_enrichable is True
+
+
+def test_build_summary_fact_rows_include_missing_before_summary_facts() -> None:
+    rows = SUMMARY_MODULE._build_summary_fact_rows(
+        job=JobAdExtract(job_title="Data Engineer"),
+        answers={},
+        plan=None,
+        artifacts=_artifacts(),
+        meta=_meta(selected_occupation_title=None),
+    )
+
+    salary_row = next(row for row in rows if row.feld == "Gehalt")
+    assert salary_row.status == "Fehlend"
+    assert salary_row.requirement_stage == "before_summary"
+    assert salary_row.salary_impact == "p50_direct"
 
 
 def test_build_summary_fact_rows_include_answer_rows() -> None:

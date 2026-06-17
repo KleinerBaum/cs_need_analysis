@@ -83,6 +83,8 @@ Manual corrections remain authoritative over extracted values. Jobspec assumptio
 
 Canonical intake fact evidence also carries a resolution status (`confirmed`, `inferred`, `assumed`, `conflicted`, or `missing`). Structured Summary exports include `intake_fact_resolution` so downstream consumers can distinguish confirmed facts from inferred, assumed, conflicted, or still-missing information without changing the legacy fact values.
 
+Fact definitions in `constants.INTAKE_FACTS` also carry steering metadata: `salary_impact` separates direct Salary drivers from quality/uncertainty inputs, `requirement_stage` distinguishes facts required before Summary from facts required before artifact generation, and `website_enrichable` marks fields that can be reviewed against homepage evidence.
+
 The canonical fact registry also covers downstream decision points from the improvement report: company and team context, role outcomes and travel profile, typed skill requirements, variable pay and offer constraints, work authorization, start-date flexibility, and interview assessment/scorecard fields.
 
 ## Architecture map
@@ -292,8 +294,9 @@ The company step can analyze public company pages for:
 - `vision_mission`
 
 After analysis, deterministic website findings are matched against the canonical
-`FactKey` registry. Matching values are shown as editable review rows under
-“Hinweise aus der Website-Analyse” with target key, value, and source/evidence;
+`FactKey` registry. Matching values are shown as editable second-source review
+rows under “Kontext aus der Website-Analyse” with target key, value,
+source/evidence, and a confirmation/conflict hint against existing facts;
 confirmed rows are stored as homepage-sourced intake facts and mirrored into
 wizard answers for downstream questions, summaries, and exports.
 
@@ -337,6 +340,11 @@ It shows editable facts by wizard step, a critical-gap table, a compact artifact
 and the active output with refinement requests and downloads. The Recruiting Brief
 remains a compatible internal context artifact for downstream generation, but it is
 not shown as a required user-facing CTA.
+
+The Summary facts table and per-step fact matrix show steering columns for Salary
+impact, requirement stage, and website second-source eligibility. Missing
+`before_summary` facts remain hidden from the main fact table but are surfaced in
+critical gaps.
 
 Canonical summary artifact IDs:
 

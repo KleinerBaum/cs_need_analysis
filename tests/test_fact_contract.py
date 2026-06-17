@@ -7,7 +7,9 @@ from constants import (
     INTAKE_FACTS,
     FactKey,
     FactPersistenceIntent,
+    FactRequirementStage,
     FactResolutionStatus,
+    FactSalaryImpact,
     FactSensitivity,
     FactSourceType,
     FactValueType,
@@ -154,6 +156,12 @@ def test_fact_definitions_have_valid_metadata() -> None:
         isinstance(fact.persistence_intent, FactPersistenceIntent)
         for fact in INTAKE_FACTS
     )
+    assert all(isinstance(fact.salary_impact, FactSalaryImpact) for fact in INTAKE_FACTS)
+    assert all(
+        isinstance(fact.requirement_stage, FactRequirementStage)
+        for fact in INTAKE_FACTS
+    )
+    assert all(isinstance(fact.website_enrichable, bool) for fact in INTAKE_FACTS)
 
 
 def test_fact_value_type_contract_values() -> None:
@@ -171,6 +179,22 @@ def test_fact_value_type_contract_values() -> None:
 
 def test_fact_persistence_intent_contract_values() -> None:
     assert [intent.value for intent in FactPersistenceIntent] == ["legacy_compatible"]
+
+
+def test_fact_salary_impact_contract_values() -> None:
+    assert [impact.value for impact in FactSalaryImpact] == [
+        "none",
+        "quality_indirect",
+        "p50_direct",
+    ]
+
+
+def test_fact_requirement_stage_contract_values() -> None:
+    assert [stage.value for stage in FactRequirementStage] == [
+        "before_summary",
+        "before_artifact",
+        "optional",
+    ]
 
 
 def test_fact_source_type_contract_values() -> None:
@@ -314,3 +338,36 @@ def test_fact_definitions_use_semantic_value_types() -> None:
 def test_fact_key_stability_snapshot() -> None:
     assert [fact_key.value for fact_key in FactKey] == EXPECTED_FACT_KEYS
     assert [fact.fact_key.value for fact in INTAKE_FACTS] == EXPECTED_FACT_KEYS
+
+
+def test_fact_definitions_mark_salary_drivers_and_requirement_stages() -> None:
+    facts_by_key = _facts_by_key()
+
+    salary_driver_keys = {
+        FactKey.BENEFITS_SALARY_RANGE,
+        FactKey.ROLE_SENIORITY_LEVEL,
+        FactKey.COMPANY_REMOTE_POLICY,
+        FactKey.COMPANY_LOCATION_CITY,
+        FactKey.COMPANY_LOCATION_COUNTRY,
+        FactKey.ROLE_JOB_TITLE,
+        FactKey.SKILLS_MUST_HAVE_SKILLS,
+        FactKey.SKILLS_NICE_TO_HAVE_SKILLS,
+        FactKey.SKILLS_CERTIFICATIONS,
+        FactKey.SKILLS_LANGUAGES,
+        FactKey.INTERVIEW_RECRUITMENT_STEPS,
+    }
+
+    assert {
+        key
+        for key, fact in facts_by_key.items()
+        if fact.salary_impact == FactSalaryImpact.P50_DIRECT
+    } == salary_driver_keys
+    assert all(
+        facts_by_key[key].requirement_stage == FactRequirementStage.BEFORE_SUMMARY
+        for key in salary_driver_keys
+    )
+    assert (
+        facts_by_key[FactKey.INTERVIEW_SCORECARD_TEMPLATE].requirement_stage
+        == FactRequirementStage.BEFORE_ARTIFACT
+    )
+    assert facts_by_key[FactKey.COMPANY_EMPLOYER_PITCH].website_enrichable is True

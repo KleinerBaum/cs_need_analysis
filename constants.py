@@ -617,6 +617,30 @@ class FactPersistenceIntent(str, Enum):
     LEGACY_COMPATIBLE = "legacy_compatible"
 
 
+class FactSalaryImpact(str, Enum):
+    NONE = "none"
+    QUALITY_INDIRECT = "quality_indirect"
+    P50_DIRECT = "p50_direct"
+
+
+class FactRequirementStage(str, Enum):
+    BEFORE_SUMMARY = "before_summary"
+    BEFORE_ARTIFACT = "before_artifact"
+    OPTIONAL = "optional"
+
+
+FACT_SALARY_IMPACT_DISPLAY_LABELS: Final[dict[FactSalaryImpact, str]] = {
+    FactSalaryImpact.P50_DIRECT: "Salary-Treiber",
+    FactSalaryImpact.QUALITY_INDIRECT: "Qualität/Unsicherheit",
+    FactSalaryImpact.NONE: "Kein Salary-Einfluss",
+}
+FACT_REQUIREMENT_STAGE_DISPLAY_LABELS: Final[dict[FactRequirementStage, str]] = {
+    FactRequirementStage.BEFORE_SUMMARY: "Pflicht vor Summary",
+    FactRequirementStage.BEFORE_ARTIFACT: "Pflicht vor Artefakt",
+    FactRequirementStage.OPTIONAL: "Optional",
+}
+
+
 class FactSourceType(str, Enum):
     MANUAL = "manual"
     JOBSPEC = "jobspec"
@@ -658,10 +682,113 @@ class IntakeFactDef:
     step_key: str
     value_type: FactValueType
     persistence_intent: FactPersistenceIntent
+    salary_impact: FactSalaryImpact
+    requirement_stage: FactRequirementStage
+    website_enrichable: bool
 
 
 _FACT_PERSISTENCE_LEGACY_COMPATIBLE: Final[FactPersistenceIntent] = (
     FactPersistenceIntent.LEGACY_COMPATIBLE
+)
+SALARY_DRIVER_FACT_KEYS: Final[frozenset[FactKey]] = frozenset(
+    {
+        FactKey.BENEFITS_SALARY_RANGE,
+        FactKey.ROLE_SENIORITY_LEVEL,
+        FactKey.COMPANY_REMOTE_POLICY,
+        FactKey.COMPANY_LOCATION_CITY,
+        FactKey.COMPANY_LOCATION_COUNTRY,
+        FactKey.ROLE_JOB_TITLE,
+        FactKey.SKILLS_MUST_HAVE_SKILLS,
+        FactKey.SKILLS_NICE_TO_HAVE_SKILLS,
+        FactKey.SKILLS_CERTIFICATIONS,
+        FactKey.SKILLS_LANGUAGES,
+        FactKey.INTERVIEW_RECRUITMENT_STEPS,
+    }
+)
+SALARY_QUALITY_DRIVER_FACT_KEYS: Final[frozenset[FactKey]] = frozenset(
+    {
+        FactKey.INTAKE_HIRING_REASON,
+        FactKey.INTAKE_URGENCY,
+        FactKey.INTAKE_HIRING_VOLUME,
+        FactKey.INTAKE_SEARCH_CONFIDENTIALITY,
+        FactKey.INTAKE_ROLE_DEFINITION_MATURITY,
+        FactKey.COMPANY_WORK_ARRANGEMENT,
+        FactKey.COMPANY_OFFICE_DAYS_PER_WEEK,
+        FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES,
+        FactKey.COMPANY_EMPLOYER_PITCH,
+        FactKey.COMPANY_ROLE_RELEVANT_POSITIONING,
+        FactKey.COMPANY_BUSINESS_UNIT,
+        FactKey.COMPANY_LANGUAGE_INTERNAL,
+        FactKey.COMPANY_LANGUAGE_EXTERNAL,
+        FactKey.COMPANY_NON_NEGOTIABLES,
+        FactKey.COMPANY_COMPLIANCE_CONTEXT,
+        FactKey.COMPANY_TARIFF_CONTEXT,
+        FactKey.TEAM_NAME,
+        FactKey.TEAM_LEADERSHIP_SCOPE,
+        FactKey.TEAM_SIZE_DIRECT,
+        FactKey.TEAM_STAKEHOLDERS_PRIMARY,
+        FactKey.TEAM_SUCCESS_CONTEXT_90D,
+        FactKey.ROLE_RESPONSIBILITIES,
+        FactKey.ROLE_RESPONSIBILITIES_PRIORITIZED,
+        FactKey.ROLE_SUCCESS_METRICS_TIMELINE,
+        FactKey.ROLE_BUSINESS_OUTCOME_PRIMARY,
+        FactKey.ROLE_DAY1_RESPONSIBILITIES,
+        FactKey.ROLE_EXPANSION_SCOPE,
+        FactKey.ROLE_DECISION_SCOPE,
+        FactKey.ROLE_YEAR1_SUCCESS_SIGNALS,
+        FactKey.SKILLS_ITEMS,
+        FactKey.SKILLS_READINESS_TIMING,
+        FactKey.SKILLS_FREE_TEXT_REASON,
+        FactKey.SKILLS_KNOCKOUT_CRITERIA,
+        FactKey.SKILLS_TRAINABLE_SKILLS,
+        FactKey.TIMELINE_START_FLEXIBILITY,
+    }
+)
+BEFORE_SUMMARY_REQUIRED_FACT_KEYS: Final[frozenset[FactKey]] = (
+    SALARY_DRIVER_FACT_KEYS
+    | frozenset(
+        {
+            FactKey.INTAKE_SEARCH_CONFIDENTIALITY,
+            FactKey.ROLE_EMPLOYMENT_TYPE,
+            FactKey.ROLE_CONTRACT_TYPE,
+            FactKey.ROLE_TRAVEL_REQUIRED,
+            FactKey.ROLE_ON_CALL,
+            FactKey.BENEFITS_VARIABLE_PAY,
+            FactKey.COMPANY_COMPLIANCE_CONTEXT,
+            FactKey.LEGAL_WORK_AUTHORIZATION_SUPPORT,
+            FactKey.INTERVIEW_START_DATE,
+            FactKey.INTERVIEW_APPLICATION_DEADLINE,
+        }
+    )
+)
+BEFORE_ARTIFACT_REQUIRED_FACT_KEYS: Final[frozenset[FactKey]] = frozenset(
+    {
+        FactKey.BENEFITS_OFFER_COMPONENTS,
+        FactKey.INTERVIEW_ASSESSMENT_EVIDENCE,
+        FactKey.INTERVIEW_STAGE_OWNERS,
+        FactKey.INTERVIEW_COMMUNICATION_SLA,
+        FactKey.INTERVIEW_SCORECARD_TEMPLATE,
+        FactKey.INTERVIEW_CORE_QUESTIONS,
+        FactKey.INTERVIEW_COMPLIANCE_NOTES,
+    }
+)
+WEBSITE_ENRICHABLE_FACT_KEYS: Final[frozenset[FactKey]] = frozenset(
+    {
+        FactKey.COMPANY_COMPANY_NAME,
+        FactKey.COMPANY_COMPANY_WEBSITE,
+        FactKey.COMPANY_LOCATION_CITY,
+        FactKey.COMPANY_LOCATION_COUNTRY,
+        FactKey.COMPANY_WORK_ARRANGEMENT,
+        FactKey.COMPANY_OFFICE_DAYS_PER_WEEK,
+        FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES,
+        FactKey.COMPANY_EMPLOYER_PITCH,
+        FactKey.COMPANY_ROLE_RELEVANT_POSITIONING,
+        FactKey.COMPANY_LANGUAGE_INTERNAL,
+        FactKey.COMPANY_COMPLIANCE_CONTEXT,
+        FactKey.ROLE_TECH_STACK,
+        FactKey.ROLE_DOMAIN_EXPERTISE,
+        FactKey.BENEFITS_BENEFITS,
+    }
 )
 
 
@@ -670,13 +797,36 @@ def _intake_fact(
     label: str,
     step_key: str,
     value_type: FactValueType,
+    *,
+    salary_impact: FactSalaryImpact | None = None,
+    requirement_stage: FactRequirementStage | None = None,
+    website_enrichable: bool | None = None,
 ) -> IntakeFactDef:
+    if salary_impact is None:
+        if fact_key in SALARY_DRIVER_FACT_KEYS:
+            salary_impact = FactSalaryImpact.P50_DIRECT
+        elif fact_key in SALARY_QUALITY_DRIVER_FACT_KEYS:
+            salary_impact = FactSalaryImpact.QUALITY_INDIRECT
+        else:
+            salary_impact = FactSalaryImpact.NONE
+    if requirement_stage is None:
+        if fact_key in BEFORE_SUMMARY_REQUIRED_FACT_KEYS:
+            requirement_stage = FactRequirementStage.BEFORE_SUMMARY
+        elif fact_key in BEFORE_ARTIFACT_REQUIRED_FACT_KEYS:
+            requirement_stage = FactRequirementStage.BEFORE_ARTIFACT
+        else:
+            requirement_stage = FactRequirementStage.OPTIONAL
+    if website_enrichable is None:
+        website_enrichable = fact_key in WEBSITE_ENRICHABLE_FACT_KEYS
     return IntakeFactDef(
         fact_key=fact_key,
         label=label,
         step_key=step_key,
         value_type=value_type,
         persistence_intent=_FACT_PERSISTENCE_LEGACY_COMPATIBLE,
+        salary_impact=salary_impact,
+        requirement_stage=requirement_stage,
+        website_enrichable=website_enrichable,
     )
 
 

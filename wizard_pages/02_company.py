@@ -297,7 +297,8 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
 
     st.markdown("### Kontext aus der Website-Analyse")
     st.caption(
-        "Belastbare Website-Funde werden vor dem Speichern einem kanonischen Key zugeordnet."
+        "Second-source Review: Website-Funde werden vor dem Speichern einem "
+        "kanonischen Key zugeordnet und gegen vorhandene Werte geprüft."
     )
     review_raw = st.session_state.get(SSKey.COMPANY_WEBSITE_FACT_REVIEW.value, {})
     review_state = review_raw if isinstance(review_raw, dict) else {}
@@ -349,6 +350,8 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
                 source_label = str(candidate.get("source_label") or "Website").strip()
                 confidence = candidate.get("confidence")
                 evidence = str(candidate.get("evidence_snippet") or "").strip()
+                selected_fact = _coerce_fact_key(selected_fact_key)
+                current_value = fact_value(selected_fact) if selected_fact is not None else None
                 st.caption(
                     f"Quelle: {source_label}"
                     + (
@@ -359,6 +362,13 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
                 )
                 if evidence:
                     st.caption(evidence)
+                if not _is_empty_fact_value(current_value):
+                    review_note = (
+                        "Website bestaetigt den vorhandenen Wert."
+                        if _fact_values_equal(current_value, parsed_value)
+                        else "Website-Wert weicht vom vorhandenen Wert ab."
+                    )
+                    st.caption(f"Review: {review_note}")
                 if parse_error:
                     st.caption(parse_error)
                 selected = st.checkbox(

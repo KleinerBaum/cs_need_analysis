@@ -4,11 +4,14 @@ from constants import AnswerType, FactKey
 from schemas import Question, QuestionOption
 from summary_facts import (
     SummaryFactsRow,
+    display_requirement_stage,
+    display_salary_impact,
     format_summary_answer_value,
     group_summary_fact_rows_by_area,
     status_for_answer_value,
     status_for_value,
     summary_core_fact_row,
+    summary_fact_row_to_table_dict,
 )
 
 
@@ -86,3 +89,29 @@ def test_summary_core_fact_row_prefers_canonical_fact_evidence_source() -> None:
         "Quelle": "Manual input",
         "Status": "Vollständig",
     }
+
+
+def test_summary_fact_row_table_dict_adds_steering_metadata() -> None:
+    row = SummaryFactsRow(
+        "Kernprofil",
+        "Rolle",
+        "Engineer",
+        "Jobspec",
+        "Vollständig",
+        salary_impact="p50_direct",
+        requirement_stage="before_summary",
+        website_enrichable=True,
+    )
+
+    assert summary_fact_row_to_table_dict(row) == {
+        "Bereich": "Kernprofil",
+        "Feld": "Rolle",
+        "Wert": "Engineer",
+        "Quelle": "Jobspec",
+        "Status": "Vollständig",
+        "Salary": "Salary-Treiber",
+        "Pflichtigkeit": "Pflicht vor Summary",
+        "Second Source": "Website-Review",
+    }
+    assert display_salary_impact("quality_indirect") == "Qualität/Unsicherheit"
+    assert display_requirement_stage("optional") == "Optional"
