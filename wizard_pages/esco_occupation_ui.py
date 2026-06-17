@@ -11,6 +11,7 @@ from constants import (
     ESCO_ANCHOR_STATE_DEGRADED,
     ESCO_SECONDARY_ANCHOR_MAX,
     SSKey,
+    UI_MODE_DEFAULT,
 )
 from esco_client import (
     EscoClient,
@@ -1422,7 +1423,7 @@ def _render_secondary_anchor_controls(*, primary_uri: str) -> None:
     if not all(hasattr(st, name) for name in ("expander", "selectbox")):
         return
     ui_mode = (
-        str(st.session_state.get(SSKey.UI_MODE.value, "standard")).strip().lower()
+        str(st.session_state.get(SSKey.UI_MODE.value, UI_MODE_DEFAULT)).strip().lower()
     )
     if ui_mode not in {"standard", "expert"}:
         return
@@ -1619,7 +1620,7 @@ def render_esco_occupation_confirmation(
         capabilities=capabilities,
     )
 
-    ui_mode = str(st.session_state.get(SSKey.UI_MODE.value, "standard")).strip().lower()
+    ui_mode = str(st.session_state.get(SSKey.UI_MODE.value, UI_MODE_DEFAULT)).strip().lower()
     if ui_mode not in {"quick", "standard", "expert"}:
         ui_mode = "standard"
     technical_expanded = ui_mode == "expert"

@@ -21,6 +21,7 @@ from constants import (
     FactResolutionStatus,
     FactSourceType,
     SSKey,
+    UI_MODE_DEFAULT,
 )
 from job_extract_evidence import (
     format_field_evidence_confidence,
@@ -189,7 +190,7 @@ def _sync_deterministic_question_flow(job: JobAdExtract, base_plan: QuestionPlan
         base_plan=base_plan,
         profile=profile,
         question_context=question_context,
-        ui_mode=str(st.session_state.get(SSKey.UI_MODE.value, "standard")),
+        ui_mode=str(st.session_state.get(SSKey.UI_MODE.value, UI_MODE_DEFAULT)),
     )
     st.session_state[SSKey.OCCUPATION_PROFILE.value] = profile.model_dump(mode="json")
     st.session_state[SSKey.OCCUPATION_QUESTION_CONTEXT.value] = (
@@ -1178,7 +1179,7 @@ def _render_esco_operating_block() -> None:
         return
 
     config = _get_esco_config()
-    ui_mode = str(st.session_state.get(SSKey.UI_MODE.value, "standard")).strip().lower()
+    ui_mode = str(st.session_state.get(SSKey.UI_MODE.value, UI_MODE_DEFAULT)).strip().lower()
     is_expert = ui_mode == "expert"
     language_options = ("de", "en")
     selected_language = str(

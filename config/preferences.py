@@ -39,8 +39,8 @@ COOKIE_CATEGORIES = {
 
 DEFAULT_PREFERENCES: Dict[str, Any] = {
     PREFERENCE_KEYS["ui_language"]: "de",
-    PREFERENCE_KEYS["response_mode"]: "balanced",
-    PREFERENCE_KEYS["info_depth"]: "standard",
+    PREFERENCE_KEYS["response_mode"]: "advisory",
+    PREFERENCE_KEYS["info_depth"]: "hoch",
     PREFERENCE_KEYS["esco_match_strictness"]: 70,
     PREFERENCE_KEYS["privacy_mode"]: "balanced",
     PREFERENCE_KEYS["accessibility_mode"]: "standard",

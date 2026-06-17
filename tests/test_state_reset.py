@@ -24,16 +24,16 @@ RESET_EXPECTATIONS: dict[SSKey, object] = {
     SSKey.QUESTION_FLOW_FINGERPRINT: "",
     SSKey.ANSWERS: {},
     SSKey.ANSWER_META: {},
-    SSKey.UI_MODE: "standard",
+    SSKey.UI_MODE: "expert",
     SSKey.UI_PREFERENCES: {
-        "answer_mode": "balanced",
-        "information_depth": "standard",
+        "answer_mode": "advisory",
+        "information_depth": "hoch",
         "esco_matching_strictness": "ausgewogen",
         "regional_focus": "DACH",
         "show_sources_default": True,
         "confidence_threshold": 0.6,
         "pii_reduction": True,
-        "details_expanded_default": False,
+        "details_expanded_default": True,
         "step_compact": {},
         "ui_language": "de",
     },
@@ -299,7 +299,7 @@ def test_reset_vacancy_preserves_existing_ui_preferences(monkeypatch) -> None:
 
     state.reset_vacancy()
 
-    assert fake_session_state[SSKey.UI_MODE.value] == "standard"
+    assert fake_session_state[SSKey.UI_MODE.value] == "expert"
     resolved_preferences = fake_session_state[SSKey.UI_PREFERENCES.value]
     assert resolved_preferences["details_expanded_default"] is True
     assert resolved_preferences["step_compact"] == {"company": False}

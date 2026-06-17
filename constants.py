@@ -97,6 +97,7 @@ ESCO_CONCEPT_QUESTION_CAP_BY_UI_MODE: Final[dict[str, int]] = {
     "expert": 10,
 }
 UI_MODE_VALUES: Final[tuple[str, str, str]] = ("quick", "standard", "expert")
+UI_MODE_DEFAULT: Final[str] = "expert"
 UI_MODE_DISPLAY_LABELS: Final[dict[str, str]] = {
     "quick": "schnell",
     "standard": "ausführlich",

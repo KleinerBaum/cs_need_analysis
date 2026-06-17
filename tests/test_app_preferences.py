@@ -9,6 +9,7 @@ from constants import (
     UI_PREFERENCE_INFORMATION_DEPTH,
     UI_PREFERENCE_PII_REDUCTION,
     UI_PREFERENCE_UI_LANGUAGE,
+    UI_MODE_DEFAULT,
 )
 
 
@@ -49,7 +50,7 @@ class _FakePreferenceStreamlit:
 def test_preference_center_defaults_pii_reduction_on_when_missing(monkeypatch) -> None:
     fake_st = _FakePreferenceStreamlit(
         {
-            SSKey.UI_MODE.value: "standard",
+            SSKey.UI_MODE.value: UI_MODE_DEFAULT,
             SSKey.UI_PREFERENCES.value: {},
         }
     )
@@ -69,13 +70,13 @@ def test_preference_center_defaults_pii_reduction_on_when_missing(monkeypatch) -
         fake_st.session_state[SSKey.UI_PREFERENCES.value][
             UI_PREFERENCE_ANSWER_MODE
         ]
-        == "balanced"
+        == "advisory"
     )
     assert (
         fake_st.session_state[SSKey.UI_PREFERENCES.value][
             UI_PREFERENCE_INFORMATION_DEPTH
         ]
-        == "standard"
+        == "hoch"
     )
     assert "Sprache" not in fake_st.selectbox_labels
     assert "Antwortmodus" not in fake_st.selectbox_labels

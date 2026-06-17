@@ -38,6 +38,7 @@ from constants import (
     UI_PREFERENCE_ANSWER_MODE,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
     UI_PREFERENCE_INFORMATION_DEPTH,
+    UI_MODE_DEFAULT,
     UI_MODE_DISPLAY_LABELS,
     UI_MODE_VALUES,
 )
@@ -1444,7 +1445,7 @@ def _render_esco_warnings_and_migration_cta() -> None:
 
 def get_current_ui_mode() -> str:
     """Return normalized UI mode from session state."""
-    ui_mode_raw = st.session_state.get(SSKey.UI_MODE.value, "standard")
+    ui_mode_raw = st.session_state.get(SSKey.UI_MODE.value, UI_MODE_DEFAULT)
     return normalize_ui_mode(ui_mode_raw)
 
 

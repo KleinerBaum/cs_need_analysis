@@ -26,6 +26,7 @@ from constants import (
     UI_PREFERENCE_ANSWER_MODE,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
     UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT,
+    UI_MODE_DEFAULT,
     UI_PREFERENCE_ESCO_MATCHING_STRICTNESS,
     UI_PREFERENCE_INFORMATION_DEPTH,
     UI_PREFERENCE_PII_REDUCTION,
@@ -159,14 +160,14 @@ def get_model_override() -> str | None:
 
 def _default_ui_preferences() -> dict[str, Any]:
     return {
-        UI_PREFERENCE_ANSWER_MODE: "balanced",
-        UI_PREFERENCE_INFORMATION_DEPTH: "standard",
+        UI_PREFERENCE_ANSWER_MODE: "advisory",
+        UI_PREFERENCE_INFORMATION_DEPTH: "hoch",
         UI_PREFERENCE_ESCO_MATCHING_STRICTNESS: "ausgewogen",
         UI_PREFERENCE_REGIONAL_FOCUS: "DACH",
         UI_PREFERENCE_SHOW_SOURCES_DEFAULT: True,
         UI_PREFERENCE_CONFIDENCE_THRESHOLD: 0.6,
         UI_PREFERENCE_PII_REDUCTION: True,
-        UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT: False,
+        UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT: True,
         UI_PREFERENCE_STEP_COMPACT: {},
         UI_PREFERENCE_UI_LANGUAGE: DEFAULT_LANGUAGE,
     }
@@ -304,7 +305,7 @@ def init_session_state() -> None:
         SSKey.QUESTION_FLOW_FINGERPRINT.value: "",
         SSKey.ANSWERS.value: {},
         SSKey.ANSWER_META.value: {},
-        SSKey.UI_MODE.value: "standard",
+        SSKey.UI_MODE.value: UI_MODE_DEFAULT,
         SSKey.UI_PREFERENCES.value: default_ui_preferences,
         SSKey.OPEN_GROUPS.value: {},
         SSKey.BRIEF.value: None,
@@ -522,7 +523,7 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.QUESTION_FLOW_FINGERPRINT.value] = ""
     st.session_state[SSKey.ANSWERS.value] = {}
     st.session_state[SSKey.ANSWER_META.value] = {}
-    st.session_state[SSKey.UI_MODE.value] = "standard"
+    st.session_state[SSKey.UI_MODE.value] = UI_MODE_DEFAULT
     if SSKey.UI_PREFERENCES.value not in st.session_state:
         st.session_state[SSKey.UI_PREFERENCES.value] = _default_ui_preferences()
     else:
