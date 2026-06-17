@@ -379,6 +379,65 @@ def test_generate_interview_sheet_hm_returns_validated_payload(monkeypatch) -> N
     assert usage["total_tokens"] == 23
 
 
+def test_generate_interview_sheet_hm_applies_selected_competencies_and_counts(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        llm_client,
+        "_resolve_runtime_config",
+        lambda **_: _runtime_config(),
+    )
+    captured: dict[str, Any] = {}
+
+    def _parse_success(**kwargs: Any) -> tuple[Any, dict[str, Any]]:
+        captured["messages"] = kwargs["messages"]
+        payload = {
+            "role_title": "Senior Data Engineer",
+            "interview_stage": "Fachinterview",
+            "duration_minutes": 60,
+            "competencies_to_validate": ["Ignored"],
+            "question_blocks": [
+                {
+                    "block_id": "technical",
+                    "title": "Technical",
+                    "objective": "Validate depth.",
+                    "questions": ["Q1", "Q2", "Q3"],
+                    "follow_up_prompts": ["F1"],
+                    "signal_tags": ["technical"],
+                }
+            ],
+            "technical_deep_dive_topics": ["Data Modelling"],
+            "case_or_task_prompt": None,
+            "evaluation_rubric": [],
+            "hiring_signal_summary": ["Strong ownership"],
+            "debrief_questions": ["D1", "D2", "D3"],
+        }
+        return kwargs["out_model"].model_validate(payload), {"total_tokens": 23}
+
+    monkeypatch.setattr(llm_client, "_parse_with_structured_outputs", _parse_success)
+
+    result, _usage = generate_interview_sheet_hm(
+        brief=_brief(),
+        model="gpt-5-mini",
+        generation_options={
+            "stage": "Finale Runde",
+            "duration_minutes": 90,
+            "focus": "Deep Dive",
+            "evaluation_depth": "detailliert",
+            "selected_competencies": ["Python", "Systemdesign"],
+            "questions_per_block": 2,
+            "debrief_question_count": 1,
+        },
+    )
+
+    combined_prompt = "\n".join(message["content"] for message in captured["messages"])
+    assert result.competencies_to_validate == ["Python", "Systemdesign"]
+    assert result.question_blocks[0].questions == ["Q1", "Q2"]
+    assert result.debrief_questions == ["D1"]
+    assert "selected_competencies" in combined_prompt
+    assert "debrief_question_count" in combined_prompt
+
+
 def test_generate_interview_sheet_hm_fallback_on_validation_error(monkeypatch) -> None:
     monkeypatch.setattr(
         llm_client,

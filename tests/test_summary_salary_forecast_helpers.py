@@ -304,6 +304,85 @@ def test_job_ad_docx_contains_logo_media_when_logo_present() -> None:
     assert media_entries
 
 
+def test_interview_fach_docx_contains_logo_and_excludes_styleguide() -> None:
+    png_bytes = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5vS3wAAAAASUVORK5CYII="
+    )
+    sheet = SUMMARY_MODULE.InterviewPrepSheetHiringManager(
+        role_title="Senior Data Engineer",
+        interview_stage="Fachinterview",
+        duration_minutes=60,
+        competencies_to_validate=["Python"],
+        question_blocks=[
+            {
+                "block_id": "technical",
+                "title": "Technical",
+                "objective": "Validate depth.",
+                "questions": ["Q1"],
+                "follow_up_prompts": [],
+                "signal_tags": [],
+            }
+        ],
+        technical_deep_dive_topics=["Data Modelling"],
+        case_or_task_prompt=None,
+        evaluation_rubric=[],
+        hiring_signal_summary=[],
+        debrief_questions=["D1"],
+    )
+
+    docx_bytes = SUMMARY_MODULE._interview_prep_fach_to_docx_bytes(
+        sheet,
+        logo_payload={
+            "name": "logo.png",
+            "mime_type": "image/png",
+            "bytes": png_bytes,
+        },
+        styleguide="Styleguide darf nicht exportiert werden.",
+    )
+
+    with ZipFile(io.BytesIO(docx_bytes), "r") as archive:
+        media_entries = [
+            name for name in archive.namelist() if name.startswith("word/media/")
+        ]
+        document_xml = archive.read("word/document.xml").decode("utf-8")
+    assert media_entries
+    assert "Styleguide darf nicht exportiert werden" not in document_xml
+    assert "Python" in document_xml
+
+
+def test_interview_fach_pdf_contains_logo_when_present() -> None:
+    pytest.importorskip("reportlab")
+    png_bytes = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5vS3wAAAAASUVORK5CYII="
+    )
+    sheet = SUMMARY_MODULE.InterviewPrepSheetHiringManager(
+        role_title="Senior Data Engineer",
+        interview_stage="Fachinterview",
+        duration_minutes=60,
+        competencies_to_validate=["Python"],
+        question_blocks=[],
+        technical_deep_dive_topics=[],
+        case_or_task_prompt=None,
+        evaluation_rubric=[],
+        hiring_signal_summary=[],
+        debrief_questions=["D1"],
+    )
+
+    pdf_bytes = SUMMARY_MODULE._interview_prep_fach_to_pdf_bytes(
+        sheet,
+        logo_payload={
+            "name": "logo.png",
+            "mime_type": "image/png",
+            "bytes": png_bytes,
+        },
+        styleguide="Styleguide darf nicht exportiert werden.",
+    )
+
+    assert pdf_bytes is not None
+    assert b"/Image" in pdf_bytes
+    assert b"Styleguide darf nicht exportiert werden" not in pdf_bytes
+
+
 def test_job_ad_docx_excludes_styleguide_from_publishable_export() -> None:
     job_ad = SUMMARY_MODULE.JobAdGenerationResult(
         headline="Titel",

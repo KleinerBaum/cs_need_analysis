@@ -1692,10 +1692,31 @@ def _interview_prep_hr_to_docx_bytes(sheet: InterviewPrepSheetHR) -> bytes:
     return bio.getvalue()
 
 
+def _apply_interview_docx_brand_style(document: docx.Document, styleguide: str) -> None:
+    normal = document.styles["Normal"]
+    normal.font.name = "Arial"
+    normal.font.size = docx.shared.Pt(10.5)
+    for style_name in ("Title", "Heading 1", "Heading 2", "Heading 3"):
+        style = document.styles[style_name]
+        style.font.name = "Arial"
+    if styleguide.strip():
+        for style_name in ("Heading 1", "Heading 2"):
+            document.styles[style_name].font.color.rgb = docx.shared.RGBColor(
+                31, 78, 121
+            )
+
+
 def _interview_prep_fach_to_docx_bytes(
     sheet: InterviewPrepSheetHiringManager,
+    *,
+    logo_payload: LogoPayload | None = None,
+    styleguide: str = "",
 ) -> bytes:
     d = docx.Document()
+    _apply_interview_docx_brand_style(d, styleguide)
+    if logo_payload is None:
+        logo_payload = _read_logo_payload()
+    _add_logo_to_docx(document=d, logo_payload=logo_payload)
     d.add_heading("Interview Sheet (Fachbereich)", level=1)
     d.add_paragraph(f"Rolle: {sheet.role_title}")
     d.add_paragraph(f"Interview-Stage: {sheet.interview_stage}")
@@ -1743,6 +1764,125 @@ def _interview_prep_fach_to_docx_bytes(
 
     bio = io.BytesIO()
     d.save(bio)
+    return bio.getvalue()
+
+
+def _interview_prep_fach_to_pdf_bytes(
+    sheet: InterviewPrepSheetHiringManager,
+    *,
+    logo_payload: LogoPayload | None = None,
+    styleguide: str = "",
+) -> bytes | None:
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.units import cm
+        from reportlab.lib.utils import ImageReader
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.lib.colors import HexColor
+        from reportlab.platypus import (
+            Image,
+            ListFlowable,
+            ListItem,
+            Paragraph,
+            SimpleDocTemplate,
+            Spacer,
+        )
+    except Exception:
+        return None
+
+    bio = io.BytesIO()
+    document = SimpleDocTemplate(
+        bio,
+        pagesize=A4,
+        leftMargin=2 * cm,
+        rightMargin=2 * cm,
+        topMargin=2 * cm,
+        bottomMargin=2 * cm,
+        title="Interview Sheet (Fachbereich)",
+        author="anonymous",
+    )
+    styles = getSampleStyleSheet()
+    if styleguide.strip():
+        styles["Heading1"].textColor = HexColor("#1F4E79")
+        styles["Heading2"].textColor = HexColor("#1F4E79")
+    story: list[Any] = []
+
+    if logo_payload is None:
+        logo_payload = _read_logo_payload()
+    if logo_payload is not None:
+        logo_bytes = logo_payload.get("bytes")
+        if isinstance(logo_bytes, bytes) and logo_bytes:
+            try:
+                image_width, image_height = ImageReader(io.BytesIO(logo_bytes)).getSize()
+                max_width = 4.2 * cm
+                max_height = 1.8 * cm
+                scale = min(max_width / image_width, max_height / image_height, 1)
+                story.append(
+                    Image(
+                        io.BytesIO(logo_bytes),
+                        width=image_width * scale,
+                        height=image_height * scale,
+                    )
+                )
+                story.append(Spacer(1, 0.5 * cm))
+            except Exception:
+                pass
+
+    def _paragraph(value: str, style_name: str = "BodyText") -> Paragraph:
+        return Paragraph(escape(value).replace("\n", "<br/>"), styles[style_name])
+
+    def _heading(value: str, style_name: str = "Heading2") -> None:
+        if value.strip():
+            story.append(_paragraph(value.strip(), style_name))
+
+    def _bullets(items: Sequence[str]) -> None:
+        clean_items = _dedupe_preserve_order(
+            [str(item).strip() for item in items if str(item).strip()]
+        )
+        if not clean_items:
+            return
+        story.append(
+            ListFlowable(
+                [ListItem(_paragraph(item), leftIndent=0) for item in clean_items],
+                bulletType="bullet",
+                leftIndent=14,
+            )
+        )
+
+    _heading("Interview Sheet (Fachbereich)", "Title")
+    story.append(_paragraph(f"Rolle: {sheet.role_title}"))
+    story.append(_paragraph(f"Interview-Stage: {sheet.interview_stage}"))
+    story.append(_paragraph(f"Dauer: {sheet.duration_minutes} Minuten"))
+    story.append(Spacer(1, 0.25 * cm))
+
+    _heading("Kompetenzen validieren")
+    _bullets(sheet.competencies_to_validate)
+    _heading("Frageblöcke")
+    for block in sheet.question_blocks:
+        _heading(block.title, "Heading3")
+        story.append(_paragraph(f"Ziel: {block.objective}"))
+        if block.questions:
+            story.append(_paragraph("Fragen:"))
+            _bullets(block.questions)
+        if block.follow_up_prompts:
+            story.append(_paragraph("Follow-ups:"))
+            _bullets(block.follow_up_prompts)
+    _heading("Technical Deep Dive")
+    _bullets(sheet.technical_deep_dive_topics)
+    _heading("Case/Task Prompt")
+    story.append(_paragraph(sheet.case_or_task_prompt or "Kein Case/Task hinterlegt."))
+    _heading("Bewertungsrubrik")
+    for criterion in sheet.evaluation_rubric:
+        _heading(criterion.title, "Heading3")
+        story.append(_paragraph(criterion.description))
+        story.append(_paragraph(f"Gewichtung: {criterion.weight_percent} %"))
+        if criterion.score_scale:
+            story.append(_paragraph(f"Skala: {' | '.join(criterion.score_scale)}"))
+        _bullets(criterion.evidence_examples)
+    _heading("Debrief-Fragen")
+    _bullets(sheet.debrief_questions)
+
+    document.build(story)
     return bio.getvalue()
 
 
@@ -2984,6 +3124,53 @@ def _default_job_ad_selected_values(vm: SummaryViewModel) -> dict[str, list[str]
     return selected_values
 
 
+def _append_distinct_text(output: list[str], values: Any, *, limit: int = 10) -> None:
+    if isinstance(values, (str, bytes)) or isinstance(values, Mapping):
+        iterable: Sequence[Any] = [values]
+    elif isinstance(values, Sequence):
+        iterable = values
+    else:
+        iterable = []
+    seen = {item.casefold() for item in output}
+    for item in iterable:
+        if isinstance(item, Mapping):
+            value = str(
+                item.get("label") or item.get("title") or item.get("name") or ""
+            )
+        else:
+            value = str(item)
+        value = value.strip()
+        dedupe_key = value.casefold()
+        if not value or dedupe_key in seen:
+            continue
+        output.append(value)
+        seen.add(dedupe_key)
+        if len(output) >= limit:
+            return
+
+
+def _build_fach_competency_suggestions(vm: SummaryViewModel) -> list[str]:
+    suggestions: list[str] = []
+    brief = vm.artifacts.brief
+    if brief is not None:
+        _append_distinct_text(suggestions, brief.must_have, limit=10)
+        _append_distinct_text(
+            suggestions, brief.structured_data.selected_skills or [], limit=10
+        )
+        esco_must = brief.structured_data.esco_skills_must or []
+        _append_distinct_text(suggestions, esco_must, limit=10)
+        _append_distinct_text(suggestions, brief.evaluation_rubric, limit=10)
+        _append_distinct_text(suggestions, brief.top_responsibilities, limit=10)
+    _append_distinct_text(suggestions, vm.job.must_have_skills, limit=10)
+    _append_distinct_text(suggestions, vm.job.soft_skills, limit=10)
+    _append_distinct_text(suggestions, vm.job.domain_expertise, limit=10)
+    _append_distinct_text(suggestions, vm.job.responsibilities, limit=10)
+    _append_distinct_text(
+        suggestions, vm.answers.get(FactKey.SKILLS_MUST_HAVE_SKILLS.value, []), limit=10
+    )
+    return suggestions[:10]
+
+
 def _read_optional_text_upload(uploaded_file: Any) -> str:
     if uploaded_file is None:
         return ""
@@ -3078,7 +3265,7 @@ def _render_job_ad_compact_controls(vm: SummaryViewModel) -> None:
     )
 
 
-def _render_interview_compact_controls() -> str:
+def _render_interview_compact_controls(vm: SummaryViewModel) -> str:
     sheet_type = st.selectbox(
         "Sheet",
         options=["HR", "Fachbereich"],
@@ -3119,6 +3306,55 @@ def _render_interview_compact_controls() -> str:
         "focus": focus,
         "evaluation_depth": depth,
     }
+    if artifact_id == "interview_fach":
+        suggestions = _build_fach_competency_suggestions(vm)
+        saved_options = _read_artifact_options("interview_fach")
+        saved_competencies = [
+            str(item).strip()
+            for item in saved_options.get("selected_competencies", [])
+            if str(item).strip()
+        ] if isinstance(saved_options.get("selected_competencies"), list) else []
+        default_competencies = [
+            item for item in saved_competencies if item in suggestions
+        ] or suggestions[: min(5, len(suggestions))]
+        selected_competencies = st.multiselect(
+            "Kompetenzen validieren",
+            options=suggestions,
+            default=default_competencies,
+            help="Bis zu 10 fachbereichsbezogene Vorschläge aus Brief, Skills und ESCO-Kontext.",
+            key=_widget_key(
+                SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
+                "interview_fach.competencies",
+            ),
+        )
+        left_fach, right_fach = st.columns(2)
+        with left_fach:
+            questions_per_block = st.selectbox(
+                "Fragen je Frageblock",
+                options=[1, 2, 3, 4, 5],
+                index=2,
+                key=_widget_key(
+                    SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
+                    "interview_fach.questions_per_block",
+                ),
+            )
+        with right_fach:
+            debrief_question_count = st.selectbox(
+                "Debrief-Fragen",
+                options=[1, 2, 3, 4, 5],
+                index=2,
+                key=_widget_key(
+                    SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
+                    "interview_fach.debrief_question_count",
+                ),
+            )
+        options.update(
+            {
+                "selected_competencies": selected_competencies[:10],
+                "questions_per_block": questions_per_block,
+                "debrief_question_count": debrief_question_count,
+            }
+        )
     _write_artifact_options(artifact_id, options)
     return artifact_id
 
@@ -3224,7 +3460,7 @@ def _render_summary_artifact_grid(
             "id": "interview",
             "title": "Interview-Vorbereitungssheet",
             "description": "HR- oder Fachbereich-Sheet mit Fragen und Bewertungslogik.",
-            "controls": _render_interview_compact_controls,
+            "controls": lambda: _render_interview_compact_controls(vm),
             "cta": "Interview-Sheet erstellen",
         },
         {
@@ -4442,8 +4678,19 @@ def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
             fach_json_bytes = json.dumps(
                 sheet.model_dump(mode="json"), indent=2, ensure_ascii=False
             ).encode("utf-8")
-            fach_docx_bytes = _interview_prep_fach_to_docx_bytes(sheet)
-            x1, x2 = st.columns(2)
+            logo_payload = _read_logo_payload()
+            styleguide = str(st.session_state.get(SSKey.SUMMARY_STYLEGUIDE_TEXT.value, ""))
+            fach_docx_bytes = _interview_prep_fach_to_docx_bytes(
+                sheet,
+                logo_payload=logo_payload,
+                styleguide=styleguide,
+            )
+            fach_pdf_bytes = _interview_prep_fach_to_pdf_bytes(
+                sheet,
+                logo_payload=logo_payload,
+                styleguide=styleguide,
+            )
+            x1, x2, x3 = st.columns(3)
             with x1:
                 st.download_button(
                     "Download Interview Sheet (Fachbereich) JSON",
@@ -4458,6 +4705,16 @@ def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
                     file_name="interview_sheet_fachbereich.docx",
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 )
+            with x3:
+                if fach_pdf_bytes is None:
+                    st.caption("PDF-Export benötigt reportlab (nicht verfügbar).")
+                else:
+                    st.download_button(
+                        "Download Interview Sheet (Fachbereich) PDF",
+                        data=fach_pdf_bytes,
+                        file_name="interview_sheet_fachbereich.pdf",
+                        mime="application/pdf",
+                    )
         else:
             st.info("Für dieses Artefakt liegt noch kein Ergebnis vor.")
         return

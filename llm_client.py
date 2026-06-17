@@ -2397,6 +2397,76 @@ def _artifact_context_block(
     )
 
 
+def _option_text_list(
+    options: Mapping[str, Any] | None, key: str, *, limit: int | None = None
+) -> list[str]:
+    raw_value = (options or {}).get(key)
+    if not isinstance(raw_value, Sequence) or isinstance(raw_value, (str, bytes)):
+        return []
+    output: list[str] = []
+    seen: set[str] = set()
+    for item in raw_value:
+        value = str(item).strip()
+        dedupe_key = value.casefold()
+        if not value or dedupe_key in seen:
+            continue
+        output.append(value)
+        seen.add(dedupe_key)
+        if limit is not None and len(output) >= limit:
+            break
+    return output
+
+
+def _option_positive_int(
+    options: Mapping[str, Any] | None,
+    key: str,
+    *,
+    default: int,
+    minimum: int,
+    maximum: int,
+) -> int:
+    try:
+        value = int((options or {}).get(key, default))
+    except (TypeError, ValueError):
+        value = default
+    return max(minimum, min(maximum, value))
+
+
+def _normalize_hm_interview_sheet(
+    sheet: InterviewPrepSheetHiringManager,
+    *,
+    generation_options: Mapping[str, Any] | None,
+) -> InterviewPrepSheetHiringManager:
+    selected_competencies = _option_text_list(
+        generation_options, "selected_competencies", limit=10
+    )
+    questions_per_block = _option_positive_int(
+        generation_options,
+        "questions_per_block",
+        default=3,
+        minimum=1,
+        maximum=8,
+    )
+    debrief_question_count = _option_positive_int(
+        generation_options,
+        "debrief_question_count",
+        default=3,
+        minimum=1,
+        maximum=8,
+    )
+    question_blocks = [
+        block.model_copy(update={"questions": block.questions[:questions_per_block]})
+        for block in sheet.question_blocks
+    ]
+    updates: dict[str, Any] = {
+        "question_blocks": question_blocks,
+        "debrief_questions": sheet.debrief_questions[:debrief_question_count],
+    }
+    if selected_competencies:
+        updates["competencies_to_validate"] = selected_competencies
+    return sheet.model_copy(update=updates)
+
+
 def generate_interview_sheet_hr(
     *,
     brief: VacancyBrief,
@@ -2474,6 +2544,24 @@ def generate_interview_sheet_hm(
 ) -> tuple[InterviewPrepSheetHiringManager, dict[str, Any]]:
     """Generate hiring-manager interview prep sheet with deterministic fallback."""
 
+    generation_options = dict(generation_options or {})
+    selected_competencies = _option_text_list(
+        generation_options, "selected_competencies", limit=10
+    )
+    questions_per_block = _option_positive_int(
+        generation_options,
+        "questions_per_block",
+        default=3,
+        minimum=1,
+        maximum=8,
+    )
+    debrief_question_count = _option_positive_int(
+        generation_options,
+        "debrief_question_count",
+        default=3,
+        minimum=1,
+        maximum=8,
+    )
     role_title = brief.one_liner.strip() or "Rolle"
     system = (
         "Du bist ein erfahrener Hiring Manager Interview-Coach. "
@@ -2485,6 +2573,13 @@ def generate_interview_sheet_hm(
         "(AGG-konform). "
         "Leite technical_deep_dive_topics direkt aus brief.must_have und "
         "brief.top_responsibilities ab. "
+        "Beachte Artifact-Optionen strikt: stage, duration_minutes, focus, "
+        "evaluation_depth, selected_competencies, questions_per_block und "
+        "debrief_question_count steuern den Output. "
+        "Wenn selected_competencies gesetzt ist, nutze genau diese Kompetenzen in "
+        "competencies_to_validate. "
+        f"Erzeuge pro Frageblock maximal {questions_per_block} Fragen und genau "
+        f"{debrief_question_count} Debrief-Fragen, sofern fachlich sinnvoll. "
         f"Sprache: {language}."
     )
     user = (
@@ -2496,9 +2591,15 @@ def generate_interview_sheet_hm(
     )
     fallback_payload = {
         "role_title": role_title,
-        "interview_stage": "Fachinterview",
-        "duration_minutes": 60,
-        "competencies_to_validate": brief.must_have[:5],
+        "interview_stage": str(generation_options.get("stage") or "Fachinterview"),
+        "duration_minutes": _option_positive_int(
+            generation_options,
+            "duration_minutes",
+            default=60,
+            minimum=15,
+            maximum=240,
+        ),
+        "competencies_to_validate": selected_competencies or brief.must_have[:5],
         "question_blocks": _fallback_core_question_blocks(brief),
         "technical_deep_dive_topics": brief.top_responsibilities[:3],
         "case_or_task_prompt": "Bitte schildern Sie eine vergleichbare Aufgabe inklusive Ziel, Vorgehen und Ergebnis.",
@@ -2522,7 +2623,11 @@ def generate_interview_sheet_hm(
         store=store,
         temperature=temperature,
     )
-    return cast(InterviewPrepSheetHiringManager, parsed), usage
+    sheet = _normalize_hm_interview_sheet(
+        cast(InterviewPrepSheetHiringManager, parsed),
+        generation_options=generation_options,
+    )
+    return sheet, usage
 
 
 def generate_boolean_search_pack(
