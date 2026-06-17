@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import streamlit as st
 from components.iceberg_need_analysis import (
     COMPONENT_HEIGHT,
@@ -16,6 +18,27 @@ from wizard_pages.base import (
     render_esco_language_toggle,
     render_landing_css,
 )
+
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+LANDING_LOGO_LIGHT_PATH = (
+    ROOT_DIR / "images" / "animation_pulse_SingleColorHex1_7kigl22lw.gif"
+)
+LANDING_LOGO_DARK_PATH = ROOT_DIR / "images" / "animation_pulse_Default_7kigl22lw.gif"
+
+
+def _theme_base() -> str:
+    try:
+        theme_base = st.get_option("theme.base")
+    except Exception:
+        theme_base = None
+    return str(theme_base or "light").lower()
+
+
+def _landing_logo_path() -> Path:
+    if _theme_base() == "light":
+        return LANDING_LOGO_LIGHT_PATH
+    return LANDING_LOGO_DARK_PATH
 
 
 def _render_landing_responsive_overrides() -> None:
@@ -43,6 +66,19 @@ def _render_landing_responsive_overrides() -> None:
                 border-color: color-mix(in srgb, var(--cs-success) 88%, #000000);
                 background: color-mix(in srgb, var(--cs-success) 88%, #000000);
                 outline: none;
+            }
+            .landing-start-logo {
+                display: flex;
+                align-items: center;
+                margin-bottom: 0.55rem;
+            }
+            .landing-start-logo [data-testid="stImage"] {
+                width: 220px;
+                max-width: min(220px, 60vw);
+            }
+            .landing-start-logo img {
+                width: 100%;
+                height: auto;
             }
             .landing-process-diagram {
                 border: 1px solid color-mix(in srgb, var(--cs-success) 42%, var(--cs-border));
@@ -156,6 +192,9 @@ def _render_landing_hero() -> None:
         f'<section id="{LANDING_SECTION_IDS["hero"]}" class="landing-section landing-hero">',
         unsafe_allow_html=True,
     )
+    st.markdown('<div class="landing-start-logo">', unsafe_allow_html=True)
+    st.image(str(_landing_logo_path()), width=220)
+    st.markdown("</div>", unsafe_allow_html=True)
     st.markdown('<div class="landing-app-title-row">', unsafe_allow_html=True)
     st.markdown(
         f'<span class="landing-app-title">{APP_TITLE}</span>',

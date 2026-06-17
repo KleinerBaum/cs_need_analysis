@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import base64
-from pathlib import Path
 import streamlit as st
 
 from components.design_system import render_ui_styles
@@ -57,17 +55,7 @@ def _inject_theme_styles() -> None:
 
     render_ui_styles()
 
-    root_dir = Path(__file__).resolve().parent
-    logo_path = root_dir / "images" / "animation_pulse_SingleColorHex1_7kigl22lw.gif"
-
-    def _image_uri(path: Path, mime_type: str) -> str:
-        image_bytes = path.read_bytes()
-        encoded_image = base64.b64encode(image_bytes).decode("utf-8")
-        return f"data:{mime_type};base64,{encoded_image}"
-
-    logo_uri = _image_uri(logo_path, "image/gif")
-
-    # App-shell specific styles (logo/header/sidebar spacing/layout quirks).
+    # App-shell specific styles (header/sidebar spacing/layout quirks).
     st.markdown(
         f"""
         <style>
@@ -116,15 +104,6 @@ def _inject_theme_styles() -> None:
             .stMainBlockContainer,
             .block-container {{
                 background: transparent !important;
-            }}
-
-            [data-testid="stSidebarContent"]::before {{
-                content: "";
-                display: block;
-                width: 220px;
-                height: 64px;
-                margin: 0 auto 0.75rem auto;
-                background: url("{logo_uri}") center / contain no-repeat;
             }}
 
             .block-container {{
