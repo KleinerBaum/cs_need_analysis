@@ -25,6 +25,7 @@ from constants import (
     STEP_KEY_INTERVIEW,
     STEP_KEY_ROLE_TASKS,
     STEP_KEY_SKILLS,
+    UI_PREFERENCE_CONFIDENCE_THRESHOLD,
 )
 from interview_process import (
     build_candidate_stage_values,
@@ -37,6 +38,7 @@ from intake_facts import (
     build_intake_fact_resolution_state,
     get_intake_fact_evidence_state,
     get_intake_fact_state,
+    latest_fact_confidence,
     mark_intake_facts_used_by_artifact,
     write_intake_fact,
 )
@@ -78,6 +80,7 @@ from schemas import (
     OccupationQuestionContext,
     QuestionFlowProvenance,
     QuestionPlan,
+    QuestionStep,
     VacancyBrief,
     VacancyStructuredData,
     CompanyWebsiteResearch,
@@ -87,11 +90,15 @@ from state import (
     clear_error,
     get_esco_occupation_selected,
     get_answers,
+    get_answer_meta,
     has_confirmed_esco_anchor,
     get_model_override,
     handle_unexpected_exception,
     set_answer,
 )
+from question_dependencies import should_show_question
+from question_limits import select_questions_for_step_scope
+from step_status import build_step_status_payload
 from components.design_system import (
     render_card_start,
     render_critical_gaps,
@@ -2095,32 +2102,106 @@ def _render_summary_meta_badges(meta: SummaryMeta, status: SummaryStatus) -> Non
         columns[idx].metric(label, str(value))
 
 
+def _read_summary_confidence_threshold() -> float | None:
+    preferences_raw = st.session_state.get(SSKey.UI_PREFERENCES.value, {})
+    if not isinstance(preferences_raw, Mapping):
+        return None
+    try:
+        return max(
+            0.0,
+            min(1.0, float(preferences_raw.get(UI_PREFERENCE_CONFIDENCE_THRESHOLD))),
+        )
+    except (TypeError, ValueError):
+        return None
+
+
+def _build_summary_completion_status(
+    *,
+    plan: QuestionPlan | None,
+    answers: dict[str, Any],
+    answer_meta: Mapping[str, Any],
+    job_extract: JobAdExtract | None,
+    intake_facts: Mapping[str, Any],
+    intake_fact_evidence: Mapping[str, Any],
+    confidence_threshold: float | None,
+) -> tuple[float, str]:
+    if plan is None:
+        return 0.0, f"{len(answers)} Antworten"
+
+    limits_raw = st.session_state.get(SSKey.QUESTION_LIMITS.value, {})
+    question_limits = limits_raw if isinstance(limits_raw, dict) else None
+    answered_questions = 0
+    total_questions = 0
+    for step in plan.steps:
+        if step.step_key in NON_INTAKE_STEP_KEYS:
+            continue
+        questions = select_questions_for_step_scope(
+            step.questions,
+            step_key=step.step_key,
+            question_limits=question_limits,
+            answers=answers,
+            answer_meta=answer_meta,
+            job_extract=job_extract,
+            intake_facts=intake_facts,
+            intake_fact_evidence=intake_fact_evidence,
+            confidence_threshold=confidence_threshold,
+        )
+        status = build_step_status_payload(
+            step=QuestionStep(
+                step_key=step.step_key,
+                title_de=step.title_de,
+                description_de=step.description_de,
+                questions=questions,
+            ),
+            answers=answers,
+            answer_meta=answer_meta,
+            should_show_question=should_show_question,
+            step_key=step.step_key,
+            job_extract=job_extract,
+            intake_facts=intake_facts,
+            intake_fact_evidence=intake_fact_evidence,
+            confidence_threshold=confidence_threshold,
+        )
+        answered_questions += status["answered"]
+        total_questions += status["total"]
+
+    if total_questions <= 0:
+        return 0.0, f"{len(answers)} Antworten"
+    return (
+        answered_questions / total_questions,
+        f"{answered_questions}/{total_questions} beantwortet",
+    )
+
+
 def _build_summary_status(
-    *, answers: dict[str, Any], meta: SummaryMeta, resolved_brief_model: str | None
+    *,
+    answers: dict[str, Any],
+    meta: SummaryMeta,
+    resolved_brief_model: str | None,
+    plan: QuestionPlan | None = None,
+    answer_meta: Mapping[str, Any] | None = None,
+    job_extract: JobAdExtract | None = None,
+    intake_facts: Mapping[str, Any] | None = None,
+    intake_fact_evidence: Mapping[str, Any] | None = None,
+    confidence_threshold: float | None = None,
 ) -> SummaryStatus:
     esco_ready = bool(meta.selected_occupation_title)
-    completion_text = f"{len(answers)} Antworten"
-    completion_ratio = 0.0
-    plan_payload = st.session_state.get(SSKey.QUESTION_PLAN.value)
-    if isinstance(plan_payload, dict):
-        try:
-            plan_model = QuestionPlan.model_validate(plan_payload)
-            question_ids = [
-                question.id
-                for step in plan_model.steps
-                if step.step_key not in NON_INTAKE_STEP_KEYS
-                for question in step.questions
-            ]
-            total_questions = len(question_ids)
-            answered_questions = sum(
-                1 for qid in question_ids if answers.get(qid) not in (None, "", [])
-            )
-            completion_ratio = (
-                answered_questions / total_questions if total_questions > 0 else 0.0
-            )
-            completion_text = f"{answered_questions}/{total_questions} beantwortet"
-        except Exception:
-            completion_text = f"{len(answers)} Antworten"
+    if plan is None:
+        plan_payload = st.session_state.get(SSKey.QUESTION_PLAN.value)
+        if isinstance(plan_payload, dict):
+            try:
+                plan = QuestionPlan.model_validate(plan_payload)
+            except Exception:
+                plan = None
+    completion_ratio, completion_text = _build_summary_completion_status(
+        plan=plan,
+        answers=answers,
+        answer_meta=answer_meta or {},
+        job_extract=job_extract,
+        intake_facts=intake_facts or {},
+        intake_fact_evidence=intake_fact_evidence or {},
+        confidence_threshold=confidence_threshold,
+    )
 
     brief_status = _resolve_canonical_brief_status(
         resolved_brief_model=resolved_brief_model
@@ -2175,7 +2256,16 @@ def _build_summary_view_model() -> SummaryViewModel | None:
     selected_role_tasks = _read_saved_selection_labels(SSKey.ROLE_TASKS_SELECTED)
     selected_skills = _read_saved_selection_labels(SSKey.SKILLS_SELECTED)
     selected_benefits = _read_saved_selection_labels(SSKey.BENEFITS_SELECTED)
-    meta = _build_summary_meta(job)
+    answer_meta = get_answer_meta()
+    intake_facts = get_intake_fact_state(st.session_state)
+    intake_fact_evidence = get_intake_fact_evidence_state(st.session_state)
+    confidence_threshold = _read_summary_confidence_threshold()
+    meta = _build_summary_meta(
+        job,
+        intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
+    )
     session_override = get_model_override()
     settings = load_openai_settings()
     resolved_brief_model = resolve_model_for_task(
@@ -2208,6 +2298,12 @@ def _build_summary_view_model() -> SummaryViewModel | None:
         answers=answers,
         meta=meta,
         resolved_brief_model=resolved_brief_model,
+        plan=plan,
+        answer_meta=answer_meta,
+        job_extract=job,
+        intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
     )
     fact_rows = _build_summary_fact_rows(
         job=job,
@@ -2276,12 +2372,68 @@ def _read_esco_match_explainability() -> EscoMatchExplainability:
     return explainability
 
 
-def _build_summary_meta(job: JobAdExtract) -> SummaryMeta:
+def _summary_fact_allows_readiness(
+    fact_key: FactKey,
+    *,
+    intake_fact_evidence: Mapping[str, Any] | None,
+    confidence_threshold: float | None,
+) -> bool:
+    if confidence_threshold is None:
+        return True
+    confidence = latest_fact_confidence(fact_key, intake_fact_evidence)
+    return confidence is None or confidence >= confidence_threshold
+
+
+def _resolve_summary_meta_value(
+    fact_key: FactKey,
+    fallback_value: Any,
+    *,
+    intake_facts: Mapping[str, Any] | None,
+    intake_fact_evidence: Mapping[str, Any] | None,
+    confidence_threshold: float | None,
+) -> str:
+    if isinstance(intake_facts, Mapping) and fact_key.value in intake_facts:
+        fact_value = intake_facts.get(fact_key.value)
+        has_value = _status_for_value(fact_value) != "Fehlend"
+        if has_value and _summary_fact_allows_readiness(
+            fact_key,
+            intake_fact_evidence=intake_fact_evidence,
+            confidence_threshold=confidence_threshold,
+        ):
+            return _format_summary_fact_value(fact_value).strip()
+    return _format_summary_fact_value(fallback_value).strip()
+
+
+def _build_summary_meta(
+    job: JobAdExtract,
+    *,
+    intake_facts: Mapping[str, Any] | None = None,
+    intake_fact_evidence: Mapping[str, Any] | None = None,
+    confidence_threshold: float | None = None,
+) -> SummaryMeta:
     selected_occupation = _read_selected_esco_occupation()
     return SummaryMeta(
-        role_label=str(job.job_title or "").strip(),
-        company_label=str(job.company_name or "").strip(),
-        country_label=str(job.location_country or "").strip(),
+        role_label=_resolve_summary_meta_value(
+            FactKey.ROLE_JOB_TITLE,
+            job.job_title,
+            intake_facts=intake_facts,
+            intake_fact_evidence=intake_fact_evidence,
+            confidence_threshold=confidence_threshold,
+        ),
+        company_label=_resolve_summary_meta_value(
+            FactKey.COMPANY_COMPANY_NAME,
+            job.company_name,
+            intake_facts=intake_facts,
+            intake_fact_evidence=intake_fact_evidence,
+            confidence_threshold=confidence_threshold,
+        ),
+        country_label=_resolve_summary_meta_value(
+            FactKey.COMPANY_LOCATION_COUNTRY,
+            job.location_country,
+            intake_facts=intake_facts,
+            intake_fact_evidence=intake_fact_evidence,
+            confidence_threshold=confidence_threshold,
+        ),
         selected_occupation_title=selected_occupation.get("title", ""),
         readiness_items=_build_country_readiness_items(job),
     )

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from constants import AnswerType, FactKey
+from constants import AnswerType, FactKey, STEP_KEY_ROLE_TASKS
 from question_dependencies import should_show_question
 from question_limits import select_questions_for_step_scope
 from schemas import JobAdExtract, Question, QuestionStep
@@ -225,6 +225,53 @@ def test_build_step_status_payload_keeps_jobspec_fallback_without_facts() -> Non
     assert payload["total"] == 1
     assert payload["answered"] == 1
     assert payload["missing_essential_ids"] == []
+
+
+def test_build_step_status_payload_counts_jobspec_evidence_fact_and_missing_fact() -> None:
+    step = QuestionStep(
+        step_key=STEP_KEY_ROLE_TASKS,
+        title_de="Role",
+        questions=[
+            Question(
+                id="role_title",
+                label="Welche Rolle wird gesucht?",
+                answer_type=AnswerType.SHORT_TEXT,
+                target_path=FactKey.ROLE_JOB_TITLE.value,
+                required=True,
+                priority="core",
+            ),
+            Question(
+                id="location_country",
+                label="Für welches Land gilt die Vakanz?",
+                answer_type=AnswerType.SHORT_TEXT,
+                target_path=FactKey.COMPANY_LOCATION_COUNTRY.value,
+                required=True,
+                priority="core",
+            ),
+        ],
+    )
+
+    payload = build_step_status_payload(
+        step=step,
+        answers={},
+        answer_meta={},
+        should_show_question=_always_visible,
+        step_key=step.step_key,
+        intake_facts={FactKey.ROLE_JOB_TITLE.value: "Data Engineer"},
+        intake_fact_evidence={
+            FactKey.ROLE_JOB_TITLE.value: {
+                "source_label": "Jobspec extraction",
+                "confidence": 0.9,
+            }
+        },
+        confidence_threshold=0.6,
+    )
+
+    assert payload["answered"] == 1
+    assert payload["total"] == 2
+    assert payload["essentials_answered"] == 1
+    assert payload["essentials_total"] == 2
+    assert payload["missing_essential_ids"] == ["location_country"]
 
 
 def test_step_status_payload_matches_adaptive_selected_question_scope() -> None:

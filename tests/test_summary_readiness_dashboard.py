@@ -5,7 +5,14 @@ from pathlib import Path
 from typing import Any, Literal
 from types import SimpleNamespace
 
-from constants import SSKey
+from constants import (
+    AnswerType,
+    FactKey,
+    SSKey,
+    STEP_KEY_ROLE_TASKS,
+    UI_PREFERENCE_CONFIDENCE_THRESHOLD,
+)
+from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
 
 
 SUMMARY_PATH = Path(__file__).resolve().parents[1] / "wizard_pages" / "08_summary.py"
@@ -107,6 +114,82 @@ def test_artifact_pipeline_status_uses_brief_freshness(monkeypatch) -> None:
     )
 
     assert (status_key, status_label) == ("stale", "Veraltet")
+
+
+def test_summary_status_counts_jobspec_evidence_fact_and_missing_fact(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.UI_PREFERENCES.value: {
+                    UI_PREFERENCE_CONFIDENCE_THRESHOLD: 0.6
+                }
+            }
+        ),
+    )
+    job = JobAdExtract()
+    intake_facts = {FactKey.ROLE_JOB_TITLE.value: "Data Engineer"}
+    intake_fact_evidence = {
+        FactKey.ROLE_JOB_TITLE.value: {
+            "source_label": "Jobspec extraction",
+            "confidence": 0.9,
+        }
+    }
+    plan = QuestionPlan(
+        steps=[
+            QuestionStep(
+                step_key=STEP_KEY_ROLE_TASKS,
+                title_de="Role",
+                questions=[
+                    Question(
+                        id="role_title",
+                        label="Welche Rolle wird gesucht?",
+                        answer_type=AnswerType.SHORT_TEXT,
+                        target_path=FactKey.ROLE_JOB_TITLE.value,
+                        required=True,
+                        priority="core",
+                    ),
+                    Question(
+                        id="location_country",
+                        label="Für welches Land gilt die Vakanz?",
+                        answer_type=AnswerType.SHORT_TEXT,
+                        target_path=FactKey.COMPANY_LOCATION_COUNTRY.value,
+                        required=True,
+                        priority="core",
+                    ),
+                ],
+            )
+        ]
+    )
+
+    confidence_threshold = SUMMARY_MODULE._read_summary_confidence_threshold()
+    meta = SUMMARY_MODULE._build_summary_meta(
+        job,
+        intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
+    )
+    status = SUMMARY_MODULE._build_summary_status(
+        answers={},
+        meta=meta,
+        resolved_brief_model="gpt-5-mini",
+        plan=plan,
+        answer_meta={},
+        job_extract=job,
+        intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
+    )
+
+    assert meta.role_label == "Data Engineer"
+    assert meta.country_label == ""
+    assert status.completion_text == "1/2 beantwortet"
+    assert status.completion_ratio == 0.5
+    assert status.readiness_percent == 25
+    assert status.ready_for_follow_ups is True
 
 
 def test_readiness_tab_delegates_detail_sections_to_workspaces(monkeypatch) -> None:
