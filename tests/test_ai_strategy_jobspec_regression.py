@@ -8,15 +8,15 @@ from schemas import Contact, JobAdExtract, JobAdFieldEvidence, MoneyRange
 def _ai_strategy_manager_extract() -> JobAdExtract:
     return JobAdExtract(
         job_title="AI Strategy / Analytics Manager (all genders)",
-        remote_policy="Hybrid moeglich; regelmaessige Projektpraesenz beim Kunden erforderlich.",
-        travel_required="Projektmobilitaet innerhalb DACH erforderlich.",
-        salary_range=MoneyRange(notes="Competitive package, abhaengig von Erfahrung."),
+        remote_policy="Hybrid möglich; regelmäßige Projektpräsenz beim Kunden erforderlich.",
+        travel_required="Projektmobilität innerhalb DACH erforderlich.",
+        salary_range=MoneyRange(notes="Competitive package, abhängig von Erfahrung."),
         languages=["Deutsch C1", "Englisch B2"],
         responsibilities=[
             "AI-Strategien und Analytics-Roadmaps entwickeln",
             "Data-Governance-Zielbilder strukturieren",
-            "Digitale Geschaeftsmodelle und Operating Models bewerten",
-            "Business Cases fuer Transformationsprogramme erstellen",
+            "Digitale Geschäftsmodelle und Operating Models bewerten",
+            "Business Cases für Transformationsprogramme erstellen",
         ],
         must_have_skills=[
             "AI Strategy",
@@ -25,7 +25,7 @@ def _ai_strategy_manager_extract() -> JobAdExtract:
             "Operating Model Design",
             "Digital Business Models",
             "Consulting",
-            "Fachliche und disziplinarische Fuehrung",
+            "Fachliche und disziplinarische Führung",
             "Business Case Development",
         ],
         benefits=["Weiterbildungsbudget", "Hybrid Work", "Corporate Benefits"],
@@ -55,10 +55,10 @@ def test_ai_strategy_manager_regression_fixture_keeps_core_distinctions() -> Non
     assert job.salary_range.min is None
     assert job.salary_range.max is None
     assert "Competitive" in (job.salary_range.notes or "")
-    assert "Projektmobilitaet" in (job.travel_required or "")
+    assert "Projektmobilität" in (job.travel_required or "")
     assert len(job.languages) == 2
     assert job.languages == ["Deutsch C1", "Englisch B2"]
-    assert "Fachliche und disziplinarische Fuehrung" in job.must_have_skills
+    assert "Fachliche und disziplinarische Führung" in job.must_have_skills
     assert "Hybrid Work" in job.benefits
     assert "Hybrid Work" not in job.must_have_skills
     for cluster in (

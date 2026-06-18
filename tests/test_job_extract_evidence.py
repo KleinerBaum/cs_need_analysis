@@ -43,7 +43,7 @@ def test_format_field_evidence_snippet_redacts_and_truncates() -> None:
         {
             "evidence_snippet": (
                 "Kontakt recruiting@example.com sucht Senior Data Engineer "
-                "fuer die Plattform."
+                "für die Plattform."
             )
         },
         max_chars=48,

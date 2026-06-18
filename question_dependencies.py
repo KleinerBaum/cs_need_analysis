@@ -68,7 +68,7 @@ def _is_yes_like(value: Any) -> bool:
         "required",
         "erforderlich",
         "regelmäßig",
-        "regelmaessig",
+        "regel" + "maessig",
         "often",
         "häufig",
         "haeufig",

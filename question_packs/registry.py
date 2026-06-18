@@ -21,7 +21,7 @@ from constants import (
     STEP_KEY_ROLE_TASKS,
     STEP_KEY_SKILLS,
 )
-from schemas import Question
+from schemas import Question, QuestionOption
 
 from question_packs.types import QuestionPack, QuestionPackEntry
 
@@ -62,7 +62,7 @@ BASE_CORE_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_COMPANY,
             question_id="ctx_company_employer_pitch",
-            label="Wie wuerden Sie das Unternehmen in 1-2 Saetzen fuer Kandidat:innen beschreiben?",
+            label="Wie würden Sie das Unternehmen in 1-2 Sätzen für Kandidat:innen beschreiben?",
             answer_type=AnswerType.LONG_TEXT,
             group_key="company_profile",
             priority="core",
@@ -73,7 +73,7 @@ BASE_CORE_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_COMPANY,
             question_id="ctx_company_business_unit",
-            label="In welchem Geschaefts- oder Produktbereich sitzt die Rolle?",
+            label="In welchem Geschäfts- oder Produktbereich sitzt die Rolle?",
             answer_type=AnswerType.SHORT_TEXT,
             group_key="company_profile",
             priority="core",
@@ -104,7 +104,7 @@ BASE_CORE_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_COMPANY,
             question_id="ctx_company_role_business_impact",
-            label="Welchen Business Impact soll die Rolle fuer das Unternehmen haben?",
+            label="Welchen Business Impact soll die Rolle für das Unternehmen haben?",
             answer_type=AnswerType.LONG_TEXT,
             group_key="business_context",
             priority="standard",
@@ -114,7 +114,7 @@ BASE_CORE_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_COMPANY,
             question_id="ctx_company_role_positioning",
-            label="Welche Aspekte der Unternehmenspositionierung sind fuer diese Rolle wirklich relevant?",
+            label="Welche Aspekte der Unternehmenspositionierung sind für diese Rolle wirklich relevant?",
             answer_type=AnswerType.MULTI_SELECT,
             group_key="company_profile",
             priority="standard",
@@ -124,7 +124,7 @@ BASE_CORE_PACK = QuestionPack(
                 "Marktposition",
                 "Produkt",
                 "Wachstum",
-                "Stabilitaet",
+                QuestionOption(value="Stabilitaet", label="Stabilität"),
                 "Technologie",
                 "Mission",
                 "Kundennutzen",
@@ -163,7 +163,7 @@ BASE_CORE_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_COMPANY,
             question_id="ctx_team_size_direct",
-            label="Wie gross ist das unmittelbare Team?",
+            label="Wie groß ist das unmittelbare Team?",
             answer_type=AnswerType.NUMBER,
             group_key="team_reporting",
             priority="standard",
@@ -173,7 +173,7 @@ BASE_CORE_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_COMPANY,
             question_id="ctx_team_stakeholders_primary",
-            label="Mit welchen wichtigsten Stakeholdern arbeitet die Person regelmaessig?",
+            label="Mit welchen wichtigsten Stakeholdern arbeitet die Person regelmäßig?",
             answer_type=AnswerType.MULTI_SELECT,
             group_key="stakeholders",
             priority="core",
@@ -195,7 +195,7 @@ BASE_CORE_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_COMPANY,
             question_id="ctx_company_work_arrangement",
-            label="Welches Arbeitsmodell gilt fuer diese Rolle?",
+            label="Welches Arbeitsmodell gilt für diese Rolle?",
             answer_type=AnswerType.SINGLE_SELECT,
             group_key="work_arrangement",
             priority="core",
@@ -224,7 +224,7 @@ BASE_CORE_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_COMPANY,
             question_id="ctx_company_language_external",
-            label="Welche externe Kommunikationssprache ist bei Kund:innen oder Partnern noetig?",
+            label="Welche externe Kommunikationssprache ist bei Kund:innen oder Partnern nötig?",
             answer_type=AnswerType.SHORT_TEXT,
             group_key="work_arrangement",
             priority="standard",
@@ -256,7 +256,7 @@ BASE_CORE_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_COMPANY,
             question_id="ctx_team_success_context_90d",
-            label="Welche Arbeitsweise ist im Team noetig, um in den ersten 90 Tagen zu bestehen?",
+            label="Welche Arbeitsweise ist im Team nötig, um in den ersten 90 Tagen zu bestehen?",
             answer_type=AnswerType.LONG_TEXT,
             group_key="team_reporting",
             priority="standard",
@@ -294,12 +294,23 @@ BASE_CORE_PACK = QuestionPack(
             target_path=FactKey.ROLE_DAY1_RESPONSIBILITIES.value,
             fact_key=FactKey.ROLE_DAY1_RESPONSIBILITIES,
             required=True,
-            options=["aus Jobspec uebernehmen", "Kernbetrieb", "Kundenkontakt", "Reporting", "Projektstart", "Teamkoordination", "Sonstiges"],
+            options=[
+                QuestionOption(
+                    value="aus Jobspec uebernehmen",
+                    label="aus Jobspec übernehmen",
+                ),
+                "Kernbetrieb",
+                "Kundenkontakt",
+                "Reporting",
+                "Projektstart",
+                "Teamkoordination",
+                "Sonstiges",
+            ],
         ),
         _pack_entry(
             step_key=STEP_KEY_ROLE_TASKS,
             question_id="ctx_role_expansion_scope",
-            label="Welche Aufgaben sind Nice-to-have oder spaeter ausbaubar?",
+            label="Welche Aufgaben sind Nice-to-have oder später ausbaubar?",
             answer_type=AnswerType.MULTI_SELECT,
             group_key="outcome_scope",
             priority="standard",
@@ -321,7 +332,7 @@ BASE_CORE_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_ROLE_TASKS,
             question_id="ctx_role_year1_success_signals",
-            label="Wofuer wuerde die Person in 12 Monaten gemessen oder gelobt werden?",
+            label="Wofür würde die Person in 12 Monaten gemessen oder gelobt werden?",
             answer_type=AnswerType.LONG_TEXT,
             group_key="success_context",
             priority="standard",
@@ -348,7 +359,7 @@ BASE_CORE_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_SKILLS,
             question_id="ctx_skills_readiness_timing",
-            label="Welche Top-Skills muessen zum Start vorhanden sein, welche sind in 90 Tagen lernbar?",
+            label="Welche Top-Skills müssen zum Start vorhanden sein, welche sind in 90 Tagen lernbar?",
             answer_type=AnswerType.LONG_TEXT,
             group_key="must_nice_trainable",
             priority="core",
@@ -414,7 +425,7 @@ BASE_CORE_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_BENEFITS,
             question_id="ctx_benefits_variable_pay",
-            label="Wie ist variable Verguetung, Bonus oder OTE geregelt?",
+            label="Wie ist variable Vergütung, Bonus oder OTE geregelt?",
             answer_type=AnswerType.LONG_TEXT,
             group_key="compensation_contract",
             priority="core",
@@ -483,7 +494,7 @@ BASE_CORE_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_BENEFITS,
             question_id="ctx_legal_work_authorization_support",
-            label="Ist Visa- oder Work-Permit-Sponsoring moeglich?",
+            label="Ist Visa- oder Work-Permit-Sponsoring möglich?",
             answer_type=AnswerType.SINGLE_SELECT,
             group_key="legal_contract",
             priority="standard",
@@ -575,7 +586,7 @@ BASE_INTERVIEW_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_INTERVIEW,
             question_id="ctx_interview_core_questions",
-            label="Welche Fragen sind fuer alle Kandidat:innen identisch?",
+            label="Welche Fragen sind für alle Kandidat:innen identisch?",
             answer_type=AnswerType.MULTI_SELECT,
             group_key="stage_evaluation",
             priority="core",
@@ -595,7 +606,7 @@ BASE_INTERVIEW_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_INTERVIEW,
             question_id="ctx_interview_communication_sla",
-            label="Welches Update-SLA gilt fuer Kandidat:innen nach jeder Stufe?",
+            label="Welches Update-SLA gilt für Kandidat:innen nach jeder Stufe?",
             answer_type=AnswerType.LONG_TEXT,
             group_key="candidate_communication",
             priority="core",
@@ -623,7 +634,7 @@ DIGITAL_PRODUCT_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_ROLE_TASKS,
             question_id="ctx_digital_ownership",
-            label="Welche Produkt-, Service- oder Systemverantwortung uebernimmt die Rolle?",
+            label="Welche Produkt-, Service- oder Systemverantwortung übernimmt die Rolle?",
             answer_type=AnswerType.LONG_TEXT,
             group_key="digital_delivery",
             priority="core",
@@ -633,7 +644,7 @@ DIGITAL_PRODUCT_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_SKILLS,
             question_id="ctx_tech_stack_must",
-            label="Welche Technologien sind echte Must-haves fuer den Start?",
+            label="Welche Technologien sind echte Must-haves für den Start?",
             answer_type=AnswerType.MULTI_SELECT,
             group_key="tech_stack",
             priority="core",
@@ -713,7 +724,7 @@ FIELD_SALES_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_ROLE_TASKS,
             question_id="ctx_sales_territory",
-            label="Welches Vertriebsgebiet und welche Account-Typen gehoeren zur Rolle?",
+            label="Welches Vertriebsgebiet und welche Account-Typen gehören zur Rolle?",
             answer_type=AnswerType.LONG_TEXT,
             group_key="sales_territory",
             priority="core",
@@ -723,7 +734,7 @@ FIELD_SALES_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_BENEFITS,
             question_id="ctx_sales_variable_pay",
-            label="Wie ist variable Verguetung oder OTE fuer die Rolle geregelt?",
+            label="Wie ist variable Vergütung oder OTE für die Rolle geregelt?",
             answer_type=AnswerType.SHORT_TEXT,
             group_key="compensation",
             priority="core",
@@ -767,7 +778,7 @@ TRANSPORT_LOGISTICS_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_ROLE_TASKS,
             question_id="ctx_route_model",
-            label="Welche Touren-, Routen- oder Schichtlogik gilt fuer die Rolle?",
+            label="Welche Touren-, Routen- oder Schichtlogik gilt für die Rolle?",
             answer_type=AnswerType.LONG_TEXT,
             group_key="route_model",
             priority="core",
@@ -784,7 +795,7 @@ CUSTOMER_SUPPORT_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_ROLE_TASKS,
             question_id="ctx_support_channels",
-            label="Welche Kanaele, SLAs und Eskalationen gehoeren zum Support-Modell?",
+            label="Welche Kanäle, SLAs und Eskalationen gehören zum Support-Modell?",
             answer_type=AnswerType.LONG_TEXT,
             group_key="support_model",
             priority="core",
@@ -818,7 +829,7 @@ DRIVING_REQUIRED_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_SKILLS,
             question_id="ctx_driving_license",
-            label="Welche Fuehrerscheinklasse, Fahrzeug- oder Mobilitaetsanforderung ist noetig?",
+            label="Welche Führerscheinklasse, Fahrzeug- oder Mobilitätsanforderung ist nötig?",
             answer_type=AnswerType.SHORT_TEXT,
             group_key="mobility",
             priority="core",
@@ -852,7 +863,7 @@ REGULATED_PROFESSION_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_SKILLS,
             question_id="ctx_regulated_requirements",
-            label="Welche regulatorischen Nachweise muessen vor Arbeitsbeginn vorliegen?",
+            label="Welche regulatorischen Nachweise müssen vor Arbeitsbeginn vorliegen?",
             answer_type=AnswerType.LONG_TEXT,
             group_key="licenses",
             priority="core",
@@ -903,7 +914,7 @@ HIRING_GROWTH_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_COMPANY,
             question_id="ctx_hiring_growth_context",
-            label="Welcher Markt-, Wachstums- oder Aufbaukontext macht die Rolle jetzt noetig?",
+            label="Welcher Markt-, Wachstums- oder Aufbaukontext macht die Rolle jetzt nötig?",
             answer_type=AnswerType.LONG_TEXT,
             group_key="company_profile",
             priority="standard",
@@ -954,7 +965,7 @@ HIRING_VOLUME_MULTI_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_INTERVIEW,
             question_id="ctx_multi_hire_calibration",
-            label="Welche Kernfragen und Bewertungskriterien muessen fuer alle Einstellungen identisch bleiben?",
+            label="Welche Kernfragen und Bewertungskriterien müssen für alle Einstellungen identisch bleiben?",
             answer_type=AnswerType.LONG_TEXT,
             group_key="stage_evaluation",
             priority="core",
@@ -971,7 +982,7 @@ ROLE_MATURITY_LOW_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_COMPANY,
             question_id="ctx_low_maturity_role_assumptions",
-            label="Welche Annahmen zur Rolle muessen vor Briefing oder Sourcing noch kalibriert werden?",
+            label="Welche Annahmen zur Rolle müssen vor Briefing oder Sourcing noch kalibriert werden?",
             answer_type=AnswerType.LONG_TEXT,
             group_key="company_profile",
             priority="core",
@@ -988,7 +999,7 @@ LEADERSHIP_SCOPE_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_COMPANY,
             question_id="ctx_leadership_reporting_detail",
-            label="Wie viele Direct Reports, fachliche Leads oder Budget-/Prioritaetsrechte gehoeren zur Rolle?",
+            label="Wie viele Direct Reports, fachliche Leads oder Budget-/Prioritätsrechte gehören zur Rolle?",
             answer_type=AnswerType.LONG_TEXT,
             group_key="team_reporting",
             priority="core",
@@ -1005,7 +1016,7 @@ CONTRACT_CONSTRAINTS_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_BENEFITS,
             question_id="ctx_contract_constraints",
-            label="Welche rechtlichen, tariflichen oder einkaufsseitigen Constraints gelten fuer dieses Vertragsmodell?",
+            label="Welche rechtlichen, tariflichen oder einkaufsseitigen Constraints gelten für dieses Vertragsmodell?",
             answer_type=AnswerType.LONG_TEXT,
             group_key="legal_contract",
             priority="core",
@@ -1022,7 +1033,7 @@ INTERNATIONAL_CONTEXT_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_COMPANY,
             question_id="ctx_company_allowed_regions_timezones",
-            label="Welche Regionen, Laender oder Zeitzonen sind fuer diese Rolle erlaubt?",
+            label="Welche Regionen, Länder oder Zeitzonen sind für diese Rolle erlaubt?",
             answer_type=AnswerType.MULTI_SELECT,
             group_key="work_arrangement",
             priority="core",
@@ -1059,7 +1070,7 @@ SKILL_GROUP_DOMAIN_KNOWLEDGE_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_SKILLS,
             question_id="ctx_sg_domain_knowledge",
-            label="Welche fachlichen Kenntnisse sind fuer die Rolle zwingend erforderlich?",
+            label="Welche fachlichen Kenntnisse sind für die Rolle zwingend erforderlich?",
             answer_type=AnswerType.LONG_TEXT,
             group_key=ESCO_QUESTION_SKILL_GROUP_DOMAIN_KNOWLEDGE,
             priority="standard",
@@ -1076,7 +1087,7 @@ SKILL_GROUP_TOOLS_METHODS_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_SKILLS,
             question_id="ctx_sg_tools_methods",
-            label="Welche Tools, Systeme oder Methoden muessen Kandidat:innen sicher anwenden?",
+            label="Welche Tools, Systeme oder Methoden müssen Kandidat:innen sicher anwenden?",
             answer_type=AnswerType.LONG_TEXT,
             group_key=ESCO_QUESTION_SKILL_GROUP_TOOLS_METHODS,
             priority="standard",
@@ -1144,7 +1155,7 @@ SKILL_GROUP_LEADERSHIP_COORDINATION_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_ROLE_TASKS,
             question_id="ctx_sg_leadership_coordination",
-            label="Ist fachliche oder disziplinarische Fuehrung Teil der Rolle?",
+            label="Ist fachliche oder disziplinarische Führung Teil der Rolle?",
             answer_type=AnswerType.LONG_TEXT,
             group_key=ESCO_QUESTION_SKILL_GROUP_LEADERSHIP_COORDINATION,
             priority="standard",
@@ -1161,7 +1172,7 @@ SKILL_GROUP_PHYSICAL_MANUAL_CONTEXT_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_ROLE_TASKS,
             question_id="ctx_sg_physical_manual_context",
-            label="Welche koerperlichen, manuellen oder umgebungsbezogenen Anforderungen praegen die Arbeit?",
+            label="Welche körperlichen, manuellen oder umgebungsbezogenen Anforderungen prägen die Arbeit?",
             answer_type=AnswerType.LONG_TEXT,
             group_key=ESCO_QUESTION_SKILL_GROUP_PHYSICAL_MANUAL_CONTEXT,
             priority="standard",
@@ -1212,7 +1223,7 @@ SKILL_GROUP_TRANSVERSAL_FIT_PACK = QuestionPack(
         _pack_entry(
             step_key=STEP_KEY_ROLE_TASKS,
             question_id="ctx_sg_transversal_fit",
-            label="Welche Arbeitsweise ist fuer Erfolg in den ersten sechs Monaten entscheidend?",
+            label="Welche Arbeitsweise ist für Erfolg in den ersten sechs Monaten entscheidend?",
             answer_type=AnswerType.LONG_TEXT,
             group_key=ESCO_QUESTION_SKILL_GROUP_TRANSVERSAL_FIT,
             priority="detail",

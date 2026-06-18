@@ -70,7 +70,7 @@ def test_compiler_suppresses_irrelevant_driving_question_for_digital_role() -> N
                 step_key="skills",
                 title_de="Skills",
                 questions=[
-                    _question("driving_license", "Welche Fuehrerscheinklasse ist noetig?")
+                    _question("driving_license", "Welche Führerscheinklasse ist nötig?")
                 ],
             )
         ]
@@ -93,7 +93,7 @@ def test_compiler_demotes_irrelevant_question_when_confidence_is_low() -> None:
                 step_key="skills",
                 title_de="Skills",
                 questions=[
-                    _question("driving_license", "Welche Fuehrerscheinklasse ist noetig?")
+                    _question("driving_license", "Welche Führerscheinklasse ist nötig?")
                 ],
             )
         ]

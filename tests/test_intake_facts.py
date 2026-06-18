@@ -605,7 +605,7 @@ def test_write_job_extract_intake_facts_uses_field_level_evidence() -> None:
             JobAdFieldEvidence(
                 field_name="job_title",
                 confidence=0.62,
-                evidence_snippet="Senior Data Engineer fuer die Plattform gesucht",
+                evidence_snippet="Senior Data Engineer für die Plattform gesucht",
                 needs_confirmation=True,
             )
         ],
@@ -620,7 +620,7 @@ def test_write_job_extract_intake_facts_uses_field_level_evidence() -> None:
     assert evidence["confidence"] == 0.62
     assert evidence["confirmed"] is False
     assert evidence["evidence_snippet"] == (
-        "Senior Data Engineer fuer die Plattform gesucht"
+        "Senior Data Engineer für die Plattform gesucht"
     )
 
 
@@ -784,7 +784,7 @@ def test_write_intake_fact_evidence_redacts_snippet_before_storage() -> None:
         FactKey.INTERVIEW_CONTACTS,
         source_type=FactSourceType.LLM,
         evidence_snippet=(
-            "Kontakt: recruiting@example.com oder +49 30 12345678 fuer Rueckfragen."
+            "Kontakt: recruiting@example.com oder +49 30 12345678 für Rückfragen."
         ),
     )
 
@@ -793,7 +793,7 @@ def test_write_intake_fact_evidence_redacts_snippet_before_storage() -> None:
     ]["evidence_snippet"]
     assert "recruiting@example.com" not in snippet
     assert "+49 30 12345678" not in snippet
-    assert snippet == "Kontakt: [REDACTED] oder [REDACTED] fuer Rueckfragen."
+    assert snippet == "Kontakt: [REDACTED] oder [REDACTED] für Rückfragen."
 
 
 def test_write_intake_fact_evidence_stores_sensitivity_and_artifact_usage() -> None:

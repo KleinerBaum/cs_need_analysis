@@ -214,7 +214,7 @@ def _concept_question_options(bucket: str) -> list[QuestionOption]:
         if bucket == "essential_knowledge":
             return [
                 QuestionOption(value="none", label="Keine Vorkenntnisse"),
-                QuestionOption(value="basic", label="Grundverstaendnis"),
+                QuestionOption(value="basic", label="Grundverständnis"),
                 QuestionOption(value="practical", label="Praxiserfahrung"),
                 QuestionOption(value="solid", label="Sicheres Anwenden"),
                 QuestionOption(value="expert", label="Experten-/Anleitungsniveau"),
@@ -229,10 +229,10 @@ def _concept_question_options(bucket: str) -> list[QuestionOption]:
     return [
         QuestionOption(value="no", label="Nein"),
         QuestionOption(value="rare", label="Selten"),
-        QuestionOption(value="regular", label="Regelmaessig"),
+        QuestionOption(value="regular", label="Regelmäßig"),
         QuestionOption(
             value="critical_six_months",
-            label="Kritisch fuer Erfolg in den ersten 6 Monaten",
+            label="Kritisch für Erfolg in den ersten 6 Monaten",
         ),
     ]
 
@@ -242,7 +242,7 @@ def _concept_question_label(bucket: str, label: str) -> str:
         return f"Welches Niveau in \"{label}\" wird erwartet?"
     if bucket == "optional_skill":
         return f"Kommt \"{label}\" in dieser konkreten Stelle vor?"
-    return f"Wie wichtig ist \"{label}\" fuer diese Position?"
+    return f"Wie wichtig ist \"{label}\" für diese Position?"
 
 
 def _build_esco_concept_questions(
@@ -272,7 +272,7 @@ def _build_esco_concept_questions(
         question = Question(
             id=question_id,
             label=_concept_question_label(bucket, label),
-            help="Aus ESCO-Kontext abgeleitet; bitte fuer diese konkrete Vakanz bestaetigen.",
+            help="Aus ESCO-Kontext abgeleitet; bitte für diese konkrete Vakanz bestätigen.",
             answer_type=AnswerType.SINGLE_SELECT,
             required=False,
             options=_concept_question_options(bucket),

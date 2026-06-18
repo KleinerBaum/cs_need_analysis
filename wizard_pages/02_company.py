@@ -456,7 +456,7 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
                     st.caption(evidence)
                 if not _is_empty_fact_value(current_value):
                     review_note = (
-                        "Website bestaetigt den vorhandenen Wert."
+                        "Website bestätigt den vorhandenen Wert."
                         if _fact_values_equal(current_value, parsed_value)
                         else "Website-Wert weicht vom vorhandenen Wert ab."
                     )

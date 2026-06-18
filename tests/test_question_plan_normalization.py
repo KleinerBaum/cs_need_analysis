@@ -183,7 +183,7 @@ def test_normalize_active_step_group_keys_to_canonical_domains() -> None:
                 questions=[
                     Question(
                         id="employer_pitch",
-                        label="Wie beschreiben wir den Arbeitgeber fuer Kandidaten?",
+                        label="Wie beschreiben wir den Arbeitgeber für Kandidaten?",
                         answer_type=AnswerType.SHORT_TEXT,
                         group_key="Employer Story",
                     ),
@@ -224,7 +224,7 @@ def test_normalize_active_step_group_keys_to_canonical_domains() -> None:
                     ),
                     Question(
                         id="skill_substitute",
-                        label="Welche Skills koennen durch Lernkurve ersetzt werden?",
+                        label="Welche Skills können durch Lernkurve ersetzt werden?",
                         answer_type=AnswerType.SHORT_TEXT,
                     ),
                 ],
@@ -256,7 +256,7 @@ def test_normalize_active_step_group_keys_to_canonical_domains() -> None:
                     ),
                     Question(
                         id="feedback_sla",
-                        label="Welche Feedback-SLA gilt fuer Kandidaten?",
+                        label="Welche Feedback-SLA gilt für Kandidaten?",
                         answer_type=AnswerType.SHORT_TEXT,
                     ),
                 ],

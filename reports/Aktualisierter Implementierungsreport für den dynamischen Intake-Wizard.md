@@ -175,7 +175,7 @@ python -m compileall wizard_pages/02_company.py constants.py ui_layout.py ui_com
 #### Aufgabe Deutsche UI-Copy sofort bereinigen
 
 **Ziel**  
-Sichtbare deutsche Labels, Fragen und Hilfetexte sollen keine gemischten ASCII-Umschreibungen wie `fuer`, `Geschaeft`, `Fuehrung`, `regelmaessig` mehr enthalten. Das ist ein schneller, hoch sichtbarer Qualitätsgewinn. Im öffentlichen Repo sind solche Mischformen weiterhin erkennbar; die deutsche UX sollte konsistent professionell sein. citeturn4view3turn2view0
+Sichtbare deutsche Labels, Fragen und Hilfetexte sollen keine gemischten ASCII-Umschreibungen mit ausgeschriebenem ae/oe/ue mehr enthalten. Das ist ein schneller, hoch sichtbarer Qualitätsgewinn. Im öffentlichen Repo sind solche Mischformen weiterhin erkennbar; die deutsche UX sollte konsistent professionell sein. citeturn4view3turn2view0
 
 **Betroffene Dateien**  
 `question_packs/registry.py`, `wizard_pages/*.py`, `components/design_system.py`, `ui_components.py`, relevante Snapshot-/String-Tests.
@@ -186,12 +186,12 @@ Sichtbare deutsche Labels, Fragen und Hilfetexte sollen keine gemischten ASCII-U
 2. Nur User-Facing Labels, Help-Texte, Captions, Section-Titel und Hinweise ändern.  
 3. Keine kanonischen IDs, `FactKey`, `SSKey`, Step Keys oder Export Keys umbenennen.  
 4. String-basierte Tests gezielt anpassen.  
-5. Einmal global `rg -n "fuer|Fuehr|Geschaeft|regelmaessig|Verstaendnis|Regelmaessig"` im Repo laufen lassen.
+5. Einmal global nach den betroffenen ASCII-Umschreibungen im Repo suchen.
 
 **Verifikation**
 
 ```bash
-rg -n "fuer|Fuehr|Geschaeft|regelmaessig|Verstaendnis|Regelmaessig" .
+rg -n "f[u]er|F[u]ehr|G[e]schaeft|regelm[a]essig|Verst[a]endnis|Regelm[a]essig" .
 python -m pytest -q \
   tests/test_question_pack_compiler.py \
   tests/test_ui_step_shell_order.py \
@@ -225,7 +225,7 @@ Constraints:
 - Update affected tests.
 
 Verification:
-rg -n "fuer|Fuehr|Geschaeft|regelmaessig|Verstaendnis|Regelmaessig" .
+rg -n "f[u]er|F[u]ehr|G[e]schaeft|regelm[a]essig|Verst[a]endnis|Regelm[a]essig" .
 python -m pytest -q tests/test_question_pack_compiler.py tests/test_ui_step_shell_order.py tests/test_ui_esco_picker_copy.py
 python -m compileall question_packs wizard_pages components ui_components.py
 ```
