@@ -5,7 +5,16 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-from constants import AnswerType, FactKey, SSKey
+from constants import (
+    AnswerType,
+    FactKey,
+    SSKey,
+    STEP_KEY_COMPANY,
+    STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
+    STEP_SECTION_OPEN_QUESTIONS,
+    STEP_SECTION_REVIEW,
+    STEP_SECTION_SOURCE_COMPARISON,
+)
 from schemas import JobAdExtract, Question, QuestionStep
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -215,6 +224,34 @@ def test_company_team_interview_use_step_shell_with_review_slot_and_canonical_or
     assert callable(company_kwargs["review_slot"])
     assert callable(team_kwargs["review_slot"])
     assert callable(interview_kwargs["review_slot"])
+
+
+def test_company_step_section_registry_drives_shell_order() -> None:
+    from step_sections import build_step_shell_section_kwargs, get_step_sections
+
+    section_ids = [
+        section.section_id for section in get_step_sections(STEP_KEY_COMPANY)
+    ]
+    assert section_ids == [
+        STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
+        STEP_SECTION_SOURCE_COMPARISON,
+        STEP_SECTION_OPEN_QUESTIONS,
+        STEP_SECTION_REVIEW,
+    ]
+
+    renderers = {section_id: (lambda: None) for section_id in section_ids}
+    shell_kwargs = build_step_shell_section_kwargs(
+        step_key=STEP_KEY_COMPANY,
+        renderers=renderers,
+    )
+
+    assert _slot_order_from_render_kwargs(shell_kwargs) == [
+        "extracted_from_jobspec_slot",
+        "source_comparison_slot",
+        "open_questions_slot",
+        "review_slot",
+    ]
+    assert shell_kwargs["extracted_from_jobspec_label"] == ""
 
 
 def test_salary_forecast_slots_keep_canonical_result_key_wiring() -> None:

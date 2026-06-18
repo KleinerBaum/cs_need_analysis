@@ -971,6 +971,19 @@ def render_step_header(
     _render_html_block(step_header_html)
 
 
+def build_step_section_heading_html(label: str) -> str:
+    safe_label = str(label or "").strip()
+    if not safe_label:
+        return ""
+    return f'<div class="cs-step-section-heading">{escape(safe_label)}</div>'
+
+
+def render_step_section_heading(label: str) -> None:
+    heading_html = build_step_section_heading_html(label)
+    if heading_html:
+        _render_html_block(heading_html)
+
+
 def render_process_progress(
     items: Sequence[dict[str, object]],
     *,

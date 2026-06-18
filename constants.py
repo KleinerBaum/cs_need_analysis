@@ -501,6 +501,30 @@ STEPS: Final[List[WizardStepDef]] = [
     WizardStepDef(key=STEP_KEY_SUMMARY, title_de="Zusammenfassung", icon="✅"),
 ]
 
+# ---- Wizard Step Sections ----
+STEP_SECTION_EXTRACTED_FROM_JOBSPEC: Final[str] = "extracted_from_jobspec"
+STEP_SECTION_SOURCE_COMPARISON: Final[str] = "source_comparison"
+STEP_SECTION_OPEN_QUESTIONS: Final[str] = "open_questions"
+STEP_SECTION_REVIEW: Final[str] = "review"
+STEP_SECTION_IDS: Final[tuple[str, ...]] = (
+    STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
+    STEP_SECTION_SOURCE_COMPARISON,
+    STEP_SECTION_OPEN_QUESTIONS,
+    STEP_SECTION_REVIEW,
+)
+STEP_SECTION_LABELS_DE: Final[dict[str, str]] = {
+    STEP_SECTION_EXTRACTED_FROM_JOBSPEC: "Aus Jobspec extrahiert",
+    STEP_SECTION_SOURCE_COMPARISON: "Quellenabgleich",
+    STEP_SECTION_OPEN_QUESTIONS: "Offene Fragen",
+    STEP_SECTION_REVIEW: "Review",
+}
+STEP_SECTION_SLOT_NAMES: Final[dict[str, str]] = {
+    STEP_SECTION_EXTRACTED_FROM_JOBSPEC: "extracted_from_jobspec_slot",
+    STEP_SECTION_SOURCE_COMPARISON: "source_comparison_slot",
+    STEP_SECTION_OPEN_QUESTIONS: "open_questions_slot",
+    STEP_SECTION_REVIEW: "review_slot",
+}
+
 
 # ---- Question types ----
 class AnswerType(str, Enum):

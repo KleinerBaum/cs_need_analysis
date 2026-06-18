@@ -18,6 +18,15 @@ def test_build_step_header_html_is_single_safe_block() -> None:
     assert ">warning<" not in html
 
 
+def test_build_step_section_heading_html_escapes_label() -> None:
+    html = design_system.build_step_section_heading_html("Offene <Fragen>")
+
+    assert html == (
+        '<div class="cs-step-section-heading">Offene &lt;Fragen&gt;</div>'
+    )
+    assert design_system.build_step_section_heading_html("  ") == ""
+
+
 def test_render_html_block_prefers_streamlit_html(monkeypatch) -> None:
     calls: list[str] = []
 

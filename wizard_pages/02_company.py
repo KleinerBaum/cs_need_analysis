@@ -15,6 +15,11 @@ from constants import (
     FactSourceType,
     FactValueType,
     SSKey,
+    STEP_KEY_COMPANY,
+    STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
+    STEP_SECTION_OPEN_QUESTIONS,
+    STEP_SECTION_REVIEW,
+    STEP_SECTION_SOURCE_COMPARISON,
     WEBSITE_RESEARCH_HOMEPAGE_URL,
     WEBSITE_RESEARCH_OPEN_QUESTION_MATCHES,
     WEBSITE_RESEARCH_SECTIONS,
@@ -45,6 +50,7 @@ from homepage_research import (
     strip_html as _strip_html,
 )
 from schemas import JobAdExtract, QuestionPlan, QuestionStep
+from step_sections import build_step_shell_section_kwargs
 from ui_components import (
     has_meaningful_value,
     render_error_banner,
@@ -1021,7 +1027,10 @@ def render(ctx: WizardContext) -> None:
     if preflight is None:
         return
     job, plan = preflight
-    step_company = next((s for s in plan.steps if s.step_key == "company"), None)
+    step_company = next(
+        (s for s in plan.steps if s.step_key == STEP_KEY_COMPANY),
+        None,
+    )
     open_question_step = _filtered_company_open_question_step(step_company)
 
     def _render_extracted_slot() -> None:
@@ -1050,7 +1059,7 @@ def render(ctx: WizardContext) -> None:
         _render_structured_company_context(job, ctx=ctx, plan=plan)
 
     def _render_open_questions_slot() -> None:
-        st.markdown("#### Open Questions")
+        st.markdown("#### Offene Fragen")
         if open_question_step is None or not open_question_step.questions:
             st.info(
                 "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
@@ -1062,9 +1071,20 @@ def render(ctx: WizardContext) -> None:
         st.markdown("#### Review")
         render_standard_step_review(
             step_company,
-            render_mode=resolve_standard_review_mode(context=ReviewRenderContext.STEP_FORM),
+            render_mode=resolve_standard_review_mode(
+                context=ReviewRenderContext.STEP_FORM
+            ),
         )
 
+    section_kwargs = build_step_shell_section_kwargs(
+        step_key=STEP_KEY_COMPANY,
+        renderers={
+            STEP_SECTION_EXTRACTED_FROM_JOBSPEC: _render_extracted_slot,
+            STEP_SECTION_SOURCE_COMPARISON: _render_source_comparison_slot,
+            STEP_SECTION_OPEN_QUESTIONS: _render_open_questions_slot,
+            STEP_SECTION_REVIEW: _render_review_slot,
+        },
+    )
 
     render_step_shell(
         title=_format_company_header(job),
@@ -1074,17 +1094,13 @@ def render(ctx: WizardContext) -> None:
             "Positionierung und Arbeitskontext."
         ),
         step=step_company,
-        extracted_from_jobspec_slot=_render_extracted_slot,
-        extracted_from_jobspec_label="",
-        source_comparison_slot=_render_source_comparison_slot,
-        open_questions_slot=_render_open_questions_slot,
-        review_slot=_render_review_slot,
+        **section_kwargs,
         footer_slot=lambda: nav_buttons(ctx),
     )
 
 
 PAGE = WizardPage(
-    key="company",
+    key=STEP_KEY_COMPANY,
     title_de="Unternehmen",
     icon="🏢",
     render=render,

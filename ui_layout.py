@@ -8,7 +8,11 @@ from typing import Any, Literal
 
 import streamlit as st
 
-from components.design_system import render_process_progress, render_step_header
+from components.design_system import (
+    build_step_section_heading_html,
+    render_process_progress,
+    render_step_header,
+)
 from constants import (
     COMPLETION_STATE_BADGE_TEXT,
     COMPLETION_STATE_NOT_STARTED,
@@ -259,10 +263,11 @@ def _render_step_status(status: StepStatusPayload | None) -> None:
 
 
 def _render_step_section_heading(label: str) -> None:
-    if not str(label or "").strip():
+    heading_html = build_step_section_heading_html(label)
+    if not heading_html:
         return
     st.markdown(
-        f'<div class="cs-step-section-heading">{label}</div>',
+        heading_html,
         unsafe_allow_html=True,
     )
 
