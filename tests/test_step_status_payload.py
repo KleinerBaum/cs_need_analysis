@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from constants import AnswerType, FactKey, STEP_KEY_ROLE_TASKS
 from question_dependencies import should_show_question
-from question_limits import select_questions_for_step_scope
-from schemas import JobAdExtract, Question, QuestionStep
+from question_limits import build_step_question_scope, select_questions_for_step_scope
+from schemas import JobAdExtract, Question, QuestionDependency, QuestionStep
 from step_status import build_step_status_payload
 
 
@@ -272,6 +272,99 @@ def test_build_step_status_payload_counts_jobspec_evidence_fact_and_missing_fact
     assert payload["essentials_answered"] == 1
     assert payload["essentials_total"] == 2
     assert payload["missing_essential_ids"] == ["location_country"]
+
+
+def test_build_step_status_payload_uses_canonical_visible_question_scope() -> None:
+    step = QuestionStep(
+        step_key="company",
+        title_de="Company",
+        questions=[
+            Question(
+                id="remote_policy",
+                label="Remote policy",
+                answer_type=AnswerType.SHORT_TEXT,
+                target_path=FactKey.COMPANY_REMOTE_POLICY.value,
+                required=True,
+                priority="core",
+            ),
+            Question(
+                id="hybrid_days",
+                label="Wie viele Office-Tage?",
+                answer_type=AnswerType.NUMBER,
+                required=True,
+                priority="core",
+                depends_on=[
+                    QuestionDependency(question_id="remote_policy", equals="Hybrid")
+                ],
+            ),
+        ],
+    )
+
+    payload = build_step_status_payload(
+        step=step,
+        answers={},
+        answer_meta={},
+        should_show_question=should_show_question,
+        step_key=step.step_key,
+        intake_facts={FactKey.COMPANY_REMOTE_POLICY.value: "Hybrid"},
+        intake_fact_evidence={
+            FactKey.COMPANY_REMOTE_POLICY.value: {
+                "source_label": "Jobspec extraction",
+                "confidence": 0.4,
+            }
+        },
+        confidence_threshold=0.6,
+    )
+
+    assert payload["answered"] == 0
+    assert payload["total"] == 1
+    assert payload["missing_essential_ids"] == ["remote_policy"]
+
+
+def test_step_status_uses_precomputed_visible_scope_for_adaptive_dependencies() -> None:
+    trigger = Question(
+        id="remote_policy",
+        label="Remote policy",
+        answer_type=AnswerType.SHORT_TEXT,
+        target_path=FactKey.COMPANY_REMOTE_POLICY.value,
+        priority="detail",
+    )
+    dependent = Question(
+        id="hybrid_days",
+        label="Wie viele Office-Tage?",
+        answer_type=AnswerType.NUMBER,
+        required=True,
+        priority="core",
+        depends_on=[QuestionDependency(question_id="remote_policy", equals="Hybrid")],
+    )
+    intake_facts = {FactKey.COMPANY_REMOTE_POLICY.value: "Hybrid"}
+    scope = build_step_question_scope(
+        [trigger, dependent],
+        step_key="company",
+        question_limits={"company": 1},
+        answers={},
+        answer_meta={},
+        job_extract=None,
+        intake_facts=intake_facts,
+    )
+
+    payload = build_step_status_payload(
+        step=QuestionStep(
+            step_key="company",
+            title_de="Company",
+            questions=scope.selected_questions,
+        ),
+        answers={},
+        answer_meta={},
+        should_show_question=should_show_question,
+        step_key="company",
+        intake_facts=intake_facts,
+        visible_questions=scope.visible_questions,
+    )
+
+    assert [question.id for question in scope.selected_questions] == ["hybrid_days"]
+    assert payload["total"] == 1
+    assert payload["missing_essential_ids"] == ["hybrid_days"]
 
 
 def test_step_status_payload_matches_adaptive_selected_question_scope() -> None:

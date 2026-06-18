@@ -53,7 +53,8 @@ from intake_facts import collect_legacy_facts
 from i18n import sync_language_state, sync_streamlit_language_widget, t
 from question_dependencies import should_show_question
 from question_limits import (
-    select_questions_for_step_scope_from_plan,
+    StepQuestionScope,
+    build_step_question_scope_from_plan,
     sync_adaptive_question_limits,
 )
 from question_progress import AnswerMetaMap
@@ -754,8 +755,31 @@ def _get_step_questions(
     intake_fact_evidence: Mapping[str, object] | None = None,
     confidence_threshold: float | None = None,
 ) -> list[Question]:
+    return _get_step_question_scope(
+        plan,
+        step_key,
+        answers=answers,
+        answer_meta=answer_meta,
+        job_extract=job_extract,
+        intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
+    ).selected_questions
+
+
+def _get_step_question_scope(
+    plan: QuestionPlan | None,
+    step_key: str,
+    *,
+    answers: dict[str, object] | None = None,
+    answer_meta: AnswerMetaMap | None = None,
+    job_extract: JobAdExtract | None = None,
+    intake_facts: Mapping[str, object] | None = None,
+    intake_fact_evidence: Mapping[str, object] | None = None,
+    confidence_threshold: float | None = None,
+) -> StepQuestionScope:
     limits_raw = st.session_state.get(SSKey.QUESTION_LIMITS.value, {})
-    return select_questions_for_step_scope_from_plan(
+    return build_step_question_scope_from_plan(
         plan,
         step_key,
         question_limits=limits_raw if isinstance(limits_raw, Mapping) else None,
@@ -815,7 +839,7 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
 
     statuses: list[SidebarStepProgress] = []
     for page in pages:
-        questions = _get_step_questions(
+        question_scope = _get_step_question_scope(
             plan,
             page.key,
             answers=answers,
@@ -825,6 +849,7 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
             intake_fact_evidence=intake_fact_evidence,
             confidence_threshold=confidence_threshold,
         )
+        questions = question_scope.selected_questions
         step_status = _build_step_status_payload_for_page(
             page_key=page.key,
             questions=questions,
@@ -834,6 +859,7 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
             intake_facts=intake_facts,
             intake_fact_evidence=intake_fact_evidence,
             confidence_threshold=confidence_threshold,
+            visible_questions=question_scope.visible_questions,
         )
         payload: SidebarStepDetailStatus = {
             "answered": int(step_status["answered"]),
@@ -908,6 +934,7 @@ def _build_step_status_payload_for_page(
     intake_facts: Mapping[str, object] | None = None,
     intake_fact_evidence: Mapping[str, object] | None = None,
     confidence_threshold: float | None = None,
+    visible_questions: list[Question] | None = None,
 ) -> StepStatusPayload:
     step = QuestionStep(step_key=page_key, title_de=page_key, questions=questions)
     return build_step_status_payload(
@@ -920,6 +947,7 @@ def _build_step_status_payload_for_page(
         intake_facts=intake_facts,
         intake_fact_evidence=intake_fact_evidence,
         confidence_threshold=confidence_threshold,
+        visible_questions=visible_questions,
     )
 
 

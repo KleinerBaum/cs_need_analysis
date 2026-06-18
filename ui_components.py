@@ -45,10 +45,9 @@ from job_extract_review_helpers import (
     sanitize_display_value as _sanitize_display_value,
 )
 from llm_client import OpenAICallError
-from question_limits import select_questions_for_step_scope
+from question_limits import build_step_question_scope
 from question_dependencies import should_show_question
 from question_progress import (
-    build_answers_with_job_extract_coverage,
     build_answered_lookup,
     build_step_scope_progress_labels,
     compute_question_progress,
@@ -223,8 +222,30 @@ def build_step_review_payload(step: QuestionStep | None) -> StepReviewPayload:
     intake_facts = intake_facts_raw if isinstance(intake_facts_raw, dict) else {}
     intake_fact_evidence = _load_intake_fact_evidence_from_state()
     confidence_threshold = _read_ui_confidence_threshold()
+    limits_raw = st.session_state.get(SSKey.QUESTION_LIMITS.value, {})
+    question_scope = None
+    status_step = step
+    if step is not None:
+        question_scope = build_step_question_scope(
+            step.questions,
+            step_key=step.step_key,
+            question_limits=limits_raw if isinstance(limits_raw, dict) else None,
+            answers=answers,
+            answer_meta=answer_meta,
+            job_extract=job_extract,
+            intake_facts=intake_facts,
+            intake_fact_evidence=intake_fact_evidence,
+            confidence_threshold=confidence_threshold,
+            visibility_predicate=should_show_question,
+        )
+        status_step = QuestionStep(
+            step_key=step.step_key,
+            title_de=step.title_de,
+            description_de=step.description_de,
+            questions=question_scope.selected_questions,
+        )
     step_status = build_step_status_payload(
-        step=step,
+        step=status_step,
         answers=answers,
         answer_meta=answer_meta,
         should_show_question=should_show_question,
@@ -233,6 +254,9 @@ def build_step_review_payload(step: QuestionStep | None) -> StepReviewPayload:
         intake_facts=intake_facts,
         intake_fact_evidence=intake_fact_evidence,
         confidence_threshold=confidence_threshold,
+        visible_questions=(
+            question_scope.visible_questions if question_scope is not None else None
+        ),
     )
     if step is None or not step.questions:
         return {
@@ -245,26 +269,7 @@ def build_step_review_payload(step: QuestionStep | None) -> StepReviewPayload:
             "intake_facts": intake_facts,
         }
 
-    effective_answers = build_answers_with_job_extract_coverage(
-        step.questions,
-        answers,
-        answer_meta,
-        job_extract=job_extract,
-        intake_facts=intake_facts,
-        intake_fact_evidence=intake_fact_evidence,
-        confidence_threshold=confidence_threshold,
-    )
-    visible_questions = [
-        question
-        for question in step.questions
-        if should_show_question(
-            question,
-            effective_answers,
-            answer_meta,
-            step.step_key,
-            intake_facts=intake_facts,
-        )
-    ]
+    visible_questions = question_scope.visible_questions if question_scope else []
     return {
         "visible_questions": visible_questions,
         "answers": answers,
@@ -2454,7 +2459,7 @@ def render_question_step(step: QuestionStep) -> None:
     limits_raw = st.session_state.get(SSKey.QUESTION_LIMITS.value, {})
 
     all_questions = _sort_questions_for_progressive_disclosure(step.questions)
-    questions = select_questions_for_step_scope(
+    question_scope = build_step_question_scope(
         all_questions,
         step_key=step.step_key,
         question_limits=limits_raw if isinstance(limits_raw, dict) else None,
@@ -2464,28 +2469,11 @@ def render_question_step(step: QuestionStep) -> None:
         intake_facts=intake_facts,
         intake_fact_evidence=intake_fact_evidence,
         confidence_threshold=confidence_threshold,
+        visibility_predicate=should_show_question,
     )
-    effective_answers = build_answers_with_job_extract_coverage(
-        all_questions,
-        answers,
-        answer_meta,
-        job_extract=job_extract,
-        intake_facts=intake_facts,
-        intake_fact_evidence=intake_fact_evidence,
-        confidence_threshold=confidence_threshold,
-    )
-    visible_questions = [
-        question
-        for question in questions
-        if should_show_question(
-            question,
-            effective_answers,
-            answer_meta,
-            step.step_key,
-            intake_facts=intake_facts,
-        )
-    ]
-    hidden_questions_count = len(questions) - len(visible_questions)
+    questions = question_scope.selected_questions
+    visible_questions = question_scope.visible_questions
+    hidden_questions_count = question_scope.hidden_questions_count
 
     answered_lookup = build_answered_lookup(
         visible_questions,

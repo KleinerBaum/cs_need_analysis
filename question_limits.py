@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping
+import inspect
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -27,6 +28,8 @@ from question_progress import (
 )
 from schemas import JobAdExtract, Question, QuestionPlan
 
+QuestionVisibilityPredicate = Callable[..., bool]
+
 
 @dataclass(frozen=True)
 class ModeLimitProfile:
@@ -34,6 +37,13 @@ class ModeLimitProfile:
     min_questions: int
     context_buffer: int
     full_depth: bool = False
+
+
+@dataclass(frozen=True)
+class StepQuestionScope:
+    selected_questions: list[Question]
+    visible_questions: list[Question]
+    hidden_questions_count: int
 
 
 _MODE_LIMIT_PROFILES: dict[str, ModeLimitProfile] = {
@@ -86,30 +96,92 @@ def _question_is_covered(
     )
 
 
-def select_questions_for_adaptive_limit(
+def _visibility_predicate_accepts_intake_facts(
+    visibility_predicate: QuestionVisibilityPredicate,
+) -> bool:
+    try:
+        signature = inspect.signature(visibility_predicate)
+    except (TypeError, ValueError):
+        return False
+    return (
+        "intake_facts" in signature.parameters
+        or any(
+            parameter.kind is inspect.Parameter.VAR_KEYWORD
+            for parameter in signature.parameters.values()
+        )
+    )
+
+
+def _call_visibility_predicate(
+    visibility_predicate: QuestionVisibilityPredicate,
+    accepts_intake_facts: bool,
+    question: Question,
+    answers: dict[str, Any],
+    answer_meta: AnswerMetaMap,
+    step_key: str,
+    intake_facts: Mapping[str, Any] | None,
+) -> bool:
+    if accepts_intake_facts:
+        return visibility_predicate(
+            question,
+            answers,
+            answer_meta,
+            step_key,
+            intake_facts=intake_facts,
+        )
+    return visibility_predicate(question, answers, answer_meta, step_key)
+
+
+def _filter_visible_questions(
     questions: list[Question],
     *,
     step_key: str,
-    limit: int | None,
     answers: dict[str, Any],
     answer_meta: AnswerMetaMap,
     job_extract: JobAdExtract | None,
-    intake_facts: Mapping[str, Any] | None = None,
-    intake_fact_evidence: Mapping[str, Any] | None = None,
-    confidence_threshold: float | None = None,
+    intake_facts: Mapping[str, Any] | None,
+    intake_fact_evidence: Mapping[str, Any] | None,
+    confidence_threshold: float | None,
+    visibility_predicate: QuestionVisibilityPredicate,
 ) -> list[Question]:
-    """Return dependency-visible questions selected by adaptive need."""
-
-    visible_questions = _resolve_visible_questions_for_limit(
+    effective_answers = build_answers_with_job_extract_coverage(
         questions,
-        step_key=step_key,
-        answers=answers,
-        answer_meta=answer_meta,
+        answers,
+        answer_meta,
         job_extract=job_extract,
         intake_facts=intake_facts,
         intake_fact_evidence=intake_fact_evidence,
         confidence_threshold=confidence_threshold,
     )
+    accepts_intake_facts = _visibility_predicate_accepts_intake_facts(
+        visibility_predicate
+    )
+    return [
+        question
+        for question in questions
+        if _call_visibility_predicate(
+            visibility_predicate,
+            accepts_intake_facts,
+            question,
+            effective_answers,
+            answer_meta,
+            step_key,
+            intake_facts,
+        )
+    ]
+
+
+def _select_visible_questions_for_adaptive_limit(
+    visible_questions: list[Question],
+    *,
+    limit: int | None,
+    answers: dict[str, Any],
+    answer_meta: AnswerMetaMap,
+    job_extract: JobAdExtract | None,
+    intake_facts: Mapping[str, Any] | None,
+    intake_fact_evidence: Mapping[str, Any] | None,
+    confidence_threshold: float | None,
+) -> list[Question]:
     if limit is None or limit <= 0 or limit >= len(visible_questions):
         return visible_questions
 
@@ -139,6 +211,92 @@ def select_questions_for_adaptive_limit(
     return [question for _, _, question in selected_questions]
 
 
+def select_questions_for_adaptive_limit(
+    questions: list[Question],
+    *,
+    step_key: str,
+    limit: int | None,
+    answers: dict[str, Any],
+    answer_meta: AnswerMetaMap,
+    job_extract: JobAdExtract | None,
+    intake_facts: Mapping[str, Any] | None = None,
+    intake_fact_evidence: Mapping[str, Any] | None = None,
+    confidence_threshold: float | None = None,
+) -> list[Question]:
+    """Return dependency-visible questions selected by adaptive need."""
+
+    visible_questions = _resolve_visible_questions_for_limit(
+        questions,
+        step_key=step_key,
+        answers=answers,
+        answer_meta=answer_meta,
+        job_extract=job_extract,
+        intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
+    )
+    return _select_visible_questions_for_adaptive_limit(
+        visible_questions,
+        limit=limit,
+        answers=answers,
+        answer_meta=answer_meta,
+        job_extract=job_extract,
+        intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
+    )
+
+
+def build_step_question_scope(
+    questions: list[Question],
+    *,
+    step_key: str,
+    question_limits: Mapping[str, Any] | None,
+    answers: dict[str, Any],
+    answer_meta: AnswerMetaMap,
+    job_extract: JobAdExtract | None,
+    intake_facts: Mapping[str, Any] | None = None,
+    intake_fact_evidence: Mapping[str, Any] | None = None,
+    confidence_threshold: float | None = None,
+    visibility_predicate: QuestionVisibilityPredicate = should_show_question,
+) -> StepQuestionScope:
+    """Return the adaptive selected scope and its dependency-visible questions."""
+
+    visible_questions = _resolve_visible_questions_for_limit(
+        questions,
+        step_key=step_key,
+        answers=answers,
+        answer_meta=answer_meta,
+        job_extract=job_extract,
+        intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
+        visibility_predicate=visibility_predicate,
+    )
+    step_limit = _read_step_limit(question_limits, step_key)
+    if step_limit is None or step_limit <= 0:
+        selected_questions = questions
+        selected_visible_questions = visible_questions
+    else:
+        selected_visible_questions = _select_visible_questions_for_adaptive_limit(
+            visible_questions,
+            limit=step_limit,
+            answers=answers,
+            answer_meta=answer_meta,
+            job_extract=job_extract,
+            intake_facts=intake_facts,
+            intake_fact_evidence=intake_fact_evidence,
+            confidence_threshold=confidence_threshold,
+        )
+        selected_questions = selected_visible_questions
+
+    return StepQuestionScope(
+        selected_questions=selected_questions,
+        visible_questions=selected_visible_questions,
+        hidden_questions_count=len(selected_questions) - len(selected_visible_questions),
+    )
+
+
 def select_questions_for_step_scope(
     questions: list[Question],
     *,
@@ -153,19 +311,87 @@ def select_questions_for_step_scope(
 ) -> list[Question]:
     """Return the step question scope after applying the adaptive limit."""
 
-    step_limit = _read_step_limit(question_limits, step_key)
-    if step_limit is None or step_limit <= 0:
-        return questions
-    return select_questions_for_adaptive_limit(
+    return build_step_question_scope(
         questions,
         step_key=step_key,
-        limit=step_limit,
+        question_limits=question_limits,
         answers=answers,
         answer_meta=answer_meta,
         job_extract=job_extract,
         intake_facts=intake_facts,
         intake_fact_evidence=intake_fact_evidence,
         confidence_threshold=confidence_threshold,
+    ).selected_questions
+
+
+def select_visible_questions_for_step_scope(
+    questions: list[Question],
+    *,
+    step_key: str,
+    question_limits: Mapping[str, Any] | None,
+    answers: dict[str, Any],
+    answer_meta: AnswerMetaMap,
+    job_extract: JobAdExtract | None,
+    intake_facts: Mapping[str, Any] | None = None,
+    intake_fact_evidence: Mapping[str, Any] | None = None,
+    confidence_threshold: float | None = None,
+    visibility_predicate: QuestionVisibilityPredicate = should_show_question,
+) -> list[Question]:
+    """Return the dependency-visible questions in the adaptive step scope."""
+
+    return build_step_question_scope(
+        questions,
+        step_key=step_key,
+        question_limits=question_limits,
+        answers=answers,
+        answer_meta=answer_meta,
+        job_extract=job_extract,
+        intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
+        visibility_predicate=visibility_predicate,
+    ).visible_questions
+
+
+def build_step_question_scope_from_plan(
+    plan: QuestionPlan | None,
+    step_key: str,
+    *,
+    question_limits: Mapping[str, Any] | None,
+    answers: dict[str, Any],
+    answer_meta: AnswerMetaMap,
+    job_extract: JobAdExtract | None,
+    intake_facts: Mapping[str, Any] | None = None,
+    intake_fact_evidence: Mapping[str, Any] | None = None,
+    confidence_threshold: float | None = None,
+    visibility_predicate: QuestionVisibilityPredicate = should_show_question,
+) -> StepQuestionScope:
+    """Return a plan step's adaptive and visible question scope."""
+
+    if plan is None:
+        return StepQuestionScope(
+            selected_questions=[],
+            visible_questions=[],
+            hidden_questions_count=0,
+        )
+    step = next((entry for entry in plan.steps if entry.step_key == step_key), None)
+    if step is None:
+        return StepQuestionScope(
+            selected_questions=[],
+            visible_questions=[],
+            hidden_questions_count=0,
+        )
+    return build_step_question_scope(
+        step.questions,
+        step_key=step_key,
+        question_limits=question_limits,
+        answers=answers,
+        answer_meta=answer_meta,
+        job_extract=job_extract,
+        intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
+        visibility_predicate=visibility_predicate,
     )
 
 
@@ -183,13 +409,8 @@ def select_questions_for_step_scope_from_plan(
 ) -> list[Question]:
     """Return a plan step's canonical adaptive question scope."""
 
-    if plan is None:
-        return []
-    step = next((entry for entry in plan.steps if entry.step_key == step_key), None)
-    if step is None:
-        return []
-    return select_questions_for_step_scope(
-        step.questions,
+    return build_step_question_scope_from_plan(
+        plan,
         step_key=step_key,
         question_limits=question_limits,
         answers=answers,
@@ -198,7 +419,36 @@ def select_questions_for_step_scope_from_plan(
         intake_facts=intake_facts,
         intake_fact_evidence=intake_fact_evidence,
         confidence_threshold=confidence_threshold,
-    )
+    ).selected_questions
+
+
+def select_visible_questions_for_step_scope_from_plan(
+    plan: QuestionPlan | None,
+    step_key: str,
+    *,
+    question_limits: Mapping[str, Any] | None,
+    answers: dict[str, Any],
+    answer_meta: AnswerMetaMap,
+    job_extract: JobAdExtract | None,
+    intake_facts: Mapping[str, Any] | None = None,
+    intake_fact_evidence: Mapping[str, Any] | None = None,
+    confidence_threshold: float | None = None,
+    visibility_predicate: QuestionVisibilityPredicate = should_show_question,
+) -> list[Question]:
+    """Return a plan step's canonical visible adaptive question scope."""
+
+    return build_step_question_scope_from_plan(
+        plan,
+        step_key=step_key,
+        question_limits=question_limits,
+        answers=answers,
+        answer_meta=answer_meta,
+        job_extract=job_extract,
+        intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
+        visibility_predicate=visibility_predicate,
+    ).visible_questions
 
 
 def compute_adaptive_question_limits(
@@ -351,27 +601,19 @@ def _resolve_visible_questions_for_limit(
     intake_facts: Mapping[str, Any] | None,
     intake_fact_evidence: Mapping[str, Any] | None,
     confidence_threshold: float | None,
+    visibility_predicate: QuestionVisibilityPredicate = should_show_question,
 ) -> list[Question]:
-    effective_answers = build_answers_with_job_extract_coverage(
+    return _filter_visible_questions(
         questions,
-        answers,
-        answer_meta,
+        step_key=step_key,
+        answers=answers,
+        answer_meta=answer_meta,
         job_extract=job_extract,
         intake_facts=intake_facts,
         intake_fact_evidence=intake_fact_evidence,
         confidence_threshold=confidence_threshold,
+        visibility_predicate=visibility_predicate,
     )
-    return [
-        question
-        for question in questions
-        if should_show_question(
-            question,
-            effective_answers,
-            answer_meta,
-            step_key,
-            intake_facts=intake_facts,
-        )
-    ]
 
 
 def _question_limit_score(question: Question, *, covered: bool) -> int:

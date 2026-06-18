@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from constants import AnswerType, FactKey
 from question_limits import (
+    build_step_question_scope,
     compute_adaptive_question_limits,
     select_questions_for_adaptive_limit,
     select_questions_for_step_scope,
+    select_visible_questions_for_step_scope,
 )
 from schemas import JobAdExtract, Question, QuestionDependency, QuestionPlan, QuestionStep
 
@@ -292,6 +294,92 @@ def test_select_questions_for_limit_applies_dependency_visibility_before_slicing
     )
 
     assert [question.id for question in selected] == ["office_location"]
+
+
+def test_step_question_scope_exposes_legacy_scope_and_visible_questions() -> None:
+    core_question = Question(
+        id="q_core",
+        label="Core",
+        answer_type=AnswerType.SHORT_TEXT,
+        required=True,
+        priority="core",
+    )
+    hidden_detail = Question(
+        id="q_detail",
+        label="Detail",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="detail",
+        depends_on=[
+            QuestionDependency(question_id="q_core", equals="Nein"),
+        ],
+    )
+
+    scope = build_step_question_scope(
+        [core_question, hidden_detail],
+        step_key="company",
+        question_limits=None,
+        answers={"q_core": "Ja"},
+        answer_meta={},
+        job_extract=None,
+    )
+
+    assert [question.id for question in scope.selected_questions] == [
+        "q_core",
+        "q_detail",
+    ]
+    assert [question.id for question in scope.visible_questions] == ["q_core"]
+    assert scope.hidden_questions_count == 1
+
+
+def test_visible_question_scope_respects_intake_fact_confidence_threshold() -> None:
+    remote_policy = Question(
+        id="remote_policy",
+        label="Remote policy",
+        answer_type=AnswerType.SHORT_TEXT,
+        target_path=FactKey.COMPANY_REMOTE_POLICY.value,
+    )
+    hybrid_days = Question(
+        id="hybrid_days",
+        label="Wie viele Office-Tage?",
+        answer_type=AnswerType.NUMBER,
+        priority="core",
+        depends_on=[
+            QuestionDependency(question_id="remote_policy", equals="Hybrid")
+        ],
+    )
+
+    low_confidence = select_visible_questions_for_step_scope(
+        [remote_policy, hybrid_days],
+        step_key="company",
+        question_limits=None,
+        answers={},
+        answer_meta={},
+        job_extract=None,
+        intake_facts={FactKey.COMPANY_REMOTE_POLICY.value: "Hybrid"},
+        intake_fact_evidence={
+            FactKey.COMPANY_REMOTE_POLICY.value: {"confidence": 0.4}
+        },
+        confidence_threshold=0.6,
+    )
+    high_confidence = select_visible_questions_for_step_scope(
+        [remote_policy, hybrid_days],
+        step_key="company",
+        question_limits=None,
+        answers={},
+        answer_meta={},
+        job_extract=None,
+        intake_facts={FactKey.COMPANY_REMOTE_POLICY.value: "Hybrid"},
+        intake_fact_evidence={
+            FactKey.COMPANY_REMOTE_POLICY.value: {"confidence": 0.8}
+        },
+        confidence_threshold=0.6,
+    )
+
+    assert [question.id for question in low_confidence] == ["remote_policy"]
+    assert [question.id for question in high_confidence] == [
+        "remote_policy",
+        "hybrid_days",
+    ]
 
 
 def test_select_questions_for_limit_prioritizes_uncovered_core_question() -> None:

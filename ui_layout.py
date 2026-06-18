@@ -25,8 +25,8 @@ from constants import (
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
 )
 from question_limits import (
-    select_questions_for_step_scope,
-    select_questions_for_step_scope_from_plan,
+    build_step_question_scope,
+    select_visible_questions_for_step_scope_from_plan,
 )
 from question_dependencies import should_show_question
 from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
@@ -69,7 +69,7 @@ def _get_step_questions_from_plan(
     confidence_threshold: float | None,
 ) -> list[Question]:
     limits_raw = st.session_state.get(SSKey.QUESTION_LIMITS.value, {})
-    return select_questions_for_step_scope_from_plan(
+    return select_visible_questions_for_step_scope_from_plan(
         plan,
         step_key,
         question_limits=limits_raw if isinstance(limits_raw, dict) else None,
@@ -104,6 +104,7 @@ def _process_progress_status(
         intake_facts=intake_facts,
         intake_fact_evidence=intake_fact_evidence,
         confidence_threshold=confidence_threshold,
+        visible_questions=questions,
     )
     if status["total"] > 0:
         return status["completion_state"], f"{status['answered']}/{status['total']}"
@@ -462,7 +463,7 @@ def render_step_shell(
     status_step = step
     if step is not None:
         limits_raw = st.session_state.get(SSKey.QUESTION_LIMITS.value, {})
-        status_questions = select_questions_for_step_scope(
+        question_scope = build_step_question_scope(
             step.questions,
             step_key=step.step_key,
             question_limits=limits_raw if isinstance(limits_raw, dict) else None,
@@ -472,12 +473,13 @@ def render_step_shell(
             intake_facts=intake_facts,
             intake_fact_evidence=intake_fact_evidence,
             confidence_threshold=confidence_threshold,
+            visibility_predicate=should_show_question,
         )
         status_step = QuestionStep(
             step_key=step.step_key,
             title_de=step.title_de,
             description_de=step.description_de,
-            questions=status_questions,
+            questions=question_scope.visible_questions,
         )
     status = build_step_status_payload(
         step=status_step,
@@ -489,6 +491,9 @@ def render_step_shell(
         intake_facts=intake_facts,
         intake_fact_evidence=intake_fact_evidence,
         confidence_threshold=confidence_threshold,
+        visible_questions=(
+            question_scope.visible_questions if step is not None else None
+        ),
     )
     header_meta: list[tuple[str, str, str]] = []
     if status_position == "header":

@@ -97,7 +97,7 @@ from state import (
     set_answer,
 )
 from question_dependencies import should_show_question
-from question_limits import select_questions_for_step_scope
+from question_limits import select_visible_questions_for_step_scope
 from step_status import build_step_status_payload
 from components.design_system import (
     render_card_start,
@@ -2135,7 +2135,7 @@ def _build_summary_completion_status(
     for step in plan.steps:
         if step.step_key in NON_INTAKE_STEP_KEYS:
             continue
-        questions = select_questions_for_step_scope(
+        questions = select_visible_questions_for_step_scope(
             step.questions,
             step_key=step.step_key,
             question_limits=question_limits,
@@ -2145,6 +2145,7 @@ def _build_summary_completion_status(
             intake_facts=intake_facts,
             intake_fact_evidence=intake_fact_evidence,
             confidence_threshold=confidence_threshold,
+            visibility_predicate=should_show_question,
         )
         status = build_step_status_payload(
             step=QuestionStep(
@@ -2161,6 +2162,7 @@ def _build_summary_completion_status(
             intake_facts=intake_facts,
             intake_fact_evidence=intake_fact_evidence,
             confidence_threshold=confidence_threshold,
+            visible_questions=questions,
         )
         answered_questions += status["answered"]
         total_questions += status["total"]
