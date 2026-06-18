@@ -169,6 +169,19 @@ STEP_KEY_BENEFITS: Final[str] = "benefits"
 STEP_KEY_INTERVIEW: Final[str] = "interview"
 STEP_KEY_SUMMARY: Final[str] = "summary"
 
+QUESTION_IMPACT_TARGET_BRIEF: Final[str] = "brief"
+QUESTION_IMPACT_TARGET_SALARY: Final[str] = "salary"
+QUESTION_IMPACT_TARGET_SKILLS: Final[str] = "skills"
+QUESTION_IMPACT_TARGET_INTERVIEW: Final[str] = "interview"
+QUESTION_IMPACT_TARGET_EXPORT: Final[str] = "export"
+QUESTION_IMPACT_TARGETS: Final[tuple[str, str, str, str, str]] = (
+    QUESTION_IMPACT_TARGET_BRIEF,
+    QUESTION_IMPACT_TARGET_SALARY,
+    QUESTION_IMPACT_TARGET_SKILLS,
+    QUESTION_IMPACT_TARGET_INTERVIEW,
+    QUESTION_IMPACT_TARGET_EXPORT,
+)
+
 # Plan/System steps that are intentionally excluded from intake completion/facts views.
 NON_INTAKE_STEP_KEYS: Final[tuple[str, ...]] = (
     STEP_KEY_LANDING,

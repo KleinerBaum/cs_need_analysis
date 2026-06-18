@@ -1,4 +1,4 @@
-from constants import AnswerType, FactKey
+from constants import AnswerType, FactKey, QUESTION_IMPACT_TARGET_BRIEF
 from llm_client import normalize_question_plan
 from schemas import Question, QuestionDependency, QuestionPlan, QuestionStep
 
@@ -172,6 +172,36 @@ def test_normalize_question_fact_key_metadata() -> None:
     assert questions[0].fact_key == FactKey.COMPANY_COMPANY_NAME.value
     assert questions[1].fact_key == FactKey.ROLE_JOB_TITLE.value
     assert questions[2].fact_key is None
+
+
+def test_normalize_preserves_adaptive_question_metadata() -> None:
+    plan = QuestionPlan(
+        steps=[
+            QuestionStep(
+                step_key="company",
+                title_de="Unternehmen",
+                questions=[
+                    Question(
+                        id="metadata_probe",
+                        label="Metadata probe",
+                        answer_type=AnswerType.SHORT_TEXT,
+                        rationale="Explains why this deterministic question matters.",
+                        impact_targets=[QUESTION_IMPACT_TARGET_BRIEF],
+                        acquisition_cost="low",
+                        info_gain_score=0.67,
+                    )
+                ],
+            )
+        ]
+    )
+
+    normalized = normalize_question_plan(plan)
+    question = normalized.steps[0].questions[0]
+
+    assert question.rationale == "Explains why this deterministic question matters."
+    assert question.impact_targets == [QUESTION_IMPACT_TARGET_BRIEF]
+    assert question.acquisition_cost == "low"
+    assert question.info_gain_score == 0.67
 
 
 def test_normalize_active_step_group_keys_to_canonical_domains() -> None:

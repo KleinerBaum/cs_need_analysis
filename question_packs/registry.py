@@ -15,6 +15,11 @@ from constants import (
     ESCO_QUESTION_SKILL_GROUP_TOOLS_METHODS,
     ESCO_QUESTION_SKILL_GROUP_TRANSVERSAL_FIT,
     FactKey,
+    QUESTION_IMPACT_TARGET_BRIEF,
+    QUESTION_IMPACT_TARGET_EXPORT,
+    QUESTION_IMPACT_TARGET_INTERVIEW,
+    QUESTION_IMPACT_TARGET_SALARY,
+    QUESTION_IMPACT_TARGET_SKILLS,
     STEP_KEY_BENEFITS,
     STEP_KEY_COMPANY,
     STEP_KEY_INTERVIEW,
@@ -39,6 +44,10 @@ def _pack_entry(
     required: bool = False,
     options: list[str] | None = None,
     help_text: str | None = None,
+    rationale: str | None = None,
+    impact_targets: list[str] | None = None,
+    acquisition_cost: str = "medium",
+    info_gain_score: float | None = None,
 ) -> QuestionPackEntry:
     question = Question(
         id=question_id,
@@ -51,6 +60,10 @@ def _pack_entry(
         fact_key=fact_key.value if fact_key is not None else None,
         priority=priority,  # type: ignore[arg-type]
         group_key=group_key,
+        rationale=rationale,
+        impact_targets=impact_targets or [],
+        acquisition_cost=acquisition_cost,  # type: ignore[arg-type]
+        info_gain_score=info_gain_score,
     )
     return QuestionPackEntry(step_key=step_key, question=question)
 
@@ -69,6 +82,13 @@ BASE_CORE_PACK = QuestionPack(
             target_path=FactKey.COMPANY_EMPLOYER_PITCH.value,
             fact_key=FactKey.COMPANY_EMPLOYER_PITCH,
             required=True,
+            rationale="Anchors the employer narrative used in candidate-facing artifacts and export context.",
+            impact_targets=[
+                QUESTION_IMPACT_TARGET_BRIEF,
+                QUESTION_IMPACT_TARGET_EXPORT,
+            ],
+            acquisition_cost="medium",
+            info_gain_score=0.86,
         ),
         _pack_entry(
             step_key=STEP_KEY_COMPANY,
@@ -80,6 +100,14 @@ BASE_CORE_PACK = QuestionPack(
             target_path=FactKey.COMPANY_BUSINESS_UNIT.value,
             fact_key=FactKey.COMPANY_BUSINESS_UNIT,
             required=True,
+            rationale="Places the role in the relevant business area for context and artifact mapping.",
+            impact_targets=[
+                QUESTION_IMPACT_TARGET_BRIEF,
+                QUESTION_IMPACT_TARGET_SALARY,
+                QUESTION_IMPACT_TARGET_EXPORT,
+            ],
+            acquisition_cost="low",
+            info_gain_score=0.78,
         ),
         _pack_entry(
             step_key=STEP_KEY_COMPANY,
@@ -90,6 +118,12 @@ BASE_CORE_PACK = QuestionPack(
             priority="standard",
             target_path=FactKey.COMPANY_HIRING_REASON.value,
             fact_key=FactKey.COMPANY_HIRING_REASON,
+            rationale="Clarifies the hiring trigger for brief context and interview calibration.",
+            impact_targets=[
+                QUESTION_IMPACT_TARGET_BRIEF,
+                QUESTION_IMPACT_TARGET_INTERVIEW,
+            ],
+            acquisition_cost="low",
         ),
         _pack_entry(
             step_key=STEP_KEY_COMPANY,
@@ -100,6 +134,12 @@ BASE_CORE_PACK = QuestionPack(
             priority="standard",
             target_path=FactKey.COMPANY_GROWTH_CONTEXT.value,
             fact_key=FactKey.COMPANY_GROWTH_CONTEXT,
+            rationale="Captures market or build-up context that changes role framing.",
+            impact_targets=[
+                QUESTION_IMPACT_TARGET_BRIEF,
+                QUESTION_IMPACT_TARGET_SALARY,
+            ],
+            acquisition_cost="medium",
         ),
         _pack_entry(
             step_key=STEP_KEY_COMPANY,
@@ -110,6 +150,12 @@ BASE_CORE_PACK = QuestionPack(
             priority="standard",
             target_path=FactKey.COMPANY_ROLE_BUSINESS_IMPACT.value,
             fact_key=FactKey.COMPANY_ROLE_BUSINESS_IMPACT,
+            rationale="Connects the role to measurable business outcomes for the brief and interviews.",
+            impact_targets=[
+                QUESTION_IMPACT_TARGET_BRIEF,
+                QUESTION_IMPACT_TARGET_INTERVIEW,
+            ],
+            acquisition_cost="medium",
         ),
         _pack_entry(
             step_key=STEP_KEY_COMPANY,
@@ -120,6 +166,12 @@ BASE_CORE_PACK = QuestionPack(
             priority="standard",
             target_path=FactKey.COMPANY_ROLE_RELEVANT_POSITIONING.value,
             fact_key=FactKey.COMPANY_ROLE_RELEVANT_POSITIONING,
+            rationale="Selects which employer-positioning points belong in downstream artifacts.",
+            impact_targets=[
+                QUESTION_IMPACT_TARGET_BRIEF,
+                QUESTION_IMPACT_TARGET_EXPORT,
+            ],
+            acquisition_cost="low",
             options=[
                 "Marktposition",
                 "Produkt",
@@ -141,6 +193,14 @@ BASE_CORE_PACK = QuestionPack(
             target_path=FactKey.TEAM_NAME.value,
             fact_key=FactKey.TEAM_NAME,
             required=True,
+            rationale="Identifies the receiving team for organization context and interview handoff.",
+            impact_targets=[
+                QUESTION_IMPACT_TARGET_BRIEF,
+                QUESTION_IMPACT_TARGET_INTERVIEW,
+                QUESTION_IMPACT_TARGET_EXPORT,
+            ],
+            acquisition_cost="low",
+            info_gain_score=0.76,
         ),
         _pack_entry(
             step_key=STEP_KEY_COMPANY,
@@ -152,6 +212,15 @@ BASE_CORE_PACK = QuestionPack(
             target_path=FactKey.TEAM_LEADERSHIP_SCOPE.value,
             fact_key=FactKey.TEAM_LEADERSHIP_SCOPE,
             required=True,
+            rationale="Defines leadership scope for role framing, process planning, and exports.",
+            impact_targets=[
+                QUESTION_IMPACT_TARGET_BRIEF,
+                QUESTION_IMPACT_TARGET_SALARY,
+                QUESTION_IMPACT_TARGET_INTERVIEW,
+                QUESTION_IMPACT_TARGET_EXPORT,
+            ],
+            acquisition_cost="low",
+            info_gain_score=0.88,
             options=[
                 "individual_contributor",
                 "fachliche_fuehrung",
@@ -169,6 +238,12 @@ BASE_CORE_PACK = QuestionPack(
             priority="standard",
             target_path=FactKey.TEAM_SIZE_DIRECT.value,
             fact_key=FactKey.TEAM_SIZE_DIRECT,
+            rationale="Adds direct team scale for organization context and calibration.",
+            impact_targets=[
+                QUESTION_IMPACT_TARGET_BRIEF,
+                QUESTION_IMPACT_TARGET_SALARY,
+            ],
+            acquisition_cost="low",
         ),
         _pack_entry(
             step_key=STEP_KEY_COMPANY,
@@ -180,6 +255,14 @@ BASE_CORE_PACK = QuestionPack(
             target_path=FactKey.TEAM_STAKEHOLDERS_PRIMARY.value,
             fact_key=FactKey.TEAM_STAKEHOLDERS_PRIMARY,
             required=True,
+            rationale="Maps primary collaboration partners for brief and interview focus.",
+            impact_targets=[
+                QUESTION_IMPACT_TARGET_BRIEF,
+                QUESTION_IMPACT_TARGET_INTERVIEW,
+                QUESTION_IMPACT_TARGET_EXPORT,
+            ],
+            acquisition_cost="low",
+            info_gain_score=0.80,
             options=[
                 "Fachbereich",
                 "Management",
@@ -202,6 +285,14 @@ BASE_CORE_PACK = QuestionPack(
             target_path=FactKey.COMPANY_WORK_ARRANGEMENT.value,
             fact_key=FactKey.COMPANY_WORK_ARRANGEMENT,
             required=True,
+            rationale="Clarifies location and work model constraints for downstream artifacts.",
+            impact_targets=[
+                QUESTION_IMPACT_TARGET_BRIEF,
+                QUESTION_IMPACT_TARGET_SALARY,
+                QUESTION_IMPACT_TARGET_EXPORT,
+            ],
+            acquisition_cost="low",
+            info_gain_score=0.90,
             options=[
                 "onsite",
                 "hybrid",
@@ -220,6 +311,12 @@ BASE_CORE_PACK = QuestionPack(
             target_path=FactKey.COMPANY_LANGUAGE_INTERNAL.value,
             fact_key=FactKey.COMPANY_LANGUAGE_INTERNAL,
             help_text="Beispiel: Deutsch B2 intern, Englisch C1 im Engineering.",
+            rationale="Captures internal language expectations for skills and interview checks.",
+            impact_targets=[
+                QUESTION_IMPACT_TARGET_SKILLS,
+                QUESTION_IMPACT_TARGET_INTERVIEW,
+            ],
+            acquisition_cost="low",
         ),
         _pack_entry(
             step_key=STEP_KEY_COMPANY,
@@ -230,6 +327,12 @@ BASE_CORE_PACK = QuestionPack(
             priority="standard",
             target_path=FactKey.COMPANY_LANGUAGE_EXTERNAL.value,
             fact_key=FactKey.COMPANY_LANGUAGE_EXTERNAL,
+            rationale="Captures external communication needs for skills and exports.",
+            impact_targets=[
+                QUESTION_IMPACT_TARGET_SKILLS,
+                QUESTION_IMPACT_TARGET_EXPORT,
+            ],
+            acquisition_cost="low",
         ),
         _pack_entry(
             step_key=STEP_KEY_COMPANY,
@@ -241,6 +344,15 @@ BASE_CORE_PACK = QuestionPack(
             target_path=FactKey.COMPANY_NON_NEGOTIABLES.value,
             fact_key=FactKey.COMPANY_NON_NEGOTIABLES,
             required=True,
+            rationale="Flags hard constraints that shape brief scope, skill filters, and exports.",
+            impact_targets=[
+                QUESTION_IMPACT_TARGET_BRIEF,
+                QUESTION_IMPACT_TARGET_SALARY,
+                QUESTION_IMPACT_TARGET_SKILLS,
+                QUESTION_IMPACT_TARGET_EXPORT,
+            ],
+            acquisition_cost="medium",
+            info_gain_score=0.88,
             options=[
                 "Standort",
                 "Arbeitszeit",
@@ -262,6 +374,12 @@ BASE_CORE_PACK = QuestionPack(
             priority="standard",
             target_path=FactKey.TEAM_SUCCESS_CONTEXT_90D.value,
             fact_key=FactKey.TEAM_SUCCESS_CONTEXT_90D,
+            rationale="Describes team working norms needed for early success.",
+            impact_targets=[
+                QUESTION_IMPACT_TARGET_BRIEF,
+                QUESTION_IMPACT_TARGET_INTERVIEW,
+            ],
+            acquisition_cost="medium",
         ),
         _pack_entry(
             step_key=STEP_KEY_ROLE_TASKS,
@@ -818,6 +936,14 @@ REMOTE_GLOBAL_PACK = QuestionPack(
             priority="core",
             target_path="remote_policy",
             fact_key=FactKey.COMPANY_REMOTE_POLICY,
+            rationale="Defines geographic eligibility for work-model policy and artifacts.",
+            impact_targets=[
+                QUESTION_IMPACT_TARGET_BRIEF,
+                QUESTION_IMPACT_TARGET_SALARY,
+                QUESTION_IMPACT_TARGET_EXPORT,
+            ],
+            acquisition_cost="low",
+            info_gain_score=0.86,
         ),
     ),
 )
@@ -920,6 +1046,12 @@ HIRING_GROWTH_PACK = QuestionPack(
             priority="standard",
             target_path=FactKey.COMPANY_GROWTH_CONTEXT.value,
             fact_key=FactKey.COMPANY_GROWTH_CONTEXT,
+            rationale="Adds build-up context that explains why the role is needed now.",
+            impact_targets=[
+                QUESTION_IMPACT_TARGET_BRIEF,
+                QUESTION_IMPACT_TARGET_SALARY,
+            ],
+            acquisition_cost="medium",
         ),
     ),
 )
@@ -954,6 +1086,13 @@ SEARCH_CONFIDENTIAL_PACK = QuestionPack(
             priority="core",
             target_path=FactKey.COMPANY_NON_NEGOTIABLES.value,
             fact_key=FactKey.COMPANY_NON_NEGOTIABLES,
+            rationale="Marks sensitive details that need neutral wording in external artifacts.",
+            impact_targets=[
+                QUESTION_IMPACT_TARGET_BRIEF,
+                QUESTION_IMPACT_TARGET_EXPORT,
+            ],
+            acquisition_cost="medium",
+            info_gain_score=0.82,
         ),
     ),
 )
@@ -988,6 +1127,14 @@ ROLE_MATURITY_LOW_PACK = QuestionPack(
             priority="core",
             target_path=FactKey.ROLE_ASSUMPTIONS.value,
             fact_key=FactKey.ROLE_ASSUMPTIONS,
+            rationale="Captures open assumptions before briefing, sourcing, or interview alignment.",
+            impact_targets=[
+                QUESTION_IMPACT_TARGET_BRIEF,
+                QUESTION_IMPACT_TARGET_INTERVIEW,
+                QUESTION_IMPACT_TARGET_EXPORT,
+            ],
+            acquisition_cost="medium",
+            info_gain_score=0.84,
         ),
     ),
 )
@@ -1005,6 +1152,15 @@ LEADERSHIP_SCOPE_PACK = QuestionPack(
             priority="core",
             target_path=FactKey.ROLE_DECISION_SCOPE.value,
             fact_key=FactKey.ROLE_DECISION_SCOPE,
+            rationale="Adds leadership accountability detail for role framing and interview planning.",
+            impact_targets=[
+                QUESTION_IMPACT_TARGET_BRIEF,
+                QUESTION_IMPACT_TARGET_SALARY,
+                QUESTION_IMPACT_TARGET_INTERVIEW,
+                QUESTION_IMPACT_TARGET_EXPORT,
+            ],
+            acquisition_cost="medium",
+            info_gain_score=0.88,
         ),
     ),
 )
@@ -1039,6 +1195,14 @@ INTERNATIONAL_CONTEXT_PACK = QuestionPack(
             priority="core",
             target_path=FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES.value,
             fact_key=FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES,
+            rationale="Defines allowed location boundaries for work-model policy and exports.",
+            impact_targets=[
+                QUESTION_IMPACT_TARGET_BRIEF,
+                QUESTION_IMPACT_TARGET_SALARY,
+                QUESTION_IMPACT_TARGET_EXPORT,
+            ],
+            acquisition_cost="low",
+            info_gain_score=0.86,
             options=[
                 "Deutschland",
                 "DACH",
