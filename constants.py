@@ -534,6 +534,9 @@ class FactKey(str, Enum):
     COMPANY_EMPLOYER_PITCH = "company.employer_pitch"
     COMPANY_ROLE_RELEVANT_POSITIONING = "company.role_relevant_positioning"
     COMPANY_BUSINESS_UNIT = "company.business_unit"
+    COMPANY_HIRING_REASON = "company.hiring_reason"
+    COMPANY_GROWTH_CONTEXT = "company.growth_context"
+    COMPANY_ROLE_BUSINESS_IMPACT = "company.role_business_impact"
     COMPANY_LANGUAGE_INTERNAL = "company.language_internal"
     COMPANY_LANGUAGE_EXTERNAL = "company.language_external"
     COMPANY_NON_NEGOTIABLES = "company.non_negotiables"
@@ -718,6 +721,9 @@ SALARY_QUALITY_DRIVER_FACT_KEYS: Final[frozenset[FactKey]] = frozenset(
         FactKey.COMPANY_EMPLOYER_PITCH,
         FactKey.COMPANY_ROLE_RELEVANT_POSITIONING,
         FactKey.COMPANY_BUSINESS_UNIT,
+        FactKey.COMPANY_HIRING_REASON,
+        FactKey.COMPANY_GROWTH_CONTEXT,
+        FactKey.COMPANY_ROLE_BUSINESS_IMPACT,
         FactKey.COMPANY_LANGUAGE_INTERNAL,
         FactKey.COMPANY_LANGUAGE_EXTERNAL,
         FactKey.COMPANY_NON_NEGOTIABLES,
@@ -943,6 +949,24 @@ INTAKE_FACTS: Final[tuple[IntakeFactDef, ...]] = (
     _intake_fact(
         FactKey.COMPANY_BUSINESS_UNIT,
         "Business unit",
+        STEP_KEY_COMPANY,
+        FactValueType.STRING,
+    ),
+    _intake_fact(
+        FactKey.COMPANY_HIRING_REASON,
+        "Company hiring reason",
+        STEP_KEY_COMPANY,
+        FactValueType.STRING,
+    ),
+    _intake_fact(
+        FactKey.COMPANY_GROWTH_CONTEXT,
+        "Company growth context",
+        STEP_KEY_COMPANY,
+        FactValueType.STRING,
+    ),
+    _intake_fact(
+        FactKey.COMPANY_ROLE_BUSINESS_IMPACT,
+        "Role business impact",
         STEP_KEY_COMPANY,
         FactValueType.STRING,
     ),

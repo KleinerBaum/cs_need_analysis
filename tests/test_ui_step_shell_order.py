@@ -18,6 +18,9 @@ class _FakeStreamlit:
     def caption(self, _text: str) -> None:
         return None
 
+    def markdown(self, _text: str, *_args: Any, **_kwargs: Any) -> None:
+        return None
+
 
 class _ShellFakeStreamlit:
     def __init__(self, *, selected_label: str | None = None, correction: str = "") -> None:

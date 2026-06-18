@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import sys
 
 from constants import AnswerType, FactKey, SSKey
-from schemas import Question, QuestionPlan, QuestionStep
+from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
 import ui_components
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -141,7 +141,7 @@ def test_company_open_questions_filter_structured_fact_key_duplicates() -> None:
                 id="ctx_hiring_growth_context",
                 label="Welcher Wachstumskontext macht die Rolle nötig?",
                 answer_type=AnswerType.LONG_TEXT,
-                fact_key=FactKey.COMPANY_ROLE_RELEVANT_POSITIONING.value,
+                fact_key=FactKey.COMPANY_GROWTH_CONTEXT.value,
             ),
             Question(
                 id="ctx_same_label_distinct_fact",
@@ -157,7 +157,6 @@ def test_company_open_questions_filter_structured_fact_key_duplicates() -> None:
     assert filtered_step is not None
     assert [question.id for question in filtered_step.questions] == [
         "ctx_confidential_external_narrative",
-        "ctx_hiring_growth_context",
         "ctx_same_label_distinct_fact",
     ]
 
@@ -225,3 +224,70 @@ def test_structured_company_facts_still_cover_original_step_review(monkeypatch) 
         "ctx_company_non_negotiables": True,
     }
     assert review_payload["step_status"]["answered"] == 4
+
+
+class _Context:
+    def __enter__(self) -> "_Context":
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+
+class _CompanySectionStreamlit:
+    def __init__(self) -> None:
+        self.markdown_calls: list[str] = []
+
+    def markdown(self, text: str, *_args: object, **_kwargs: object) -> None:
+        self.markdown_calls.append(text)
+
+    def text_area(self, *_args: object, **_kwargs: object) -> str:
+        return ""
+
+
+def test_structured_company_context_renders_canonical_section_order(monkeypatch) -> None:
+    company_module = _load_company_module()
+    fake_st = _CompanySectionStreamlit()
+    contexts = (_Context(), _Context(), _Context())
+
+    monkeypatch.setattr(company_module, "st", fake_st)
+    monkeypatch.setattr(company_module, "section_container", lambda **_kwargs: _Context())
+    monkeypatch.setattr(
+        company_module,
+        "responsive_two_columns",
+        lambda **_kwargs: contexts[:2],
+    )
+    monkeypatch.setattr(
+        company_module,
+        "responsive_three_columns",
+        lambda **_kwargs: contexts,
+    )
+    monkeypatch.setattr(company_module, "render_text_fact", lambda *_args, **_kwargs: "")
+    monkeypatch.setattr(company_module, "render_text_area_fact", lambda *_args, **_kwargs: "")
+    monkeypatch.setattr(company_module, "render_multiselect_fact", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(company_module, "render_select_fact", lambda *_args, **_kwargs: "")
+    monkeypatch.setattr(company_module, "render_number_fact", lambda *_args, **_kwargs: 0)
+    monkeypatch.setattr(company_module, "_render_language_fact", lambda **_kwargs: None)
+    monkeypatch.setattr(company_module, "fact_value", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(company_module, "persist_fact", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(company_module, "render_role_context_enrichment", lambda **_kwargs: None)
+    monkeypatch.setattr(
+        company_module,
+        "_render_website_enrichment",
+        lambda *_args, **_kwargs: fake_st.markdown("#### Website Evidence"),
+    )
+
+    company_module._render_structured_company_context(
+        JobAdExtract(),
+        ctx=SimpleNamespace(),
+        plan=QuestionPlan(steps=[]),
+    )
+
+    assert fake_st.markdown_calls == [
+        "#### Employer Profile",
+        "#### Business Context",
+        "#### Team & Reporting",
+        "#### Working Model & Location",
+        "#### Non-negotiables & Compliance",
+        "#### Website Evidence",
+    ]

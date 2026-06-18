@@ -100,11 +100,24 @@ _STRUCTURED_COMPANY_FACT_KEYS = frozenset(
         FactKey.COMPANY_EMPLOYER_PITCH,
         FactKey.COMPANY_BUSINESS_UNIT,
         FactKey.COMPANY_ROLE_RELEVANT_POSITIONING,
+        FactKey.COMPANY_HIRING_REASON,
+        FactKey.COMPANY_GROWTH_CONTEXT,
+        FactKey.COMPANY_ROLE_BUSINESS_IMPACT,
+        FactKey.COMPANY_COMPANY_NAME,
+        FactKey.COMPANY_BRAND_NAME,
+        FactKey.COMPANY_COMPANY_WEBSITE,
+        FactKey.COMPANY_DEPARTMENT_NAME,
+        FactKey.COMPANY_REPORTS_TO,
+        FactKey.COMPANY_DIRECT_REPORTS_COUNT,
         FactKey.TEAM_NAME,
         FactKey.TEAM_LEADERSHIP_SCOPE,
         FactKey.TEAM_SIZE_DIRECT,
         FactKey.TEAM_STAKEHOLDERS_PRIMARY,
         FactKey.TEAM_SUCCESS_CONTEXT_90D,
+        FactKey.COMPANY_LOCATION_CITY,
+        FactKey.COMPANY_LOCATION_COUNTRY,
+        FactKey.COMPANY_PLACE_OF_WORK,
+        FactKey.COMPANY_REMOTE_POLICY,
         FactKey.COMPANY_WORK_ARRANGEMENT,
         FactKey.COMPANY_OFFICE_DAYS_PER_WEEK,
         FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES,
@@ -118,7 +131,6 @@ _STRUCTURED_COMPANY_FACT_KEYS = frozenset(
 _COMPANY_DISTINCT_FOLLOW_UP_QUESTION_IDS = frozenset(
     {
         "ctx_confidential_external_narrative",
-        "ctx_hiring_growth_context",
     }
 )
 
@@ -283,8 +295,16 @@ def _run_website_research(
 
 
 def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
-    st.markdown("### Unternehmenswebsite")
-    extracted_homepage = _normalize_url(job.company_website or "")
+    st.markdown("#### Website Evidence")
+    extracted_homepage = _normalize_url(
+        str(
+            fact_value(
+                FactKey.COMPANY_COMPANY_WEBSITE,
+                job.company_website or "",
+            )
+            or ""
+        )
+    )
     manual_homepage_raw = str(
         st.session_state.get(SSKey.COMPANY_WEBSITE_MANUAL_URL.value, "")
     ).strip()
@@ -710,25 +730,54 @@ def _render_language_fact(
     )
 
 
-def _render_structured_company_context(
-    job: JobAdExtract,
-    *,
-    ctx: WizardContext,
-    plan: QuestionPlan,
-) -> None:
+def _render_employer_profile_section(job: JobAdExtract) -> None:
     with section_container(border=True):
-        st.markdown("#### Unternehmensprofil")
+        st.markdown("#### Employer Profile")
         left, right = responsive_two_columns(gap="large")
         with left:
+            render_text_fact(
+                FactKey.COMPANY_COMPANY_NAME,
+                "Unternehmensname",
+                default=job.company_name or "",
+            )
+            render_text_fact(
+                FactKey.COMPANY_BRAND_NAME,
+                "Marke / Brand",
+                default=job.brand_name or "",
+            )
+            render_text_fact(
+                FactKey.COMPANY_COMPANY_WEBSITE,
+                "Unternehmenswebsite",
+                default=job.company_website or "",
+                placeholder="https://www.beispiel.de",
+            )
+        with right:
             render_text_area_fact(
                 FactKey.COMPANY_EMPLOYER_PITCH,
                 "Wie würden Sie das Unternehmen in 1-2 Sätzen für Kandidat:innen beschreiben?",
                 height=110,
             )
+
+
+def _render_business_context_section(job: JobAdExtract) -> None:
+    with section_container(border=True):
+        st.markdown("#### Business Context")
+        left, right = responsive_two_columns(gap="large")
+        with left:
             render_text_fact(
                 FactKey.COMPANY_BUSINESS_UNIT,
                 "In welchem Geschäfts- oder Produktbereich sitzt die Rolle?",
                 default=job.department_name or "",
+            )
+            render_text_fact(
+                FactKey.COMPANY_HIRING_REASON,
+                "Warum wird diese Rolle jetzt besetzt?",
+                placeholder="z. B. Wachstum, Ersatz, neue Capability, Transformation",
+            )
+            render_text_area_fact(
+                FactKey.COMPANY_GROWTH_CONTEXT,
+                "Welcher Markt-, Wachstums- oder Aufbaukontext ist relevant?",
+                height=100,
             )
         with right:
             render_multiselect_fact(
@@ -745,19 +794,40 @@ def _render_structured_company_context(
                     "Sonstiges",
                 ],
             )
+            render_text_area_fact(
+                FactKey.COMPANY_ROLE_BUSINESS_IMPACT,
+                "Welchen Business Impact soll die Rolle für das Unternehmen haben?",
+                height=110,
+            )
 
-    _render_website_enrichment(job, plan)
 
+def _render_team_reporting_section(job: JobAdExtract, *, ctx: WizardContext) -> None:
     with section_container(border=True):
         st.markdown("#### Team & Reporting")
-        col_team, col_scope, col_size = responsive_three_columns(gap="large")
-        with col_team:
+        team_col, department_col, reports_to_col = responsive_three_columns(gap="large")
+        with team_col:
             render_text_fact(
                 FactKey.TEAM_NAME,
                 "Welches Team nimmt die Person auf?",
                 default=job.department_name or "",
             )
-        with col_scope:
+        with department_col:
+            render_text_fact(
+                FactKey.COMPANY_DEPARTMENT_NAME,
+                "Abteilung / Fachbereich",
+                default=job.department_name or "",
+            )
+        with reports_to_col:
+            render_text_fact(
+                FactKey.COMPANY_REPORTS_TO,
+                "An wen berichtet die Rolle?",
+                default=job.reports_to or "",
+            )
+
+        scope_col, direct_reports_col, team_size_col = responsive_three_columns(
+            gap="large"
+        )
+        with scope_col:
             render_select_fact(
                 FactKey.TEAM_LEADERSHIP_SCOPE,
                 "Welche Führungsverantwortung hat die Rolle?",
@@ -765,7 +835,15 @@ def _render_structured_company_context(
                 default="individual_contributor",
                 labels=_LEADERSHIP_LABELS,
             )
-        with col_size:
+        with direct_reports_col:
+            render_number_fact(
+                FactKey.COMPANY_DIRECT_REPORTS_COUNT,
+                "Wie viele Direct Reports hat die Rolle?",
+                min_value=0,
+                max_value=500,
+                default=job.direct_reports_count or 0,
+            )
+        with team_size_col:
             render_number_fact(
                 FactKey.TEAM_SIZE_DIRECT,
                 "Wie groß ist das unmittelbare Team?",
@@ -799,9 +877,31 @@ def _render_structured_company_context(
             adopt_context_callback=_append_context_to_team_success_fact,
         )
 
+
+def _render_working_model_location_section(job: JobAdExtract) -> None:
     with section_container(border=True):
-        st.markdown("#### Arbeitsmodell")
-        arrangement_col, days_col = responsive_two_columns(gap="large")
+        st.markdown("#### Working Model & Location")
+        location_col, country_col, place_col = responsive_three_columns(gap="large")
+        with location_col:
+            render_text_fact(
+                FactKey.COMPANY_LOCATION_CITY,
+                "Arbeitsort / Stadt",
+                default=job.location_city or "",
+            )
+        with country_col:
+            render_text_fact(
+                FactKey.COMPANY_LOCATION_COUNTRY,
+                "Land",
+                default=job.location_country or "",
+            )
+        with place_col:
+            render_text_fact(
+                FactKey.COMPANY_PLACE_OF_WORK,
+                "Konkreter Arbeitsort",
+                default=job.place_of_work or "",
+            )
+
+        arrangement_col, days_col, remote_col = responsive_three_columns(gap="large")
         with arrangement_col:
             render_select_fact(
                 FactKey.COMPANY_WORK_ARRANGEMENT,
@@ -818,9 +918,17 @@ def _render_structured_company_context(
                 max_value=5,
                 default=0,
             )
+        with remote_col:
+            render_text_fact(
+                FactKey.COMPANY_REMOTE_POLICY,
+                "Remote Policy aus der Anzeige / interner Regel",
+                default=job.remote_policy or "",
+            )
         allowed_regions = st.text_area(
             "Zulässige Regionen oder Zeitzonen",
-            value="\n".join(split_lines(fact_value(FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES, []))),
+            value="\n".join(
+                split_lines(fact_value(FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES, []))
+            ),
             placeholder="z. B. Deutschland\nDACH\nCET +/- 2h",
             height=90,
             key=f"fact_input.{FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES.value}",
@@ -841,6 +949,8 @@ def _render_structured_company_context(
                 default_context="Kund:innen / Partner",
             )
 
+
+def _render_non_negotiables_compliance_section() -> None:
     with section_container(border=True):
         st.markdown("#### Non-negotiables & Compliance")
         render_multiselect_fact(
@@ -880,6 +990,20 @@ def _render_structured_company_context(
             )
 
 
+def _render_structured_company_context(
+    job: JobAdExtract,
+    *,
+    ctx: WizardContext,
+    plan: QuestionPlan,
+) -> None:
+    _render_employer_profile_section(job)
+    _render_business_context_section(job)
+    _render_team_reporting_section(job, ctx=ctx)
+    _render_working_model_location_section(job)
+    _render_non_negotiables_compliance_section()
+    _render_website_enrichment(job, plan)
+
+
 def _append_context_to_team_success_fact(context_line: str) -> bool:
     current = str(fact_value(FactKey.TEAM_SUCCESS_CONTEXT_90D, "") or "").strip()
     addition = context_line.strip()
@@ -907,6 +1031,9 @@ def render(ctx: WizardContext) -> None:
             ("Homepage", job.company_website),
             ("Ort", job.location_city),
             ("Remote Policy", job.remote_policy),
+            ("Department", job.department_name),
+            ("Reports to", job.reports_to),
+            ("Direct reports", job.direct_reports_count),
         ]
         shown = False
         for label, value in extracted_rows:
@@ -923,12 +1050,20 @@ def render(ctx: WizardContext) -> None:
         _render_structured_company_context(job, ctx=ctx, plan=plan)
 
     def _render_open_questions_slot() -> None:
+        st.markdown("#### Open Questions")
         if open_question_step is None or not open_question_step.questions:
             st.info(
                 "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
             )
         else:
             render_question_step(open_question_step)
+
+    def _render_review_slot() -> None:
+        st.markdown("#### Review")
+        render_standard_step_review(
+            step_company,
+            render_mode=resolve_standard_review_mode(context=ReviewRenderContext.STEP_FORM),
+        )
 
 
     render_step_shell(
@@ -943,10 +1078,7 @@ def render(ctx: WizardContext) -> None:
         extracted_from_jobspec_label="",
         source_comparison_slot=_render_source_comparison_slot,
         open_questions_slot=_render_open_questions_slot,
-        review_slot=lambda: render_standard_step_review(
-            step_company,
-            render_mode=resolve_standard_review_mode(context=ReviewRenderContext.STEP_FORM),
-        ),
+        review_slot=_render_review_slot,
         footer_slot=lambda: nav_buttons(ctx),
     )
 

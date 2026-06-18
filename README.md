@@ -35,7 +35,7 @@ The active visible route is defined by `constants.STEPS` and enforced by `wizard
 | Order | Step key | UI label | Main module | Purpose |
 |---:|---|---|---|---|
 | 1 | `landing` | Start | `wizard_pages/00_landing.py` + `wizard_pages/jobad_intake.py` | Landing page plus jobspec intake phases A/B/C |
-| 2 | `company` | Unternehmen | `wizard_pages/02_company.py` | Company context, team context, homepage enrichment |
+| 2 | `company` | Unternehmen | `wizard_pages/02_company.py` | Employer profile, business context, team/reporting, working model/location, compliance, website evidence |
 | 3 | `role_tasks` | Rolle & Aufgaben | `wizard_pages/04_role_tasks.py` | Role/task curation, ESCO/context/AI suggestions, salary block |
 | 4 | `skills` | Skills & Anforderungen | `wizard_pages/05_skills.py` | Jobspec/ESCO/AI skills, normalization, matrix priors, unmapped-term decisions |
 | 5 | `benefits` | Benefits & Rahmenbedingungen | `wizard_pages/06_benefits.py` | Benefits and operating conditions from jobspec/context/AI |
