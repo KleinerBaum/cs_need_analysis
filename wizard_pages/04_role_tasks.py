@@ -6,7 +6,16 @@ from typing import Any
 
 import streamlit as st
 
-from constants import FactKey, SSKey
+from constants import (
+    FactKey,
+    SSKey,
+    STEP_KEY_ROLE_TASKS,
+    STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
+    STEP_SECTION_OPEN_QUESTIONS,
+    STEP_SECTION_REVIEW,
+    STEP_SECTION_SALARY_FORECAST,
+    STEP_SECTION_SOURCE_COMPARISON,
+)
 from esco_client import EscoClient, EscoClientError
 from esco_rag import retrieve_esco_context_multi as retrieve_esco_context
 from llm_client import generate_requirement_gap_suggestions
@@ -19,6 +28,7 @@ from state import (
     get_esco_semantic_context,
     sync_esco_shared_state,
 )
+from step_sections import build_step_shell_section_kwargs
 from ui_components import (
     has_meaningful_value,
     render_source_pill_selection,
@@ -724,16 +734,27 @@ def render(ctx: WizardContext) -> None:
 
         render_question_step(step)
 
+    section_kwargs = build_step_shell_section_kwargs(
+        step_key=STEP_KEY_ROLE_TASKS,
+        renderers={
+            STEP_SECTION_EXTRACTED_FROM_JOBSPEC: _render_extracted_slot,
+            STEP_SECTION_SOURCE_COMPARISON: _render_source_comparison_slot,
+            STEP_SECTION_SALARY_FORECAST: _render_salary_forecast_slot,
+            STEP_SECTION_OPEN_QUESTIONS: _render_open_questions_slot,
+            STEP_SECTION_REVIEW: lambda: render_standard_step_review(
+                step,
+                render_mode=resolve_standard_review_mode(
+                    context=ReviewRenderContext.STEP_FORM
+                ),
+            ),
+        },
+    )
+
     render_step_shell(
         title="Rolle und Kernaufgaben festzurren",
         subtitle="",
         step=step,
-        extracted_from_jobspec_slot=_render_extracted_slot,
-        extracted_from_jobspec_label="",
         extracted_from_jobspec_use_expander=False,
-        source_comparison_slot=_render_source_comparison_slot,
-        salary_forecast_slot=_render_salary_forecast_slot,
-        open_questions_slot=_render_open_questions_slot,
         lazy_section_configs={
             "source_comparison_slot": LazySectionConfig(
                 label="Quellenabgleich",
@@ -754,10 +775,7 @@ def render(ctx: WizardContext) -> None:
                 default_open=False,
             ),
         },
-        review_slot=lambda: render_standard_step_review(
-            step,
-            render_mode=resolve_standard_review_mode(context=ReviewRenderContext.STEP_FORM),
-        ),
+        **section_kwargs,
         footer_slot=lambda: nav_buttons(ctx),
     )
 

@@ -20,17 +20,17 @@
 - `llm_client.py` um Session-basiertes LLM-Response-Caching erweitert: Cache-Key basiert auf task_kind, resolved_model, language, reasoning/verbosity, store-Flag, normalisiertem Inhalt (`job_text` bzw. serialisierte `job`/`answers`) plus optionaler Schema-Version.
 - `extract_job_ad`, `generate_question_plan` und `generate_vacancy_brief` prüfen vor API-Calls den Cache und geben bei Treffer direkt ein validiertes strukturiertes Objekt sowie Usage-Metadaten mit `cached=true` zurück.
 - Neue Session-State-Keys (`SSKey.LLM_RESPONSE_CACHE`, `SSKey.JOBAD_CACHE_HIT`, `SSKey.SUMMARY_CACHE_HIT`) inkl. Initialisierung/Reset ergänzt.
-- UI in `wizard_pages/01_jobad.py` und `wizard_pages/08_summary.py` zeigt Cache-Treffer jetzt explizit zweisprachig an („aus Cache geladen / loaded from cache“).
+- UI im Start-Intake (`wizard_pages/jobad_intake.py`) und in `wizard_pages/08_summary.py` zeigt Cache-Treffer jetzt explizit zweisprachig an („aus Cache geladen / loaded from cache“).
 - Landing-Page erweitert: verpflichtende DE/EN-Consent-Bestätigung zum OpenAI Content Sharing Agreement (`cs.content_sharing_consent`) vor Wizard-Start; Start-Button bleibt bis zur Zustimmung deaktiviert.
 - Terms of Service und Privacy Policy präzisiert: zweisprachige Hinweise zu Designated Content, Development Purposes, Notice/Consent-Verantwortung sowie ausgeschlossenen Daten (PHI, Kinder <13 bzw. lokales Mindestalter).
 - Session-State/Constants ergänzt um neuen Schlüssel `SSKey.CONTENT_SHARING_CONSENT` inklusive Initialisierung in `init_session_state()`.
 - OpenAI-Fehlerbehandlung in `llm_client.py` weiter gehärtet: SDK-Feature-Mismatch wird jetzt als `OpenAICallError` mit Code `OPENAI_SDK_UNSUPPORTED` behandelt (statt generischem `RuntimeError`); `debug_detail` enthält non-sensitive Kontext (`endpoint`, Exception-Klasse, optional `status_code`) ohne Payload/Secrets.
-- Wizard-Seiten (`wizard_pages/01_jobad.py`, `wizard_pages/08_summary.py`) behalten `OpenAICallError`-Sonderbehandlung bei; generische Fangkörbe bleiben als letzter Schutz mit neutral-kurzer DE/EN-UI-Meldung.
+- Start-/Summary-Flows (`wizard_pages/jobad_intake.py`, `wizard_pages/08_summary.py`) behalten `OpenAICallError`-Sonderbehandlung bei; generische Fangkörbe bleiben als letzter Schutz mit neutral-kurzer DE/EN-UI-Meldung.
 - Smoke-Test erweitert (`scripts/openai_smoke_test.py`): zusätzliche Pfade für `invalid-reasoning-effort`, `unsupported-temperature` sowie simulierbare Timeout-/Connection-Error-Mappings (`--simulate-error timeout|connection`) zur reproduzierbaren Verifikation ohne Netzwerkzwang.
-- Jobspec-Quelle in `wizard_pages/01_jobad.py` pro Tab entkoppelt: Upload, manueller Text und Samples verwalten jetzt getrennte Zustände; aktive Quelle wird explizit in `SSKey.SOURCE_TEXT` übernommen (inkl. sichtbarer DE/EN-Debug-Caption zur aktiven Quelle).
+- Jobspec-Quelle im Start-Intake (`wizard_pages/jobad_intake.py`) pro Tab entkoppelt: Upload, manueller Text und Samples verwalten jetzt getrennte Zustände; aktive Quelle wird explizit in `SSKey.SOURCE_TEXT` übernommen (inkl. sichtbarer DE/EN-Debug-Caption zur aktiven Quelle).
 - Modell-Routing vereinheitlicht auf `resolve_model_for_task(task_kind, session_override, settings)` mit klaren Task-Kinds: `extract_job_ad`, `generate_question_plan`, `generate_vacancy_brief`.
 - Prioritätskette explizit gehärtet: Session/UI-Override > `OPENAI_MODEL` > task-spezifisches Modell > `DEFAULT_MODEL` > finaler Fallback (`gpt-4o-mini`).
-- Wizard-Seiten `01_jobad` und `08_summary` zeigen im Debug-Expander jetzt die effektiv aufgelösten Task-Modelle (`resolved_models`) an, ohne bestehende UX-Flows umzubauen.
+- Start-Intake und `08_summary` zeigen im Debug-Expander jetzt die effektiv aufgelösten Task-Modelle (`resolved_models`) an, ohne bestehende UX-Flows umzubauen.
 - Prompt-Kontrakte für Nano-Modelle gezielt geschärft: neue Helper-Funktion `build_small_model_guardrails(model)` greift nur für `gpt-5-nano`/`gpt-5.4-nano` und erzwingt strukturierte Schema-Ausgabe ohne Zusatztext/Nebenaufgaben sowie `leer/null` bei fehlenden Informationen.
 - Guardrails in allen drei Kernpfaden vereinheitlicht (`build_extract_job_ad_messages`, `generate_question_plan`, `generate_vacancy_brief`) ohne Prompt-Rewrite für größere Modelle.
 - Tests erweitert (`tests/test_openai_smoke_modes.py`): neue Assertions für Nano-spezifische Guardrails in Helper und Extract-Message-Building.
@@ -56,7 +56,7 @@
 - Nano-spezifische Prompt-Härtung ergänzt: Für `gpt-5-nano` und `gpt-5.4-nano` erhalten `extract_job_ad`, `generate_question_plan` und `generate_vacancy_brief` einen kurzen Closed-Output-Zusatz (nur Schema, kein Zusatztext, klare Reihenfolge, keine Nebenaufgaben), ohne das Verhalten für größere Modelle zu verändern.
 - Tests erweitert: `tests/test_openai_smoke_modes.py` prüft jetzt zusätzlich Nano-Modellerkennung und das gezielte Aktivieren des Closed-Output-Zusatzes.
 - OpenAI-Exception-Mapping erweitert: getrennte, knappe UI-Fehler für fehlenden API-Key, Timeout, HTTP-400/inkompatible Parameter und Structured-Output-/Validierungsfehler; Logs bleiben bewusst nicht-sensitiv.
-- Wizard-Seiten `jobad` und `summary` verwenden jetzt die neuen typisierten OpenAI-Fehler samt optionalem non-sensitive Debug-Expander (`OPENAI_DEBUG_ERRORS`), ohne bestehende UX-Flows zu ändern.
+- Start-Intake und Summary verwenden jetzt die neuen typisierten OpenAI-Fehler samt optionalem non-sensitive Debug-Expander (`OPENAI_DEBUG_ERRORS`), ohne bestehende UX-Flows zu ändern.
 - Neue Tests `tests/test_openai_error_mapping.py` decken die Error-Mappings für Timeout, 400, Auth und Structured-Output-Validation ab.
 - Modell-Capability-Logik fachlich gehärtet und zentralisiert (`model_capabilities.py`): Snapshot-taugliche GPT-5-Erkennung (`gpt-5*` inkl. Datums-Suffix), neue Capability-Checks (`supports_reasoning`, `supports_verbosity`, `supports_temperature`) und erweiterte `reasoning_effort`-Normalisierung (`none|minimal|low|medium|high|xhigh`).
 - Request-Building abgesichert: `reasoning`/`text.verbosity` werden nur noch bei kompatiblen GPT-5-Familien gesendet; Nicht-GPT-5-Fallbacks wie `gpt-4o-mini` erhalten keine GPT-5-spezifischen Felder.

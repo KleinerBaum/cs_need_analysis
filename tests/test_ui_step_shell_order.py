@@ -9,11 +9,15 @@ from constants import (
     AnswerType,
     FactKey,
     SSKey,
+    STEP_KEY_BENEFITS,
     STEP_KEY_COMPANY,
     STEP_KEY_INTERVIEW,
+    STEP_KEY_ROLE_TASKS,
+    STEP_KEY_SKILLS,
     STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
     STEP_SECTION_OPEN_QUESTIONS,
     STEP_SECTION_REVIEW,
+    STEP_SECTION_SALARY_FORECAST,
     STEP_SECTION_SOURCE_COMPARISON,
 )
 from schemas import JobAdExtract, Question, QuestionStep
@@ -227,20 +231,92 @@ def test_company_team_interview_use_step_shell_with_review_slot_and_canonical_or
     assert callable(interview_kwargs["review_slot"])
 
 
-def test_company_interview_step_section_registry_drives_shell_order() -> None:
+def test_canonical_step_section_registry_drives_shell_order() -> None:
     from step_sections import build_step_shell_section_kwargs, get_step_sections
 
-    for step_key, expected_label in (
-        (STEP_KEY_COMPANY, ""),
-        (STEP_KEY_INTERVIEW, "Identifizierte Interview-Werte"),
-    ):
+    expected_contracts = {
+        STEP_KEY_COMPANY: (
+            [
+                STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
+                STEP_SECTION_SOURCE_COMPARISON,
+                STEP_SECTION_OPEN_QUESTIONS,
+                STEP_SECTION_REVIEW,
+            ],
+            [
+                "extracted_from_jobspec_slot",
+                "source_comparison_slot",
+                "open_questions_slot",
+                "review_slot",
+            ],
+            "",
+        ),
+        STEP_KEY_ROLE_TASKS: (
+            [
+                STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
+                STEP_SECTION_SOURCE_COMPARISON,
+                STEP_SECTION_SALARY_FORECAST,
+                STEP_SECTION_OPEN_QUESTIONS,
+                STEP_SECTION_REVIEW,
+            ],
+            [
+                "extracted_from_jobspec_slot",
+                "source_comparison_slot",
+                "salary_forecast_slot",
+                "open_questions_slot",
+                "review_slot",
+            ],
+            "",
+        ),
+        STEP_KEY_SKILLS: (
+            [
+                STEP_SECTION_SOURCE_COMPARISON,
+                STEP_SECTION_SALARY_FORECAST,
+                STEP_SECTION_OPEN_QUESTIONS,
+                STEP_SECTION_REVIEW,
+            ],
+            [
+                "source_comparison_slot",
+                "salary_forecast_slot",
+                "open_questions_slot",
+                "review_slot",
+            ],
+            None,
+        ),
+        STEP_KEY_BENEFITS: (
+            [
+                STEP_SECTION_SOURCE_COMPARISON,
+                STEP_SECTION_SALARY_FORECAST,
+                STEP_SECTION_OPEN_QUESTIONS,
+                STEP_SECTION_REVIEW,
+            ],
+            [
+                "source_comparison_slot",
+                "salary_forecast_slot",
+                "open_questions_slot",
+                "review_slot",
+            ],
+            None,
+        ),
+        STEP_KEY_INTERVIEW: (
+            [
+                STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
+                STEP_SECTION_SOURCE_COMPARISON,
+                STEP_SECTION_OPEN_QUESTIONS,
+                STEP_SECTION_REVIEW,
+            ],
+            [
+                "extracted_from_jobspec_slot",
+                "source_comparison_slot",
+                "open_questions_slot",
+                "review_slot",
+            ],
+            "Identifizierte Interview-Werte",
+        ),
+    }
+
+    for step_key, (expected_sections, expected_slots, expected_label) in expected_contracts.items():
         section_ids = [section.section_id for section in get_step_sections(step_key)]
-        assert section_ids == [
-            STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
-            STEP_SECTION_SOURCE_COMPARISON,
-            STEP_SECTION_OPEN_QUESTIONS,
-            STEP_SECTION_REVIEW,
-        ]
+        assert section_ids == expected_sections
 
         renderers = {section_id: (lambda: None) for section_id in section_ids}
         shell_kwargs = build_step_shell_section_kwargs(
@@ -248,13 +324,11 @@ def test_company_interview_step_section_registry_drives_shell_order() -> None:
             renderers=renderers,
         )
 
-        assert _slot_order_from_render_kwargs(shell_kwargs) == [
-            "extracted_from_jobspec_slot",
-            "source_comparison_slot",
-            "open_questions_slot",
-            "review_slot",
-        ]
-        assert shell_kwargs["extracted_from_jobspec_label"] == expected_label
+        assert _slot_order_from_render_kwargs(shell_kwargs) == expected_slots
+        if expected_label is None:
+            assert "extracted_from_jobspec_label" not in shell_kwargs
+        else:
+            assert shell_kwargs["extracted_from_jobspec_label"] == expected_label
 
 
 def test_salary_forecast_slots_keep_canonical_result_key_wiring() -> None:

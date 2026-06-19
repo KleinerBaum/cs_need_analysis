@@ -5,7 +5,15 @@ from typing import Any
 
 import streamlit as st
 
-from constants import FactKey, SSKey
+from constants import (
+    FactKey,
+    SSKey,
+    STEP_KEY_BENEFITS,
+    STEP_SECTION_OPEN_QUESTIONS,
+    STEP_SECTION_REVIEW,
+    STEP_SECTION_SALARY_FORECAST,
+    STEP_SECTION_SOURCE_COMPARISON,
+)
 from intake_facts import write_intake_fact_by_legacy_field
 from llm_client import (
     TASK_GENERATE_BENEFIT_SUGGESTIONS,
@@ -16,6 +24,7 @@ from llm_client import (
 from schemas import JobAdExtract, QuestionStep
 from settings_openai import load_openai_settings
 from state import get_answers, get_esco_semantic_context
+from step_sections import build_step_shell_section_kwargs
 from ui_layout import (
     LazySectionConfig,
     default_lazy_source_section_open,
@@ -775,6 +784,16 @@ def render(ctx: WizardContext) -> None:
         )
         _render_benefits_consistency_checklist(job=job, step=step)
 
+    section_kwargs = build_step_shell_section_kwargs(
+        step_key=STEP_KEY_BENEFITS,
+        renderers={
+            STEP_SECTION_SOURCE_COMPARISON: _render_source_comparison_slot,
+            STEP_SECTION_SALARY_FORECAST: _render_salary_forecast_slot,
+            STEP_SECTION_OPEN_QUESTIONS: _render_open_questions_slot,
+            STEP_SECTION_REVIEW: _render_review_slot,
+        },
+    )
+
     render_step_shell(
         title="Angebot und Rahmenbedingungen schärfen",
         subtitle=(
@@ -787,9 +806,6 @@ def render(ctx: WizardContext) -> None:
             "das intern und extern einheitlich kommuniziert werden kann."
         ),
         step=step,
-        source_comparison_slot=_render_source_comparison_slot,
-        salary_forecast_slot=_render_salary_forecast_slot,
-        open_questions_slot=_render_open_questions_slot,
         lazy_section_configs={
             "source_comparison_slot": LazySectionConfig(
                 label="Quellenabgleich",
@@ -810,7 +826,7 @@ def render(ctx: WizardContext) -> None:
                 default_open=False,
             ),
         },
-        review_slot=_render_review_slot,
+        **section_kwargs,
         footer_slot=lambda: nav_buttons(ctx),
     )
 

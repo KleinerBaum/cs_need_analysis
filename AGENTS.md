@@ -314,6 +314,18 @@ python -m pytest -q
 python scripts/openai_smoke_test.py --mode all --ci-dry-run-if-no-key --json-only
 ```
 
+### Docs and wizard contract
+
+Use this smaller set for documentation or routed-step contract changes:
+
+```bash
+python -m compileall README.md AGENTS.md CHANGELOG.md
+python -m pytest -q tests/test_wizard_contract.py tests/test_public_page_links.py
+rg -n '01_jobad|wizard_pages/01_jobad' README.md AGENTS.md CHANGELOG.md
+```
+
+The grep command should return no matches after stale Start-step references are removed.
+
 ### Targeted checks by area
 
 State, constants, wizard contracts:

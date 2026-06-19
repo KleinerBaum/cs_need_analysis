@@ -8,7 +8,15 @@ from typing import Any
 import streamlit as st
 from pydantic import ValidationError
 
-from constants import FactKey, SSKey
+from constants import (
+    FactKey,
+    SSKey,
+    STEP_KEY_SKILLS,
+    STEP_SECTION_OPEN_QUESTIONS,
+    STEP_SECTION_REVIEW,
+    STEP_SECTION_SALARY_FORECAST,
+    STEP_SECTION_SOURCE_COMPARISON,
+)
 from intake_facts import sync_selected_skill_intake_facts
 from esco_client import (
     EscoClient,
@@ -40,6 +48,7 @@ from state import (
     get_esco_semantic_context,
     sync_esco_shared_state,
 )
+from step_sections import build_step_shell_section_kwargs
 from ui_layout import (
     LazySectionConfig,
     default_lazy_source_section_open,
@@ -2582,6 +2591,23 @@ def render(ctx: WizardContext) -> None:
         )
         _render_structured_skill_rows()
 
+    section_kwargs = build_step_shell_section_kwargs(
+        step_key=STEP_KEY_SKILLS,
+        renderers={
+            STEP_SECTION_SOURCE_COMPARISON: _render_source_comparison_slot,
+            STEP_SECTION_SALARY_FORECAST: lambda: _render_salary_forecast_slot(
+                job, source_counts
+            ),
+            STEP_SECTION_OPEN_QUESTIONS: lambda: _render_open_questions_slot(step),
+            STEP_SECTION_REVIEW: lambda: render_standard_step_review(
+                step,
+                render_mode=resolve_standard_review_mode(
+                    context=ReviewRenderContext.STEP_FORM
+                ),
+            ),
+        },
+    )
+
     render_step_shell(
         title="Skills präzisieren und priorisieren",
         subtitle=(
@@ -2593,9 +2619,6 @@ def render(ctx: WizardContext) -> None:
             "Eine prüfbare Skill-Liste für Recruiting Brief, Matching und Interviewfragen."
         ),
         step=step,
-        source_comparison_slot=_render_source_comparison_slot,
-        salary_forecast_slot=lambda: _render_salary_forecast_slot(job, source_counts),
-        open_questions_slot=lambda: _render_open_questions_slot(step),
         lazy_section_configs={
             "source_comparison_slot": LazySectionConfig(
                 label="Quellenabgleich",
@@ -2616,10 +2639,7 @@ def render(ctx: WizardContext) -> None:
                 default_open=False,
             ),
         },
-        review_slot=lambda: render_standard_step_review(
-            step,
-            render_mode=resolve_standard_review_mode(context=ReviewRenderContext.STEP_FORM),
-        ),
+        **section_kwargs,
         footer_slot=lambda: nav_buttons(ctx),
     )
 
