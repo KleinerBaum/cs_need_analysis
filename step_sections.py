@@ -8,6 +8,7 @@ from typing import Any
 
 from constants import (
     STEP_KEY_COMPANY,
+    STEP_KEY_INTERVIEW,
     STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
     STEP_SECTION_LABELS_DE,
     STEP_SECTION_OPEN_QUESTIONS,
@@ -47,8 +48,19 @@ _COMPANY_STEP_SECTIONS: tuple[StepSectionDef, ...] = (
     _section(STEP_SECTION_REVIEW),
 )
 
+_INTERVIEW_STEP_SECTIONS: tuple[StepSectionDef, ...] = (
+    _section(
+        STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
+        shell_heading_de="Identifizierte Interview-Werte",
+    ),
+    _section(STEP_SECTION_SOURCE_COMPARISON),
+    _section(STEP_SECTION_OPEN_QUESTIONS),
+    _section(STEP_SECTION_REVIEW),
+)
+
 _STEP_SECTION_REGISTRY: dict[str, tuple[StepSectionDef, ...]] = {
     STEP_KEY_COMPANY: _COMPANY_STEP_SECTIONS,
+    STEP_KEY_INTERVIEW: _INTERVIEW_STEP_SECTIONS,
 }
 
 

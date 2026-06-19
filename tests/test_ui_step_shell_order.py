@@ -10,6 +10,7 @@ from constants import (
     FactKey,
     SSKey,
     STEP_KEY_COMPANY,
+    STEP_KEY_INTERVIEW,
     STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
     STEP_SECTION_OPEN_QUESTIONS,
     STEP_SECTION_REVIEW,
@@ -215,8 +216,8 @@ def test_company_team_interview_use_step_shell_with_review_slot_and_canonical_or
         "review_slot",
     ]
     assert _slot_order_from_render_kwargs(interview_kwargs) == [
-        "outcome_slot",
         "extracted_from_jobspec_slot",
+        "source_comparison_slot",
         "open_questions_slot",
         "review_slot",
     ]
@@ -226,32 +227,34 @@ def test_company_team_interview_use_step_shell_with_review_slot_and_canonical_or
     assert callable(interview_kwargs["review_slot"])
 
 
-def test_company_step_section_registry_drives_shell_order() -> None:
+def test_company_interview_step_section_registry_drives_shell_order() -> None:
     from step_sections import build_step_shell_section_kwargs, get_step_sections
 
-    section_ids = [
-        section.section_id for section in get_step_sections(STEP_KEY_COMPANY)
-    ]
-    assert section_ids == [
-        STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
-        STEP_SECTION_SOURCE_COMPARISON,
-        STEP_SECTION_OPEN_QUESTIONS,
-        STEP_SECTION_REVIEW,
-    ]
+    for step_key, expected_label in (
+        (STEP_KEY_COMPANY, ""),
+        (STEP_KEY_INTERVIEW, "Identifizierte Interview-Werte"),
+    ):
+        section_ids = [section.section_id for section in get_step_sections(step_key)]
+        assert section_ids == [
+            STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
+            STEP_SECTION_SOURCE_COMPARISON,
+            STEP_SECTION_OPEN_QUESTIONS,
+            STEP_SECTION_REVIEW,
+        ]
 
-    renderers = {section_id: (lambda: None) for section_id in section_ids}
-    shell_kwargs = build_step_shell_section_kwargs(
-        step_key=STEP_KEY_COMPANY,
-        renderers=renderers,
-    )
+        renderers = {section_id: (lambda: None) for section_id in section_ids}
+        shell_kwargs = build_step_shell_section_kwargs(
+            step_key=step_key,
+            renderers=renderers,
+        )
 
-    assert _slot_order_from_render_kwargs(shell_kwargs) == [
-        "extracted_from_jobspec_slot",
-        "source_comparison_slot",
-        "open_questions_slot",
-        "review_slot",
-    ]
-    assert shell_kwargs["extracted_from_jobspec_label"] == ""
+        assert _slot_order_from_render_kwargs(shell_kwargs) == [
+            "extracted_from_jobspec_slot",
+            "source_comparison_slot",
+            "open_questions_slot",
+            "review_slot",
+        ]
+        assert shell_kwargs["extracted_from_jobspec_label"] == expected_label
 
 
 def test_salary_forecast_slots_keep_canonical_result_key_wiring() -> None:

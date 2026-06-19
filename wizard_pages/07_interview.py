@@ -1,13 +1,20 @@
 # wizard_pages/07_interview.py
 from __future__ import annotations
 
-import inspect
 from datetime import date, datetime, time
 from typing import Any, Callable
 
 import streamlit as st
 
-from constants import FactKey, SSKey
+from constants import (
+    FactKey,
+    SSKey,
+    STEP_KEY_INTERVIEW,
+    STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
+    STEP_SECTION_OPEN_QUESTIONS,
+    STEP_SECTION_REVIEW,
+    STEP_SECTION_SOURCE_COMPARISON,
+)
 from intake_facts import write_intake_fact_by_legacy_field
 from interview_process import (
     build_interview_value_rows,
@@ -16,6 +23,7 @@ from interview_process import (
 )
 from schemas import JobAdExtract, QuestionStep, RecruitmentStep
 from state import get_answers
+from step_sections import build_step_shell_section_kwargs
 from ui_layout import render_step_shell, responsive_three_columns, responsive_two_columns
 from ui_components import (
     build_step_review_payload,
@@ -828,7 +836,7 @@ def render(ctx: WizardContext) -> None:
 
     job, plan = preflight
 
-    step = next((s for s in plan.steps if s.step_key == "interview"), None)
+    step = next((s for s in plan.steps if s.step_key == STEP_KEY_INTERVIEW), None)
 
     def _render_extracted_slot() -> None:
         _render_section_form(
@@ -837,22 +845,12 @@ def render(ctx: WizardContext) -> None:
             renderer=lambda: _render_interview_value_board(job=job, plan=plan),
         )
 
-    def _render_main_slot() -> None:
-        if hasattr(st, "markdown"):
-            st.markdown("#### Interviewprozess definieren")
-        if hasattr(st, "caption"):
-            st.caption(
-                "Definiere zuerst den sichtbaren Kandidat:innen-Prozess. Danach ergänzt "
-                "du interne Rollen, Kommunikation und Zeitfenster."
-            )
-
-        if step is None or not step.questions:
-            st.info(
-                "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
-            )
-        else:
-            render_question_step(step)
-
+    def _render_source_comparison_slot() -> None:
+        st.markdown("#### Prozessdesign und interne Steuerung")
+        st.caption(
+            "Definiere zuerst den sichtbaren Kandidat:innen-Prozess. Danach ergänzt "
+            "du interne Rollen, Kommunikation und Zeitfenster."
+        )
         _render_section_form(
             form_key="interview.stage_evaluation.form",
             submit_label="Stage & Evaluation speichern",
@@ -869,40 +867,52 @@ def render(ctx: WizardContext) -> None:
             renderer=lambda: _render_internal_roles_container(job),
         )
 
+    def _render_open_questions_slot() -> None:
+        st.markdown("#### Offene Fragen")
+        if step is None or not step.questions:
+            st.info(
+                "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
+            )
+            return
+        render_question_step(step)
+
     def _render_review_slot() -> None:
+        st.markdown("#### Review")
         render_standard_step_review(
             step,
             render_mode=resolve_standard_review_mode(context=ReviewRenderContext.STEP_FORM),
         )
         _render_interview_consistency_checklist(job=job, step=step)
 
-    shell_kwargs: dict[str, Any] = {
-        "title": "Interviewprozess klar und fair gestalten",
-        "subtitle": (
+    section_kwargs = build_step_shell_section_kwargs(
+        step_key=STEP_KEY_INTERVIEW,
+        renderers={
+            STEP_SECTION_EXTRACTED_FROM_JOBSPEC: _render_extracted_slot,
+            STEP_SECTION_SOURCE_COMPARISON: _render_source_comparison_slot,
+            STEP_SECTION_OPEN_QUESTIONS: _render_open_questions_slot,
+            STEP_SECTION_REVIEW: _render_review_slot,
+        },
+    )
+
+    render_step_shell(
+        title="Interviewprozess klar und fair gestalten",
+        subtitle=(
             "Definiere zuerst den sichtbaren Kandidat:innen-Prozess. Danach ergänzt du "
             "interne Rollen, Kommunikation und Zeitfenster, damit Candidate Experience "
             "und interne Steuerung zusammenpassen."
         ),
-        "outcome_slot": lambda: st.markdown(
-            "**Vorteile:** Bilden Sie zu Beginn die internen Prozesse sauber ab und "
-            "profitieren so von schnellen Prozessen bei minimalem Aufwand für alle "
-            "im Prozess involvierten Parteien."
+        outcome_text=(
+            "Ein klarer, fairer Interviewprozess mit abgestimmten Rollen, "
+            "Update-Zeitpunkten und evidenzbasierter Bewertung."
         ),
-        "step": step,
-        "extracted_from_jobspec_slot": _render_extracted_slot,
-        "extracted_from_jobspec_label": "Identifizierte Interview-Werte",
-        "extracted_from_jobspec_use_expander": False,
-        "open_questions_slot": _render_main_slot,
-        "review_slot": _render_review_slot,
-        "footer_slot": lambda: nav_buttons(ctx),
-    }
-    if "status_position" in inspect.signature(render_step_shell).parameters:
-        shell_kwargs["status_position"] = "before_footer"
-    render_step_shell(**shell_kwargs)
+        step=step,
+        **section_kwargs,
+        footer_slot=lambda: nav_buttons(ctx),
+    )
 
 
 PAGE = WizardPage(
-    key="interview",
+    key=STEP_KEY_INTERVIEW,
     title_de="Interviewprozess",
     icon="🗓️",
     render=render,
