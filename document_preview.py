@@ -181,6 +181,54 @@ def text_preview_html(text: str) -> str:
     )
 
 
+def markdown_article_preview_html(
+    markdown: str,
+    *,
+    logo_payload: dict[str, Any] | None = None,
+) -> str:
+    parts: list[str] = ['<article class="cs-document-page">']
+    logo_uri = logo_data_uri(logo_payload)
+    if logo_uri:
+        parts.append(
+            '<img class="cs-document-logo" alt="Logo" src="'
+            f'{html.escape(logo_uri, quote=True)}">'
+        )
+
+    in_list = False
+    has_content = False
+    for raw_line in markdown.splitlines():
+        line = raw_line.strip()
+        if not line:
+            if in_list:
+                parts.append("</ul>")
+                in_list = False
+            continue
+        if line.startswith("- "):
+            if not in_list:
+                parts.append("<ul>")
+                in_list = True
+            parts.append(f"<li>{html.escape(line[2:].strip())}</li>")
+            has_content = True
+            continue
+        if in_list:
+            parts.append("</ul>")
+            in_list = False
+        if line.startswith("## "):
+            parts.append(f"<h2>{html.escape(line[3:].strip())}</h2>")
+        elif line.startswith("# "):
+            parts.append(f"<h1>{html.escape(line[2:].strip())}</h1>")
+        else:
+            parts.append(f"<p>{html.escape(line)}</p>")
+        has_content = True
+
+    if in_list:
+        parts.append("</ul>")
+    if not has_content:
+        parts.append("<p></p>")
+    parts.append("</article>")
+    return "".join(parts)
+
+
 def uploaded_document_preview_html(upload: object | None, fallback_text: str) -> str | None:
     if upload is None:
         return None

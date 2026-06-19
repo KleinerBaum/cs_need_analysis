@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from document_preview import markdown_article_preview_html
 from llm_client import JobAdGenerationResult
 from summary_job_ad import (
     build_publishable_job_ad_markdown,
@@ -101,6 +102,22 @@ def test_publishable_job_ad_markdown_uses_structured_sections_without_raw_markdo
     assert "- Baue Pipelines" in markdown
     assert "**" not in markdown
     assert "# " not in plain_text
+
+
+def test_markdown_article_preview_html_renders_publishable_job_ad_text() -> None:
+    preview_html = markdown_article_preview_html(
+        "# Senior Engineer\n\n"
+        "Gestalte Plattformen.\n\n"
+        "## Deine Aufgaben\n\n"
+        "- Baue Pipelines\n"
+        "- Sichere Datenqualitaet"
+    )
+
+    assert "<h1>Senior Engineer</h1>" in preview_html
+    assert "<p>Gestalte Plattformen.</p>" in preview_html
+    assert "<h2>Deine Aufgaben</h2>" in preview_html
+    assert "<li>Baue Pipelines</li>" in preview_html
+    assert "<li>Sichere Datenqualitaet</li>" in preview_html
 
 
 def test_estimate_text_area_height_has_minimum_and_cap() -> None:

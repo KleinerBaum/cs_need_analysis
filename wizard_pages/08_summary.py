@@ -106,7 +106,7 @@ from components.design_system import (
     render_output_header,
     render_pill,
 )
-from document_preview import article_preview_html, document_preview_shell
+from document_preview import document_preview_shell, markdown_article_preview_html
 from summary_facts import (
     SummaryFactsRow,
     display_requirement_stage as _display_requirement_stage,
@@ -2078,17 +2078,8 @@ def _job_ad_preview_html(
     *,
     logo_payload: LogoPayload | None,
 ) -> str:
-    sections = (
-        ("Deine Aufgaben", _dedupe_preserve_order(job_ad.responsibilities)),
-        ("Dein Profil", _dedupe_preserve_order(job_ad.profile)),
-        ("Was wir bieten", _dedupe_preserve_order(job_ad.offer)),
-    )
-    return article_preview_html(
-        headline=job_ad.headline or "Stellenanzeige",
-        intro=job_ad.intro,
-        sections=sections,
-        closing=(job_ad.cta, job_ad.equal_opportunity_note),
-        fallback_text=_build_publishable_job_ad_plain_text(job_ad),
+    return markdown_article_preview_html(
+        _build_publishable_job_ad_markdown(job_ad),
         logo_payload=logo_payload,
     )
 
