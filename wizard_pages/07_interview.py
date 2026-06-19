@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import inspect
 from datetime import date, datetime, time
-from typing import Any
+from typing import Any, Callable
 
 import streamlit as st
 
@@ -38,6 +38,24 @@ from wizard_pages.fact_inputs import (
     section_container,
     split_lines,
 )
+
+
+def _render_section_form(
+    *,
+    form_key: str,
+    submit_label: str,
+    renderer: Callable[[], None],
+) -> None:
+    if callable(getattr(st, "form", None)) and callable(
+        getattr(st, "form_submit_button", None)
+    ):
+        with st.form(form_key, clear_on_submit=False):
+            renderer()
+            submitted = st.form_submit_button(submit_label, width="stretch")
+        if submitted:
+            st.success("Abschnitt gespeichert.")
+        return
+    renderer()
 
 
 def _normalize_values(values: list[str]) -> list[str]:
@@ -813,7 +831,11 @@ def render(ctx: WizardContext) -> None:
     step = next((s for s in plan.steps if s.step_key == "interview"), None)
 
     def _render_extracted_slot() -> None:
-        _render_interview_value_board(job=job, plan=plan)
+        _render_section_form(
+            form_key="interview.value_board.form",
+            submit_label="Interview-Werte speichern",
+            renderer=lambda: _render_interview_value_board(job=job, plan=plan),
+        )
 
     def _render_main_slot() -> None:
         if hasattr(st, "markdown"):
@@ -831,13 +853,21 @@ def render(ctx: WizardContext) -> None:
         else:
             render_question_step(step)
 
-        _render_structured_interview_design(job)
+        _render_section_form(
+            form_key="interview.stage_evaluation.form",
+            submit_label="Stage & Evaluation speichern",
+            renderer=lambda: _render_structured_interview_design(job),
+        )
 
         if hasattr(st, "markdown"):
             st.markdown("#### Candidate Communication")
         _render_candidate_communication_container(job)
 
-        _render_internal_roles_container(job)
+        _render_section_form(
+            form_key="interview.internal_roles.form",
+            submit_label="Interne Rollen speichern",
+            renderer=lambda: _render_internal_roles_container(job),
+        )
 
     def _render_review_slot() -> None:
         render_standard_step_review(

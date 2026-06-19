@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from time import perf_counter
-from typing import Any
+from typing import Any, Callable
 
 import streamlit as st
 
@@ -139,6 +139,24 @@ _COMPANY_DISTINCT_FOLLOW_UP_QUESTION_IDS = frozenset(
         "ctx_confidential_external_narrative",
     }
 )
+
+
+def _render_section_form(
+    *,
+    form_key: str,
+    submit_label: str,
+    renderer: Callable[[], None],
+) -> None:
+    if callable(getattr(st, "form", None)) and callable(
+        getattr(st, "form_submit_button", None)
+    ):
+        with st.form(form_key, clear_on_submit=False):
+            renderer()
+            submitted = st.form_submit_button(submit_label, width="stretch")
+        if submitted:
+            st.success("Abschnitt gespeichert.")
+        return
+    renderer()
 
 
 def _filtered_company_open_question_step(
@@ -808,75 +826,85 @@ def _render_business_context_section(job: JobAdExtract) -> None:
 
 
 def _render_team_reporting_section(job: JobAdExtract, *, ctx: WizardContext) -> None:
-    with section_container(border=True):
-        st.markdown("#### Team & Reporting")
-        team_col, department_col, reports_to_col = responsive_three_columns(gap="large")
-        with team_col:
-            render_text_fact(
-                FactKey.TEAM_NAME,
-                "Welches Team nimmt die Person auf?",
-                default=job.department_name or "",
+    def _render_team_reporting_fields() -> None:
+        with section_container(border=True):
+            st.markdown("#### Team & Reporting")
+            team_col, department_col, reports_to_col = responsive_three_columns(
+                gap="large"
             )
-        with department_col:
-            render_text_fact(
-                FactKey.COMPANY_DEPARTMENT_NAME,
-                "Abteilung / Fachbereich",
-                default=job.department_name or "",
+            with team_col:
+                render_text_fact(
+                    FactKey.TEAM_NAME,
+                    "Welches Team nimmt die Person auf?",
+                    default=job.department_name or "",
+                )
+            with department_col:
+                render_text_fact(
+                    FactKey.COMPANY_DEPARTMENT_NAME,
+                    "Abteilung / Fachbereich",
+                    default=job.department_name or "",
+                )
+            with reports_to_col:
+                render_text_fact(
+                    FactKey.COMPANY_REPORTS_TO,
+                    "An wen berichtet die Rolle?",
+                    default=job.reports_to or "",
+                )
+
+            scope_col, direct_reports_col, team_size_col = responsive_three_columns(
+                gap="large"
             )
-        with reports_to_col:
-            render_text_fact(
-                FactKey.COMPANY_REPORTS_TO,
-                "An wen berichtet die Rolle?",
-                default=job.reports_to or "",
+            with scope_col:
+                render_select_fact(
+                    FactKey.TEAM_LEADERSHIP_SCOPE,
+                    "Welche Führungsverantwortung hat die Rolle?",
+                    options=tuple(_LEADERSHIP_LABELS),
+                    default="individual_contributor",
+                    labels=_LEADERSHIP_LABELS,
+                )
+            with direct_reports_col:
+                render_number_fact(
+                    FactKey.COMPANY_DIRECT_REPORTS_COUNT,
+                    "Wie viele Direct Reports hat die Rolle?",
+                    min_value=0,
+                    max_value=500,
+                    default=job.direct_reports_count or 0,
+                )
+            with team_size_col:
+                render_number_fact(
+                    FactKey.TEAM_SIZE_DIRECT,
+                    "Wie groß ist das unmittelbare Team?",
+                    min_value=0,
+                    max_value=500,
+                    default=job.direct_reports_count or 0,
+                )
+            render_multiselect_fact(
+                FactKey.TEAM_STAKEHOLDERS_PRIMARY,
+                "Mit welchen wichtigsten Stakeholdern arbeitet die Person regelmäßig?",
+                options=[
+                    "Fachbereich",
+                    "Management",
+                    "HR/Recruiting",
+                    "Sales",
+                    "Customer Success",
+                    "Operations",
+                    "Kund:innen",
+                    "Lieferanten/Partner",
+                    "Sonstiges",
+                ],
+            )
+            render_text_area_fact(
+                FactKey.TEAM_SUCCESS_CONTEXT_90D,
+                "Welche Arbeitsweise ist im Team nötig, um in den ersten 90 Tagen zu bestehen?",
+                height=100,
             )
 
-        scope_col, direct_reports_col, team_size_col = responsive_three_columns(
-            gap="large"
-        )
-        with scope_col:
-            render_select_fact(
-                FactKey.TEAM_LEADERSHIP_SCOPE,
-                "Welche Führungsverantwortung hat die Rolle?",
-                options=tuple(_LEADERSHIP_LABELS),
-                default="individual_contributor",
-                labels=_LEADERSHIP_LABELS,
-            )
-        with direct_reports_col:
-            render_number_fact(
-                FactKey.COMPANY_DIRECT_REPORTS_COUNT,
-                "Wie viele Direct Reports hat die Rolle?",
-                min_value=0,
-                max_value=500,
-                default=job.direct_reports_count or 0,
-            )
-        with team_size_col:
-            render_number_fact(
-                FactKey.TEAM_SIZE_DIRECT,
-                "Wie groß ist das unmittelbare Team?",
-                min_value=0,
-                max_value=500,
-                default=job.direct_reports_count or 0,
-            )
-        render_multiselect_fact(
-            FactKey.TEAM_STAKEHOLDERS_PRIMARY,
-            "Mit welchen wichtigsten Stakeholdern arbeitet die Person regelmäßig?",
-            options=[
-                "Fachbereich",
-                "Management",
-                "HR/Recruiting",
-                "Sales",
-                "Customer Success",
-                "Operations",
-                "Kund:innen",
-                "Lieferanten/Partner",
-                "Sonstiges",
-            ],
-        )
-        render_text_area_fact(
-            FactKey.TEAM_SUCCESS_CONTEXT_90D,
-            "Welche Arbeitsweise ist im Team nötig, um in den ersten 90 Tagen zu bestehen?",
-            height=100,
-        )
+    _render_section_form(
+        form_key="company.team_reporting.form",
+        submit_label="Team & Reporting speichern",
+        renderer=_render_team_reporting_fields,
+    )
+    with section_container(border=True):
         render_role_context_enrichment(
             step=None,
             ctx=ctx,
@@ -1002,11 +1030,27 @@ def _render_structured_company_context(
     ctx: WizardContext,
     plan: QuestionPlan,
 ) -> None:
-    _render_employer_profile_section(job)
-    _render_business_context_section(job)
+    _render_section_form(
+        form_key="company.employer_profile.form",
+        submit_label="Employer Profile speichern",
+        renderer=lambda: _render_employer_profile_section(job),
+    )
+    _render_section_form(
+        form_key="company.business_context.form",
+        submit_label="Business Context speichern",
+        renderer=lambda: _render_business_context_section(job),
+    )
     _render_team_reporting_section(job, ctx=ctx)
-    _render_working_model_location_section(job)
-    _render_non_negotiables_compliance_section()
+    _render_section_form(
+        form_key="company.working_model_location.form",
+        submit_label="Working Model & Location speichern",
+        renderer=lambda: _render_working_model_location_section(job),
+    )
+    _render_section_form(
+        form_key="company.non_negotiables_compliance.form",
+        submit_label="Non-negotiables & Compliance speichern",
+        renderer=_render_non_negotiables_compliance_section,
+    )
     _render_website_enrichment(job, plan)
 
 
