@@ -106,6 +106,7 @@ from components.design_system import (
     render_output_header,
     render_pill,
 )
+from document_preview import article_preview_html, document_preview_shell
 from summary_facts import (
     SummaryFactsRow,
     display_requirement_stage as _display_requirement_stage,
@@ -2054,6 +2055,42 @@ def _add_logo_to_docx(
     except Exception:
         return False
     return True
+
+
+def _job_ad_preview_shell_options(options: Mapping[str, Any] | None) -> dict[str, Any]:
+    raw_options = options if isinstance(options, Mapping) else {}
+    tone = str(raw_options.get("tone") or "").strip()
+    length = str(raw_options.get("length") or "").strip()
+    accent_by_tone = {
+        "Professionell & nahbar": "#2563eb",
+        "Direkt & pragmatisch": "#374151",
+        "Motivierend": "#0f766e",
+    }
+    return {
+        "accent_color": accent_by_tone.get(tone, "#2563eb"),
+        "compact": length == "Kompakt",
+        "height_px": 620 if length == "Ausführlich" else 560,
+    }
+
+
+def _job_ad_preview_html(
+    job_ad: JobAdGenerationResult,
+    *,
+    logo_payload: LogoPayload | None,
+) -> str:
+    sections = (
+        ("Deine Aufgaben", _dedupe_preserve_order(job_ad.responsibilities)),
+        ("Dein Profil", _dedupe_preserve_order(job_ad.profile)),
+        ("Was wir bieten", _dedupe_preserve_order(job_ad.offer)),
+    )
+    return article_preview_html(
+        headline=job_ad.headline or "Stellenanzeige",
+        intro=job_ad.intro,
+        sections=sections,
+        closing=(job_ad.cta, job_ad.equal_opportunity_note),
+        fallback_text=_build_publishable_job_ad_plain_text(job_ad),
+        logo_payload=logo_payload,
+    )
 
 
 def _render_summary_hero(vm: SummaryViewModel) -> None:
@@ -5167,20 +5204,26 @@ def _render_job_ad_artifact(custom_job_ad_raw: dict[str, Any]) -> None:
             ),
         }
     )
-    publishable_text = _build_publishable_job_ad_plain_text(custom_job_ad)
     publishable_markdown = _build_publishable_job_ad_markdown(custom_job_ad)
     logo_payload = _job_ad_logo_payload(custom_job_ad_raw)
+    preview_options_raw = custom_job_ad_raw.get("preview_options")
+    preview_options = (
+        preview_options_raw if isinstance(preview_options_raw, Mapping) else {}
+    )
+    shell_options = _job_ad_preview_shell_options(preview_options)
     render_output_header(
         custom_job_ad.headline or "Stellenanzeige",
         "Generierte Stellenanzeige mit Zielgruppen- und AGG-Hinweisen.",
     )
     render_card_start("cs-card cs-result-card")
     st.markdown("### Primary Output")
-    st.text_area(
-        "Stellenanzeige",
-        value=publishable_text,
-        height=_estimate_text_area_height(publishable_text),
-        disabled=True,
+    st.markdown(
+        document_preview_shell(
+            _job_ad_preview_html(custom_job_ad, logo_payload=logo_payload),
+            title="Stellenanzeige",
+            **shell_options,
+        ),
+        unsafe_allow_html=True,
     )
     st.markdown("</section>", unsafe_allow_html=True)
 
@@ -5805,6 +5848,7 @@ def render(ctx: WizardContext) -> None:
                 logo_payload.get("name") if logo_payload else None
             )
             payload["logo"] = logo_payload
+            payload["preview_options"] = _read_artifact_options("job_ad")
             st.session_state[SSKey.JOB_AD_DRAFT_CUSTOM.value] = payload
             st.session_state[SSKey.JOB_AD_LAST_USAGE.value] = usage or {}
             _mark_artifact_current(vm, "job_ad")
@@ -6156,15 +6200,26 @@ def render(ctx: WizardContext) -> None:
             placeholder="z. B. Tonalität, Wording, No-Gos, Corporate Language, Du/Sie, Diversity-Hinweise …",
             key=manual_styleguide_key,
         )
-        st.session_state[SSKey.SUMMARY_STYLEGUIDE_TEXT.value] = (
-            _build_job_ad_styleguide_text(
-                preset=preset,
-                address=address,
-                tone=tone,
-                length=length,
-                cta=cta,
-                manual_styleguide=manual_styleguide,
-            )
+        styleguide = _build_job_ad_styleguide_text(
+            preset=preset,
+            address=address,
+            tone=tone,
+            length=length,
+            cta=cta,
+            manual_styleguide=manual_styleguide,
+        )
+        st.session_state[SSKey.SUMMARY_STYLEGUIDE_TEXT.value] = styleguide
+        _write_artifact_options(
+            "job_ad",
+            {
+                "target_group": preset,
+                "address": address,
+                "tone": tone,
+                "length": length,
+                "cta": cta,
+                "logo_filename": normalized_logo.get("name") if normalized_logo else "",
+                "styleguide_uploaded": False,
+            },
         )
 
         st.markdown("#### 4. Optimierung")

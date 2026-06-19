@@ -251,7 +251,6 @@ def test_render_job_ad_artifact_renders_cards_in_expected_order(monkeypatch) -> 
     monkeypatch.setattr(SUMMARY_MODULE, "render_output_header", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(SUMMARY_MODULE, "_job_ad_to_docx_bytes", lambda *_args, **_kwargs: b"docx")
     monkeypatch.setattr(SUMMARY_MODULE, "_job_ad_to_pdf_bytes", lambda *_args, **_kwargs: b"pdf")
-    monkeypatch.setattr(SUMMARY_MODULE, "_estimate_text_area_height", lambda _text: 120)
 
     card_markers: list[str] = []
 
@@ -280,6 +279,34 @@ def test_render_job_ad_artifact_renders_cards_in_expected_order(monkeypatch) -> 
         "start:cs-card cs-result-card",
     ]
     assert section_markers == ["### Primary Output", "### Review", "### Export"]
+    assert fake_st.text_area_calls == []
+    assert any("cs-document-preview" in marker for marker in fake_st.markdown_calls)
+    assert any("<p>Line 1</p>" in marker for marker in fake_st.markdown_calls)
+
+
+def test_render_job_ad_artifact_includes_supported_logo_in_preview(monkeypatch) -> None:
+    fake_st = _FakeStreamlit(session_state={}, button_results=[])
+    monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
+    monkeypatch.setattr(SUMMARY_MODULE, "render_output_header", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(SUMMARY_MODULE, "_job_ad_to_docx_bytes", lambda *_args, **_kwargs: b"docx")
+    monkeypatch.setattr(SUMMARY_MODULE, "_job_ad_to_pdf_bytes", lambda *_args, **_kwargs: b"pdf")
+
+    SUMMARY_MODULE._render_job_ad_artifact(
+        {
+            "headline": "Senior Engineer",
+            "intro": "Intro",
+            "job_ad_text": "Fallback",
+            "logo": {
+                "name": "brand.png",
+                "mime_type": "image/png",
+                "bytes": b"logo",
+            },
+        }
+    )
+
+    preview_html = "\n".join(fake_st.markdown_calls)
+    assert "data:image/png;base64,bG9nbw==" in preview_html
+    assert 'class="cs-document-logo"' in preview_html
 
 
 def test_render_job_ad_artifact_has_markdown_download_button(monkeypatch) -> None:

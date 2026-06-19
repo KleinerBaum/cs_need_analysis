@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from constants import AnswerType, FactKey, FactSourceType, SSKey
+import document_preview
 from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
 import wizard_pages.jobad_intake as jobad_intake
 
@@ -247,12 +248,12 @@ def test_text_preview_html_escapes_fallback_text() -> None:
 
 def test_docx_preview_html_escapes_blocks(monkeypatch) -> None:
     monkeypatch.setattr(
-        jobad_intake,
+        document_preview,
         "extract_docx_preview_blocks",
         lambda _raw: [{"type": "paragraph", "text": "<b>unsafe</b>", "level": 0}],
     )
 
-    html = jobad_intake._docx_preview_html(b"docx")
+    html = document_preview.docx_preview_html(b"docx")
 
     assert "<b>unsafe</b>" not in html
     assert "&lt;b&gt;unsafe&lt;/b&gt;" in html

@@ -176,6 +176,18 @@ def test_build_job_ad_change_request_text_combines_optimization_choices() -> Non
     assert "Bitte mit stärkerem Praxisbezug." in text
 
 
+def test_job_ad_preview_shell_options_use_saved_safe_visual_choices() -> None:
+    options = SUMMARY_MODULE._job_ad_preview_shell_options(
+        {"tone": "Direkt & pragmatisch", "length": "Kompakt"}
+    )
+
+    assert options == {
+        "accent_color": "#374151",
+        "compact": True,
+        "height_px": 560,
+    }
+
+
 def test_selection_options_by_group_dedupes_values() -> None:
     rows = [
         {
