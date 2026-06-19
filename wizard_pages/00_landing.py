@@ -9,6 +9,7 @@ from components.iceberg_need_analysis import (
 )
 from content.start_page import START_PAGE_COPY
 from constants import APP_TITLE
+from i18n import t
 from wizard_pages.jobad_intake import render_jobad_intake
 from wizard_pages.base import (
     LANDING_SECTION_IDS,
@@ -206,11 +207,11 @@ def _render_landing_hero() -> None:
     render_esco_language_toggle()
     st.markdown("</div>", unsafe_allow_html=True)
 
-    st.title(str(START_PAGE_COPY["hero_headline"]))
-    hero_subheadline = str(START_PAGE_COPY["hero_subheadline"])
+    st.title(str(t(START_PAGE_COPY["hero_headline"])))
+    hero_subheadline = str(t(START_PAGE_COPY["hero_subheadline"]))
     if hero_subheadline:
         st.subheader(hero_subheadline)
-    hero_supporting = str(START_PAGE_COPY["hero_supporting_paragraph"])
+    hero_supporting = str(t(START_PAGE_COPY["hero_supporting_paragraph"]))
     if hero_supporting:
         st.markdown(hero_supporting)
     st.markdown("</section>", unsafe_allow_html=True)
@@ -221,41 +222,64 @@ def _render_landing_flow_cards() -> None:
         f'<section id="{LANDING_SECTION_IDS["flow"]}" class="landing-section">',
         unsafe_allow_html=True,
     )
-    st.subheader(str(START_PAGE_COPY["flow_title"]))
+    st.subheader(str(t(START_PAGE_COPY["flow_title"])))
+    flow_heading = t('Nach dem Klick auf "Analyse starten"')
+    flow_step_1_title = t("Text verstehen")
+    flow_step_1_body = t(
+        "Upload oder Freitext wird gelesen und in ein sauberes Rollenprofil überführt."
+    )
+    flow_step_2_title = t("Beruf verankern")
+    flow_step_2_body = t(
+        "Die App sucht den passenden ESCO-Beruf als gemeinsame Referenz."
+    )
+    flow_step_3_title = t("Fragen priorisieren")
+    flow_step_3_body = t(
+        "Nur fehlende oder unsichere Punkte werden für den Wizard vorbereitet."
+    )
+    flow_step_4_title = t("Weiterverarbeiten")
+    flow_step_4_body = t(
+        "Aufgaben, Skills, Benefits, Interview- und Summary-Artefakte bauen darauf auf."
+    )
+    flow_result = t(
+        "Ergebnis: weniger manuelle Sortierarbeit und eine bessere Grundlage für alle Recruiting-Aktivitäten."
+    )
+    flow_context_label = t("Mehr Kontext:")
+    esco_link_label = t("Was ist ESCO?")
+    rag_link_label = t("Was bedeutet RAG?")
     st.markdown(
-        """
+        f"""
         <div class="landing-process-diagram">
-            <h4>Nach dem Klick auf "Analyse starten"</h4>
+            <h4>{flow_heading}</h4>
             <div class="landing-process-track">
                 <div class="landing-process-step">
                     <span>1</span>
-                    <strong>Text verstehen</strong>
-                    <p>Upload oder Freitext wird gelesen und in ein sauberes Rollenprofil überführt.</p>
+                    <strong>{flow_step_1_title}</strong>
+                    <p>{flow_step_1_body}</p>
                 </div>
                 <div class="landing-process-step">
                     <span>2</span>
-                    <strong>Beruf verankern</strong>
-                    <p>Die App sucht den passenden ESCO-Beruf als gemeinsame Referenz.</p>
+                    <strong>{flow_step_2_title}</strong>
+                    <p>{flow_step_2_body}</p>
                 </div>
                 <div class="landing-process-step">
                     <span>3</span>
-                    <strong>Fragen priorisieren</strong>
-                    <p>Nur fehlende oder unsichere Punkte werden für den Wizard vorbereitet.</p>
+                    <strong>{flow_step_3_title}</strong>
+                    <p>{flow_step_3_body}</p>
                 </div>
                 <div class="landing-process-step">
                     <span>4</span>
-                    <strong>Weiterverarbeiten</strong>
-                    <p>Aufgaben, Skills, Benefits, Interview- und Summary-Artefakte bauen darauf auf.</p>
+                    <strong>{flow_step_4_title}</strong>
+                    <p>{flow_step_4_body}</p>
                 </div>
             </div>
             <div class="landing-process-result">
-                Ergebnis: weniger manuelle Sortierarbeit und eine bessere Grundlage für alle Recruiting-Aktivitäten.
+                {flow_result}
             </div>
             <div class="landing-process-resources">
-                <span>Mehr Kontext:</span>
+                <span>{flow_context_label}</span>
                 <div class="landing-resource-links">
-                    <a href="https://employment-social-affairs.ec.europa.eu/policies-and-activities/skills-and-qualifications/skills-jobs/european-skillscompetences-qualifications-and-occupations-esco_en" target="_blank" rel="noopener noreferrer">Was ist ESCO?</a>
-                    <a href="https://developers.openai.com/api/docs/guides/retrieval" target="_blank" rel="noopener noreferrer">Was bedeutet RAG?</a>
+                    <a href="https://employment-social-affairs.ec.europa.eu/policies-and-activities/skills-and-qualifications/skills-jobs/european-skillscompetences-qualifications-and-occupations-esco_en" target="_blank" rel="noopener noreferrer">{esco_link_label}</a>
+                    <a href="https://developers.openai.com/api/docs/guides/retrieval" target="_blank" rel="noopener noreferrer">{rag_link_label}</a>
                     <a href="https://developers.openai.com/api/docs" target="_blank" rel="noopener noreferrer">OpenAI API Docs</a>
                 </div>
             </div>
@@ -269,8 +293,12 @@ def _render_landing_flow_cards() -> None:
 def _render_landing_explainer_sections() -> None:
     with st.expander("Warum Need Analysis?", expanded=False):
         st.caption(
-            "Kurzer Kontext, warum die App nicht nur sichtbare Anforderungen, "
-            "sondern auch Lücken und implizite Bedarfstreiber strukturiert."
+            str(
+                t(
+                    "Kurzer Kontext, warum die App nicht nur sichtbare Anforderungen, "
+                    "sondern auch Lücken und implizite Bedarfstreiber strukturiert."
+                )
+            )
         )
         st.iframe(
             build_iceberg_need_analysis_html(),
@@ -284,7 +312,7 @@ def render(ctx: WizardContext) -> None:
     _render_landing_hero()
 
     st.markdown('<section class="landing-section landing-card landing-intake-card">', unsafe_allow_html=True)
-    render_jobad_intake(ctx, title=str(START_PAGE_COPY["primary_cta"]))
+    render_jobad_intake(ctx, title=str(t(START_PAGE_COPY["primary_cta"])))
     st.markdown("</section>", unsafe_allow_html=True)
     _render_landing_explainer_sections()
 

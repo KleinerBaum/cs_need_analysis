@@ -29,6 +29,10 @@ def test_translation_uses_german_as_source_copy(monkeypatch) -> None:
 
     assert t("Unternehmen") == "Company"
     assert t("Weiter →") == "Next"
+    assert t("Anzeige hochladen oder einfügen") == "Upload or paste job ad"
+    assert t('Nach dem Klick auf "Analyse starten"') == 'After clicking "Start analysis"'
+    assert t("Text verstehen") == "Understand text"
+    assert t("Was bedeutet RAG?") == "What does RAG mean?"
 
 
 def test_sync_language_state_updates_preferences_and_esco_config() -> None:
