@@ -147,6 +147,7 @@ from summary_job_ad import (
     sanitize_generated_job_ad as _sanitize_generated_job_ad,
 )
 from ui_components import (
+    inject_pills_grid_css,
     render_boolean_risks,
     render_boolean_search_pack,
     render_boolean_supporting_terms,
@@ -1425,6 +1426,7 @@ def _render_job_ad_settings_summary(
 
 def _render_pills_multiselect(label: str, options: list[str], key: str) -> list[str]:
     if hasattr(st, "pills"):
+        inject_pills_grid_css()
         return st.pills(label, options=options, selection_mode="multi", key=key) or []
     return st.multiselect(label, options=options, default=options, key=key)
 
@@ -5402,7 +5404,7 @@ def _render_artifact_result_switcher(
     if len(available_artifact_ids) <= 1:
         return
     st.caption("Vorhandene Outputs")
-    columns = st.columns(min(len(available_artifact_ids), 4), gap="small")
+    columns = st.columns(min(len(available_artifact_ids), 3), gap="small")
     for index, artifact_id in enumerate(available_artifact_ids):
         with columns[index % len(columns)]:
             if st.button(

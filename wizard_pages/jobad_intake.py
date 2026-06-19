@@ -93,6 +93,7 @@ SOURCE_ACTIVE_KEY: Final[str] = "cs.source_active"
 HYPOTHESIS_ACTION_ACCEPT: Final[str] = "accept"
 HYPOTHESIS_ACTION_EDIT: Final[str] = "edit"
 HYPOTHESIS_ACTION_SKIP: Final[str] = "skip"
+HYPOTHESIS_EVIDENCE_FIELD_KEY: Final[str] = "cs.jobspec.hypothesis.evidence_field"
 _START_ROUTING_LABELS: Final[dict[str, dict[str, str]]] = {
     FactKey.INTAKE_SEARCH_CONFIDENTIALITY.value: {
         "open": "Offen kommunizierbar",
@@ -730,6 +731,15 @@ def _build_hypothesis_rows_by_tab(
     }
 
 
+def _build_ordered_hypothesis_rows(
+    groups: dict[str, list[dict[str, Any]]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for tab_rows in _build_hypothesis_rows_by_tab(groups).values():
+        rows.extend(tab_rows)
+    return rows
+
+
 def _build_hypothesis_editor_rows(
     rows: list[dict[str, Any]],
     evidence_by_field: dict[str, Any],
@@ -750,12 +760,55 @@ def _build_hypothesis_editor_rows(
                 "Sicherheit": format_field_evidence_confidence(
                     evidence_by_field.get(field_name)
                 ),
-                "Textstelle": format_field_evidence_snippet(
-                    evidence_by_field.get(field_name)
-                ),
             }
         )
     return editor_rows
+
+
+def _render_hypothesis_evidence_controls(
+    rows: list[dict[str, Any]],
+    evidence_by_field: dict[str, Any],
+) -> None:
+    evidence_rows: list[tuple[str, str, str]] = []
+    seen: set[str] = set()
+    for row in rows:
+        field_name = str(row.get("field_name") or "").strip()
+        if not field_name or field_name in seen:
+            continue
+        snippet = format_field_evidence_snippet(evidence_by_field.get(field_name))
+        if not snippet:
+            continue
+        seen.add(field_name)
+        evidence_rows.append(
+            (
+                field_name,
+                str(row.get("label") or field_name),
+                snippet,
+            )
+        )
+    if not evidence_rows:
+        return
+
+    st.caption("Kleine Info-Icons zeigen die jeweilige Fundstelle bei Bedarf.")
+    for field_name, label, _snippet in evidence_rows:
+        cols = st.columns([0.08, 0.92], gap="small")
+        with cols[0]:
+            popover = getattr(st, "popover", None)
+            if callable(popover):
+                with popover("ⓘ"):
+                    st.caption(f"{label}: {_snippet}")
+            elif st.button("ⓘ", key=f"cs.jobspec.hypothesis.evidence.{field_name}"):
+                st.session_state[HYPOTHESIS_EVIDENCE_FIELD_KEY] = field_name
+        with cols[1]:
+            st.caption(label)
+
+    selected_field = str(
+        st.session_state.get(HYPOTHESIS_EVIDENCE_FIELD_KEY, "") or ""
+    ).strip()
+    for field_name, label, snippet in evidence_rows:
+        if field_name == selected_field:
+            st.caption(f"{label}: {snippet}")
+            break
 
 
 def _hypothesis_editor_row_id(row: dict[str, Any]) -> str:
@@ -1046,8 +1099,8 @@ def _render_job_extract_hypothesis_form(job: JobAdExtract) -> None:
     groups = build_job_extract_hypothesis_groups(values, evidence_by_field)
     if not any(groups.values()):
         return
-    rows_by_tab = _build_hypothesis_rows_by_tab(groups)
-    if not any(rows_by_tab.values()):
+    rows = _build_ordered_hypothesis_rows(groups)
+    if not rows:
         return
 
     st.markdown("#### Erkannte Angaben prüfen")
@@ -1056,6 +1109,7 @@ def _render_job_extract_hypothesis_form(job: JobAdExtract) -> None:
         "Korrigieren Sie Werte direkt in der Tabelle oder löschen Sie eine Zeile, "
         "wenn die Angabe nicht übernommen werden soll."
     )
+    _render_hypothesis_evidence_controls(rows, evidence_by_field)
     form_ctx = (
         st.form("cs.jobspec.hypothesis_review_form")
         if hasattr(st, "form")
@@ -1063,38 +1117,28 @@ def _render_job_extract_hypothesis_form(job: JobAdExtract) -> None:
     )
     submitted_rows: list[dict[str, Any]] = []
     with form_ctx:
-        tab_names = [tab_name for tab_name, rows in rows_by_tab.items() if rows]
-        tab_contexts = (
-            st.tabs(tab_names)
-            if hasattr(st, "tabs")
-            else [nullcontext()] * len(tab_names)
+        editor_rows = _build_hypothesis_editor_rows(rows, evidence_by_field)
+        edited_rows = st.data_editor(
+            editor_rows,
+            key="cs.jobspec.hypothesis.editor",
+            hide_index=True,
+            num_rows="dynamic",
+            width="stretch",
+            column_order=("Feld", "Wert", "Status", "Sicherheit"),
+            disabled=["Feld", "Status", "Sicherheit"],
+            column_config={
+                "Feld": st.column_config.TextColumn("Angabe"),
+                "Wert": st.column_config.TextColumn("Inhalt"),
+                "Status": st.column_config.TextColumn("Status"),
+                "Sicherheit": st.column_config.TextColumn("Sicherheit"),
+            },
         )
-        for tab_name, tab_ctx in zip(tab_names, tab_contexts):
-            with tab_ctx:
-                rows = rows_by_tab[tab_name]
-                editor_rows = _build_hypothesis_editor_rows(rows, evidence_by_field)
-                edited_rows = st.data_editor(
-                    editor_rows,
-                    key=f"cs.jobspec.hypothesis.{tab_name}.editor",
-                    hide_index=True,
-                    num_rows="dynamic",
-                    width="stretch",
-                    column_order=("Feld", "Wert", "Status", "Sicherheit", "Textstelle"),
-                    disabled=["Feld", "Status", "Sicherheit", "Textstelle"],
-                    column_config={
-                        "Feld": st.column_config.TextColumn("Angabe"),
-                        "Wert": st.column_config.TextColumn("Inhalt"),
-                        "Status": st.column_config.TextColumn("Status"),
-                        "Sicherheit": st.column_config.TextColumn("Sicherheit"),
-                        "Textstelle": st.column_config.TextColumn("Fundstelle"),
-                    },
-                )
-                submitted_rows.extend(
-                    _collect_hypothesis_editor_updates(
-                        rows,
-                        _normalize_hypothesis_editor_rows(edited_rows),
-                    )
-                )
+        submitted_rows.extend(
+            _collect_hypothesis_editor_updates(
+                rows,
+                _normalize_hypothesis_editor_rows(edited_rows),
+            )
+        )
         submit = (
             st.form_submit_button("Angaben übernehmen")
             if hasattr(st, "form_submit_button")

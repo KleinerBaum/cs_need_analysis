@@ -418,25 +418,15 @@ def test_phase_b_hypothesis_form_groups_and_batches_submit(monkeypatch) -> None:
 
     jobad_intake._render_job_extract_hypothesis_form(job)
 
-    assert fake_st.tab_labels == [
-        [
-            "Rolle & Aufgaben",
-            "Benefits & Rahmenbedingungen",
-            "Interviewprozess",
-        ]
+    assert fake_st.tab_labels == []
+    assert "cs.jobspec.hypothesis.editor" in fake_st.editor_rows_by_key
+    editor_rows = fake_st.editor_rows_by_key["cs.jobspec.hypothesis.editor"]
+    assert [row["field_name"] for row in editor_rows] == [
+        "job_title",
+        "location_city",
+        "recruitment_steps",
     ]
-    assert (
-        "cs.jobspec.hypothesis.Rolle & Aufgaben.editor"
-        in fake_st.editor_rows_by_key
-    )
-    assert (
-        "cs.jobspec.hypothesis.Benefits & Rahmenbedingungen.editor"
-        in fake_st.editor_rows_by_key
-    )
-    assert (
-        "cs.jobspec.hypothesis.Interviewprozess.editor"
-        in fake_st.editor_rows_by_key
-    )
+    assert all("Textstelle" not in row for row in editor_rows)
     assert fake_st.selectboxes == {}
     assert fake_st.rerun_called is True
     assert fake_st.session_state[SSKey.JOB_EXTRACT.value]["job_title"] == "Data Engineer"
@@ -461,43 +451,32 @@ def test_phase_b_hypothesis_form_splits_list_values_into_review_rows(
 
     jobad_intake._render_job_extract_hypothesis_form(job)
 
-    role_rows = fake_st.editor_rows_by_key[
-        "cs.jobspec.hypothesis.Rolle & Aufgaben.editor"
-    ]
-    skills_rows = fake_st.editor_rows_by_key[
-        "cs.jobspec.hypothesis.Skills & Anforderungen.editor"
-    ]
-    benefits_rows = fake_st.editor_rows_by_key[
-        "cs.jobspec.hypothesis.Benefits & Rahmenbedingungen.editor"
-    ]
+    rows = fake_st.editor_rows_by_key["cs.jobspec.hypothesis.editor"]
 
     assert [
-        row["Wert"] for row in role_rows if row["field_name"] == "responsibilities"
+        row["Wert"] for row in rows if row["field_name"] == "responsibilities"
     ] == ["Build pipelines", "Own data quality"]
     assert [
-        row["Wert"] for row in skills_rows if row["field_name"] == "must_have_skills"
+        row["Wert"] for row in rows if row["field_name"] == "must_have_skills"
     ] == [f"Skill {index}" for index in range(1, 10)]
     assert [
-        row["Wert"] for row in benefits_rows if row["field_name"] == "benefits"
+        row["Wert"] for row in rows if row["field_name"] == "benefits"
     ] == ["Hybrid work", "Training budget"]
 
 
 def test_phase_b_hypothesis_form_saves_table_edits_and_deleted_rows(monkeypatch) -> None:
     fake_st = _FakeStreamlit(session_state={})
     fake_st.form_submit_returns["Angaben übernehmen"] = True
-    fake_st.editor_returns_by_key["cs.jobspec.hypothesis.Unternehmen.editor"] = [
+    fake_st.editor_returns_by_key["cs.jobspec.hypothesis.editor"] = [
         {
+            "row_id": "company_name",
             "field_name": "company_name",
             "Feld": "Unternehmen",
             "Wert": "New GmbH",
             "Status": "Kurz bestätigen",
             "Sicherheit": "70%",
-            "Textstelle": "Old GmbH",
         }
     ]
-    fake_st.editor_returns_by_key[
-        "cs.jobspec.hypothesis.Rolle & Aufgaben.editor"
-    ] = []
     monkeypatch.setattr(jobad_intake, "st", fake_st)
 
     job = JobAdExtract(
@@ -535,9 +514,7 @@ def test_phase_b_hypothesis_form_saves_split_list_edits_and_deleted_rows(
 ) -> None:
     fake_st = _FakeStreamlit(session_state={})
     fake_st.form_submit_returns["Angaben übernehmen"] = True
-    fake_st.editor_returns_by_key[
-        "cs.jobspec.hypothesis.Skills & Anforderungen.editor"
-    ] = [
+    fake_st.editor_returns_by_key["cs.jobspec.hypothesis.editor"] = [
         {
             "row_id": "must_have_skills[0]",
             "field_name": "must_have_skills",
@@ -545,7 +522,6 @@ def test_phase_b_hypothesis_form_saves_split_list_edits_and_deleted_rows(
             "Wert": "Python 3",
             "Status": "Kurz bestätigen",
             "Sicherheit": "",
-            "Textstelle": "",
         },
         {
             "row_id": "must_have_skills[2]",
@@ -554,7 +530,6 @@ def test_phase_b_hypothesis_form_saves_split_list_edits_and_deleted_rows(
             "Wert": "SQL",
             "Status": "Kurz bestätigen",
             "Sicherheit": "",
-            "Textstelle": "",
         },
     ]
     monkeypatch.setattr(jobad_intake, "st", fake_st)

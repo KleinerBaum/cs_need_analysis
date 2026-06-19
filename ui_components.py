@@ -97,7 +97,7 @@ ESCO_EXPLAINABILITY_LABELS: tuple[str, ...] = (
 )
 ESCO_CONFIDENCE_BUCKETS: tuple[str, ...] = ("high", "medium", "low")
 REVIEW_WIDGET_KEY_PREFIX = f"{WIDGET_KEY_PREFIX}review."
-ESCO_SINGLE_SELECT_PILLS_COLUMNS = 3
+PILLS_GRID_COLUMNS = 3
 QUESTION_PROVENANCE_TEXT_MAX_CHARS = 180
 SECTION_PROVENANCE_TEXT_MAX_CHARS = 140
 QUESTION_IMPACT_LABELS: dict[str, str] = {
@@ -114,24 +114,28 @@ QUESTION_ACQUISITION_COST_LABELS: dict[str, str] = {
 }
 
 
-def _inject_esco_single_select_pills_css() -> None:
+def inject_pills_grid_css() -> None:
     _render_html_block(
         f"""
         <style>
+        div[data-testid="stPills"] div[role="group"],
         div[data-testid="stPills"] div[role="radiogroup"] {{
             display: grid;
-            grid-template-columns: repeat({ESCO_SINGLE_SELECT_PILLS_COLUMNS}, minmax(0, 1fr));
+            grid-template-columns: repeat({PILLS_GRID_COLUMNS}, minmax(0, 1fr));
             gap: 0.5rem;
         }}
+        div[data-testid="stPills"] div[role="group"] label,
         div[data-testid="stPills"] div[role="radiogroup"] label {{
             width: 100%;
         }}
+        div[data-testid="stPills"] div[role="group"] label > div,
         div[data-testid="stPills"] div[role="radiogroup"] label > div {{
             width: 100%;
             justify-content: flex-start;
             white-space: normal;
         }}
         @media (max-width: 720px) {{
+            div[data-testid="stPills"] div[role="group"],
             div[data-testid="stPills"] div[role="radiogroup"] {{
                 grid-template-columns: 1fr;
             }}
@@ -139,6 +143,10 @@ def _inject_esco_single_select_pills_css() -> None:
         </style>
         """
     )
+
+
+def _inject_esco_single_select_pills_css() -> None:
+    inject_pills_grid_css()
 
 
 def _render_html_block(html: str) -> None:
@@ -668,6 +676,7 @@ def render_multi_select_pills(
         else []
     )
     if hasattr(st, "pills"):
+        inject_pills_grid_css()
         return (
             st.pills(
                 label,
@@ -3765,6 +3774,7 @@ def _render_question(
                 label_by_value.get(v, v) for v in cur_list if v in options
             ]
             if hasattr(st, "pills") and options:
+                inject_pills_grid_css()
                 value = (
                     st.pills(
                         label,
