@@ -239,6 +239,7 @@ def test_usage_event_type_contract_values() -> None:
         "homepage_fetch_failed",
         "enrichment_timed",
         "artifact_generated",
+        "evaluation_run_completed",
     ]
 
 
