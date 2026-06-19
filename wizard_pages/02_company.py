@@ -76,6 +76,7 @@ from wizard_pages.fact_inputs import (
     split_lines,
 )
 from intake_facts import append_intake_fact_secondary_evidence, write_intake_fact
+from job_extract_evidence import format_field_evidence_snippet, format_provenance_label
 from state import mark_answer_touched
 from wizard_pages.team_section import render_role_context_enrichment
 
@@ -474,16 +475,30 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
                     and not _is_empty_fact_value(current_value)
                     and not _fact_values_equal(current_value, parsed_value)
                 )
-                st.caption(
-                    f"Quelle: {source_label}"
-                    + (
-                        f" · Sicherheit: {float(confidence):.0%}"
-                        if isinstance(confidence, (int, float))
-                        else ""
-                    )
+                candidate_resolution = FactResolutionStatus.INFERRED.value
+                candidate_confirmed = False
+                if not _is_empty_fact_value(current_value) and _fact_values_equal(
+                    current_value, parsed_value
+                ):
+                    candidate_resolution = FactResolutionStatus.CONFIRMED.value
+                    candidate_confirmed = True
+                elif has_confirmed_conflict:
+                    candidate_resolution = FactResolutionStatus.CONFLICTED.value
+                provenance = format_provenance_label(
+                    source_type=FactSourceType.HOMEPAGE.value,
+                    source_label=source_label,
+                    resolution_status=candidate_resolution,
+                    confirmed=candidate_confirmed,
+                    confidence=confidence,
                 )
+                provenance_suffix = f" · {provenance}" if provenance else ""
+                st.caption(f"Quelle: {source_label}{provenance_suffix}")
                 if evidence:
-                    st.caption(evidence)
+                    safe_evidence = format_field_evidence_snippet(
+                        {"evidence_snippet": evidence}, max_chars=160
+                    )
+                    if safe_evidence:
+                        st.caption(safe_evidence)
                 if not _is_empty_fact_value(current_value):
                     review_note = (
                         "Website bestätigt den vorhandenen Wert."

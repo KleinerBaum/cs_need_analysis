@@ -112,6 +112,7 @@ def test_summary_fact_row_table_dict_adds_steering_metadata() -> None:
         "Salary": "Salary-Treiber",
         "Pflichtigkeit": "Pflicht vor Summary",
         "Second Source": "Website-Review",
+        "Provenienz": "",
     }
     assert display_salary_impact("quality_indirect") == "Qualität/Unsicherheit"
     assert display_requirement_stage("optional") == "Optional"

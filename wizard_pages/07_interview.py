@@ -8,6 +8,8 @@ import streamlit as st
 
 from constants import (
     FactKey,
+    FactResolutionStatus,
+    FactSourceType,
     SSKey,
     STEP_KEY_INTERVIEW,
     STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
@@ -36,6 +38,7 @@ from ui_components import (
     resolve_standard_review_mode,
     render_standard_step_review,
 )
+from job_extract_evidence import format_provenance_label
 from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
 from wizard_pages.fact_inputs import (
     compact_text,
@@ -398,6 +401,20 @@ def _render_interview_value_board(
         st.info("Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions.")
         return
 
+    def _row_provenance(row: dict[str, str]) -> str:
+        source = str(row.get("Quelle") or "").strip()
+        normalized_source = source.casefold()
+        if "jobspec" in normalized_source:
+            return format_provenance_label(
+                source_type=FactSourceType.JOBSPEC.value,
+                resolution_status=FactResolutionStatus.INFERRED.value,
+            )
+        return format_provenance_label(
+            source_type=FactSourceType.MANUAL.value,
+            resolution_status=FactResolutionStatus.CONFIRMED.value,
+            confirmed=True,
+        )
+
     st.dataframe(
         [
             {
@@ -406,18 +423,20 @@ def _render_interview_value_board(
                 "Wert": row["Wert"],
                 "Quelle": row["Quelle"],
                 "Status": row["Status"],
+                "Provenienz": _row_provenance(row),
             }
             for row in rows
         ],
         width="stretch",
         hide_index=True,
-        column_order=["Bereich", "Feld", "Wert", "Quelle", "Status"],
+        column_order=["Bereich", "Feld", "Wert", "Quelle", "Status", "Provenienz"],
         column_config={
             "Bereich": st.column_config.TextColumn("Abschnitt"),
             "Feld": st.column_config.TextColumn("Angabe"),
             "Wert": st.column_config.TextColumn("Inhalt"),
             "Quelle": st.column_config.TextColumn("Quelle"),
             "Status": st.column_config.TextColumn("Status"),
+            "Provenienz": st.column_config.TextColumn("Provenienz"),
         },
     )
 

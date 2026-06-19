@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from constants import FactResolutionStatus, FactSourceType
 from parsing import redact_pii
 from schemas import JobAdExtract
 
@@ -31,6 +32,109 @@ def format_field_evidence_confidence(evidence: Any) -> str:
         return ""
     suffix = " · prüfen" if bool(evidence.get("needs_confirmation")) else ""
     return f"{confidence:.0%}{suffix}"
+
+
+def _coerce_confidence(value: Any) -> float | None:
+    try:
+        return max(0.0, min(1.0, float(value)))
+    except (TypeError, ValueError):
+        return None
+
+
+def _provenance_status_label(
+    *,
+    source_type: str = "",
+    source_label: str = "",
+    resolution_status: str = "",
+    confirmed: bool | None = None,
+    needs_confirmation: bool = False,
+) -> str:
+    if resolution_status == FactResolutionStatus.CONFLICTED.value:
+        return "Konflikt"
+    if resolution_status == FactResolutionStatus.MISSING.value:
+        return "offen"
+    if resolution_status == FactResolutionStatus.ASSUMED.value:
+        return "Annahme"
+    if confirmed is True or resolution_status == FactResolutionStatus.CONFIRMED.value:
+        return "bestätigt"
+    if resolution_status == FactResolutionStatus.INFERRED.value:
+        if (
+            source_type == FactSourceType.JOBSPEC.value
+            or "jobspec" in source_label.casefold()
+        ):
+            return "extrahiert"
+        return "abgeleitet"
+    if source_type == FactSourceType.MANUAL.value:
+        return "bestätigt"
+    if (
+        source_type == FactSourceType.JOBSPEC.value
+        or "jobspec" in source_label.casefold()
+    ):
+        return "extrahiert"
+    if source_type in {
+        FactSourceType.HOMEPAGE.value,
+        FactSourceType.ESCO.value,
+        FactSourceType.LLM.value,
+    }:
+        return "abgeleitet"
+    if needs_confirmation:
+        return "prüfen"
+    return ""
+
+
+def format_provenance_label(
+    evidence: Any = None,
+    *,
+    source_type: str = "",
+    source_label: str = "",
+    resolution_status: str = "",
+    confirmed: bool | None = None,
+    confidence: Any = None,
+    needs_confirmation: bool = False,
+    confidence_threshold: float | None = None,
+) -> str:
+    """Return compact, non-sensitive provenance text for UI captions/tables."""
+
+    evidence_map = evidence if isinstance(evidence, Mapping) else {}
+    resolved_source_type = str(evidence_map.get("source_type") or source_type).strip()
+    resolved_source_label = str(evidence_map.get("source_label") or source_label).strip()
+    resolved_status = str(
+        evidence_map.get("resolution_status") or resolution_status
+    ).strip()
+    resolved_confirmed = (
+        bool(evidence_map.get("confirmed"))
+        if "confirmed" in evidence_map
+        else confirmed
+    )
+    resolved_needs_confirmation = bool(
+        evidence_map.get("needs_confirmation", needs_confirmation)
+    )
+    status_label = _provenance_status_label(
+        source_type=resolved_source_type,
+        source_label=resolved_source_label,
+        resolution_status=resolved_status,
+        confirmed=resolved_confirmed,
+        needs_confirmation=resolved_needs_confirmation,
+    )
+
+    resolved_confidence = _coerce_confidence(
+        evidence_map.get("confidence") if "confidence" in evidence_map else confidence
+    )
+    parts = [status_label] if status_label else []
+    if resolved_confidence is not None:
+        parts.append(f"{resolved_confidence:.0%}")
+    threshold = _coerce_confidence(confidence_threshold)
+    if (
+        resolved_status == FactResolutionStatus.CONFLICTED.value
+        or resolved_needs_confirmation
+        or (
+            threshold is not None
+            and resolved_confidence is not None
+            and resolved_confidence < threshold
+        )
+    ) and "prüfen" not in parts:
+        parts.append("prüfen")
+    return " · ".join(part for part in parts if part)
 
 
 def format_field_evidence_snippet(evidence: Any, *, max_chars: int = 160) -> str:
@@ -67,7 +171,12 @@ def field_evidence_caption_text(
     evidence_by_field: Mapping[str, Any],
 ) -> str:
     evidence = evidence_by_field.get(field_name)
-    confidence = format_field_evidence_confidence(evidence)
+    provenance = format_provenance_label(
+        evidence,
+        source_type=FactSourceType.JOBSPEC.value,
+        resolution_status=FactResolutionStatus.INFERRED.value,
+    )
+    confidence = provenance or format_field_evidence_confidence(evidence)
     snippet = format_field_evidence_snippet(evidence)
     if confidence and snippet:
         return f"Evidence: {confidence} · {snippet}"

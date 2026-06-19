@@ -35,6 +35,8 @@ class StepReviewPayload(TypedDict):
     step_status: StepStatusPayload
     job_extract: JobAdExtract | None
     intake_facts: dict[str, Any]
+    intake_fact_evidence: dict[str, Any]
+    confidence_threshold: float | None
 
 
 class StepPayload(TypedDict):
@@ -229,6 +231,8 @@ def build_step_payload(
         "step_status": step_status,
         "job_extract": job_extract,
         "intake_facts": intake_facts_dict,
+        "intake_fact_evidence": intake_fact_evidence_dict,
+        "confidence_threshold": confidence_threshold,
     }
 
     return {

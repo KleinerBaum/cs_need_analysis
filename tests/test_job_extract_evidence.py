@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from constants import FactResolutionStatus, FactSourceType
 from job_extract_evidence import (
     add_field_evidence_columns,
     field_evidence_caption_text,
     format_field_evidence_confidence,
     format_field_evidence_snippet,
+    format_provenance_label,
     job_extract_field_evidence_by_name,
 )
 from schemas import JobAdExtract, JobAdFieldEvidence
@@ -91,4 +93,56 @@ def test_field_evidence_caption_text_combines_confidence_and_snippet() -> None:
                 "needs_confirmation": True,
             }
         },
-    ) == "Evidence: 82% · prüfen · Senior Data Engineer gesucht."
+    ) == "Evidence: extrahiert · 82% · prüfen · Senior Data Engineer gesucht."
+
+
+def test_format_provenance_label_maps_resolution_states() -> None:
+    assert (
+        format_provenance_label(
+            source_type=FactSourceType.MANUAL.value,
+            resolution_status=FactResolutionStatus.CONFIRMED.value,
+            confirmed=True,
+        )
+        == "bestätigt"
+    )
+    assert (
+        format_provenance_label(
+            source_type=FactSourceType.JOBSPEC.value,
+            resolution_status=FactResolutionStatus.INFERRED.value,
+            confidence=0.82,
+        )
+        == "extrahiert · 82%"
+    )
+    assert (
+        format_provenance_label(
+            source_type=FactSourceType.LLM.value,
+            resolution_status=FactResolutionStatus.INFERRED.value,
+        )
+        == "abgeleitet"
+    )
+    assert (
+        format_provenance_label(
+            resolution_status=FactResolutionStatus.ASSUMED.value,
+        )
+        == "Annahme"
+    )
+    assert (
+        format_provenance_label(
+            resolution_status=FactResolutionStatus.CONFLICTED.value,
+            confidence=0.9,
+        )
+        == "Konflikt · 90% · prüfen"
+    )
+    assert (
+        format_provenance_label(
+            resolution_status=FactResolutionStatus.MISSING.value,
+        )
+        == "offen"
+    )
+    assert (
+        format_provenance_label(
+            confidence=0.4,
+            confidence_threshold=0.6,
+        )
+        == "40% · prüfen"
+    )

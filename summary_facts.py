@@ -16,6 +16,7 @@ from constants import (
     FactSalaryImpact,
     FactSourceType,
 )
+from job_extract_evidence import format_provenance_label
 from schemas import Question, question_option_label_map
 
 
@@ -35,6 +36,7 @@ class SummaryFactsRow:
     salary_impact: str = ""
     requirement_stage: str = ""
     website_enrichable: bool = False
+    provenienz: str = ""
 
     def to_dict(self) -> dict[str, str]:
         row = {
@@ -54,6 +56,7 @@ def summary_fact_row_to_table_dict(row: SummaryFactsRow) -> dict[str, str]:
             "Salary": display_salary_impact(row.salary_impact),
             "Pflichtigkeit": display_requirement_stage(row.requirement_stage),
             "Second Source": "Website-Review" if row.website_enrichable else "",
+            "Provenienz": row.provenienz,
         }
     )
     return payload
@@ -266,18 +269,31 @@ def summary_core_fact_row(
             resolution_status,
             fact_key=fact_key.value,
             editable=True,
+            provenienz=summary_provenance_label(
+                evidence,
+                fallback_source_type=FactSourceType.MANUAL.value,
+                fallback_resolution_status=resolution_status,
+            ),
         )
+    fallback_status = (
+        FactResolutionStatus.INFERRED.value
+        if not is_missing_value(fallback_value)
+        else FactResolutionStatus.MISSING.value
+    )
     return SummaryFactsRow(
         "Kernprofil",
         label,
         format_summary_fact_value(fallback_value) or "Nicht angegeben",
         "Jobspec",
         status_for_value(fallback_value),
-        FactResolutionStatus.INFERRED.value
-        if not is_missing_value(fallback_value)
-        else FactResolutionStatus.MISSING.value,
+        fallback_status,
         fact_key=fact_key.value,
         editable=True,
+        provenienz=summary_provenance_label(
+            {},
+            fallback_source_type=FactSourceType.JOBSPEC.value,
+            fallback_resolution_status=fallback_status,
+        ),
     )
 
 
@@ -311,6 +327,23 @@ def source_label_with_secondary_evidence(
     if not homepage_notes:
         return source
     return f"{source} + {', '.join(homepage_notes)}"
+
+
+def summary_provenance_label(
+    evidence: Mapping[str, Any],
+    *,
+    fallback_source_type: str = "",
+    fallback_source_label: str = "",
+    fallback_resolution_status: str = "",
+    confidence_threshold: float | None = None,
+) -> str:
+    return format_provenance_label(
+        evidence,
+        source_type=fallback_source_type,
+        source_label=fallback_source_label,
+        resolution_status=fallback_resolution_status,
+        confidence_threshold=confidence_threshold,
+    )
 
 
 def status_for_classification_value(value: Any) -> str:

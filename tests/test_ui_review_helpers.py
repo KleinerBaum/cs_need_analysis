@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from typing import Literal
@@ -13,6 +15,14 @@ from constants import (
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
 )
 from schemas import AnswerType, JobAdExtract, Question, QuestionStep
+
+
+INTERVIEW_PATH = Path(__file__).resolve().parents[1] / "wizard_pages" / "07_interview.py"
+INTERVIEW_SPEC = spec_from_file_location("wizard_pages.page_07_interview_ui", INTERVIEW_PATH)
+if INTERVIEW_SPEC is None or INTERVIEW_SPEC.loader is None:
+    raise RuntimeError("Could not load interview page module")
+INTERVIEW_MODULE = module_from_spec(INTERVIEW_SPEC)
+INTERVIEW_SPEC.loader.exec_module(INTERVIEW_MODULE)  # type: ignore[attr-defined]
 
 
 class _NoopContext:
@@ -188,7 +198,11 @@ def test_render_step_review_card_truncates_long_answer_previews(monkeypatch) -> 
     )
 
     expected = ui_components._truncate_for_review(long_text, limit=140)
-    assert f"Lange Antwort: {expected}" in fake_st.captions
+    assert any(
+        caption.startswith(f"Lange Antwort: {expected}")
+        and "bestätigt" in caption
+        for caption in fake_st.captions
+    )
 
 
 def test_render_step_review_card_displays_jobspec_covered_answer(monkeypatch) -> None:
@@ -225,6 +239,48 @@ def test_render_step_review_card_displays_jobspec_covered_answer(monkeypatch) ->
         "Wie heißt das Unternehmen? (Jobspec): Rheinbahn" in caption
         for caption in fake_st.captions
     )
+
+
+def test_render_step_review_card_marks_open_low_confidence_fact_without_snippet(
+    monkeypatch,
+) -> None:
+    fake_st = _FakeStreamlitRecorder()
+    monkeypatch.setattr(ui_components, "st", fake_st)
+
+    company_question = _question(
+        question_id="company_name",
+        label="Wie heißt das Unternehmen?",
+        group_key="company_info",
+    )
+    company_question.target_path = FactKey.COMPANY_COMPANY_NAME.value
+    step = _step_with_questions([company_question])
+
+    ui_components.render_step_review_card(
+        step=step,
+        visible_questions=step.questions,
+        answers={},
+        answer_meta={},
+        answered_lookup=None,
+        render_mode=ui_components.ReviewRenderMode.FULL,
+        step_status=None,
+        intake_facts={FactKey.COMPANY_COMPANY_NAME.value: "Acme GmbH"},
+        intake_fact_evidence={
+            FactKey.COMPANY_COMPANY_NAME.value: {
+                "confidence": 0.4,
+                "resolution_status": "conflicted",
+                "evidence_snippet": "Do not leak recruiting@example.test",
+            }
+        },
+        confidence_threshold=0.6,
+    )
+
+    joined_captions = " ".join(fake_st.captions)
+    assert (
+        "Zu prüfen: Wie heißt das Unternehmen?: Konflikt · 40% · prüfen"
+        in joined_captions
+    )
+    assert "Do not leak" not in joined_captions
+    assert "recruiting@example.test" not in joined_captions
 
 
 def test_render_step_review_card_prefers_user_answer_over_jobspec(monkeypatch) -> None:
@@ -982,3 +1038,72 @@ def test_render_compare_adopt_intro_renders_no_explanatory_copy(monkeypatch) -> 
 
     assert calls == []
     assert captions == []
+
+
+def test_interview_value_board_includes_compact_provenance_column(monkeypatch) -> None:
+    class _FakeInterviewStreamlit:
+        def __init__(self) -> None:
+            self.session_state: dict[str, Any] = {
+                SSKey.INTERVIEW_INTERNAL_FLOW.value: {"selected_value_ids": []}
+            }
+            self.column_config = SimpleNamespace(TextColumn=lambda *args, **kwargs: None)
+            self.dataframe_rows: list[dict[str, str]] = []
+            self.column_order: list[str] = []
+
+        def info(self, *_args: Any, **_kwargs: Any) -> None:
+            return None
+
+        def dataframe(
+            self,
+            rows: list[dict[str, str]],
+            *,
+            column_order: list[str],
+            **_: Any,
+        ) -> None:
+            self.dataframe_rows = rows
+            self.column_order = column_order
+
+        def multiselect(
+            self,
+            *_args: Any,
+            default: list[str],
+            **_kwargs: Any,
+        ) -> list[str]:
+            return default
+
+    fake_st = _FakeInterviewStreamlit()
+    monkeypatch.setattr(INTERVIEW_MODULE, "st", fake_st)
+    monkeypatch.setattr(INTERVIEW_MODULE, "get_answers", lambda: {})
+    monkeypatch.setattr(
+        INTERVIEW_MODULE,
+        "build_interview_value_rows",
+        lambda **_kwargs: [
+            {
+                "id": "jobspec-stage",
+                "Bereich": "Interview",
+                "Feld": "Interviewphase 1",
+                "Wert": "HR Screen",
+                "Quelle": "Jobspec",
+                "Status": "Vollständig",
+            },
+            {
+                "id": "manual-stage",
+                "Bereich": "Timing",
+                "Feld": "Start",
+                "Wert": "2026-07-01",
+                "Quelle": "Interview-Step",
+                "Status": "Vollständig",
+            },
+        ],
+    )
+    monkeypatch.setattr(
+        INTERVIEW_MODULE,
+        "default_selected_interview_value_ids",
+        lambda rows: [row["id"] for row in rows],
+    )
+
+    INTERVIEW_MODULE._render_interview_value_board(job=JobAdExtract(), plan=None)
+
+    assert "Provenienz" in fake_st.column_order
+    assert fake_st.dataframe_rows[0]["Provenienz"] == "extrahiert"
+    assert fake_st.dataframe_rows[1]["Provenienz"] == "bestätigt"

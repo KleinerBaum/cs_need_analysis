@@ -17,6 +17,9 @@ import streamlit as st
 
 from constants import (
     AnswerType,
+    FactKey,
+    FactResolutionStatus,
+    FactSourceType,
     QUESTION_IMPACT_TARGET_BRIEF,
     QUESTION_IMPACT_TARGET_EXPORT,
     QUESTION_IMPACT_TARGET_INTERVIEW,
@@ -33,6 +36,7 @@ from job_extract_evidence import (
     field_evidence_caption_text,
     format_field_evidence_confidence,
     format_field_evidence_snippet,
+    format_provenance_label,
     job_extract_field_evidence_by_name,
 )
 from job_extract_review_helpers import (
@@ -504,6 +508,8 @@ def render_standard_step_review(
         step_status=review_payload["step_status"],
         job_extract=review_payload["job_extract"],
         intake_facts=review_payload["intake_facts"],
+        intake_fact_evidence=review_payload["intake_fact_evidence"],
+        confidence_threshold=review_payload["confidence_threshold"],
         render_mode=_resolve_review_render_mode(render_mode),
     )
 
@@ -2863,6 +2869,83 @@ def _sort_questions_for_progressive_disclosure(
     )
 
 
+def _question_fact_key(question: Question) -> FactKey | None:
+    for raw_key in (getattr(question, "fact_key", None), question.target_path):
+        if not isinstance(raw_key, str):
+            continue
+        try:
+            return FactKey(raw_key.strip())
+        except ValueError:
+            continue
+    return None
+
+
+def _question_fact_evidence(
+    question: Question,
+    intake_fact_evidence: Mapping[str, Any] | None,
+) -> Mapping[str, Any]:
+    fact_key = _question_fact_key(question)
+    if fact_key is None or not isinstance(intake_fact_evidence, Mapping):
+        return {}
+    evidence_raw = intake_fact_evidence.get(fact_key.value)
+    return evidence_raw if isinstance(evidence_raw, Mapping) else {}
+
+
+def _question_answer_provenance_label(
+    question: Question,
+    *,
+    user_answered: bool,
+    from_job_extract: bool,
+    intake_fact_evidence: Mapping[str, Any] | None,
+    confidence_threshold: float | None,
+) -> str:
+    if user_answered:
+        return format_provenance_label(
+            source_type=FactSourceType.MANUAL.value,
+            resolution_status=FactResolutionStatus.CONFIRMED.value,
+            confirmed=True,
+        )
+    evidence = _question_fact_evidence(question, intake_fact_evidence)
+    if evidence:
+        return format_provenance_label(
+            evidence,
+            confidence_threshold=confidence_threshold,
+        )
+    if from_job_extract:
+        return format_provenance_label(
+            source_type=FactSourceType.JOBSPEC.value,
+            resolution_status=FactResolutionStatus.INFERRED.value,
+        )
+    return ""
+
+
+def _question_open_provenance_label(
+    question: Question,
+    *,
+    intake_fact_evidence: Mapping[str, Any] | None,
+    confidence_threshold: float | None,
+) -> str:
+    evidence = _question_fact_evidence(question, intake_fact_evidence)
+    if not evidence:
+        return ""
+    status = str(evidence.get("resolution_status") or "").strip()
+    try:
+        confidence = float(evidence.get("confidence"))
+    except (TypeError, ValueError):
+        confidence = None
+    has_low_confidence = (
+        confidence_threshold is not None
+        and confidence is not None
+        and confidence < confidence_threshold
+    )
+    if status != FactResolutionStatus.CONFLICTED.value and not has_low_confidence:
+        return ""
+    return format_provenance_label(
+        evidence,
+        confidence_threshold=confidence_threshold,
+    )
+
+
 def render_step_review_card(
     step: QuestionStep,
     visible_questions: list[Question],
@@ -2873,6 +2956,8 @@ def render_step_review_card(
     render_mode: ReviewRenderMode | None = None,
     job_extract: JobAdExtract | None = None,
     intake_facts: Mapping[str, Any] | None = None,
+    intake_fact_evidence: Mapping[str, Any] | None = None,
+    confidence_threshold: float | None = None,
 ) -> None:
     resolved_render_mode = _resolve_review_render_mode(render_mode)
     missing_essentials_display_max = 4
@@ -2895,7 +2980,7 @@ def render_step_review_card(
             int,
             str,
             dict[str, int],
-            list[tuple[str, str]],
+            list[tuple[str, str, str]],
             list[Question],
             bool,
         ]
@@ -2929,13 +3014,15 @@ def render_step_review_card(
         answer_meta,
         job_extract=job_extract,
         intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
     )
     total_groups = len(grouped_questions)
     complete_groups = 0
     total_unanswered = 0
 
     for group_title, group_questions in grouped_questions:
-        answered_items: list[tuple[str, str]] = []
+        answered_items: list[tuple[str, str, str]] = []
         unanswered_questions: list[Question] = []
         group_missing_essential = False
         progress = compute_question_progress(
@@ -2954,22 +3041,39 @@ def render_step_review_card(
                 continue
             value = answers.get(question.id)
             source_label = question.label
-            if not is_answered(
+            user_answered = is_answered(
                 question,
                 value,
                 answer_meta.get(question.id),
-            ):
+            )
+            from_job_extract = False
+            if not user_answered:
                 extracted_value = resolve_question_job_extract_value(
                     question,
                     job_extract,
                     intake_facts=intake_facts,
+                    intake_fact_evidence=intake_fact_evidence,
+                    confidence_threshold=confidence_threshold,
                 )
                 if has_meaningful_value(extracted_value):
                     value = extracted_value
                     source_label = f"{question.label} (Jobspec)"
+                    from_job_extract = True
             formatted = _format_answer_for_review(question, value)
             if formatted:
-                answered_items.append((source_label, formatted))
+                answered_items.append(
+                    (
+                        source_label,
+                        formatted,
+                        _question_answer_provenance_label(
+                            question,
+                            user_answered=user_answered,
+                            from_job_extract=from_job_extract,
+                            intake_fact_evidence=intake_fact_evidence,
+                            confidence_threshold=confidence_threshold,
+                        ),
+                    )
+                )
         if group_complete:
             complete_groups += 1
 
@@ -3090,12 +3194,37 @@ def render_step_review_card(
                         st.caption(f"{progress['answered']}/{progress['total']}")
 
                     if answered_items:
-                        for label, formatted_value in answered_items:
-                            st.caption(f"{label}: {formatted_value}")
+                        for label, formatted_value, provenance in answered_items:
+                            suffix = f" · {provenance}" if provenance else ""
+                            st.caption(f"{label}: {formatted_value}{suffix}")
                     elif not group_complete:
                         st.caption("Noch keine bestätigten Antworten in dieser Gruppe.")
 
                     if unanswered_questions:
+                        open_provenance = [
+                            (
+                                question.label,
+                                _question_open_provenance_label(
+                                    question,
+                                    intake_fact_evidence=intake_fact_evidence,
+                                    confidence_threshold=confidence_threshold,
+                                ),
+                            )
+                            for question in unanswered_questions
+                        ]
+                        open_provenance = [
+                            (label, provenance)
+                            for label, provenance in open_provenance
+                            if provenance
+                        ]
+                        if open_provenance:
+                            preview = " · ".join(
+                                f"{label}: {provenance}"
+                                for label, provenance in open_provenance[:3]
+                            )
+                            remaining = len(open_provenance) - 3
+                            suffix = f" · +{remaining} weitere" if remaining > 0 else ""
+                            st.caption(f"Zu prüfen: {preview}{suffix}")
                         if render_inline_inputs:
                             st.markdown("**Offene Fragen direkt beantworten**")
                             _render_questions_two_columns(

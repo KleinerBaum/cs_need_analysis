@@ -119,6 +119,7 @@ from summary_facts import (
     source_label_with_secondary_evidence as _source_label_with_secondary_evidence,
     summary_core_fact_row as _summary_core_fact_row,
     summary_fact_row_to_table_dict as _summary_fact_row_to_table_dict,
+    summary_provenance_label as _summary_provenance_label,
 )
 from summary_artifacts import (
     artifact_display_label as _artifact_display_label,
@@ -2750,6 +2751,8 @@ def _render_summary_facts_section(vm: SummaryViewModel) -> None:
 
 def _summary_fact_caption(row: SummaryFactsRow) -> str:
     parts = [row.status, f"Quelle: {row.quelle}"]
+    if row.provenienz:
+        parts.append(f"Provenienz: {row.provenienz}")
     salary = _display_salary_impact(row.salary_impact)
     if salary and salary != "Kein Salary-Einfluss":
         parts.append(f"Salary: {salary}")
@@ -2759,6 +2762,44 @@ def _summary_fact_caption(row: SummaryFactsRow) -> str:
     if row.website_enrichable:
         parts.append("Second Source: Website-Review")
     return " · ".join(parts)
+
+
+def _fallback_summary_source_type(row: SummaryFactsRow) -> str:
+    source = str(row.quelle or "").strip().casefold()
+    if "jobspec" in source:
+        return FactSourceType.JOBSPEC.value
+    manual_markers = ("intake", "antwort", "manual", "auswahl", "interview-step")
+    if any(marker in source for marker in manual_markers):
+        return FactSourceType.MANUAL.value
+    if "homepage" in source or "website" in source:
+        return FactSourceType.HOMEPAGE.value
+    if "esco" in source:
+        return FactSourceType.ESCO.value
+    return ""
+
+
+def _summary_row_provenance_label(
+    row: SummaryFactsRow,
+    *,
+    fact_key: str,
+) -> str:
+    if row.provenienz:
+        return row.provenienz
+    evidence: Mapping[str, Any] = {}
+    if fact_key:
+        evidence_state = get_intake_fact_evidence_state(st.session_state)
+        evidence_raw = evidence_state.get(fact_key)
+        evidence = evidence_raw if isinstance(evidence_raw, Mapping) else {}
+    fallback_resolution = row.resolution_status or _summary_fact_resolution_status(
+        row
+    ).value
+    return _summary_provenance_label(
+        evidence,
+        fallback_source_type=_fallback_summary_source_type(row),
+        fallback_source_label=row.quelle,
+        fallback_resolution_status=fallback_resolution,
+        confidence_threshold=_read_summary_confidence_threshold(),
+    )
 
 
 def _summary_step_key_for_area(area: str) -> str:
@@ -2782,6 +2823,10 @@ def _with_summary_row_metadata(
         else bool(resolved_fact_key or question_id or row.fact_key or row.question_id)
     )
     fact_def = SUMMARY_FACT_DEFS_BY_KEY.get(str(resolved_fact_key or row.fact_key or ""))
+    provenance = _summary_row_provenance_label(
+        row,
+        fact_key=str(resolved_fact_key or row.fact_key or ""),
+    )
     return replace(
         row,
         step_key=resolved_step_key,
@@ -2800,6 +2845,7 @@ def _with_summary_row_metadata(
         website_enrichable=(
             fact_def.website_enrichable if fact_def is not None else row.website_enrichable
         ),
+        provenienz=provenance,
     )
 
 
@@ -3174,6 +3220,7 @@ def _render_summary_facts_table(rows: list[dict[str, str]]) -> None:
                     "Wert",
                     "Quelle",
                     "Status",
+                    "Provenienz",
                     "Salary",
                     "Pflichtigkeit",
                     "Second Source",
@@ -3196,6 +3243,7 @@ def _render_summary_facts_table(rows: list[dict[str, str]]) -> None:
                 "Wert",
                 "Quelle",
                 "Status",
+                "Provenienz",
                 "Salary",
                 "Pflichtigkeit",
                 "Second Source",
@@ -3206,6 +3254,7 @@ def _render_summary_facts_table(rows: list[dict[str, str]]) -> None:
                 "Wert": st.column_config.TextColumn("Inhalt"),
                 "Quelle": st.column_config.TextColumn("Quelle"),
                 "Status": st.column_config.TextColumn("Status"),
+                "Provenienz": st.column_config.TextColumn("Provenienz"),
                 "Salary": st.column_config.TextColumn("Salary"),
                 "Pflichtigkeit": st.column_config.TextColumn("Pflichtigkeit"),
                 "Second Source": st.column_config.TextColumn("Second Source"),
