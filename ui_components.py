@@ -2665,17 +2665,24 @@ def render_question_step(step: QuestionStep) -> None:
     )
     visible_questions = step_payload["visible_questions"]
     hidden_questions_count = step_payload["hidden_questions_count"]
+    dependency_hidden_count = step_payload["dependency_hidden_questions_count"]
+    adaptive_hidden_count = step_payload["adaptive_hidden_questions_count"]
     answered_lookup = step_payload["answered_lookup"]
+    hidden_scope_caption = _question_hidden_scope_caption(
+        dependency_hidden_count=dependency_hidden_count,
+        adaptive_hidden_count=adaptive_hidden_count,
+    )
 
     if not visible_questions:
         st.info(
             "Aktuell sind keine Fragen sichtbar. Prüfe vorherige Antworten oder fahre mit dem nächsten Schritt fort."
         )
-        if hidden_questions_count > 0:
-            st.caption(
-                f"{hidden_questions_count} Detailfragen sind aktuell durch Abhängigkeiten ausgeblendet."
-            )
+        if hidden_questions_count > 0 and hidden_scope_caption:
+            st.caption(hidden_scope_caption)
         return
+
+    if hidden_scope_caption:
+        st.caption(hidden_scope_caption)
 
     grouped_questions = _group_questions(step, visible_questions)
     flow_provenance = _load_question_flow_provenance_payload()
@@ -2763,6 +2770,54 @@ def _render_grouped_question_inputs(
             )
     return pending_inputs
 
+
+def _question_count_label(count: int) -> str:
+    return f"{count} Detailfrage" if count == 1 else f"{count} Detailfragen"
+
+
+def _question_count_verb(count: int, *, singular: str, plural: str) -> str:
+    return singular if count == 1 else plural
+
+
+def _question_hidden_scope_caption(
+    *,
+    dependency_hidden_count: int,
+    adaptive_hidden_count: int,
+) -> str | None:
+    dependency_hidden_count = max(int(dependency_hidden_count), 0)
+    adaptive_hidden_count = max(int(adaptive_hidden_count), 0)
+    dependency_part = ""
+    adaptive_part = ""
+    if dependency_hidden_count:
+        dependency_verb = _question_count_verb(
+            dependency_hidden_count,
+            singular="erscheint",
+            plural="erscheinen",
+        )
+        dependency_part = (
+            f"{_question_count_label(dependency_hidden_count)} {dependency_verb}, "
+            "sobald die vorausgesetzten Antworten passen"
+        )
+    if adaptive_hidden_count:
+        adaptive_verb = _question_count_verb(
+            adaptive_hidden_count,
+            singular="ist",
+            plural="sind",
+        )
+        adaptive_part = (
+            f"{_question_count_label(adaptive_hidden_count)} {adaptive_verb} "
+            "im aktuellen Umfang zurückgestellt, weil bereits belastbare Angaben "
+            "vorliegen oder wichtigere offene Fragen zuerst erscheinen"
+        )
+    if dependency_part and adaptive_part:
+        return f"{dependency_part}; {adaptive_part}."
+    if dependency_part:
+        return f"{dependency_part}."
+    if adaptive_part:
+        return f"{adaptive_part}."
+    return None
+
+
 def _can_render_question_step_form(questions: list[Question]) -> bool:
     return (
         not any(_is_language_requirement_question(question) for question in questions)
@@ -2830,7 +2885,7 @@ def render_step_review_card(
             )
             st.caption("Keine sichtbaren Fragen in diesem Schritt.")
             st.caption(
-                "Hinweis: Abhängigkeiten können Detailfragen ausblenden, bis die vorausgesetzten Antworten gesetzt sind."
+                "Hinweis: Abhängigkeiten oder aktueller Umfang können Detailfragen ausblenden."
             )
         return
 

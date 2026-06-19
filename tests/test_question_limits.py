@@ -141,6 +141,41 @@ def test_standard_mode_applies_step_specific_question_floors() -> None:
     }
 
 
+def test_standard_mode_floor_survives_extracted_coverage() -> None:
+    plan = QuestionPlan(
+        steps=[
+            QuestionStep(
+                step_key="company",
+                title_de="Unternehmen",
+                questions=[
+                    Question(
+                        id=f"company_context_{index}",
+                        label=f"Company context {index}",
+                        answer_type=AnswerType.SHORT_TEXT,
+                        target_path=FactKey.COMPANY_COMPANY_NAME.value,
+                    )
+                    for index in range(8)
+                ],
+            )
+        ]
+    )
+
+    limits = compute_adaptive_question_limits(
+        plan=plan,
+        ui_mode="standard",
+        answers={},
+        answer_meta={},
+        job_extract=None,
+        intake_facts={FactKey.COMPANY_COMPANY_NAME.value: "Example GmbH"},
+        intake_fact_evidence={
+            FactKey.COMPANY_COMPANY_NAME.value: {"confidence": 0.9}
+        },
+        confidence_threshold=0.6,
+    )
+
+    assert limits["company"] == 5
+
+
 def test_adaptive_limits_scale_by_mode_depth() -> None:
     plan = _build_plan()
 
@@ -190,6 +225,62 @@ def test_expert_mode_uses_full_dependency_visible_question_set() -> None:
     )
 
     assert limits["skills"] == 7
+
+
+def test_expert_scope_counts_dependency_hidden_without_adaptive_hidden() -> None:
+    visible_question = Question(
+        id="work_model",
+        label="Arbeitsmodell",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="core",
+    )
+    hidden_follow_up = Question(
+        id="hybrid_days",
+        label="Wie viele Office-Tage?",
+        answer_type=AnswerType.NUMBER,
+        priority="detail",
+        depends_on=[QuestionDependency(question_id="work_model", equals="Hybrid")],
+    )
+    extra_visible = Question(
+        id="office_location",
+        label="Office-Standort",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="detail",
+    )
+    plan = QuestionPlan(
+        steps=[
+            QuestionStep(
+                step_key="company",
+                title_de="Unternehmen",
+                questions=[visible_question, hidden_follow_up, extra_visible],
+            )
+        ]
+    )
+
+    limits = compute_adaptive_question_limits(
+        plan=plan,
+        ui_mode="expert",
+        answers={"work_model": "Remote"},
+        answer_meta={},
+        job_extract=None,
+    )
+    scope = build_step_question_scope(
+        plan.steps[0].questions,
+        step_key="company",
+        question_limits=limits,
+        answers={"work_model": "Remote"},
+        answer_meta={},
+        job_extract=None,
+    )
+
+    assert limits["company"] == 2
+    assert [question.id for question in scope.visible_questions] == [
+        "work_model",
+        "office_location",
+    ]
+    assert scope.dependency_hidden_questions_count == 1
+    assert scope.adaptive_hidden_questions_count == 0
+    assert scope.hidden_questions_count == 1
 
 
 def test_adaptive_limits_treat_low_confidence_fact_as_uncovered() -> None:
@@ -329,6 +420,83 @@ def test_step_question_scope_exposes_legacy_scope_and_visible_questions() -> Non
     ]
     assert [question.id for question in scope.visible_questions] == ["q_core"]
     assert scope.hidden_questions_count == 1
+    assert scope.dependency_hidden_questions_count == 1
+    assert scope.adaptive_hidden_questions_count == 0
+
+
+def test_step_question_scope_counts_adaptive_hidden_questions() -> None:
+    uncovered_core = Question(
+        id="uncovered_core",
+        label="Hiring goal",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="core",
+        required=True,
+    )
+    covered_detail = Question(
+        id="covered_detail",
+        label="Company name",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="detail",
+        target_path=FactKey.COMPANY_COMPANY_NAME.value,
+    )
+    lower_gain_detail = Question(
+        id="lower_gain_detail",
+        label="Detail",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="detail",
+    )
+
+    scope = build_step_question_scope(
+        [covered_detail, uncovered_core, lower_gain_detail],
+        step_key="company",
+        question_limits={"company": 1},
+        answers={},
+        answer_meta={},
+        job_extract=None,
+        intake_facts={FactKey.COMPANY_COMPANY_NAME.value: "Example GmbH"},
+    )
+
+    assert [question.id for question in scope.selected_questions] == ["uncovered_core"]
+    assert [question.id for question in scope.visible_questions] == ["uncovered_core"]
+    assert scope.dependency_hidden_questions_count == 0
+    assert scope.adaptive_hidden_questions_count == 2
+    assert scope.hidden_questions_count == 2
+
+
+def test_step_question_scope_counts_dependency_and_adaptive_hidden_questions() -> None:
+    trigger = Question(
+        id="work_model",
+        label="Arbeitsmodell",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="core",
+    )
+    dependency_hidden = Question(
+        id="hybrid_days",
+        label="Wie viele Office-Tage?",
+        answer_type=AnswerType.NUMBER,
+        priority="core",
+        depends_on=[QuestionDependency(question_id="work_model", equals="Hybrid")],
+    )
+    adaptive_selected = Question(
+        id="missing_context",
+        label="Fehlender Kontext",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="standard",
+    )
+
+    scope = build_step_question_scope(
+        [trigger, dependency_hidden, adaptive_selected],
+        step_key="company",
+        question_limits={"company": 1},
+        answers={"work_model": "Remote"},
+        answer_meta={},
+        job_extract=None,
+    )
+
+    assert [question.id for question in scope.visible_questions] == ["missing_context"]
+    assert scope.dependency_hidden_questions_count == 1
+    assert scope.adaptive_hidden_questions_count == 1
+    assert scope.hidden_questions_count == 2
 
 
 def test_visible_question_scope_respects_intake_fact_confidence_threshold() -> None:

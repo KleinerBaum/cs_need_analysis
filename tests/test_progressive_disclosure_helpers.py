@@ -9,6 +9,7 @@ from ui_components import (
     _collect_incomplete_group_titles,
     _extract_esco_suggestions,
     _group_questions,
+    _question_hidden_scope_caption,
     _split_core_and_detail_questions,
 )
 
@@ -352,6 +353,47 @@ def test_group_questions_uses_new_role_step_section_labels() -> None:
         "Erfolgskriterien",
         "Zusammenarbeit",
     ]
+
+
+def test_hidden_scope_caption_distinguishes_hidden_reasons() -> None:
+    both_reasons = (
+        "1 Detailfrage erscheint, sobald die vorausgesetzten Antworten passen; "
+        "2 Detailfragen sind im aktuellen Umfang zurückgestellt, weil bereits "
+        "belastbare Angaben vorliegen oder wichtigere offene Fragen zuerst erscheinen."
+    )
+    adaptive_only = (
+        "1 Detailfrage ist im aktuellen Umfang zurückgestellt, weil bereits "
+        "belastbare Angaben vorliegen oder wichtigere offene Fragen zuerst erscheinen."
+    )
+
+    assert (
+        _question_hidden_scope_caption(
+            dependency_hidden_count=1,
+            adaptive_hidden_count=2,
+        )
+        == both_reasons
+    )
+    assert (
+        _question_hidden_scope_caption(
+            dependency_hidden_count=2,
+            adaptive_hidden_count=0,
+        )
+        == "2 Detailfragen erscheinen, sobald die vorausgesetzten Antworten passen."
+    )
+    assert (
+        _question_hidden_scope_caption(
+            dependency_hidden_count=0,
+            adaptive_hidden_count=1,
+        )
+        == adaptive_only
+    )
+    assert (
+        _question_hidden_scope_caption(
+            dependency_hidden_count=0,
+            adaptive_hidden_count=0,
+        )
+        is None
+    )
 
 
 def test_extract_esco_suggestions_falls_back_for_unresolved_unknown_type() -> None:

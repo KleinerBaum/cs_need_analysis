@@ -441,6 +441,79 @@ def test_render_question_step_hides_verbose_progress_captions(monkeypatch) -> No
     assert not any(
         caption.startswith("Pflichtfragen offen in:") for caption in fake_st.captions
     )
+    assert not any(
+        "aktuellen Umfang zurückgestellt" in caption
+        for caption in fake_st.captions
+    )
+    assert not any(
+        "vorausgesetzten Antworten" in caption for caption in fake_st.captions
+    )
+
+
+def test_render_question_step_shows_adaptive_hidden_scope_caption(monkeypatch) -> None:
+    class _FakeStepStreamlit:
+        def __init__(self) -> None:
+            self.session_state: dict[str, Any] = {
+                SSKey.UI_MODE.value: "standard",
+                SSKey.QUESTION_LIMITS.value: {"company": 1},
+            }
+            self.captions: list[str] = []
+            self.markdowns: list[str] = []
+
+        def caption(self, message: str, *_: Any, **__: Any) -> None:
+            self.captions.append(message)
+
+        def markdown(self, message: str, *_: Any, **__: Any) -> None:
+            self.markdowns.append(message)
+
+        def info(self, *_: Any, **__: Any) -> None:
+            return None
+
+        def container(self, *, border: bool = False) -> _NoopContext:
+            del border
+            return _NoopContext()
+
+        def columns(self, spec: int | list[int], **_: Any) -> list[_NoopContext]:
+            count = spec if isinstance(spec, int) else len(spec)
+            return [_NoopContext() for _ in range(count)]
+
+    fake_st = _FakeStepStreamlit()
+    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_components, "get_answers", lambda: {})
+    monkeypatch.setattr(ui_components, "get_answer_meta", lambda: {})
+    monkeypatch.setattr(
+        ui_components,
+        "_render_questions_two_columns",
+        lambda _questions, _answers, **_kwargs: [],
+    )
+    step = QuestionStep(
+        step_key="company",
+        title_de="Company",
+        questions=[
+            Question(
+                id="company_q_core",
+                label="Hiring goal",
+                answer_type=AnswerType.SHORT_TEXT,
+                required=True,
+                priority="core",
+                group_key="company",
+            ),
+            Question(
+                id="company_q_detail",
+                label="Detail",
+                answer_type=AnswerType.SHORT_TEXT,
+                priority="detail",
+                group_key="company",
+            ),
+        ],
+    )
+
+    ui_components.render_question_step(step)
+
+    assert any(
+        "1 Detailfrage ist im aktuellen Umfang zurückgestellt" in caption
+        for caption in fake_st.captions
+    )
 
 
 def test_render_question_step_hides_group_provenance_counts_and_sensitive_details(

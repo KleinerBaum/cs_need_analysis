@@ -364,6 +364,8 @@ def test_step_status_uses_precomputed_visible_scope_for_adaptive_dependencies() 
     )
 
     assert [question.id for question in scope.selected_questions] == ["hybrid_days"]
+    assert scope.dependency_hidden_questions_count == 0
+    assert scope.adaptive_hidden_questions_count == 1
     assert payload["total"] == 1
     assert payload["missing_essential_ids"] == ["hybrid_days"]
 
@@ -448,6 +450,8 @@ def test_step_payload_centralizes_dependency_hidden_visible_scope() -> None:
         "work_model"
     ]
     assert payload["hidden_questions_count"] == 1
+    assert payload["dependency_hidden_questions_count"] == 1
+    assert payload["adaptive_hidden_questions_count"] == 0
     assert payload["step_status"]["answered"] == 1
     assert payload["step_status"]["total"] == 1
     assert payload["review_payload"]["visible_questions"] == payload["visible_questions"]
@@ -536,6 +540,9 @@ def test_step_payload_keeps_adaptive_status_and_review_scope_in_sync() -> None:
     assert [question.id for question in payload["visible_questions"]] == [
         "uncovered_core"
     ]
+    assert payload["hidden_questions_count"] == 1
+    assert payload["dependency_hidden_questions_count"] == 0
+    assert payload["adaptive_hidden_questions_count"] == 1
     assert payload["step_status"]["total"] == 1
     assert payload["step_status"]["answered"] == 0
     assert payload["step_status"]["missing_essential_ids"] == ["uncovered_core"]

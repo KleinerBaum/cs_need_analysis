@@ -42,6 +42,8 @@ class StepPayload(TypedDict):
     selected_questions: list[Question]
     visible_questions: list[Question]
     hidden_questions_count: int
+    dependency_hidden_questions_count: int
+    adaptive_hidden_questions_count: int
     answers: dict[str, Any]
     answer_meta: AnswerMetaMap
     answered_lookup: dict[str, bool]
@@ -141,6 +143,8 @@ def build_step_payload(
             selected_questions=[],
             visible_questions=[],
             hidden_questions_count=0,
+            dependency_hidden_questions_count=0,
+            adaptive_hidden_questions_count=0,
         )
     else:
         question_scope = build_step_question_scope(
@@ -232,6 +236,12 @@ def build_step_payload(
         "selected_questions": selected_questions,
         "visible_questions": visible_questions,
         "hidden_questions_count": question_scope.hidden_questions_count,
+        "dependency_hidden_questions_count": (
+            question_scope.dependency_hidden_questions_count
+        ),
+        "adaptive_hidden_questions_count": (
+            question_scope.adaptive_hidden_questions_count
+        ),
         "answers": answers_dict,
         "answer_meta": answer_meta_dict,
         "answered_lookup": answered_lookup,

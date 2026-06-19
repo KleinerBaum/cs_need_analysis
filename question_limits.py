@@ -44,6 +44,8 @@ class StepQuestionScope:
     selected_questions: list[Question]
     visible_questions: list[Question]
     hidden_questions_count: int
+    dependency_hidden_questions_count: int
+    adaptive_hidden_questions_count: int
 
 
 _MODE_LIMIT_PROFILES: dict[str, ModeLimitProfile] = {
@@ -225,7 +227,7 @@ def select_questions_for_adaptive_limit(
 ) -> list[Question]:
     """Return dependency-visible questions selected by adaptive need."""
 
-    visible_questions = _resolve_visible_questions_for_limit(
+    dependency_visible_questions = _resolve_visible_questions_for_limit(
         questions,
         step_key=step_key,
         answers=answers,
@@ -236,7 +238,7 @@ def select_questions_for_adaptive_limit(
         confidence_threshold=confidence_threshold,
     )
     return _select_visible_questions_for_adaptive_limit(
-        visible_questions,
+        dependency_visible_questions,
         limit=limit,
         answers=answers,
         answer_meta=answer_meta,
@@ -262,7 +264,7 @@ def build_step_question_scope(
 ) -> StepQuestionScope:
     """Return the adaptive selected scope and its dependency-visible questions."""
 
-    visible_questions = _resolve_visible_questions_for_limit(
+    dependency_visible_questions = _resolve_visible_questions_for_limit(
         questions,
         step_key=step_key,
         answers=answers,
@@ -276,10 +278,10 @@ def build_step_question_scope(
     step_limit = _read_step_limit(question_limits, step_key)
     if step_limit is None or step_limit <= 0:
         selected_questions = questions
-        selected_visible_questions = visible_questions
+        selected_visible_questions = dependency_visible_questions
     else:
         selected_visible_questions = _select_visible_questions_for_adaptive_limit(
-            visible_questions,
+            dependency_visible_questions,
             limit=step_limit,
             answers=answers,
             answer_meta=answer_meta,
@@ -290,10 +292,17 @@ def build_step_question_scope(
         )
         selected_questions = selected_visible_questions
 
+    dependency_hidden_count = max(len(questions) - len(dependency_visible_questions), 0)
+    adaptive_hidden_count = max(
+        len(dependency_visible_questions) - len(selected_visible_questions),
+        0,
+    )
     return StepQuestionScope(
         selected_questions=selected_questions,
         visible_questions=selected_visible_questions,
-        hidden_questions_count=len(selected_questions) - len(selected_visible_questions),
+        hidden_questions_count=dependency_hidden_count + adaptive_hidden_count,
+        dependency_hidden_questions_count=dependency_hidden_count,
+        adaptive_hidden_questions_count=adaptive_hidden_count,
     )
 
 
@@ -373,6 +382,8 @@ def build_step_question_scope_from_plan(
             selected_questions=[],
             visible_questions=[],
             hidden_questions_count=0,
+            dependency_hidden_questions_count=0,
+            adaptive_hidden_questions_count=0,
         )
     step = next((entry for entry in plan.steps if entry.step_key == step_key), None)
     if step is None:
@@ -380,6 +391,8 @@ def build_step_question_scope_from_plan(
             selected_questions=[],
             visible_questions=[],
             hidden_questions_count=0,
+            dependency_hidden_questions_count=0,
+            adaptive_hidden_questions_count=0,
         )
     return build_step_question_scope(
         step.questions,
