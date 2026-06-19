@@ -663,7 +663,7 @@ def render_ui_styles() -> None:
             );
         }
         .cs-step-header {
-            border-left: 4px solid var(--cs-success);
+            border-left: 2px solid var(--cs-success);
         }
         .cs-output-header,
         .cs-next-action {

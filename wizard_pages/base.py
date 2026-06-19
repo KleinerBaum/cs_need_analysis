@@ -1406,7 +1406,6 @@ def render_esco_language_toggle() -> None:
     selected_version = str(config["selected_version"])
     view_obsolete = bool(config["view_obsolete"])
     language = str(config["language"]).strip().lower() or "de"
-    fallback_language = str(config["fallback_language"]).strip().lower() or "en"
     if language not in {"de", "en"}:
         language = "de"
 
@@ -1422,14 +1421,16 @@ def render_esco_language_toggle() -> None:
         on_change=sync_streamlit_language_widget,
         args=(f"{SSKey.ESCO_CONFIG.value}.language_choice",),
     )
-    sync_language_state(selected_language)
+    selected_language = str(selected_language).strip().lower()
+    selected_fallback_language = "en" if selected_language == "de" else "de"
     _set_esco_config(
         release_lane=release_lane,
         selected_version=selected_version,
         view_obsolete=view_obsolete,
         language=selected_language,
-        fallback_language=fallback_language,
+        fallback_language=selected_fallback_language,
     )
+    sync_language_state(selected_language)
 
 
 def _render_esco_warnings_and_migration_cta() -> None:

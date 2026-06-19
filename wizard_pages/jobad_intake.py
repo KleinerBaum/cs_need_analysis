@@ -94,6 +94,43 @@ HYPOTHESIS_ACTION_ACCEPT: Final[str] = "accept"
 HYPOTHESIS_ACTION_EDIT: Final[str] = "edit"
 HYPOTHESIS_ACTION_SKIP: Final[str] = "skip"
 HYPOTHESIS_EVIDENCE_FIELD_KEY: Final[str] = "cs.jobspec.hypothesis.evidence_field"
+
+
+def _render_start_success_styles() -> None:
+    st.markdown(
+        """
+        <style>
+            .cs-start-success-callout {
+                border-color: color-mix(in srgb, var(--cs-success) 56%, var(--cs-border));
+                border-left: 4px solid var(--cs-success);
+                background: linear-gradient(
+                    180deg,
+                    var(--cs-success-soft),
+                    color-mix(in srgb, var(--cs-success-soft) 72%, var(--cs-surface))
+                );
+                color: var(--cs-text);
+                margin: 0.75rem 0 1rem 0;
+            }
+            .cs-start-success-callout strong {
+                color: var(--cs-text);
+            }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_success_callout(message: str) -> None:
+    st.markdown(
+        f"""
+        <div class="cs-card cs-start-success-callout">
+            <strong>{html.escape(message)}</strong>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 _START_ROUTING_LABELS: Final[dict[str, dict[str, str]]] = {
     FactKey.INTAKE_SEARCH_CONFIDENTIALITY.value: {
         "open": "Offen kommunizierbar",
@@ -1107,54 +1144,39 @@ def _render_job_extract_hypothesis_form(job: JobAdExtract) -> None:
     st.caption(
         "Prüfen Sie die erkannten Angaben vor dem Weiterarbeiten. "
         "Korrigieren Sie Werte direkt in der Tabelle oder löschen Sie eine Zeile, "
-        "wenn die Angabe nicht übernommen werden soll."
+        "wenn die Angabe nicht übernommen werden soll. Änderungen werden automatisch "
+        "gespeichert."
     )
     _render_hypothesis_evidence_controls(rows, evidence_by_field)
-    form_ctx = (
-        st.form("cs.jobspec.hypothesis_review_form")
-        if hasattr(st, "form")
-        else nullcontext()
+    editor_rows = _build_hypothesis_editor_rows(rows, evidence_by_field)
+    edited_rows = st.data_editor(
+        editor_rows,
+        key="cs.jobspec.hypothesis.editor",
+        hide_index=True,
+        num_rows="dynamic",
+        width="stretch",
+        column_order=("Feld", "Wert", "Status", "Sicherheit"),
+        disabled=["Feld", "Status", "Sicherheit"],
+        column_config={
+            "Feld": st.column_config.TextColumn("Angabe"),
+            "Wert": st.column_config.TextColumn("Inhalt"),
+            "Status": st.column_config.TextColumn("Status"),
+            "Sicherheit": st.column_config.TextColumn("Sicherheit"),
+        },
     )
-    submitted_rows: list[dict[str, Any]] = []
-    with form_ctx:
-        editor_rows = _build_hypothesis_editor_rows(rows, evidence_by_field)
-        edited_rows = st.data_editor(
-            editor_rows,
-            key="cs.jobspec.hypothesis.editor",
-            hide_index=True,
-            num_rows="dynamic",
-            width="stretch",
-            column_order=("Feld", "Wert", "Status", "Sicherheit"),
-            disabled=["Feld", "Status", "Sicherheit"],
-            column_config={
-                "Feld": st.column_config.TextColumn("Angabe"),
-                "Wert": st.column_config.TextColumn("Inhalt"),
-                "Status": st.column_config.TextColumn("Status"),
-                "Sicherheit": st.column_config.TextColumn("Sicherheit"),
-            },
-        )
-        submitted_rows.extend(
-            _collect_hypothesis_editor_updates(
-                rows,
-                _normalize_hypothesis_editor_rows(edited_rows),
-            )
-        )
-        submit = (
-            st.form_submit_button("Angaben übernehmen")
-            if hasattr(st, "form_submit_button")
-            else st.button("Angaben übernehmen", key="cs.jobspec.hypothesis.submit")
-        )
-    if not submit:
-        return
+    submitted_rows = _collect_hypothesis_editor_updates(
+        rows,
+        _normalize_hypothesis_editor_rows(edited_rows),
+    )
     reviewed_job = _apply_job_extract_hypothesis_updates(job, submitted_rows)
-    st.session_state[SSKey.JOB_EXTRACT.value] = _model_dump_json_compatible(
-        reviewed_job
-    )
-    st.success("Angaben übernommen.")
-    st.rerun()
+    reviewed_payload = _model_dump_json_compatible(reviewed_job)
+    if st.session_state.get(SSKey.JOB_EXTRACT.value) != reviewed_payload:
+        st.session_state[SSKey.JOB_EXTRACT.value] = reviewed_payload
+        _render_success_callout("Änderungen automatisch gespeichert.")
 
 
 def _render_identified_information_block(ctx: WizardContext) -> None:
+    _render_start_success_styles()
     job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
     plan_dict = st.session_state.get(SSKey.QUESTION_PLAN.value)
     if not isinstance(job_dict, dict) or not isinstance(plan_dict, dict):
@@ -1185,20 +1207,14 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
     _render_job_extract_provenance_block(job)
     _render_job_extract_hypothesis_form(job)
 
-    nav_col_back, nav_col_anchor = st.columns([1, 2], gap="small")
-    with nav_col_back:
-        if st.button("← Zurück", key="cs.jobspec.ident_info.back"):
-            ctx.prev()
-            st.rerun()
-    with nav_col_anchor:
-        if has_confirmed_anchor:
-            title = selected_occupation_title or "Referenzberuf"
-            st.success(f"Berufsabgleich bestätigt: {title}")
-        else:
-            st.caption(
-                "Optional: Im nächsten Abschnitt können Sie einen Referenzberuf für den "
-                "Berufsabgleich bestätigen."
-            )
+    if has_confirmed_anchor:
+        title = selected_occupation_title or "Referenzberuf"
+        _render_success_callout(f"Berufsabgleich bestätigt: {title}")
+    else:
+        st.caption(
+            "Optional: Im nächsten Abschnitt können Sie einen Referenzberuf für den "
+            "Berufsabgleich bestätigen."
+        )
 
 
 def _set_active_source(source: str, text: str) -> None:
@@ -1825,7 +1841,10 @@ def render_jobad_intake(
                 "extract_job_ad": extract_cached,
                 "generate_question_plan": plan_cached,
             }
-            st.success("Analyse abgeschlossen: Informationen extrahiert und Fragebogen erzeugt.")
+            _render_start_success_styles()
+            _render_success_callout(
+                "Analyse abgeschlossen: Informationen extrahiert und Fragebogen erzeugt."
+            )
             if extract_cached or plan_cached:
                 st.info("Mindestens ein Ergebnis wurde aus dem Cache geladen.")
         except OpenAICallError as e:

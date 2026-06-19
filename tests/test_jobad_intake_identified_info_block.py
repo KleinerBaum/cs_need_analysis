@@ -257,7 +257,10 @@ def test_identified_info_next_uses_selected_occupation_fallback(monkeypatch) -> 
     jobad_intake._render_identified_information_block(ctx)
 
     assert "cs.jobspec.ident_info.next" not in fake_st.button_disabled
-    assert "Berufsabgleich bestätigt: Data Scientist" in fake_st.successes
+    assert any(
+        "Berufsabgleich bestätigt: Data Scientist" in item
+        for item in fake_st.markdowns
+    )
     assert next_calls["count"] == 0
     assert fake_st.rerun_called is False
 
@@ -389,7 +392,6 @@ def test_editable_job_extract_includes_field_evidence_columns(monkeypatch) -> No
 
 def test_phase_b_hypothesis_form_groups_and_batches_submit(monkeypatch) -> None:
     fake_st = _FakeStreamlit(session_state={})
-    fake_st.form_submit_returns["Angaben übernehmen"] = True
     monkeypatch.setattr(jobad_intake, "st", fake_st)
 
     job = JobAdExtract(
@@ -428,7 +430,7 @@ def test_phase_b_hypothesis_form_groups_and_batches_submit(monkeypatch) -> None:
     ]
     assert all("Textstelle" not in row for row in editor_rows)
     assert fake_st.selectboxes == {}
-    assert fake_st.rerun_called is True
+    assert fake_st.rerun_called is False
     assert fake_st.session_state[SSKey.JOB_EXTRACT.value]["job_title"] == "Data Engineer"
     evidence = fake_st.session_state[SSKey.INTAKE_FACT_EVIDENCE.value]
     assert evidence["role.job_title"]["source_type"] == FactSourceType.JOBSPEC.value
@@ -466,7 +468,6 @@ def test_phase_b_hypothesis_form_splits_list_values_into_review_rows(
 
 def test_phase_b_hypothesis_form_saves_table_edits_and_deleted_rows(monkeypatch) -> None:
     fake_st = _FakeStreamlit(session_state={})
-    fake_st.form_submit_returns["Angaben übernehmen"] = True
     fake_st.editor_returns_by_key["cs.jobspec.hypothesis.editor"] = [
         {
             "row_id": "company_name",
@@ -513,7 +514,6 @@ def test_phase_b_hypothesis_form_saves_split_list_edits_and_deleted_rows(
     monkeypatch,
 ) -> None:
     fake_st = _FakeStreamlit(session_state={})
-    fake_st.form_submit_returns["Angaben übernehmen"] = True
     fake_st.editor_returns_by_key["cs.jobspec.hypothesis.editor"] = [
         {
             "row_id": "must_have_skills[0]",

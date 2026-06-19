@@ -239,7 +239,7 @@ section[data-testid="stSidebar"] {
 }
 
 .cs-step-header {
-  border-left: 4px solid var(--cs-success);
+  border-left: 2px solid var(--cs-success);
 }
 
 .cs-output-header,
