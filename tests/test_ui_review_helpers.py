@@ -200,7 +200,7 @@ def test_render_step_review_card_truncates_long_answer_previews(monkeypatch) -> 
     expected = ui_components._truncate_for_review(long_text, limit=140)
     assert any(
         caption.startswith(f"Lange Antwort: {expected}")
-        and "bestätigt" in caption
+        and "Eingabe" in caption
         for caption in fake_st.captions
     )
 
@@ -673,13 +673,13 @@ def test_render_question_step_hides_group_provenance_counts_and_sensitive_detail
 
     joined_captions = " ".join(fake_st.captions)
     assert any(
-        caption.startswith("Source:")
-        and "Why asked:" in caption
-        and "Downstream impact:" in caption
+        caption.startswith("Herkunft:")
+        and "Warum:" in caption
+        and "Für:" in caption
         for caption in fake_st.captions
     )
-    assert "ESCO context" in joined_captions
-    assert "Base intake plan" in joined_captions
+    assert "ESCO" in joined_captions
+    assert "Offen" in joined_captions
     assert not any(caption.startswith("Aus Start:") for caption in fake_st.captions)
     assert "uri:skill:python" not in joined_captions
     assert "Do not leak this evidence snippet" not in joined_captions
@@ -712,14 +712,14 @@ def test_question_provenance_display_uses_safe_labels_and_canonical_impacts() ->
 
     assert display["sources"] == ["ESCO context", "Occupation context"]
     assert display["impacts"] == ["Skills", "Export"]
-    assert display["effort"] == "low effort"
-    assert display["info_gain"] == "74% info gain"
+    assert display["effort"] == "geringer Aufwand"
+    assert display["info_gain"] == "74% Info-Gain"
     assert display["adjustments"] == [
         "selected by occupation overlay",
         "demoted by relevance filter",
     ]
-    assert "Source: ESCO context, Occupation context" in caption
-    assert "Downstream impact: Skills, Export" in caption
+    assert "Herkunft: ESCO, Kontext" in caption
+    assert "Für: Skills, Export" in caption
     assert "uri:skill:python" not in caption
     assert "recruiting@example.test" not in caption
     assert "token=abc123" not in caption
@@ -749,14 +749,14 @@ def test_render_section_provenance_expert_adds_collapsed_details(monkeypatch) ->
     )
 
     assert any(
-        caption.startswith("Source:")
-        and "Why asked:" in caption
-        and "Downstream impact:" in caption
+        caption.startswith("Herkunft:")
+        and "Warum:" in caption
+        and "Für:" in caption
         for caption in fake_st.captions
     )
-    assert ("Section provenance", False) in fake_st.expanders
-    assert "**Source**: ESCO context, Occupation context" in fake_st.markdowns
-    assert "**Downstream impact**: Skills" in fake_st.markdowns
+    assert ("Provenienz", False) in fake_st.expanders
+    assert "**Herkunft**: ESCO, Kontext" in fake_st.markdowns
+    assert "**Verwendet für**: Skills" in fake_st.markdowns
     joined_events = " ".join(
         value for _event_type, value in fake_st.events if isinstance(value, str)
     )
@@ -1105,5 +1105,5 @@ def test_interview_value_board_includes_compact_provenance_column(monkeypatch) -
     INTERVIEW_MODULE._render_interview_value_board(job=JobAdExtract(), plan=None)
 
     assert "Provenienz" in fake_st.column_order
-    assert fake_st.dataframe_rows[0]["Provenienz"] == "extrahiert"
-    assert fake_st.dataframe_rows[1]["Provenienz"] == "bestätigt"
+    assert fake_st.dataframe_rows[0]["Provenienz"] == "Jobspec"
+    assert fake_st.dataframe_rows[1]["Provenienz"] == "Eingabe"

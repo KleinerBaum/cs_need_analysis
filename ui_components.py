@@ -107,9 +107,18 @@ QUESTION_IMPACT_LABELS: dict[str, str] = {
     QUESTION_IMPACT_TARGET_EXPORT: "Export",
 }
 QUESTION_ACQUISITION_COST_LABELS: dict[str, str] = {
-    "low": "low effort",
-    "medium": "medium effort",
-    "high": "high effort",
+    "low": "geringer Aufwand",
+    "medium": "mittlerer Aufwand",
+    "high": "hoher Aufwand",
+}
+QUESTION_PROVENANCE_SOURCE_LABELS: dict[str, str] = {
+    "ESCO context": "ESCO",
+    "Occupation context": "Kontext",
+    "Base intake plan": "Offen",
+}
+QUESTION_ADJUSTMENT_LABELS: dict[str, str] = {
+    "selected by occupation overlay": "Kontext-Overlay",
+    "demoted by relevance filter": "Relevanzfilter",
 }
 
 
@@ -274,6 +283,14 @@ def _question_source_labels(
     return _dedupe_labels(source_labels)
 
 
+def _compact_question_source_label(label: str) -> str:
+    return QUESTION_PROVENANCE_SOURCE_LABELS.get(label, label)
+
+
+def _compact_question_adjustment_label(label: str) -> str:
+    return QUESTION_ADJUSTMENT_LABELS.get(label, label)
+
+
 def _question_adjustment_labels(
     question: Question,
     provenance: Mapping[str, Any],
@@ -316,7 +333,7 @@ def _build_question_provenance_display(
     provenance_payload = _load_question_flow_provenance_payload(provenance)
     info_gain = ""
     if question.info_gain_score is not None:
-        info_gain = f"{round(float(question.info_gain_score) * 100)}% info gain"
+        info_gain = f"{round(float(question.info_gain_score) * 100)}% Info-Gain"
     return {
         "sources": _question_source_labels(question, provenance_payload),
         "why": _safe_question_provenance_text(
@@ -341,17 +358,28 @@ def _join_provenance_labels(labels: Sequence[str], *, max_items: int = 3) -> str
     return f"{', '.join(cleaned[:max_items])} +{len(cleaned) - max_items} more"
 
 
+def _join_compact_question_provenance_labels(
+    labels: Sequence[str],
+    *,
+    max_items: int = 3,
+) -> str:
+    return _join_provenance_labels(
+        [_compact_question_source_label(label) for label in labels],
+        max_items=max_items,
+    )
+
+
 def _format_question_provenance_caption(
     display: QuestionProvenanceDisplay,
     *,
     max_why_chars: int = QUESTION_PROVENANCE_TEXT_MAX_CHARS,
 ) -> str:
     why = _safe_question_provenance_text(display["why"], max_chars=max_why_chars)
-    return (
-        f"Source: {_join_provenance_labels(display['sources'])} · "
-        f"Why asked: {why} · "
-        f"Downstream impact: {_join_provenance_labels(display['impacts'])}"
-    )
+    source = _join_compact_question_provenance_labels(display["sources"])
+    impact = _join_provenance_labels(display["impacts"])
+    if not why:
+        return f"Herkunft: {source} · Für: {impact}"
+    return f"Herkunft: {source} · Warum: {why} · Für: {impact}"
 
 
 def _build_section_provenance_display(
@@ -418,15 +446,21 @@ def _render_section_provenance(
     )
     if ui_mode != "expert" or not callable(getattr(st, "expander", None)):
         return
-    with st.expander("Section provenance", expanded=False):
-        st.markdown(f"**Source**: {_join_provenance_labels(display['sources'])}")
-        st.markdown(f"**Why asked**: {display['why']}")
+    with st.expander("Provenienz", expanded=False):
         st.markdown(
-            f"**Downstream impact**: {_join_provenance_labels(display['impacts'])}"
+            f"**Herkunft**: {_join_compact_question_provenance_labels(display['sources'])}"
         )
+        st.markdown(f"**Warum gefragt**: {display['why']}")
+        st.markdown(f"**Verwendet für**: {_join_provenance_labels(display['impacts'])}")
         if display["adjustments"]:
             st.caption(
-                f"Context adjustment: {_join_provenance_labels(display['adjustments'])}"
+                "Anpassung: "
+                + _join_provenance_labels(
+                    [
+                        _compact_question_adjustment_label(adjustment)
+                        for adjustment in display["adjustments"]
+                    ]
+                )
             )
 
 
@@ -445,18 +479,24 @@ def _render_question_provenance(
     )
     if ui_mode != "expert" or not callable(getattr(st, "expander", None)):
         return
-    with st.expander("Question provenance", expanded=False):
-        st.markdown(f"**Source**: {_join_provenance_labels(display['sources'])}")
-        st.markdown(f"**Why asked**: {display['why']}")
+    with st.expander("Provenienz", expanded=False):
         st.markdown(
-            f"**Downstream impact**: {_join_provenance_labels(display['impacts'])}"
+            f"**Herkunft**: {_join_compact_question_provenance_labels(display['sources'])}"
         )
+        st.markdown(f"**Warum gefragt**: {display['why']}")
+        st.markdown(f"**Verwendet für**: {_join_provenance_labels(display['impacts'])}")
         detail_parts = [part for part in (display["effort"], display["info_gain"]) if part]
         if detail_parts:
-            st.caption(f"Question signal: {' · '.join(detail_parts)}")
+            st.caption(f"Fragensignal: {' · '.join(detail_parts)}")
         if display["adjustments"]:
             st.caption(
-                f"Context adjustment: {_join_provenance_labels(display['adjustments'])}"
+                "Anpassung: "
+                + _join_provenance_labels(
+                    [
+                        _compact_question_adjustment_label(adjustment)
+                        for adjustment in display["adjustments"]
+                    ]
+                )
             )
 
 
@@ -729,6 +769,19 @@ def dedupe_source_pill_labels(values: Sequence[str]) -> list[str]:
     return deduped
 
 
+def _source_pill_provenance_caption(source_key: str) -> str:
+    normalized = normalize_source_pill_label(source_key)
+    if "jobspec" in normalized:
+        return "Provenienz: Jobspec"
+    if "esco" in normalized or "kontext" in normalized:
+        return "Provenienz: ESCO"
+    if normalized == "ai" or "ai" in normalized:
+        return "Provenienz: AI-Vorschlag"
+    if "manual" in normalized or "antwort" in normalized or "eingabe" in normalized:
+        return "Provenienz: Eingabe"
+    return ""
+
+
 def render_source_pill_selection(
     *,
     columns: Sequence[SourcePillColumnWithFooter],
@@ -762,6 +815,9 @@ def render_source_pill_selection(
         ]
         with column:
             st.markdown(f"#### {title}")
+            provenance_caption = _source_pill_provenance_caption(source_key)
+            if provenance_caption:
+                st.caption(provenance_caption)
             if options:
                 picked = render_multi_select_pills(
                     " ",

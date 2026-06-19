@@ -93,7 +93,7 @@ def test_field_evidence_caption_text_combines_confidence_and_snippet() -> None:
                 "needs_confirmation": True,
             }
         },
-    ) == "Evidence: extrahiert · 82% · prüfen · Senior Data Engineer gesucht."
+    ) == "Provenienz: Jobspec · 82% · prüfen · Senior Data Engineer gesucht."
 
 
 def test_format_provenance_label_maps_resolution_states() -> None:
@@ -103,7 +103,7 @@ def test_format_provenance_label_maps_resolution_states() -> None:
             resolution_status=FactResolutionStatus.CONFIRMED.value,
             confirmed=True,
         )
-        == "bestätigt"
+        == "Eingabe"
     )
     assert (
         format_provenance_label(
@@ -111,14 +111,14 @@ def test_format_provenance_label_maps_resolution_states() -> None:
             resolution_status=FactResolutionStatus.INFERRED.value,
             confidence=0.82,
         )
-        == "extrahiert · 82%"
+        == "Jobspec · 82%"
     )
     assert (
         format_provenance_label(
             source_type=FactSourceType.LLM.value,
             resolution_status=FactResolutionStatus.INFERRED.value,
         )
-        == "abgeleitet"
+        == "AI-Vorschlag"
     )
     assert (
         format_provenance_label(
@@ -137,7 +137,7 @@ def test_format_provenance_label_maps_resolution_states() -> None:
         format_provenance_label(
             resolution_status=FactResolutionStatus.MISSING.value,
         )
-        == "offen"
+        == "Offen"
     )
     assert (
         format_provenance_label(

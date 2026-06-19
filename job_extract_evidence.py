@@ -52,31 +52,26 @@ def _provenance_status_label(
     if resolution_status == FactResolutionStatus.CONFLICTED.value:
         return "Konflikt"
     if resolution_status == FactResolutionStatus.MISSING.value:
-        return "offen"
+        return "Offen"
     if resolution_status == FactResolutionStatus.ASSUMED.value:
         return "Annahme"
-    if confirmed is True or resolution_status == FactResolutionStatus.CONFIRMED.value:
-        return "bestätigt"
-    if resolution_status == FactResolutionStatus.INFERRED.value:
-        if (
-            source_type == FactSourceType.JOBSPEC.value
-            or "jobspec" in source_label.casefold()
-        ):
-            return "extrahiert"
-        return "abgeleitet"
     if source_type == FactSourceType.MANUAL.value:
-        return "bestätigt"
+        return "Eingabe"
     if (
         source_type == FactSourceType.JOBSPEC.value
         or "jobspec" in source_label.casefold()
     ):
-        return "extrahiert"
-    if source_type in {
-        FactSourceType.HOMEPAGE.value,
-        FactSourceType.ESCO.value,
-        FactSourceType.LLM.value,
-    }:
-        return "abgeleitet"
+        return "Jobspec"
+    if source_type == FactSourceType.ESCO.value:
+        return "ESCO"
+    if source_type == FactSourceType.HOMEPAGE.value:
+        return "Website"
+    if source_type == FactSourceType.LLM.value:
+        return "AI-Vorschlag"
+    if confirmed is True or resolution_status == FactResolutionStatus.CONFIRMED.value:
+        return "Eingabe"
+    if resolution_status == FactResolutionStatus.INFERRED.value:
+        return "Angereichert"
     if needs_confirmation:
         return "prüfen"
     return ""
@@ -179,9 +174,9 @@ def field_evidence_caption_text(
     confidence = provenance or format_field_evidence_confidence(evidence)
     snippet = format_field_evidence_snippet(evidence)
     if confidence and snippet:
-        return f"Evidence: {confidence} · {snippet}"
+        return f"Provenienz: {confidence} · {snippet}"
     if confidence:
-        return f"Evidence: {confidence}"
+        return f"Provenienz: {confidence}"
     if snippet:
-        return f"Evidence: {snippet}"
+        return f"Provenienz: {snippet}"
     return ""
