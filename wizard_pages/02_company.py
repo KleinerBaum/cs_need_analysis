@@ -75,7 +75,7 @@ from wizard_pages.fact_inputs import (
     render_text_fact,
     split_lines,
 )
-from intake_facts import write_intake_fact
+from intake_facts import append_intake_fact_secondary_evidence, write_intake_fact
 from state import mark_answer_touched
 from wizard_pages.team_section import render_role_context_enrichment
 
@@ -468,6 +468,12 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
                 evidence = str(candidate.get("evidence_snippet") or "").strip()
                 selected_fact = _coerce_fact_key(selected_fact_key)
                 current_value = fact_value(selected_fact) if selected_fact is not None else None
+                has_confirmed_conflict = (
+                    selected_fact is not None
+                    and _is_confirmed_fact_value(selected_fact)
+                    and not _is_empty_fact_value(current_value)
+                    and not _fact_values_equal(current_value, parsed_value)
+                )
                 st.caption(
                     f"Quelle: {source_label}"
                     + (
@@ -485,6 +491,16 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
                         else "Website-Wert weicht vom vorhandenen Wert ab."
                     )
                     st.caption(f"Review: {review_note}")
+                override_conflict = False
+                if has_confirmed_conflict:
+                    override_conflict = st.checkbox(
+                        "Bestätigten Wert überschreiben",
+                        value=bool(draft.get("override_conflict", False)),
+                        key=(
+                            "company.website.fact_review."
+                            f"{candidate_id}.override_conflict"
+                        ),
+                    )
                 if parse_error:
                     st.caption(parse_error)
                 selected = st.checkbox(
@@ -497,6 +513,7 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
                 "fact_key": selected_fact_key,
                 "value": parsed_value,
                 "selected": selected,
+                "override_conflict": override_conflict,
             }
             rows.append(
                 {
@@ -504,6 +521,7 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
                     "fact_key": selected_fact_key,
                     "value": parsed_value,
                     "selected": selected,
+                    "override_conflict": override_conflict,
                     "parse_error": parse_error,
                 }
             )
@@ -517,6 +535,8 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
         return
 
     saved_count = 0
+    corroborated_count = 0
+    conflict_count = 0
     skipped_count = 0
     for row in rows:
         if not row["selected"]:
@@ -529,15 +549,27 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
         if fact_key is None:
             skipped_count += 1
             continue
-        _persist_homepage_fact_candidate(
+        result = _persist_homepage_fact_candidate(
             fact_key=fact_key,
             value=value,
             candidate=row["candidate"],
+            override_conflict=bool(row["override_conflict"]),
         )
-        saved_count += 1
+        if result == "conflicted":
+            conflict_count += 1
+        elif result == "corroborated":
+            corroborated_count += 1
+        else:
+            saved_count += 1
 
     if saved_count:
         st.success(f"{saved_count} Website-Kontextwerte gespeichert.")
+    if corroborated_count:
+        st.success(f"{corroborated_count} Website-Kontextwerte bestätigt.")
+    if conflict_count:
+        st.warning(
+            f"{conflict_count} Website-Konflikte wurden als Evidence gespeichert."
+        )
     if skipped_count:
         st.warning(f"{skipped_count} ausgewählte Kontextwerte wurden nicht gespeichert.")
 
@@ -605,10 +637,53 @@ def _persist_homepage_fact_candidate(
     fact_key: FactKey,
     value: Any,
     candidate: dict[str, Any],
-) -> None:
+    override_conflict: bool = False,
+) -> str:
     answers_raw = st.session_state.get(SSKey.ANSWERS.value, {})
     answers = answers_raw if isinstance(answers_raw, dict) else {}
-    previous_value = answers.get(fact_key.value)
+    previous_value = fact_value(fact_key)
+    source_label = str(candidate.get("source_label") or "Website-Analyse").strip()
+    confidence = candidate.get("confidence")
+    evidence_snippet = str(candidate.get("evidence_snippet") or "").strip() or None
+    if (
+        _is_confirmed_fact_value(fact_key)
+        and not _is_empty_fact_value(previous_value)
+        and not _fact_values_equal(previous_value, value)
+    ):
+        append_intake_fact_secondary_evidence(
+            st.session_state,
+            fact_key,
+            value=value,
+            source_type=FactSourceType.HOMEPAGE,
+            source_label=source_label,
+            confidence=confidence,
+            evidence_snippet=evidence_snippet,
+            confirmed=override_conflict,
+            resolution_status=(
+                FactResolutionStatus.CONFIRMED
+                if override_conflict
+                else FactResolutionStatus.CONFLICTED
+            ),
+        )
+        if not override_conflict:
+            return "conflicted"
+
+    elif not _is_empty_fact_value(previous_value) and _fact_values_equal(
+        previous_value, value
+    ):
+        append_intake_fact_secondary_evidence(
+            st.session_state,
+            fact_key,
+            value=value,
+            source_type=FactSourceType.HOMEPAGE,
+            source_label=source_label,
+            confidence=confidence,
+            evidence_snippet=evidence_snippet,
+            confirmed=True,
+            resolution_status=FactResolutionStatus.CONFIRMED,
+        )
+        return "corroborated"
+
     mark_answer_touched(fact_key.value, previous_value, value)
     answers[fact_key.value] = value
     st.session_state[SSKey.ANSWERS.value] = answers
@@ -617,12 +692,20 @@ def _persist_homepage_fact_candidate(
         fact_key,
         value,
         source_type=FactSourceType.HOMEPAGE,
-        source_label=str(candidate.get("source_label") or "Website-Analyse").strip(),
-        confidence=candidate.get("confidence"),
-        evidence_snippet=str(candidate.get("evidence_snippet") or "").strip() or None,
+        source_label=source_label,
+        confidence=confidence,
+        evidence_snippet=evidence_snippet,
         confirmed=True,
         resolution_status=FactResolutionStatus.CONFIRMED,
     )
+    return "saved"
+
+
+def _is_confirmed_fact_value(fact_key: FactKey) -> bool:
+    evidence_raw = st.session_state.get(SSKey.INTAKE_FACT_EVIDENCE.value, {})
+    evidence_state = evidence_raw if isinstance(evidence_raw, dict) else {}
+    evidence = evidence_state.get(fact_key.value)
+    return isinstance(evidence, dict) and bool(evidence.get("confirmed"))
 
 
 def _default_select_website_candidate(fact_key: str, value: Any) -> bool:

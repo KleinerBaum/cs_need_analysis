@@ -257,7 +257,12 @@ def write_intake_fact_evidence(
             source_type=resolved_source,
             confirmed=bool(resolved_confirmed),
         )
-    evidence_state[resolved_key.value] = {
+    previous_entry_raw = evidence_state.get(resolved_key.value)
+    previous_entry = (
+        previous_entry_raw if isinstance(previous_entry_raw, Mapping) else {}
+    )
+    previous_secondary = previous_entry.get("secondary_evidence")
+    next_entry = {
         "source_type": resolved_source.value,
         "source_label": _normalize_string(source_label)
         or _default_source_label(resolved_source),
@@ -269,6 +274,63 @@ def write_intake_fact_evidence(
         "used_by_artifacts": _normalize_used_by_artifacts(used_by_artifacts),
         "updated_at": updated_at or datetime.now(UTC).isoformat(),
     }
+    if isinstance(previous_secondary, list) and previous_secondary:
+        next_entry["secondary_evidence"] = previous_secondary
+    evidence_state[resolved_key.value] = next_entry
+    session_state[SSKey.INTAKE_FACT_EVIDENCE.value] = evidence_state
+
+
+def append_intake_fact_secondary_evidence(
+    session_state: MutableMapping[str, Any],
+    fact_key: FactKey | str,
+    *,
+    value: Any,
+    source_type: FactSourceType | str,
+    source_label: str | None = None,
+    confidence: float | None = None,
+    evidence_snippet: str | None = None,
+    confirmed: bool = False,
+    resolution_status: FactResolutionStatus | str | None = None,
+    updated_at: str | None = None,
+) -> None:
+    """Append non-winning evidence for a canonical fact without changing its value."""
+
+    resolved_key = _coerce_fact_key(fact_key)
+    if resolved_key is None or resolved_key not in _WRITE_THROUGH_FACTS:
+        return
+
+    resolved_source = _coerce_fact_source_type(source_type) or FactSourceType.MANUAL
+    resolved_resolution = (
+        _coerce_fact_resolution_status(resolution_status)
+        or _derive_fact_resolution_status(
+            fact_key=resolved_key,
+            source_type=resolved_source,
+            confirmed=confirmed,
+        )
+    )
+    evidence_state = _mutable_fact_evidence_state(session_state)
+    current_raw = evidence_state.get(resolved_key.value)
+    current = dict(current_raw) if isinstance(current_raw, Mapping) else {}
+    secondary_raw = current.get("secondary_evidence")
+    secondary = list(secondary_raw) if isinstance(secondary_raw, list) else []
+    secondary.append(
+        {
+            "source_type": resolved_source.value,
+            "source_label": _normalize_string(source_label)
+            or _default_source_label(resolved_source),
+            "confidence": _normalize_confidence(
+                confidence,
+                default=_DEFAULT_CONFIDENCE_BY_SOURCE[resolved_source],
+            ),
+            "confirmed": bool(confirmed),
+            "resolution_status": resolved_resolution.value,
+            "value": _normalize_fact_value(value),
+            "evidence_snippet": _normalize_evidence_snippet(evidence_snippet),
+            "updated_at": updated_at or datetime.now(UTC).isoformat(),
+        }
+    )
+    current["secondary_evidence"] = secondary
+    evidence_state[resolved_key.value] = current
     session_state[SSKey.INTAKE_FACT_EVIDENCE.value] = evidence_state
 
 

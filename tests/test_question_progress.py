@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from constants import AnswerType, FactKey, SSKey
+from constants import (
+    AnswerType,
+    FactKey,
+    FactResolutionStatus,
+    FactSourceType,
+    SSKey,
+)
 from question_progress import (
     build_answered_lookup,
     build_answers_with_job_extract_coverage,
@@ -258,6 +264,92 @@ def test_low_confidence_intake_fact_does_not_cover_matching_question() -> None:
 
     assert answered_lookup == {"q_role": False}
     assert effective_answers == {}
+
+
+def test_homepage_intake_fact_covers_matching_question() -> None:
+    question = Question(
+        id="q_company",
+        label="Unternehmen",
+        answer_type=AnswerType.SHORT_TEXT,
+        target_path=FactKey.COMPANY_COMPANY_NAME.value,
+    )
+
+    answered_lookup = build_answered_lookup(
+        [question],
+        answers={},
+        answer_meta={},
+        intake_facts={FactKey.COMPANY_COMPANY_NAME.value: "Example GmbH"},
+        intake_fact_evidence={
+            FactKey.COMPANY_COMPANY_NAME.value: {
+                "source_type": FactSourceType.HOMEPAGE.value,
+                "confidence": 0.85,
+                "resolution_status": FactResolutionStatus.CONFIRMED.value,
+            }
+        },
+        confidence_threshold=0.6,
+    )
+
+    assert answered_lookup == {"q_company": True}
+
+
+def test_conflicted_intake_fact_does_not_cover_matching_question() -> None:
+    question = Question(
+        id="q_company",
+        label="Unternehmen",
+        answer_type=AnswerType.SHORT_TEXT,
+        target_path=FactKey.COMPANY_COMPANY_NAME.value,
+    )
+
+    answered_lookup = build_answered_lookup(
+        [question],
+        answers={},
+        answer_meta={},
+        intake_facts={FactKey.COMPANY_COMPANY_NAME.value: "Example GmbH"},
+        intake_fact_evidence={
+            FactKey.COMPANY_COMPANY_NAME.value: {
+                "source_type": FactSourceType.HOMEPAGE.value,
+                "confidence": 0.85,
+                "resolution_status": FactResolutionStatus.CONFLICTED.value,
+            }
+        },
+        confidence_threshold=0.6,
+    )
+
+    assert answered_lookup == {"q_company": False}
+
+
+def test_secondary_homepage_conflict_keeps_confirmed_fact_coverage() -> None:
+    question = Question(
+        id="q_company",
+        label="Unternehmen",
+        answer_type=AnswerType.SHORT_TEXT,
+        target_path=FactKey.COMPANY_COMPANY_NAME.value,
+    )
+
+    answered_lookup = build_answered_lookup(
+        [question],
+        answers={},
+        answer_meta={},
+        intake_facts={FactKey.COMPANY_COMPANY_NAME.value: "Example GmbH"},
+        intake_fact_evidence={
+            FactKey.COMPANY_COMPANY_NAME.value: {
+                "source_type": FactSourceType.MANUAL.value,
+                "confidence": 1.0,
+                "confirmed": True,
+                "resolution_status": FactResolutionStatus.CONFIRMED.value,
+                "secondary_evidence": [
+                    {
+                        "source_type": FactSourceType.HOMEPAGE.value,
+                        "resolution_status": FactResolutionStatus.CONFLICTED.value,
+                        "value": "Other GmbH",
+                    }
+                ],
+            }
+        },
+        confidence_threshold=0.6,
+    )
+
+    assert answered_lookup == {"q_company": True}
 
 
 def test_intake_fact_without_evidence_keeps_legacy_coverage_behavior() -> None:

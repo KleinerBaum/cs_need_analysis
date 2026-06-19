@@ -8,7 +8,7 @@ import re
 from collections.abc import Mapping
 from typing import Any, Literal, TypedDict
 
-from constants import INTAKE_FACTS, AnswerType, FactKey
+from constants import INTAKE_FACTS, AnswerType, FactKey, FactResolutionStatus
 from intake_facts import latest_fact_confidence
 from schemas import JobAdExtract, Question
 
@@ -380,6 +380,11 @@ def _fact_evidence_allows_coverage(
     intake_fact_evidence: Mapping[str, Any] | None,
     confidence_threshold: float | None,
 ) -> bool:
+    if isinstance(intake_fact_evidence, Mapping):
+        evidence_raw = intake_fact_evidence.get(fact_key.value)
+        evidence = evidence_raw if isinstance(evidence_raw, Mapping) else {}
+        if evidence.get("resolution_status") == FactResolutionStatus.CONFLICTED.value:
+            return False
     threshold = _normalize_confidence_threshold(confidence_threshold)
     if threshold is None or not isinstance(intake_fact_evidence, Mapping):
         return True

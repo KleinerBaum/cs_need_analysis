@@ -5,7 +5,13 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Literal
 
-from constants import AnswerType, FactKey, SSKey
+from constants import (
+    AnswerType,
+    FactKey,
+    FactResolutionStatus,
+    FactSourceType,
+    SSKey,
+)
 from schemas import (
     JobAdExtract,
     MoneyRange,
@@ -121,6 +127,103 @@ def test_build_summary_fact_rows_prefer_canonical_core_facts(monkeypatch) -> Non
     assert fields["Rolle"]["Quelle"] == "Manual input"
     assert fields["Unternehmen"]["Wert"] == "Manual GmbH"
     assert fields["Unternehmen"]["Quelle"] == "Manual input"
+
+
+def test_build_summary_fact_rows_show_homepage_winning_source(monkeypatch) -> None:
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.INTAKE_FACTS.value: {
+                    FactKey.COMPANY_COMPANY_NAME.value: "Homepage GmbH",
+                },
+                SSKey.INTAKE_FACT_EVIDENCE.value: {
+                    FactKey.COMPANY_COMPANY_NAME.value: {
+                        "source_type": FactSourceType.HOMEPAGE.value,
+                        "source_label": "Impressum",
+                        "confirmed": True,
+                        "resolution_status": FactResolutionStatus.CONFIRMED.value,
+                    },
+                },
+            }
+        ),
+    )
+
+    rows = SUMMARY_MODULE._build_summary_fact_rows(
+        job=JobAdExtract(company_name="Jobspec GmbH"),
+        answers={},
+        plan=None,
+        artifacts=_artifacts(),
+        meta=_meta(selected_occupation_title=None),
+    )
+
+    fields = {row.feld: row.to_dict() for row in rows}
+    assert fields["Unternehmen"]["Wert"] == "Homepage GmbH"
+    assert fields["Unternehmen"]["Quelle"] == "Impressum"
+
+
+def test_build_summary_fact_rows_append_homepage_secondary_evidence(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.INTAKE_FACTS.value: {
+                    FactKey.COMPANY_COMPANY_NAME.value: "Manual GmbH",
+                    FactKey.COMPANY_BRAND_NAME.value: "Manual Brand",
+                },
+                SSKey.INTAKE_FACT_EVIDENCE.value: {
+                    FactKey.COMPANY_COMPANY_NAME.value: {
+                        "source_type": FactSourceType.MANUAL.value,
+                        "source_label": "Manual input",
+                        "confirmed": True,
+                        "resolution_status": FactResolutionStatus.CONFIRMED.value,
+                        "secondary_evidence": [
+                            {
+                                "source_type": FactSourceType.HOMEPAGE.value,
+                                "resolution_status": (
+                                    FactResolutionStatus.CONFLICTED.value
+                                ),
+                                "value": "Homepage GmbH",
+                            }
+                        ],
+                    },
+                    FactKey.COMPANY_BRAND_NAME.value: {
+                        "source_type": FactSourceType.MANUAL.value,
+                        "source_label": "Manual input",
+                        "confirmed": True,
+                        "resolution_status": FactResolutionStatus.CONFIRMED.value,
+                        "secondary_evidence": [
+                            {
+                                "source_type": FactSourceType.HOMEPAGE.value,
+                                "confirmed": True,
+                                "resolution_status": (
+                                    FactResolutionStatus.CONFIRMED.value
+                                ),
+                                "value": "Manual Brand",
+                            }
+                        ],
+                    },
+                },
+                SSKey.INTERVIEW_INTERNAL_FLOW.value: {},
+            }
+        ),
+    )
+
+    rows = SUMMARY_MODULE._build_summary_fact_rows(
+        job=JobAdExtract(company_name="Jobspec GmbH"),
+        answers={},
+        plan=None,
+        artifacts=_artifacts(),
+        meta=_meta(selected_occupation_title=None),
+    )
+
+    fields = {row.feld: row.to_dict() for row in rows}
+    assert fields["Unternehmen"]["Quelle"] == "Manual input + Homepage-Konflikt"
+    assert fields["Brand"]["Quelle"] == "Manual input + Homepage bestätigt"
 
 
 def test_build_summary_fact_rows_include_populated_extended_core_facts(

@@ -116,6 +116,7 @@ from summary_facts import (
     status_for_answer_value as _status_for_answer_value,
     status_for_classification_value as _status_for_classification_value,
     status_for_value as _status_for_value,
+    source_label_with_secondary_evidence as _source_label_with_secondary_evidence,
     summary_core_fact_row as _summary_core_fact_row,
     summary_fact_row_to_table_dict as _summary_fact_row_to_table_dict,
 )
@@ -2874,9 +2875,11 @@ def _build_summary_fact_rows(
                     area,
                     label,
                     _format_summary_fact_value(value) or "Nicht angegeben",
-                    str(evidence.get("source_label") or "Offen").strip()
+                    _source_label_with_secondary_evidence(evidence, "Offen")
                     if _status_for_value(value) == "Fehlend"
-                    else str(evidence.get("source_label") or "Intake-Fakt").strip(),
+                    else _source_label_with_secondary_evidence(
+                        evidence, "Intake-Fakt"
+                    ),
                     _status_for_value(value),
                     str(evidence.get("resolution_status") or "").strip(),
                 ),

@@ -14,6 +14,7 @@ from constants import (
     FactRequirementStage,
     FactResolutionStatus,
     FactSalaryImpact,
+    FactSourceType,
 )
 from schemas import Question, question_option_label_map
 
@@ -252,7 +253,7 @@ def summary_core_fact_row(
         fact_value = intake_facts.get(fact_key.value)
         evidence_raw = intake_fact_evidence.get(fact_key.value)
         evidence = evidence_raw if isinstance(evidence_raw, Mapping) else {}
-        source = str(evidence.get("source_label") or "Intake-Fakt").strip()
+        source = source_label_with_secondary_evidence(evidence, "Intake-Fakt")
         resolution_status = str(
             evidence.get("resolution_status") or _default_resolution_status(evidence)
         ).strip()
@@ -284,6 +285,32 @@ def _default_resolution_status(evidence: Mapping[str, Any]) -> str:
     if bool(evidence.get("confirmed")):
         return FactResolutionStatus.CONFIRMED.value
     return FactResolutionStatus.INFERRED.value
+
+
+def source_label_with_secondary_evidence(
+    evidence: Mapping[str, Any],
+    default_source: str,
+) -> str:
+    source = str(evidence.get("source_label") or default_source).strip()
+    secondary_raw = evidence.get("secondary_evidence")
+    secondary = secondary_raw if isinstance(secondary_raw, list) else []
+    homepage_notes: list[str] = []
+    for item_raw in secondary:
+        item = item_raw if isinstance(item_raw, Mapping) else {}
+        if item.get("source_type") != FactSourceType.HOMEPAGE.value:
+            continue
+        resolution_status = str(item.get("resolution_status") or "").strip()
+        if resolution_status == FactResolutionStatus.CONFLICTED.value:
+            label = "Homepage-Konflikt"
+        elif bool(item.get("confirmed")):
+            label = "Homepage bestätigt"
+        else:
+            label = "Homepage-Hinweis"
+        if label not in homepage_notes:
+            homepage_notes.append(label)
+    if not homepage_notes:
+        return source
+    return f"{source} + {', '.join(homepage_notes)}"
 
 
 def status_for_classification_value(value: Any) -> str:

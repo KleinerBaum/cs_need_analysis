@@ -302,6 +302,159 @@ def test_persist_homepage_fact_candidate_writes_fact_evidence_and_answer(
     ]["touched"] is True
 
 
+def test_persist_homepage_fact_candidate_records_conflict_without_overwrite(
+    monkeypatch,
+) -> None:
+    fake_st = SimpleNamespace(
+        session_state={
+            SSKey.ANSWERS.value: {
+                FactKey.COMPANY_COMPANY_NAME.value: "Existing GmbH"
+            },
+            SSKey.ANSWER_META.value: {},
+            SSKey.INTAKE_FACTS.value: {
+                FactKey.COMPANY_COMPANY_NAME.value: "Existing GmbH"
+            },
+            SSKey.INTAKE_FACT_EVIDENCE.value: {
+                FactKey.COMPANY_COMPANY_NAME.value: {
+                    "source_type": FactSourceType.MANUAL.value,
+                    "source_label": "Manual input",
+                    "confirmed": True,
+                    "resolution_status": FactResolutionStatus.CONFIRMED.value,
+                }
+            },
+        }
+    )
+    monkeypatch.setattr(COMPANY_MODULE, "st", fake_st)
+    monkeypatch.setattr(state_module, "st", fake_st)
+
+    result = COMPANY_MODULE._persist_homepage_fact_candidate(
+        fact_key=FactKey.COMPANY_COMPANY_NAME,
+        value="Accenture GmbH",
+        candidate={
+            "source_label": "Impressum",
+            "confidence": 0.85,
+            "evidence_snippet": "Firma: Accenture GmbH",
+        },
+    )
+
+    assert result == "conflicted"
+    assert fake_st.session_state[SSKey.ANSWERS.value][
+        FactKey.COMPANY_COMPANY_NAME.value
+    ] == "Existing GmbH"
+    assert fake_st.session_state[SSKey.INTAKE_FACTS.value][
+        FactKey.COMPANY_COMPANY_NAME.value
+    ] == "Existing GmbH"
+    evidence = fake_st.session_state[SSKey.INTAKE_FACT_EVIDENCE.value][
+        FactKey.COMPANY_COMPANY_NAME.value
+    ]
+    assert evidence["source_type"] == FactSourceType.MANUAL.value
+    secondary = evidence["secondary_evidence"]
+    assert secondary[-1]["source_type"] == FactSourceType.HOMEPAGE.value
+    assert secondary[-1]["resolution_status"] == (
+        FactResolutionStatus.CONFLICTED.value
+    )
+    assert secondary[-1]["value"] == "Accenture GmbH"
+
+
+def test_persist_homepage_fact_candidate_override_replaces_confirmed_value(
+    monkeypatch,
+) -> None:
+    fake_st = SimpleNamespace(
+        session_state={
+            SSKey.ANSWERS.value: {
+                FactKey.COMPANY_COMPANY_NAME.value: "Existing GmbH"
+            },
+            SSKey.ANSWER_META.value: {},
+            SSKey.INTAKE_FACTS.value: {
+                FactKey.COMPANY_COMPANY_NAME.value: "Existing GmbH"
+            },
+            SSKey.INTAKE_FACT_EVIDENCE.value: {
+                FactKey.COMPANY_COMPANY_NAME.value: {
+                    "source_type": FactSourceType.MANUAL.value,
+                    "source_label": "Manual input",
+                    "confirmed": True,
+                    "resolution_status": FactResolutionStatus.CONFIRMED.value,
+                }
+            },
+        }
+    )
+    monkeypatch.setattr(COMPANY_MODULE, "st", fake_st)
+    monkeypatch.setattr(state_module, "st", fake_st)
+
+    result = COMPANY_MODULE._persist_homepage_fact_candidate(
+        fact_key=FactKey.COMPANY_COMPANY_NAME,
+        value="Accenture GmbH",
+        candidate={
+            "source_label": "Impressum",
+            "confidence": 0.85,
+            "evidence_snippet": "Firma: Accenture GmbH",
+        },
+        override_conflict=True,
+    )
+
+    assert result == "saved"
+    assert fake_st.session_state[SSKey.ANSWERS.value][
+        FactKey.COMPANY_COMPANY_NAME.value
+    ] == "Accenture GmbH"
+    assert fake_st.session_state[SSKey.INTAKE_FACTS.value][
+        FactKey.COMPANY_COMPANY_NAME.value
+    ] == "Accenture GmbH"
+    evidence = fake_st.session_state[SSKey.INTAKE_FACT_EVIDENCE.value][
+        FactKey.COMPANY_COMPANY_NAME.value
+    ]
+    assert evidence["source_type"] == FactSourceType.HOMEPAGE.value
+    assert evidence["source_label"] == "Impressum"
+    assert evidence["resolution_status"] == FactResolutionStatus.CONFIRMED.value
+
+
+def test_persist_homepage_fact_candidate_records_corroborating_evidence(
+    monkeypatch,
+) -> None:
+    fake_st = SimpleNamespace(
+        session_state={
+            SSKey.ANSWERS.value: {
+                FactKey.COMPANY_COMPANY_NAME.value: "Existing GmbH"
+            },
+            SSKey.ANSWER_META.value: {},
+            SSKey.INTAKE_FACTS.value: {
+                FactKey.COMPANY_COMPANY_NAME.value: "Existing GmbH"
+            },
+            SSKey.INTAKE_FACT_EVIDENCE.value: {
+                FactKey.COMPANY_COMPANY_NAME.value: {
+                    "source_type": FactSourceType.MANUAL.value,
+                    "source_label": "Manual input",
+                    "confirmed": True,
+                    "resolution_status": FactResolutionStatus.CONFIRMED.value,
+                }
+            },
+        }
+    )
+    monkeypatch.setattr(COMPANY_MODULE, "st", fake_st)
+    monkeypatch.setattr(state_module, "st", fake_st)
+
+    result = COMPANY_MODULE._persist_homepage_fact_candidate(
+        fact_key=FactKey.COMPANY_COMPANY_NAME,
+        value="Existing GmbH",
+        candidate={
+            "source_label": "Impressum",
+            "confidence": 0.85,
+            "evidence_snippet": "Firma: Existing GmbH",
+        },
+    )
+
+    assert result == "corroborated"
+    evidence = fake_st.session_state[SSKey.INTAKE_FACT_EVIDENCE.value][
+        FactKey.COMPANY_COMPANY_NAME.value
+    ]
+    assert evidence["source_type"] == FactSourceType.MANUAL.value
+    assert evidence["secondary_evidence"][-1]["source_type"] == (
+        FactSourceType.HOMEPAGE.value
+    )
+    assert evidence["secondary_evidence"][-1]["resolution_status"] == (
+        FactResolutionStatus.CONFIRMED.value
+    )
+
+
 def test_website_candidate_default_selection_protects_existing_values(
     monkeypatch,
 ) -> None:
