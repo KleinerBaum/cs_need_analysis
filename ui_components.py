@@ -24,7 +24,6 @@ from constants import (
     QUESTION_IMPACT_TARGET_SKILLS,
     SSKey,
     UI_DETAILS_DEFAULT_BY_MODE_TEXT,
-    UI_PREFERENCE_CONFIDENCE_THRESHOLD,
     WIDGET_KEY_PREFIX,
 )
 from esco_client import EscoClient, EscoClientError
@@ -50,11 +49,9 @@ from job_extract_review_helpers import (
     sanitize_display_value as _sanitize_display_value,
 )
 from llm_client import OpenAICallError
-from question_limits import build_step_question_scope
 from question_dependencies import should_show_question
 from question_progress import (
     build_answered_lookup,
-    build_step_scope_progress_labels,
     compute_question_progress,
     is_answered,
     resolve_question_job_extract_value,
@@ -85,7 +82,8 @@ from state import (
     set_answer,
     set_error,
 )
-from step_status import StepStatusPayload, build_step_status_payload
+from step_payload import StepReviewPayload, build_step_payload_from_state
+from step_status import StepStatusPayload
 
 ESCO_EXPLAINABILITY_LABELS: tuple[str, ...] = (
     "exact label match",
@@ -145,16 +143,6 @@ def _render_html_block(html: str) -> None:
         render_html(html)
         return
     st.markdown(html, unsafe_allow_html=True)
-
-
-class StepReviewPayload(TypedDict):
-    visible_questions: list[Question]
-    answers: dict[str, Any]
-    answer_meta: dict[str, Any]
-    answered_lookup: dict[str, bool]
-    step_status: StepStatusPayload
-    job_extract: JobAdExtract | None
-    intake_facts: dict[str, Any]
 
 
 class QuestionProvenanceDisplay(TypedDict):
@@ -490,112 +478,14 @@ def _resolve_review_render_mode(
     return render_mode or ReviewRenderMode.DIRECT_ANSWERS
 
 
-def _load_job_extract_from_state() -> JobAdExtract | None:
-    try:
-        raw_job = st.session_state.get(SSKey.JOB_EXTRACT.value)
-    except Exception:
-        return None
-    if isinstance(raw_job, JobAdExtract):
-        return raw_job
-    if not isinstance(raw_job, dict):
-        return None
-    try:
-        return JobAdExtract.model_validate(raw_job)
-    except Exception:
-        return None
-
-
-def _load_intake_fact_evidence_from_state() -> dict[str, Any]:
-    raw_evidence = st.session_state.get(SSKey.INTAKE_FACT_EVIDENCE.value)
-    return raw_evidence if isinstance(raw_evidence, dict) else {}
-
-
-def _read_ui_confidence_threshold() -> float | None:
-    preferences_raw = st.session_state.get(SSKey.UI_PREFERENCES.value, {})
-    if not isinstance(preferences_raw, Mapping):
-        return None
-    try:
-        return max(
-            0.0,
-            min(1.0, float(preferences_raw.get(UI_PREFERENCE_CONFIDENCE_THRESHOLD))),
-        )
-    except (TypeError, ValueError):
-        return None
-
-
 def build_step_review_payload(step: QuestionStep | None) -> StepReviewPayload:
-    answers = get_answers()
-    answer_meta = get_answer_meta()
-    job_extract = _load_job_extract_from_state()
-    intake_facts_raw = st.session_state.get(SSKey.INTAKE_FACTS.value)
-    intake_facts = intake_facts_raw if isinstance(intake_facts_raw, dict) else {}
-    intake_fact_evidence = _load_intake_fact_evidence_from_state()
-    confidence_threshold = _read_ui_confidence_threshold()
-    limits_raw = st.session_state.get(SSKey.QUESTION_LIMITS.value, {})
-    question_scope = None
-    status_step = step
-    if step is not None:
-        question_scope = build_step_question_scope(
-            step.questions,
-            step_key=step.step_key,
-            question_limits=limits_raw if isinstance(limits_raw, dict) else None,
-            answers=answers,
-            answer_meta=answer_meta,
-            job_extract=job_extract,
-            intake_facts=intake_facts,
-            intake_fact_evidence=intake_fact_evidence,
-            confidence_threshold=confidence_threshold,
-            visibility_predicate=should_show_question,
-        )
-        status_step = QuestionStep(
-            step_key=step.step_key,
-            title_de=step.title_de,
-            description_de=step.description_de,
-            questions=question_scope.selected_questions,
-        )
-    step_status = build_step_status_payload(
-        step=status_step,
-        answers=answers,
-        answer_meta=answer_meta,
-        should_show_question=should_show_question,
-        step_key=step.step_key if step is not None else None,
-        job_extract=job_extract,
-        intake_facts=intake_facts,
-        intake_fact_evidence=intake_fact_evidence,
-        confidence_threshold=confidence_threshold,
-        visible_questions=(
-            question_scope.visible_questions if question_scope is not None else None
-        ),
-    )
-    if step is None or not step.questions:
-        return {
-            "visible_questions": [],
-            "answers": answers,
-            "answer_meta": answer_meta,
-            "answered_lookup": {},
-            "step_status": step_status,
-            "job_extract": job_extract,
-            "intake_facts": intake_facts,
-        }
-
-    visible_questions = question_scope.visible_questions if question_scope else []
-    return {
-        "visible_questions": visible_questions,
-        "answers": answers,
-        "answer_meta": answer_meta,
-        "answered_lookup": build_answered_lookup(
-            visible_questions,
-            answers,
-            answer_meta,
-            job_extract=job_extract,
-            intake_facts=intake_facts,
-            intake_fact_evidence=intake_fact_evidence,
-            confidence_threshold=confidence_threshold,
-        ),
-        "step_status": step_status,
-        "job_extract": job_extract,
-        "intake_facts": intake_facts,
-    }
+    return build_step_payload_from_state(
+        step,
+        session_state=st.session_state,
+        answers=get_answers(),
+        answer_meta=get_answer_meta(),
+        visibility_predicate=should_show_question,
+    )["review_payload"]
 
 
 def render_standard_step_review(
@@ -2755,11 +2645,6 @@ def _split_core_and_detail_questions(
 def render_question_step(step: QuestionStep) -> None:
     answers = get_answers()
     answer_meta = get_answer_meta()
-    job_extract = _load_job_extract_from_state()
-    intake_facts_raw = st.session_state.get(SSKey.INTAKE_FACTS.value)
-    intake_facts = intake_facts_raw if isinstance(intake_facts_raw, dict) else {}
-    intake_fact_evidence = _load_intake_fact_evidence_from_state()
-    confidence_threshold = _read_ui_confidence_threshold()
     ui_mode_raw = st.session_state.get(SSKey.UI_MODE.value, "standard")
     ui_mode = str(ui_mode_raw).strip().lower()
     if ui_mode not in {"quick", "standard", "expert"}:
@@ -2769,58 +2654,18 @@ def render_question_step(step: QuestionStep) -> None:
     if step.description_de:
         st.caption(step.description_de)
 
-    limits_raw = st.session_state.get(SSKey.QUESTION_LIMITS.value, {})
-
     all_questions = _sort_questions_for_progressive_disclosure(step.questions)
-    question_scope = build_step_question_scope(
-        all_questions,
-        step_key=step.step_key,
-        question_limits=limits_raw if isinstance(limits_raw, dict) else None,
+    step_payload = build_step_payload_from_state(
+        step,
+        questions=all_questions,
+        session_state=st.session_state,
         answers=answers,
         answer_meta=answer_meta,
-        job_extract=job_extract,
-        intake_facts=intake_facts,
-        intake_fact_evidence=intake_fact_evidence,
-        confidence_threshold=confidence_threshold,
         visibility_predicate=should_show_question,
     )
-    questions = question_scope.selected_questions
-    visible_questions = question_scope.visible_questions
-    hidden_questions_count = question_scope.hidden_questions_count
-
-    answered_lookup = build_answered_lookup(
-        visible_questions,
-        answers,
-        answer_meta,
-        job_extract=job_extract,
-        intake_facts=intake_facts,
-        intake_fact_evidence=intake_fact_evidence,
-        confidence_threshold=confidence_threshold,
-    )
-    visible_progress = compute_question_progress(
-        visible_questions, answers, answer_meta, answered_lookup=answered_lookup
-    )
-    overall_answered_lookup = build_answered_lookup(
-        questions,
-        answers,
-        answer_meta,
-        job_extract=job_extract,
-        intake_facts=intake_facts,
-        intake_fact_evidence=intake_fact_evidence,
-        confidence_threshold=confidence_threshold,
-    )
-    overall_progress = compute_question_progress(
-        questions,
-        answers,
-        answer_meta,
-        answered_lookup=overall_answered_lookup,
-    )
-    build_step_scope_progress_labels(
-        visible_answered=visible_progress["answered"],
-        visible_total=visible_progress["total"],
-        overall_answered=overall_progress["answered"],
-        overall_total=overall_progress["total"],
-    )
+    visible_questions = step_payload["visible_questions"]
+    hidden_questions_count = step_payload["hidden_questions_count"]
+    answered_lookup = step_payload["answered_lookup"]
 
     if not visible_questions:
         st.info(

@@ -46,6 +46,7 @@ def build_step_status_payload(
     intake_fact_evidence: Mapping[str, Any] | None = None,
     confidence_threshold: float | None = None,
     visible_questions: list[Question] | None = None,
+    answered_lookup: dict[str, bool] | None = None,
 ) -> StepStatusPayload:
     answers_dict = dict(answers)
     resolved_step_key = step_key or (step.step_key if step is not None else "")
@@ -74,15 +75,16 @@ def build_step_status_payload(
             confidence_threshold=confidence_threshold,
             visibility_predicate=should_show_question,
         )
-    answered_lookup = build_answered_lookup(
-        visible_questions,
-        answers_dict,
-        answer_meta,
-        job_extract=job_extract,
-        intake_facts=intake_facts,
-        intake_fact_evidence=intake_fact_evidence,
-        confidence_threshold=confidence_threshold,
-    )
+    if answered_lookup is None:
+        answered_lookup = build_answered_lookup(
+            visible_questions,
+            answers_dict,
+            answer_meta,
+            job_extract=job_extract,
+            intake_facts=intake_facts,
+            intake_fact_evidence=intake_fact_evidence,
+            confidence_threshold=confidence_threshold,
+        )
     progress = compute_question_progress(
         visible_questions,
         answers_dict,

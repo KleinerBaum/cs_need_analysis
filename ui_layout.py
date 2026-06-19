@@ -28,16 +28,20 @@ from constants import (
     STEP_KEY_COMPANY,
     STEP_KEY_LANDING,
     STEP_KEY_SUMMARY,
-    UI_PREFERENCE_CONFIDENCE_THRESHOLD,
     UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT,
 )
-from question_limits import (
-    build_step_question_scope,
-    select_visible_questions_for_step_scope_from_plan,
+from schemas import QuestionPlan, QuestionStep
+from step_payload import (
+    StepPayload,
+    build_step_payload,
+    build_step_payload_from_state,
+    load_intake_fact_evidence_from_state,
+    load_intake_facts_from_state,
+    load_job_extract_from_state,
+    read_confidence_threshold_from_state,
+    read_question_limits_from_state,
 )
-from question_dependencies import should_show_question
-from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
-from step_status import StepStatusPayload, build_step_status_payload
+from step_status import StepStatusPayload
 from state import get_answer_meta, get_answers, mark_answer_touched, set_answer
 
 
@@ -51,68 +55,13 @@ def _load_question_plan_from_state() -> QuestionPlan | None:
         return None
 
 
-def _read_progress_confidence_threshold() -> float | None:
-    preferences_raw = st.session_state.get(SSKey.UI_PREFERENCES.value, {})
-    if not isinstance(preferences_raw, dict):
-        return None
-    try:
-        return max(
-            0.0,
-            min(1.0, float(preferences_raw.get(UI_PREFERENCE_CONFIDENCE_THRESHOLD))),
-        )
-    except (TypeError, ValueError):
-        return None
-
-
-def _get_step_questions_from_plan(
-    plan: QuestionPlan | None,
-    step_key: str,
-    *,
-    answers: dict[str, object],
-    answer_meta: dict[str, object],
-    job_extract: JobAdExtract | None,
-    intake_facts: dict[str, object],
-    intake_fact_evidence: dict[str, object],
-    confidence_threshold: float | None,
-) -> list[Question]:
-    limits_raw = st.session_state.get(SSKey.QUESTION_LIMITS.value, {})
-    return select_visible_questions_for_step_scope_from_plan(
-        plan,
-        step_key,
-        question_limits=limits_raw if isinstance(limits_raw, dict) else None,
-        answers=answers,
-        answer_meta=answer_meta,
-        job_extract=job_extract,
-        intake_facts=intake_facts,
-        intake_fact_evidence=intake_fact_evidence,
-        confidence_threshold=confidence_threshold,
-    )
-
-
-def _process_progress_status(
+def _process_progress_status_from_payload(
     *,
     step_key: str,
-    title_de: str,
-    questions: list[Question],
+    payload: StepPayload,
     answers: dict[str, object],
-    answer_meta: dict[str, object],
-    job_extract: JobAdExtract | None,
-    intake_facts: dict[str, object],
-    intake_fact_evidence: dict[str, object],
-    confidence_threshold: float | None,
 ) -> tuple[str, str]:
-    status = build_step_status_payload(
-        step=QuestionStep(step_key=step_key, title_de=title_de, questions=questions),
-        answers=answers,
-        answer_meta=answer_meta,
-        should_show_question=should_show_question,
-        step_key=step_key,
-        job_extract=job_extract,
-        intake_facts=intake_facts,
-        intake_fact_evidence=intake_fact_evidence,
-        confidence_threshold=confidence_threshold,
-        visible_questions=questions,
-    )
+    status = payload["step_status"]
     if status["total"] > 0:
         return status["completion_state"], f"{status['answered']}/{status['total']}"
 
@@ -134,36 +83,33 @@ def render_intake_process_progress(current_step_key: str) -> None:
     plan = _load_question_plan_from_state()
     answers = get_answers()
     answer_meta = get_answer_meta()
-    job_extract = _load_job_extract_from_state()
-    intake_facts_raw = st.session_state.get(SSKey.INTAKE_FACTS.value)
-    intake_facts = intake_facts_raw if isinstance(intake_facts_raw, dict) else {}
-    intake_fact_evidence_raw = st.session_state.get(SSKey.INTAKE_FACT_EVIDENCE.value)
-    intake_fact_evidence = (
-        intake_fact_evidence_raw if isinstance(intake_fact_evidence_raw, dict) else {}
-    )
-    confidence_threshold = _read_progress_confidence_threshold()
+    question_limits = read_question_limits_from_state(st.session_state)
+    job_extract = load_job_extract_from_state(st.session_state)
+    intake_facts = load_intake_facts_from_state(st.session_state)
+    intake_fact_evidence = load_intake_fact_evidence_from_state(st.session_state)
+    confidence_threshold = read_confidence_threshold_from_state(st.session_state)
     items: list[dict[str, object]] = []
     for step in process_steps:
-        questions = _get_step_questions_from_plan(
-            plan,
-            step.key,
+        plan_step = (
+            next((entry for entry in plan.steps if entry.step_key == step.key), None)
+            if plan is not None
+            else None
+        )
+        payload = build_step_payload(
+            step=plan_step
+            or QuestionStep(step_key=step.key, title_de=step.title_de, questions=[]),
             answers=answers,
             answer_meta=answer_meta,
+            question_limits=question_limits,
             job_extract=job_extract,
             intake_facts=intake_facts,
             intake_fact_evidence=intake_fact_evidence,
             confidence_threshold=confidence_threshold,
         )
-        status, count = _process_progress_status(
+        status, count = _process_progress_status_from_payload(
             step_key=step.key,
-            title_de=step.title_de,
-            questions=questions,
+            payload=payload,
             answers=answers,
-            answer_meta=answer_meta,
-            job_extract=job_extract,
-            intake_facts=intake_facts,
-            intake_fact_evidence=intake_fact_evidence,
-            confidence_threshold=confidence_threshold,
         )
         title = f"{step.title_de}: {count} beantwortet" if count else step.title_de
         items.append(
@@ -376,16 +322,6 @@ def _jobspec_notes_for_step(notes: list[str], *, step_key: str) -> list[str]:
     )
 
 
-def _load_job_extract_from_state() -> JobAdExtract | None:
-    raw_job = st.session_state.get(SSKey.JOB_EXTRACT.value)
-    if not isinstance(raw_job, dict):
-        return None
-    try:
-        return JobAdExtract.model_validate(raw_job)
-    except Exception:
-        return None
-
-
 def _render_jobspec_note_block(title: str, notes: list[str], *, tone: str) -> None:
     cleaned = _dedupe_jobspec_notes(notes)
     if not cleaned:
@@ -470,7 +406,7 @@ def render_jobspec_step_notes(step_key: str | None) -> None:
     if step_key not in JOBSPEC_NOTE_ROUTE_STEP_KEYS:
         return
 
-    job = _load_job_extract_from_state()
+    job = load_job_extract_from_state(st.session_state)
     if job is None:
         return
 
@@ -516,49 +452,13 @@ def render_step_shell(
 ) -> None:
     answers = get_answers()
     answer_meta = get_answer_meta()
-    job_extract = _load_job_extract_from_state()
-    intake_facts_raw = st.session_state.get(SSKey.INTAKE_FACTS.value)
-    intake_facts = intake_facts_raw if isinstance(intake_facts_raw, dict) else {}
-    intake_fact_evidence_raw = st.session_state.get(SSKey.INTAKE_FACT_EVIDENCE.value)
-    intake_fact_evidence = (
-        intake_fact_evidence_raw if isinstance(intake_fact_evidence_raw, dict) else {}
-    )
-    confidence_threshold = _read_progress_confidence_threshold()
-    status_step = step
-    if step is not None:
-        limits_raw = st.session_state.get(SSKey.QUESTION_LIMITS.value, {})
-        question_scope = build_step_question_scope(
-            step.questions,
-            step_key=step.step_key,
-            question_limits=limits_raw if isinstance(limits_raw, dict) else None,
-            answers=answers,
-            answer_meta=answer_meta,
-            job_extract=job_extract,
-            intake_facts=intake_facts,
-            intake_fact_evidence=intake_fact_evidence,
-            confidence_threshold=confidence_threshold,
-            visibility_predicate=should_show_question,
-        )
-        status_step = QuestionStep(
-            step_key=step.step_key,
-            title_de=step.title_de,
-            description_de=step.description_de,
-            questions=question_scope.visible_questions,
-        )
-    status = build_step_status_payload(
-        step=status_step,
+    step_payload = build_step_payload_from_state(
+        step,
+        session_state=st.session_state,
         answers=answers,
         answer_meta=answer_meta,
-        should_show_question=should_show_question,
-        step_key=step.step_key if step is not None else None,
-        job_extract=job_extract,
-        intake_facts=intake_facts,
-        intake_fact_evidence=intake_fact_evidence,
-        confidence_threshold=confidence_threshold,
-        visible_questions=(
-            question_scope.visible_questions if step is not None else None
-        ),
     )
+    status = step_payload["step_status"]
     header_meta: list[tuple[str, str, str]] = []
     if status_position == "header":
         badge_text = (

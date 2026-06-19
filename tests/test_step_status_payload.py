@@ -4,6 +4,7 @@ from constants import AnswerType, FactKey, STEP_KEY_ROLE_TASKS
 from question_dependencies import should_show_question
 from question_limits import build_step_question_scope, select_questions_for_step_scope
 from schemas import JobAdExtract, Question, QuestionDependency, QuestionStep
+from step_payload import build_step_payload
 from step_status import build_step_status_payload
 
 
@@ -408,3 +409,134 @@ def test_step_status_payload_matches_adaptive_selected_question_scope() -> None:
     assert payload["total"] == 1
     assert payload["answered"] == 0
     assert payload["missing_essential_ids"] == ["uncovered_core"]
+
+
+def test_step_payload_centralizes_dependency_hidden_visible_scope() -> None:
+    trigger = Question(
+        id="work_model",
+        label="Arbeitsmodell",
+        answer_type=AnswerType.SHORT_TEXT,
+        required=True,
+        priority="core",
+    )
+    dependent = Question(
+        id="detail_days",
+        label="Wie viele Tage pro Woche?",
+        answer_type=AnswerType.NUMBER,
+        required=True,
+        priority="core",
+        depends_on=[QuestionDependency(question_id="work_model", equals="Ja")],
+    )
+    step = QuestionStep(
+        step_key="company",
+        title_de="Company",
+        questions=[trigger, dependent],
+    )
+
+    payload = build_step_payload(
+        step=step,
+        answers={"work_model": "Nein"},
+        answer_meta={},
+        question_limits=None,
+    )
+
+    assert [question.id for question in payload["selected_questions"]] == [
+        "work_model",
+        "detail_days",
+    ]
+    assert [question.id for question in payload["visible_questions"]] == [
+        "work_model"
+    ]
+    assert payload["hidden_questions_count"] == 1
+    assert payload["step_status"]["answered"] == 1
+    assert payload["step_status"]["total"] == 1
+    assert payload["review_payload"]["visible_questions"] == payload["visible_questions"]
+    assert payload["review_payload"]["answered_lookup"] == payload["answered_lookup"]
+
+
+def test_step_payload_applies_confidence_threshold_to_extracted_coverage() -> None:
+    high_confidence = Question(
+        id="role_title",
+        label="Welche Rolle wird gesucht?",
+        answer_type=AnswerType.SHORT_TEXT,
+        target_path=FactKey.ROLE_JOB_TITLE.value,
+        required=True,
+        priority="core",
+    )
+    low_confidence = Question(
+        id="remote_policy",
+        label="Remote policy",
+        answer_type=AnswerType.SHORT_TEXT,
+        target_path=FactKey.COMPANY_REMOTE_POLICY.value,
+        required=True,
+        priority="core",
+    )
+    step = QuestionStep(
+        step_key=STEP_KEY_ROLE_TASKS,
+        title_de="Role",
+        questions=[high_confidence, low_confidence],
+    )
+
+    payload = build_step_payload(
+        step=step,
+        answers={},
+        answer_meta={},
+        question_limits=None,
+        intake_facts={
+            FactKey.ROLE_JOB_TITLE.value: "Data Engineer",
+            FactKey.COMPANY_REMOTE_POLICY.value: "Hybrid",
+        },
+        intake_fact_evidence={
+            FactKey.ROLE_JOB_TITLE.value: {"confidence": 0.9},
+            FactKey.COMPANY_REMOTE_POLICY.value: {"confidence": 0.4},
+        },
+        confidence_threshold=0.6,
+    )
+
+    assert payload["answered_lookup"] == {
+        "role_title": True,
+        "remote_policy": False,
+    }
+    assert payload["step_status"]["answered"] == 1
+    assert payload["step_status"]["missing_essential_ids"] == ["remote_policy"]
+
+
+def test_step_payload_keeps_adaptive_status_and_review_scope_in_sync() -> None:
+    covered_detail = Question(
+        id="covered_detail",
+        label="Already covered",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="detail",
+        target_path=FactKey.COMPANY_COMPANY_NAME.value,
+    )
+    uncovered_core = Question(
+        id="uncovered_core",
+        label="Hiring goal",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="core",
+        required=True,
+    )
+    step = QuestionStep(
+        step_key="company",
+        title_de="Company",
+        questions=[covered_detail, uncovered_core],
+    )
+
+    payload = build_step_payload(
+        step=step,
+        answers={},
+        answer_meta={},
+        question_limits={"company": 1},
+        intake_facts={FactKey.COMPANY_COMPANY_NAME.value: "Example GmbH"},
+    )
+
+    assert [question.id for question in payload["selected_questions"]] == [
+        "uncovered_core"
+    ]
+    assert [question.id for question in payload["visible_questions"]] == [
+        "uncovered_core"
+    ]
+    assert payload["step_status"]["total"] == 1
+    assert payload["step_status"]["answered"] == 0
+    assert payload["step_status"]["missing_essential_ids"] == ["uncovered_core"]
+    assert payload["review_payload"]["step_status"] == payload["step_status"]
