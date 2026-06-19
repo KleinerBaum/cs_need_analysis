@@ -30,7 +30,12 @@ from ui_components import (
     resolve_standard_review_mode,
     render_standard_step_review,
 )
-from ui_layout import render_step_shell, responsive_three_columns
+from ui_layout import (
+    LazySectionConfig,
+    default_lazy_source_section_open,
+    render_step_shell,
+    responsive_three_columns,
+)
 from wizard_pages.base import (
     WizardContext,
     WizardPage,
@@ -729,6 +734,26 @@ def render(ctx: WizardContext) -> None:
         source_comparison_slot=_render_source_comparison_slot,
         salary_forecast_slot=_render_salary_forecast_slot,
         open_questions_slot=_render_open_questions_slot,
+        lazy_section_configs={
+            "source_comparison_slot": LazySectionConfig(
+                label="Quellenabgleich",
+                caption=(
+                    "Lädt Jobspec-, ESCO-/Kontext- und AI-Aufgabenvorschläge erst, "
+                    "wenn du diesen Abgleich öffnest."
+                ),
+                button_label="Quellenabgleich anzeigen",
+                default_open=default_lazy_source_section_open(),
+            ),
+            "salary_forecast_slot": LazySectionConfig(
+                label="Gehaltsprognose",
+                caption=(
+                    "Berechnet die Auswirkung der ausgewählten Aufgaben erst auf "
+                    "Anforderung."
+                ),
+                button_label="Gehaltsprognose laden",
+                default_open=False,
+            ),
+        },
         review_slot=lambda: render_standard_step_review(
             step,
             render_mode=resolve_standard_review_mode(context=ReviewRenderContext.STEP_FORM),

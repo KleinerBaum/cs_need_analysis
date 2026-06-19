@@ -40,7 +40,12 @@ from state import (
     get_esco_semantic_context,
     sync_esco_shared_state,
 )
-from ui_layout import render_step_shell, responsive_three_columns
+from ui_layout import (
+    LazySectionConfig,
+    default_lazy_source_section_open,
+    render_step_shell,
+    responsive_three_columns,
+)
 from ui_components import (
     has_meaningful_value,
     render_esco_picker_card,
@@ -2591,6 +2596,26 @@ def render(ctx: WizardContext) -> None:
         source_comparison_slot=_render_source_comparison_slot,
         salary_forecast_slot=lambda: _render_salary_forecast_slot(job, source_counts),
         open_questions_slot=lambda: _render_open_questions_slot(step),
+        lazy_section_configs={
+            "source_comparison_slot": LazySectionConfig(
+                label="Quellenabgleich",
+                caption=(
+                    "Lädt Jobspec-, ESCO-/Kontext- und AI-Skill-Vorschläge erst, "
+                    "wenn du diesen Abgleich öffnest."
+                ),
+                button_label="Quellenabgleich anzeigen",
+                default_open=default_lazy_source_section_open(),
+            ),
+            "salary_forecast_slot": LazySectionConfig(
+                label="Gehaltsprognose",
+                caption=(
+                    "Berechnet die Auswirkung der ausgewählten Skills erst auf "
+                    "Anforderung."
+                ),
+                button_label="Gehaltsprognose laden",
+                default_open=False,
+            ),
+        },
         review_slot=lambda: render_standard_step_review(
             step,
             render_mode=resolve_standard_review_mode(context=ReviewRenderContext.STEP_FORM),

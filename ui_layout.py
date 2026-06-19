@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Callable
+from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any, Literal
 
 import streamlit as st
@@ -27,6 +29,7 @@ from constants import (
     STEP_KEY_LANDING,
     STEP_KEY_SUMMARY,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
+    UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT,
 )
 from question_limits import (
     build_step_question_scope,
@@ -272,6 +275,61 @@ def _render_step_section_heading(label: str) -> None:
     )
 
 
+@dataclass(frozen=True)
+class LazySectionConfig:
+    """Config for expensive step sections that should render only after reveal."""
+
+    label: str
+    caption: str
+    button_label: str = "Anzeigen / laden"
+    default_open: bool = False
+
+
+def default_lazy_source_section_open() -> bool:
+    preferences_raw = st.session_state.get(SSKey.UI_PREFERENCES.value, {})
+    preferences = preferences_raw if isinstance(preferences_raw, dict) else {}
+    configured = preferences.get(UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT)
+    if isinstance(configured, bool):
+        return configured
+
+    ui_mode = str(st.session_state.get(SSKey.UI_MODE.value, "")).strip().lower()
+    return ui_mode == "expert"
+
+
+def _lazy_section_state_key(*, step_key: str, slot_name: str) -> str:
+    normalized_step_key = str(step_key or "unknown").strip() or "unknown"
+    normalized_slot_name = str(slot_name or "slot").strip() or "slot"
+    return f"cs.lazy_section.{normalized_step_key}.{normalized_slot_name}.revealed"
+
+
+def render_lazy_section(
+    *,
+    step_key: str,
+    slot_name: str,
+    config: LazySectionConfig,
+    render_slot: Callable[[], None],
+) -> None:
+    state_key = _lazy_section_state_key(step_key=step_key, slot_name=slot_name)
+    if state_key not in st.session_state and config.default_open:
+        st.session_state[state_key] = True
+
+    _render_step_section_heading(config.label)
+    revealed = bool(st.session_state.get(state_key, False))
+    if not revealed:
+        if config.caption:
+            st.caption(config.caption)
+        if st.button(
+            config.button_label,
+            key=f"{state_key}.button",
+            width="stretch",
+        ):
+            st.session_state[state_key] = True
+            revealed = True
+
+    if revealed:
+        render_slot()
+
+
 def _normalize_jobspec_note(note: Any) -> str:
     return " ".join(str(note or "").strip().split())
 
@@ -454,6 +512,7 @@ def render_step_shell(
     post_review_slot: Callable[[], None] | None = None,
     footer_slot: Callable[[], None] | None = None,
     status_position: Literal["header", "before_footer"] = "header",
+    lazy_section_configs: Mapping[str, LazySectionConfig] | None = None,
 ) -> None:
     answers = get_answers()
     answer_meta = get_answer_meta()
@@ -534,9 +593,27 @@ def render_step_shell(
     )
     if uses_new_slots:
         if source_comparison_slot is not None:
-            source_comparison_slot()
+            config = (lazy_section_configs or {}).get("source_comparison_slot")
+            if config is not None:
+                render_lazy_section(
+                    step_key=step.step_key if step is not None else "",
+                    slot_name="source_comparison_slot",
+                    config=config,
+                    render_slot=source_comparison_slot,
+                )
+            else:
+                source_comparison_slot()
         if salary_forecast_slot is not None:
-            salary_forecast_slot()
+            config = (lazy_section_configs or {}).get("salary_forecast_slot")
+            if config is not None:
+                render_lazy_section(
+                    step_key=step.step_key if step is not None else "",
+                    slot_name="salary_forecast_slot",
+                    config=config,
+                    render_slot=salary_forecast_slot,
+                )
+            else:
+                salary_forecast_slot()
         if open_questions_slot is not None:
             open_questions_slot()
     elif main_content_slot is not None:

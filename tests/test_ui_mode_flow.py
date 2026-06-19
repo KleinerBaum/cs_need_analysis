@@ -10,6 +10,7 @@ from constants import (
     STEPS,
     STEP_KEY_TEAM,
     UI_PREFERENCE_ANSWER_MODE,
+    UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT,
     UI_PREFERENCE_INFORMATION_DEPTH,
 )
 from schemas import JobAdExtract
@@ -131,6 +132,30 @@ def test_visible_step_set_for_ui_mode_navigation_excludes_team_step() -> None:
         "interview",
         "summary",
     ]
+
+
+def test_lazy_source_section_default_follows_mode_and_details_preference(
+    monkeypatch,
+) -> None:
+    import ui_layout
+
+    cases = [
+        ("quick", {}, False),
+        ("standard", {}, False),
+        ("expert", {}, True),
+        ("quick", {UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT: True}, True),
+        ("expert", {UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT: False}, False),
+    ]
+    for ui_mode, preferences, expected in cases:
+        session_state = _LockedSessionState(
+            {
+                SSKey.UI_MODE.value: ui_mode,
+                SSKey.UI_PREFERENCES.value: preferences,
+            }
+        )
+        monkeypatch.setattr(ui_layout, "st", _FakeStreamlit(session_state))
+
+        assert ui_layout.default_lazy_source_section_open() is expected
 
 
 def test_set_current_step_records_step_entered_once(monkeypatch) -> None:

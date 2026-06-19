@@ -16,7 +16,13 @@ from llm_client import (
 from schemas import JobAdExtract, QuestionStep
 from settings_openai import load_openai_settings
 from state import get_answers, get_esco_semantic_context
-from ui_layout import render_step_shell, responsive_three_columns, responsive_two_columns
+from ui_layout import (
+    LazySectionConfig,
+    default_lazy_source_section_open,
+    render_step_shell,
+    responsive_three_columns,
+    responsive_two_columns,
+)
 from ui_components import (
     build_step_review_payload,
     has_answered_question_with_keywords,
@@ -784,6 +790,26 @@ def render(ctx: WizardContext) -> None:
         source_comparison_slot=_render_source_comparison_slot,
         salary_forecast_slot=_render_salary_forecast_slot,
         open_questions_slot=_render_open_questions_slot,
+        lazy_section_configs={
+            "source_comparison_slot": LazySectionConfig(
+                label="Quellenabgleich",
+                caption=(
+                    "Lädt Jobspec-, Kontext- und AI-Benefit-Vorschläge erst, "
+                    "wenn du diesen Abgleich öffnest."
+                ),
+                button_label="Quellenabgleich anzeigen",
+                default_open=default_lazy_source_section_open(),
+            ),
+            "salary_forecast_slot": LazySectionConfig(
+                label="Gehaltsprognose",
+                caption=(
+                    "Berechnet die Auswirkung der ausgewählten Benefits erst auf "
+                    "Anforderung."
+                ),
+                button_label="Gehaltsprognose laden",
+                default_open=False,
+            ),
+        },
         review_slot=_render_review_slot,
         footer_slot=lambda: nav_buttons(ctx),
     )

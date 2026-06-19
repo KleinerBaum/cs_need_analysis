@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from constants import AnswerType
 from question_progress import build_answered_lookup, compute_question_progress
 from schemas import Question, QuestionDependency, QuestionStep
@@ -9,6 +11,139 @@ from ui_components import (
     _group_questions,
     _split_core_and_detail_questions,
 )
+
+
+class _LazyDisclosureFakeStreamlit:
+    def __init__(self, *, clicked_keys: set[str] | None = None) -> None:
+        self.session_state: dict[str, Any] = {}
+        self.clicked_keys = clicked_keys or set()
+        self.buttons: list[tuple[str, str | None]] = []
+        self.captions: list[str] = []
+        self.markdowns: list[str] = []
+
+    def markdown(self, text: str, *_args: Any, **_kwargs: Any) -> None:
+        self.markdowns.append(text)
+
+    def caption(self, text: str) -> None:
+        self.captions.append(text)
+
+    def button(self, label: str, *, key: str | None = None, **_kwargs: Any) -> bool:
+        self.buttons.append((label, key))
+        return bool(key and key in self.clicked_keys)
+
+
+def test_lazy_section_stays_collapsed_without_rendering_slot(monkeypatch) -> None:
+    import ui_layout
+
+    fake_st = _LazyDisclosureFakeStreamlit()
+    monkeypatch.setattr(ui_layout, "st", fake_st)
+    calls: list[str] = []
+
+    ui_layout.render_lazy_section(
+        step_key="skills",
+        slot_name="source_comparison_slot",
+        config=ui_layout.LazySectionConfig(
+            label="Quellenabgleich",
+            caption="Wird erst bei Bedarf geladen.",
+            button_label="Anzeigen",
+        ),
+        render_slot=lambda: calls.append("rendered"),
+    )
+
+    assert calls == []
+    assert fake_st.buttons == [
+        (
+            "Anzeigen",
+            "cs.lazy_section.skills.source_comparison_slot.revealed.button",
+        )
+    ]
+    assert "cs.lazy_section.skills.source_comparison_slot.revealed" not in fake_st.session_state
+
+
+def test_lazy_section_reveals_and_persists_across_reruns(monkeypatch) -> None:
+    import ui_layout
+
+    button_key = "cs.lazy_section.skills.source_comparison_slot.revealed.button"
+    fake_st = _LazyDisclosureFakeStreamlit(clicked_keys={button_key})
+    monkeypatch.setattr(ui_layout, "st", fake_st)
+    calls: list[str] = []
+    config = ui_layout.LazySectionConfig(
+        label="Quellenabgleich",
+        caption="Wird erst bei Bedarf geladen.",
+        button_label="Anzeigen",
+    )
+
+    ui_layout.render_lazy_section(
+        step_key="skills",
+        slot_name="source_comparison_slot",
+        config=config,
+        render_slot=lambda: calls.append("first"),
+    )
+    fake_st.clicked_keys.clear()
+    ui_layout.render_lazy_section(
+        step_key="skills",
+        slot_name="source_comparison_slot",
+        config=config,
+        render_slot=lambda: calls.append("second"),
+    )
+
+    assert calls == ["first", "second"]
+    assert fake_st.session_state[
+        "cs.lazy_section.skills.source_comparison_slot.revealed"
+    ] is True
+
+
+def test_lazy_section_default_open_renders_without_button(monkeypatch) -> None:
+    import ui_layout
+
+    fake_st = _LazyDisclosureFakeStreamlit()
+    monkeypatch.setattr(ui_layout, "st", fake_st)
+    calls: list[str] = []
+
+    ui_layout.render_lazy_section(
+        step_key="role_tasks",
+        slot_name="source_comparison_slot",
+        config=ui_layout.LazySectionConfig(
+            label="Quellenabgleich",
+            caption="Wird erst bei Bedarf geladen.",
+            default_open=True,
+        ),
+        render_slot=lambda: calls.append("rendered"),
+    )
+
+    assert calls == ["rendered"]
+    assert fake_st.buttons == []
+    assert fake_st.session_state[
+        "cs.lazy_section.role_tasks.source_comparison_slot.revealed"
+    ] is True
+
+
+def test_salary_lazy_section_remains_on_demand(monkeypatch) -> None:
+    import ui_layout
+
+    fake_st = _LazyDisclosureFakeStreamlit()
+    monkeypatch.setattr(ui_layout, "st", fake_st)
+    calls: list[str] = []
+
+    ui_layout.render_lazy_section(
+        step_key="benefits",
+        slot_name="salary_forecast_slot",
+        config=ui_layout.LazySectionConfig(
+            label="Gehaltsprognose",
+            caption="Berechnung erst auf Anforderung.",
+            button_label="Gehaltsprognose laden",
+            default_open=False,
+        ),
+        render_slot=lambda: calls.append("rendered"),
+    )
+
+    assert calls == []
+    assert fake_st.buttons == [
+        (
+            "Gehaltsprognose laden",
+            "cs.lazy_section.benefits.salary_forecast_slot.revealed.button",
+        )
+    ]
 
 
 def test_split_core_and_detail_questions_falls_back_for_legacy_metadata() -> None:
