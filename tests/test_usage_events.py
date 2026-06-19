@@ -7,6 +7,7 @@ from usage_events import (
     get_usage_events,
     record_artifact_generated,
     record_enrichment_timed,
+    record_evaluation_run_completed,
     record_fact_confirmed,
     record_fact_corrected,
     record_fact_rejected,
@@ -110,6 +111,36 @@ def test_record_helpers_write_expected_event_types() -> None:
         "cache_hit": True,
         "mode": "from_brief",
     }
+
+
+def test_record_evaluation_run_completed_writes_only_safe_aggregates() -> None:
+    session_state: dict[str, object] = {}
+
+    record_evaluation_run_completed(
+        session_state,
+        run_id="offline_deterministic_2026_06_19",
+        scenario_count=5,
+        combination_count=5,
+        best_combination_id="balanced",
+        best_score=4.12345,
+        passed_success_criteria=True,
+    )
+
+    events = get_usage_events(session_state)
+    assert events == [
+        {
+            "event_type": "evaluation_run_completed",
+            "occurred_at": events[0]["occurred_at"],
+            "metadata": {
+                "run_id": "offline_deterministic_2026_06_19",
+                "scenario_count": 5,
+                "combination_count": 5,
+                "best_combination_id": "balanced",
+                "best_score": 4.123,
+                "passed_success_criteria": True,
+            },
+        }
+    ]
 
 
 def test_record_step_fact_and_fallback_helpers_write_safe_metadata() -> None:

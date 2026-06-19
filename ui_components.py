@@ -35,7 +35,6 @@ from job_extract_evidence import (
     add_field_evidence_columns,
     field_evidence_caption_text,
     format_field_evidence_confidence,
-    format_field_evidence_snippet,
     format_provenance_label,
     job_extract_field_evidence_by_name,
 )
@@ -1726,20 +1725,6 @@ def _compact_value_rows(
     return rows
 
 
-def _render_compact_field_evidence(
-    fields: Sequence[tuple[str, str, Any]],
-    evidence_by_field: Mapping[str, Any],
-) -> None:
-    for field, label, _value in fields:
-        snippet = format_field_evidence_snippet(
-            evidence_by_field.get(field), max_chars=260
-        )
-        if not snippet:
-            continue
-        with st.expander(f"Fundstelle anzeigen: {label}", expanded=False):
-            st.caption(snippet)
-
-
 def _render_compact_value_section(
     title: str,
     fields: Sequence[tuple[str, str, Any]],
@@ -1759,7 +1744,6 @@ def _render_compact_value_section(
             "Sicherheit": st.column_config.TextColumn("Sicherheit"),
         },
     )
-    _render_compact_field_evidence(fields, evidence_by_field)
     return True
 
 
@@ -1788,12 +1772,7 @@ def _render_compact_list_section(
                 hide_index=True,
                 width="stretch",
             )
-    snippet = format_field_evidence_snippet(
-        evidence_by_field.get(evidence_field), max_chars=260
-    )
-    if snippet:
-        with st.expander(f"Fundstelle anzeigen: {title}", expanded=False):
-            st.caption(snippet)
+    del evidence_by_field, evidence_field, title
     return True
 
 
@@ -1805,8 +1784,8 @@ def _render_compact_job_extract_overview(
     if show_heading:
         st.markdown("### Analyseergebnis")
     st.caption(
-        "Die wichtigsten Angaben sind nach Themen gruppiert. Fundstellen bleiben "
-        "einklappbar, damit die Review kompakt bleibt."
+        "Die wichtigsten Angaben sind nach Themen gruppiert. Die Review fokussiert "
+        "auf Sicherheit, offene Punkte und direkte Korrektur."
     )
     evidence_by_field = job_extract_field_evidence_by_name(job)
     rendered_any = False

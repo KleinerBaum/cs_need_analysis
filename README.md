@@ -66,6 +66,12 @@ The mode is controlled through the sidebar preference center and the Start step.
 
 Adaptive question ranking can use optional question metadata: `impact_targets`, `acquisition_cost`, and `info_gain_score`. These fields let high-impact unanswered questions rise above lower-value detail questions without changing the visible step contract or existing UI modes.
 
+To compare UI mode, ESCO, RAG, model-routing, and enrichment combinations, use the evaluation runbook in `docs/feature_combination_evaluation.md` and the offline scoring helper:
+
+```bash
+python scripts/evaluate_feature_combinations.py --json-only
+```
+
 ## Information acquisition model
 
 The intake process combines several evidence streams:

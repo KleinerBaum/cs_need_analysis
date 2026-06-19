@@ -717,6 +717,7 @@ class UsageEventType(str, Enum):
     HOMEPAGE_FETCH_FAILED = "homepage_fetch_failed"
     ENRICHMENT_TIMED = "enrichment_timed"
     ARTIFACT_GENERATED = "artifact_generated"
+    EVALUATION_RUN_COMPLETED = "evaluation_run_completed"
 
 
 @dataclass(frozen=True)

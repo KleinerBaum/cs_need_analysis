@@ -37,6 +37,7 @@ class _FakeStreamlit:
         self.tables: list[object] = []
         self.dataframes: list[tuple[object, dict[str, object]]] = []
         self.editor_rows_by_key: dict[str, list[dict[str, object]]] = {}
+        self.editor_kwargs_by_key: dict[str, dict[str, object]] = {}
         self.editor_returns_by_key: dict[str, list[dict[str, object]]] = {}
         self.text_areas: dict[str, str] = {}
         self.selectboxes: dict[str, list[str]] = {}
@@ -58,6 +59,7 @@ class _FakeStreamlit:
         key = str(_kwargs.get("key") or "")
         if key:
             self.editor_rows_by_key[key] = rows
+            self.editor_kwargs_by_key[key] = dict(_kwargs)
             if key in self.editor_returns_by_key:
                 return self.editor_returns_by_key[key]
         return rows
@@ -173,8 +175,12 @@ def test_identified_info_shows_mixed_source_warning_and_provenance(monkeypatch) 
     jobad_intake._render_identified_information_block(ctx)
 
     assert any("gemischte Research- oder Interviewnotizen" in warning for warning in fake_st.warnings)
-    assert "#### Herkunft der Informationen" in fake_st.markdowns
+    assert "#### Herkunft der Informationen" not in fake_st.markdowns
     assert any("Senior Manager Talent & Organization" in str(rows) for rows, _ in fake_st.dataframes)
+    assert not any(
+        label.startswith("Fundstelle anzeigen:")
+        for label in fake_st.expanders
+    )
 
 
 def test_identified_info_next_is_enabled_without_esco_anchor(monkeypatch) -> None:
@@ -206,8 +212,9 @@ def test_identified_info_next_is_enabled_without_esco_anchor(monkeypatch) -> Non
 
     assert "Analyse abgeschlossen" not in fake_st.successes
     assert (
-        "Die wichtigsten Angaben sind vorbereitet. Prüfen Sie kurz die Basisdaten "
-        "und bestätigen Sie anschließend den passenden Beruf für den Abgleich."
+        "Die wichtigsten Angaben sind vorbereitet. Prüfen Sie unsichere und offene "
+        "Punkte direkt in der Tabelle und bestätigen Sie anschließend den passenden "
+        "Beruf für den Abgleich."
         in fake_st.captions
     )
     assert "Technische Details zur Analyse" not in fake_st.expanders
@@ -338,11 +345,7 @@ def test_job_extract_overview_shows_redacted_field_evidence(monkeypatch) -> None
     table_rows, _dataframe_kwargs = fake_st.dataframes[0]
     role_row = next(row for row in table_rows if row["Angabe"] == "Rolle")
     assert role_row["Sicherheit"] == "82% · prüfen"
-    assert "Fundstelle anzeigen: Rolle" in fake_st.expanders
-    evidence_captions = " ".join(fake_st.captions)
-    assert "recruiting@example.com" not in evidence_captions
-    assert "[REDACTED]" in evidence_captions
-    assert "Data Engineer" in evidence_captions
+    assert "Fundstelle anzeigen: Rolle" not in fake_st.expanders
 
 
 def test_editable_job_extract_renders_empty_job_title_for_review(
@@ -422,12 +425,26 @@ def test_phase_b_hypothesis_form_groups_and_batches_submit(monkeypatch) -> None:
 
     assert fake_st.tab_labels == []
     assert "cs.jobspec.hypothesis.editor" in fake_st.editor_rows_by_key
+    editor_kwargs = fake_st.editor_kwargs_by_key["cs.jobspec.hypothesis.editor"]
+    assert editor_kwargs["column_order"] == (
+        "Prüfpunkt",
+        "Unternehmen",
+        "Rolle & Aufgaben",
+        "Skills & Anforderungen",
+        "Benefits & Rahmenbedingungen",
+        "Interviewprozess",
+        "Status",
+        "Sicherheit",
+    )
     editor_rows = fake_st.editor_rows_by_key["cs.jobspec.hypothesis.editor"]
     assert [row["field_name"] for row in editor_rows] == [
         "job_title",
         "location_city",
         "recruitment_steps",
     ]
+    assert editor_rows[0]["Rolle & Aufgaben"] == "Data Engineer"
+    assert editor_rows[1]["Benefits & Rahmenbedingungen"] == "Berlin"
+    assert editor_rows[2]["Interviewprozess"] == "Fachinterview (60 min)"
     assert all("Textstelle" not in row for row in editor_rows)
     assert fake_st.selectboxes == {}
     assert fake_st.rerun_called is False
@@ -456,13 +473,13 @@ def test_phase_b_hypothesis_form_splits_list_values_into_review_rows(
     rows = fake_st.editor_rows_by_key["cs.jobspec.hypothesis.editor"]
 
     assert [
-        row["Wert"] for row in rows if row["field_name"] == "responsibilities"
+        row["Rolle & Aufgaben"] for row in rows if row["field_name"] == "responsibilities"
     ] == ["Build pipelines", "Own data quality"]
     assert [
-        row["Wert"] for row in rows if row["field_name"] == "must_have_skills"
+        row["Skills & Anforderungen"] for row in rows if row["field_name"] == "must_have_skills"
     ] == [f"Skill {index}" for index in range(1, 10)]
     assert [
-        row["Wert"] for row in rows if row["field_name"] == "benefits"
+        row["Benefits & Rahmenbedingungen"] for row in rows if row["field_name"] == "benefits"
     ] == ["Hybrid work", "Training budget"]
 
 

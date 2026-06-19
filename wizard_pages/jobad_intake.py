@@ -98,6 +98,14 @@ HYPOTHESIS_ACTION_ACCEPT: Final[str] = "accept"
 HYPOTHESIS_ACTION_EDIT: Final[str] = "edit"
 HYPOTHESIS_ACTION_SKIP: Final[str] = "skip"
 HYPOTHESIS_EVIDENCE_FIELD_KEY: Final[str] = "cs.jobspec.hypothesis.evidence_field"
+HYPOTHESIS_REVIEW_STEP_COLUMNS: Final[tuple[str, ...]] = tuple(
+    JOB_EXTRACT_TAB_FIELDS.keys()
+)
+HYPOTHESIS_FIELD_TO_STEP: Final[dict[str, str]] = {
+    field_name: step_name
+    for step_name, field_names in JOB_EXTRACT_TAB_FIELDS.items()
+    for field_name in field_names
+}
 
 
 def _render_start_success_styles() -> None:
@@ -654,22 +662,43 @@ def _build_hypothesis_editor_rows(
     editor_rows: list[dict[str, Any]] = []
     for row in rows:
         field_name = str(row.get("field_name") or "")
-        editor_rows.append(
-            {
-                "row_id": str(row.get("row_id") or field_name),
-                "field_name": field_name,
-                "Feld": row.get("label") or field_name,
-                "Wert": row.get("display_value") or "",
-                "Status": JOB_EXTRACT_HYPOTHESIS_GROUP_LABELS.get(
-                    str(row.get("group_key") or ""),
-                    str(row.get("group_key") or ""),
-                ),
-                "Sicherheit": format_field_evidence_confidence(
-                    evidence_by_field.get(field_name)
-                ),
-            }
+        step_name = HYPOTHESIS_FIELD_TO_STEP.get(
+            field_name, HYPOTHESIS_REVIEW_STEP_COLUMNS[0]
         )
+        editor_row = {
+            "row_id": str(row.get("row_id") or field_name),
+            "field_name": field_name,
+            "review_column": step_name,
+            "Prüfpunkt": row.get("label") or field_name,
+            "Status": JOB_EXTRACT_HYPOTHESIS_GROUP_LABELS.get(
+                str(row.get("group_key") or ""),
+                str(row.get("group_key") or ""),
+            ),
+            "Sicherheit": format_field_evidence_confidence(
+                evidence_by_field.get(field_name)
+            ),
+        }
+        for column_name in HYPOTHESIS_REVIEW_STEP_COLUMNS:
+            editor_row[column_name] = (
+                row.get("display_value") or "" if column_name == step_name else ""
+            )
+        editor_rows.append(editor_row)
     return editor_rows
+
+
+def _edited_hypothesis_value(row: dict[str, Any], edited_row: dict[str, Any]) -> str:
+    field_name = str(row.get("field_name") or "").strip()
+    review_column = str(
+        row.get("review_column") or HYPOTHESIS_FIELD_TO_STEP.get(field_name, "")
+    ).strip()
+    if review_column and review_column in edited_row:
+        return str(edited_row.get(review_column) or "")
+    if "Wert" in edited_row:
+        return str(edited_row.get("Wert") or "")
+    for column_name in HYPOTHESIS_REVIEW_STEP_COLUMNS:
+        if column_name in edited_row:
+            return str(edited_row.get(column_name) or "")
+    return ""
 
 
 def _render_hypothesis_evidence_controls(
@@ -728,7 +757,7 @@ def _collect_scalar_hypothesis_update(
 ) -> dict[str, Any]:
     if edited_row is None:
         return {**row, "action": HYPOTHESIS_ACTION_SKIP}
-    edited_value = str(edited_row.get("Wert") or "")
+    edited_value = _edited_hypothesis_value(row, edited_row)
     original_value = str(row.get("display_value") or "")
     if not has_meaningful_value(edited_value):
         action = HYPOTHESIS_ACTION_SKIP
@@ -769,7 +798,7 @@ def _collect_grouped_hypothesis_update(
         if edited_row is None:
             changed = True
             continue
-        edited_value = str(edited_row.get("Wert") or "")
+        edited_value = _edited_hypothesis_value(row, edited_row)
         if not has_meaningful_value(edited_value):
             changed = True
             continue
@@ -1012,9 +1041,10 @@ def _render_job_extract_hypothesis_form(job: JobAdExtract) -> None:
 
     st.markdown("#### Erkannte Angaben prüfen")
     st.caption(
-        "Prüfen Sie die erkannten Angaben vor dem Weiterarbeiten. "
-        "Korrigieren Sie Werte direkt in der Tabelle oder löschen Sie eine Zeile, "
-        "wenn die Angabe nicht übernommen werden soll. Änderungen werden automatisch "
+        "Prüfen Sie unsichere und offene Angaben vor dem Weiterarbeiten. "
+        "Die Spalten entsprechen den nächsten Wizard-Schritten; korrigieren Sie "
+        "Werte direkt in der passenden Spalte oder löschen Sie eine Zeile, wenn "
+        "die Angabe nicht übernommen werden soll. Änderungen werden automatisch "
         "gespeichert."
     )
     _render_hypothesis_evidence_controls(rows, evidence_by_field)
@@ -1025,11 +1055,19 @@ def _render_job_extract_hypothesis_form(job: JobAdExtract) -> None:
         hide_index=True,
         num_rows="dynamic",
         width="stretch",
-        column_order=("Feld", "Wert", "Status", "Sicherheit"),
-        disabled=["Feld", "Status", "Sicherheit"],
+        column_order=(
+            "Prüfpunkt",
+            *HYPOTHESIS_REVIEW_STEP_COLUMNS,
+            "Status",
+            "Sicherheit",
+        ),
+        disabled=["Prüfpunkt", "Status", "Sicherheit"],
         column_config={
-            "Feld": st.column_config.TextColumn("Angabe"),
-            "Wert": st.column_config.TextColumn("Inhalt"),
+            "Prüfpunkt": st.column_config.TextColumn("Angabe"),
+            **{
+                column_name: st.column_config.TextColumn(column_name)
+                for column_name in HYPOTHESIS_REVIEW_STEP_COLUMNS
+            },
             "Status": st.column_config.TextColumn("Status"),
             "Sicherheit": st.column_config.TextColumn("Sicherheit"),
         },
@@ -1060,8 +1098,9 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
     selected_occupation_title = str(selected_occupation.get("title") or "").strip()
 
     st.caption(
-        "Die wichtigsten Angaben sind vorbereitet. Prüfen Sie kurz die Basisdaten "
-        "und bestätigen Sie anschließend den passenden Beruf für den Abgleich."
+        "Die wichtigsten Angaben sind vorbereitet. Prüfen Sie unsichere und offene "
+        "Punkte direkt in der Tabelle und bestätigen Sie anschließend den passenden "
+        "Beruf für den Abgleich."
     )
     _render_input_quality_hint(job)
     _render_analysis_priority_summary(job)
@@ -1074,7 +1113,6 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
         show_notes=False,
         show_editor=False,
     )
-    _render_job_extract_provenance_block(job)
     _render_job_extract_hypothesis_form(job)
 
     if has_confirmed_anchor:

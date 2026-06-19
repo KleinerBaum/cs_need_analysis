@@ -127,6 +127,30 @@ def record_artifact_generated(
     )
 
 
+def record_evaluation_run_completed(
+    session_state: MutableMapping[str, Any],
+    *,
+    run_id: str,
+    scenario_count: int,
+    combination_count: int,
+    best_combination_id: str,
+    best_score: float,
+    passed_success_criteria: bool,
+) -> None:
+    append_usage_event(
+        session_state,
+        UsageEventType.EVALUATION_RUN_COMPLETED,
+        metadata={
+            "run_id": run_id,
+            "scenario_count": max(0, int(scenario_count)),
+            "combination_count": max(0, int(combination_count)),
+            "best_combination_id": best_combination_id,
+            "best_score": round(float(best_score), 3),
+            "passed_success_criteria": passed_success_criteria,
+        },
+    )
+
+
 def record_step_entered(
     session_state: MutableMapping[str, Any],
     *,
