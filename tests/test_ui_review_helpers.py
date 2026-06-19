@@ -5,7 +5,13 @@ from typing import Any
 from typing import Literal
 
 import ui_components
-from constants import FactKey, SSKey, UI_PREFERENCE_CONFIDENCE_THRESHOLD
+from constants import (
+    FactKey,
+    QUESTION_IMPACT_TARGET_EXPORT,
+    QUESTION_IMPACT_TARGET_SKILLS,
+    SSKey,
+    UI_PREFERENCE_CONFIDENCE_THRESHOLD,
+)
 from schemas import AnswerType, JobAdExtract, Question, QuestionStep
 
 
@@ -536,10 +542,96 @@ def test_render_question_step_hides_group_provenance_counts_and_sensitive_detail
 
     ui_components.render_question_step(step)
 
-    assert not any(caption.startswith("Aus Start:") for caption in fake_st.captions)
     joined_captions = " ".join(fake_st.captions)
+    assert any(
+        caption.startswith("Source:")
+        and "Why asked:" in caption
+        and "Downstream impact:" in caption
+        for caption in fake_st.captions
+    )
+    assert "ESCO context" in joined_captions
+    assert "Base intake plan" in joined_captions
+    assert not any(caption.startswith("Aus Start:") for caption in fake_st.captions)
     assert "uri:skill:python" not in joined_captions
     assert "Do not leak this evidence snippet" not in joined_captions
+
+
+def test_question_provenance_display_uses_safe_labels_and_canonical_impacts() -> None:
+    question = Question(
+        id="ctx_esco_skill",
+        label="ESCO Skill",
+        answer_type=AnswerType.SHORT_TEXT,
+        rationale=(
+            "Confirm uri:skill:python for recruiting@example.test with token=abc123."
+        ),
+        impact_targets=[QUESTION_IMPACT_TARGET_SKILLS, QUESTION_IMPACT_TARGET_EXPORT],
+        acquisition_cost="low",
+        info_gain_score=0.74,
+    )
+
+    display = ui_components._build_question_provenance_display(
+        question,
+        {
+            "injected_question_ids": ["ctx_esco_skill"],
+            "demoted_question_ids": ["ctx_esco_skill"],
+            "source_uris_by_question_id": {
+                "ctx_esco_skill": ["uri:skill:python"]
+            },
+        },
+    )
+    caption = ui_components._format_question_provenance_caption(display)
+
+    assert display["sources"] == ["ESCO context", "Occupation context"]
+    assert display["impacts"] == ["Skills", "Export"]
+    assert display["effort"] == "low effort"
+    assert display["info_gain"] == "74% info gain"
+    assert display["adjustments"] == [
+        "selected by occupation overlay",
+        "demoted by relevance filter",
+    ]
+    assert "Source: ESCO context, Occupation context" in caption
+    assert "Downstream impact: Skills, Export" in caption
+    assert "uri:skill:python" not in caption
+    assert "recruiting@example.test" not in caption
+    assert "token=abc123" not in caption
+
+
+def test_render_section_provenance_expert_adds_collapsed_details(monkeypatch) -> None:
+    fake_st = _FakeStreamlitRecorder()
+    monkeypatch.setattr(ui_components, "st", fake_st)
+    question = Question(
+        id="ctx_esco_skill",
+        label="ESCO Skill",
+        answer_type=AnswerType.SHORT_TEXT,
+        rationale="Clarifies the skill requirement before exports.",
+        impact_targets=[QUESTION_IMPACT_TARGET_SKILLS],
+    )
+
+    ui_components._render_section_provenance(
+        section_title="Skill context",
+        questions=[question],
+        ui_mode="expert",
+        provenance={
+            "injected_question_ids": ["ctx_esco_skill"],
+            "source_uris_by_question_id": {
+                "ctx_esco_skill": ["uri:skill:python"]
+            },
+        },
+    )
+
+    assert any(
+        caption.startswith("Source:")
+        and "Why asked:" in caption
+        and "Downstream impact:" in caption
+        for caption in fake_st.captions
+    )
+    assert ("Section provenance", False) in fake_st.expanders
+    assert "**Source**: ESCO context, Occupation context" in fake_st.markdowns
+    assert "**Downstream impact**: Skills" in fake_st.markdowns
+    joined_events = " ".join(
+        value for _event_type, value in fake_st.events if isinstance(value, str)
+    )
+    assert "uri:skill:python" not in joined_events
 
 
 class _QuestionFormFakeStreamlit:

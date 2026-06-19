@@ -17,6 +17,11 @@ import streamlit as st
 
 from constants import (
     AnswerType,
+    QUESTION_IMPACT_TARGET_BRIEF,
+    QUESTION_IMPACT_TARGET_EXPORT,
+    QUESTION_IMPACT_TARGET_INTERVIEW,
+    QUESTION_IMPACT_TARGET_SALARY,
+    QUESTION_IMPACT_TARGET_SKILLS,
     SSKey,
     UI_DETAILS_DEFAULT_BY_MODE_TEXT,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
@@ -91,6 +96,20 @@ ESCO_EXPLAINABILITY_LABELS: tuple[str, ...] = (
 ESCO_CONFIDENCE_BUCKETS: tuple[str, ...] = ("high", "medium", "low")
 REVIEW_WIDGET_KEY_PREFIX = f"{WIDGET_KEY_PREFIX}review."
 ESCO_SINGLE_SELECT_PILLS_COLUMNS = 3
+QUESTION_PROVENANCE_TEXT_MAX_CHARS = 180
+SECTION_PROVENANCE_TEXT_MAX_CHARS = 140
+QUESTION_IMPACT_LABELS: dict[str, str] = {
+    QUESTION_IMPACT_TARGET_BRIEF: "Brief",
+    QUESTION_IMPACT_TARGET_SALARY: "Salary",
+    QUESTION_IMPACT_TARGET_SKILLS: "Skills",
+    QUESTION_IMPACT_TARGET_INTERVIEW: "Interview",
+    QUESTION_IMPACT_TARGET_EXPORT: "Export",
+}
+QUESTION_ACQUISITION_COST_LABELS: dict[str, str] = {
+    "low": "low effort",
+    "medium": "medium effort",
+    "high": "high effort",
+}
 
 
 def _inject_esco_single_select_pills_css() -> None:
@@ -138,6 +157,15 @@ class StepReviewPayload(TypedDict):
     intake_facts: dict[str, Any]
 
 
+class QuestionProvenanceDisplay(TypedDict):
+    sources: list[str]
+    why: str
+    impacts: list[str]
+    adjustments: list[str]
+    effort: str
+    info_gain: str
+
+
 class ReviewRenderMode(str, Enum):
     COMPACT = "compact"
     DIRECT_ANSWERS = "direct_answers"
@@ -150,6 +178,287 @@ class ReviewRenderContext(str, Enum):
 
 
 QuestionInputResult = tuple[str, Any, Any]
+
+
+def _dedupe_labels(values: Sequence[str]) -> list[str]:
+    labels: list[str] = []
+    seen: set[str] = set()
+    for raw_value in values:
+        label = str(raw_value or "").strip()
+        key = label.casefold()
+        if not label or key in seen:
+            continue
+        labels.append(label)
+        seen.add(key)
+    return labels
+
+
+def _safe_question_provenance_text(
+    value: object,
+    *,
+    max_chars: int = QUESTION_PROVENANCE_TEXT_MAX_CHARS,
+) -> str:
+    text = " ".join(str(value or "").split())
+    if not text:
+        return ""
+    redacted = re.sub(r"(?i)\b(sk-[A-Za-z0-9_-]{8,})\b", "[redacted-secret]", text)
+    redacted = re.sub(
+        r"(?i)\bbearer\s+[A-Za-z0-9._-]+",
+        "Bearer [redacted]",
+        redacted,
+    )
+    redacted = re.sub(
+        r"(?i)\b(api[_-]?key|token|secret|password)\s*[:=]\s*\S+",
+        r"\1=[redacted]",
+        redacted,
+    )
+    redacted = re.sub(r"https?://\S+", "[redacted-url]", redacted)
+    redacted = re.sub(r"\buri:[A-Za-z0-9:._/\-]+\b", "[redacted-reference]", redacted)
+    redacted = re.sub(
+        r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b",
+        "[redacted-contact]",
+        redacted,
+        flags=re.I,
+    )
+    redacted = re.sub(
+        r"(?<!\w)(?:\+?\d[\d\s()./-]{7,}\d)(?!\w)",
+        "[redacted-contact]",
+        redacted,
+    )
+    if len(redacted) <= max_chars:
+        return redacted
+    return f"{redacted[: max_chars - 3].rstrip()}..."
+
+
+def _load_question_flow_provenance_payload(
+    provenance: Mapping[str, Any] | None = None,
+) -> Mapping[str, Any]:
+    if isinstance(provenance, Mapping):
+        return provenance
+    raw_provenance = st.session_state.get(SSKey.QUESTION_FLOW_PROVENANCE.value, {})
+    return raw_provenance if isinstance(raw_provenance, Mapping) else {}
+
+
+def _provenance_string_list(
+    provenance: Mapping[str, Any],
+    key: str,
+) -> list[str]:
+    raw_values = provenance.get(key)
+    if not isinstance(raw_values, list):
+        return []
+    return [str(item).strip() for item in raw_values if str(item).strip()]
+
+
+def _question_has_source_uris(
+    question: Question,
+    provenance: Mapping[str, Any],
+) -> bool:
+    source_uris = provenance.get("source_uris_by_question_id")
+    return isinstance(source_uris, Mapping) and question.id in source_uris
+
+
+def _question_source_labels(
+    question: Question,
+    provenance: Mapping[str, Any],
+) -> list[str]:
+    injected_ids = set(_provenance_string_list(provenance, "injected_question_ids"))
+    source_labels: list[str] = []
+    question_id = str(question.id or "")
+    if _question_has_source_uris(question, provenance) or question_id.startswith(
+        "ctx_esco_"
+    ):
+        source_labels.append("ESCO context")
+    if question.id in injected_ids or question_id.startswith("ctx_"):
+        source_labels.append("Occupation context")
+    if not source_labels:
+        source_labels.append("Base intake plan")
+    return _dedupe_labels(source_labels)
+
+
+def _question_adjustment_labels(
+    question: Question,
+    provenance: Mapping[str, Any],
+) -> list[str]:
+    labels: list[str] = []
+    injected_ids = set(_provenance_string_list(provenance, "injected_question_ids"))
+    demoted_ids = set(_provenance_string_list(provenance, "demoted_question_ids"))
+    if question.id in injected_ids:
+        labels.append("selected by occupation overlay")
+    if question.id in demoted_ids:
+        labels.append("demoted by relevance filter")
+    return labels
+
+
+def _question_impact_labels(question: Question) -> list[str]:
+    labels = [
+        QUESTION_IMPACT_LABELS.get(str(target or "").strip().lower(), "")
+        for target in question.impact_targets
+    ]
+    cleaned = _dedupe_labels([label for label in labels if label])
+    return cleaned or ["Vacancy workflow"]
+
+
+def _fallback_question_why(question: Question) -> str:
+    if question.required:
+        return "Required for step readiness and handoff completeness."
+    if question.fact_key:
+        return "Collects a canonical vacancy fact for downstream artifacts."
+    if question.group_key:
+        group_label = str(question.group_key).replace("_", " ").strip().lower()
+        if group_label:
+            return f"Completes the {group_label} section."
+    return "Keeps the vacancy intake complete."
+
+
+def _build_question_provenance_display(
+    question: Question,
+    provenance: Mapping[str, Any] | None = None,
+) -> QuestionProvenanceDisplay:
+    provenance_payload = _load_question_flow_provenance_payload(provenance)
+    info_gain = ""
+    if question.info_gain_score is not None:
+        info_gain = f"{round(float(question.info_gain_score) * 100)}% info gain"
+    return {
+        "sources": _question_source_labels(question, provenance_payload),
+        "why": _safe_question_provenance_text(
+            question.rationale or _fallback_question_why(question)
+        ),
+        "impacts": _question_impact_labels(question),
+        "adjustments": _question_adjustment_labels(question, provenance_payload),
+        "effort": QUESTION_ACQUISITION_COST_LABELS.get(
+            str(question.acquisition_cost or "").strip().lower(),
+            "",
+        ),
+        "info_gain": info_gain,
+    }
+
+
+def _join_provenance_labels(labels: Sequence[str], *, max_items: int = 3) -> str:
+    cleaned = _dedupe_labels(labels)
+    if not cleaned:
+        return "not specified"
+    if len(cleaned) <= max_items:
+        return ", ".join(cleaned)
+    return f"{', '.join(cleaned[:max_items])} +{len(cleaned) - max_items} more"
+
+
+def _format_question_provenance_caption(
+    display: QuestionProvenanceDisplay,
+    *,
+    max_why_chars: int = QUESTION_PROVENANCE_TEXT_MAX_CHARS,
+) -> str:
+    why = _safe_question_provenance_text(display["why"], max_chars=max_why_chars)
+    return (
+        f"Source: {_join_provenance_labels(display['sources'])} · "
+        f"Why asked: {why} · "
+        f"Downstream impact: {_join_provenance_labels(display['impacts'])}"
+    )
+
+
+def _build_section_provenance_display(
+    *,
+    section_title: str,
+    questions: Sequence[Question],
+    provenance: Mapping[str, Any] | None = None,
+) -> QuestionProvenanceDisplay:
+    question_displays = [
+        _build_question_provenance_display(question, provenance)
+        for question in questions
+    ]
+    sources = _dedupe_labels(
+        [source for display in question_displays for source in display["sources"]]
+    )
+    impacts = _dedupe_labels(
+        [impact for display in question_displays for impact in display["impacts"]]
+    )
+    adjustments = _dedupe_labels(
+        [
+            adjustment
+            for display in question_displays
+            for adjustment in display["adjustments"]
+        ]
+    )
+    rationales = _dedupe_labels(
+        [display["why"] for display in question_displays if display["why"]]
+    )
+    if len(rationales) == 1:
+        why = rationales[0]
+    elif rationales:
+        why = f"{rationales[0]} (+{len(rationales) - 1} more reasons)"
+    else:
+        why = f"Groups related questions for {section_title}."
+    return {
+        "sources": sources or ["Base intake plan"],
+        "why": _safe_question_provenance_text(
+            why, max_chars=SECTION_PROVENANCE_TEXT_MAX_CHARS
+        ),
+        "impacts": impacts or ["Vacancy workflow"],
+        "adjustments": adjustments,
+        "effort": "",
+        "info_gain": "",
+    }
+
+
+def _render_section_provenance(
+    *,
+    section_title: str,
+    questions: Sequence[Question],
+    ui_mode: str,
+    provenance: Mapping[str, Any] | None,
+) -> None:
+    display = _build_section_provenance_display(
+        section_title=section_title,
+        questions=questions,
+        provenance=provenance,
+    )
+    st.caption(
+        _format_question_provenance_caption(
+            display,
+            max_why_chars=SECTION_PROVENANCE_TEXT_MAX_CHARS,
+        )
+    )
+    if ui_mode != "expert" or not callable(getattr(st, "expander", None)):
+        return
+    with st.expander("Section provenance", expanded=False):
+        st.markdown(f"**Source**: {_join_provenance_labels(display['sources'])}")
+        st.markdown(f"**Why asked**: {display['why']}")
+        st.markdown(
+            f"**Downstream impact**: {_join_provenance_labels(display['impacts'])}"
+        )
+        if display["adjustments"]:
+            st.caption(
+                f"Context adjustment: {_join_provenance_labels(display['adjustments'])}"
+            )
+
+
+def _render_question_provenance(
+    question: Question,
+    *,
+    ui_mode: str,
+    provenance: Mapping[str, Any] | None,
+) -> None:
+    display = _build_question_provenance_display(question, provenance)
+    st.caption(
+        _format_question_provenance_caption(
+            display,
+            max_why_chars=120 if ui_mode != "expert" else QUESTION_PROVENANCE_TEXT_MAX_CHARS,
+        )
+    )
+    if ui_mode != "expert" or not callable(getattr(st, "expander", None)):
+        return
+    with st.expander("Question provenance", expanded=False):
+        st.markdown(f"**Source**: {_join_provenance_labels(display['sources'])}")
+        st.markdown(f"**Why asked**: {display['why']}")
+        st.markdown(
+            f"**Downstream impact**: {_join_provenance_labels(display['impacts'])}"
+        )
+        detail_parts = [part for part in (display["effort"], display["info_gain"]) if part]
+        if detail_parts:
+            st.caption(f"Question signal: {' · '.join(detail_parts)}")
+        if display["adjustments"]:
+            st.caption(
+                f"Context adjustment: {_join_provenance_labels(display['adjustments'])}"
+            )
 
 
 def resolve_standard_review_mode(
@@ -2388,6 +2697,8 @@ def _render_questions_two_columns(
     *,
     widget_key_prefix: str = WIDGET_KEY_PREFIX,
     persist: bool = True,
+    ui_mode: str = "standard",
+    provenance: Mapping[str, Any] | None = None,
 ) -> list[QuestionInputResult]:
     results: list[QuestionInputResult] = []
     col_left, col_right = st.columns(2, gap="large")
@@ -2400,6 +2711,8 @@ def _render_questions_two_columns(
                     answers,
                     widget_key_prefix=widget_key_prefix,
                     persist=persist,
+                    ui_mode=ui_mode,
+                    provenance=provenance,
                 )
             )
     return results
@@ -2520,6 +2833,7 @@ def render_question_step(step: QuestionStep) -> None:
         return
 
     grouped_questions = _group_questions(step, visible_questions)
+    flow_provenance = _load_question_flow_provenance_payload()
     if _can_render_question_step_form(visible_questions):
         with st.form(_question_step_form_key(step.step_key), clear_on_submit=False):
             pending_inputs = _render_grouped_question_inputs(
@@ -2528,6 +2842,8 @@ def render_question_step(step: QuestionStep) -> None:
                 answer_meta=answer_meta,
                 answered_lookup=answered_lookup,
                 persist=False,
+                ui_mode=ui_mode,
+                provenance=flow_provenance,
             )
             submitted = st.form_submit_button(
                 "Antworten übernehmen",
@@ -2544,6 +2860,8 @@ def render_question_step(step: QuestionStep) -> None:
             answer_meta=answer_meta,
             answered_lookup=answered_lookup,
             persist=True,
+            ui_mode=ui_mode,
+            provenance=flow_provenance,
         )
 
     return
@@ -2556,6 +2874,8 @@ def _render_grouped_question_inputs(
     answer_meta: dict[str, Any],
     answered_lookup: dict[str, bool],
     persist: bool,
+    ui_mode: str = "standard",
+    provenance: Mapping[str, Any] | None = None,
 ) -> list[QuestionInputResult]:
     pending_inputs: list[QuestionInputResult] = []
     for group_title, group_questions in grouped_questions:
@@ -2579,6 +2899,12 @@ def _render_grouped_question_inputs(
                 ),
                 unsafe_allow_html=True,
             )
+            _render_section_provenance(
+                section_title=group_title,
+                questions=group_questions,
+                ui_mode=ui_mode,
+                provenance=provenance,
+            )
             if progress["required_unanswered"] > 0:
                 st.caption(f"{progress['required_unanswered']} offen")
             pending_inputs.extend(
@@ -2586,6 +2912,8 @@ def _render_grouped_question_inputs(
                     group_questions,
                     answers,
                     persist=persist,
+                    ui_mode=ui_mode,
+                    provenance=provenance,
                 )
             )
     return pending_inputs
@@ -3278,6 +3606,8 @@ def _render_question(
     *,
     widget_key_prefix: str = WIDGET_KEY_PREFIX,
     persist: bool = True,
+    ui_mode: str = "standard",
+    provenance: Mapping[str, Any] | None = None,
 ) -> QuestionInputResult:
     key = widget_key_prefix + q.id
     inferred_default = _infer_default_value(q)
@@ -3470,6 +3800,7 @@ def _render_question(
 
         if q.help:
             st.caption(q.help)
+        _render_question_provenance(q, ui_mode=ui_mode, provenance=provenance)
         if validation_error:
             st.error(validation_error)
 
@@ -3477,7 +3808,7 @@ def _render_question(
         _persist_question_answer(q.id, previous_value, value)
 
     if st.session_state.get(SSKey.DEBUG.value) and q.rationale:
-        st.caption(f"Rationale: {q.rationale}")
+        st.caption(f"Rationale: {_safe_question_provenance_text(q.rationale)}")
     return q.id, previous_value, value
 
 

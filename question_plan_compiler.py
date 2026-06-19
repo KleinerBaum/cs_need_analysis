@@ -9,6 +9,9 @@ from typing import Any
 from constants import (
     AnswerType,
     ESCO_CONCEPT_QUESTION_CAP_BY_UI_MODE,
+    QUESTION_IMPACT_TARGET_EXPORT,
+    QUESTION_IMPACT_TARGET_INTERVIEW,
+    QUESTION_IMPACT_TARGET_SKILLS,
     STEP_KEY_BENEFITS,
     STEP_KEY_COMPANY,
     STEP_KEY_INTERVIEW,
@@ -280,7 +283,11 @@ def _build_esco_concept_questions(
             priority="standard" if bucket.startswith("essential") else "detail",
             group_key=group_key,
             rationale="ESCO essential/optional concepts require vacancy-specific confirmation.",
-            impact_targets=["skills", "interview", "export"],
+            impact_targets=[
+                QUESTION_IMPACT_TARGET_SKILLS,
+                QUESTION_IMPACT_TARGET_INTERVIEW,
+                QUESTION_IMPACT_TARGET_EXPORT,
+            ],
             acquisition_cost="low",
             info_gain_score=0.74 if bucket.startswith("essential") else 0.62,
         )
