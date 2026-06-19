@@ -344,16 +344,22 @@ def test_compiler_injects_skill_group_pack_and_esco_concept_questions() -> None:
         question_context=context,
         ui_mode="standard",
     )
-    question_ids = [q.id for step in compiled.plan.steps for q in step.questions]
+    questions = {q.id: q for step in compiled.plan.steps for q in step.questions}
+    question_ids = list(questions)
     esco_question_ids = [
         question_id
         for question_id in question_ids
         if question_id.startswith("ctx_esco_essential_skill_")
     ]
 
+    assert len(question_ids) == len(set(question_ids))
     assert "ctx_sg_digital_data_ai" in question_ids
     assert "ctx_regulated_requirements" in question_ids
     assert len(esco_question_ids) == 1
+    assert questions["base_skill"].group_key == "application_context"
+    assert questions["ctx_sg_digital_data_ai"].group_key == "digital_data_ai"
+    assert questions["ctx_regulated_requirements"].group_key == "licenses"
+    assert questions[esco_question_ids[0]].group_key == "digital_data_ai"
     assert "SKILL_GROUP:digital_data_ai" in compiled.provenance.resolved_module_keys
     assert "ISCO4:2511" in compiled.provenance.resolved_module_keys
     assert compiled.provenance.source_uris_by_question_id[esco_question_ids[0]] == [

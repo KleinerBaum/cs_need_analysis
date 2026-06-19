@@ -42,6 +42,7 @@ from constants import (
     DEFAULT_LANGUAGE,
     FactKey,
     JOB_AD_SCHEMA_VERSION,
+    QUESTION_IMPACT_TARGETS,
     QUESTION_SCHEMA_VERSION,
     SSKey,
     STEP_KEY_BENEFITS,
@@ -334,6 +335,7 @@ _NUMERIC_QUESTION_RULES: tuple[dict[str, Any], ...] = (
     },
 )
 _QUESTION_PRIORITY_VALUES = {"core", "standard", "detail"}
+_QUESTION_IMPACT_TARGET_VALUES = set(QUESTION_IMPACT_TARGETS)
 _QUESTION_FACT_KEY_BY_TARGET_PATH: dict[str, FactKey] = {
     "hiring_reason": FactKey.INTAKE_HIRING_REASON,
     "urgency": FactKey.INTAKE_URGENCY,
@@ -1452,10 +1454,19 @@ def generate_question_plan(
         "Erstelle einen QuestionPlan in dieser Reihenfolge: company, role_tasks, skills, benefits, interview. "
         "Der Step 'jobad' ist bereits durch die Jobspec-Extraktion abgedeckt; "
         "der historische Step 'team' ist kein sichtbarer Wizard-Schritt mehr. "
+        "Dieser Output ist der generische Base-QuestionPlan vor deterministischen Overlays. "
+        "Behandle die Steps als strikte Section-Routing-Grenzen: "
+        "company sammelt Arbeitgebernarrativ, Business-Kontext, Organisation/Team, Arbeitsmodell/Standort und Risiken/Non-negotiables; "
+        "role_tasks sammelt Role Purpose, Top-Deliverables, Ownership Scope, Stakeholder/Collaboration und 30/90/180-Erfolg; "
+        "skills sammelt Must-have/Nice-to-have-Trennung, Proficiency Depth, Anwendungskontext und Substituierbarkeit; "
+        "benefits sammelt Compensation, Work Model, Vertrag/Start, differenzierende Benefits und Dealbreaker; "
+        "interview sammelt Candidate Journey, Stage Goals, Evaluation Evidence, interne Verantwortlichkeiten und SLA/Kommunikation. "
         "Deterministische ESCO/ISCO-Module koennen bereits berufsspezifische Fragen abdecken "
         "(ISCO4, ESCO Occupation, Skill Groups, Essential/Optional Skills/Knowledge, NACE, Regulierung). "
         "Ergaenze nur inkrementelle Top-down-Recruitingfragen, die nach Jobspec und deterministischem Kontext "
         "noch fehlen; dupliziere keine ESCO-abgeleiteten Skill-, Knowledge-, NACE- oder Regulierungsfragen. "
+        "Reserviere IDs mit Prefix 'ctx_', konkrete ESCO/ISCO/NACE-/Regulierungsfragen und ESCO Skill-Group-Fragen "
+        "fuer deterministische Compiler-Overlays; nutze sie nicht im Base-QuestionPlan. "
         "Erfinde keine Skills, Gehaltsbaender, Prozessschritte, Zertifikate, rechtlichen Anforderungen oder Benefits. "
         "Füge bei jedem Step 6–12 Fragen hinzu, je nachdem, was im Jobspec fehlt. "
         "Markiere pro Step genau 3–5 Fragen mit priority='core'; "
@@ -1471,9 +1482,14 @@ def generate_question_plan(
         "(z. B. company.company_name, role.job_title, skills.must_have_skills, benefits.salary_range); "
         "lasse fact_key sonst null. "
         "Nutze depends_on nur bei echten Follow-up-Fragen; vermeide verschachtelte oder übermäßige Abhängigkeiten. "
-        "Für depends_on nutze nur einfache Regeln mit question_id plus equals ODER any_of ODER is_answered. "
+        "depends_on darf nur auf eine fruehere Frage im selben Step zeigen, nie auf spaetere Fragen, andere Steps oder sich selbst. "
+        "Für depends_on nutze nur einfache Regeln mit question_id plus genau einem von equals ODER any_of ODER is_answered. "
         "Nutze follow_up_prompts sparsam (maximal 3 kurze Prompts) für Fragen, bei denen vage Antworten typischerweise Nachhaken brauchen; "
         "sonst lasse follow_up_prompts leer. "
+        "Wenn impact_targets gesetzt sind, nutze ausschliesslich diese Werte: brief, salary, skills, interview, export; "
+        "dedupliziere sie und lasse sie sonst leer. "
+        "Setze acquisition_cost nur auf low, medium oder high. "
+        "Setze info_gain_score nur als Zahl von 0.0 bis 1.0; hoeher fuer direkte Brief-, Salary-, Skills-, Interview- oder Export-Luecken. "
         "Bevorzuge konkrete, messbare Antworten (z. B. 'Erfolgskriterien', 'Top-Deliverables', 'Must-have vs Nice-to-have').\n\n"
         "Wenn answer_type='number' genutzt wird, setze immer explizit min_value und max_value "
         "(optional step_value), passend zur Frage. Nutze keine Freitext-Frage für numerische Werte.\n\n"
@@ -1526,9 +1542,14 @@ def generate_question_plan(
     return normalized, usage
 
 
-def normalize_question_plan(plan: QuestionPlan) -> QuestionPlan:
+def normalize_question_plan(
+    plan: QuestionPlan,
+    *,
+    preserve_noncanonical_group_ids: set[str] | None = None,
+) -> QuestionPlan:
     """Guarantee unique, stable-ish ids and basic invariants."""
     seen = set()
+    preserved_group_ids = preserve_noncanonical_group_ids or set()
     for step in plan.steps:
         for q in step.questions:
             if not q.id or q.id.strip() == "":
@@ -1548,8 +1569,13 @@ def normalize_question_plan(plan: QuestionPlan) -> QuestionPlan:
             _normalize_category_question(q)
             _normalize_numeric_question(q)
             _normalize_question_priority(q)
-            _normalize_question_group_key(q, step_key=step.step_key)
+            _normalize_question_group_key(
+                q,
+                step_key=step.step_key,
+                preserve_noncanonical=q.id in preserved_group_ids,
+            )
             _normalize_question_fact_key(q)
+            _normalize_question_impact_targets(q)
             _normalize_question_dependencies(q, step=step)
             _normalize_question_follow_up_prompts(q)
     return plan
@@ -1595,7 +1621,12 @@ def _normalize_question_priority(q: Any) -> None:
     q.priority = normalized if normalized in _QUESTION_PRIORITY_VALUES else None
 
 
-def _normalize_question_group_key(q: Any, *, step_key: str) -> None:
+def _normalize_question_group_key(
+    q: Any,
+    *,
+    step_key: str,
+    preserve_noncanonical: bool = False,
+) -> None:
     canonical_groups = _CANONICAL_QUESTION_GROUPS_BY_STEP.get(step_key)
     raw_group_key = getattr(q, "group_key", None)
     normalized_group = (
@@ -1611,6 +1642,10 @@ def _normalize_question_group_key(q: Any, *, step_key: str) -> None:
         return
 
     if normalized_group in canonical_groups:
+        q.group_key = normalized_group
+        return
+
+    if preserve_noncanonical and normalized_group:
         q.group_key = normalized_group
         return
 
@@ -1657,13 +1692,43 @@ def _question_group_match_blob(q: Any, *, normalized_group: str) -> str:
     return re.sub(r"[^a-z0-9_]+", " ", normalized)
 
 
+def _normalize_question_impact_targets(q: Any) -> None:
+    raw_targets = getattr(q, "impact_targets", None)
+    if not isinstance(raw_targets, list):
+        q.impact_targets = []
+        return
+
+    normalized_targets: list[str] = []
+    seen: set[str] = set()
+    for raw_target in raw_targets:
+        if not isinstance(raw_target, str):
+            continue
+        target = raw_target.strip().lower()
+        if target not in _QUESTION_IMPACT_TARGET_VALUES or target in seen:
+            continue
+        normalized_targets.append(target)
+        seen.add(target)
+    q.impact_targets = normalized_targets
+
+
+def _prior_question_ids(step: Any, q: Any) -> set[str]:
+    prior_ids: set[str] = set()
+    for item in getattr(step, "questions", []):
+        if item is q:
+            break
+        item_id = getattr(item, "id", None)
+        if item_id:
+            prior_ids.add(str(item_id))
+    return prior_ids
+
+
 def _normalize_question_dependencies(q: Any, *, step: Any) -> None:
     raw_depends_on = getattr(q, "depends_on", None)
     if not isinstance(raw_depends_on, list) or not raw_depends_on:
         q.depends_on = None
         return
 
-    known_ids = {str(item.id) for item in getattr(step, "questions", []) if item.id}
+    prior_ids = _prior_question_ids(step, q)
     sanitized: list[QuestionDependency] = []
     for dep in raw_depends_on:
         if not hasattr(dep, "question_id"):
@@ -1672,7 +1737,7 @@ def _normalize_question_dependencies(q: Any, *, step: Any) -> None:
         if not isinstance(source_id_raw, str) or not source_id_raw.strip():
             continue
         source_id = re_slugify(source_id_raw)
-        if source_id == q.id or source_id not in known_ids:
+        if source_id == q.id or source_id not in prior_ids:
             continue
 
         equals = getattr(dep, "equals", None)

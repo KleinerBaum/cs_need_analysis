@@ -211,6 +211,8 @@ Secondary anchors are context/rationale only; they must not inject skills into c
 
 Confirmed ESCO context is normalized into an optional question context used by the deterministic question compiler. ESCO supplies occupation, skill, knowledge, ISCO, NACE, and regulation context; it does not provide ready-made interview questions or a canonical benefit taxonomy.
 
+Generated base question plans use only the canonical section groups for the active wizard steps. ESCO/ISCO-specific question IDs, skill-group groups, and concept-confirmation questions are owned by the deterministic overlay compiler so the generated base plan does not duplicate or contradict them.
+
 Question-flow provenance records the ordered module keys when data is available:
 
 - `BASE_RECRUITING`

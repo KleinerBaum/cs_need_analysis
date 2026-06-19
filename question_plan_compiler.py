@@ -384,7 +384,8 @@ def compile_question_plan(
             schema_version=base_plan.schema_version,
             language=base_plan.language,
             steps=compiled_steps,
-        )
+        ),
+        preserve_noncanonical_group_ids=set(injected_question_ids),
     )
     resolved_module_keys, skipped_module_reasons = resolve_question_module_keys(
         question_context

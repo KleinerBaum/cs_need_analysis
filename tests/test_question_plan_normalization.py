@@ -1,4 +1,10 @@
-from constants import AnswerType, FactKey, QUESTION_IMPACT_TARGET_BRIEF
+from constants import (
+    AnswerType,
+    FactKey,
+    QUESTION_IMPACT_TARGET_BRIEF,
+    QUESTION_IMPACT_TARGET_EXPORT,
+    QUESTION_IMPACT_TARGET_SALARY,
+)
 from llm_client import normalize_question_plan
 from schemas import Question, QuestionDependency, QuestionPlan, QuestionStep
 
@@ -136,6 +142,61 @@ def test_normalize_progressive_disclosure_metadata() -> None:
     ]
 
 
+def test_normalize_dependencies_only_keep_earlier_same_step_questions() -> None:
+    plan = QuestionPlan(
+        steps=[
+            QuestionStep(
+                step_key="company",
+                title_de="Unternehmen",
+                questions=[
+                    Question(
+                        id="source question",
+                        label="Ist Remote-Arbeit moeglich?",
+                        answer_type=AnswerType.BOOLEAN,
+                    ),
+                    Question(
+                        id="middle",
+                        label="Welche Remote-Regeln gelten?",
+                        answer_type=AnswerType.SHORT_TEXT,
+                        depends_on=[
+                            QuestionDependency(
+                                question_id="source question",
+                                equals=True,
+                            ),
+                            QuestionDependency(
+                                question_id="later question",
+                                equals=True,
+                            ),
+                            QuestionDependency(question_id="middle", equals=True),
+                            QuestionDependency(
+                                question_id="source question",
+                                equals=True,
+                                is_answered=True,
+                            ),
+                            QuestionDependency(
+                                question_id="unknown",
+                                is_answered=True,
+                            ),
+                        ],
+                    ),
+                    Question(
+                        id="later question",
+                        label="Welche Regionen sind erlaubt?",
+                        answer_type=AnswerType.SHORT_TEXT,
+                    ),
+                ],
+            )
+        ]
+    )
+
+    normalized = normalize_question_plan(plan)
+    questions = normalized.steps[0].questions
+
+    assert questions[1].depends_on == [
+        QuestionDependency(question_id="source_question", equals=True)
+    ]
+
+
 def test_normalize_question_fact_key_metadata() -> None:
     plan = QuestionPlan(
         steps=[
@@ -202,6 +263,50 @@ def test_normalize_preserves_adaptive_question_metadata() -> None:
     assert question.impact_targets == [QUESTION_IMPACT_TARGET_BRIEF]
     assert question.acquisition_cost == "low"
     assert question.info_gain_score == 0.67
+
+
+def test_normalize_filters_impact_targets_and_priority_tiers() -> None:
+    valid_metadata = Question(
+        id="valid_metadata",
+        label="Welche Info fehlt?",
+        answer_type=AnswerType.SHORT_TEXT,
+        impact_targets=[
+            QUESTION_IMPACT_TARGET_BRIEF,
+            "unknown",
+            "Salary",
+            QUESTION_IMPACT_TARGET_BRIEF,
+            " export ",
+        ],
+    )
+    valid_metadata.priority = " CORE "  # type: ignore[assignment]
+    invalid_metadata = Question(
+        id="invalid_metadata",
+        label="Welche Info ist unklar?",
+        answer_type=AnswerType.SHORT_TEXT,
+        impact_targets=["crm", ""],
+    )
+    invalid_metadata.priority = "critical"  # type: ignore[assignment]
+    plan = QuestionPlan(
+        steps=[
+            QuestionStep(
+                step_key="company",
+                title_de="Unternehmen",
+                questions=[valid_metadata, invalid_metadata],
+            )
+        ]
+    )
+
+    normalized = normalize_question_plan(plan)
+    questions = normalized.steps[0].questions
+
+    assert questions[0].priority == "core"
+    assert questions[0].impact_targets == [
+        QUESTION_IMPACT_TARGET_BRIEF,
+        QUESTION_IMPACT_TARGET_SALARY,
+        QUESTION_IMPACT_TARGET_EXPORT,
+    ]
+    assert questions[1].priority is None
+    assert questions[1].impact_targets == []
 
 
 def test_normalize_active_step_group_keys_to_canonical_domains() -> None:
