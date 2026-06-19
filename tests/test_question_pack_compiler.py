@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from constants import (
     AnswerType,
+    ESCO_QUESTION_SKILL_GROUP_DIGITAL_DATA_AI,
+    ESCO_QUESTION_SKILL_GROUP_REGULATION_SAFETY,
+    ESCO_QUESTION_SKILL_GROUP_TOOLS_METHODS,
     FactKey,
     QUESTION_IMPACT_TARGET_BRIEF,
     QUESTION_IMPACT_TARGET_EXPORT,
@@ -10,8 +13,13 @@ from constants import (
     QUESTION_IMPACT_TARGET_SKILLS,
     QUESTION_IMPACT_TARGETS,
     STEP_KEY_COMPANY,
+    STEP_KEY_SKILLS,
 )
-from question_limits import _question_is_adaptive_essential
+from question_limits import (
+    _question_is_adaptive_essential,
+    compute_adaptive_question_limits,
+    select_questions_for_step_scope_from_plan,
+)
 from question_plan_compiler import compile_question_plan
 from question_packs import QUESTION_PACK_REGISTRY
 from schemas import (
@@ -140,7 +148,7 @@ _EXPECTED_COMPANY_METADATA = {
     "ctx_hiring_growth_context": (
         [QUESTION_IMPACT_TARGET_BRIEF, QUESTION_IMPACT_TARGET_SALARY],
         "medium",
-        None,
+        0.66,
     ),
     "ctx_confidential_external_narrative": (
         [QUESTION_IMPACT_TARGET_BRIEF, QUESTION_IMPACT_TARGET_EXPORT],
@@ -221,8 +229,27 @@ def test_company_pack_entries_have_adaptive_metadata() -> None:
             assert question.info_gain_score is not None
         else:
             assert question.priority == "standard"
-            assert question.info_gain_score is None
-            assert not _question_is_adaptive_essential(question)
+            if question.info_gain_score is None:
+                assert not _question_is_adaptive_essential(question)
+
+
+def test_registry_pack_entries_have_priority_metadata_contract() -> None:
+    canonical_targets = set(QUESTION_IMPACT_TARGETS)
+
+    for pack in QUESTION_PACK_REGISTRY.values():
+        for entry in pack.entries:
+            question = entry.question
+
+            assert question.group_key
+            assert question.rationale and question.rationale.strip()
+            assert question.impact_targets
+            assert set(question.impact_targets) <= canonical_targets
+            assert question.acquisition_cost in {"low", "medium", "high"}
+
+            if question.priority == "core":
+                assert question.info_gain_score is not None
+                assert 0.0 <= question.info_gain_score <= 1.0
+                assert _question_is_adaptive_essential(question)
 
 
 def test_compiler_injects_selected_digital_product_packs() -> None:
@@ -428,3 +455,138 @@ def test_compiler_injects_routing_facet_questions() -> None:
         FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES.value
     )
     assert "facet.international_context" in compiled.provenance.selected_pack_keys
+
+
+def test_context_heavy_standard_scope_prioritizes_company_metadata() -> None:
+    answers = {
+        FactKey.INTAKE_HIRING_REASON.value: "replacement",
+        FactKey.INTAKE_URGENCY.value: "high",
+        FactKey.INTAKE_HIRING_VOLUME.value: 3,
+        FactKey.INTAKE_SEARCH_CONFIDENTIALITY.value: "high",
+        FactKey.INTAKE_ROLE_DEFINITION_MATURITY.value: "low",
+        FactKey.TEAM_LEADERSHIP_SCOPE.value: "disziplinarische_fuehrung",
+        FactKey.COMPANY_WORK_ARRANGEMENT.value: "remote_cross_border",
+    }
+    intake_facts = {
+        FactKey.TEAM_LEADERSHIP_SCOPE.value: "disziplinarische_fuehrung",
+        FactKey.COMPANY_WORK_ARRANGEMENT.value: "remote_cross_border",
+        FactKey.COMPANY_REMOTE_POLICY.value: "remote_cross_border",
+    }
+    profile = classify_occupation_context(
+        job=JobAdExtract(
+            job_title="Operations Lead",
+            contract_type="freelance",
+            remote_policy="remote_cross_border",
+        ),
+        answers=answers,
+    )
+    compiled = compile_question_plan(base_plan=QuestionPlan(steps=[]), profile=profile)
+
+    limits = compute_adaptive_question_limits(
+        plan=compiled.plan,
+        ui_mode="standard",
+        answers=answers,
+        answer_meta={},
+        job_extract=None,
+        intake_facts=intake_facts,
+    )
+    selected = select_questions_for_step_scope_from_plan(
+        compiled.plan,
+        STEP_KEY_COMPANY,
+        question_limits=limits,
+        answers=answers,
+        answer_meta={},
+        job_extract=None,
+        intake_facts=intake_facts,
+    )
+    selected_ids = [question.id for question in selected]
+
+    assert "ctx_leadership_reporting_detail" in selected_ids
+    assert "ctx_low_maturity_role_assumptions" in selected_ids
+    assert "ctx_confidential_external_narrative" in selected_ids
+    assert "ctx_company_role_business_impact" not in selected_ids
+
+
+def test_skills_heavy_standard_scope_prioritizes_skill_metadata_and_expert_depth() -> None:
+    profile = classify_occupation_context(
+        job=JobAdExtract(
+            job_title="Senior Data Engineer",
+            remote_policy="Remote",
+            tech_stack=["Python", "SQL"],
+        )
+    )
+    context = OccupationQuestionContext(
+        occupation_uri="uri:occupation:data-engineer",
+        preferred_label="Data engineer",
+        regulated_profession=True,
+        skill_groups=[
+            ESCO_QUESTION_SKILL_GROUP_DIGITAL_DATA_AI,
+            ESCO_QUESTION_SKILL_GROUP_TOOLS_METHODS,
+            ESCO_QUESTION_SKILL_GROUP_REGULATION_SAFETY,
+        ],
+        essential_skills=[
+            OccupationQuestionConcept(
+                uri="uri:skill:python",
+                label="Python",
+                concept_type="skill",
+                relation="essential",
+                skill_group=ESCO_QUESTION_SKILL_GROUP_DIGITAL_DATA_AI,
+                reuse_level="occupation-specific",
+            )
+        ],
+    )
+    compiled = compile_question_plan(
+        base_plan=QuestionPlan(steps=[]),
+        profile=profile,
+        question_context=context,
+        ui_mode="standard",
+    )
+
+    standard_limits = compute_adaptive_question_limits(
+        plan=compiled.plan,
+        ui_mode="standard",
+        answers={},
+        answer_meta={},
+        job_extract=None,
+    )
+    standard_selected = select_questions_for_step_scope_from_plan(
+        compiled.plan,
+        STEP_KEY_SKILLS,
+        question_limits=standard_limits,
+        answers={},
+        answer_meta={},
+        job_extract=None,
+    )
+    standard_ids = [question.id for question in standard_selected]
+
+    assert "ctx_tech_stack_must" in standard_ids
+    assert "ctx_regulated_requirements" in standard_ids
+    assert "ctx_sg_digital_data_ai" in standard_ids
+    assert "ctx_skills_free_text_reason" not in standard_ids
+    assert standard_ids.index("ctx_regulated_requirements") < standard_ids.index(
+        "ctx_sg_tools_methods"
+    )
+
+    expert_limits = compute_adaptive_question_limits(
+        plan=compiled.plan,
+        ui_mode="expert",
+        answers={},
+        answer_meta={},
+        job_extract=None,
+    )
+    expert_selected = select_questions_for_step_scope_from_plan(
+        compiled.plan,
+        STEP_KEY_SKILLS,
+        question_limits=expert_limits,
+        answers={},
+        answer_meta={},
+        job_extract=None,
+    )
+    skills_step = next(
+        step for step in compiled.plan.steps if step.step_key == STEP_KEY_SKILLS
+    )
+
+    assert len(expert_selected) == len(skills_step.questions)
+    assert "ctx_skills_free_text_reason" in [
+        question.id for question in expert_selected
+    ]
