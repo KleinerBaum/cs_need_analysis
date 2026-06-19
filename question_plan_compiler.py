@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Mapping
 
 from constants import (
     AnswerType,
@@ -73,12 +73,32 @@ def _safe_hash(value: str, length: int = 12) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()[:length]
 
 
+def _json_safe_question_payload(question: Question | Mapping[str, Any]) -> dict[str, Any]:
+    if isinstance(question, Mapping):
+        payload = dict(question)
+    else:
+        payload = question.model_dump(mode="python", warnings=False)
+    answer_type = payload.get("answer_type")
+    if hasattr(answer_type, "value"):
+        payload["answer_type"] = answer_type.value
+    return payload
+
+
 def _clone_question(question: Question) -> Question:
-    return Question.model_validate(question.model_dump(mode="json"))
+    return Question.model_validate(_json_safe_question_payload(question))
 
 
 def _clone_step(step: QuestionStep) -> QuestionStep:
-    return QuestionStep.model_validate(step.model_dump(mode="json"))
+    payload = step.model_dump(mode="python", warnings=False)
+    raw_questions = payload.get("questions")
+    if isinstance(raw_questions, list):
+        payload["questions"] = [
+            _json_safe_question_payload(question)
+            if isinstance(question, Question) or isinstance(question, Mapping)
+            else question
+            for question in raw_questions
+        ]
+    return QuestionStep.model_validate(payload)
 
 
 def _should_suppress_or_demote(

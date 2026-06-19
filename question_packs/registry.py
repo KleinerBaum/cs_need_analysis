@@ -53,7 +53,7 @@ def _pack_entry(
         id=question_id,
         label=label,
         help=help_text,
-        answer_type=answer_type,
+        answer_type=answer_type.value,
         required=required,
         options=options,
         target_path=target_path or f"answers.{step_key}.{question_id}",

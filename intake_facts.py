@@ -16,11 +16,6 @@ from constants import (
 from interview_process import normalize_interview_internal_flow
 from parsing import redact_pii
 from schemas import JobAdExtract
-from usage_events import (
-    record_fact_confirmed,
-    record_fact_corrected,
-    record_fact_rejected,
-)
 
 
 _JOB_EXTRACT_FACT_FIELDS: dict[FactKey, str] = {
@@ -619,32 +614,77 @@ def _record_manual_fact_lifecycle_event(
     source_value = source_type.value
     if normalized_value is None:
         if previous_value is not None:
-            record_fact_rejected(
+            _record_fact_rejected(
                 session_state,
                 fact_key=fact_key.value,
                 source_type=source_value,
             )
         return
     if previous_value is None:
-        record_fact_confirmed(
+        _record_fact_confirmed(
             session_state,
             fact_key=fact_key.value,
             source_type=source_value,
         )
         return
     if previous_value != normalized_value:
-        record_fact_corrected(
+        _record_fact_corrected(
             session_state,
             fact_key=fact_key.value,
             source_type=source_value,
         )
         return
     if _evidence_source_type(previous_evidence) != source_value:
-        record_fact_confirmed(
+        _record_fact_confirmed(
             session_state,
             fact_key=fact_key.value,
             source_type=source_value,
         )
+
+
+def _record_fact_confirmed(
+    session_state: MutableMapping[str, Any],
+    *,
+    fact_key: str,
+    source_type: str | None = None,
+) -> None:
+    from usage_events import record_fact_confirmed
+
+    record_fact_confirmed(
+        session_state,
+        fact_key=fact_key,
+        source_type=source_type,
+    )
+
+
+def _record_fact_corrected(
+    session_state: MutableMapping[str, Any],
+    *,
+    fact_key: str,
+    source_type: str | None = None,
+) -> None:
+    from usage_events import record_fact_corrected
+
+    record_fact_corrected(
+        session_state,
+        fact_key=fact_key,
+        source_type=source_type,
+    )
+
+
+def _record_fact_rejected(
+    session_state: MutableMapping[str, Any],
+    *,
+    fact_key: str,
+    source_type: str | None = None,
+) -> None:
+    from usage_events import record_fact_rejected
+
+    record_fact_rejected(
+        session_state,
+        fact_key=fact_key,
+        source_type=source_type,
+    )
 
 
 def _evidence_source_type(raw_evidence: Any) -> str | None:

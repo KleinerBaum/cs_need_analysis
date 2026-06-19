@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import warnings
+from enum import Enum
+
 from constants import (
     AnswerType,
     ESCO_QUESTION_SKILL_GROUP_DIGITAL_DATA_AI,
@@ -20,7 +23,7 @@ from question_limits import (
     compute_adaptive_question_limits,
     select_questions_for_step_scope_from_plan,
 )
-from question_plan_compiler import compile_question_plan
+from question_plan_compiler import _clone_question, compile_question_plan
 from question_packs import QUESTION_PACK_REGISTRY
 from schemas import (
     JobAdExtract,
@@ -184,6 +187,26 @@ _EXPECTED_COMPANY_METADATA = {
         0.86,
     ),
 }
+
+
+def test_clone_question_normalizes_stale_answer_type_enum_without_warning() -> None:
+    class ReloadedAnswerType(str, Enum):
+        NUMBER = AnswerType.NUMBER.value
+
+    stale_question = Question.model_construct(
+        id="ctx_stale_number",
+        label="How many?",
+        answer_type=ReloadedAnswerType.NUMBER,
+    )
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        cloned = _clone_question(stale_question)
+
+    assert cloned.answer_type == AnswerType.NUMBER
+    assert not any(
+        "Pydantic serializer warnings" in str(item.message) for item in caught
+    )
 
 
 def _question(question_id: str, label: str) -> Question:
