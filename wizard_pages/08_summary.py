@@ -500,6 +500,9 @@ def _resolve_canonical_brief_status(
     *,
     resolved_brief_model: str | None,
     has_brief_prerequisites: bool = True,
+    input_fingerprint: str | None = None,
+    last_brief_fingerprint: str | None = None,
+    is_dirty: bool | None = None,
 ) -> CanonicalBriefStatus:
     if not has_brief_prerequisites:
         return CanonicalBriefStatus(
@@ -527,7 +530,12 @@ def _resolve_canonical_brief_status(
             ready_for_follow_ups=False,
         )
 
-    if bool(st.session_state.get(SSKey.SUMMARY_DIRTY.value)):
+    dirty = (
+        bool(st.session_state.get(SSKey.SUMMARY_DIRTY.value))
+        if is_dirty is None
+        else is_dirty
+    )
+    if dirty:
         return CanonicalBriefStatus(
             state="stale",
             message="Recruiting Brief ist veraltet.",
@@ -546,15 +554,26 @@ def _resolve_canonical_brief_status(
         )
 
     current_input_fingerprint = str(
-        st.session_state.get(SSKey.SUMMARY_INPUT_FINGERPRINT.value, "") or ""
+        input_fingerprint
+        if input_fingerprint is not None
+        else st.session_state.get(SSKey.SUMMARY_INPUT_FINGERPRINT.value, "") or ""
     )
-    last_brief_fingerprint = str(
-        st.session_state.get(SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value, "") or ""
+    resolved_last_brief_fingerprint = str(
+        last_brief_fingerprint
+        if last_brief_fingerprint is not None
+        else st.session_state.get(SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value, "") or ""
     )
+    if current_input_fingerprint and not resolved_last_brief_fingerprint:
+        return CanonicalBriefStatus(
+            state="stale",
+            message="Recruiting Brief hat keinen aktuellen Eingabe-Snapshot.",
+            cta_label="Recruiting Brief aktualisieren",
+            ready_for_follow_ups=False,
+        )
     if (
         current_input_fingerprint
-        and last_brief_fingerprint
-        and current_input_fingerprint != last_brief_fingerprint
+        and resolved_last_brief_fingerprint
+        and current_input_fingerprint != resolved_last_brief_fingerprint
     ):
         return CanonicalBriefStatus(
             state="stale",
@@ -2177,6 +2196,38 @@ def _build_summary_completion_status(
     )
 
 
+def _build_summary_fact_fingerprint_payload(
+    *,
+    intake_facts: Mapping[str, Any],
+    intake_fact_evidence: Mapping[str, Any],
+) -> dict[str, dict[str, Any]]:
+    fact_keys = sorted(
+        {
+            str(fact_key)
+            for fact_key in [*intake_facts.keys(), *intake_fact_evidence.keys()]
+            if str(fact_key).strip()
+        }
+    )
+    resolution_state = build_intake_fact_resolution_state(
+        st.session_state,
+        fact_keys=fact_keys,
+    )
+    fingerprint_state: dict[str, dict[str, Any]] = {}
+    stable_fields = ("status", "value", "source_type", "confidence", "confirmed")
+    for fact_key in fact_keys:
+        entry = resolution_state.get(fact_key)
+        if not isinstance(entry, Mapping):
+            continue
+        stable_entry = {
+            field_name: entry[field_name]
+            for field_name in stable_fields
+            if field_name in entry
+        }
+        if stable_entry:
+            fingerprint_state[fact_key] = stable_entry
+    return fingerprint_state
+
+
 @dataclass(frozen=True)
 class SummaryFactReadiness:
     total: int
@@ -2313,6 +2364,7 @@ def _build_summary_status(
     intake_fact_evidence: Mapping[str, Any] | None = None,
     confidence_threshold: float | None = None,
     fact_rows: Sequence[SummaryFactsRow] | None = None,
+    artifacts: SummaryArtifactState | None = None,
 ) -> SummaryStatus:
     esco_ready = bool(meta.selected_occupation_title)
     if plan is None:
@@ -2345,7 +2397,10 @@ def _build_summary_status(
         completion_text = fact_readiness.completion_text
 
     brief_status = _resolve_canonical_brief_status(
-        resolved_brief_model=resolved_brief_model
+        resolved_brief_model=resolved_brief_model,
+        input_fingerprint=artifacts.input_fingerprint if artifacts else None,
+        last_brief_fingerprint=artifacts.last_brief_fingerprint if artifacts else None,
+        is_dirty=artifacts.is_dirty if artifacts else None,
     )
     brief_state = brief_status.state
     brief_status_label = brief_status.message
@@ -2421,6 +2476,12 @@ def _build_summary_view_model() -> SummaryViewModel | None:
     input_fingerprint = _build_summary_input_fingerprint(
         job=job,
         answers=answers,
+        intake_facts=dict(intake_facts),
+        intake_fact_resolution=_build_summary_fact_fingerprint_payload(
+            intake_facts=intake_facts,
+            intake_fact_evidence=intake_fact_evidence,
+        ),
+        confidence_threshold=confidence_threshold,
         selected_role_tasks=selected_role_tasks,
         selected_skills=selected_skills,
         selected_benefits=selected_benefits,
@@ -2457,6 +2518,7 @@ def _build_summary_view_model() -> SummaryViewModel | None:
         intake_fact_evidence=intake_fact_evidence,
         confidence_threshold=confidence_threshold,
         fact_rows=fact_rows,
+        artifacts=artifacts,
     )
     return SummaryViewModel(
         job=job,
@@ -3594,6 +3656,8 @@ def _artifact_status_label(vm: SummaryViewModel, artifact_id: str) -> tuple[str,
         return "open", "Offen"
     fingerprints = _summary_nested_dict_state(SSKey.SUMMARY_ARTIFACT_FINGERPRINTS)
     stored = str(fingerprints.get(artifact_id) or "")
+    if not stored and vm.artifacts.input_fingerprint:
+        return "stale", "Veraltet"
     if stored and stored != _artifact_current_fingerprint(vm, artifact_id):
         return "stale", "Veraltet"
     return "current", "Aktuell"

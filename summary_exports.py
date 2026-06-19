@@ -20,10 +20,16 @@ def build_summary_input_fingerprint(
     esco_match_explainability: dict[str, Any],
     esco_selected_skills_must: list[dict[str, str]],
     esco_selected_skills_nice: list[dict[str, str]],
+    intake_facts: dict[str, Any] | None = None,
+    intake_fact_resolution: dict[str, Any] | None = None,
+    confidence_threshold: float | None = None,
 ) -> str:
     non_sensitive_payload = {
         "job": job.model_dump(mode="json", exclude_none=True),
         "answers": answers,
+        "intake_facts": intake_facts or {},
+        "intake_fact_resolution": intake_fact_resolution or {},
+        "confidence_threshold": confidence_threshold,
         "selected_role_tasks": selected_role_tasks,
         "selected_skills": selected_skills,
         "selected_benefits": selected_benefits,
@@ -37,6 +43,7 @@ def build_summary_input_fingerprint(
         ensure_ascii=False,
         sort_keys=True,
         separators=(",", ":"),
+        default=str,
     )
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 

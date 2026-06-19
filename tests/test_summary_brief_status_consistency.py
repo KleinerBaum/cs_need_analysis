@@ -109,3 +109,35 @@ def test_stale_fingerprint_mismatch_is_consistent(monkeypatch) -> None:
     )
     assert requirement_ok is False
     assert "passt nicht mehr" in requirement_message
+
+
+def test_status_uses_current_artifact_fingerprint_over_stale_session_value(
+    monkeypatch,
+) -> None:
+    fake_st = SimpleNamespace(
+        session_state={
+            SSKey.BRIEF.value: _valid_brief_payload(),
+            SSKey.SUMMARY_LAST_MODELS.value: {"draft_model": "gpt-5-mini"},
+            SSKey.SUMMARY_INPUT_FINGERPRINT.value: "old",
+            SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value: "old",
+        }
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
+    artifacts = SUMMARY_MODULE.SummaryArtifactState(
+        brief=VacancyBrief.model_validate(_valid_brief_payload()),
+        selected_role_tasks=[],
+        selected_skills=[],
+        selected_benefits=[],
+        input_fingerprint="current",
+        last_brief_fingerprint="old",
+        is_dirty=True,
+    )
+
+    status = SUMMARY_MODULE._build_summary_status(
+        answers={},
+        meta=_meta(),
+        resolved_brief_model="gpt-5-mini",
+        artifacts=artifacts,
+    )
+
+    assert status.brief_state == "stale"
