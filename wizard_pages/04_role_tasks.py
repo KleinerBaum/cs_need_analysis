@@ -509,21 +509,25 @@ def render(ctx: WizardContext) -> None:
     source_counts: dict[str, int] = {"Jobspec": 0, "ESCO / Kontext": 0, "AI": 0}
 
     def _render_extracted_slot() -> None:
+        st.caption(
+            "Aus der Jobspec erkannte Aufgaben-Signale. Prüfe hier, was als "
+            "Kernaufgabe, Deliverable oder Erfolgskriterium belastbar ist."
+        )
         st.markdown('<div class="cs-grid-3">', unsafe_allow_html=True)
         col_resp, col_deliv, col_metrics = responsive_three_columns(gap="large")
         if responsibilities:
             with col_resp:
-                st.write("**Responsibilities (Auszug):**")
+                st.write(f"**Responsibilities ({len(responsibilities)} erkannt):**")
                 for r in responsibilities[:10]:
                     st.write(f"- {r}")
         if deliverables:
             with col_deliv:
-                st.write("**Deliverables (Auszug):**")
+                st.write(f"**Deliverables ({len(deliverables)} erkannt):**")
                 for d in deliverables[:10]:
                     st.write(f"- {d}")
         if success_metrics:
             with col_metrics:
-                st.write("**Success Metrics (Auszug):**")
+                st.write(f"**Success Metrics ({len(success_metrics)} erkannt):**")
                 for r in success_metrics[:10]:
                     st.write(f"- {r}")
         if not responsibilities and not deliverables and not success_metrics:
@@ -604,7 +608,7 @@ def render(ctx: WizardContext) -> None:
         )
         render_output_header(
             "Aufgaben auswählen",
-            "",
+            "Vergleiche extrahierte Aufgaben mit Kontextvorschlägen und übernimm nur belastbare Formulierungen.",
         )
         ai_control_col, ai_action_col = st.columns([1, 2], gap="small")
         with ai_control_col:
@@ -726,6 +730,11 @@ def render(ctx: WizardContext) -> None:
         )
 
     def _render_open_questions_slot() -> None:
+        st.markdown("#### Offene Klärungen")
+        st.caption(
+            "Diese Fragen schließen Lücken, die aus Jobspec und Quellenabgleich noch "
+            "nicht eindeutig beantwortet sind."
+        )
         if step is None or not step.questions:
             st.info(
                 "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
@@ -734,6 +743,19 @@ def render(ctx: WizardContext) -> None:
 
         render_question_step(step)
 
+    def _render_review_slot() -> None:
+        st.markdown("#### Review")
+        st.caption(
+            "Prüfe, ob Aufgaben, Verantwortungsrahmen und offene Essentials für Brief "
+            "und Folgeartefakte ausreichend geklärt sind."
+        )
+        render_standard_step_review(
+            step,
+            render_mode=resolve_standard_review_mode(
+                context=ReviewRenderContext.STEP_FORM
+            ),
+        )
+
     section_kwargs = build_step_shell_section_kwargs(
         step_key=STEP_KEY_ROLE_TASKS,
         renderers={
@@ -741,18 +763,20 @@ def render(ctx: WizardContext) -> None:
             STEP_SECTION_SOURCE_COMPARISON: _render_source_comparison_slot,
             STEP_SECTION_SALARY_FORECAST: _render_salary_forecast_slot,
             STEP_SECTION_OPEN_QUESTIONS: _render_open_questions_slot,
-            STEP_SECTION_REVIEW: lambda: render_standard_step_review(
-                step,
-                render_mode=resolve_standard_review_mode(
-                    context=ReviewRenderContext.STEP_FORM
-                ),
-            ),
+            STEP_SECTION_REVIEW: _render_review_slot,
         },
     )
 
     render_step_shell(
         title="Rolle und Kernaufgaben festzurren",
-        subtitle="",
+        subtitle=(
+            "Hier machst du aus Rollenbeschreibung, Aufgabenliste und Kontext eine "
+            "prüfbare Aufgabenbasis für Brief, Matching, Interview und Gehaltsprognose."
+        ),
+        outcome_text=(
+            "Eine abgestimmte Aufgaben- und Verantwortungsbasis mit klaren Deliverables "
+            "und offenen Klärpunkten."
+        ),
         step=step,
         extracted_from_jobspec_use_expander=False,
         lazy_section_configs={

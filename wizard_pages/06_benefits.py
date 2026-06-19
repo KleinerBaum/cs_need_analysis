@@ -9,6 +9,7 @@ from constants import (
     FactKey,
     SSKey,
     STEP_KEY_BENEFITS,
+    STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
     STEP_SECTION_OPEN_QUESTIONS,
     STEP_SECTION_REVIEW,
     STEP_SECTION_SALARY_FORECAST,
@@ -489,30 +490,41 @@ def render(ctx: WizardContext) -> None:
 
     def _render_extracted_slot() -> None:
         shown = False
+        st.caption(
+            "Aus der Jobspec erkannte Offer-Signale. Prüfe hier, was zu Vergütung, "
+            "Arbeitsmodell und Benefits belastbar kommuniziert werden kann."
+        )
         col_salary, col_benefits, col_remote = responsive_three_columns(gap="large")
         with col_salary:
+            st.write("**Vergütung:**")
             if job.salary_range:
                 min_salary = job.salary_range.min
                 max_salary = job.salary_range.max
                 if has_meaningful_value(min_salary) or has_meaningful_value(max_salary):
                     st.write(
-                        f"**Salary:** {min_salary} – {max_salary} {job.salary_range.currency or ''} ({job.salary_range.period or ''})"
+                        f"{min_salary} – {max_salary} {job.salary_range.currency or ''} ({job.salary_range.period or ''})"
                     )
                     shown = True
                 if has_meaningful_value(job.salary_range.notes):
-                    st.write(f"**Notes:** {job.salary_range.notes}")
+                    st.caption(f"Notiz: {job.salary_range.notes}")
                     shown = True
+            else:
+                st.caption("Noch nicht erkannt.")
         with col_benefits:
+            st.write(f"**Benefits ({len(jobspec_benefit_terms)} erkannt):**")
             if jobspec_benefit_terms:
-                st.write("**Benefits (Auszug):**")
                 for benefit in jobspec_benefit_terms[:12]:
                     st.write(f"- {benefit}")
                 shown = True
+            else:
+                st.caption("Noch nicht erkannt.")
         with col_remote:
+            st.write("**Arbeitsmodell:**")
             if has_meaningful_value(job.remote_policy):
-                st.write("**Arbeitsmodell (Auszug):**")
-                st.write(f"- {job.remote_policy}")
+                st.write(str(job.remote_policy))
                 shown = True
+            else:
+                st.caption("Noch nicht erkannt.")
         if not shown:
             st.info(
                 "Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions."
@@ -550,9 +562,10 @@ def render(ctx: WizardContext) -> None:
         ]
         selected_labels = _read_selected_benefits()
 
-        st.markdown("### Erkannte und ausgewählte Benefits")
+        st.markdown("### Offer-Quellen abgleichen")
         st.caption(
-            "Gewählte Benefits werden in Folgeartefakten und in der Gehaltsprognose berücksichtigt."
+            "Vergleiche Jobspec, Kontext und AI-Vorschläge. Übernommene Benefits und "
+            "Rahmenbedingungen werden in Folgeartefakten und in der Gehaltsprognose berücksichtigt."
         )
 
         semantic_context = get_esco_semantic_context()
@@ -770,6 +783,11 @@ def render(ctx: WizardContext) -> None:
             )
 
     def _render_open_questions_slot() -> None:
+        st.markdown("#### Offene Klärungen")
+        st.caption(
+            "Diese Fragen schließen Lücken zu Vergütung, Arbeitsmodell, Benefits und "
+            "kommunizierbaren Rahmenbedingungen."
+        )
         if step is None or not step.questions:
             st.info(
                 "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
@@ -778,6 +796,11 @@ def render(ctx: WizardContext) -> None:
         render_question_step(step)
 
     def _render_review_slot() -> None:
+        st.markdown("#### Review")
+        st.caption(
+            "Prüfe, ob Offer-Paket, Kommunikation und offene Essentials intern "
+            "abgestimmt und extern konsistent nutzbar sind."
+        )
         render_standard_step_review(
             step,
             render_mode=resolve_standard_review_mode(context=ReviewRenderContext.STEP_FORM),
@@ -787,6 +810,7 @@ def render(ctx: WizardContext) -> None:
     section_kwargs = build_step_shell_section_kwargs(
         step_key=STEP_KEY_BENEFITS,
         renderers={
+            STEP_SECTION_EXTRACTED_FROM_JOBSPEC: _render_extracted_slot,
             STEP_SECTION_SOURCE_COMPARISON: _render_source_comparison_slot,
             STEP_SECTION_SALARY_FORECAST: _render_salary_forecast_slot,
             STEP_SECTION_OPEN_QUESTIONS: _render_open_questions_slot,

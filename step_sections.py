@@ -63,7 +63,7 @@ _INTERVIEW_STEP_SECTIONS: tuple[StepSectionDef, ...] = (
 )
 
 _ROLE_TASKS_STEP_SECTIONS: tuple[StepSectionDef, ...] = (
-    _section(STEP_SECTION_EXTRACTED_FROM_JOBSPEC, shell_heading_de=""),
+    _section(STEP_SECTION_EXTRACTED_FROM_JOBSPEC),
     _section(STEP_SECTION_SOURCE_COMPARISON),
     _section(STEP_SECTION_SALARY_FORECAST),
     _section(STEP_SECTION_OPEN_QUESTIONS),
@@ -71,6 +71,7 @@ _ROLE_TASKS_STEP_SECTIONS: tuple[StepSectionDef, ...] = (
 )
 
 _SKILLS_STEP_SECTIONS: tuple[StepSectionDef, ...] = (
+    _section(STEP_SECTION_EXTRACTED_FROM_JOBSPEC),
     _section(STEP_SECTION_SOURCE_COMPARISON),
     _section(STEP_SECTION_SALARY_FORECAST),
     _section(STEP_SECTION_OPEN_QUESTIONS),
@@ -78,6 +79,7 @@ _SKILLS_STEP_SECTIONS: tuple[StepSectionDef, ...] = (
 )
 
 _BENEFITS_STEP_SECTIONS: tuple[StepSectionDef, ...] = (
+    _section(STEP_SECTION_EXTRACTED_FROM_JOBSPEC),
     _section(STEP_SECTION_SOURCE_COMPARISON),
     _section(STEP_SECTION_SALARY_FORECAST),
     _section(STEP_SECTION_OPEN_QUESTIONS),

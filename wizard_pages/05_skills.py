@@ -12,6 +12,7 @@ from constants import (
     FactKey,
     SSKey,
     STEP_KEY_SKILLS,
+    STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
     STEP_SECTION_OPEN_QUESTIONS,
     STEP_SECTION_REVIEW,
     STEP_SECTION_SALARY_FORECAST,
@@ -1778,19 +1779,29 @@ def _render_extracted_slot(job: JobAdExtract) -> None:
         x for x in job.nice_to_have_skills if has_meaningful_value(x)
     ]
     tech_stack = [x for x in job.tech_stack if has_meaningful_value(x)]
+    st.caption(
+        "Aus der Jobspec erkannte Skill-Signale. Im Quellenabgleich entscheidest du, "
+        "welche Begriffe als Must-have, Nice-to-have oder Freitext übernommen werden."
+    )
     col_must, col_nice, col_stack = responsive_three_columns(gap="large")
     with col_must:
-        st.write("**Must-have (Auszug):**")
+        st.write(f"**Must-have ({len(must_have_skills)} erkannt):**")
         for value in must_have_skills[:12]:
             st.write(f"- {value}")
+        if not must_have_skills:
+            st.caption("Noch nicht erkannt.")
     with col_nice:
-        st.write("**Nice-to-have (Auszug):**")
+        st.write(f"**Nice-to-have ({len(nice_to_have_skills)} erkannt):**")
         for value in nice_to_have_skills[:12]:
             st.write(f"- {value}")
+        if not nice_to_have_skills:
+            st.caption("Noch nicht erkannt.")
     with col_stack:
-        st.write("**Tech Stack (Auszug):**")
+        st.write(f"**Tech Stack ({len(tech_stack)} erkannt):**")
         for value in tech_stack[:15]:
             st.write(f"- {value}")
+        if not tech_stack:
+            st.caption("Noch nicht erkannt.")
     if not must_have_skills and not nice_to_have_skills and not tech_stack:
         st.info("Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions.")
 
@@ -2548,8 +2559,17 @@ def _render_salary_forecast_slot(
 
 
 def _render_open_questions_slot(step: QuestionStep | None) -> None:
+    st.markdown("#### Offene Klärungen")
+    st.caption(
+        "Diese Fragen klären Pflichtgrad, Mindestniveau, Timing und Nachweise, die "
+        "aus der Jobspec noch nicht sicher hervorgehen."
+    )
     if step is not None and step.questions:
         render_question_step(step)
+        return
+    st.info(
+        "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
+    )
 
 
 def render(ctx: WizardContext) -> None:
@@ -2582,6 +2602,11 @@ def render(ctx: WizardContext) -> None:
 
     def _render_source_comparison_slot() -> None:
         nonlocal source_counts
+        st.markdown("### Skill-Quellen abgleichen")
+        st.caption(
+            "Vergleiche Jobspec, ESCO/Kontext und AI-Vorschläge. Übernommene Skills "
+            "werden anschließend strukturiert und für Matching, Interview und Export genutzt."
+        )
         source_counts = _render_skills_source_comparison_block(
             job=job,
             selected_occupation=selected_occupation,
@@ -2591,20 +2616,29 @@ def render(ctx: WizardContext) -> None:
         )
         _render_structured_skill_rows()
 
+    def _render_review_slot() -> None:
+        st.markdown("#### Review")
+        st.caption(
+            "Prüfe, ob Skill-Auswahl, Pflichtgrad und offene Essentials für Brief, "
+            "Matching und Interview verwertbar sind."
+        )
+        render_standard_step_review(
+            step,
+            render_mode=resolve_standard_review_mode(
+                context=ReviewRenderContext.STEP_FORM
+            ),
+        )
+
     section_kwargs = build_step_shell_section_kwargs(
         step_key=STEP_KEY_SKILLS,
         renderers={
+            STEP_SECTION_EXTRACTED_FROM_JOBSPEC: lambda: _render_extracted_slot(job),
             STEP_SECTION_SOURCE_COMPARISON: _render_source_comparison_slot,
             STEP_SECTION_SALARY_FORECAST: lambda: _render_salary_forecast_slot(
                 job, source_counts
             ),
             STEP_SECTION_OPEN_QUESTIONS: lambda: _render_open_questions_slot(step),
-            STEP_SECTION_REVIEW: lambda: render_standard_step_review(
-                step,
-                render_mode=resolve_standard_review_mode(
-                    context=ReviewRenderContext.STEP_FORM
-                ),
-            ),
+            STEP_SECTION_REVIEW: _render_review_slot,
         },
     )
 

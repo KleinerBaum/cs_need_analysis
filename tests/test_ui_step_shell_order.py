@@ -182,12 +182,14 @@ def test_role_skills_benefits_use_expected_step_shell_block_order() -> None:
         "review_slot",
     ]
     assert skills_slots == [
+        "extracted_from_jobspec_slot",
         "source_comparison_slot",
         "salary_forecast_slot",
         "open_questions_slot",
         "review_slot",
     ]
     assert benefits_slots == [
+        "extracted_from_jobspec_slot",
         "source_comparison_slot",
         "salary_forecast_slot",
         "open_questions_slot",
@@ -265,37 +267,41 @@ def test_canonical_step_section_registry_drives_shell_order() -> None:
                 "open_questions_slot",
                 "review_slot",
             ],
-            "",
+            "Aus Jobspec extrahiert",
         ),
         STEP_KEY_SKILLS: (
             [
+                STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
                 STEP_SECTION_SOURCE_COMPARISON,
                 STEP_SECTION_SALARY_FORECAST,
                 STEP_SECTION_OPEN_QUESTIONS,
                 STEP_SECTION_REVIEW,
             ],
             [
+                "extracted_from_jobspec_slot",
                 "source_comparison_slot",
                 "salary_forecast_slot",
                 "open_questions_slot",
                 "review_slot",
             ],
-            None,
+            "Aus Jobspec extrahiert",
         ),
         STEP_KEY_BENEFITS: (
             [
+                STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
                 STEP_SECTION_SOURCE_COMPARISON,
                 STEP_SECTION_SALARY_FORECAST,
                 STEP_SECTION_OPEN_QUESTIONS,
                 STEP_SECTION_REVIEW,
             ],
             [
+                "extracted_from_jobspec_slot",
                 "source_comparison_slot",
                 "salary_forecast_slot",
                 "open_questions_slot",
                 "review_slot",
             ],
-            None,
+            "Aus Jobspec extrahiert",
         ),
         STEP_KEY_INTERVIEW: (
             [
@@ -386,7 +392,7 @@ def test_salary_forecast_slots_keep_canonical_result_key_wiring() -> None:
     )
 
 
-def test_benefits_step_shell_uses_source_comparison_without_jobspec_block() -> None:
+def test_benefits_step_shell_includes_jobspec_context_before_source_comparison() -> None:
     benefits = _load_module(
         "wizard_pages.page_06_benefits_extract", "wizard_pages/06_benefits.py"
     )
@@ -409,7 +415,7 @@ def test_benefits_step_shell_uses_source_comparison_without_jobspec_block() -> N
 
     benefits.render(SimpleNamespace())
 
-    assert "extracted_from_jobspec_slot" not in captured_kwargs
+    assert captured_kwargs["extracted_from_jobspec_slot"] is not None
     assert captured_kwargs["source_comparison_slot"] is not None
     assert captured_kwargs["salary_forecast_slot"] is not None
 
