@@ -2176,6 +2176,130 @@ def _build_summary_completion_status(
     )
 
 
+@dataclass(frozen=True)
+class SummaryFactReadiness:
+    total: int
+    resolved: int
+    partial: int
+    open: int
+    completion_ratio: float
+    completion_text: str
+    readiness_percent: int
+    ready_for_follow_ups: bool
+
+
+def _summary_fact_requirement_stage(row: SummaryFactsRow) -> FactRequirementStage | None:
+    try:
+        return FactRequirementStage(str(row.requirement_stage or "").strip())
+    except ValueError:
+        return None
+
+
+def _is_critical_summary_fact_row(row: SummaryFactsRow) -> bool:
+    return _summary_fact_requirement_stage(row) == FactRequirementStage.BEFORE_SUMMARY
+
+
+def _summary_fact_resolution_status(row: SummaryFactsRow) -> FactResolutionStatus:
+    raw_status = str(row.resolution_status or "").strip()
+    if raw_status:
+        try:
+            return FactResolutionStatus(raw_status)
+        except ValueError:
+            pass
+    if row.status == "Fehlend":
+        return FactResolutionStatus.MISSING
+    if row.status == "Teilweise":
+        return FactResolutionStatus.ASSUMED
+    return FactResolutionStatus.INFERRED
+
+
+def _summary_fact_confidence_allows_readiness(
+    row: SummaryFactsRow,
+    *,
+    intake_fact_evidence: Mapping[str, Any] | None,
+    confidence_threshold: float | None,
+) -> bool:
+    if not row.fact_key:
+        return True
+    try:
+        fact_key = FactKey(row.fact_key)
+    except ValueError:
+        return True
+    return _summary_fact_allows_readiness(
+        fact_key,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
+    )
+
+
+def _summary_fact_readiness_bucket(
+    row: SummaryFactsRow,
+    *,
+    intake_fact_evidence: Mapping[str, Any] | None,
+    confidence_threshold: float | None,
+) -> str:
+    resolution_status = _summary_fact_resolution_status(row)
+    if (
+        row.status == "Fehlend"
+        or resolution_status
+        in {FactResolutionStatus.MISSING, FactResolutionStatus.CONFLICTED}
+        or not _summary_fact_confidence_allows_readiness(
+            row,
+            intake_fact_evidence=intake_fact_evidence,
+            confidence_threshold=confidence_threshold,
+        )
+    ):
+        return "open"
+    if row.status == "Teilweise" or resolution_status == FactResolutionStatus.ASSUMED:
+        return "partial"
+    if row.status in {"Vollständig", "Automatisch erkannt"} and resolution_status in {
+        FactResolutionStatus.CONFIRMED,
+        FactResolutionStatus.INFERRED,
+    }:
+        return "resolved"
+    return "partial"
+
+
+def _build_summary_fact_readiness(
+    fact_rows: Sequence[SummaryFactsRow],
+    *,
+    intake_fact_evidence: Mapping[str, Any] | None,
+    confidence_threshold: float | None,
+) -> SummaryFactReadiness | None:
+    critical_rows = [row for row in fact_rows if _is_critical_summary_fact_row(row)]
+    total = len(critical_rows)
+    if total <= 0:
+        return None
+
+    bucket_counts = {"resolved": 0, "partial": 0, "open": 0}
+    for row in critical_rows:
+        bucket = _summary_fact_readiness_bucket(
+            row,
+            intake_fact_evidence=intake_fact_evidence,
+            confidence_threshold=confidence_threshold,
+        )
+        bucket_counts[bucket] += 1
+
+    resolved = bucket_counts["resolved"]
+    partial = bucket_counts["partial"]
+    open_count = bucket_counts["open"]
+    weighted_completed = resolved + (partial * 0.5)
+    completion_ratio = weighted_completed / total
+    completion_text = f"{resolved}/{total} kritische Fakten geklärt"
+    if partial:
+        completion_text = f"{completion_text}, {partial} teilweise"
+    return SummaryFactReadiness(
+        total=total,
+        resolved=resolved,
+        partial=partial,
+        open=open_count,
+        completion_ratio=completion_ratio,
+        completion_text=completion_text,
+        readiness_percent=round(completion_ratio * 100),
+        ready_for_follow_ups=(resolved == total and partial == 0 and open_count == 0),
+    )
+
+
 def _build_summary_status(
     *,
     answers: dict[str, Any],
@@ -2187,6 +2311,7 @@ def _build_summary_status(
     intake_facts: Mapping[str, Any] | None = None,
     intake_fact_evidence: Mapping[str, Any] | None = None,
     confidence_threshold: float | None = None,
+    fact_rows: Sequence[SummaryFactsRow] | None = None,
 ) -> SummaryStatus:
     esco_ready = bool(meta.selected_occupation_title)
     if plan is None:
@@ -2205,6 +2330,18 @@ def _build_summary_status(
         intake_fact_evidence=intake_fact_evidence or {},
         confidence_threshold=confidence_threshold,
     )
+    fact_readiness = (
+        _build_summary_fact_readiness(
+            fact_rows,
+            intake_fact_evidence=intake_fact_evidence or {},
+            confidence_threshold=confidence_threshold,
+        )
+        if fact_rows is not None
+        else None
+    )
+    if fact_readiness is not None:
+        completion_ratio = fact_readiness.completion_ratio
+        completion_text = fact_readiness.completion_text
 
     brief_status = _resolve_canonical_brief_status(
         resolved_brief_model=resolved_brief_model
@@ -2213,16 +2350,20 @@ def _build_summary_status(
     brief_status_label = brief_status.message
     next_step = "Gewünschtes Recruiting-Artefakt erzeugen"
 
-    readiness_checks = [
-        bool(meta.role_label),
-        bool(meta.company_label),
-        bool(meta.country_label),
-        esco_ready,
-    ]
-    readiness_percent = round(
-        (sum(1 for item in readiness_checks if item) / len(readiness_checks)) * 100
-    )
-    ready_for_follow_ups = bool(meta.role_label)
+    if fact_readiness is not None:
+        readiness_percent = fact_readiness.readiness_percent
+        ready_for_follow_ups = fact_readiness.ready_for_follow_ups
+    else:
+        readiness_checks = [
+            bool(meta.role_label),
+            bool(meta.company_label),
+            bool(meta.country_label),
+            esco_ready,
+        ]
+        readiness_percent = round(
+            (sum(1 for item in readiness_checks if item) / len(readiness_checks)) * 100
+        )
+        ready_for_follow_ups = bool(meta.role_label)
 
     return SummaryStatus(
         completion_ratio=completion_ratio,
@@ -2297,6 +2438,13 @@ def _build_summary_view_model() -> SummaryViewModel | None:
         selected_benefits=selected_benefits,
         input_fingerprint=input_fingerprint,
     )
+    fact_rows = _build_summary_fact_rows(
+        job=job,
+        answers=answers,
+        plan=plan,
+        artifacts=artifacts,
+        meta=meta,
+    )
     status = _build_summary_status(
         answers=answers,
         meta=meta,
@@ -2307,13 +2455,7 @@ def _build_summary_view_model() -> SummaryViewModel | None:
         intake_facts=intake_facts,
         intake_fact_evidence=intake_fact_evidence,
         confidence_threshold=confidence_threshold,
-    )
-    fact_rows = _build_summary_fact_rows(
-        job=job,
-        answers=answers,
-        plan=plan,
-        artifacts=artifacts,
-        meta=meta,
+        fact_rows=fact_rows,
     )
     return SummaryViewModel(
         job=job,
@@ -3263,7 +3405,11 @@ def _render_summary_facts_matrix(vm: SummaryViewModel) -> None:
 def _build_summary_critical_gap_rows(vm: SummaryViewModel) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     for row in vm.fact_rows:
-        if row.bereich == "Artefakte" or row.status not in {"Fehlend", "Teilweise"}:
+        if (
+            row.bereich == "Artefakte"
+            or row.status not in {"Fehlend", "Teilweise"}
+            or not _is_critical_summary_fact_row(row)
+        ):
             continue
         step_key = row.step_key or _summary_step_key_for_area(row.bereich)
         if step_key not in SUMMARY_FACT_STEP_LABELS:
@@ -4028,8 +4174,16 @@ def _render_export_bar(*, has_brief: bool) -> None:
 
 
 def _build_missing_critical_items(vm: SummaryViewModel, *, limit: int = 5) -> list[str]:
-    missing_rows = [row for row in vm.fact_rows if row.status == "Fehlend"]
-    partial_rows = [row for row in vm.fact_rows if row.status == "Teilweise"]
+    missing_rows = [
+        row
+        for row in vm.fact_rows
+        if row.status == "Fehlend" and _is_critical_summary_fact_row(row)
+    ]
+    partial_rows = [
+        row
+        for row in vm.fact_rows
+        if row.status == "Teilweise" and _is_critical_summary_fact_row(row)
+    ]
     ordered_rows = [*missing_rows, *partial_rows]
     items: list[str] = []
     for row in ordered_rows:
@@ -4083,6 +4237,7 @@ def _resolve_next_best_action_recommendation(
         (row.bereich, row.feld)
         for row in vm.fact_rows
         if row.status in {"Fehlend", "Teilweise"}
+        and _is_critical_summary_fact_row(row)
     }
 
     def _first_available_action(ids: tuple[str, ...]) -> SummaryAction | None:
@@ -4349,7 +4504,7 @@ def _render_summary_readiness_metrics(vm: SummaryViewModel) -> None:
     }.get(vm.status.brief_state, vm.status.brief_status_label)
     metric_columns = st.columns(4)
     metric_columns[0].metric("Readiness", f"{vm.status.readiness_percent}%")
-    metric_columns[1].metric("Antworten", vm.status.completion_text)
+    metric_columns[1].metric("Kritische Fakten", vm.status.completion_text)
     metric_columns[2].metric("ESCO", "Bestätigt" if vm.status.esco_ready else "Offen")
     metric_columns[3].metric("Brief", brief_label)
 

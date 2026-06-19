@@ -8,6 +8,8 @@ from types import SimpleNamespace
 from constants import (
     AnswerType,
     FactKey,
+    FactRequirementStage,
+    FactResolutionStatus,
     SSKey,
     STEP_KEY_ROLE_TASKS,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
@@ -29,6 +31,32 @@ class _NoopContext:
 
     def __exit__(self, *_: object) -> Literal[False]:
         return False
+
+
+def _fact_row(
+    bereich: str,
+    feld: str,
+    status: str,
+    *,
+    value: str = "Nicht angegeben",
+    fact_key: FactKey | None = None,
+    requirement_stage: FactRequirementStage = FactRequirementStage.BEFORE_SUMMARY,
+    resolution_status: FactResolutionStatus | str = "",
+) -> SUMMARY_MODULE.SummaryFactsRow:
+    return SUMMARY_MODULE.SummaryFactsRow(
+        bereich,
+        feld,
+        value,
+        "Test",
+        status,
+        (
+            resolution_status.value
+            if isinstance(resolution_status, FactResolutionStatus)
+            else str(resolution_status)
+        ),
+        fact_key=fact_key.value if fact_key is not None else "",
+        requirement_stage=requirement_stage.value,
+    )
 
 
 def test_resolve_next_best_action_prefers_brief_when_not_ready(monkeypatch) -> None:
@@ -182,14 +210,91 @@ def test_summary_status_counts_jobspec_evidence_fact_and_missing_fact(
         intake_facts=intake_facts,
         intake_fact_evidence=intake_fact_evidence,
         confidence_threshold=confidence_threshold,
+        fact_rows=[
+            _fact_row(
+                "Kernprofil",
+                "Rolle",
+                "Vollständig",
+                value="Data Engineer",
+                fact_key=FactKey.ROLE_JOB_TITLE,
+                resolution_status=FactResolutionStatus.INFERRED,
+            ),
+            _fact_row(
+                "Kernprofil",
+                "Land",
+                "Fehlend",
+                fact_key=FactKey.COMPANY_LOCATION_COUNTRY,
+                resolution_status=FactResolutionStatus.MISSING,
+            ),
+        ],
     )
 
     assert meta.role_label == "Data Engineer"
     assert meta.country_label == ""
-    assert status.completion_text == "1/2 beantwortet"
+    assert status.completion_text == "1/2 kritische Fakten geklärt"
     assert status.completion_ratio == 0.5
-    assert status.readiness_percent == 25
-    assert status.ready_for_follow_ups is True
+    assert status.readiness_percent == 50
+    assert status.ready_for_follow_ups is False
+
+
+def test_summary_status_treats_inferred_as_ready_but_conflicts_and_low_confidence_open(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(SUMMARY_MODULE, "st", SimpleNamespace(session_state={}))
+    meta = SUMMARY_MODULE.SummaryMeta(
+        role_label="Data Engineer",
+        company_label="Acme",
+        country_label="DE",
+        selected_occupation_title="",
+        readiness_items=[],
+    )
+    intake_fact_evidence = {
+        FactKey.ROLE_JOB_TITLE.value: {"confidence": 0.9},
+        FactKey.COMPANY_COMPANY_NAME.value: {
+            "confidence": 0.95,
+            "resolution_status": FactResolutionStatus.CONFLICTED.value,
+        },
+        FactKey.COMPANY_LOCATION_COUNTRY.value: {"confidence": 0.4},
+    }
+
+    status = SUMMARY_MODULE._build_summary_status(
+        answers={},
+        meta=meta,
+        resolved_brief_model="gpt-5-mini",
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=0.6,
+        fact_rows=[
+            _fact_row(
+                "Kernprofil",
+                "Rolle",
+                "Vollständig",
+                value="Data Engineer",
+                fact_key=FactKey.ROLE_JOB_TITLE,
+                resolution_status=FactResolutionStatus.INFERRED,
+            ),
+            _fact_row(
+                "Kernprofil",
+                "Unternehmen",
+                "Vollständig",
+                value="Acme",
+                fact_key=FactKey.COMPANY_COMPANY_NAME,
+                resolution_status=FactResolutionStatus.CONFLICTED,
+            ),
+            _fact_row(
+                "Kernprofil",
+                "Land",
+                "Vollständig",
+                value="DE",
+                fact_key=FactKey.COMPANY_LOCATION_COUNTRY,
+                resolution_status=FactResolutionStatus.INFERRED,
+            ),
+        ],
+    )
+
+    assert status.completion_text == "1/3 kritische Fakten geklärt"
+    assert status.completion_ratio == 1 / 3
+    assert status.readiness_percent == 33
+    assert status.ready_for_follow_ups is False
 
 
 def test_readiness_tab_delegates_detail_sections_to_workspaces(monkeypatch) -> None:
@@ -376,9 +481,9 @@ def test_resolve_next_best_action_keeps_brief_for_missing_core_context(monkeypat
     ]
     vm = SimpleNamespace(
         fact_rows=[
-            SUMMARY_MODULE.SummaryFactsRow("Kernprofil", "Land", "Nicht angegeben", "Jobspec", "Fehlend"),
-            SUMMARY_MODULE.SummaryFactsRow("Kernprofil", "Stadt", "Nicht angegeben", "Jobspec", "Fehlend"),
-            SUMMARY_MODULE.SummaryFactsRow("Kernprofil", "Unternehmen", "Nicht angegeben", "Jobspec", "Fehlend"),
+            _fact_row("Kernprofil", "Land", "Fehlend"),
+            _fact_row("Kernprofil", "Stadt", "Fehlend"),
+            _fact_row("Kernprofil", "Unternehmen", "Fehlend"),
         ]
     )
     action = SUMMARY_MODULE._resolve_next_best_action(
@@ -418,12 +523,37 @@ def test_build_artifact_status_rows_uses_requirement_checks(monkeypatch) -> None
 def test_build_missing_critical_items_uses_fact_rows_status_order() -> None:
     vm = SimpleNamespace(
         fact_rows=[
-            SUMMARY_MODULE.SummaryFactsRow("A", "f1", "—", "x", "Teilweise"),
-            SUMMARY_MODULE.SummaryFactsRow("B", "f2", "—", "x", "Fehlend"),
+            _fact_row(
+                "Optional",
+                "optional",
+                "Fehlend",
+                requirement_stage=FactRequirementStage.OPTIONAL,
+            ),
+            _fact_row("A", "f1", "Teilweise", value="—"),
+            _fact_row("B", "f2", "Fehlend", value="—"),
         ]
     )
     items = SUMMARY_MODULE._build_missing_critical_items(vm)
-    assert items[0].startswith("B · f2")
+    assert items == ["B · f2", "A · f1"]
+
+
+def test_build_summary_critical_gap_rows_ignores_optional_rows() -> None:
+    vm = SimpleNamespace(
+        fact_rows=[
+            _fact_row(
+                "Benefits",
+                "Nice detail",
+                "Fehlend",
+                requirement_stage=FactRequirementStage.OPTIONAL,
+            ),
+            _fact_row("Kernprofil", "Land", "Fehlend"),
+        ]
+    )
+
+    rows = SUMMARY_MODULE._build_summary_critical_gap_rows(vm)
+
+    assert [row["Feld"] for row in rows] == ["Land"]
+    assert rows[0]["Pflichtigkeit"] == "Pflicht vor Summary"
 
 
 def test_resolve_next_best_action_recommendation_priority_order(monkeypatch) -> None:
@@ -484,7 +614,7 @@ def test_resolve_next_best_action_recommendation_priority_order(monkeypatch) -> 
     ]
 
     vm_missing_core = SimpleNamespace(
-        fact_rows=[SUMMARY_MODULE.SummaryFactsRow("Kernprofil", "Land", "Nicht angegeben", "Jobspec", "Fehlend")]
+        fact_rows=[_fact_row("Kernprofil", "Land", "Fehlend")]
     )
     recommendation = SUMMARY_MODULE._resolve_next_best_action_recommendation(
         registry, resolved_brief_model="gpt-5-mini", vm=vm_missing_core
