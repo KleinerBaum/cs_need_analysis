@@ -365,8 +365,8 @@ def _preview_height_for_text(text: str) -> int:
 
 def _manual_input_height_for_text(text: str) -> int:
     """Return a compact default height for short text and grow moderately for longer text."""
-    min_height_px = 200
-    max_height_px = 380
+    min_height_px = 180
+    max_height_px = 300
     return max(min_height_px, min(_preview_height_for_text(text), max_height_px))
 
 
@@ -387,7 +387,7 @@ def _read_upload_preview_bytes(upload: object) -> bytes | None:
     return raw if isinstance(raw, bytes) and raw else None
 
 
-def _document_preview_shell(inner_html: str, *, height_px: int = 460) -> str:
+def _document_preview_shell(inner_html: str, *, height_px: int = 280) -> str:
     return f"""
         <style>
         .cs-jobad-preview-wrap {{
@@ -418,8 +418,8 @@ def _document_preview_shell(inner_html: str, *, height_px: int = 460) -> str:
             line-height: 1.55;
             margin: 0 auto;
             max-width: 780px;
-            min-height: 360px;
-            padding: 38px 44px;
+            min-height: 240px;
+            padding: 28px 32px;
         }}
         .cs-jobad-page h1,
         .cs-jobad-page h2,
@@ -456,6 +456,56 @@ def _document_preview_shell(inner_html: str, *, height_px: int = 460) -> str:
             <div class="cs-jobad-document-preview">{inner_html}</div>
         </div>
     """
+
+
+def _looks_like_noisy_source_line(text: str) -> bool:
+    cleaned = text.strip()
+    if not cleaned:
+        return True
+    lowered = cleaned.lower()
+    noise_markers = (
+        "<div",
+        "</div",
+        "class=",
+        "cookie",
+        "skip to main content",
+        "click here to update your cookie settings",
+        "mehr lesen",
+        "speichern",
+    )
+    return any(marker in lowered for marker in noise_markers)
+
+
+def _clean_source_preview_lines(text: str, *, limit: int = 6) -> list[str]:
+    lines: list[str] = []
+    for raw_line in text.splitlines():
+        line = " ".join(str(raw_line or "").strip().split())
+        if _looks_like_noisy_source_line(line):
+            continue
+        lines.append(line[:220])
+        if len(lines) >= limit:
+            break
+    return lines
+
+
+def _render_uploaded_source_summary(text: str) -> None:
+    char_count = len(text.strip())
+    formatted_char_count = f"{char_count:,}".replace(",", ".")
+    lines = _clean_source_preview_lines(text)
+    if not lines:
+        st.caption(
+            f"Extrahierter Text ist bereit ({formatted_char_count} Zeichen). "
+            "Die vollständige Quelle bleibt einklappbar."
+        )
+        return
+    st.caption(
+        f"Extrahierter Text ist bereit ({formatted_char_count} Zeichen). "
+        "Kompakte Vorschau:"
+    )
+    st.markdown(
+        "<br>".join(f"• {html.escape(line)}" for line in lines),
+        unsafe_allow_html=True,
+    )
 
 
 def _docx_preview_html(raw: bytes) -> str:
@@ -872,6 +922,67 @@ def _render_source_bucket(title: str, items: list[str], caption: str) -> None:
         st.caption(caption)
 
 
+def _confidence_values(job: JobAdExtract) -> list[float]:
+    values: list[float] = []
+    for evidence in job_extract_field_evidence_by_name(job).values():
+        confidence = _evidence_confidence(evidence)
+        if confidence is not None:
+            values.append(confidence)
+    return values
+
+
+def _render_priority_stat(title: str, value: str, caption: str) -> None:
+    with st.container(border=True):
+        st.markdown(f"**{title}**")
+        st.write(value or "Nicht erkannt")
+        st.caption(caption)
+
+
+def _render_analysis_priority_summary(job: JobAdExtract) -> None:
+    evidence_by_field = job_extract_field_evidence_by_name(job)
+    confidence_values = _confidence_values(job)
+    average_confidence = (
+        f"{round(sum(confidence_values) / len(confidence_values) * 100):.0f}%"
+        if confidence_values
+        else "n/a"
+    )
+    uncertain_count = 0
+    for evidence in evidence_by_field.values():
+        if not isinstance(evidence, dict):
+            continue
+        confidence = _evidence_confidence(evidence)
+        if bool(evidence.get("needs_confirmation")) or (
+            confidence is not None and confidence < 0.85
+        ):
+            uncertain_count += 1
+    gap_count = len([gap for gap in job.gaps if str(gap).strip()])
+
+    location = ", ".join(
+        value
+        for value in (
+            str(job.location_city or "").strip(),
+            str(job.location_country or "").strip(),
+        )
+        if value
+    )
+    location = str(job.place_of_work or "").strip() or location
+
+    st.markdown("#### Review-Fokus")
+    columns = st.columns(4, gap="small")
+    stats = (
+        ("Rolle", str(job.job_title or "").strip(), "Erkannter Zieljob"),
+        ("Unternehmen", str(job.company_name or "").strip(), "Quelle oder Ableitung"),
+        ("Sicherheit", average_confidence, "Durchschnitt erkannter Evidenzen"),
+        ("Prüfen", f"{uncertain_count} unsicher · {gap_count} offen", "Priorität vor Weiter"),
+    )
+    for column, (title, value, caption) in zip(columns, stats):
+        with column:
+            _render_priority_stat(title, value, caption)
+
+    if location:
+        st.caption(f"Arbeitsort: {location}")
+
+
 def _render_job_extract_provenance_block(job: JobAdExtract) -> None:
     evidence_by_field = job_extract_field_evidence_by_name(job)
     upload_backed: list[str] = []
@@ -895,29 +1006,38 @@ def _render_job_extract_provenance_block(job: JobAdExtract) -> None:
     ]
 
     st.markdown("#### Herkunft der Informationen")
-    st.caption(
-        "Die Buckets trennen belegte Upload-Fundstellen, unsichere Ableitungen, "
-        "offene Lücken und explizite Annahmen. ESCO-/Kontextvorschläge erscheinen "
-        "separat als bestätigungspflichtige Vorschläge."
-    )
-    columns = st.columns(4, gap="small")
-    bucket_specs = (
-        (
-            "Aus Upload belegt",
-            upload_backed,
-            "Felder mit kurzer Fundstelle aus dem hochgeladenen Text.",
-        ),
-        (
-            "Unsicher / prüfen",
-            uncertain,
-            "Niedrige Sicherheit oder vom Modell als prüfpflichtig markiert.",
-        ),
+    focus_specs = (
+        ("Unsicher / prüfen", uncertain, "Niedrige Sicherheit oder prüfpflichtig markiert."),
         ("Offene Lücken", gaps, "Nicht gefundene oder unklare Angaben."),
-        ("Annahmen", assumptions, "Vom Modell dokumentierte Ableitungen."),
     )
-    for column, (title, items, caption) in zip(columns, bucket_specs):
+    focus_columns = st.columns(2, gap="small")
+    for column, (title, items, caption) in zip(focus_columns, focus_specs):
         with column:
             _render_source_bucket(title, items, caption)
+
+    details_context = (
+        st.expander("Belegte Fundstellen und Annahmen anzeigen", expanded=False)
+        if hasattr(st, "expander")
+        else nullcontext()
+    )
+    with details_context:
+        st.caption(
+            "Die Buckets trennen belegte Upload-Fundstellen, unsichere Ableitungen, "
+            "offene Lücken und explizite Annahmen. ESCO-/Kontextvorschläge erscheinen "
+            "separat als bestätigungspflichtige Vorschläge."
+        )
+        columns = st.columns(2, gap="small")
+        bucket_specs = (
+            (
+                "Aus Upload belegt",
+                upload_backed,
+                "Felder mit kurzer Fundstelle aus dem hochgeladenen Text.",
+            ),
+            ("Annahmen", assumptions, "Vom Modell dokumentierte Ableitungen."),
+        )
+        for column, (title, items, caption) in zip(columns, bucket_specs):
+            with column:
+                _render_source_bucket(title, items, caption)
 
 
 def _render_job_extract_hypothesis_form(job: JobAdExtract) -> None:
@@ -1008,6 +1128,7 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
         "und bestätigen Sie anschließend den passenden Beruf für den Abgleich."
     )
     _render_input_quality_hint(job)
+    _render_analysis_priority_summary(job)
     render_job_extract_overview(
         job,
         plan=plan,
@@ -1248,10 +1369,18 @@ def _render_source_upload_status() -> None:
 
 
 def _render_phase_a_configuration_controls() -> None:
-    st.markdown("#### Detailgrad")
+    st.markdown("#### Einstellungen")
     render_ui_mode_selector()
-    _render_start_routing_controls()
-    _render_esco_operating_block()
+    ui_mode = str(st.session_state.get(SSKey.UI_MODE.value, UI_MODE_DEFAULT)).strip().lower()
+    expanded = ui_mode == "expert"
+    advanced_context = (
+        st.expander("Optionale Angaben & Berufsabgleich", expanded=expanded)
+        if hasattr(st, "expander")
+        else nullcontext()
+    )
+    with advanced_context:
+        _render_start_routing_controls()
+        _render_esco_operating_block()
 
 
 def _render_source_character_metric() -> None:
@@ -1274,7 +1403,14 @@ def _render_source_text_or_preview() -> None:
     manual_text = str(st.session_state.get(SOURCE_TEXT_INPUT_KEY, ""))
     upload = st.session_state.get("cs.source_upload_file")
     if upload is not None:
-        _render_uploaded_document_preview(upload, manual_text)
+        _render_uploaded_source_summary(manual_text)
+        preview_context = (
+            st.expander("Dokumentvorschau anzeigen", expanded=False)
+            if hasattr(st, "expander")
+            else nullcontext()
+        )
+        with preview_context:
+            _render_uploaded_document_preview(upload, manual_text)
         text_area_context = (
             st.expander(
                 "Extrahierter Text für die Analyse",
@@ -1287,7 +1423,7 @@ def _render_source_text_or_preview() -> None:
             st.text_area(
                 "Extrahierter Text für die Analyse",
                 key=SOURCE_TEXT_INPUT_KEY,
-                height=min(320, max(180, _manual_input_height_for_text(manual_text))),
+                height=min(260, max(160, _manual_input_height_for_text(manual_text))),
                 on_change=_on_manual_text_change,
                 placeholder="Füge hier den vollständigen Ausschreibungstext ein …",
             )
@@ -1296,7 +1432,7 @@ def _render_source_text_or_preview() -> None:
     st.text_area(
         "Stellenanzeige oder Jobspec",
         key=SOURCE_TEXT_INPUT_KEY,
-        height=min(420, max(280, _manual_input_height_for_text(manual_text))),
+        height=min(320, max(220, _manual_input_height_for_text(manual_text))),
         on_change=_on_manual_text_change,
         placeholder="Füge hier den vollständigen Ausschreibungstext ein …",
     )
@@ -1518,15 +1654,15 @@ def _render_phase_c_esco_anchor(ctx: WizardContext) -> None:
 def render_jobad_intake(
     ctx: WizardContext, *, title: str = "Jobspezifikation einlesen"
 ) -> None:
+    analysis_complete = _has_completed_intake_analysis()
     st.header(title)
     subtitle = (
-        "So vermeiden Sie umfangreiche Eingaben, können jederzeit Anpassungen vornehmen "
-        "und passen so den folgenden Fragebogen den Anforderungen einer solchen Rolle an."
+        "Starten Sie mit Upload oder Freitext. Die App strukturiert die Quelle "
+        "und markiert nur prüfpflichtige Punkte."
+        if not analysis_complete
+        else "Analyse bereit. Prüfen Sie die unsicheren Angaben und bestätigen Sie den Referenzberuf."
     )
-    if hasattr(st, "subheader"):
-        st.subheader(subtitle)
-    else:
-        st.caption(subtitle)
+    st.caption(subtitle)
     render_error_banner()
 
     if SOURCE_TEXT_INPUT_KEY not in st.session_state:
@@ -1534,10 +1670,19 @@ def render_jobad_intake(
             SSKey.SOURCE_TEXT.value, ""
         )
 
-    do_extract = _render_source_input_section(ctx)
-
-    if _has_completed_intake_analysis():
+    if analysis_complete:
         render_intake_process_animation(state="done")
+        _render_extraction_result_section(ctx)
+        _render_esco_anchor_section(ctx)
+        edit_source_context = (
+            st.expander("Quelle oder Einstellungen ändern", expanded=False)
+            if hasattr(st, "expander")
+            else nullcontext()
+        )
+        with edit_source_context:
+            do_extract = _render_source_input_section(ctx)
+    else:
+        do_extract = _render_source_input_section(ctx)
 
     if do_extract:
         clear_error()
@@ -1651,6 +1796,3 @@ def render_jobad_intake(
             )
 
         st.rerun()
-
-    _render_extraction_result_section(ctx)
-    _render_esco_anchor_section(ctx)

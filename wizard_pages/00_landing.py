@@ -73,8 +73,8 @@ def _render_landing_responsive_overrides() -> None:
                 margin-bottom: 0.55rem;
             }
             .landing-start-logo [data-testid="stImage"] {
-                width: 220px;
-                max-width: min(220px, 60vw);
+                width: 150px;
+                max-width: min(150px, 48vw);
             }
             .landing-start-logo img {
                 width: 100%;
@@ -86,6 +86,9 @@ def _render_landing_responsive_overrides() -> None:
                 border-radius: 8px;
                 padding: 0.95rem;
                 box-shadow: var(--cs-shadow-sm);
+            }
+            .landing-intake-card {
+                padding: 1.05rem 1rem;
             }
             .landing-process-track {
                 display: grid;
@@ -264,21 +267,26 @@ def _render_landing_flow_cards() -> None:
 
 
 def _render_landing_explainer_sections() -> None:
-    st.iframe(
-        build_iceberg_need_analysis_html(),
-        height=COMPONENT_HEIGHT,
-    )
+    with st.expander("Warum Need Analysis?", expanded=False):
+        st.caption(
+            "Kurzer Kontext, warum die App nicht nur sichtbare Anforderungen, "
+            "sondern auch Lücken und implizite Bedarfstreiber strukturiert."
+        )
+        st.iframe(
+            build_iceberg_need_analysis_html(),
+            height=COMPONENT_HEIGHT,
+        )
 
 
 def render(ctx: WizardContext) -> None:
     render_landing_css(LANDING_STYLE_TOKENS)
     _render_landing_responsive_overrides()
     _render_landing_hero()
-    _render_landing_explainer_sections()
 
     st.markdown('<section class="landing-section landing-card landing-intake-card">', unsafe_allow_html=True)
     render_jobad_intake(ctx, title=str(START_PAGE_COPY["primary_cta"]))
     st.markdown("</section>", unsafe_allow_html=True)
+    _render_landing_explainer_sections()
 
 
 PAGE = WizardPage(

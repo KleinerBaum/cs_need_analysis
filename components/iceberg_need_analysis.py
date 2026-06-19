@@ -11,7 +11,7 @@ from typing import Any, Mapping
 ROOT_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_CONTENT_PATH = ROOT_DIR / "content" / "iceberg_need_analysis.json"
 DEFAULT_IMAGE_PATH = ROOT_DIR / "images" / "OpenAI eisberg.png"
-COMPONENT_HEIGHT = 760
+COMPONENT_HEIGHT = 520
 
 
 def load_iceberg_content(path: Path = DEFAULT_CONTENT_PATH) -> dict[str, Any]:
