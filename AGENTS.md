@@ -321,7 +321,7 @@ Use this smaller set for documentation or routed-step contract changes:
 ```bash
 python -m compileall README.md AGENTS.md CHANGELOG.md
 python -m pytest -q tests/test_wizard_contract.py tests/test_public_page_links.py
-rg -n '01_jobad|wizard_pages/01_jobad' README.md AGENTS.md CHANGELOG.md
+rg -n '01[_]jobad|wizard_pages/01[_]jobad' README.md AGENTS.md CHANGELOG.md
 ```
 
 The grep command should return no matches after stale Start-step references are removed.
