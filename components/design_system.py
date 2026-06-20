@@ -48,7 +48,12 @@ def render_ui_styles() -> None:
     _render_html_block(
         """
         <style>
-        :root {
+        :root,
+        :root[data-theme="light"],
+        html[data-theme="light"],
+        body[data-theme="light"],
+        [data-theme="light"] {
+            color-scheme: light;
             --cs-font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             --cs-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
             --cs-primary-navy: #0B1724;
@@ -95,6 +100,7 @@ def render_ui_styles() -> None:
         html[data-theme="dark"],
         body[data-theme="dark"],
         [data-theme="dark"] {
+            color-scheme: dark;
             --cs-primary-navy: #0B1220;
             --cs-primary-blue: #60A5FA;
             --cs-guidance-teal: #2DD4BF;
@@ -382,6 +388,21 @@ def render_ui_styles() -> None:
         [data-testid="stToggle"] span {
             color: inherit !important;
         }
+        [data-testid="stFileUploader"] section {
+            background: var(--cs-surface) !important;
+            border: 1px solid var(--cs-border) !important;
+            border-radius: var(--cs-radius-md) !important;
+            color: var(--cs-text) !important;
+        }
+        [data-testid="stFileUploader"] section *,
+        [data-testid="stFileUploader"] [data-testid="stMarkdownContainer"] {
+            color: var(--cs-text) !important;
+        }
+        [data-testid="stFileUploaderDropzone"] {
+            background: var(--cs-surface-muted) !important;
+            border-color: var(--cs-border) !important;
+            color: var(--cs-text) !important;
+        }
         [data-testid="stSidebar"] [data-testid="stExpander"] h1,
         [data-testid="stSidebar"] [data-testid="stExpander"] h2,
         [data-testid="stSidebar"] [data-testid="stExpander"] h3,
@@ -541,6 +562,22 @@ def render_ui_styles() -> None:
         [data-testid="stTable"] th,
         [data-testid="stTable"] td {
             color: var(--cs-text) !important;
+        }
+        [data-testid="stTable"] table {
+            background: var(--cs-surface) !important;
+            border-color: var(--cs-border) !important;
+        }
+        [data-testid="stTable"] th,
+        [data-testid="stDataFrame"] thead tr {
+            background: var(--cs-surface-muted) !important;
+            color: var(--cs-text-muted) !important;
+        }
+        [data-testid="stTable"] td,
+        [data-testid="stTable"] th {
+            border-color: var(--cs-border-soft) !important;
+        }
+        [data-testid="stTable"] tbody tr {
+            background: var(--cs-surface) !important;
         }
         [data-testid="stVerticalBlockBorderWrapper"] {
             background: var(--cs-surface) !important;

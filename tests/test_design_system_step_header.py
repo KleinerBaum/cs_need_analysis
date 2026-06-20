@@ -57,6 +57,9 @@ def test_render_ui_styles_uses_streamlit_theme_tokens(monkeypatch) -> None:
 
     css = calls[0]
     assert "--cs-font-sans:" in css
+    assert ':root[data-theme="light"]' in css
+    assert "color-scheme: light;" in css
+    assert "color-scheme: dark;" in css
     assert "--cs-bg: var(--background-color, #F4F7FA);" in css
     assert "--cs-surface: var(--secondary-background-color, #FFFFFF);" in css
     assert "--cs-on-primary:" in css
@@ -127,6 +130,9 @@ def test_render_ui_styles_scopes_metric_styles_for_sidebar(monkeypatch) -> None:
     assert '[data-testid="stButton"] button {' in css
     assert '[data-testid="stAlert"] {' in css
     assert '[data-testid="stTabs"] button' in css
+    assert '[data-testid="stFileUploader"] section {' in css
+    assert '[data-testid="stFileUploaderDropzone"] {' in css
+    assert '[data-testid="stTable"] table {' in css
 
 
 def test_render_landing_css_uses_theme_tokens(monkeypatch) -> None:

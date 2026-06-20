@@ -107,16 +107,16 @@ def _inject_theme_styles() -> None:
             }}
 
             .stApp {{
-                --cs-app-bg: var(--background-color, Canvas);
-                --cs-step-background-image: url("{wizard_dark_background_uri}");
-                --cs-app-text: var(--text-color, CanvasText);
+                --cs-app-bg: var(--background-color, #F6F8FB);
+                --cs-step-background-image: url("{wizard_light_background_uri}");
+                --cs-app-text: var(--text-color, #142033);
                 --cs-app-surface: var(
                     --secondary-background-color,
-                    color-mix(in srgb, var(--cs-app-bg) 92%, var(--cs-app-text) 8%)
+                    #FFFFFF
                 );
                 --cs-app-border: var(
                     --border-color,
-                    color-mix(in srgb, var(--cs-app-text) 18%, transparent)
+                    #CAD6E2
                 );
                 --cs-bg: var(--cs-app-bg);
                 --cs-surface: var(--cs-app-surface);
@@ -144,8 +144,22 @@ def _inject_theme_styles() -> None:
                 color: var(--cs-app-text);
             }}
 
-            :root[data-theme="light"] .stApp {{
-                --cs-step-background-image: url("{wizard_light_background_uri}");
+            .stApp[data-theme="dark"],
+            :root[data-theme="dark"] .stApp,
+            html[data-theme="dark"] .stApp,
+            body[data-theme="dark"] .stApp,
+            [data-theme="dark"] .stApp {{
+                --cs-app-bg: var(--background-color, #0B111B);
+                --cs-step-background-image: url("{wizard_dark_background_uri}");
+                --cs-app-text: var(--text-color, #F1F5F9);
+                --cs-app-surface: var(
+                    --secondary-background-color,
+                    #111827
+                );
+                --cs-app-border: var(
+                    --border-color,
+                    #334155
+                );
             }}
 
             [data-testid="stAppViewContainer"],
