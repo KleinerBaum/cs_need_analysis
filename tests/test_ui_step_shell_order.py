@@ -153,7 +153,9 @@ def _capture_step_shell_kwargs(page_module: Any, *, step_key: str) -> dict[str, 
 
 def _slot_order_from_render_kwargs(render_kwargs: dict[str, Any]) -> list[str]:
     return [
-        key for key in render_kwargs if key.endswith("_slot") and key != "footer_slot"
+        key
+        for key in render_kwargs
+        if key.endswith("_slot") and key not in {"footer_slot", "outcome_slot"}
     ]
 
 
@@ -231,6 +233,49 @@ def test_company_team_interview_use_step_shell_with_review_slot_and_canonical_or
     assert callable(company_kwargs["review_slot"])
     assert callable(team_kwargs["review_slot"])
     assert callable(interview_kwargs["review_slot"])
+
+
+def test_interview_open_questions_use_compact_context_mode() -> None:
+    interview = _load_module(
+        "wizard_pages.page_07_interview_compact_questions",
+        "wizard_pages/07_interview.py",
+    )
+    fake_st = _FakeStreamlit()
+    captured_kwargs: dict[str, Any] = {}
+    question_step = QuestionStep(
+        step_key=STEP_KEY_INTERVIEW,
+        title_de="Interview",
+        questions=[
+            Question(
+                id="interview_update_sla",
+                label="Welches Update-SLA gilt?",
+                answer_type=AnswerType.LONG_TEXT,
+                group_key="candidate_communication",
+            )
+        ],
+    )
+    captured_call: dict[str, Any] = {}
+
+    interview.st = fake_st
+    interview.render_error_banner = lambda: None
+    interview.guard_job_and_plan = lambda _ctx: (
+        JobAdExtract(),
+        SimpleNamespace(steps=[question_step]),
+    )
+    interview.nav_buttons = lambda _ctx: None
+    interview.render_step_shell = lambda **kwargs: captured_kwargs.update(kwargs)
+
+    def _capture_question_step(step: Any, *, context_mode: str = "default") -> None:
+        captured_call["step"] = step
+        captured_call["context_mode"] = context_mode
+
+    interview.render_question_step = _capture_question_step
+
+    interview.render(SimpleNamespace())
+    captured_kwargs["open_questions_slot"]()
+
+    assert captured_call["step"] is question_step
+    assert captured_call["context_mode"] == "compact"
 
 
 def test_canonical_step_section_registry_drives_shell_order() -> None:

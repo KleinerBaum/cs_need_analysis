@@ -62,6 +62,7 @@ from model_capabilities import (
     supports_verbosity,
 )
 from schemas import (
+    BenefitSuggestionItem,
     BenefitSuggestionPack,
     BooleanSearchPack,
     EmploymentContractDraft,
@@ -3020,6 +3021,188 @@ def generate_requirement_gap_suggestions(
     return result, usage
 
 
+def _benefit_context_region(answers: Mapping[str, Any]) -> str:
+    context = answers.get("benefit_generation_context")
+    if not isinstance(context, Mapping):
+        return ""
+    region = context.get("region")
+    return str(region).strip() if region is not None else ""
+
+
+def _build_local_benefit_inspiration(
+    *,
+    job: JobAdExtract,
+    answers: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Build non-authoritative local examples to steer benefit suggestions."""
+
+    region = _benefit_context_region(answers)
+    location_parts = [
+        value
+        for value in (job.location_city, job.location_country, job.place_of_work)
+        if value
+    ]
+    location_text = ", ".join(str(value).strip() for value in location_parts if str(value).strip())
+    region_source = region or location_text
+    role_title = str(job.job_title or "").strip()
+    normalized_region = region_source.lower().translate(
+        str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"})
+    )
+    normalized_region = re.sub(r"[^a-z0-9]+", " ", normalized_region).strip()
+
+    examples: list[str] = []
+    if "dusseldorf" in normalized_region or "duesseldorf" in normalized_region:
+        examples.extend(
+            [
+                "Fortuna-Düsseldorf-Mitgliedschaft oder Ticketkontingent als zu prüfender lokaler Benefit",
+                "Rheinbahn-/Deutschlandticket-Zuschuss für den Düsseldorfer Pendelraum",
+                "Budget für Düsseldorfer Tech-, Product- oder Business-Analyse-Meetups",
+            ]
+        )
+
+    if normalized_region:
+        examples.extend(
+            [
+                f"Regionale Mobilität für {region_source}, z. B. ÖPNV-/Pendelraum-Zuschuss",
+                f"Lokales Kultur-, Sport- oder Community-Budget in {region_source}",
+                f"Arbeitsortnahe Services oder stadt-/regionsspezifische Partnerschaften in {region_source}",
+            ]
+        )
+
+    role_normalized = role_title.lower()
+    if any(term in role_normalized for term in ("it", "tech", "business analyst", "analyst")):
+        examples.append(
+            "Zielgruppenspezifisch für Tech-/Business-Profile: lokales Meetup-, Konferenz- oder Community-Budget"
+        )
+
+    return {
+        "region": region or None,
+        "jobspec_location": location_text or None,
+        "role_title": role_title or None,
+        "examples": list(dict.fromkeys(examples)),
+        "usage_note": (
+            "Diese Beispiele sind nur Inspirations- und Klärpunkte. "
+            "Nicht als bestehende Arbeitgeberleistung behaupten, wenn nicht im Kontext belegt."
+        ),
+    }
+
+
+def _normalize_benefit_label(value: str) -> str:
+    return re.sub(r"\s+", " ", value.strip().lower())
+
+
+def _regional_signal_terms(local_benefit_inspiration: Mapping[str, Any]) -> set[str]:
+    generic_terms = {
+        "budget",
+        "community",
+        "konferenz",
+        "meetup",
+        "meetups",
+        "mobilitaet",
+        "regional",
+        "regionale",
+        "service",
+        "services",
+    }
+    terms: set[str] = set()
+    for key in ("region", "jobspec_location"):
+        value = local_benefit_inspiration.get(key)
+        if isinstance(value, str):
+            terms.update(
+                term
+                for term in re.split(r"[^A-Za-zÄÖÜäöüß0-9]+", value)
+                if len(term) >= 4
+            )
+    examples = local_benefit_inspiration.get("examples")
+    if isinstance(examples, Sequence) and not isinstance(examples, (str, bytes)):
+        for example in examples:
+            if isinstance(example, str):
+                terms.update(
+                    term
+                    for term in re.split(r"[^A-Za-zÄÖÜäöüß0-9]+", example)
+                    if len(term) >= 6
+                    and _normalize_benefit_label(term) not in generic_terms
+                )
+    return {_normalize_benefit_label(term) for term in terms}
+
+
+def _suggestion_has_regional_signal(
+    suggestion: BenefitSuggestionItem,
+    *,
+    signal_terms: set[str],
+) -> bool:
+    haystack = _normalize_benefit_label(
+        " ".join([suggestion.label, suggestion.rationale, suggestion.evidence])
+    )
+    return any(term in haystack for term in signal_terms)
+
+
+def _fallback_local_benefit_item(
+    local_benefit_inspiration: Mapping[str, Any],
+) -> BenefitSuggestionItem | None:
+    examples = local_benefit_inspiration.get("examples")
+    if not isinstance(examples, Sequence) or isinstance(examples, (str, bytes)):
+        return None
+    first_example = next(
+        (example.strip() for example in examples if isinstance(example, str) and example.strip()),
+        "",
+    )
+    if not first_example:
+        return None
+    region = local_benefit_inspiration.get("region") or local_benefit_inspiration.get(
+        "jobspec_location"
+    )
+    region_text = str(region).strip() if region else "der Region"
+    return BenefitSuggestionItem(
+        label=first_example,
+        source_hint="llm",
+        rationale=f"Lokaler Klärpunkt für {region_text}; bitte Angebotsfähigkeit prüfen.",
+        evidence="Aus Rolle, Standort/Region und regionaler Benefit-Inspiration abgeleitet.",
+        importance="medium",
+    )
+
+
+def _ensure_local_benefit_suggestion(
+    result: BenefitSuggestionPack,
+    *,
+    local_benefit_inspiration: Mapping[str, Any],
+    existing_benefits: Sequence[str],
+    capped_benefit_count: int,
+) -> None:
+    if capped_benefit_count <= 0:
+        result.benefits = []
+        return
+    examples = local_benefit_inspiration.get("examples")
+    if not isinstance(examples, Sequence) or isinstance(examples, (str, bytes)) or not examples:
+        result.benefits = result.benefits[:capped_benefit_count]
+        return
+
+    signal_terms = _regional_signal_terms(local_benefit_inspiration)
+    if signal_terms and any(
+        _suggestion_has_regional_signal(suggestion, signal_terms=signal_terms)
+        for suggestion in result.benefits
+    ):
+        result.benefits = result.benefits[:capped_benefit_count]
+        return
+
+    fallback_item = _fallback_local_benefit_item(local_benefit_inspiration)
+    if fallback_item is None:
+        result.benefits = result.benefits[:capped_benefit_count]
+        return
+
+    blocked = {_normalize_benefit_label(value) for value in existing_benefits}
+    if _normalize_benefit_label(fallback_item.label) in blocked:
+        result.benefits = result.benefits[:capped_benefit_count]
+        return
+
+    trimmed = result.benefits[:capped_benefit_count]
+    if len(trimmed) < capped_benefit_count:
+        trimmed.append(fallback_item)
+    else:
+        trimmed[-1] = fallback_item
+    result.benefits = trimmed
+
+
 def generate_benefit_suggestions(
     *,
     job: JobAdExtract,
@@ -3043,10 +3226,16 @@ def generate_benefit_suggestions(
         max_output_tokens=runtime_config.task_max_output_tokens,
     )
     capped_benefit_count = max(0, min(target_benefit_count, 8))
+    local_benefit_inspiration = _build_local_benefit_inspiration(
+        job=job,
+        answers=answers,
+    )
     system = (
         "Du bist ein Senior Recruiting Analyst. "
         "Identifiziere fehlende oder noch unklare Benefits und Rahmenbedingungen "
         "für das Offer-Narrativ auf Basis von Jobspec und bisherigen Antworten. "
+        "Wenn Rolle, Standort oder Region bekannt sind, priorisiere konkrete lokale "
+        "und zielgruppenspezifische Benefits statt generischer Standardangebote. "
         "Liefere ausschließlich strukturierte Ausgabe entsprechend Schema. "
         "Keine Duplikate, keine bereits vorhandenen Einträge und maximal die geforderte Anzahl. "
         "Setze source_hint immer auf 'llm'. "
@@ -3062,7 +3251,19 @@ def generate_benefit_suggestions(
         "- importance nur high/medium/low.\n"
         "- source_hint immer 'llm'.\n"
         "- Nur Vorschläge, die im Kontext fehlen oder als Klärpunkt sinnvoll sind.\n"
+        "- Bei vorhandenem benefit_generation_context.region oder Jobspec-Standort: "
+        "mindestens einen lokal erkennbaren Benefit vorschlagen, z. B. regionale Mobilität, "
+        "lokale Kultur-/Sport-/Community-Angebote, arbeitsortnahe Services oder "
+        "stadt-/regionsspezifische Partnerschaften.\n"
+        "- Lokale Vorschläge müssen zur Zielgruppe der Rolle passen; für Tech-/Business-Profile "
+        "z. B. lokale Tech-Meetups, Konferenz-/Community-Budget, regionale Sport-/Kulturangebote "
+        "oder Mobilität im konkreten Pendelraum.\n"
+        "- Keine konkreten Partner, Vereine, Mitgliedschaften oder Rabatte als bestehende "
+        "Arbeitgeberleistung behaupten; als label/rationale nur als prüfbaren Klärpunkt formulieren, "
+        "wenn sie nicht im Kontext belegt sind.\n"
         "- Keine Gehaltszahlen erfinden.\n\n"
+        "Regionale Inspiration als prüfbare Klärpunkte, nicht als belegte Arbeitgeberleistungen (JSON):\n"
+        f"{json.dumps(local_benefit_inspiration, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
         "Jobspec-Extraktion (JSON):\n"
         f"{json.dumps(job.model_dump(mode='json'), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
         "Manager-Antworten (JSON):\n"
@@ -3076,6 +3277,7 @@ def generate_benefit_suggestions(
             "job": job.model_dump(mode="json"),
             "answers": answers,
             "existing_benefits": existing_benefits,
+            "local_benefit_inspiration": local_benefit_inspiration,
             "target_benefit_count": capped_benefit_count,
         }
     )
@@ -3104,6 +3306,12 @@ def generate_benefit_suggestions(
                     model_name=runtime_config.resolved_model,
                 )
             else:
+                _ensure_local_benefit_suggestion(
+                    parsed_cached,
+                    local_benefit_inspiration=local_benefit_inspiration,
+                    existing_benefits=existing_benefits,
+                    capped_benefit_count=capped_benefit_count,
+                )
                 return parsed_cached, _cached_usage(cache_key=cache_key)
 
     parsed, usage = _generate_structured_with_fallback(
@@ -3119,7 +3327,12 @@ def generate_benefit_suggestions(
         temperature=temperature,
     )
     result = cast(BenefitSuggestionPack, parsed)
-    result.benefits = result.benefits[:capped_benefit_count]
+    _ensure_local_benefit_suggestion(
+        result,
+        local_benefit_inspiration=local_benefit_inspiration,
+        existing_benefits=existing_benefits,
+        capped_benefit_count=capped_benefit_count,
+    )
     cache[cache_key] = {"result": result.model_dump(mode="json")}
     return result, usage
 

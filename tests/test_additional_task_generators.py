@@ -13,6 +13,7 @@ from llm_client import (
     TASK_GENERATE_INTERVIEW_SHEET_HR,
     TASK_GENERATE_JOB_AD,
     TASK_GENERATE_REQUIREMENT_GAP_SUGGESTIONS,
+    generate_benefit_suggestions,
     generate_boolean_search_pack,
     generate_custom_job_ad,
     generate_employment_contract_draft,
@@ -664,3 +665,110 @@ def test_generate_requirement_gap_suggestions_limits_and_cache(monkeypatch) -> N
     assert first_usage["total_tokens"] == 17
     assert second_usage["cached"] is True
     assert second_result == first_result
+
+
+def test_generate_benefit_suggestions_prompt_requires_local_role_context(
+    monkeypatch,
+) -> None:
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(
+        llm_client,
+        "_resolve_runtime_config",
+        lambda **_: _runtime_config(),
+    )
+    llm_client.st.session_state.clear()
+
+    def _capture_generate(**kwargs: Any) -> tuple[Any, dict[str, Any]]:
+        captured["messages"] = kwargs["messages"]
+        payload = {
+            "benefits": [
+                {
+                    "label": "Düsseldorfer Tech-Community-Budget",
+                    "source_hint": "llm",
+                    "rationale": "Passt zu IT-Business-Analyst-Profil und Region.",
+                    "evidence": "Rolle und Standort sind im Kontext genannt.",
+                    "importance": "medium",
+                }
+            ]
+        }
+        return kwargs["out_model"].model_validate(payload), {"total_tokens": 7}
+
+    monkeypatch.setattr(
+        llm_client, "_generate_structured_with_fallback", _capture_generate
+    )
+
+    result, usage = generate_benefit_suggestions(
+        job=JobAdExtract(
+            job_title="IT-Business-Analyst",
+            location_city="Düsseldorf",
+            benefits=["Hybrid Work"],
+        ),
+        answers={
+            "benefit_generation_context": {
+                "region": "Düsseldorf",
+                "instruction": "Berücksichtige regionale Benefits und Rahmenbedingungen.",
+            }
+        },
+        existing_benefits=["Hybrid Work"],
+        target_benefit_count=3,
+        model="gpt-5-mini",
+    )
+
+    combined_prompt = "\n".join(message["content"] for message in captured["messages"])
+    assert result.benefits[0].label == "Düsseldorfer Tech-Community-Budget"
+    assert usage["total_tokens"] == 7
+    assert "priorisiere konkrete lokale" in combined_prompt
+    assert "mindestens einen lokal erkennbaren Benefit" in combined_prompt
+    assert "lokale Kultur-/Sport-/Community-Angebote" in combined_prompt
+    assert "zur Zielgruppe der Rolle passen" in combined_prompt
+    assert "Fortuna-Düsseldorf-Mitgliedschaft" in combined_prompt
+    assert "Düsseldorfer Tech-, Product- oder Business-Analyse-Meetups" in combined_prompt
+    assert "nicht als belegte Arbeitgeberleistungen" in combined_prompt
+    assert "Düsseldorf" in combined_prompt
+    assert "IT-Business-Analyst" in combined_prompt
+
+
+def test_generate_benefit_suggestions_adds_local_fallback_when_model_is_generic(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        llm_client,
+        "_resolve_runtime_config",
+        lambda **_: _runtime_config(),
+    )
+    llm_client.st.session_state.clear()
+
+    def _capture_generate(**kwargs: Any) -> tuple[Any, dict[str, Any]]:
+        payload = {
+            "benefits": [
+                {
+                    "label": "Weiterbildungsbudget",
+                    "source_hint": "llm",
+                    "rationale": "Nützlich für die Rolle.",
+                    "evidence": "Rolle genannt.",
+                    "importance": "medium",
+                }
+            ]
+        }
+        return kwargs["out_model"].model_validate(payload), {"total_tokens": 7}
+
+    monkeypatch.setattr(
+        llm_client, "_generate_structured_with_fallback", _capture_generate
+    )
+
+    result, usage = generate_benefit_suggestions(
+        job=JobAdExtract(
+            job_title="IT-Business-Analyst",
+            location_city="Düsseldorf",
+            benefits=["Hybrid Work"],
+        ),
+        answers={"benefit_generation_context": {"region": "Düsseldorf"}},
+        existing_benefits=["Hybrid Work"],
+        target_benefit_count=1,
+        model="gpt-5-mini",
+    )
+
+    assert usage["total_tokens"] == 7
+    assert len(result.benefits) == 1
+    assert "Fortuna-Düsseldorf" in result.benefits[0].label
+    assert "prüfen" in result.benefits[0].rationale

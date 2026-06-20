@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, time
-from typing import Any, Callable
+from typing import Any
 
 import streamlit as st
 
@@ -49,24 +49,6 @@ from wizard_pages.fact_inputs import (
     section_container,
     split_lines,
 )
-
-
-def _render_section_form(
-    *,
-    form_key: str,
-    submit_label: str,
-    renderer: Callable[[], None],
-) -> None:
-    if callable(getattr(st, "form", None)) and callable(
-        getattr(st, "form_submit_button", None)
-    ):
-        with st.form(form_key, clear_on_submit=False):
-            renderer()
-            submitted = st.form_submit_button(submit_label, width="stretch")
-        if submitted:
-            st.success("Abschnitt gespeichert.")
-        return
-    renderer()
 
 
 def _normalize_values(values: list[str]) -> list[str]:
@@ -129,6 +111,270 @@ def _render_interview_datetime_input(*, key: str, default: datetime) -> datetime
     picked_day = st.date_input("Interviewtag", value=default.date(), key=f"{key}.date")
     picked_time = st.time_input("Uhrzeit", value=default.time(), key=f"{key}.time")
     return datetime.combine(picked_day, picked_time)
+
+
+def _display_value(value: Any) -> str:
+    if isinstance(value, bool):
+        return "Ja" if value else "Nein"
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    if isinstance(value, list):
+        return ", ".join(compact_text(item) for item in value if compact_text(item))
+    return compact_text(value)
+
+
+def _normalize_object_list(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, dict)]
+
+
+def _append_summary_item(items: list[str], value: Any) -> None:
+    text = _display_value(value)
+    if text:
+        items.append(text)
+
+
+def _format_stage_summary(step: dict[str, Any] | RecruitmentStep) -> str:
+    if isinstance(step, RecruitmentStep):
+        name = compact_text(step.name)
+        goal = compact_text(step.details)
+        duration = None
+    else:
+        name = compact_text(step.get("name"))
+        goal = compact_text(step.get("goal") or step.get("details"))
+        duration = step.get("duration_minutes")
+    parts = [name]
+    if goal:
+        parts.append(goal)
+    try:
+        duration_int = int(duration)
+    except (TypeError, ValueError):
+        duration_int = 0
+    if duration_int:
+        parts.append(f"{duration_int} Min.")
+    return " - ".join(part for part in parts if part)
+
+
+def _format_sla_summary(item: dict[str, Any]) -> str:
+    event = compact_text(item.get("event"))
+    owner = compact_text(item.get("owner"))
+    try:
+        days = int(item.get("days"))
+    except (TypeError, ValueError):
+        days = 0
+    parts = [event]
+    if days:
+        parts.append(f"Update binnen {days} Tagen")
+    if owner:
+        parts.append(owner)
+    return " - ".join(part for part in parts if part)
+
+
+def _format_contact_summary(contact: dict[str, Any]) -> str:
+    role_labels = {
+        "money": "Budget",
+        "authority": "Entscheidung",
+        "need": "Fachbedarf",
+    }
+    role = compact_text(contact.get("role"))
+    name = compact_text(contact.get("name"))
+    role_label = role_labels.get(role.casefold(), role)
+    participates = bool(contact.get("participates_in_interview"))
+    interview_datetime = compact_text(contact.get("interview_datetime"))
+    parts = [part for part in (role_label, name) if part]
+    if participates:
+        parts.append("Interview")
+    if interview_datetime:
+        parts.append(interview_datetime)
+    return " - ".join(parts)
+
+
+def _format_owner_summary(item: dict[str, Any]) -> str:
+    stage = compact_text(item.get("stage"))
+    owner = compact_text(item.get("owner"))
+    role = compact_text(item.get("decision_role"))
+    return " - ".join(part for part in (stage, owner, role) if part)
+
+
+def _format_evidence_summary(item: dict[str, Any]) -> str:
+    evidence = compact_text(item.get("item"))
+    stage = compact_text(item.get("stage"))
+    signal = compact_text(item.get("success_signal"))
+    return " - ".join(part for part in (evidence, stage, signal) if part)
+
+
+def _format_scorecard_summary(raw_scorecard: Any) -> list[str]:
+    if not isinstance(raw_scorecard, dict):
+        return []
+    output: list[str] = []
+    stage = compact_text(raw_scorecard.get("stage"))
+    if stage:
+        output.append(f"Bewertung für {stage}")
+    criteria = raw_scorecard.get("criteria")
+    if isinstance(criteria, list):
+        for criterion in criteria[:4]:
+            if not isinstance(criterion, dict):
+                continue
+            title = compact_text(criterion.get("title"))
+            anchor = compact_text(criterion.get("evidence_anchor"))
+            weight = compact_text(criterion.get("weight_percent"))
+            parts = [title]
+            if weight and weight != "0":
+                parts.append(f"{weight}%")
+            if anchor:
+                parts.append(anchor)
+            _append_summary_item(output, " - ".join(part for part in parts if part))
+    notes = compact_text(raw_scorecard.get("notes"))
+    if notes:
+        output.append(notes)
+    return output
+
+
+def _render_known_summary_group(
+    title: str,
+    items: list[str],
+    *,
+    empty_text: str,
+) -> None:
+    with section_container(border=True):
+        st.markdown(f"**{title}**")
+        if not items:
+            st.caption(empty_text)
+            return
+        for item in items[:6]:
+            st.write(f"- {item}")
+        if len(items) > 6:
+            st.caption(f"+{len(items) - 6} weitere Angabe(n)")
+
+
+def _render_export_selection(rows: list[dict[str, str]]) -> None:
+    if not rows:
+        return
+
+    option_by_label = {
+        f"{row['Bereich']} · {row['Feld']}: {row['Wert']}": row["id"]
+        for row in rows
+    }
+    label_by_id = {row_id: label for label, row_id in option_by_label.items()}
+    default_ids = default_selected_interview_value_ids(rows)
+    internal_flow = _read_internal_flow_state()
+    selected_ids = [
+        row_id
+        for row_id in internal_flow["selected_value_ids"]
+        if row_id in label_by_id
+    ] or default_ids
+    selected_labels = st.multiselect(
+        "In Summary und Export übernehmen",
+        options=list(option_by_label),
+        default=[label_by_id[row_id] for row_id in selected_ids],
+        key="interview.internal.selected_value_labels",
+    )
+    st.session_state[SSKey.INTERVIEW_INTERNAL_FLOW.value] = {
+        **internal_flow,
+        "selected_value_ids": [option_by_label[label] for label in selected_labels],
+    }
+    _sync_interview_contact_intake_facts()
+
+
+def _render_known_interview_overview(
+    *,
+    job: JobAdExtract,
+    plan: Any,
+) -> None:
+    internal_flow = _read_internal_flow_state()
+    rows = build_interview_value_rows(
+        job=job,
+        answers=get_answers(),
+        plan=plan,
+        internal_flow=internal_flow,
+    )
+
+    process_items: list[str] = []
+    fact_steps = _normalize_object_list(
+        fact_value(FactKey.INTERVIEW_RECRUITMENT_STEPS, [])
+    )
+    for step in fact_steps:
+        _append_summary_item(process_items, _format_stage_summary(step))
+    if not process_items:
+        for step in job.recruitment_steps:
+            _append_summary_item(process_items, _format_stage_summary(step))
+    for row in rows:
+        if row.get("Bereich") in {"Interview", "Timing"}:
+            _append_summary_item(process_items, f"{row['Feld']}: {row['Wert']}")
+
+    communication_items: list[str] = []
+    for item in _normalize_object_list(
+        fact_value(FactKey.INTERVIEW_COMMUNICATION_SLA, [])
+    ):
+        _append_summary_item(communication_items, _format_sla_summary(item))
+    for item in internal_flow["info_loop_items"]:
+        _append_summary_item(communication_items, item)
+    for row in rows:
+        if row.get("Bereich") == "Candidate Communication":
+            _append_summary_item(communication_items, f"{row['Feld']}: {row['Wert']}")
+
+    role_items: list[str] = []
+    for item in _normalize_object_list(fact_value(FactKey.INTERVIEW_STAGE_OWNERS, [])):
+        _append_summary_item(role_items, _format_owner_summary(item))
+    for contact in internal_flow["contacts"]:
+        if isinstance(contact, dict):
+            _append_summary_item(role_items, _format_contact_summary(contact))
+    for row in rows:
+        if row.get("Bereich") == "Interne Rollen":
+            _append_summary_item(role_items, f"{row['Feld']}: {row['Wert']}")
+
+    evaluation_items: list[str] = []
+    for item in _normalize_object_list(
+        fact_value(FactKey.INTERVIEW_ASSESSMENT_EVIDENCE, [])
+    ):
+        _append_summary_item(evaluation_items, _format_evidence_summary(item))
+    evaluation_items.extend(
+        _format_scorecard_summary(fact_value(FactKey.INTERVIEW_SCORECARD_TEMPLATE, {}))
+    )
+    core_questions = split_lines(fact_value(FactKey.INTERVIEW_CORE_QUESTIONS, []))
+    if core_questions:
+        evaluation_items.append(f"Kernfragen: {', '.join(core_questions[:4])}")
+    compliance_notes = compact_text(fact_value(FactKey.INTERVIEW_COMPLIANCE_NOTES, ""))
+    if compliance_notes:
+        evaluation_items.append(f"Dokumentation: {compliance_notes}")
+
+    st.markdown("### Bereits bekannt")
+    st.caption(
+        "Diese Angaben wurden aus Jobspec, bisherigen Antworten und diesem Schritt gesammelt."
+    )
+    col_process, col_comm = responsive_two_columns(gap="large")
+    with col_process:
+        _render_known_summary_group(
+            "Prozess",
+            _normalize_values(process_items),
+            empty_text="Noch kein Ablauf erfasst.",
+        )
+    with col_comm:
+        _render_known_summary_group(
+            "Kommunikation",
+            _normalize_values(communication_items),
+            empty_text="Noch keine Update-Regel erfasst.",
+        )
+    col_roles, col_eval = responsive_two_columns(gap="large")
+    with col_roles:
+        _render_known_summary_group(
+            "Zuständigkeiten",
+            _normalize_values(role_items),
+            empty_text="Noch keine internen Rollen erfasst.",
+        )
+    with col_eval:
+        _render_known_summary_group(
+            "Bewertung",
+            _normalize_values(evaluation_items),
+            empty_text="Noch keine Bewertungskriterien erfasst.",
+        )
+
+    if callable(getattr(st, "expander", None)):
+        with st.expander("Summary- und Exportauswahl", expanded=False):
+            _render_export_selection(rows)
+    else:
+        _render_export_selection(rows)
 
 
 def _render_internal_process_container(
@@ -199,9 +445,7 @@ def _render_internal_process_container(
         ]
 
         if show_internal_roles:
-            st.caption(
-                "Interne Rollen helfen bei Prozessklarheit, sind aber nicht zwingend Teil der externen Kommunikation."
-            )
+            st.caption("Lege fest, wer entscheidet, wer informiert und wer am Interview teilnimmt.")
             header_col1, header_col2, header_col3 = responsive_three_columns(gap="large")
             with header_col1:
                 earliest_start = st.date_input(
@@ -216,15 +460,18 @@ def _render_internal_process_container(
                     key="interview.internal.latest_start_date",
                 )
             with header_col3:
-                st.caption(
-                    "MAN-Rollen strukturiert erfassen. Bei kleinen Teams kann eine Person mehrere Rollen übernehmen."
-                )
+                st.caption("Eine Person kann mehrere Rollen übernehmen.")
 
         if show_internal_roles:
             if merged_names:
-                st.caption("Erkannte Ansprechpartner (Jobspec): " + ", ".join(merged_names))
+                st.caption("Aus der Jobspec erkannt: " + ", ".join(merged_names))
             cols = responsive_three_columns(gap="large")
             money_seed: dict[str, Any] = {}
+            role_display_labels = {
+                "Money": "Budget",
+                "Authority": "Entscheidung",
+                "Need": "Fachbedarf",
+            }
             for idx, role in enumerate(role_labels):
                 existing_contact: dict[str, Any] = existing_by_role.get(
                     role.casefold(), {}
@@ -232,20 +479,21 @@ def _render_internal_process_container(
                 if not existing_contact and idx < len(fallback_by_index):
                     existing_contact = fallback_by_index[idx]
                 with cols[idx]:
-                    st.write(f"**{role}**")
+                    role_display = role_display_labels.get(role, role)
+                    st.write(f"**{role_display}**")
                     if role != "Money":
                         if st.checkbox(
-                            "Daten aus Money übernehmen",
+                            "Daten aus Budget übernehmen",
                             key=f"interview.internal.copy_from_money.{idx}",
                         ):
                             existing_contact = money_seed
                     name = st.text_input(
-                        "Ansprechpartner",
+                        "Name",
                         value=str(existing_contact.get("name") or ""),
                         key=f"interview.internal.name.{idx}",
                     )
                     phone = st.text_input(
-                        "Telefonnummer",
+                        "Telefon",
                         value=str(existing_contact.get("phone") or ""),
                         key=f"interview.internal.phone.{idx}",
                     )
@@ -258,7 +506,7 @@ def _render_internal_process_container(
                         key=f"interview.internal.email.{idx}",
                     )
                     takes_part = st.checkbox(
-                        "Nimmt an Interviews teil",
+                        "Bei Interviews dabei",
                         value=bool(existing_contact.get("participates_in_interview", True)),
                         key=f"interview.internal.participates.{idx}",
                     )
@@ -298,29 +546,29 @@ def _render_internal_process_container(
                     if role == "Money":
                         money_seed = contact_payload
         if show_info_loop:
-            st.write("**Interner Recruiting-Infoloop (Pills)**")
+            st.write("**Updates an Kandidat:innen**")
             info_loop_catalog = [
-            (
-                "Bewerbungseingang bestätigen",
-                "Schnelle Eingangsbestätigung an Kandidat:in.",
-            ),
-            (
-                "Interviewtag abstimmen",
-                "Termin mit allen Interview-Teilnehmenden koordinieren.",
-            ),
-            (
-                "Interview-Feedback bündeln",
-                "Feedback gesammelt und konsistent dokumentieren.",
-            ),
-            (
-                "Entscheidung intern freigeben",
-                "Freigabe durch zuständige Entscheidungsträger.",
-            ),
-            (
-                "Kandidat:in über Ergebnis informieren",
-                "Zeitnahes Update zur Candidate Experience.",
-            ),
-        ]
+                (
+                    "Bewerbungseingang bestätigen",
+                    "Schnelle Eingangsbestätigung an Kandidat:in.",
+                ),
+                (
+                    "Interviewtag abstimmen",
+                    "Termin mit allen Interview-Teilnehmenden koordinieren.",
+                ),
+                (
+                    "Interview-Feedback bündeln",
+                    "Feedback gesammelt und konsistent dokumentieren.",
+                ),
+                (
+                    "Entscheidung intern freigeben",
+                    "Freigabe durch zuständige Entscheidungsträger.",
+                ),
+                (
+                    "Kandidat:in über Ergebnis informieren",
+                    "Zeitnahes Update zur Candidate Experience.",
+                ),
+            ]
             if interview_participants:
                 info_loop_catalog.insert(
                     2,
@@ -333,31 +581,31 @@ def _render_internal_process_container(
             extracted_options = _extract_internal_process_pills(job.recruitment_steps)
             for option in extracted_options:
                 if option not in {label for label, _ in info_loop_catalog}:
-                    info_loop_catalog.append((option, "Aus Jobspec/Interviewdetails erkannt."))
+                    info_loop_catalog.append((option, "Aus Jobspec oder Interviewdetails erkannt."))
 
             option_labels = [label for label, _ in info_loop_catalog]
             option_display_map = {
                 label: f"{label} — {description}" for label, description in info_loop_catalog
             }
             selected_option = st.selectbox(
-                "Wer wird wann informiert?",
+                "Nächstes Update",
                 options=option_labels,
                 key="interview.internal.info_loop_selectbox",
                 format_func=lambda item: option_display_map.get(item, item),
             )
             add_col, clear_col = responsive_two_columns(gap="small")
             with add_col:
-                if st.button("Auswahl zum Infoloop hinzufügen", key="interview.internal.info_loop_add"):
+                if st.button("Update hinzufügen", key="interview.internal.info_loop_add"):
                     if selected_option not in selected_pills:
                         selected_pills.append(selected_option)
             with clear_col:
-                if st.button("Infoloop leeren", key="interview.internal.info_loop_clear"):
+                if st.button("Auswahl zurücksetzen", key="interview.internal.info_loop_clear"):
                     selected_pills = []
 
             if selected_pills:
                 if hasattr(st, "pills"):
                     st.pills(
-                        "Aktive Recruiting-Pills",
+                        "Geplante Updates",
                         options=selected_pills,
                         default=selected_pills,
                         selection_mode="single",
@@ -564,8 +812,6 @@ def _render_candidate_communication_container(job: JobAdExtract) -> None:
 
 
 def _render_internal_roles_container(job: JobAdExtract) -> None:
-    if hasattr(st, "markdown"):
-        st.markdown("#### Interne Rollen und Ansprechpartner")
     _render_internal_process_container(
         job,
         show_info_loop=False,
@@ -598,12 +844,12 @@ def _render_stage_rows(job: JobAdExtract) -> list[str]:
     existing_steps = _list_by_stage(fact_value(FactKey.INTERVIEW_RECRUITMENT_STEPS, []), "name")
     stage_labels = _stage_seed_labels(job)
     rows: list[dict[str, Any]] = []
-    st.markdown("#### Interviewstufen")
+    st.markdown("#### Ablauf")
     for idx, stage in enumerate(stage_labels[:5]):
         current = existing_steps.get(stage, {})
         with section_container(border=True):
             name = st.text_input(
-                "Stage",
+                "Stufe",
                 value=compact_text(current.get("name") or stage),
                 key=f"fact_input.{FactKey.INTERVIEW_RECRUITMENT_STEPS.value}.{idx}.name",
             )
@@ -616,7 +862,7 @@ def _render_stage_rows(job: JobAdExtract) -> list[str]:
                 )
             with col_duration:
                 duration = st.number_input(
-                    "Dauer (Minuten)",
+                    "Dauer",
                     min_value=0,
                     max_value=240,
                     value=int(current.get("duration_minutes") or 45),
@@ -638,7 +884,7 @@ def _render_stage_rows(job: JobAdExtract) -> list[str]:
 def _render_stage_owner_rows(stage_labels: list[str]) -> None:
     existing = _list_by_stage(fact_value(FactKey.INTERVIEW_STAGE_OWNERS, []))
     rows: list[dict[str, str]] = []
-    st.markdown("#### Stage Owner")
+    st.markdown("#### Verantwortung")
     for idx, stage in enumerate(stage_labels[:5]):
         current = existing.get(stage, {})
         cols = responsive_three_columns(gap="large")
@@ -646,13 +892,13 @@ def _render_stage_owner_rows(stage_labels: list[str]) -> None:
             st.caption(stage)
         with cols[1]:
             owner = st.text_input(
-                "Owner",
+                "Verantwortlich",
                 value=compact_text(current.get("owner")),
                 key=f"fact_input.{FactKey.INTERVIEW_STAGE_OWNERS.value}.{idx}.owner",
             )
         with cols[2]:
             role = st.text_input(
-                "Entscheidungsrolle",
+                "Rolle im Entscheidungsprozess",
                 value=compact_text(current.get("decision_role")),
                 placeholder="z. B. Entscheider, Interviewer, Feedback",
                 key=f"fact_input.{FactKey.INTERVIEW_STAGE_OWNERS.value}.{idx}.role",
@@ -672,19 +918,19 @@ def _render_candidate_sla_rows(stage_labels: list[str]) -> None:
     existing = _list_by_stage(fact_value(FactKey.INTERVIEW_COMMUNICATION_SLA, []), "event")
     default_events = ["Bewerbungseingang", "Nach Interview", "Finale Entscheidung"]
     rows: list[dict[str, Any]] = []
-    st.markdown("#### Candidate Update SLA")
+    st.markdown("#### Rückmeldefristen")
     for idx, event in enumerate(default_events):
         current = existing.get(event, {})
         cols = responsive_three_columns(gap="large")
         with cols[0]:
             event_name = st.text_input(
-                "Event",
+                "Moment",
                 value=compact_text(current.get("event") or event),
                 key=f"fact_input.{FactKey.INTERVIEW_COMMUNICATION_SLA.value}.{idx}.event",
             )
         with cols[1]:
             owner = st.text_input(
-                "Owner",
+                "Verantwortlich",
                 value=compact_text(current.get("owner")),
                 key=f"fact_input.{FactKey.INTERVIEW_COMMUNICATION_SLA.value}.{idx}.owner",
             )
@@ -713,26 +959,26 @@ def _render_assessment_evidence(stage_labels: list[str]) -> None:
     existing = fact_value(FactKey.INTERVIEW_ASSESSMENT_EVIDENCE, [])
     existing_items = existing if isinstance(existing, list) else []
     rows: list[dict[str, str]] = []
-    st.markdown("#### Assessment Evidence")
+    st.markdown("#### Arbeitsproben und Nachweise")
     for idx in range(3):
         current = existing_items[idx] if idx < len(existing_items) and isinstance(existing_items[idx], dict) else {}
         cols = responsive_three_columns(gap="large")
         with cols[0]:
             item = st.text_input(
-                "Nachweis / Arbeitsprobe",
+                "Was wird bewertet?",
                 value=compact_text(current.get("item")),
                 key=f"fact_input.{FactKey.INTERVIEW_ASSESSMENT_EVIDENCE.value}.{idx}.item",
             )
         with cols[1]:
             stage = st.selectbox(
-                "Stage",
+                "Interviewstufe",
                 options=stage_labels or ["Fachinterview"],
                 index=0,
                 key=f"fact_input.{FactKey.INTERVIEW_ASSESSMENT_EVIDENCE.value}.{idx}.stage",
             )
         with cols[2]:
             signal = st.text_input(
-                "Erfolgssignal",
+                "Woran erkennt man gute Ergebnisse?",
                 value=compact_text(current.get("success_signal")),
                 key=f"fact_input.{FactKey.INTERVIEW_ASSESSMENT_EVIDENCE.value}.{idx}.signal",
             )
@@ -752,9 +998,9 @@ def _render_scorecard(stage_labels: list[str]) -> None:
     current = current_raw if isinstance(current_raw, dict) else {}
     criteria_raw = current.get("criteria", [])
     criteria = criteria_raw if isinstance(criteria_raw, list) else []
-    st.markdown("#### Scorecard")
+    st.markdown("#### Bewertung")
     stage = st.selectbox(
-        "Scorecard Stage",
+        "Interviewstufe für die Bewertung",
         options=stage_labels or ["Fachinterview"],
         index=0,
         key=f"fact_input.{FactKey.INTERVIEW_SCORECARD_TEMPLATE.value}.stage",
@@ -764,33 +1010,35 @@ def _render_scorecard(stage_labels: list[str]) -> None:
         current_criterion = (
             criteria[idx] if idx < len(criteria) and isinstance(criteria[idx], dict) else {}
         )
-        cols = st.columns([2, 1, 1], gap="small")
-        with cols[0]:
-            title = st.text_input(
-                "Kriterium",
-                value=compact_text(current_criterion.get("title")),
-                key=f"fact_input.{FactKey.INTERVIEW_SCORECARD_TEMPLATE.value}.criteria.{idx}.title",
+        with section_container(border=True):
+            st.markdown(f"**Bewertungspunkt {idx + 1}**")
+            cols = st.columns([2, 1, 1], gap="small")
+            with cols[0]:
+                title = st.text_input(
+                    "Was wird bewertet?",
+                    value=compact_text(current_criterion.get("title")),
+                    key=f"fact_input.{FactKey.INTERVIEW_SCORECARD_TEMPLATE.value}.criteria.{idx}.title",
+                )
+            with cols[1]:
+                weight = st.number_input(
+                    "Gewichtung %",
+                    min_value=0,
+                    max_value=100,
+                    value=int(current_criterion.get("weight_percent") or 0),
+                    step=5,
+                    key=f"fact_input.{FactKey.INTERVIEW_SCORECARD_TEMPLATE.value}.criteria.{idx}.weight",
+                )
+            with cols[2]:
+                scale = st.text_input(
+                    "Skala",
+                    value=compact_text(current_criterion.get("scale") or "1-5"),
+                    key=f"fact_input.{FactKey.INTERVIEW_SCORECARD_TEMPLATE.value}.criteria.{idx}.scale",
+                )
+            evidence_anchor = st.text_input(
+                "Woran erkennt man gute Antworten?",
+                value=compact_text(current_criterion.get("evidence_anchor")),
+                key=f"fact_input.{FactKey.INTERVIEW_SCORECARD_TEMPLATE.value}.criteria.{idx}.evidence",
             )
-        with cols[1]:
-            weight = st.number_input(
-                "Gewicht %",
-                min_value=0,
-                max_value=100,
-                value=int(current_criterion.get("weight_percent") or 0),
-                step=5,
-                key=f"fact_input.{FactKey.INTERVIEW_SCORECARD_TEMPLATE.value}.criteria.{idx}.weight",
-            )
-        with cols[2]:
-            scale = st.text_input(
-                "Skala",
-                value=compact_text(current_criterion.get("scale") or "1-5"),
-                key=f"fact_input.{FactKey.INTERVIEW_SCORECARD_TEMPLATE.value}.criteria.{idx}.scale",
-            )
-        evidence_anchor = st.text_input(
-            "Evidenzanker",
-            value=compact_text(current_criterion.get("evidence_anchor")),
-            key=f"fact_input.{FactKey.INTERVIEW_SCORECARD_TEMPLATE.value}.criteria.{idx}.evidence",
-        )
         if title:
             criteria_rows.append(
                 {
@@ -801,14 +1049,14 @@ def _render_scorecard(stage_labels: list[str]) -> None:
                 }
             )
     recommendation_text = st.text_input(
-        "Empfehlungsoptionen",
+        "Empfehlungen",
         value=", ".join(
             split_lines(current.get("recommendation_options") or ["Strong Yes", "Yes", "Hold", "No"])
         ),
         key=f"fact_input.{FactKey.INTERVIEW_SCORECARD_TEMPLATE.value}.recommendations",
     )
     notes = st.text_area(
-        "Scorecard Notes",
+        "Notizen zur Bewertung",
         value=str(current.get("notes") or ""),
         height=80,
         key=f"fact_input.{FactKey.INTERVIEW_SCORECARD_TEMPLATE.value}.notes",
@@ -824,26 +1072,55 @@ def _render_scorecard(stage_labels: list[str]) -> None:
     )
 
 
-def _render_structured_interview_design(job: JobAdExtract) -> None:
+def _render_evaluation_inputs(stage_labels: list[str]) -> None:
+    _render_assessment_evidence(stage_labels)
+    _render_scorecard(stage_labels)
+    core_questions = st.text_area(
+        "Welche Fragen sind für alle Kandidat:innen identisch?",
+        value="\n".join(split_lines(fact_value(FactKey.INTERVIEW_CORE_QUESTIONS, []))),
+        height=110,
+        key=f"fact_input.{FactKey.INTERVIEW_CORE_QUESTIONS.value}",
+    )
+    persist_fact(FactKey.INTERVIEW_CORE_QUESTIONS, split_lines(core_questions))
+    render_text_area_fact(
+        FactKey.INTERVIEW_COMPLIANCE_NOTES,
+        "Datenschutz, Dokumentation oder Compliance",
+        height=90,
+    )
+
+
+def _render_combined_interview_workspace(job: JobAdExtract) -> None:
     with section_container(border=True):
-        st.markdown("### Stage & Evaluation")
+        st.markdown("### Interviewprozess planen")
+        st.caption(
+            "Ablauf, Kommunikation, Zuständigkeiten und Bewertung werden hier zusammen gepflegt."
+        )
+        tab_labels = [
+            "Ablauf",
+            "Kommunikation",
+            "Team & Entscheidungen",
+            "Bewertung",
+        ]
+        if callable(getattr(st, "tabs", None)):
+            tab_flow, tab_comm, tab_team, tab_eval = st.tabs(tab_labels)
+            with tab_flow:
+                stage_labels = _render_stage_rows(job)
+            with tab_comm:
+                _render_candidate_sla_rows(stage_labels)
+                _render_candidate_communication_container(job)
+            with tab_team:
+                _render_stage_owner_rows(stage_labels)
+                _render_internal_roles_container(job)
+            with tab_eval:
+                _render_evaluation_inputs(stage_labels)
+            return
+
         stage_labels = _render_stage_rows(job)
-        _render_stage_owner_rows(stage_labels)
         _render_candidate_sla_rows(stage_labels)
-        _render_assessment_evidence(stage_labels)
-        _render_scorecard(stage_labels)
-        core_questions = st.text_area(
-            "Welche Fragen sind für alle Kandidat:innen identisch?",
-            value="\n".join(split_lines(fact_value(FactKey.INTERVIEW_CORE_QUESTIONS, []))),
-            height=110,
-            key=f"fact_input.{FactKey.INTERVIEW_CORE_QUESTIONS.value}",
-        )
-        persist_fact(FactKey.INTERVIEW_CORE_QUESTIONS, split_lines(core_questions))
-        render_text_area_fact(
-            FactKey.INTERVIEW_COMPLIANCE_NOTES,
-            "Datenschutz-/Dokumentationspflichten oder Compliance Notes",
-            height=90,
-        )
+        _render_candidate_communication_container(job)
+        _render_stage_owner_rows(stage_labels)
+        _render_internal_roles_container(job)
+        _render_evaluation_inputs(stage_labels)
 
 
 def render(ctx: WizardContext) -> None:
@@ -857,34 +1134,22 @@ def render(ctx: WizardContext) -> None:
 
     step = next((s for s in plan.steps if s.step_key == STEP_KEY_INTERVIEW), None)
 
-    def _render_extracted_slot() -> None:
-        _render_section_form(
-            form_key="interview.value_board.form",
-            submit_label="Interview-Werte speichern",
-            renderer=lambda: _render_interview_value_board(job=job, plan=plan),
+    def _render_intro_slot() -> None:
+        st.markdown(
+            "\n".join(
+                (
+                    "- Halte den Ablauf so kurz und nachvollziehbar wie möglich.",
+                    "- Lege pro Stufe fest, wer entscheidet und wann Kandidat:innen ein Update erhalten.",
+                    "- Nutze die Bewertung nur für Signale, die im Interview wirklich beobachtbar sind.",
+                )
+            )
         )
+
+    def _render_extracted_slot() -> None:
+        _render_known_interview_overview(job=job, plan=plan)
 
     def _render_source_comparison_slot() -> None:
-        st.markdown("#### Prozessdesign und interne Steuerung")
-        st.caption(
-            "Definiere zuerst den sichtbaren Kandidat:innen-Prozess. Danach ergänzt "
-            "du interne Rollen, Kommunikation und Zeitfenster."
-        )
-        _render_section_form(
-            form_key="interview.stage_evaluation.form",
-            submit_label="Stage & Evaluation speichern",
-            renderer=lambda: _render_structured_interview_design(job),
-        )
-
-        if hasattr(st, "markdown"):
-            st.markdown("#### Candidate Communication")
-        _render_candidate_communication_container(job)
-
-        _render_section_form(
-            form_key="interview.internal_roles.form",
-            submit_label="Interne Rollen speichern",
-            renderer=lambda: _render_internal_roles_container(job),
-        )
+        _render_combined_interview_workspace(job)
 
     def _render_open_questions_slot() -> None:
         st.markdown("#### Offene Fragen")
@@ -893,7 +1158,7 @@ def render(ctx: WizardContext) -> None:
                 "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
             )
             return
-        render_question_step(step)
+        render_question_step(step, context_mode="compact")
 
     def _render_review_slot() -> None:
         st.markdown("#### Review")
@@ -915,15 +1180,8 @@ def render(ctx: WizardContext) -> None:
 
     render_step_shell(
         title="Interviewprozess klar und fair gestalten",
-        subtitle=(
-            "Definiere zuerst den sichtbaren Kandidat:innen-Prozess. Danach ergänzt du "
-            "interne Rollen, Kommunikation und Zeitfenster, damit Candidate Experience "
-            "und interne Steuerung zusammenpassen."
-        ),
-        outcome_text=(
-            "Ein klarer, fairer Interviewprozess mit abgestimmten Rollen, "
-            "Update-Zeitpunkten und evidenzbasierter Bewertung."
-        ),
+        subtitle="Klarer Ablauf, verbindliche Updates und faire Bewertung.",
+        outcome_slot=_render_intro_slot,
         step=step,
         **section_kwargs,
         footer_slot=lambda: nav_buttons(ctx),

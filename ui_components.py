@@ -2639,6 +2639,7 @@ def _render_questions_two_columns(
     persist: bool = True,
     ui_mode: str = "standard",
     provenance: Mapping[str, Any] | None = None,
+    context_mode: Literal["default", "compact"] = "default",
 ) -> list[QuestionInputResult]:
     results: list[QuestionInputResult] = []
     col_left, col_right = st.columns(2, gap="large")
@@ -2653,6 +2654,7 @@ def _render_questions_two_columns(
                     persist=persist,
                     ui_mode=ui_mode,
                     provenance=provenance,
+                    context_mode=context_mode,
                 )
             )
     return results
@@ -2692,7 +2694,11 @@ def _split_core_and_detail_questions(
     return core_questions, detail_questions
 
 
-def render_question_step(step: QuestionStep) -> None:
+def render_question_step(
+    step: QuestionStep,
+    *,
+    context_mode: Literal["default", "compact"] = "default",
+) -> None:
     answers = get_answers()
     answer_meta = get_answer_meta()
     ui_mode_raw = st.session_state.get(SSKey.UI_MODE.value, "standard")
@@ -2746,6 +2752,7 @@ def render_question_step(step: QuestionStep) -> None:
                 persist=False,
                 ui_mode=ui_mode,
                 provenance=flow_provenance,
+                context_mode=context_mode,
             )
             submitted = st.form_submit_button(
                 "Antworten übernehmen",
@@ -2764,6 +2771,7 @@ def render_question_step(step: QuestionStep) -> None:
             persist=True,
             ui_mode=ui_mode,
             provenance=flow_provenance,
+            context_mode=context_mode,
         )
 
     return
@@ -2778,6 +2786,7 @@ def _render_grouped_question_inputs(
     persist: bool,
     ui_mode: str = "standard",
     provenance: Mapping[str, Any] | None = None,
+    context_mode: Literal["default", "compact"] = "default",
 ) -> list[QuestionInputResult]:
     pending_inputs: list[QuestionInputResult] = []
     for group_title, group_questions in grouped_questions:
@@ -2801,12 +2810,13 @@ def _render_grouped_question_inputs(
                 ),
                 unsafe_allow_html=True,
             )
-            _render_section_provenance(
-                section_title=group_title,
-                questions=group_questions,
-                ui_mode=ui_mode,
-                provenance=provenance,
-            )
+            if context_mode != "compact" or ui_mode == "expert":
+                _render_section_provenance(
+                    section_title=group_title,
+                    questions=group_questions,
+                    ui_mode=ui_mode,
+                    provenance=provenance,
+                )
             if progress["required_unanswered"] > 0:
                 st.caption(f"{progress['required_unanswered']} offen")
             pending_inputs.extend(
@@ -2816,6 +2826,7 @@ def _render_grouped_question_inputs(
                     persist=persist,
                     ui_mode=ui_mode,
                     provenance=provenance,
+                    context_mode=context_mode,
                 )
             )
     return pending_inputs
@@ -3681,6 +3692,7 @@ def _render_question(
     persist: bool = True,
     ui_mode: str = "standard",
     provenance: Mapping[str, Any] | None = None,
+    context_mode: Literal["default", "compact"] = "default",
 ) -> QuestionInputResult:
     key = widget_key_prefix + q.id
     inferred_default = _infer_default_value(q)
@@ -3874,7 +3886,8 @@ def _render_question(
 
         if q.help:
             st.caption(q.help)
-        _render_question_provenance(q, ui_mode=ui_mode, provenance=provenance)
+        if context_mode != "compact" or ui_mode == "expert":
+            _render_question_provenance(q, ui_mode=ui_mode, provenance=provenance)
         if validation_error:
             st.error(validation_error)
 

@@ -685,6 +685,78 @@ def test_render_question_step_hides_group_provenance_counts_and_sensitive_detail
     assert "Do not leak this evidence snippet" not in joined_captions
 
 
+def test_render_question_step_compact_context_hides_visible_provenance(
+    monkeypatch,
+) -> None:
+    class _FakeStepStreamlit:
+        def __init__(self) -> None:
+            self.session_state: dict[str, Any] = {
+                SSKey.UI_MODE.value: "standard",
+                SSKey.QUESTION_LIMITS.value: {},
+                SSKey.QUESTION_FLOW_PROVENANCE.value: {
+                    "injected_question_ids": ["ctx_interview"],
+                },
+            }
+            self.captions: list[str] = []
+            self.markdowns: list[str] = []
+
+        def caption(self, message: str, *_: Any, **__: Any) -> None:
+            self.captions.append(message)
+
+        def markdown(self, message: str, *_: Any, **__: Any) -> None:
+            self.markdowns.append(message)
+
+        def info(self, *_: Any, **__: Any) -> None:
+            return None
+
+        def container(self, *, border: bool = False) -> _NoopContext:
+            del border
+            return _NoopContext()
+
+        def columns(self, spec: int | list[int], **_: Any) -> list[_NoopContext]:
+            count = spec if isinstance(spec, int) else len(spec)
+            return [_NoopContext() for _ in range(count)]
+
+    fake_st = _FakeStepStreamlit()
+    captured_context_modes: list[str] = []
+    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_components, "get_answers", lambda: {})
+    monkeypatch.setattr(ui_components, "get_answer_meta", lambda: {})
+
+    def _capture_questions_two_columns(
+        _questions: list[Question],
+        _answers: dict[str, Any],
+        **kwargs: Any,
+    ) -> list[tuple[str, Any, Any]]:
+        captured_context_modes.append(kwargs.get("context_mode", "default"))
+        return []
+
+    monkeypatch.setattr(
+        ui_components,
+        "_render_questions_two_columns",
+        _capture_questions_two_columns,
+    )
+    step = QuestionStep(
+        step_key="interview",
+        title_de="Interview",
+        questions=[
+            Question(
+                id="ctx_interview",
+                label="Wer informiert Kandidat:innen?",
+                answer_type=AnswerType.SHORT_TEXT,
+                rationale="Defines candidate communication timing.",
+                group_key="candidate_communication",
+            )
+        ],
+    )
+
+    ui_components.render_question_step(step, context_mode="compact")
+
+    assert captured_context_modes == ["compact"]
+    assert not any(caption.startswith("Herkunft:") for caption in fake_st.captions)
+    assert not any(("Warum:" in caption or "Für:" in caption) for caption in fake_st.captions)
+
+
 def test_question_provenance_display_uses_safe_labels_and_canonical_impacts() -> None:
     question = Question(
         id="ctx_esco_skill",
