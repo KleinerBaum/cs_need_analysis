@@ -49,7 +49,7 @@ from homepage_research import (
     normalize_url as _normalize_url,
     strip_html as _strip_html,
 )
-from schemas import JobAdExtract, QuestionPlan, QuestionStep
+from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
 from step_sections import build_step_shell_section_kwargs
 from ui_components import (
     has_meaningful_value,
@@ -65,7 +65,6 @@ from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav
 from wizard_pages.fact_inputs import (
     compact_text,
     fact_value,
-    persist_compact_object,
     persist_fact,
     render_multiselect_fact,
     render_number_fact,
@@ -76,7 +75,7 @@ from wizard_pages.fact_inputs import (
     split_lines,
 )
 from intake_facts import append_intake_fact_secondary_evidence, write_intake_fact
-from job_extract_evidence import format_field_evidence_snippet, format_provenance_label
+from job_extract_evidence import format_field_evidence_snippet
 from state import mark_answer_touched
 from wizard_pages.team_section import render_role_context_enrichment
 
@@ -88,20 +87,56 @@ _LEADERSHIP_LABELS = {
     "beides": "Fachlich und disziplinarisch",
     "unklar": "Noch unklar",
 }
-_WORK_ARRANGEMENT_LABELS = {
-    "onsite": "Vor Ort",
-    "hybrid": "Hybrid",
-    "remote_country": "Remote im Land",
-    "remote_cross_border": "Remote grenzüberschreitend",
-    "unknown": "Noch unklar",
-}
-_CEFR_LEVELS = ("A1", "A2", "B1", "B2", "C1", "C2")
 _FACT_DEFS_BY_KEY = {fact.fact_key.value: fact for fact in INTAKE_FACTS}
 _FACT_OPTION_VALUES = tuple(fact.fact_key.value for fact in INTAKE_FACTS)
+_FACT_DISPLAY_LABELS = {
+    FactKey.COMPANY_COMPANY_NAME.value: "Unternehmensname",
+    FactKey.COMPANY_BRAND_NAME.value: "Marke",
+    FactKey.COMPANY_COMPANY_WEBSITE.value: "Website",
+    FactKey.COMPANY_LOCATION_CITY.value: "Stadt",
+    FactKey.COMPANY_LOCATION_COUNTRY.value: "Land",
+    FactKey.COMPANY_EMPLOYER_PITCH.value: "Unternehmensbeschreibung",
+    FactKey.COMPANY_ROLE_RELEVANT_POSITIONING.value: "Positionierung",
+    FactKey.COMPANY_BUSINESS_UNIT.value: "Geschäftsbereich",
+    FactKey.COMPANY_HIRING_REASON.value: "Besetzungsgrund",
+    FactKey.COMPANY_GROWTH_CONTEXT.value: "Wachstumskontext",
+    FactKey.COMPANY_ROLE_BUSINESS_IMPACT.value: "Business Impact",
+    FactKey.COMPANY_WORK_ARRANGEMENT.value: "Arbeitsmodell",
+    FactKey.COMPANY_OFFICE_DAYS_PER_WEEK.value: "Bürotage pro Woche",
+    FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES.value: "Regionen / Zeitzonen",
+    FactKey.COMPANY_LANGUAGE_INTERNAL.value: "Interne Sprache",
+    FactKey.COMPANY_LANGUAGE_EXTERNAL.value: "Externe Sprache",
+    FactKey.COMPANY_NON_NEGOTIABLES.value: "Nicht verhandelbar",
+    FactKey.COMPANY_COMPLIANCE_CONTEXT.value: "Compliance-Kontext",
+    FactKey.COMPANY_TARIFF_CONTEXT.value: "Tarif / Vorgaben",
+    FactKey.COMPANY_DEPARTMENT_NAME.value: "Abteilung",
+    FactKey.COMPANY_REPORTS_TO.value: "Berichtet an",
+    FactKey.COMPANY_DIRECT_REPORTS_COUNT.value: "Direct Reports",
+    FactKey.TEAM_NAME.value: "Team",
+    FactKey.TEAM_LEADERSHIP_SCOPE.value: "Führungsverantwortung",
+    FactKey.TEAM_SIZE_DIRECT.value: "Teamgröße",
+    FactKey.TEAM_STAKEHOLDERS_PRIMARY.value: "Stakeholder",
+    FactKey.TEAM_SUCCESS_CONTEXT_90D.value: "Arbeitsweise im Team",
+    FactKey.ROLE_TECH_STACK.value: "Tech Stack",
+    FactKey.ROLE_DOMAIN_EXPERTISE.value: "Fachlicher Kontext",
+    FactKey.BENEFITS_BENEFITS.value: "Benefits",
+}
 _FACT_OPTION_LABELS = {
-    fact.fact_key.value: f"{fact.label} ({fact.fact_key.value})"
+    fact.fact_key.value: _FACT_DISPLAY_LABELS.get(fact.fact_key.value, fact.label)
     for fact in INTAKE_FACTS
 }
+_TEAM_CONTEXT_FACT_KEYS = frozenset(
+    {
+        FactKey.COMPANY_DEPARTMENT_NAME,
+        FactKey.COMPANY_REPORTS_TO,
+        FactKey.COMPANY_DIRECT_REPORTS_COUNT,
+        FactKey.TEAM_NAME,
+        FactKey.TEAM_LEADERSHIP_SCOPE,
+        FactKey.TEAM_SIZE_DIRECT,
+        FactKey.TEAM_STAKEHOLDERS_PRIMARY,
+        FactKey.TEAM_SUCCESS_CONTEXT_90D,
+    }
+)
 _STRUCTURED_COMPANY_FACT_KEYS = frozenset(
     {
         FactKey.COMPANY_EMPLOYER_PITCH,
@@ -182,6 +217,68 @@ def _filtered_company_open_question_step(
         description_de=step.description_de,
         questions=filtered_questions,
     )
+
+
+def _split_company_open_question_steps(
+    step: QuestionStep | None,
+) -> tuple[QuestionStep | None, QuestionStep | None]:
+    if step is None:
+        return None, None
+    questions = list(getattr(step, "questions", []) or [])
+    if not questions:
+        return None, None
+
+    company_questions: list[Question] = []
+    team_questions: list[Question] = []
+    for question in questions:
+        if _is_team_open_question(question):
+            team_questions.append(question)
+        else:
+            company_questions.append(question)
+
+    return (
+        _clone_question_step(step, title_de="Unternehmen", questions=company_questions),
+        _clone_question_step(step, title_de="Team", questions=team_questions),
+    )
+
+
+def _clone_question_step(
+    step: QuestionStep,
+    *,
+    title_de: str,
+    questions: list[Question],
+) -> QuestionStep | None:
+    if not questions:
+        return None
+    return QuestionStep(
+        step_key=step.step_key,
+        title_de=title_de,
+        description_de="",
+        questions=questions,
+    )
+
+
+def _is_team_open_question(question: Any) -> bool:
+    fact_key = _question_canonical_fact_key(question)
+    if fact_key in _TEAM_CONTEXT_FACT_KEYS:
+        return True
+    group_key = str(getattr(question, "group_key", "") or "").casefold()
+    question_id = str(getattr(question, "id", "") or "").casefold()
+    label = str(getattr(question, "label", "") or "").casefold()
+    haystack = f"{group_key} {question_id} {label}"
+    team_markers = (
+        "team",
+        "stakeholder",
+        "reporting",
+        "reports",
+        "direct report",
+        "leadership",
+        "führung",
+        "fuehrung",
+        "berichtet",
+        "zusammenarbeit",
+    )
+    return any(marker in haystack for marker in team_markers)
 
 
 def _is_structured_company_duplicate_question(question: Any) -> bool:
@@ -320,7 +417,7 @@ def _run_website_research(
 
 
 def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
-    st.markdown("#### Website Evidence")
+    st.markdown("#### Website analysieren")
     extracted_homepage = _normalize_url(
         str(
             fact_value(
@@ -335,76 +432,119 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
     ).strip()
     manual_homepage = _normalize_url(manual_homepage_raw)
     homepage = extracted_homepage or manual_homepage
-    left_col, right_col = responsive_two_columns(gap="large")
-    with left_col:
-        st.write("**Unternehmenswebsite**")
-        if extracted_homepage:
-            st.code(extracted_homepage, language="text")
-        else:
-            st.info("Keine Unternehmenswebsite in der Anzeige erkannt.")
-            st.text_input(
-                "Unternehmenswebsite",
-                key=SSKey.COMPANY_WEBSITE_MANUAL_URL.value,
-                placeholder="https://www.beispiel.de",
-            )
-            if manual_homepage:
-                st.caption("Manuell erfasste URL wird für die Analyse verwendet.")
+    if extracted_homepage:
+        st.caption(f"Website aus der Anzeige: {extracted_homepage}")
+    else:
+        st.text_input(
+            "Unternehmenswebsite",
+            key=SSKey.COMPANY_WEBSITE_MANUAL_URL.value,
+            placeholder="https://www.beispiel.de",
+            help="Öffentliche Website, die für die Analyse verwendet werden soll.",
+        )
+        if manual_homepage:
+            st.caption("Manuell erfasste URL wird für die Analyse verwendet.")
 
-        button_col_1, button_col_2, button_col_3 = responsive_three_columns(gap="small")
-        with button_col_1:
-            if st.button("Über-uns-Seite auswerten", width="stretch"):
-                _run_website_research(
-                    homepage_url=homepage, topic_key=WEBSITE_TOPIC_ABOUT, plan=plan
-                )
-        with button_col_2:
-            if st.button("Impressum auswerten", width="stretch"):
-                _run_website_research(
-                    homepage_url=homepage, topic_key=WEBSITE_TOPIC_IMPRINT, plan=plan
-                )
-        with button_col_3:
+    button_specs = (
+        (WEBSITE_TOPIC_ABOUT, "Über uns prüfen"),
+        (WEBSITE_TOPIC_IMPRINT, "Impressum prüfen"),
+        (WEBSITE_TOPIC_VISION_MISSION, "Vision/Werte prüfen"),
+    )
+    button_cols = responsive_three_columns(gap="small")
+    for index, (topic_key, button_label) in enumerate(button_specs):
+        with button_cols[index]:
             if st.button(
-                "Vision/Mission auswerten",
+                button_label,
                 width="stretch",
+                key=f"company.website.research.{topic_key}",
             ):
                 _run_website_research(
-                    homepage_url=homepage,
-                    topic_key=WEBSITE_TOPIC_VISION_MISSION,
-                    plan=plan,
+                    homepage_url=homepage, topic_key=topic_key, plan=plan
                 )
 
-        error_text = st.session_state.get(SSKey.COMPANY_WEBSITE_LAST_ERROR.value)
-        if isinstance(error_text, str) and error_text.strip():
-            st.warning(error_text)
+    error_text = st.session_state.get(SSKey.COMPANY_WEBSITE_LAST_ERROR.value)
+    if isinstance(error_text, str) and error_text.strip():
+        st.warning(error_text)
 
-    with right_col:
-        research_raw = st.session_state.get(SSKey.COMPANY_WEBSITE_RESEARCH.value, {})
-        research = research_raw if isinstance(research_raw, dict) else {}
-        sections = research.get(WEBSITE_RESEARCH_SECTIONS, {})
-        section_payload = sections if isinstance(sections, dict) else {}
-        if not section_payload:
-            st.caption("Noch keine Website-Analyse durchgeführt.")
-        for topic_key, topic_label in _TOPIC_LABELS.items():
-            payload_raw = section_payload.get(topic_key, {})
-            payload = payload_raw if isinstance(payload_raw, dict) else {}
-            summary = payload.get(WEBSITE_SECTION_SUMMARY, [])
-            facts = _normalize_research_facts(payload.get(WEBSITE_SECTION_FACTS, {}))
-            if not isinstance(summary, list) or not summary:
-                continue
-            with st.container(border=True):
-                st.write(f"**{topic_label}**")
-                source_url = str(payload.get(WEBSITE_SECTION_SOURCE_URL) or "").strip()
-                if source_url:
-                    st.caption(f"Quelle: {source_url}")
-                if facts:
-                    for label, value in facts.items():
-                        if label.startswith("fact_"):
-                            st.write(f"- **{value}**")
-                        else:
-                            st.write(f"- **{label}:** {value}")
-                for line in summary:
-                    st.write(f"- {str(line).strip()}")
+    research_raw = st.session_state.get(SSKey.COMPANY_WEBSITE_RESEARCH.value, {})
+    research = research_raw if isinstance(research_raw, dict) else {}
+    sections = research.get(WEBSITE_RESEARCH_SECTIONS, {})
+    section_payload = sections if isinstance(sections, dict) else {}
+    if not section_payload:
+        st.caption("Noch keine Website-Analyse durchgeführt.")
+        return
 
-        _render_website_fact_review(research)
+    result_cols = responsive_three_columns(gap="small")
+    for index, (topic_key, topic_label) in enumerate(_TOPIC_LABELS.items()):
+        with result_cols[index]:
+            _render_website_topic_result(
+                topic_key=topic_key,
+                topic_label=topic_label,
+                payload=section_payload.get(topic_key, {}),
+            )
+
+    _render_website_open_question_matches(research)
+    _render_website_fact_review(research)
+
+
+def _render_website_topic_result(
+    *,
+    topic_key: str,
+    topic_label: str,
+    payload: Any,
+) -> None:
+    section = payload if isinstance(payload, dict) else {}
+    summary_raw = section.get(WEBSITE_SECTION_SUMMARY, [])
+    summary = summary_raw if isinstance(summary_raw, list) else []
+    facts = _normalize_research_facts(section.get(WEBSITE_SECTION_FACTS, {}))
+    with st.container(border=True):
+        st.write(f"**{topic_label}**")
+        if not summary and not facts:
+            st.caption("Noch nicht analysiert.")
+            return
+        for label, value in list(facts.items())[:3]:
+            if label.startswith("fact_"):
+                st.caption(str(value).strip())
+            else:
+                st.caption(f"{label}: {value}")
+        for line in [str(item).strip() for item in summary if str(item).strip()][:2]:
+            st.write(f"- {line}")
+        source_url = str(section.get(WEBSITE_SECTION_SOURCE_URL) or "").strip()
+        if source_url:
+            with st.expander("Quelle", expanded=False):
+                st.caption(source_url)
+
+
+def _render_website_open_question_matches(research: dict[str, Any]) -> None:
+    matches_raw = research.get(WEBSITE_RESEARCH_OPEN_QUESTION_MATCHES, [])
+    matches = matches_raw if isinstance(matches_raw, list) else []
+    options = _build_open_question_match_options(matches)
+    if not options:
+        return
+
+    option_by_id = {
+        str(option.get("option_id") or ""): option
+        for option in options
+        if str(option.get("option_id") or "").strip()
+    }
+    if not option_by_id:
+        return
+    existing_raw = st.session_state.get(SSKey.COMPANY_WEBSITE_SELECTED_MATCHES.value, [])
+    existing = [
+        str(item)
+        for item in existing_raw
+        if str(item) in option_by_id
+    ] if isinstance(existing_raw, list) else []
+    selected = st.multiselect(
+        "Website-Hinweise für offene Fragen",
+        options=list(option_by_id),
+        default=existing,
+        format_func=lambda option_id: option_by_id[option_id]["display_label"],
+        help=(
+            "Merkt passende Website-Hinweise vor. Antworten werden erst nach "
+            "Bestätigung im passenden Fragefeld gespeichert."
+        ),
+    )
+    st.session_state[SSKey.COMPANY_WEBSITE_SELECTED_MATCHES.value] = list(selected)
 
 
 def _render_website_fact_review(research: dict[str, Any]) -> None:
@@ -412,10 +552,9 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
     if not candidates:
         return
 
-    st.markdown("### Kontext aus der Website-Analyse")
+    st.markdown("#### Website-Funde übernehmen")
     st.caption(
-        "Second-source Review: Website-Funde werden vor dem Speichern einem "
-        "kanonischen Key zugeordnet und gegen vorhandene Werte geprüft."
+        "Prüfe die vorgeschlagenen Werte und übernimm nur belastbare Angaben."
     )
     review_raw = st.session_state.get(SSKey.COMPANY_WEBSITE_FACT_REVIEW.value, {})
     review_state = review_raw if isinstance(review_raw, dict) else {}
@@ -449,7 +588,7 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
             key_col, value_col, source_col = responsive_three_columns(gap="small")
             with key_col:
                 selected_fact_key = st.selectbox(
-                    f"Key {index}",
+                    f"Ziel-Feld {index}",
                     options=_FACT_OPTION_VALUES,
                     index=_FACT_OPTION_VALUES.index(default_fact_key),
                     format_func=lambda value: _FACT_OPTION_LABELS.get(value, value),
@@ -459,13 +598,12 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
             with value_col:
                 parsed_value, parse_error = _render_website_candidate_value_input(
                     candidate_id=candidate_id,
-                    label=f"Wert {index}",
+                    label=f"Website-Wert {index}",
                     value=draft_value,
                     value_type=value_type,
                 )
             with source_col:
                 source_label = str(candidate.get("source_label") or "Website").strip()
-                confidence = candidate.get("confidence")
                 evidence = str(candidate.get("evidence_snippet") or "").strip()
                 selected_fact = _coerce_fact_key(selected_fact_key)
                 current_value = fact_value(selected_fact) if selected_fact is not None else None
@@ -475,37 +613,23 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
                     and not _is_empty_fact_value(current_value)
                     and not _fact_values_equal(current_value, parsed_value)
                 )
-                candidate_resolution = FactResolutionStatus.INFERRED.value
-                candidate_confirmed = False
                 if not _is_empty_fact_value(current_value) and _fact_values_equal(
                     current_value, parsed_value
                 ):
-                    candidate_resolution = FactResolutionStatus.CONFIRMED.value
-                    candidate_confirmed = True
+                    candidate_resolution = "Bestätigt vorhandene Angabe"
                 elif has_confirmed_conflict:
-                    candidate_resolution = FactResolutionStatus.CONFLICTED.value
-                provenance = format_provenance_label(
-                    source_type=FactSourceType.HOMEPAGE.value,
-                    source_label=source_label,
-                    resolution_status=candidate_resolution,
-                    confirmed=candidate_confirmed,
-                    confidence=confidence,
-                )
-                provenance_suffix = f" · {provenance}" if provenance else ""
-                st.caption(f"Quelle: {source_label}{provenance_suffix}")
+                    candidate_resolution = "Weicht von bestätigter Angabe ab"
+                else:
+                    candidate_resolution = "Neue Website-Angabe"
+                st.caption(f"Quelle: {source_label}")
+                st.caption(candidate_resolution)
                 if evidence:
                     safe_evidence = format_field_evidence_snippet(
                         {"evidence_snippet": evidence}, max_chars=160
                     )
                     if safe_evidence:
-                        st.caption(safe_evidence)
-                if not _is_empty_fact_value(current_value):
-                    review_note = (
-                        "Website bestätigt den vorhandenen Wert."
-                        if _fact_values_equal(current_value, parsed_value)
-                        else "Website-Wert weicht vom vorhandenen Wert ab."
-                    )
-                    st.caption(f"Review: {review_note}")
+                        with st.expander("Beleg anzeigen", expanded=False):
+                            st.caption(safe_evidence)
                 override_conflict = False
                 if has_confirmed_conflict:
                     override_conflict = st.checkbox(
@@ -519,7 +643,7 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
                 if parse_error:
                     st.caption(parse_error)
                 selected = st.checkbox(
-                    "Übernehmen",
+                    "Diesen Fund übernehmen",
                     value=default_selected,
                     key=f"company.website.fact_review.{candidate_id}.selected",
                 )
@@ -542,7 +666,7 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
             )
 
         submitted = st.form_submit_button(
-            "Ausgewählten Website-Kontext übernehmen", width="stretch"
+            "Website-Funde übernehmen", width="stretch"
         )
 
     st.session_state[SSKey.COMPANY_WEBSITE_FACT_REVIEW.value] = next_review_state
@@ -583,7 +707,7 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
         st.success(f"{corroborated_count} Website-Kontextwerte bestätigt.")
     if conflict_count:
         st.warning(
-            f"{conflict_count} Website-Konflikte wurden als Evidence gespeichert."
+            f"{conflict_count} Website-Konflikte wurden als zusätzlicher Beleg gespeichert."
         )
     if skipped_count:
         st.warning(f"{skipped_count} ausgewählte Kontextwerte wurden nicht gespeichert.")
@@ -814,47 +938,9 @@ def _format_company_subheader(job: JobAdExtract) -> str | None:
     return " · ".join(parts)
 
 
-def _render_language_fact(
-    *,
-    fact_key: FactKey,
-    title: str,
-    default_context: str,
-) -> None:
-    current_raw = fact_value(fact_key, {})
-    current = current_raw if isinstance(current_raw, dict) else {}
-    language = st.text_input(
-        f"{title}: Sprache",
-        value=compact_text(current.get("language")),
-        placeholder="Deutsch, Englisch, ...",
-        key=f"fact_input.{fact_key.value}.language",
-    )
-    current_level = compact_text(current.get("level")) or "B2"
-    if current_level not in _CEFR_LEVELS:
-        current_level = "B2"
-    level = st.selectbox(
-        f"{title}: Mindestniveau",
-        options=_CEFR_LEVELS,
-        index=_CEFR_LEVELS.index(current_level),
-        key=f"fact_input.{fact_key.value}.level",
-    )
-    context = st.text_input(
-        f"{title}: Kontext",
-        value=compact_text(current.get("context") or default_context),
-        key=f"fact_input.{fact_key.value}.context",
-    )
-    persist_compact_object(
-        fact_key,
-        {
-            "language": language,
-            "level": level,
-            "context": context,
-        },
-    )
-
-
 def _render_employer_profile_section(job: JobAdExtract) -> None:
     with section_container(border=True):
-        st.markdown("#### Employer Profile")
+        st.markdown("#### Arbeitgeberprofil")
         left, right = responsive_two_columns(gap="large")
         with left:
             render_text_fact(
@@ -883,7 +969,7 @@ def _render_employer_profile_section(job: JobAdExtract) -> None:
 
 def _render_business_context_section(job: JobAdExtract) -> None:
     with section_container(border=True):
-        st.markdown("#### Business Context")
+        st.markdown("#### Unternehmenskontext")
         left, right = responsive_two_columns(gap="large")
         with left:
             render_text_fact(
@@ -924,9 +1010,11 @@ def _render_business_context_section(job: JobAdExtract) -> None:
 
 
 def _render_team_reporting_section(job: JobAdExtract, *, ctx: WizardContext) -> None:
+    del ctx
+
     def _render_team_reporting_fields() -> None:
         with section_container(border=True):
-            st.markdown("#### Team & Reporting")
+            st.markdown("#### Team & Berichtslinie")
             team_col, department_col, reports_to_col = responsive_three_columns(
                 gap="large"
             )
@@ -999,157 +1087,41 @@ def _render_team_reporting_section(job: JobAdExtract, *, ctx: WizardContext) -> 
 
     _render_section_form(
         form_key="company.team_reporting.form",
-        submit_label="Team & Reporting speichern",
+        submit_label="Team & Berichtslinie speichern",
         renderer=_render_team_reporting_fields,
     )
+
+
+def _render_company_context(job: JobAdExtract) -> None:
+    _render_section_form(
+        form_key="company.employer_profile.form",
+        submit_label="Arbeitgeberprofil speichern",
+        renderer=lambda: _render_employer_profile_section(job),
+    )
+    _render_section_form(
+        form_key="company.business_context.form",
+        submit_label="Unternehmenskontext speichern",
+        renderer=lambda: _render_business_context_section(job),
+    )
+
+
+def _render_team_context(job: JobAdExtract, *, ctx: WizardContext) -> None:
+    _render_team_reporting_section(job, ctx=ctx)
+
+
+def _render_company_research_and_esco(
+    job: JobAdExtract,
+    *,
+    ctx: WizardContext,
+    plan: QuestionPlan,
+) -> None:
+    _render_website_enrichment(job, plan)
     with section_container(border=True):
         render_role_context_enrichment(
             step=None,
             ctx=ctx,
             adopt_context_callback=_append_context_to_team_success_fact,
         )
-
-
-def _render_working_model_location_section(job: JobAdExtract) -> None:
-    with section_container(border=True):
-        st.markdown("#### Working Model & Location")
-        location_col, country_col, place_col = responsive_three_columns(gap="large")
-        with location_col:
-            render_text_fact(
-                FactKey.COMPANY_LOCATION_CITY,
-                "Arbeitsort / Stadt",
-                default=job.location_city or "",
-            )
-        with country_col:
-            render_text_fact(
-                FactKey.COMPANY_LOCATION_COUNTRY,
-                "Land",
-                default=job.location_country or "",
-            )
-        with place_col:
-            render_text_fact(
-                FactKey.COMPANY_PLACE_OF_WORK,
-                "Konkreter Arbeitsort",
-                default=job.place_of_work or "",
-            )
-
-        arrangement_col, days_col, remote_col = responsive_three_columns(gap="large")
-        with arrangement_col:
-            render_select_fact(
-                FactKey.COMPANY_WORK_ARRANGEMENT,
-                "Welches Arbeitsmodell gilt für diese Rolle?",
-                options=tuple(_WORK_ARRANGEMENT_LABELS),
-                default="unknown",
-                labels=_WORK_ARRANGEMENT_LABELS,
-            )
-        with days_col:
-            render_number_fact(
-                FactKey.COMPANY_OFFICE_DAYS_PER_WEEK,
-                "Wie viele Tage pro Woche vor Ort?",
-                min_value=0,
-                max_value=5,
-                default=0,
-            )
-        with remote_col:
-            render_text_fact(
-                FactKey.COMPANY_REMOTE_POLICY,
-                "Remote Policy aus der Anzeige / interner Regel",
-                default=job.remote_policy or "",
-            )
-        allowed_regions = st.text_area(
-            "Zulässige Regionen oder Zeitzonen",
-            value="\n".join(
-                split_lines(fact_value(FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES, []))
-            ),
-            placeholder="z. B. Deutschland\nDACH\nCET +/- 2h",
-            height=90,
-            key=f"fact_input.{FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES.value}",
-        )
-        region_values = split_lines(allowed_regions)
-        persist_fact(FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES, region_values)
-        lang_left, lang_right = responsive_two_columns(gap="large")
-        with lang_left:
-            _render_language_fact(
-                fact_key=FactKey.COMPANY_LANGUAGE_INTERNAL,
-                title="Interne Arbeitssprache",
-                default_context="interne Zusammenarbeit",
-            )
-        with lang_right:
-            _render_language_fact(
-                fact_key=FactKey.COMPANY_LANGUAGE_EXTERNAL,
-                title="Externe Kommunikationssprache",
-                default_context="Kund:innen / Partner",
-            )
-
-
-def _render_non_negotiables_compliance_section() -> None:
-    with section_container(border=True):
-        st.markdown("#### Non-negotiables & Compliance")
-        render_multiselect_fact(
-            FactKey.COMPANY_NON_NEGOTIABLES,
-            "Welche Rahmenbedingungen sind nicht verhandelbar?",
-            options=[
-                "Standort",
-                "Arbeitszeit",
-                "Gehalt",
-                "Vertragsart",
-                "Sprache",
-                "Zertifikat/Nachweis",
-                "Reisebereitschaft",
-                "Schicht/Rufbereitschaft",
-                "Sonstiges",
-            ],
-        )
-        compliance_col, tariff_col = responsive_two_columns(gap="large")
-        with compliance_col:
-            render_multiselect_fact(
-                FactKey.COMPANY_COMPLIANCE_CONTEXT,
-                "Welche regulatorischen oder betrieblichen Besonderheiten sind relevant?",
-                options=[
-                    "Regulierte Branche",
-                    "Datenschutz",
-                    "Arbeitssicherheit",
-                    "Zertifizierungen",
-                    "Betriebsrat",
-                    "Öffentlicher Sektor",
-                    "Sonstiges",
-                ],
-            )
-        with tariff_col:
-            render_text_fact(
-                FactKey.COMPANY_TARIFF_CONTEXT,
-                "Tarifbindung / Betriebsvereinbarung / besondere Vorgaben",
-            )
-
-
-def _render_structured_company_context(
-    job: JobAdExtract,
-    *,
-    ctx: WizardContext,
-    plan: QuestionPlan,
-) -> None:
-    _render_section_form(
-        form_key="company.employer_profile.form",
-        submit_label="Employer Profile speichern",
-        renderer=lambda: _render_employer_profile_section(job),
-    )
-    _render_section_form(
-        form_key="company.business_context.form",
-        submit_label="Business Context speichern",
-        renderer=lambda: _render_business_context_section(job),
-    )
-    _render_team_reporting_section(job, ctx=ctx)
-    _render_section_form(
-        form_key="company.working_model_location.form",
-        submit_label="Working Model & Location speichern",
-        renderer=lambda: _render_working_model_location_section(job),
-    )
-    _render_section_form(
-        form_key="company.non_negotiables_compliance.form",
-        submit_label="Non-negotiables & Compliance speichern",
-        renderer=_render_non_negotiables_compliance_section,
-    )
-    _render_website_enrichment(job, plan)
 
 
 def _append_context_to_team_success_fact(context_line: str) -> bool:
@@ -1164,6 +1136,18 @@ def _append_context_to_team_success_fact(context_line: str) -> bool:
     return True
 
 
+def _render_compact_open_questions(
+    *,
+    title: str,
+    step: QuestionStep | None,
+) -> None:
+    st.markdown(f"##### {title}")
+    if step is None or not step.questions:
+        st.caption("Keine zusätzlichen offenen Fragen.")
+        return
+    render_question_step(step, context_mode="compact")
+
+
 def render(ctx: WizardContext) -> None:
     preflight = guard_job_and_plan(ctx)
     if preflight is None:
@@ -1174,6 +1158,9 @@ def render(ctx: WizardContext) -> None:
         None,
     )
     open_question_step = _filtered_company_open_question_step(step_company)
+    company_open_question_step, team_open_question_step = (
+        _split_company_open_question_steps(open_question_step)
+    )
 
     def _render_extracted_slot() -> None:
         extracted_rows = [
@@ -1181,36 +1168,48 @@ def render(ctx: WizardContext) -> None:
             ("Marke/Brand", job.brand_name),
             ("Homepage", job.company_website),
             ("Ort", job.location_city),
-            ("Remote Policy", job.remote_policy),
-            ("Department", job.department_name),
-            ("Reports to", job.reports_to),
-            ("Direct reports", job.direct_reports_count),
+            ("Abteilung", job.department_name),
+            ("Berichtet an", job.reports_to),
+            ("Direct Reports", job.direct_reports_count),
         ]
-        shown = False
-        for label, value in extracted_rows:
-            if has_meaningful_value(value):
-                st.write(f"**{label}:** {str(value).strip()}")
-                shown = True
-        if not shown:
+        shown_rows = [
+            (label, value)
+            for label, value in extracted_rows
+            if has_meaningful_value(value)
+        ]
+        if not shown_rows:
             st.info(
                 "Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions."
             )
+            return
+
+        cols = responsive_three_columns(gap="small")
+        for index, (label, value) in enumerate(shown_rows):
+            with cols[index % len(cols)]:
+                st.caption(label)
+                st.write(str(value).strip())
 
     def _render_source_comparison_slot() -> None:
         render_error_banner()
-        _render_structured_company_context(job, ctx=ctx, plan=plan)
+        _render_company_research_and_esco(job, ctx=ctx, plan=plan)
 
     def _render_open_questions_slot() -> None:
-        st.markdown("#### Offene Fragen")
-        if open_question_step is None or not open_question_step.questions:
-            st.info(
-                "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
-            )
-        else:
-            render_question_step(open_question_step)
+        st.markdown("#### Unternehmensangaben")
+        _render_company_context(job)
+        _render_compact_open_questions(
+            title="Offene Fragen zum Unternehmen",
+            step=company_open_question_step,
+        )
+
+        st.markdown("#### Teamangaben")
+        _render_team_context(job, ctx=ctx)
+        _render_compact_open_questions(
+            title="Offene Fragen zum Team",
+            step=team_open_question_step,
+        )
 
     def _render_review_slot() -> None:
-        st.markdown("#### Review")
+        st.markdown("#### Prüfung")
         render_standard_step_review(
             step_company,
             render_mode=resolve_standard_review_mode(
@@ -1233,7 +1232,7 @@ def render(ctx: WizardContext) -> None:
         subtitle=_format_company_subheader(job)
         or (
             "Hier schärfst du das Bild hinter der Vakanz: Unternehmen, Markt, "
-            "Positionierung und Arbeitskontext."
+            "Positionierung und Teamkontext."
         ),
         step=step_company,
         **section_kwargs,

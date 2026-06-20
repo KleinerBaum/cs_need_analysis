@@ -572,7 +572,7 @@ def test_render_question_step_shows_adaptive_hidden_scope_caption(monkeypatch) -
     )
 
 
-def test_render_question_step_hides_group_provenance_counts_and_sensitive_details(
+def test_render_question_step_hides_visible_provenance_and_sensitive_details(
     monkeypatch,
 ) -> None:
     class _FakeStepStreamlit:
@@ -672,14 +672,9 @@ def test_render_question_step_hides_group_provenance_counts_and_sensitive_detail
     ui_components.render_question_step(step)
 
     joined_captions = " ".join(fake_st.captions)
-    assert any(
-        caption.startswith("Herkunft:")
-        and "Warum:" in caption
-        and "Für:" in caption
-        for caption in fake_st.captions
-    )
-    assert "ESCO" in joined_captions
-    assert "Offen" in joined_captions
+    assert not any(caption.startswith("Herkunft:") for caption in fake_st.captions)
+    assert "Warum:" not in joined_captions
+    assert "Für:" not in joined_captions
     assert not any(caption.startswith("Aus Start:") for caption in fake_st.captions)
     assert "uri:skill:python" not in joined_captions
     assert "Do not leak this evidence snippet" not in joined_captions
@@ -797,7 +792,7 @@ def test_question_provenance_display_uses_safe_labels_and_canonical_impacts() ->
     assert "token=abc123" not in caption
 
 
-def test_render_section_provenance_expert_adds_collapsed_details(monkeypatch) -> None:
+def test_render_section_provenance_does_not_emit_visible_details(monkeypatch) -> None:
     fake_st = _FakeStreamlitRecorder()
     monkeypatch.setattr(ui_components, "st", fake_st)
     question = Question(
@@ -820,15 +815,9 @@ def test_render_section_provenance_expert_adds_collapsed_details(monkeypatch) ->
         },
     )
 
-    assert any(
-        caption.startswith("Herkunft:")
-        and "Warum:" in caption
-        and "Für:" in caption
-        for caption in fake_st.captions
-    )
-    assert ("Provenienz", False) in fake_st.expanders
-    assert "**Herkunft**: ESCO, Kontext" in fake_st.markdowns
-    assert "**Verwendet für**: Skills" in fake_st.markdowns
+    assert not fake_st.captions
+    assert ("Provenienz", False) not in fake_st.expanders
+    assert not fake_st.markdowns
     joined_events = " ".join(
         value for _event_type, value in fake_st.events if isinstance(value, str)
     )

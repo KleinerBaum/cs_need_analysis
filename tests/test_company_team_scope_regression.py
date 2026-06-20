@@ -245,7 +245,7 @@ class _CompanySectionStreamlit:
         return ""
 
 
-def test_structured_company_context_renders_canonical_section_order(monkeypatch) -> None:
+def test_company_context_renders_new_section_order(monkeypatch) -> None:
     company_module = _load_company_module()
     fake_st = _CompanySectionStreamlit()
     contexts = (_Context(), _Context(), _Context())
@@ -267,27 +267,31 @@ def test_structured_company_context_renders_canonical_section_order(monkeypatch)
     monkeypatch.setattr(company_module, "render_multiselect_fact", lambda *_args, **_kwargs: [])
     monkeypatch.setattr(company_module, "render_select_fact", lambda *_args, **_kwargs: "")
     monkeypatch.setattr(company_module, "render_number_fact", lambda *_args, **_kwargs: 0)
-    monkeypatch.setattr(company_module, "_render_language_fact", lambda **_kwargs: None)
     monkeypatch.setattr(company_module, "fact_value", lambda *_args, **_kwargs: [])
     monkeypatch.setattr(company_module, "persist_fact", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(company_module, "render_role_context_enrichment", lambda **_kwargs: None)
+    monkeypatch.setattr(
+        company_module,
+        "render_role_context_enrichment",
+        lambda **_kwargs: fake_st.markdown("#### Rollenprofil mit ESCO-Kontext ergänzen"),
+    )
     monkeypatch.setattr(
         company_module,
         "_render_website_enrichment",
-        lambda *_args, **_kwargs: fake_st.markdown("#### Website Evidence"),
+        lambda *_args, **_kwargs: fake_st.markdown("#### Website analysieren"),
     )
 
-    company_module._render_structured_company_context(
+    company_module._render_company_research_and_esco(
         JobAdExtract(),
         ctx=SimpleNamespace(),
         plan=QuestionPlan(steps=[]),
     )
+    company_module._render_company_context(JobAdExtract())
+    company_module._render_team_context(JobAdExtract(), ctx=SimpleNamespace())
 
     assert fake_st.markdown_calls == [
-        "#### Employer Profile",
-        "#### Business Context",
-        "#### Team & Reporting",
-        "#### Working Model & Location",
-        "#### Non-negotiables & Compliance",
-        "#### Website Evidence",
+        "#### Website analysieren",
+        "#### Rollenprofil mit ESCO-Kontext ergänzen",
+        "#### Arbeitgeberprofil",
+        "#### Unternehmenskontext",
+        "#### Team & Berichtslinie",
     ]

@@ -16,6 +16,7 @@ from constants import (
     QUESTION_IMPACT_TARGET_SKILLS,
     QUESTION_IMPACT_TARGETS,
     STEP_KEY_COMPANY,
+    STEP_KEY_ROLE_TASKS,
     STEP_KEY_SKILLS,
 )
 from question_limits import (
@@ -105,48 +106,10 @@ _EXPECTED_COMPANY_METADATA = {
         "low",
         0.80,
     ),
-    "ctx_company_work_arrangement": (
-        [
-            QUESTION_IMPACT_TARGET_BRIEF,
-            QUESTION_IMPACT_TARGET_SALARY,
-            QUESTION_IMPACT_TARGET_EXPORT,
-        ],
-        "low",
-        0.90,
-    ),
-    "ctx_company_language_internal": (
-        [QUESTION_IMPACT_TARGET_SKILLS, QUESTION_IMPACT_TARGET_INTERVIEW],
-        "low",
-        None,
-    ),
-    "ctx_company_language_external": (
-        [QUESTION_IMPACT_TARGET_SKILLS, QUESTION_IMPACT_TARGET_EXPORT],
-        "low",
-        None,
-    ),
-    "ctx_company_non_negotiables": (
-        [
-            QUESTION_IMPACT_TARGET_BRIEF,
-            QUESTION_IMPACT_TARGET_SALARY,
-            QUESTION_IMPACT_TARGET_SKILLS,
-            QUESTION_IMPACT_TARGET_EXPORT,
-        ],
-        "medium",
-        0.88,
-    ),
     "ctx_team_success_context_90d": (
         [QUESTION_IMPACT_TARGET_BRIEF, QUESTION_IMPACT_TARGET_INTERVIEW],
         "medium",
         None,
-    ),
-    "ctx_remote_geography": (
-        [
-            QUESTION_IMPACT_TARGET_BRIEF,
-            QUESTION_IMPACT_TARGET_SALARY,
-            QUESTION_IMPACT_TARGET_EXPORT,
-        ],
-        "low",
-        0.86,
     ),
     "ctx_hiring_growth_context": (
         [QUESTION_IMPACT_TARGET_BRIEF, QUESTION_IMPACT_TARGET_SALARY],
@@ -176,6 +139,47 @@ _EXPECTED_COMPANY_METADATA = {
         ],
         "medium",
         0.88,
+    ),
+}
+
+_EXPECTED_ROLE_WORK_CONTEXT_METADATA = {
+    "ctx_company_work_arrangement": (
+        [
+            QUESTION_IMPACT_TARGET_BRIEF,
+            QUESTION_IMPACT_TARGET_SALARY,
+            QUESTION_IMPACT_TARGET_EXPORT,
+        ],
+        "low",
+        0.90,
+    ),
+    "ctx_company_language_internal": (
+        [QUESTION_IMPACT_TARGET_SKILLS, QUESTION_IMPACT_TARGET_INTERVIEW],
+        "low",
+        None,
+    ),
+    "ctx_company_language_external": (
+        [QUESTION_IMPACT_TARGET_SKILLS, QUESTION_IMPACT_TARGET_EXPORT],
+        "low",
+        None,
+    ),
+    "ctx_company_non_negotiables": (
+        [
+            QUESTION_IMPACT_TARGET_BRIEF,
+            QUESTION_IMPACT_TARGET_SALARY,
+            QUESTION_IMPACT_TARGET_SKILLS,
+            QUESTION_IMPACT_TARGET_EXPORT,
+        ],
+        "medium",
+        0.88,
+    ),
+    "ctx_remote_geography": (
+        [
+            QUESTION_IMPACT_TARGET_BRIEF,
+            QUESTION_IMPACT_TARGET_SALARY,
+            QUESTION_IMPACT_TARGET_EXPORT,
+        ],
+        "low",
+        0.86,
     ),
     "ctx_company_allowed_regions_timezones": (
         [
@@ -220,10 +224,14 @@ def _question(question_id: str, label: str) -> Question:
 
 
 def _company_registry_questions() -> dict[str, Question]:
+    return _registry_questions_for_step(STEP_KEY_COMPANY)
+
+
+def _registry_questions_for_step(step_key: str) -> dict[str, Question]:
     questions: dict[str, Question] = {}
     for pack in QUESTION_PACK_REGISTRY.values():
         for entry in pack.entries:
-            if entry.step_key != STEP_KEY_COMPANY:
+            if entry.step_key != step_key:
                 continue
             assert entry.question.id not in questions
             questions[entry.question.id] = entry.question
@@ -254,6 +262,24 @@ def test_company_pack_entries_have_adaptive_metadata() -> None:
             assert question.priority == "standard"
             if question.info_gain_score is None:
                 assert not _question_is_adaptive_essential(question)
+
+
+def test_role_tasks_pack_contains_moved_work_context_questions() -> None:
+    questions = _registry_questions_for_step(STEP_KEY_ROLE_TASKS)
+    canonical_targets = set(QUESTION_IMPACT_TARGETS)
+
+    for question_id, (
+        expected_targets,
+        expected_cost,
+        expected_score,
+    ) in _EXPECTED_ROLE_WORK_CONTEXT_METADATA.items():
+        question = questions[question_id]
+
+        assert question.rationale and question.rationale.strip()
+        assert question.impact_targets == expected_targets
+        assert set(question.impact_targets) <= canonical_targets
+        assert question.acquisition_cost == expected_cost
+        assert question.info_gain_score == expected_score
 
 
 def test_registry_pack_entries_have_priority_metadata_contract() -> None:

@@ -433,35 +433,8 @@ def _render_section_provenance(
     ui_mode: str,
     provenance: Mapping[str, Any] | None,
 ) -> None:
-    display = _build_section_provenance_display(
-        section_title=section_title,
-        questions=questions,
-        provenance=provenance,
-    )
-    st.caption(
-        _format_question_provenance_caption(
-            display,
-            max_why_chars=SECTION_PROVENANCE_TEXT_MAX_CHARS,
-        )
-    )
-    if ui_mode != "expert" or not callable(getattr(st, "expander", None)):
-        return
-    with st.expander("Provenienz", expanded=False):
-        st.markdown(
-            f"**Herkunft**: {_join_compact_question_provenance_labels(display['sources'])}"
-        )
-        st.markdown(f"**Warum gefragt**: {display['why']}")
-        st.markdown(f"**Verwendet für**: {_join_provenance_labels(display['impacts'])}")
-        if display["adjustments"]:
-            st.caption(
-                "Anpassung: "
-                + _join_provenance_labels(
-                    [
-                        _compact_question_adjustment_label(adjustment)
-                        for adjustment in display["adjustments"]
-                    ]
-                )
-            )
+    del section_title, questions, ui_mode, provenance
+    return
 
 
 def _render_question_provenance(
@@ -470,34 +443,25 @@ def _render_question_provenance(
     ui_mode: str,
     provenance: Mapping[str, Any] | None,
 ) -> None:
-    display = _build_question_provenance_display(question, provenance)
-    st.caption(
-        _format_question_provenance_caption(
-            display,
-            max_why_chars=120 if ui_mode != "expert" else QUESTION_PROVENANCE_TEXT_MAX_CHARS,
-        )
+    del question, ui_mode, provenance
+    return
+
+
+def _question_widget_help(
+    question: Question,
+    *,
+    provenance: Mapping[str, Any] | None,
+) -> str | None:
+    parts: list[str] = []
+    if question.help:
+        parts.append(str(question.help).strip())
+    provenance_text = _format_question_provenance_caption(
+        _build_question_provenance_display(question, provenance),
+        max_why_chars=120,
     )
-    if ui_mode != "expert" or not callable(getattr(st, "expander", None)):
-        return
-    with st.expander("Provenienz", expanded=False):
-        st.markdown(
-            f"**Herkunft**: {_join_compact_question_provenance_labels(display['sources'])}"
-        )
-        st.markdown(f"**Warum gefragt**: {display['why']}")
-        st.markdown(f"**Verwendet für**: {_join_provenance_labels(display['impacts'])}")
-        detail_parts = [part for part in (display["effort"], display["info_gain"]) if part]
-        if detail_parts:
-            st.caption(f"Fragensignal: {' · '.join(detail_parts)}")
-        if display["adjustments"]:
-            st.caption(
-                "Anpassung: "
-                + _join_provenance_labels(
-                    [
-                        _compact_question_adjustment_label(adjustment)
-                        for adjustment in display["adjustments"]
-                    ]
-                )
-            )
+    if provenance_text:
+        parts.append(f"Provenienz: {provenance_text}")
+    return "\n\n".join(part for part in parts if part) or None
 
 
 def resolve_standard_review_mode(
@@ -3713,6 +3677,7 @@ def _render_question(
     # Helper text for required fields
     label = q.label + (" *" if q.required else "")
     is_language_question = _is_language_requirement_question(q)
+    widget_help = _question_widget_help(q, provenance=provenance)
 
     with st.container(border=True):
         if is_language_question:
@@ -3726,7 +3691,7 @@ def _render_question(
             value = st.text_input(
                 label,
                 value=str(current_value or ""),
-                help=q.help,
+                help=widget_help,
                 key=key,
                 placeholder=q.help or "Kurzantwort eingeben",
             )
@@ -3734,7 +3699,7 @@ def _render_question(
             value = st.text_area(
                 label,
                 value=str(current_value or ""),
-                help=q.help,
+                help=widget_help,
                 key=key,
                 height=140,
                 placeholder=q.help or "Details ergänzen …",
@@ -3778,7 +3743,7 @@ def _render_question(
                     if default_index is not None
                     else None,
                     key=key,
-                    help=q.help,
+                    help=widget_help,
                 )
             elif len(display_options) <= 4:
                 value = st.radio(
@@ -3786,7 +3751,7 @@ def _render_question(
                     options=display_options,
                     index=default_index if default_index is not None else 0,
                     horizontal=True,
-                    help=q.help,
+                    help=widget_help,
                     key=key,
                 )
             else:
@@ -3794,7 +3759,7 @@ def _render_question(
                     label,
                     options=display_options,
                     index=default_index if default_index is not None else 0,
-                    help=q.help,
+                    help=widget_help,
                     key=key,
                 )
             if value == "— Bitte wählen —":
@@ -3838,7 +3803,7 @@ def _render_question(
                         default=default_values,
                         selection_mode="multi",
                         key=key,
-                        help=q.help,
+                        help=widget_help,
                     )
                     or []
                 )
@@ -3847,7 +3812,7 @@ def _render_question(
                     label,
                     options=display_options,
                     default=default_values,
-                    help=q.help,
+                    help=widget_help,
                     key=key,
                 )
             value = [value_by_label.get(item, item) for item in (value or [])]
@@ -3867,14 +3832,14 @@ def _render_question(
                 question=q,
                 key=key,
                 label=label,
-                help_text=q.help,
+                help_text=widget_help,
                 current_value=current_value,
             )
         elif q.answer_type == AnswerType.BOOLEAN:
             value = st.toggle(
                 label,
                 value=bool(current_value) if current_value is not None else False,
-                help=q.help,
+                help=widget_help,
                 key=key,
             )
         elif q.answer_type == AnswerType.DATE:
@@ -3886,16 +3851,14 @@ def _render_question(
                     d = date.fromisoformat(current_value)
                 except Exception:
                     d = None
-            picked_date = st.date_input(label, value=d, help=q.help, key=key)
+            picked_date = st.date_input(label, value=d, help=widget_help, key=key)
             value = picked_date.isoformat() if picked_date else None
         else:
             value = st.text_input(
-                label, value=str(current_value or ""), help=q.help, key=key
+                label, value=str(current_value or ""), help=widget_help, key=key
             )
 
-        if q.help:
-            st.caption(q.help)
-        if context_mode != "compact" or ui_mode == "expert":
+        if context_mode != "compact":
             _render_question_provenance(q, ui_mode=ui_mode, provenance=provenance)
         if validation_error:
             st.error(validation_error)

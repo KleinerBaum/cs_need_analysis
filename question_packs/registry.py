@@ -276,7 +276,7 @@ BASE_CORE_PACK = QuestionPack(
             ],
         ),
         _pack_entry(
-            step_key=STEP_KEY_COMPANY,
+            step_key=STEP_KEY_ROLE_TASKS,
             question_id="ctx_company_work_arrangement",
             label="Welches Arbeitsmodell gilt für diese Rolle?",
             answer_type=AnswerType.SINGLE_SELECT,
@@ -302,7 +302,7 @@ BASE_CORE_PACK = QuestionPack(
             ],
         ),
         _pack_entry(
-            step_key=STEP_KEY_COMPANY,
+            step_key=STEP_KEY_ROLE_TASKS,
             question_id="ctx_company_language_internal",
             label="Welche interne Arbeitssprache und welches Mindestniveau gelten?",
             answer_type=AnswerType.SHORT_TEXT,
@@ -319,7 +319,7 @@ BASE_CORE_PACK = QuestionPack(
             acquisition_cost="low",
         ),
         _pack_entry(
-            step_key=STEP_KEY_COMPANY,
+            step_key=STEP_KEY_ROLE_TASKS,
             question_id="ctx_company_language_external",
             label="Welche externe Kommunikationssprache ist bei Kund:innen oder Partnern nötig?",
             answer_type=AnswerType.SHORT_TEXT,
@@ -335,7 +335,7 @@ BASE_CORE_PACK = QuestionPack(
             acquisition_cost="low",
         ),
         _pack_entry(
-            step_key=STEP_KEY_COMPANY,
+            step_key=STEP_KEY_ROLE_TASKS,
             question_id="ctx_company_non_negotiables",
             label="Welche Rahmenbedingungen sind nicht verhandelbar?",
             answer_type=AnswerType.MULTI_SELECT,
@@ -1232,7 +1232,7 @@ REMOTE_GLOBAL_PACK = QuestionPack(
     description="Remote and hybrid work model constraints.",
     entries=(
         _pack_entry(
-            step_key=STEP_KEY_COMPANY,
+            step_key=STEP_KEY_ROLE_TASKS,
             question_id="ctx_remote_geography",
             label="Aus welchen Regionen oder Zeitzonen darf remote gearbeitet werden?",
             answer_type=AnswerType.SHORT_TEXT,
@@ -1557,7 +1557,7 @@ INTERNATIONAL_CONTEXT_PACK = QuestionPack(
     description="Cross-border, timezone, language, and authorization constraints.",
     entries=(
         _pack_entry(
-            step_key=STEP_KEY_COMPANY,
+            step_key=STEP_KEY_ROLE_TASKS,
             question_id="ctx_company_allowed_regions_timezones",
             label="Welche Regionen, Länder oder Zeitzonen sind für diese Rolle erlaubt?",
             answer_type=AnswerType.MULTI_SELECT,

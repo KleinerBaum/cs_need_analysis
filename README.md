@@ -35,8 +35,8 @@ The active visible route is defined by `constants.STEPS` and enforced by `wizard
 | Order | Step key | UI label | Main module | Purpose |
 |---:|---|---|---|---|
 | 1 | `landing` | Start | `wizard_pages/00_landing.py` + `wizard_pages/jobad_intake.py` | Landing page plus jobspec intake phases A/B/C |
-| 2 | `company` | Unternehmen | `wizard_pages/02_company.py` | Employer profile, business context, team/reporting, working model/location, compliance, website evidence |
-| 3 | `role_tasks` | Rolle & Aufgaben | `wizard_pages/04_role_tasks.py` | Role/task curation, ESCO/context/AI suggestions, salary block |
+| 2 | `company` | Unternehmen | `wizard_pages/02_company.py` | Employer profile, website evidence, ESCO context, company questions, team/reporting |
+| 3 | `role_tasks` | Rolle & Aufgaben | `wizard_pages/04_role_tasks.py` | Work model/location, non-negotiables/compliance, role/task curation, ESCO/context/AI suggestions, salary block |
 | 4 | `skills` | Skills & Anforderungen | `wizard_pages/05_skills.py` | Jobspec/ESCO/AI skills, normalization, matrix priors, unmapped-term decisions |
 | 5 | `benefits` | Benefits & Rahmenbedingungen | `wizard_pages/06_benefits.py` | Benefits and operating conditions from jobspec/context/AI |
 | 6 | `interview` | Interviewprozess | `wizard_pages/07_interview.py` | Interview values, candidate communication, internal roles/timing |
@@ -302,11 +302,12 @@ The company step can analyze public company pages for:
 - `vision_mission`
 
 After analysis, deterministic website findings are matched against the canonical
-`FactKey` registry. Matching values are shown as editable second-source review
-rows under “Kontext aus der Website-Analyse” with target key, value,
-source/evidence, and a confirmation/conflict hint against existing facts;
-confirmed rows are stored as homepage-sourced intake facts and mirrored into
-wizard answers for downstream questions, summaries, and exports.
+`FactKey` registry. Matching values are shown as editable website-finding review
+rows with a user-facing target field, value, compact source/status text, and
+optional evidence details; confirmed rows are stored as homepage-sourced intake
+facts and mirrored into wizard answers for downstream questions, summaries, and
+exports. Website matches for open questions can be bookmarked, but they do not
+answer questions automatically.
 
 Safety constraints in `homepage_research.py`:
 

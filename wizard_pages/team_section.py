@@ -209,6 +209,7 @@ def render_role_context_enrichment(
                     group_name,
                     options=labels,
                     selection_mode="multi",
+                    label_visibility="collapsed",
                     key=f"team.esco.pills.{group_name.casefold().replace(' ', '_')}",
                 )
                 or []
@@ -217,6 +218,7 @@ def render_role_context_enrichment(
             selected_labels = st.multiselect(
                 group_name,
                 options=labels,
+                label_visibility="collapsed",
                 key=f"team.esco.multiselect.{group_name.casefold().replace(' ', '_')}",
             )
         selected_theme_labels.extend(
