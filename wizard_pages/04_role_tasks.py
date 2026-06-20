@@ -327,6 +327,28 @@ def _priority_by_label(raw_items: Any) -> dict[str, str]:
     return output
 
 
+def _render_compact_signal_list(title: str, items: list[str], *, limit: int = 5) -> None:
+    st.markdown(f"#### {title}")
+    if not items:
+        st.caption("Keine Angabe erkannt.")
+        return
+    for item in items[:limit]:
+        st.write(f"- {item}")
+    remaining = items[limit:]
+    if remaining:
+        with st.expander(f"{len(remaining)} weitere anzeigen", expanded=False):
+            for item in remaining:
+                st.write(f"- {item}")
+
+
+def _has_compact_payload(value: Any) -> bool:
+    if isinstance(value, dict):
+        return any(_has_compact_payload(item) for item in value.values())
+    if isinstance(value, list):
+        return any(_has_compact_payload(item) for item in value)
+    return has_meaningful_value(value)
+
+
 def _render_success_timeline() -> None:
     current_raw = fact_value(FactKey.ROLE_SUCCESS_METRICS_TIMELINE, {})
     current = current_raw if isinstance(current_raw, dict) else {}
@@ -423,68 +445,79 @@ def _render_travel_profile() -> None:
 
 
 def _render_structured_role_scope(job: JobAdExtract, candidate_tasks: list[str]) -> None:
-    st.markdown("### Outcome & Scope")
+    task_options = _dedupe_task_terms(candidate_tasks)
+    st.markdown("### Aufgaben schärfen")
     with section_container(border=True):
         render_text_fact(
             FactKey.ROLE_BUSINESS_OUTCOME_PRIMARY,
-            "Welches konkrete Business-Ergebnis soll die Rolle liefern?",
+            "Wichtigstes Ergebnis",
             default=job.role_overview or "",
+            placeholder="z. B. stabile Datenplattform, schnellere Kundenantworten",
         )
-        task_options = _dedupe_task_terms(candidate_tasks)
-        render_multiselect_fact(
-            FactKey.ROLE_DAY1_RESPONSIBILITIES,
-            "Welche Aufgaben sind wirklich ab Tag 1 relevant?",
-            options=task_options or ["Kernbetrieb", "Kundenkontakt", "Reporting", "Projektstart", "Teamkoordination", "Sonstiges"],
-        )
-        render_multiselect_fact(
-            FactKey.ROLE_EXPANSION_SCOPE,
-            "Welche Aufgaben sind Nice-to-have oder später ausbaubar?",
-            options=task_options or ["Automatisierung", "Strategie", "Mentoring", "Reporting", "Stakeholder-Ausbau", "Tooling", "Sonstiges"],
-        )
+        col_day1, col_later = st.columns(2, gap="large")
+        with col_day1:
+            render_multiselect_fact(
+                FactKey.ROLE_DAY1_RESPONSIBILITIES,
+                "Ab Tag 1",
+                options=task_options or ["Kernbetrieb", "Kundenkontakt", "Reporting", "Projektstart", "Teamkoordination", "Sonstiges"],
+            )
+        with col_later:
+            render_multiselect_fact(
+                FactKey.ROLE_EXPANSION_SCOPE,
+                "Später ausbaubar",
+                options=task_options or ["Automatisierung", "Strategie", "Mentoring", "Reporting", "Stakeholder-Ausbau", "Tooling", "Sonstiges"],
+            )
         existing_priorities = _priority_by_label(
             fact_value(FactKey.ROLE_RESPONSIBILITIES_PRIORITIZED, [])
         )
         prioritized: list[dict[str, str]] = []
         if task_options:
-            st.markdown("##### Priorisierung")
-            for idx, label in enumerate(task_options[:10]):
-                cols = st.columns([2, 1], gap="small")
-                with cols[0]:
-                    st.caption(label)
-                with cols[1]:
-                    priority = st.selectbox(
-                        "Priorität",
-                        options=tuple(_RESPONSIBILITY_PRIORITY_LABELS),
-                        index=tuple(_RESPONSIBILITY_PRIORITY_LABELS).index(
-                            existing_priorities.get(label, "core")
-                            if existing_priorities.get(label, "core") in _RESPONSIBILITY_PRIORITY_LABELS
-                            else "core"
-                        ),
-                        format_func=lambda value: _RESPONSIBILITY_PRIORITY_LABELS.get(value, value),
-                        key=f"fact_input.{FactKey.ROLE_RESPONSIBILITIES_PRIORITIZED.value}.{idx}",
-                    )
-                prioritized.append({"label": label, "priority": priority})
+            with st.expander("Prioritäten prüfen", expanded=False):
+                for idx, label in enumerate(task_options[:10]):
+                    cols = st.columns([2, 1], gap="small")
+                    with cols[0]:
+                        st.caption(label)
+                    with cols[1]:
+                        priority = st.selectbox(
+                            "Priorität",
+                            options=tuple(_RESPONSIBILITY_PRIORITY_LABELS),
+                            index=tuple(_RESPONSIBILITY_PRIORITY_LABELS).index(
+                                existing_priorities.get(label, "core")
+                                if existing_priorities.get(label, "core") in _RESPONSIBILITY_PRIORITY_LABELS
+                                else "core"
+                            ),
+                            format_func=lambda value: _RESPONSIBILITY_PRIORITY_LABELS.get(value, value),
+                            key=f"fact_input.{FactKey.ROLE_RESPONSIBILITIES_PRIORITIZED.value}.{idx}",
+                        )
+                    prioritized.append({"label": label, "priority": priority})
         persist_fact(FactKey.ROLE_RESPONSIBILITIES_PRIORITIZED, prioritized)
 
+    st.markdown("### Erfolg & Verantwortung")
     with section_container(border=True):
-        st.markdown("#### Erfolg und Entscheidungsspielraum")
-        _render_success_timeline()
-        render_select_fact(
-            FactKey.ROLE_DECISION_SCOPE,
-            "Welche Entscheidungsrechte hat die Rolle?",
-            options=tuple(_DECISION_SCOPE_LABELS),
-            default="unklar",
-            labels=_DECISION_SCOPE_LABELS,
-        )
-        render_text_area_fact(
-            FactKey.ROLE_YEAR1_SUCCESS_SIGNALS,
-            "Wofür würde die Person in 12 Monaten gemessen oder gelobt werden?",
-            default="\n".join(job.success_metrics[:3]),
-            height=100,
-        )
+        col_decision, col_success = st.columns([1, 2], gap="large")
+        with col_decision:
+            render_select_fact(
+                FactKey.ROLE_DECISION_SCOPE,
+                "Entscheidungsspielraum",
+                options=tuple(_DECISION_SCOPE_LABELS),
+                default="unklar",
+                labels=_DECISION_SCOPE_LABELS,
+            )
+        with col_success:
+            render_text_area_fact(
+                FactKey.ROLE_YEAR1_SUCCESS_SIGNALS,
+                "Erfolg nach 12 Monaten",
+                default="\n".join(job.success_metrics[:3]),
+                height=100,
+            )
+        with st.expander("Meilensteine 30 bis 180 Tage", expanded=False):
+            _render_success_timeline()
 
-    with section_container(border=True):
-        st.markdown("#### Reiseprofil")
+    travel_current = fact_value(FactKey.ROLE_TRAVEL_PROFILE, {})
+    with st.expander(
+        "Reiseprofil und Bereitschaft",
+        expanded=_has_compact_payload(travel_current),
+    ):
         _render_travel_profile()
 
 
@@ -509,32 +542,26 @@ def render(ctx: WizardContext) -> None:
     source_counts: dict[str, int] = {"Jobspec": 0, "ESCO / Kontext": 0, "AI": 0}
 
     def _render_extracted_slot() -> None:
-        st.caption(
-            "Aus der Jobspec erkannte Aufgaben-Signale. Prüfe hier, was als "
-            "Kernaufgabe, Deliverable oder Erfolgskriterium belastbar ist."
+        render_output_header(
+            "Erkannter Aufgabenstand",
+            "Schneller Überblick aus der Anzeige. Details ergänzt du im nächsten Abschnitt.",
+            meta_items=(
+                ("📋", "Aufgaben", str(len(responsibilities))),
+                ("🎯", "Ergebnisse", str(len(deliverables))),
+                ("✓", "Erfolg", str(len(success_metrics))),
+            ),
         )
-        st.markdown('<div class="cs-grid-3">', unsafe_allow_html=True)
         col_resp, col_deliv, col_metrics = responsive_three_columns(gap="large")
-        if responsibilities:
-            with col_resp:
-                st.write(f"**Responsibilities ({len(responsibilities)} erkannt):**")
-                for r in responsibilities[:10]:
-                    st.write(f"- {r}")
-        if deliverables:
-            with col_deliv:
-                st.write(f"**Deliverables ({len(deliverables)} erkannt):**")
-                for d in deliverables[:10]:
-                    st.write(f"- {d}")
-        if success_metrics:
-            with col_metrics:
-                st.write(f"**Success Metrics ({len(success_metrics)} erkannt):**")
-                for r in success_metrics[:10]:
-                    st.write(f"- {r}")
+        with col_resp:
+            _render_compact_signal_list("Aufgaben", responsibilities)
+        with col_deliv:
+            _render_compact_signal_list("Ergebnisse", deliverables)
+        with col_metrics:
+            _render_compact_signal_list("Erfolgskriterien", success_metrics)
         if not responsibilities and not deliverables and not success_metrics:
             st.info(
-                "Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions."
+                "Keine belastbaren Aufgaben erkannt. Kläre die Rolle über die offenen Fragen."
             )
-        st.markdown("</div>", unsafe_allow_html=True)
 
     def _render_source_comparison_slot() -> None:
         nonlocal source_counts
@@ -608,18 +635,23 @@ def render(ctx: WizardContext) -> None:
         )
         render_output_header(
             "Aufgaben auswählen",
-            "Vergleiche extrahierte Aufgaben mit Kontextvorschlägen und übernimm nur belastbare Formulierungen.",
+            "Übernimm nur Aufgaben, die wirklich zur Rolle gehören.",
+            meta_items=(
+                ("📄", "Anzeige", str(len(jobspec_labels))),
+                ("🧭", "Berufsprofil", str(len(esco_labels))),
+                ("✦", "Ergänzt", str(len(ai_labels))),
+            ),
         )
         ai_control_col, ai_action_col = st.columns([1, 2], gap="small")
         with ai_control_col:
             st.number_input(
-                "Anzahl AI-Vorschläge",
+                "Weitere Vorschläge",
                 min_value=1,
                 max_value=12,
                 key=SSKey.ROLE_TASKS_SUGGEST_COUNT.value,
             )
         with ai_action_col:
-            generate_ai = st.button("AI-Vorschläge ergänzen", width="stretch")
+            generate_ai = st.button("Vorschläge ergänzen", width="stretch")
         if generate_ai:
             context = _build_task_suggestion_context(
                 job=job,
@@ -636,7 +668,7 @@ def render(ctx: WizardContext) -> None:
                 st.session_state.get(SSKey.ROLE_TASKS_SUGGEST_COUNT.value, 5)
             )
 
-            with st.spinner("Generiere Aufgaben-Vorschläge …"):
+            with st.spinner("Ergänze passende Aufgaben …"):
                 pack, _usage = generate_requirement_gap_suggestions(
                     job=job,
                     answers=get_answers(),
@@ -668,33 +700,37 @@ def render(ctx: WizardContext) -> None:
         selection_result = render_source_pill_selection(
             columns=[
                 {
-                    "title": "Aus der Anzeige extrahiert",
+                    "title": "Aus Anzeige",
                     "source_key": "Jobspec",
                     "options": jobspec_labels,
                     "state_key": SSKey.ROLE_TASKS_JOBSPEC_PILLS.value,
+                    "show_provenance": False,
                 },
                 {
-                    "title": "ESCO / Kontext",
+                    "title": "Berufsprofil",
                     "source_key": "ESCO / Kontext",
                     "options": esco_labels,
                     "state_key": SSKey.ROLE_TASKS_ESCO_PILLS.value,
+                    "show_provenance": False,
                 },
                 {
-                    "title": "AI-Vorschläge",
+                    "title": "Ergänzt",
                     "source_key": "AI",
                     "options": llm_after_labels,
                     "state_key": SSKey.ROLE_TASKS_AI_PILLS.value,
+                    "show_provenance": False,
                 },
             ],
             selected_labels=selected,
             selected_state_key=SSKey.ROLE_TASKS_SELECTED.value,
             key_prefix="role_tasks.sources",
+            empty_caption="Keine Vorschläge vorhanden.",
         )
         source_counts = selection_result["source_counts"]
         st.session_state[SSKey.ROLE_TASKS_SELECTED_BULK_BUFFER.value] = (
             selection_result["selected_labels"]
         )
-        st.caption(f"Ausgewählt: {len(selection_result['selected_labels'])} Aufgaben")
+        st.caption(f"{len(selection_result['selected_labels'])} Aufgaben ausgewählt")
         _render_structured_role_scope(
             job,
             _dedupe_task_terms(
@@ -716,13 +752,10 @@ def render(ctx: WizardContext) -> None:
         )
         selected_count = len(canonical_tasks)
 
-        st.markdown("#### Auswirkung auf Prognose")
-        st.caption(f"Ausgewählte Aufgaben: {selected_count}")
-        st.caption(
-            "Ausgewählte Aufgaben werden als Einflussfaktoren in der Gehaltsprognose berücksichtigt."
-        )
+        st.markdown("#### Wirkung auf die Gehaltsprognose")
+        st.caption(f"{selected_count} ausgewählte Aufgaben fließen in die Prognose ein.")
         if selected_count == 0:
-            st.caption("Noch keine Aufgaben übernommen.")
+            st.caption("Noch keine Aufgaben ausgewählt.")
         _render_role_tasks_salary_block(
             job=job,
             selected_tasks=canonical_tasks,
@@ -730,10 +763,9 @@ def render(ctx: WizardContext) -> None:
         )
 
     def _render_open_questions_slot() -> None:
-        st.markdown("#### Offene Klärungen")
+        st.markdown("#### Offene Punkte")
         st.caption(
-            "Diese Fragen schließen Lücken, die aus Jobspec und Quellenabgleich noch "
-            "nicht eindeutig beantwortet sind."
+            "Nur die Fragen beantworten, die für ein klares Rollenbild noch fehlen."
         )
         if step is None or not step.questions:
             st.info(
@@ -744,10 +776,9 @@ def render(ctx: WizardContext) -> None:
         render_question_step(step)
 
     def _render_review_slot() -> None:
-        st.markdown("#### Review")
+        st.markdown("#### Prüfung")
         st.caption(
-            "Prüfe, ob Aufgaben, Verantwortungsrahmen und offene Essentials für Brief "
-            "und Folgeartefakte ausreichend geklärt sind."
+            "Kurz prüfen, ob Aufgaben, Verantwortung und offene Punkte reichen."
         )
         render_standard_step_review(
             step,
@@ -768,32 +799,29 @@ def render(ctx: WizardContext) -> None:
     )
 
     render_step_shell(
-        title="Rolle und Kernaufgaben festzurren",
+        title="Rolle und Aufgaben klären",
         subtitle=(
-            "Hier machst du aus Rollenbeschreibung, Aufgabenliste und Kontext eine "
-            "prüfbare Aufgabenbasis für Brief, Matching, Interview und Gehaltsprognose."
+            "Wähle die passenden Aufgaben aus, trenne Startumfang von späteren Themen "
+            "und halte Erfolg sowie Verantwortung knapp fest."
         ),
         outcome_text=(
-            "Eine abgestimmte Aufgaben- und Verantwortungsbasis mit klaren Deliverables "
-            "und offenen Klärpunkten."
+            "Klares Aufgabenprofil mit Erfolgskriterien und offenen Punkten."
         ),
         step=step,
         extracted_from_jobspec_use_expander=False,
         lazy_section_configs={
             "source_comparison_slot": LazySectionConfig(
-                label="Quellenabgleich",
+                label="Aufgabenpool",
                 caption=(
-                    "Lädt Jobspec-, ESCO-/Kontext- und AI-Aufgabenvorschläge erst, "
-                    "wenn du diesen Abgleich öffnest."
+                    "Anzeige, Berufsprofil und ergänzende Vorschläge in einer Auswahl."
                 ),
-                button_label="Quellenabgleich anzeigen",
+                button_label="Aufgabenpool öffnen",
                 default_open=default_lazy_source_section_open(),
             ),
             "salary_forecast_slot": LazySectionConfig(
                 label="Gehaltsprognose",
                 caption=(
-                    "Berechnet die Auswirkung der ausgewählten Aufgaben erst auf "
-                    "Anforderung."
+                    "Zeigt bei Bedarf, wie die ausgewählten Aufgaben die Prognose beeinflussen."
                 ),
                 button_label="Gehaltsprognose laden",
                 default_open=False,
