@@ -156,12 +156,21 @@ def test_build_process_progress_html_escapes_labels_and_starts_with_company() ->
                 "status": "complete",
                 "count": "1/1",
                 "current": False,
+                "href": "?wizard_step=company&unsafe=<x>",
+                "icon": "🏢",
+                "status_label": "Fertig",
+                "step_index": 2,
+                "step_total": 7,
             },
             {
                 "label": "Rolle & Aufgaben",
                 "status": "partial",
-                "count": "1/3",
+                "detail": "Offene Fragen",
                 "current": True,
+                "href": "?wizard_step=role_tasks",
+                "status_label": "In Arbeit",
+                "step_index": 3,
+                "step_total": 7,
             },
         ],
         aria_label="Prozess <Fortschritt>",
@@ -170,6 +179,11 @@ def test_build_process_progress_html_escapes_labels_and_starts_with_company() ->
     assert html.count("<li class=\"cs-process-progress-item\"") == 2
     assert "Unternehmen &lt;script&gt;" in html
     assert "Prozess &lt;Fortschritt&gt;" in html
+    assert 'href="?wizard_step=company&amp;unsafe=&lt;x&gt;"' in html
+    assert 'aria-current="step"' in html
+    assert "2/7" in html
+    assert "Fertig" in html
+    assert "Offene Fragen" in html
     assert "data-status=\"complete\"" in html
     assert "data-current=\"true\"" in html
     assert html.find("Unternehmen") < html.find("Rolle &amp; Aufgaben")

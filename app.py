@@ -17,6 +17,7 @@ from constants import (
     UI_PREFERENCE_INFORMATION_DEPTH,
     UI_PREFERENCE_PII_REDUCTION,
     UI_PREFERENCE_REGIONAL_FOCUS,
+    WIZARD_STEP_QUERY_PARAM,
 )
 from i18n import (
     patch_streamlit_text,
@@ -54,6 +55,35 @@ SIDEBAR_FOOTER_PAGE_LINKS: tuple[tuple[str, str], ...] = (
 ROOT_DIR = Path(__file__).resolve().parent
 WIZARD_DARK_BACKGROUND_PATH = ROOT_DIR / "images" / "dark2.png"
 WIZARD_LIGHT_BACKGROUND_PATH = ROOT_DIR / "images" / "light.png"
+
+
+def _first_query_param_value(value: object) -> str | None:
+    if isinstance(value, list):
+        value = value[0] if value else None
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    return normalized or None
+
+
+def _drop_query_param(name: str) -> None:
+    try:
+        del st.query_params[name]
+    except KeyError:
+        return
+
+
+def _consume_wizard_step_query_param(ctx: WizardContext) -> None:
+    target_step = _first_query_param_value(
+        st.query_params.get(WIZARD_STEP_QUERY_PARAM)
+    )
+    if target_step is None:
+        return
+
+    valid_step_keys = {page.key for page in ctx.pages}
+    if target_step in valid_step_keys:
+        ctx.goto(target_step)
+    _drop_query_param(WIZARD_STEP_QUERY_PARAM)
 
 
 def _image_data_uri(path: Path) -> str:
@@ -437,6 +467,7 @@ def main() -> None:
         st.session_state[SSKey.LAST_RENDERED_STEP.value] = None
         return
 
+    _consume_wizard_step_query_param(ctx)
     _render_sidebar_primary_links()
     current = sidebar_navigation(ctx)
     step_changed = bool(previous_step and previous_step != current.key)

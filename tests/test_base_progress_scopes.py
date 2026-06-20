@@ -226,7 +226,7 @@ def test_sidebar_progress_uses_adaptive_selection_instead_of_prefix_slice(
     assert statuses[0]["payload"]["missing_essential_ids"] == ["uncovered_core"]
 
 
-def test_intake_process_progress_excludes_start_and_marks_summary_from_brief(
+def test_intake_process_progress_starts_with_start_and_marks_summary_from_brief(
     monkeypatch,
 ) -> None:
     company_question = Question(
@@ -268,13 +268,16 @@ def test_intake_process_progress_excludes_start_and_marks_summary_from_brief(
 
     assert rendered_items
     items = rendered_items[0]
-    assert [item["label"] for item in items][:2] == [
+    assert [item["label"] for item in items][:3] == [
+        "Start",
         "Unternehmen",
         "Rolle & Aufgaben",
     ]
-    assert "Start" not in [item["label"] for item in items]
-    assert items[0]["status"] == "complete"
-    assert items[0]["count"] == "1/1"
+    assert items[0]["href"] == "?wizard_step=landing"
+    assert items[0]["step_index"] == 1
+    assert items[0]["step_total"] == len(items)
+    assert items[1]["status"] == "complete"
+    assert items[1]["count"] == "1/1"
     assert items[-1]["label"] == "Zusammenfassung"
     assert items[-1]["status"] == "complete"
     assert items[-1]["current"] is True
@@ -331,7 +334,7 @@ def test_intake_process_progress_uses_adaptive_selection_instead_of_prefix_slice
 
     UI_LAYOUT_MODULE.render_intake_process_progress(STEP_KEY_SUMMARY)
 
-    company_item = rendered_items[0][0]
+    company_item = rendered_items[0][1]
     assert company_item["status"] == "not_started"
     assert company_item["count"] == "0/1"
     assert company_item["title"] == "Unternehmen: 0/1 beantwortet"

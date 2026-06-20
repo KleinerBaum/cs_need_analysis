@@ -7,6 +7,7 @@ from collections.abc import Callable
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Literal
+from urllib.parse import quote
 
 import streamlit as st
 
@@ -29,6 +30,7 @@ from constants import (
     STEP_KEY_LANDING,
     STEP_KEY_SUMMARY,
     UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT,
+    WIZARD_STEP_QUERY_PARAM,
 )
 from schemas import QuestionPlan, QuestionStep
 from step_payload import (
@@ -55,6 +57,22 @@ def _load_question_plan_from_state() -> QuestionPlan | None:
         return None
 
 
+_PROCESS_PROGRESS_STATUS_LABELS: dict[str, str] = {
+    "complete": "Fertig",
+    "partial": "In Arbeit",
+    "not_started": "Offen",
+}
+
+_PROCESS_PROGRESS_DETAIL_LABELS: dict[str, str] = {
+    STEP_KEY_LANDING: "Quelle & Analyse",
+    STEP_KEY_SUMMARY: "Review & Export",
+}
+
+
+def _wizard_step_href(step_key: str) -> str:
+    return f"?{WIZARD_STEP_QUERY_PARAM}={quote(step_key, safe='')}"
+
+
 def _process_progress_status_from_payload(
     *,
     step_key: str,
@@ -64,6 +82,16 @@ def _process_progress_status_from_payload(
     status = payload["step_status"]
     if status["total"] > 0:
         return status["completion_state"], f"{status['answered']}/{status['total']}"
+
+    if step_key == STEP_KEY_LANDING:
+        has_job_extract = bool(st.session_state.get(SSKey.JOB_EXTRACT.value))
+        has_question_plan = bool(st.session_state.get(SSKey.QUESTION_PLAN.value))
+        source_text = str(st.session_state.get(SSKey.SOURCE_TEXT.value) or "").strip()
+        if has_job_extract and has_question_plan:
+            return "complete", ""
+        if has_job_extract or has_question_plan or source_text:
+            return "partial", ""
+        return "not_started", ""
 
     if step_key == STEP_KEY_SUMMARY:
         has_brief = bool(st.session_state.get(SSKey.BRIEF.value))
@@ -75,7 +103,7 @@ def _process_progress_status_from_payload(
 
 
 def render_intake_process_progress(current_step_key: str) -> None:
-    process_steps = [step for step in STEPS if step.key != STEP_KEY_LANDING]
+    process_steps = list(STEPS)
     process_keys = [step.key for step in process_steps]
     if current_step_key not in process_keys:
         return
@@ -89,7 +117,8 @@ def render_intake_process_progress(current_step_key: str) -> None:
     intake_fact_evidence = load_intake_fact_evidence_from_state(st.session_state)
     confidence_threshold = read_confidence_threshold_from_state(st.session_state)
     items: list[dict[str, object]] = []
-    for step in process_steps:
+    step_total = len(process_steps)
+    for index, step in enumerate(process_steps, start=1):
         plan_step = (
             next((entry for entry in plan.steps if entry.step_key == step.key), None)
             if plan is not None
@@ -111,17 +140,31 @@ def render_intake_process_progress(current_step_key: str) -> None:
             payload=payload,
             answers=answers,
         )
-        title = f"{step.title_de}: {count} beantwortet" if count else step.title_de
+        status_label = _PROCESS_PROGRESS_STATUS_LABELS.get(status, "Offen")
+        detail = count or _PROCESS_PROGRESS_DETAIL_LABELS.get(step.key, "")
+        if count:
+            title = f"{step.title_de}: {count} beantwortet"
+        elif detail:
+            title = f"{step.title_de}: {status_label}, {detail}"
+        else:
+            title = f"{step.title_de}: {status_label}"
         items.append(
             {
+                "key": step.key,
                 "label": step.title_de,
+                "icon": step.icon,
                 "status": status,
+                "status_label": status_label,
                 "count": count,
+                "detail": detail,
                 "current": step.key == current_step_key,
                 "title": title,
+                "href": _wizard_step_href(step.key),
+                "step_index": index,
+                "step_total": step_total,
             }
         )
-    if items and process_keys[0] == STEP_KEY_COMPANY:
+    if items:
         render_process_progress(items)
 
 

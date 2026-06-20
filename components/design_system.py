@@ -731,71 +731,140 @@ def render_ui_styles() -> None:
             width: 100%;
         }
         .cs-process-progress-item {
+            flex: 1 0 12.5rem;
+            min-width: 12.5rem;
+            max-width: 18rem;
+        }
+        .cs-process-progress-link {
             display: grid;
             grid-template-columns: auto minmax(0, 1fr);
-            align-items: center;
-            gap: 0.4rem;
-            min-height: 2.35rem;
-            min-width: 10.5rem;
-            padding: 0.42rem 0.65rem;
+            align-items: flex-start;
+            gap: 0.58rem;
+            min-height: 4.35rem;
+            height: 100%;
+            padding: 0.62rem 0.72rem;
             border: 1px solid var(--cs-border);
             border-radius: 8px;
-            background: var(--cs-surface);
-            color: var(--cs-text-muted);
-            font-size: 0.84rem;
+            background: color-mix(in srgb, var(--cs-surface-raised) 94%, var(--cs-primary) 6%);
+            color: var(--cs-text);
+            text-decoration: none;
+            font-size: 0.82rem;
             line-height: 1.2;
             box-shadow: var(--cs-shadow-sm);
+            transition:
+                border-color 120ms ease,
+                background-color 120ms ease,
+                box-shadow 120ms ease,
+                transform 120ms ease;
         }
-        .cs-process-progress-item::before {
-            content: "";
-            width: 0.55rem;
-            height: 0.55rem;
+        .cs-process-progress-link:hover {
+            border-color: var(--cs-primary);
+            background: color-mix(in srgb, var(--cs-surface-raised) 88%, var(--cs-primary) 12%);
+            color: var(--cs-text);
+            text-decoration: none;
+            transform: translateY(-1px);
+        }
+        .cs-process-progress-link:focus-visible {
+            outline: 3px solid var(--cs-focus-ring);
+            outline-offset: 2px;
+        }
+        .cs-process-progress-marker {
+            display: grid;
+            place-items: center;
+            width: 1.65rem;
+            height: 1.65rem;
             border-radius: 999px;
             border: 1px solid var(--cs-border);
             background: var(--cs-surface);
+            color: var(--cs-text-muted);
+            font-size: 0.76rem;
+            font-weight: 800;
+            line-height: 1;
         }
-        .cs-process-progress-item[data-status="complete"]::before {
-            border-color: var(--cs-success);
-            background: var(--cs-success);
-        }
-        .cs-process-progress-item[data-status="partial"]::before {
-            border-color: var(--cs-warning);
-            background: var(--cs-warning);
-        }
-        .cs-process-progress-item[data-current="true"] {
+        .cs-process-progress-item[data-status="complete"] .cs-process-progress-marker {
             border-color: var(--cs-success);
             background: var(--cs-success-soft);
-            color: var(--cs-text);
-            font-weight: 700;
-            box-shadow: 0 0 0 3px color-mix(in srgb, var(--cs-success) 16%, transparent);
+            color: var(--cs-success);
         }
-        .cs-process-progress-item[data-current="true"]::before {
-            border-color: var(--cs-success);
-            background: var(--cs-success);
+        .cs-process-progress-item[data-status="partial"] .cs-process-progress-marker {
+            border-color: var(--cs-warning);
+            background: var(--cs-warning-soft);
+            color: var(--cs-warning);
+        }
+        .cs-process-progress-item[data-current="true"] .cs-process-progress-link {
+            border-color: var(--cs-primary);
+            background: color-mix(in srgb, var(--cs-primary-soft) 72%, var(--cs-surface-raised));
+            color: var(--cs-text);
+            box-shadow: 0 0 0 3px var(--cs-focus-ring);
+        }
+        .cs-process-progress-item[data-current="true"] .cs-process-progress-marker {
+            border-color: var(--cs-primary);
+            background: var(--cs-primary);
+            color: var(--cs-on-primary);
+        }
+        .cs-process-progress-body {
+            display: grid;
+            gap: 0.28rem;
+            min-width: 0;
+        }
+        .cs-process-progress-label-row {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            min-width: 0;
         }
         .cs-process-progress-label {
+            color: var(--cs-text);
+            font-weight: 750;
             overflow-wrap: break-word;
+        }
+        .cs-process-progress-icon {
+            flex: 0 0 auto;
+            line-height: 1;
+        }
+        .cs-process-progress-meta {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.28rem 0.45rem;
+            color: var(--cs-text-muted);
+            font-size: 0.76rem;
+            font-weight: 600;
+        }
+        .cs-process-progress-status {
+            color: var(--cs-text-muted);
+        }
+        .cs-process-progress-item[data-status="complete"] .cs-process-progress-status {
+            color: var(--cs-success);
+        }
+        .cs-process-progress-item[data-status="partial"] .cs-process-progress-status {
+            color: var(--cs-warning);
         }
         .cs-process-progress-count {
             color: var(--cs-text-subtle);
             font-weight: 600;
             white-space: nowrap;
         }
-        [data-testid="stSidebar"] .cs-process-progress-item {
+        [data-testid="stSidebar"] .cs-process-progress-link {
+            background: var(--cs-sidebar-surface);
+            border-color: var(--cs-sidebar-border);
+            color: var(--cs-sidebar-surface-text);
+            box-shadow: none;
+        }
+        [data-testid="stSidebar"] .cs-process-progress-marker {
             background: var(--cs-sidebar-surface);
             border-color: var(--cs-sidebar-border);
             color: var(--cs-sidebar-surface-text-muted);
-            box-shadow: none;
         }
-        [data-testid="stSidebar"] .cs-process-progress-item::before {
-            background: var(--cs-sidebar-surface);
-            border-color: var(--cs-sidebar-border);
-        }
-        [data-testid="stSidebar"] .cs-process-progress-item[data-current="true"] {
+        [data-testid="stSidebar"] .cs-process-progress-item[data-current="true"] .cs-process-progress-link {
             background: var(--cs-sidebar-surface-muted);
             border-color: var(--cs-success);
             color: var(--cs-sidebar-surface-text);
         }
+        [data-testid="stSidebar"] .cs-process-progress-label {
+            color: var(--cs-sidebar-surface-text);
+        }
+        [data-testid="stSidebar"] .cs-process-progress-meta,
         [data-testid="stSidebar"] .cs-process-progress-count {
             color: var(--cs-sidebar-surface-text-muted);
         }
@@ -998,6 +1067,11 @@ def _build_process_progress_html(
     items: Sequence[dict[str, object]], *, aria_label: str
 ) -> str:
     entries: list[str] = []
+    status_fallback_labels = {
+        "complete": "Fertig",
+        "partial": "In Arbeit",
+        "not_started": "Offen",
+    }
     for item in items:
         label = str(item.get("label") or "").strip()
         if not label:
@@ -1006,24 +1080,80 @@ def _build_process_progress_html(
         if status not in {"complete", "partial", "not_started"}:
             status = "not_started"
         count = str(item.get("count") or "").strip()
+        detail = str(item.get("detail") or "").strip()
+        secondary_text = count or detail
         current = "true" if bool(item.get("current")) else "false"
         title = str(item.get("title") or label).strip()
-        count_html = (
-            f'<span class="cs-process-progress-count">{escape(count)}</span>'
-            if count
+        href = str(item.get("href") or "").strip()
+        icon = str(item.get("icon") or "").strip()
+        status_label = str(
+            item.get("status_label") or status_fallback_labels[status]
+        ).strip()
+        step_index = str(item.get("step_index") or "").strip()
+        step_total = str(item.get("step_total") or "").strip()
+        if step_index and step_total:
+            marker_label = f"{step_index}/{step_total}"
+            marker_title = f"Schritt {step_index} von {step_total}"
+        else:
+            marker_label = step_index or "•"
+            marker_title = "Schritt"
+        icon_html = (
+            f'<span class="cs-process-progress-icon" aria-hidden="true">{escape(icon)}</span>'
+            if icon
             else ""
         )
+        count_html = (
+            f'<span class="cs-process-progress-count">{escape(secondary_text)}</span>'
+            if secondary_text
+            else ""
+        )
+        aria_current = ' aria-current="step"' if current == "true" else ""
+        tile_body = """
+                <span class="cs-process-progress-marker" title="{marker_title}">{marker_label}</span>
+                <span class="cs-process-progress-body">
+                    <span class="cs-process-progress-label-row">
+                        {icon_html}<span class="cs-process-progress-label">{label}</span>
+                    </span>
+                    <span class="cs-process-progress-meta">
+                        <span class="cs-process-progress-status">{status_label}</span>{count_html}
+                    </span>
+                </span>
+        """.format(
+            marker_title=escape(marker_title),
+            marker_label=escape(marker_label),
+            icon_html=icon_html,
+            label=escape(label),
+            status_label=escape(status_label),
+            count_html=count_html,
+        )
+        if href:
+            tile_html = (
+                '<a class="cs-process-progress-link" href="{href}" title="{title}"{aria_current}>'
+                "{tile_body}</a>"
+            ).format(
+                href=escape(href, quote=True),
+                title=escape(title, quote=True),
+                aria_current=aria_current,
+                tile_body=tile_body,
+            )
+        else:
+            tile_html = (
+                '<div class="cs-process-progress-link" title="{title}"{aria_current}>'
+                "{tile_body}</div>"
+            ).format(
+                title=escape(title, quote=True),
+                aria_current=aria_current,
+                tile_body=tile_body,
+            )
         entries.append(
             """
-            <li class="cs-process-progress-item" data-status="{status}" data-current="{current}" title="{title}">
-                <span class="cs-process-progress-label">{label}</span>{count_html}
+            <li class="cs-process-progress-item" data-status="{status}" data-current="{current}">
+                {tile_html}
             </li>
             """.format(
                 status=escape(status),
                 current=current,
-                title=escape(title),
-                label=escape(label),
-                count_html=count_html,
+                tile_html=tile_html,
             )
         )
     if not entries:
