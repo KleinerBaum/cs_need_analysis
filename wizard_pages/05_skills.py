@@ -30,7 +30,6 @@ from llm_client import (
 )
 from occupation_context import build_occupation_question_context
 from question_plan_compiler import compile_question_plan
-from components.design_system import render_output_header
 from usage_events import record_enrichment_timed
 from schemas import EscoMappingReport
 from schemas import (
@@ -61,7 +60,7 @@ from ui_components import (
     render_esco_picker_card,
     render_error_banner,
     render_question_step,
-    render_source_pill_selection,
+    render_compact_requirement_board,
     ReviewRenderContext,
     resolve_standard_review_mode,
     render_standard_step_review,
@@ -73,7 +72,7 @@ from wizard_pages.base import (
     guard_job_and_plan,
     nav_buttons,
 )
-from wizard_pages.fact_inputs import compact_text, fact_value, persist_fact, section_container, split_lines
+from wizard_pages.fact_inputs import compact_text, fact_value, persist_fact, split_lines
 from wizard_pages.salary_forecast_panel import render_skills_salary_forecast_panel
 
 ESCO_RELATED_ENDPOINT_UNSUPPORTED_MESSAGE = (
@@ -644,36 +643,33 @@ def _render_skill_status_surface(
     esco_count: int,
     selected_count: int,
 ) -> bool:
-    render_output_header(
-        "Skills präzisieren und priorisieren",
-        "Hier trennst du echte Must-haves von Nice-to-haves. Die bestätigte "
-        "Skill-Liste wirkt direkt auf Matching, Interviewfragen und die Qualität "
-        "des Recruiting Briefs.",
-    )
-    st.caption(
-        f"{jobspec_count} aus der Anzeige erkannt · "
-        f"{esco_count} durch ESCO/AI ergänzt · {selected_count} übernommen"
-    )
-    with st.expander("Weitere AI-Vorschläge", expanded=False):
+    metric_jobspec, metric_recommendations, metric_selected = st.columns(3, gap="small")
+    with metric_jobspec:
+        st.metric("Jobspec", jobspec_count)
+    with metric_recommendations:
+        st.metric("Empfehlungen", esco_count)
+    with metric_selected:
+        st.metric("Ausgewählt", selected_count)
+    with st.expander("AI-Vorschläge ergänzen", expanded=False):
         st.caption(
-            "Nur bestätigte Skills fließen vollständig in Briefing und Interview ein."
+            "Neue Vorschläge erscheinen im Board und werden erst nach Auswahl übernommen."
         )
         count_col, action_col = st.columns([1, 2], gap="small")
         with count_col:
             st.number_input(
-                "Wie viele zusätzliche Skill-Vorschläge möchtest du sehen?",
+                "Anzahl",
                 key=SSKey.SKILLS_SUGGEST_COUNT.value,
                 min_value=1,
                 max_value=12,
                 step=1,
-                label_visibility="collapsed",
             )
         with action_col:
             return st.button(
-                "Weitere AI-Skill-Vorschläge generieren",
+                "AI-Vorschläge generieren",
                 key=SSKey.SKILLS_AI_GENERATE_CLICKED.value,
                 width="stretch",
             )
+    return False
 
 
 def _render_term_group(title: str, values: list[str], *, limit: int = 10) -> None:
@@ -1044,6 +1040,179 @@ def _render_skills_source_columns(
         )
 
     st.session_state[SSKey.SKILLS_SELECTED_BULK_BUFFER.value] = selected_labels
+
+
+def _jobspec_board_items(job: JobAdExtract) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for group, labels in _build_jobspec_skill_groups(job).items():
+        status = "must" if group == "Must-have" else "nice"
+        for label in labels:
+            items.append(
+                {
+                    "label": label,
+                    "importance": group,
+                    "source": "Jobspec",
+                    "status": status,
+                }
+            )
+    return items
+
+
+def _esco_board_items(
+    *,
+    selected_must: list[dict[str, Any]],
+    selected_nice: list[dict[str, Any]],
+    recommended_must: list[dict[str, Any]],
+    recommended_nice: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for status, rows in (
+        ("must", selected_must),
+        ("nice", selected_nice),
+        ("must", recommended_must),
+        ("nice", recommended_nice),
+    ):
+        for item in rows:
+            if not isinstance(item, dict):
+                continue
+            label = _skill_title(item)
+            uri = _skill_uri(item)
+            key = uri or _normalize_term(label)
+            if not key or key in seen:
+                continue
+            row = dict(item)
+            row["label"] = label
+            row["title"] = label
+            row["status"] = status
+            row["importance"] = "Must-have" if status == "must" else "Nice-to-have"
+            row["source"] = str(row.get("source") or "ESCO").strip() or "ESCO"
+            items.append(row)
+            seen.add(key)
+    return items
+
+
+def _llm_board_items(llm_suggested: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for item in llm_suggested:
+        if not isinstance(item, dict):
+            continue
+        label = _llm_skill_label(item)
+        if not label:
+            continue
+        importance = str(item.get("importance") or "").strip()
+        items.append(
+            {
+                **item,
+                "label": label,
+                "source": "AI",
+                "status": "must" if importance.casefold() == "high" else "nice",
+            }
+        )
+    return items
+
+
+def _label_lookup(items: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    lookup: dict[str, dict[str, Any]] = {}
+    for item in items:
+        label = str(item.get("label") or item.get("title") or "").strip()
+        normalized = _normalize_term(label)
+        if normalized and normalized not in lookup:
+            lookup[normalized] = item
+    return lookup
+
+
+def _status_from_candidate(item: dict[str, Any], *, fallback: str = "nice") -> str:
+    status = str(item.get("status") or "").strip().casefold()
+    if status in {"must", "nice"}:
+        return status
+    importance = str(item.get("importance") or "").strip().casefold()
+    if importance in {"must-have", "must", "high", "hoch", "critical", "kritisch"}:
+        return "must"
+    return fallback
+
+
+def _apply_board_selection(
+    *,
+    selected_from_board: list[str],
+    jobspec_items: list[dict[str, Any]],
+    esco_items: list[dict[str, Any]],
+    llm_items: list[dict[str, Any]],
+) -> None:
+    if not selected_from_board:
+        return
+
+    jobspec_lookup = _label_lookup(jobspec_items)
+    esco_lookup = _label_lookup(esco_items)
+    llm_lookup = _label_lookup(llm_items)
+    selected_labels = _get_selected_skill_labels()
+
+    for label in selected_from_board:
+        normalized = _normalize_term(label)
+        if not normalized:
+            continue
+        if normalized in esco_lookup:
+            item = esco_lookup[normalized]
+            _set_esco_skill_status(
+                label=_skill_title(item),
+                uri=_skill_uri(item),
+                source=str(item.get("source") or "ESCO").strip() or "ESCO",
+                group_hint=str(item.get("importance") or "").strip(),
+                status=_status_from_candidate(item),
+            )
+            selected_labels = _dedupe_terms([*selected_labels, _skill_title(item)])
+            continue
+        if normalized in jobspec_lookup:
+            item = jobspec_lookup[normalized]
+            _set_free_skill_status(
+                label=label,
+                uri="",
+                source="Jobspec",
+                group_hint=str(item.get("importance") or "Jobspec").strip(),
+                status=_status_from_candidate(item),
+            )
+            selected_labels = _dedupe_terms([*selected_labels, label])
+            continue
+        if normalized in llm_lookup:
+            item = llm_lookup[normalized]
+            _set_free_skill_status(
+                label=label,
+                uri="",
+                source="AI",
+                group_hint="AI-Vorschläge",
+                status=_status_from_candidate(item),
+            )
+            selected_labels = _dedupe_terms([*selected_labels, label])
+
+    st.session_state[SSKey.SKILLS_SELECTED.value] = selected_labels
+    sync_selected_skill_intake_facts(st.session_state)
+
+
+def _count_selected_sources(
+    *,
+    selected_labels: list[str],
+    jobspec_items: list[dict[str, Any]],
+    esco_items: list[dict[str, Any]],
+    llm_items: list[dict[str, Any]],
+) -> dict[str, int]:
+    jobspec_lookup = _label_lookup(jobspec_items)
+    esco_lookup = _label_lookup(esco_items)
+    llm_lookup = _label_lookup(llm_items)
+    free_statuses = _get_free_skill_statuses()
+    counts = {"Jobspec": 0, "ESCO / Kontext": 0, "AI": 0}
+    for label in selected_labels:
+        normalized = _normalize_term(label)
+        status = free_statuses.get(_free_skill_status_key(label, ""))
+        source = str((status or {}).get("source") or "").strip().casefold()
+        if normalized in esco_lookup or source == "esco":
+            counts["ESCO / Kontext"] += 1
+        elif source == "ai" or normalized in llm_lookup:
+            counts["AI"] += 1
+        elif source == "jobspec" or normalized in jobspec_lookup:
+            counts["Jobspec"] += 1
+        else:
+            counts["Jobspec"] += 1
+    return counts
 
 
 def _safe_text(value: str | None) -> str:
@@ -1680,6 +1849,12 @@ def _render_unmapped_term_workflow(flagged_terms: list[str]) -> None:
     st.caption("Für jeden Begriff: ESCO mappen, Freitext behalten, ignorieren oder erneut suchen.")
     actions_raw = st.session_state.get(SSKey.ESCO_UNMAPPED_TERM_ACTIONS.value, {})
     actions = actions_raw if isinstance(actions_raw, dict) else {}
+    action_labels = {
+        "map_to_esco_skill": "Mit ESCO-Begriff verknüpfen",
+        "keep_free_text": "Als Freitext behalten",
+        "ignore": "Ignorieren",
+        "retry_search": "Erneut suchen",
+    }
     unresolved_requirement_terms_raw = st.session_state.get(
         SSKey.ESCO_UNMAPPED_REQUIREMENT_TERMS.value, []
     )
@@ -1703,6 +1878,7 @@ def _render_unmapped_term_workflow(flagged_terms: list[str]) -> None:
             options=["map_to_esco_skill", "keep_free_text", "ignore", "retry_search"],
             index=0,
             key=f"{term_key}.action",
+            format_func=lambda value: action_labels.get(value, value),
         )
         if action == "map_to_esco_skill":
             render_esco_picker_card(
@@ -1779,31 +1955,42 @@ def _render_extracted_slot(job: JobAdExtract) -> None:
         x for x in job.nice_to_have_skills if has_meaningful_value(x)
     ]
     tech_stack = [x for x in job.tech_stack if has_meaningful_value(x)]
+    total_count = len(_dedupe_terms([*must_have_skills, *nice_to_have_skills, *tech_stack]))
     st.caption(
-        "Aus der Jobspec erkannte Skill-Signale. Im Quellenabgleich entscheidest du, "
-        "welche Begriffe als Must-have, Nice-to-have oder Freitext übernommen werden."
+        "Die Jobspec liefert die erste Vorauswahl. Im Board entscheidest du, was in "
+        "die finale Skill-Liste kommt."
     )
-    col_must, col_nice, col_stack = responsive_three_columns(gap="large")
-    with col_must:
-        st.write(f"**Must-have ({len(must_have_skills)} erkannt):**")
-        for value in must_have_skills[:12]:
-            st.write(f"- {value}")
-        if not must_have_skills:
-            st.caption("Noch nicht erkannt.")
-    with col_nice:
-        st.write(f"**Nice-to-have ({len(nice_to_have_skills)} erkannt):**")
-        for value in nice_to_have_skills[:12]:
-            st.write(f"- {value}")
-        if not nice_to_have_skills:
-            st.caption("Noch nicht erkannt.")
-    with col_stack:
-        st.write(f"**Tech Stack ({len(tech_stack)} erkannt):**")
-        for value in tech_stack[:15]:
-            st.write(f"- {value}")
-        if not tech_stack:
-            st.caption("Noch nicht erkannt.")
+    count_must, count_nice, count_stack = st.columns(3, gap="small")
+    with count_must:
+        st.metric("Must-have", len(must_have_skills))
+    with count_nice:
+        st.metric("Nice-to-have", len(nice_to_have_skills))
+    with count_stack:
+        st.metric("Tech Stack", len(tech_stack))
+    with st.expander("Erkannte Begriffe anzeigen", expanded=False):
+        col_must, col_nice, col_stack = responsive_three_columns(gap="large")
+        with col_must:
+            st.write(f"**Must-have ({len(must_have_skills)}):**")
+            for value in must_have_skills[:12]:
+                st.write(f"- {value}")
+            if not must_have_skills:
+                st.caption("Noch nicht erkannt.")
+        with col_nice:
+            st.write(f"**Nice-to-have ({len(nice_to_have_skills)}):**")
+            for value in nice_to_have_skills[:12]:
+                st.write(f"- {value}")
+            if not nice_to_have_skills:
+                st.caption("Noch nicht erkannt.")
+        with col_stack:
+            st.write(f"**Tech Stack ({len(tech_stack)}):**")
+            for value in tech_stack[:15]:
+                st.write(f"- {value}")
+            if not tech_stack:
+                st.caption("Noch nicht erkannt.")
     if not must_have_skills and not nice_to_have_skills and not tech_stack:
         st.info("Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions.")
+    elif total_count > 0:
+        st.caption(f"{total_count} eindeutige Skill-Signale erkannt.")
 
 
 def _render_confirmed_selection_block(
@@ -1972,11 +2159,18 @@ def _maybe_autoload_esco_skill_suggestions(
     occupation_group: str,
     selected_occupation: dict[str, Any] | None,
     esco_anchor_status: EscoAnchorStatus,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+) -> tuple[
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+]:
     matrix_expected_must: list[dict[str, Any]] = []
     matrix_expected_nice: list[dict[str, Any]] = []
+    recommended_must: list[dict[str, Any]] = []
+    recommended_nice: list[dict[str, Any]] = []
     if not show_esco_sections:
-        return matrix_expected_must, matrix_expected_nice
+        return matrix_expected_must, matrix_expected_nice, recommended_must, recommended_nice
 
     if not occupation_uri:
         if esco_anchor_status.status_reason == "anchor_confirmed_invalid_payload":
@@ -1986,14 +2180,7 @@ def _maybe_autoload_esco_skill_suggestions(
             )
         else:
             st.info("ESCO-Sektion wird nach bestätigtem ESCO-Anker eingeblendet.")
-        return matrix_expected_must, matrix_expected_nice
-
-    selected_must_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
-    selected_nice_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
-    selected_must = selected_must_raw if isinstance(selected_must_raw, list) else []
-    selected_nice = selected_nice_raw if isinstance(selected_nice_raw, list) else []
-    if selected_must or selected_nice:
-        return matrix_expected_must, matrix_expected_nice
+        return matrix_expected_must, matrix_expected_nice, recommended_must, recommended_nice
 
     occupation_title = (
         str(selected_occupation.get("title") or "—").strip()
@@ -2030,9 +2217,14 @@ def _maybe_autoload_esco_skill_suggestions(
                 "ESCO-Vorschläge sind aktuell nicht verfügbar. "
                 "Du kannst mit manueller Auswahl weiterarbeiten oder später erneut versuchen."
             )
-        return matrix_expected_must, matrix_expected_nice
+        return matrix_expected_must, matrix_expected_nice, recommended_must, recommended_nice
 
-    merged_must, added_must = _merge_suggested_skills_by_uri(
+    selected_must_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
+    selected_nice_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
+    selected_must = selected_must_raw if isinstance(selected_must_raw, list) else []
+    selected_nice = selected_nice_raw if isinstance(selected_nice_raw, list) else []
+
+    recommended_must, added_must = _merge_suggested_skills_by_uri(
         suggested_skills=[
             {
                 **item,
@@ -2042,10 +2234,10 @@ def _maybe_autoload_esco_skill_suggestions(
             for item in [*suggested_must, *matrix_must]
             if not _is_removed_esco_skill(item)
         ],
-        must_selected=selected_must,
-        nice_selected=selected_nice,
+        must_selected=[],
+        nice_selected=[*selected_must, *selected_nice],
     )
-    merged_nice, added_nice = _merge_suggested_skills_by_uri(
+    recommended_nice, added_nice = _merge_suggested_skills_by_uri(
         suggested_skills=[
             {
                 **item,
@@ -2055,15 +2247,14 @@ def _maybe_autoload_esco_skill_suggestions(
             for item in [*suggested_nice, *matrix_nice]
             if not _is_removed_esco_skill(item)
         ],
-        must_selected=selected_nice,
-        nice_selected=merged_must,
+        must_selected=[],
+        nice_selected=[*selected_must, *selected_nice, *recommended_must],
     )
-    st.session_state[SSKey.ESCO_SKILLS_SELECTED_MUST.value] = merged_must
-    st.session_state[SSKey.ESCO_SKILLS_SELECTED_NICE.value] = merged_nice
-    st.caption(
-        f"ESCO ergänzt {added_must + added_nice} Skills für {occupation_title}."
-    )
-    return matrix_expected_must, matrix_expected_nice
+    if added_must + added_nice > 0:
+        st.caption(
+            f"ESCO empfiehlt {added_must + added_nice} Skills für {occupation_title}."
+        )
+    return matrix_expected_must, matrix_expected_nice, recommended_must, recommended_nice
 
 
 def _render_skills_source_comparison_block(
@@ -2096,7 +2287,12 @@ def _render_skills_source_comparison_block(
         else ""
     )
     occupation_group = _resolve_matrix_occupation_group(selected_occupation) if show_esco_sections else ""
-    matrix_expected_must, matrix_expected_nice = _maybe_autoload_esco_skill_suggestions(
+    (
+        matrix_expected_must,
+        matrix_expected_nice,
+        recommended_must,
+        recommended_nice,
+    ) = _maybe_autoload_esco_skill_suggestions(
         show_esco_sections=show_esco_sections,
         occupation_uri=occupation_uri,
         occupation_group=occupation_group,
@@ -2126,9 +2322,6 @@ def _render_skills_source_comparison_block(
     st.session_state[SSKey.ESCO_SKILLS_SELECTED_NICE.value] = deduped_nice
     st.session_state[SSKey.ESCO_CONFIRMED_ESSENTIAL_SKILLS.value] = deduped_must
     st.session_state[SSKey.ESCO_CONFIRMED_OPTIONAL_SKILLS.value] = deduped_nice
-    raw_detail_cache = st.session_state.get(SSKey.ESCO_SKILL_DETAIL_CACHE.value, {})
-    detail_cache = raw_detail_cache if isinstance(raw_detail_cache, dict) else {}
-    st.session_state[SSKey.ESCO_SKILL_DETAIL_CACHE.value] = detail_cache
     ui_mode = get_current_ui_mode()
 
     llm_count_labels = _dedupe_terms(
@@ -2142,9 +2335,11 @@ def _render_skills_source_comparison_block(
             }
         ]
     )
+    recommended_esco_titles = _dedupe_terms(
+        [_skill_title(item) for item in [*recommended_must, *recommended_nice]]
+    )
     selected_status_labels = _dedupe_terms(
         [
-            *[_skill_title(item) for item in [*deduped_must, *deduped_nice]],
             *_get_selected_skill_labels(),
         ]
     )
@@ -2154,6 +2349,7 @@ def _render_skills_source_comparison_block(
             _dedupe_terms(
                 [
                     *[_skill_title(item) for item in [*deduped_must, *deduped_nice]],
+                    *recommended_esco_titles,
                     *llm_count_labels,
                 ]
             )
@@ -2242,104 +2438,44 @@ def _render_skills_source_comparison_block(
         job=job,
         show_esco_sections=show_esco_sections,
     )
-    esco_titles = _dedupe_terms([_skill_title(item) for item in [*deduped_must, *deduped_nice]])
-    selected_for_pills = _dedupe_terms([*esco_titles, *_get_selected_skill_labels()])
-    previous_free_labels = _dedupe_terms(
-        [
-            label
-            for label in _get_selected_skill_labels()
-            if _normalize_term(label) not in {_normalize_term(item) for item in esco_titles}
-        ]
+    jobspec_items = _jobspec_board_items(job)
+    esco_items = _esco_board_items(
+        selected_must=deduped_must if show_esco_sections else [],
+        selected_nice=deduped_nice if show_esco_sections else [],
+        recommended_must=recommended_must if show_esco_sections else [],
+        recommended_nice=recommended_nice if show_esco_sections else [],
     )
-    llm_label_options = _dedupe_terms(
-        [
-            label
-            for label in llm_labels
-            if _normalize_term(label)
-            not in {
-                _normalize_term(_skill_title(item))
-                for item in [*deduped_must, *deduped_nice]
-            }
-        ]
+    llm_items = _llm_board_items(llm_suggested)
+    selected_from_board = render_compact_requirement_board(
+        title_jobspec="Jobspec",
+        jobspec_items=jobspec_items,
+        title_esco="ESCO / Kontext",
+        esco_items=esco_items if show_esco_sections else [],
+        title_llm="AI-Vorschläge",
+        llm_items=llm_items,
+        selected_labels=_get_selected_skill_labels(),
+        selection_state_key=SSKey.SKILLS_SELECTED_BULK_BUFFER.value,
+        key_prefix="skills.board",
+        empty_messages={
+            "Jobspec": "Keine Jobspec-Skills erkannt.",
+            "ESCO": "ESCO-Vorschläge erscheinen nach bestätigtem Referenzberuf.",
+            "AI": "Noch keine AI-Vorschläge vorhanden.",
+        },
     )
-    selection_result = render_source_pill_selection(
-        columns=[
-            {
-                "title": "Aus der Anzeige extrahiert",
-                "source_key": "Jobspec",
-                "options": jobspec_labels,
-                "state_key": SSKey.SKILLS_JOBSPEC_PILLS.value,
-            },
-            {
-                "title": "ESCO / Kontext",
-                "source_key": "ESCO / Kontext",
-                "options": esco_titles if show_esco_sections else [],
-                "state_key": SSKey.SKILLS_ESCO_PILLS.value,
-            },
-            {
-                "title": "AI-Vorschläge",
-                "source_key": "AI",
-                "options": llm_label_options,
-                "state_key": SSKey.SKILLS_AI_PILLS.value,
-            },
-        ],
-        selected_labels=selected_for_pills,
-        selected_state_key=SSKey.SKILLS_SELECTED.value,
-        key_prefix="skills.sources",
+    _apply_board_selection(
+        selected_from_board=selected_from_board,
+        jobspec_items=jobspec_items,
+        esco_items=esco_items,
+        llm_items=llm_items,
     )
-    selected_after = _dedupe_terms(selection_result["selected_labels"])
-    selected_after_normalized = {_normalize_term(label) for label in selected_after}
-    selected_esco_normalized = {
-        _normalize_term(label)
-        for label in selection_result["selected_by_source"].get("ESCO / Kontext", [])
-    }
-    for item in [*deduped_must, *deduped_nice]:
-        label = _skill_title(item)
-        if _normalize_term(label) not in selected_esco_normalized:
-            _remove_esco_skill(_skill_uri(item), label)
-
-    jobspec_status_by_label: dict[str, str] = {}
-    for label in _build_jobspec_skill_groups(job)["Must-have"]:
-        jobspec_status_by_label[_normalize_term(label)] = "must"
-    for label in [
-        *_build_jobspec_skill_groups(job)["Nice-to-have"],
-        *_build_jobspec_skill_groups(job)["Tech Stack"],
-    ]:
-        jobspec_status_by_label.setdefault(_normalize_term(label), "nice")
-    llm_status_by_label = {
-        _normalize_term(_llm_skill_label(item)): (
-            "must"
-            if str(item.get("importance") or "").strip().casefold() == "high"
-            else "nice"
-        )
-        for item in llm_suggested
-        if isinstance(item, dict) and _llm_skill_label(item)
-    }
-    esco_label_set = {_normalize_term(label) for label in esco_titles}
-    for label in previous_free_labels:
-        if _normalize_term(label) not in selected_after_normalized:
-            _remove_selected_skill_label(label)
-    for label in selection_result["selected_by_source"].get("Jobspec", []):
-        if _normalize_term(label) not in esco_label_set:
-            _set_free_skill_status(
-                label=label,
-                uri="",
-                source="Jobspec",
-                group_hint="Jobspec",
-                status=jobspec_status_by_label.get(_normalize_term(label), "nice"),
-            )
-    for label in selection_result["selected_by_source"].get("AI", []):
-        if _normalize_term(label) not in esco_label_set:
-            _set_free_skill_status(
-                label=label,
-                uri="",
-                source="AI",
-                group_hint="AI-Vorschläge",
-                status=llm_status_by_label.get(_normalize_term(label), "nice"),
-            )
-    st.session_state[SSKey.SKILLS_SELECTED.value] = selected_after
-    st.session_state[SSKey.SKILLS_SELECTED_BULK_BUFFER.value] = selected_after
+    selected_after = _get_selected_skill_labels()
     st.caption(f"Ausgewählt: {len(selected_after)} Skills")
+    source_counts = _count_selected_sources(
+        selected_labels=selected_after,
+        jobspec_items=jobspec_items,
+        esco_items=esco_items,
+        llm_items=llm_items,
+    )
 
     ambiguous_terms = sorted(
         {
@@ -2364,9 +2500,7 @@ def _render_skills_source_comparison_block(
             f"{open_count} offene Begriffe · {status_label}"
         )
         with st.expander("Advanced / Technische Prüfung", expanded=False):
-            st.caption("SSKey.SKILLS_SELECTED")
-            st.caption("contains/filter")
-            st.caption("map_to_esco_skill · keep_free_text · retry_search")
+            st.caption("Technische ESCO- und Mapping-Prüfung für Expert:innen.")
             if show_esco_sections:
                 _render_matrix_coverage_section(matrix_snapshot, ui_mode=ui_mode)
             if show_esco_sections and flagged_terms:
@@ -2382,7 +2516,7 @@ def _render_skills_source_comparison_block(
             f"{selected_count} Skills übernommen · "
             "Bereit für Recruiting Brief, Matching und Interviewfragen."
         )
-    return selection_result["source_counts"]
+    return source_counts
 
 
 def _skill_item_by_label(raw_items: Any) -> dict[str, dict[str, Any]]:
@@ -2395,6 +2529,105 @@ def _skill_item_by_label(raw_items: Any) -> dict[str, dict[str, Any]]:
         if label:
             output[label] = item
     return output
+
+
+def _edited_table_rows(payload: Any) -> list[dict[str, Any]]:
+    if isinstance(payload, list):
+        return [row for row in payload if isinstance(row, dict)]
+    to_dict = getattr(payload, "to_dict", None)
+    if callable(to_dict):
+        try:
+            rows = to_dict("records")
+        except TypeError:
+            rows = to_dict()
+        if isinstance(rows, list):
+            return [row for row in rows if isinstance(row, dict)]
+    return []
+
+
+def _canonical_from_label(label: str, labels: dict[str, str], default: str) -> str:
+    reverse = {display: key for key, display in labels.items()}
+    return reverse.get(str(label or "").strip(), default)
+
+
+def _bucket_status_from_requirement_status(status: str) -> str:
+    return "must" if status in {"must", "knockout"} else "nice"
+
+
+def _sync_requirement_status_to_selection(label: str, status: str) -> None:
+    bucket_status = _bucket_status_from_requirement_status(status)
+    _current_esco_status, esco_item = _find_esco_skill("", label)
+    if esco_item is not None:
+        _set_esco_skill_status(
+            label=_skill_title(esco_item),
+            uri=_skill_uri(esco_item),
+            source=str(esco_item.get("source") or "ESCO").strip() or "ESCO",
+            group_hint=str(esco_item.get("group_hint") or "").strip(),
+            status=bucket_status,
+        )
+        return
+
+    status_payload = _get_free_skill_statuses().get(_free_skill_status_key(label, ""))
+    source = str((status_payload or {}).get("source") or "Eingabe").strip()
+    group_hint = str((status_payload or {}).get("group_hint") or "").strip()
+    _set_free_skill_status(
+        label=label,
+        uri="",
+        source=source,
+        group_hint=group_hint,
+        status=bucket_status,
+    )
+
+
+def _remove_skill_from_selection(label: str) -> None:
+    _current_esco_status, esco_item = _find_esco_skill("", label)
+    if esco_item is not None:
+        _remove_esco_skill(_skill_uri(esco_item), _skill_title(esco_item))
+        return
+    _remove_selected_skill_label(label)
+
+
+def _render_free_text_reason_editor(skill_items: list[dict[str, Any]]) -> None:
+    free_text_items = [
+        item
+        for item in skill_items
+        if _find_esco_skill("", str(item.get("label") or ""))[1] is None
+    ]
+    if not free_text_items:
+        persist_fact(FactKey.SKILLS_FREE_TEXT_REASON, "")
+        return
+
+    with st.expander("Freitext-Begriffe begründen", expanded=False):
+        st.caption(
+            "Nur ausfüllen, wenn ein Begriff bewusst ohne ESCO-Mapping übernommen bleibt."
+        )
+        rows = [
+            {
+                "Skill": item["label"],
+                "Begründung": compact_text(item.get("free_text_reason")),
+            }
+            for item in free_text_items
+        ]
+        edited = st.data_editor(
+            rows,
+            key=f"fact_input.{FactKey.SKILLS_FREE_TEXT_REASON.value}.editor",
+            width="stretch",
+            hide_index=True,
+            num_rows="fixed",
+            column_config={
+                "Skill": st.column_config.TextColumn("Skill", disabled=True),
+                "Begründung": st.column_config.TextColumn("Begründung"),
+            },
+        )
+        reason_rows = _edited_table_rows(edited)
+    persist_fact(
+        FactKey.SKILLS_FREE_TEXT_REASON,
+        "; ".join(
+            f"{compact_text(row.get('Skill'))}: {compact_text(row.get('Begründung'))}"
+            for row in reason_rows
+            if compact_text(row.get("Skill")) and compact_text(row.get("Begründung"))
+        ),
+    )
 
 
 def _render_structured_skill_rows() -> None:
@@ -2415,6 +2648,7 @@ def _render_structured_skill_rows() -> None:
         persist_fact(FactKey.SKILLS_READINESS_TIMING, [])
         persist_fact(FactKey.SKILLS_KNOCKOUT_CRITERIA, [])
         persist_fact(FactKey.SKILLS_TRAINABLE_SKILLS, [])
+        persist_fact(FactKey.SKILLS_FREE_TEXT_REASON, "")
         return
 
     existing_by_label = _skill_item_by_label(fact_value(FactKey.SKILLS_ITEMS, []))
@@ -2424,15 +2658,17 @@ def _render_structured_skill_rows() -> None:
         for value in free_statuses.values()
         if isinstance(value, dict)
     }
-    skill_items: list[dict[str, Any]] = []
     st.markdown("### Skill-Anforderungen strukturieren")
     st.caption(
-        "Pro Skill werden Status, Mindestniveau, Timing und erwartete Evidenz als strukturierte Zeilen gespeichert."
+        "Status, Mindestniveau, Timing und Nachweis werden als kompakte Tabelle gespeichert."
     )
-    for idx, label in enumerate(labels[:12]):
+    rows: list[dict[str, Any]] = []
+    for label in labels:
         existing = existing_by_label.get(label, {})
+        esco_status, _esco_item = _find_esco_skill("", label)
         default_status = (
             compact_text(existing.get("status"))
+            or esco_status
             or free_status_by_label.get(label)
             or "must"
         )
@@ -2444,55 +2680,88 @@ def _render_structured_skill_rows() -> None:
         default_timing = compact_text(existing.get("readiness_timing")) or "start"
         if default_timing not in _SKILL_TIMING_LABELS:
             default_timing = "start"
-        with section_container(border=True):
-            st.markdown(f"**{label}**")
-            col_status, col_level, col_timing = responsive_three_columns(gap="large")
-            with col_status:
-                status = st.selectbox(
-                    "Status",
-                    options=tuple(_SKILL_STATUS_LABELS),
-                    index=tuple(_SKILL_STATUS_LABELS).index(default_status),
-                    format_func=lambda value: _SKILL_STATUS_LABELS.get(value, value),
-                    key=f"fact_input.{FactKey.SKILLS_ITEMS.value}.{idx}.status",
-                )
-            with col_level:
-                proficiency = st.selectbox(
-                    "Mindestniveau",
-                    options=tuple(_SKILL_PROFICIENCY_LABELS),
-                    index=tuple(_SKILL_PROFICIENCY_LABELS).index(default_proficiency),
-                    format_func=lambda value: _SKILL_PROFICIENCY_LABELS.get(value, value),
-                    key=f"fact_input.{FactKey.SKILLS_ITEMS.value}.{idx}.proficiency",
-                )
-            with col_timing:
-                timing = st.selectbox(
-                    "Bis wann nötig?",
-                    options=tuple(_SKILL_TIMING_LABELS),
-                    index=tuple(_SKILL_TIMING_LABELS).index(default_timing),
-                    format_func=lambda value: _SKILL_TIMING_LABELS.get(value, value),
-                    key=f"fact_input.{FactKey.SKILLS_ITEMS.value}.{idx}.timing",
-                )
-            evidence_required = st.text_input(
-                "Evidenz / Nachweis",
-                value=compact_text(existing.get("evidence_required")),
-                placeholder="z. B. Arbeitsprobe, Zertifikat, Projektbeispiel",
-                key=f"fact_input.{FactKey.SKILLS_ITEMS.value}.{idx}.evidence",
-            )
-            free_text_reason = st.text_input(
-                "Warum als Freitext behalten?",
-                value=compact_text(existing.get("free_text_reason")),
-                placeholder="Nur bei nicht gemappten Begriffen nötig",
-                key=f"fact_input.{FactKey.SKILLS_ITEMS.value}.{idx}.free_text_reason",
-            )
+        rows.append(
+            {
+                "Behalten": True,
+                "Skill": label,
+                "Status": _SKILL_STATUS_LABELS[default_status],
+                "Mindestniveau": _SKILL_PROFICIENCY_LABELS[default_proficiency],
+                "Nötig bis": _SKILL_TIMING_LABELS[default_timing],
+                "Nachweis": compact_text(existing.get("evidence_required")),
+                "_free_text_reason": compact_text(existing.get("free_text_reason")),
+            }
+        )
+    edited = st.data_editor(
+        rows,
+        key=f"fact_input.{FactKey.SKILLS_ITEMS.value}.editor",
+        width="stretch",
+        hide_index=True,
+        num_rows="fixed",
+        height=min(520, max(180, 72 + len(rows) * 36)),
+        column_config={
+            "Behalten": st.column_config.CheckboxColumn("Behalten"),
+            "Skill": st.column_config.TextColumn("Skill", disabled=True),
+            "Status": st.column_config.SelectboxColumn(
+                "Status", options=list(_SKILL_STATUS_LABELS.values())
+            ),
+            "Mindestniveau": st.column_config.SelectboxColumn(
+                "Mindestniveau", options=list(_SKILL_PROFICIENCY_LABELS.values())
+            ),
+            "Nötig bis": st.column_config.SelectboxColumn(
+                "Nötig bis", options=list(_SKILL_TIMING_LABELS.values())
+            ),
+            "Nachweis": st.column_config.TextColumn("Nachweis"),
+        },
+        column_order=[
+            "Behalten",
+            "Skill",
+            "Status",
+            "Mindestniveau",
+            "Nötig bis",
+            "Nachweis",
+        ],
+    )
+
+    edited_rows = _edited_table_rows(edited)
+    kept_labels: list[str] = []
+    skill_items: list[dict[str, Any]] = []
+    for row in edited_rows:
+        label = compact_text(row.get("Skill"))
+        if not label:
+            continue
+        if not bool(row.get("Behalten", True)):
+            _remove_skill_from_selection(label)
+            continue
+        status = _canonical_from_label(
+            compact_text(row.get("Status")),
+            _SKILL_STATUS_LABELS,
+            "must",
+        )
+        proficiency = _canonical_from_label(
+            compact_text(row.get("Mindestniveau")),
+            _SKILL_PROFICIENCY_LABELS,
+            "solid",
+        )
+        timing = _canonical_from_label(
+            compact_text(row.get("Nötig bis")),
+            _SKILL_TIMING_LABELS,
+            "start",
+        )
+        _sync_requirement_status_to_selection(label, status)
+        kept_labels.append(label)
+        existing = existing_by_label.get(label, {})
         skill_items.append(
             {
                 "label": label,
                 "status": status,
                 "proficiency": proficiency,
                 "readiness_timing": timing,
-                "evidence_required": compact_text(evidence_required),
-                "free_text_reason": compact_text(free_text_reason),
+                "evidence_required": compact_text(row.get("Nachweis")),
+                "free_text_reason": compact_text(existing.get("free_text_reason")),
             }
         )
+    st.session_state[SSKey.SKILLS_SELECTED.value] = _dedupe_terms(kept_labels)
+    sync_selected_skill_intake_facts(st.session_state)
     persist_fact(FactKey.SKILLS_ITEMS, skill_items)
     persist_fact(
         FactKey.SKILLS_READINESS_TIMING,
@@ -2509,14 +2778,7 @@ def _render_structured_skill_rows() -> None:
         FactKey.SKILLS_TRAINABLE_SKILLS,
         [item["label"] for item in skill_items if item["status"] == "trainable"],
     )
-    persist_fact(
-        FactKey.SKILLS_FREE_TEXT_REASON,
-        "; ".join(
-            f"{item['label']}: {item['free_text_reason']}"
-            for item in skill_items
-            if item["free_text_reason"]
-        ),
-    )
+    _render_free_text_reason_editor(skill_items)
     job_extract_raw = st.session_state.get(SSKey.JOB_EXTRACT.value, {})
     job_extract_payload = job_extract_raw if isinstance(job_extract_raw, dict) else {}
     current_certifications = fact_value(
@@ -2619,7 +2881,7 @@ def render(ctx: WizardContext) -> None:
     def _render_review_slot() -> None:
         st.markdown("#### Review")
         st.caption(
-            "Prüfe, ob Skill-Auswahl, Pflichtgrad und offene Essentials für Brief, "
+            "Prüfe, ob Skill-Auswahl, Pflichtgrad und offene Pflichtangaben für Brief, "
             "Matching und Interview verwertbar sind."
         )
         render_standard_step_review(

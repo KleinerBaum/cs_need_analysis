@@ -82,6 +82,8 @@ class SalarySidebarInputRow:
     target: str
     source_label: str
     default_enabled: bool = True
+    label_prefix: str = ""
+    display_value: str = ""
 
 
 def _has_meaningful_value(value: object) -> bool:
@@ -243,6 +245,8 @@ def _append_salary_sidebar_row(
             value=_json_safe(value),
             target=target,
             source_label=source_label,
+            label_prefix=label_prefix,
+            display_value=value_label,
         )
     )
 

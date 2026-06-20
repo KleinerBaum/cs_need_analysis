@@ -641,19 +641,25 @@ def test_maybe_autoload_esco_skills_loads_once_when_anchor_confirmed(
     )
     monkeypatch.setattr(SKILLS_MODULE, "_load_matrix_priors", lambda *args, **kwargs: ([], []))
 
-    SKILLS_MODULE._maybe_autoload_esco_skill_suggestions(
-        show_esco_sections=True,
-        occupation_uri="uri:occ:1",
-        occupation_group="251",
-        selected_occupation={"uri": "uri:occ:1", "title": "Data Engineer"},
-        esco_anchor_status=EscoAnchorStatus(
-            True,
-            {"uri": "uri:occ:1", "title": "Data Engineer"},
-            "anchor_confirmed_with_payload",
-        ),
+    matrix_must, matrix_nice, recommended_must, recommended_nice = (
+        SKILLS_MODULE._maybe_autoload_esco_skill_suggestions(
+            show_esco_sections=True,
+            occupation_uri="uri:occ:1",
+            occupation_group="251",
+            selected_occupation={"uri": "uri:occ:1", "title": "Data Engineer"},
+            esco_anchor_status=EscoAnchorStatus(
+                True,
+                {"uri": "uri:occ:1", "title": "Data Engineer"},
+                "anchor_confirmed_with_payload",
+            ),
+        )
     )
 
-    assert state[SSKey.ESCO_SKILLS_SELECTED_MUST.value] == [
+    assert matrix_must == []
+    assert matrix_nice == []
+    assert state[SSKey.ESCO_SKILLS_SELECTED_MUST.value] == []
+    assert state[SSKey.ESCO_SKILLS_SELECTED_NICE.value] == []
+    assert recommended_must == [
         {
             "uri": "uri:skill:python",
             "title": "Python",
@@ -662,7 +668,7 @@ def test_maybe_autoload_esco_skills_loads_once_when_anchor_confirmed(
             "related_occupation_uri": "uri:occ:1",
         }
     ]
-    assert state[SSKey.ESCO_SKILLS_SELECTED_NICE.value] == [
+    assert recommended_nice == [
         {
             "uri": "uri:skill:git",
             "title": "Git",
@@ -671,10 +677,10 @@ def test_maybe_autoload_esco_skills_loads_once_when_anchor_confirmed(
             "related_occupation_uri": "uri:occ:1",
         }
     ]
-    assert any("ESCO ergänzt 2 Skills" in message for message in calls)
+    assert any("ESCO empfiehlt 2 Skills" in message for message in calls)
 
 
-def test_maybe_autoload_esco_skills_skips_when_buckets_already_filled(
+def test_maybe_autoload_esco_skills_keeps_existing_buckets_as_confirmed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     state = {
@@ -682,33 +688,59 @@ def test_maybe_autoload_esco_skills_skips_when_buckets_already_filled(
             {"uri": "uri:skill:existing", "title": "Existing"}
         ],
         SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
+        SSKey.ESCO_MATRIX_ENABLED.value: False,
     }
     load_calls = 0
 
-    def _fail_load(*args, **kwargs):
+    def _load(*args, **kwargs):
         nonlocal load_calls
         load_calls += 1
-        raise AssertionError("ESCO relation load should not run")
+        return (
+            [
+                {"uri": "uri:skill:existing", "title": "Existing"},
+                {"uri": "uri:skill:new", "title": "New"},
+            ],
+            [],
+            None,
+        )
 
-    monkeypatch.setattr(SKILLS_MODULE, "st", SimpleNamespace(session_state=state))
-    monkeypatch.setattr(SKILLS_MODULE, "_load_related_skills_from_selected_occupation", _fail_load)
+    monkeypatch.setattr(SKILLS_MODULE, "st", SimpleNamespace(
+        session_state=state,
+        spinner=lambda *_args, **_kwargs: _DummySpinner(),
+        caption=lambda *_args, **_kwargs: None,
+        info=lambda *_args, **_kwargs: None,
+        warning=lambda *_args, **_kwargs: None,
+    ))
+    monkeypatch.setattr(SKILLS_MODULE, "_load_related_skills_from_selected_occupation", _load)
+    monkeypatch.setattr(SKILLS_MODULE, "_load_matrix_priors", lambda *args, **kwargs: ([], []))
 
-    SKILLS_MODULE._maybe_autoload_esco_skill_suggestions(
-        show_esco_sections=True,
-        occupation_uri="uri:occ:1",
-        occupation_group="251",
-        selected_occupation={"uri": "uri:occ:1", "title": "Data Engineer"},
-        esco_anchor_status=EscoAnchorStatus(
-            True,
-            {"uri": "uri:occ:1", "title": "Data Engineer"},
-            "anchor_confirmed_with_payload",
-        ),
+    _matrix_must, _matrix_nice, recommended_must, recommended_nice = (
+        SKILLS_MODULE._maybe_autoload_esco_skill_suggestions(
+            show_esco_sections=True,
+            occupation_uri="uri:occ:1",
+            occupation_group="251",
+            selected_occupation={"uri": "uri:occ:1", "title": "Data Engineer"},
+            esco_anchor_status=EscoAnchorStatus(
+                True,
+                {"uri": "uri:occ:1", "title": "Data Engineer"},
+                "anchor_confirmed_with_payload",
+            ),
+        )
     )
 
-    assert load_calls == 0
+    assert load_calls == 1
     assert state[SSKey.ESCO_SKILLS_SELECTED_MUST.value] == [
         {"uri": "uri:skill:existing", "title": "Existing"}
     ]
+    assert recommended_must == [
+        {
+            "uri": "uri:skill:new",
+            "title": "New",
+            "relation": "hasEssentialSkill",
+            "related_occupation_uri": "uri:occ:1",
+        }
+    ]
+    assert recommended_nice == []
 
 
 def test_maybe_autoload_esco_skills_warns_when_anchor_payload_invalid(

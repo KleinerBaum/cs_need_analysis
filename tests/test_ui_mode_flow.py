@@ -5,6 +5,7 @@ from typing import Any
 from streamlit.errors import StreamlitAPIException
 
 import wizard_pages.base as base
+import wizard_pages.salary_forecast as salary_forecast
 from constants import (
     SSKey,
     STEPS,
@@ -33,6 +34,44 @@ class _FakeStreamlit:
     def __init__(self, session_state: _LockedSessionState) -> None:
         self.session_state = session_state
         self.sidebar = self
+        self.checkbox_labels: list[str] = []
+        self.markdown_calls: list[str] = []
+        self.caption_calls: list[str] = []
+        self.expander_labels: list[str] = []
+
+    def markdown(self, body: str, **_kwargs: Any) -> None:
+        self.markdown_calls.append(body)
+
+    def caption(self, body: str, **_kwargs: Any) -> None:
+        self.caption_calls.append(body)
+
+    class _Expander:
+        def __init__(self, owner: "_FakeStreamlit", label: str) -> None:
+            self.owner = owner
+            self.label = label
+
+        def __enter__(self) -> "_FakeStreamlit":
+            return self.owner
+
+        def __exit__(self, *_args: Any) -> None:
+            return None
+
+    def expander(self, label: str, **_kwargs: Any) -> "_FakeStreamlit._Expander":
+        self.expander_labels.append(label)
+        return _FakeStreamlit._Expander(self, label)
+
+    def checkbox(
+        self,
+        label: str,
+        *,
+        value: bool = False,
+        key: str | None = None,
+        **_kwargs: Any,
+    ) -> bool:
+        self.checkbox_labels.append(label)
+        if key is not None:
+            self.session_state.locked_keys.add(key)
+        return bool(value)
 
     def selectbox(
         self,
@@ -265,6 +304,87 @@ def test_sidebar_salary_input_selections_default_active_and_persist(
     persisted = base._sync_sidebar_salary_input_selections(rows)
 
     assert persisted[first_row_id] is False
+
+
+def test_sidebar_salary_input_selection_groups_repeated_prefix_labels(
+    monkeypatch,
+) -> None:
+    session_state = _LockedSessionState(
+        {SSKey.SALARY_FORECAST_INPUT_SELECTIONS.value: {}}
+    )
+    fake_st = _FakeStreamlit(session_state)
+    monkeypatch.setattr(salary_forecast, "st", fake_st)
+    rows = [
+        base.SalarySidebarInputRow(
+            id="city",
+            group="Rolle & Standort",
+            label="Stadt: Berlin",
+            value="Berlin",
+            target="location_city",
+            source_label="Stored vacancy fact",
+            label_prefix="Stadt",
+            display_value="Berlin",
+        ),
+        base.SalarySidebarInputRow(
+            id="task-1",
+            group="Aufgaben",
+            label="Aufgabe: Kunden beraten",
+            value="Kunden beraten",
+            target="responsibilities",
+            source_label="Stored vacancy fact",
+            label_prefix="Aufgabe",
+            display_value="Kunden beraten",
+        ),
+        base.SalarySidebarInputRow(
+            id="task-2",
+            group="Aufgaben",
+            label="Aufgabe: Lösungen konzipieren",
+            value="Lösungen konzipieren",
+            target="responsibilities",
+            source_label="Stored vacancy fact",
+            label_prefix="Aufgabe",
+            display_value="Lösungen konzipieren",
+        ),
+        base.SalarySidebarInputRow(
+            id="selected-task-1",
+            group="Aufgaben",
+            label="Ausgewählte Aufgabe: Workshop moderieren",
+            value="Workshop moderieren",
+            target="responsibilities",
+            source_label="Manual task selection",
+            label_prefix="Ausgewählte Aufgabe",
+            display_value="Workshop moderieren",
+        ),
+        base.SalarySidebarInputRow(
+            id="selected-task-2",
+            group="Aufgaben",
+            label="Ausgewählte Aufgabe: Roadmap priorisieren",
+            value="Roadmap priorisieren",
+            target="responsibilities",
+            source_label="Manual task selection",
+            label_prefix="Ausgewählte Aufgabe",
+            display_value="Roadmap priorisieren",
+        ),
+    ]
+
+    selections = salary_forecast._render_sidebar_input_selection(
+        input_rows=rows,
+        input_selections={"selected-task-2": False},
+    )
+
+    assert "**Aufgabe (2)**" in fake_st.markdown_calls
+    assert "**Ausgewählte Aufgabe (2)**" in fake_st.markdown_calls
+    assert "Stadt: Berlin" in fake_st.checkbox_labels
+    assert "Aufgabe: Kunden beraten" not in fake_st.checkbox_labels
+    assert "Ausgewählte Aufgabe: Workshop moderieren" not in fake_st.checkbox_labels
+    assert {
+        "Kunden beraten",
+        "Lösungen konzipieren",
+        "Workshop moderieren",
+        "Roadmap priorisieren",
+    }.issubset(set(fake_st.checkbox_labels))
+    assert selections["selected-task-2"] is False
+    assert session_state[SSKey.SALARY_FORECAST_INPUT_SELECTIONS.value] == selections
 
 
 def test_sidebar_salary_fingerprint_changes_with_selection(monkeypatch) -> None:

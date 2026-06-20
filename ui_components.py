@@ -25,6 +25,7 @@ from constants import (
     QUESTION_IMPACT_TARGET_INTERVIEW,
     QUESTION_IMPACT_TARGET_SALARY,
     QUESTION_IMPACT_TARGET_SKILLS,
+    QUESTION_GROUP_DISPLAY_LABELS_DE,
     SSKey,
     UI_DETAILS_DEFAULT_BY_MODE_TEXT,
     WIDGET_KEY_PREFIX,
@@ -455,12 +456,17 @@ def _question_widget_help(
     parts: list[str] = []
     if question.help:
         parts.append(str(question.help).strip())
-    provenance_text = _format_question_provenance_caption(
-        _build_question_provenance_display(question, provenance),
-        max_why_chars=120,
+    ui_mode = str(st.session_state.get(SSKey.UI_MODE.value, "standard")).strip().lower()
+    show_provenance = ui_mode == "expert" or bool(
+        st.session_state.get(SSKey.DEBUG.value, False)
     )
-    if provenance_text:
-        parts.append(f"Provenienz: {provenance_text}")
+    if show_provenance:
+        provenance_text = _format_question_provenance_caption(
+            _build_question_provenance_display(question, provenance),
+            max_why_chars=120,
+        )
+        if provenance_text:
+            parts.append(f"Provenienz: {provenance_text}")
     return "\n\n".join(part for part in parts if part) or None
 
 
@@ -2572,6 +2578,16 @@ def _matches_keywords(question: Question, keywords: Sequence[str]) -> bool:
     return any(keyword.lower() in haystack for keyword in keywords)
 
 
+def _question_group_title(group_key: str) -> str:
+    key = str(group_key or "").strip()
+    if not key:
+        return "Weitere Fragen"
+    configured = QUESTION_GROUP_DISPLAY_LABELS_DE.get(key)
+    if configured:
+        return configured
+    return key.replace("_", " ").title()
+
+
 def _group_questions(
     step: QuestionStep, questions: list[Question]
 ) -> list[tuple[str, list[Question]]]:
@@ -2591,7 +2607,7 @@ def _group_questions(
 
     grouped: list[tuple[str, list[Question]]] = []
     for key in explicit_order:
-        grouped.append((key.replace("_", " ").title(), explicit_groups[key]))
+        grouped.append((_question_group_title(key), explicit_groups[key]))
 
     remaining = heuristic_candidates[:]
     for group_title, keywords in _get_step_group_rules(step.step_key):
@@ -2993,7 +3009,7 @@ def render_step_review_card(
     if not visible_questions:
         with st.container(border=True):
             st.markdown(
-                '<div class="cs-review-card-title"><strong>Check answers</strong></div>',
+                '<div class="cs-review-card-title"><strong>Antworten prüfen</strong></div>',
                 unsafe_allow_html=True,
             )
             st.caption("Keine sichtbaren Fragen in diesem Schritt.")
@@ -3124,7 +3140,7 @@ def render_step_review_card(
 
     with st.container(border=True):
         st.markdown(
-            '<div class="cs-review-card-title"><strong>Check answers</strong></div>',
+            '<div class="cs-review-card-title"><strong>Antworten prüfen</strong></div>',
             unsafe_allow_html=True,
         )
         if step_status is not None:
@@ -3141,7 +3157,7 @@ def render_step_review_card(
             with col2:
                 st.caption(
                     f"{'✅' if essentials_answered == essentials_total and essentials_total > 0 else '⚠️'} "
-                    f"Essentials {essentials_answered}/{essentials_total}"
+                    f"Pflichtangaben {essentials_answered}/{essentials_total}"
                 )
             with col3:
                 if total_groups > 0:
@@ -3159,7 +3175,7 @@ def render_step_review_card(
 
         if missing_essential_id_set:
             with st.container(border=True):
-                st.markdown("##### ⚠️ Essentials offen")
+                st.markdown("##### ⚠️ Pflichtangaben offen")
                 essential_items = "".join(
                     f"<li>{escape(label)}</li>"
                     for label in missing_essential_labels_display
@@ -3194,13 +3210,13 @@ def render_step_review_card(
             and total_unanswered > 0
         ):
             st.caption(
-                f"{total_unanswered} offene Frage(n) – Details und direkte Eingabe im Bereich „Gruppenstatus“."
+                f"{total_unanswered} offene Frage(n) – Details und direkte Eingabe im Bereich „Details je Bereich“."
             )
 
         if resolved_render_mode is ReviewRenderMode.COMPACT:
             return
 
-        with st.expander("Gruppenstatus", expanded=False):
+        with st.expander("Details je Bereich", expanded=False):
             for (
                 _,
                 group_title,

@@ -133,7 +133,7 @@ def test_render_step_review_card_shows_missing_essentials_before_group_cards(
         },
     )
 
-    essentials_idx = fake_st.markdowns.index("##### ⚠️ Essentials offen")
+    essentials_idx = fake_st.markdowns.index("##### ⚠️ Pflichtangaben offen")
     first_group_idx = fake_st.markdowns.index("**Group A**")
     assert essentials_idx < first_group_idx
 
@@ -171,7 +171,7 @@ def test_render_step_review_card_renders_group_status_indicators(monkeypatch) ->
     assert "**Group Partial**" in fake_st.markdowns
     assert "✅ vollständig" in fake_st.captions
     assert "⚠️ offen" in fake_st.captions
-    assert ("Gruppenstatus", False) in fake_st.expanders
+    assert ("Details je Bereich", False) in fake_st.expanders
 
 
 def test_render_step_review_card_truncates_long_answer_previews(monkeypatch) -> None:
@@ -394,7 +394,7 @@ def test_render_step_review_card_mode_compact_hides_direct_answer_block(
         step_status=None,
     )
 
-    assert ("Gruppenstatus", False) not in fake_st.expanders
+    assert ("Details je Bereich", False) not in fake_st.expanders
     assert not any(
         "Offene Fragen direkt beantworten" in markdown for markdown in fake_st.markdowns
     )
@@ -429,7 +429,7 @@ def test_render_step_review_card_compact_summary_with_group_counts(monkeypatch) 
     )
 
     assert "• Beantwortet 2/3" in fake_st.captions
-    assert "⚠️ Essentials 1/2" in fake_st.captions
+    assert "⚠️ Pflichtangaben 1/2" in fake_st.captions
     assert "⚠️ Gruppen 1 vollständig · 1 offen" in fake_st.captions
 
 
@@ -1001,11 +1001,11 @@ def test_render_step_review_card_direct_answers_mode_shows_hint_when_inline_disa
     )
 
     assert "• Beantwortet 1/3" in fake_st.captions
-    assert "⚠️ Essentials 0/2" in fake_st.captions
+    assert "⚠️ Pflichtangaben 0/2" in fake_st.captions
     assert "⚠️ Gruppen 0 vollständig · 2 offen" in fake_st.captions
-    assert "##### ⚠️ Essentials offen" in fake_st.markdowns
+    assert "##### ⚠️ Pflichtangaben offen" in fake_st.markdowns
     assert any(
-        "offene Frage(n) – Details und direkte Eingabe im Bereich „Gruppenstatus“."
+        "offene Frage(n) – Details und direkte Eingabe im Bereich „Details je Bereich“."
         in caption
         for caption in fake_st.captions
     )
@@ -1064,7 +1064,7 @@ def test_render_step_review_card_full_mode_shows_group_level_open_question_count
         step_status=None,
     )
 
-    assert ("Gruppenstatus", False) in fake_st.expanders
+    assert ("Details je Bereich", False) in fake_st.expanders
     assert "1 offene Frage(n) in dieser Gruppe." in fake_st.captions
 
 

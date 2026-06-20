@@ -600,8 +600,14 @@ def render_salary_forecast_panel(job: JobAdExtract, answers: dict[str, Any]) -> 
         quality_percent = int(round(float(forecast.quality.value) * 100, 0))
         st.caption("Bandbreite und p50 sind indikative Richtwerte (kein Garantiewert).")
         st.caption(
-            f"Datenqualität: {quality_percent}% (`{forecast.quality.kind}`) – signalisiert Datenabdeckung und Mapping-Treffer, nicht Prognosegenauigkeit."
+            f"Datenqualität: {quality_percent}% – signalisiert Datenabdeckung und Mapping-Treffer, nicht Prognosegenauigkeit."
         )
+        show_debug = str(
+            st.session_state.get(SSKey.UI_MODE.value, "standard")
+        ).strip().lower() == "expert" or bool(st.session_state.get(SSKey.DEBUG.value, False))
+        if show_debug:
+            with st.expander("Technische Prognose-Diagnose", expanded=False):
+                st.caption(f"quality_kind={forecast.quality.kind}")
 
         skill_rows = [row for row in scenario_rows if row["group"] == "skill_delta"]
         location_rows = [
@@ -786,6 +792,21 @@ def _format_eur(value: int) -> str:
     return f"{value:,} €".replace(",", ".")
 
 
+def _quality_label_from_payload(payload: Any) -> str:
+    quality_payload = payload if isinstance(payload, dict) else {}
+    try:
+        value = float(quality_payload.get("value"))
+    except (TypeError, ValueError):
+        value = 0.0
+    if value >= 0.75:
+        return "hoch"
+    if value >= 0.5:
+        return "mittel"
+    if value > 0:
+        return "niedrig"
+    return "noch nicht bewertet"
+
+
 def _render_influence_factor_header(
     *,
     title: str,
@@ -850,6 +871,7 @@ def render_salary_forecast_result_card(
     ).strip()
     if not confidence_note and isinstance(payload.get("quality"), dict):
         confidence_note = _build_quality_note(payload["quality"])
+    quality_label = _quality_label_from_payload(payload.get("quality"))
     inputs = payload.get("inputs", {})
     answers_count = 0
     if isinstance(inputs, dict):
@@ -910,10 +932,17 @@ def render_salary_forecast_result_card(
             with metric_col_high:
                 st.metric("p90 (hoch)", _format_eur(p90) if p90 > 0 else "nicht verfügbar")
         st.info("Kontext: indikative Prognose basierend auf den gewählten Angaben.\n\nFehlende Inputs können die Prognosequalität reduzieren.")
-        if confidence_note:
-            st.caption(f"Confidence: {confidence_note}")
+        st.caption(
+            f"Datenqualität: {quality_label}. Sie beschreibt Datenabdeckung und Mapping-Treffer, nicht Prognosegenauigkeit."
+        )
         if answers_count > 0:
-            st.caption(f"Fehlende Inputs möglich – erfasste Antworten: {answers_count}.")
+            st.caption(f"Berücksichtigte Antworten: {answers_count}.")
+        show_debug = str(
+            st.session_state.get(SSKey.UI_MODE.value, "standard")
+        ).strip().lower() == "expert" or bool(st.session_state.get(SSKey.DEBUG.value, False))
+        if show_debug and confidence_note:
+            with st.expander("Technische Prognose-Diagnose", expanded=False):
+                st.caption(confidence_note)
 
 
 def render_salary_forecast_step_sections(

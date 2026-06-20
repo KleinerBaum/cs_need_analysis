@@ -195,6 +195,61 @@ def _group_input_rows(input_rows: Sequence[Any]) -> dict[str, list[Any]]:
     return dict(grouped)
 
 
+def _row_display_label(row: Any, *, strip_prefix: bool) -> str:
+    row_id = str(_row_value(row, "id"))
+    label = str(_row_value(row, "label", row_id))
+    if not strip_prefix:
+        return label
+    display_value = str(_row_value(row, "display_value", "") or "").strip()
+    if display_value:
+        return display_value
+    label_prefix = str(_row_value(row, "label_prefix", "") or "").strip()
+    prefix = f"{label_prefix}:"
+    if label_prefix and label.startswith(prefix):
+        return label[len(prefix) :].strip()
+    return label
+
+
+def _ordered_prefix_groups(rows: Sequence[Any]) -> list[tuple[str, list[Any]]]:
+    grouped: dict[str, list[Any]] = {}
+    for row in rows:
+        label_prefix = str(_row_value(row, "label_prefix", "") or "").strip()
+        grouped.setdefault(label_prefix, []).append(row)
+    return list(grouped.items())
+
+
+def _render_sidebar_input_checkbox(
+    row: Any,
+    *,
+    next_selections: dict[str, bool],
+    strip_prefix: bool,
+) -> None:
+    row_id = str(_row_value(row, "id"))
+    source_label = str(_row_value(row, "source_label", "") or "")
+    current_value = bool(
+        next_selections.get(row_id, bool(_row_value(row, "default_enabled", True)))
+    )
+    widget_key = f"{SSKey.SALARY_FORECAST_INPUT_SELECTIONS.value}.{row_id}"
+    checked = st.checkbox(
+        _row_display_label(row, strip_prefix=strip_prefix),
+        value=current_value,
+        key=widget_key,
+        help=source_label or None,
+    )
+    next_selections[row_id] = bool(checked)
+
+
+def _driver_summary(rows: Sequence[dict[str, str | float]]) -> str:
+    strongest = [
+        f"{row['Faktor']} ({row['Einschätzung']})"
+        for row in rows[:3]
+        if str(row.get("Faktor", "")).strip()
+    ]
+    if not strongest:
+        return ""
+    return "Stärkste Treiber: " + "; ".join(strongest) + "."
+
+
 def _render_sidebar_input_selection(
     *,
     input_rows: Sequence[Any],
@@ -216,9 +271,7 @@ def _render_sidebar_input_selection(
     ] + sorted(group for group in grouped_rows if group not in group_order)
 
     st.sidebar.markdown("**Genutzte Werte**")
-    st.sidebar.caption(
-        "Aktive Werte fließen in die nächste Berechnung ein. Abgewählte Werte bleiben gespeichert, werden hier aber ignoriert."
-    )
+    st.sidebar.caption("Aktive Werte fließen in die nächste Berechnung ein.")
     for group in ordered_groups:
         rows = grouped_rows[group]
         active_count = sum(
@@ -235,25 +288,16 @@ def _render_sidebar_input_selection(
             f"{group} ({active_count}/{len(rows)} aktiv)",
             expanded=group in {"Rolle & Standort", "Skills"},
         ):
-            for row in rows:
-                row_id = str(_row_value(row, "id"))
-                label = str(_row_value(row, "label", row_id))
-                source_label = str(_row_value(row, "source_label", "") or "")
-                current_value = bool(
-                    next_selections.get(
-                        row_id, bool(_row_value(row, "default_enabled", True))
+            for label_prefix, prefix_rows in _ordered_prefix_groups(rows):
+                strip_prefix = bool(label_prefix and len(prefix_rows) > 1)
+                if strip_prefix:
+                    st.markdown(f"**{label_prefix} ({len(prefix_rows)})**")
+                for row in prefix_rows:
+                    _render_sidebar_input_checkbox(
+                        row,
+                        next_selections=next_selections,
+                        strip_prefix=strip_prefix,
                     )
-                )
-                widget_key = (
-                    f"{SSKey.SALARY_FORECAST_INPUT_SELECTIONS.value}.{row_id}"
-                )
-                checked = st.checkbox(
-                    label,
-                    value=current_value,
-                    key=widget_key,
-                    help=source_label or None,
-                )
-                next_selections[row_id] = bool(checked)
     st.session_state[SSKey.SALARY_FORECAST_INPUT_SELECTIONS.value] = next_selections
     return next_selections
 
@@ -347,18 +391,9 @@ def render_sidebar_salary_forecast(
             )
         except Exception:
             st.sidebar.dataframe(top_rows, width="stretch", hide_index=True)
-        for row in top_rows[:3]:
-            st.sidebar.caption(
-                f"**{row['Faktor']}:** {row['Einschätzung']} - {row['Hinweis']}"
-            )
-
-        st.sidebar.markdown("**Einordnung**")
-        st.sidebar.write(
-            "- Der Orientierungswert ist der aktuelle Median der aktivierten Daten.\n"
-            "- Die Spanne zeigt ein vorsichtiges Marktband, nicht Minimum und Maximum der Stelle.\n"
-            "- Datenbasis bewertet Abdeckung und Mapping-Treffer, nicht die reale Treffergenauigkeit.\n"
-            "- Die Prognose ersetzt kein externes Vergütungsbenchmarking."
-        )
+        summary = _driver_summary(top_rows)
+        if summary:
+            st.sidebar.caption(summary)
 
     next_selections = _render_sidebar_input_selection(
         input_rows=input_rows,
