@@ -14,7 +14,7 @@ from constants import (
     UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT,
     UI_PREFERENCE_INFORMATION_DEPTH,
 )
-from schemas import JobAdExtract
+from schemas import JobAdExtract, RecruitmentStep
 
 
 class _LockedSessionState(dict[str, Any]):
@@ -437,6 +437,30 @@ def test_sidebar_salary_job_excludes_disabled_inputs(monkeypatch) -> None:
     assert job.must_have_skills == ["Go"]
     assert "python" not in answers
     assert answers["go"] == "Go"
+
+
+def test_sidebar_salary_job_validates_recruitment_step_updates(monkeypatch) -> None:
+    session_state = _LockedSessionState({})
+    monkeypatch.setattr(base, "st", _FakeStreamlit(session_state))
+    row = base.SalarySidebarInputRow(
+        id="hr-screen",
+        group="Interview",
+        label="Schritt: HR Screen",
+        value={"name": "HR Screen", "duration_minutes": 45},
+        target="recruitment_steps",
+        source_label="test",
+    )
+
+    job, answers = base._sidebar_job_and_answers(
+        base_job=JobAdExtract(job_title="Engineer"),
+        rows=[row],
+        selections={"hr-screen": True},
+        source_text="",
+    )
+
+    assert job is not None
+    assert job.recruitment_steps == [RecruitmentStep(name="HR Screen")]
+    assert answers["hr-screen"] == {"name": "HR Screen", "duration_minutes": 45}
 
 
 def test_compute_sidebar_salary_forecast_passes_esco_and_scenario(

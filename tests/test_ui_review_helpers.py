@@ -832,6 +832,7 @@ class _QuestionFormFakeStreamlit:
         }
         self.submitted = submitted
         self.rerun_called = False
+        self.form_keys: list[str] = []
 
     def caption(self, *_args: Any, **_kwargs: Any) -> None:
         return None
@@ -853,7 +854,8 @@ class _QuestionFormFakeStreamlit:
         count = spec if isinstance(spec, int) else len(spec)
         return [_NoopContext() for _ in range(count)]
 
-    def form(self, *_args: Any, **_kwargs: Any) -> _NoopContext:
+    def form(self, key: str, **_kwargs: Any) -> _NoopContext:
+        self.form_keys.append(key)
         return _NoopContext()
 
     def form_submit_button(self, *_args: Any, **_kwargs: Any) -> bool:
@@ -944,6 +946,33 @@ def test_render_question_step_form_persists_answers_on_submit(monkeypatch) -> No
     assert persisted_answers == [("company_context", "Draft answer")]
     assert touched_answers == [("company_context", None, "Draft answer")]
     assert fake_st.rerun_called is True
+
+
+def test_render_question_step_form_key_accepts_instance_suffix(monkeypatch) -> None:
+    fake_st = _QuestionFormFakeStreamlit(submitted=False)
+    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_components, "get_answers", lambda: {})
+    monkeypatch.setattr(ui_components, "get_answer_meta", lambda: {})
+    step = QuestionStep(
+        step_key="company",
+        title_de="Company",
+        questions=[
+            Question(
+                id="company_context",
+                label="Company context",
+                answer_type=AnswerType.SHORT_TEXT,
+                group_key="company",
+            )
+        ],
+    )
+
+    ui_components.render_question_step(
+        step,
+        context_mode="compact",
+        form_key_suffix="team_context",
+    )
+
+    assert fake_st.form_keys == ["cs.q::step_form.company.team_context"]
 
 
 def test_question_step_form_is_disabled_for_language_widgets(monkeypatch) -> None:

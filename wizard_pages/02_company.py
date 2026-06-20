@@ -1140,12 +1140,17 @@ def _render_compact_open_questions(
     *,
     title: str,
     step: QuestionStep | None,
+    form_key_suffix: str,
 ) -> None:
     st.markdown(f"##### {title}")
     if step is None or not step.questions:
         st.caption("Keine zusätzlichen offenen Fragen.")
         return
-    render_question_step(step, context_mode="compact")
+    render_question_step(
+        step,
+        context_mode="compact",
+        form_key_suffix=form_key_suffix,
+    )
 
 
 def render(ctx: WizardContext) -> None:
@@ -1199,6 +1204,7 @@ def render(ctx: WizardContext) -> None:
         _render_compact_open_questions(
             title="Offene Fragen zum Unternehmen",
             step=company_open_question_step,
+            form_key_suffix="company_context",
         )
 
         st.markdown("#### Teamangaben")
@@ -1206,6 +1212,7 @@ def render(ctx: WizardContext) -> None:
         _render_compact_open_questions(
             title="Offene Fragen zum Team",
             step=team_open_question_step,
+            form_key_suffix="team_context",
         )
 
     def _render_review_slot() -> None:

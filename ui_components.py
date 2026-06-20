@@ -2687,6 +2687,7 @@ def render_question_step(
     step: QuestionStep,
     *,
     context_mode: Literal["default", "compact"] = "default",
+    form_key_suffix: str | None = None,
 ) -> None:
     answers = get_answers()
     answer_meta = get_answer_meta()
@@ -2732,7 +2733,10 @@ def render_question_step(
     grouped_questions = _group_questions(step, visible_questions)
     flow_provenance = _load_question_flow_provenance_payload()
     if _can_render_question_step_form(visible_questions):
-        with st.form(_question_step_form_key(step.step_key), clear_on_submit=False):
+        with st.form(
+            _question_step_form_key(step.step_key, suffix=form_key_suffix),
+            clear_on_submit=False,
+        ):
             pending_inputs = _render_grouped_question_inputs(
                 grouped_questions,
                 answers,
@@ -2876,8 +2880,12 @@ def _can_render_question_step_form(questions: list[Question]) -> bool:
     )
 
 
-def _question_step_form_key(step_key: str) -> str:
-    return f"{WIDGET_KEY_PREFIX}step_form.{step_key}"
+def _question_step_form_key(step_key: str, *, suffix: str | None = None) -> str:
+    base_key = f"{WIDGET_KEY_PREFIX}step_form.{step_key}"
+    normalized_suffix = str(suffix or "").strip()
+    if not normalized_suffix:
+        return base_key
+    return f"{base_key}.{normalized_suffix}"
 
 
 def _persist_question_inputs(inputs: list[QuestionInputResult]) -> None:

@@ -554,7 +554,8 @@ def _sidebar_job_and_answers(
                 if isinstance(value, Mapping):
                     name = str(value.get("name") or "").strip()
                     if name:
-                        normalized_steps.append(dict(value))
+                        details = str(value.get("details") or "").strip() or None
+                        normalized_steps.append({"name": name, "details": details})
                 else:
                     name = str(value or "").strip()
                     if name:
@@ -576,8 +577,9 @@ def _sidebar_job_and_answers(
         updates["seniority_level"] = seniority_override
 
     try:
-        merged_job = (fallback_job or JobAdExtract()).model_copy(update=updates)
-        return JobAdExtract.model_validate(merged_job.model_dump(mode="json")), answers
+        base_values = (fallback_job or JobAdExtract()).model_dump(mode="json")
+        merged_job = JobAdExtract.model_validate({**base_values, **updates})
+        return merged_job, answers
     except Exception:
         return fallback_job, answers
 
