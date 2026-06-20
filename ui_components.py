@@ -740,6 +740,7 @@ class SourcePillColumn(TypedDict):
 
 class SourcePillColumnFooter(TypedDict, total=False):
     footer: Callable[[], None]
+    show_provenance: bool
 
 
 class SourcePillColumnWithFooter(SourcePillColumn, SourcePillColumnFooter):
@@ -789,6 +790,7 @@ def render_source_pill_selection(
     selected_state_key: str,
     key_prefix: str,
     empty_caption: str = "Keine Vorschläge.",
+    show_provenance: bool = True,
 ) -> SourcePillSelectionResult:
     """Render source columns as multi-select pills and persist canonical selection."""
 
@@ -815,7 +817,14 @@ def render_source_pill_selection(
         ]
         with column:
             st.markdown(f"#### {title}")
-            provenance_caption = _source_pill_provenance_caption(source_key)
+            column_show_provenance = bool(
+                source_column.get("show_provenance", show_provenance)
+            )
+            provenance_caption = (
+                _source_pill_provenance_caption(source_key)
+                if column_show_provenance
+                else ""
+            )
             if provenance_caption:
                 st.caption(provenance_caption)
             if options:

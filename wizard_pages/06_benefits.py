@@ -37,7 +37,6 @@ from ui_components import (
     build_step_review_payload,
     has_answered_question_with_keywords,
     has_meaningful_value,
-    render_compare_adopt_intro,
     render_error_banner,
     render_question_step,
     render_recruiting_consistency_checklist,
@@ -51,12 +50,8 @@ from wizard_pages.fact_inputs import (
     compact_text,
     fact_value,
     persist_compact_object,
-    persist_fact,
     render_multiselect_fact,
     render_select_fact,
-    section_container,
-    render_text_area_fact,
-    split_lines,
 )
 from wizard_pages.salary_forecast_panel import render_benefits_salary_forecast_panel
 
@@ -68,6 +63,19 @@ _YES_NO_UNKNOWN_LABELS = {
     "unknown": "Noch unklar",
     "yes": "Ja",
     "no": "Nein",
+}
+_PERIOD_LABELS = {
+    "yearly": "pro Jahr",
+    "monthly": "pro Monat",
+    "hourly": "pro Stunde",
+    "one_time": "einmalig",
+}
+_START_FLEXIBILITY_LABELS = {
+    "fixed": "Fix",
+    "plus_minus_2_weeks": "+/- 2 Wochen",
+    "plus_minus_1_month": "+/- 1 Monat",
+    "flexible": "Flexibel",
+    "unknown": "Noch unklar",
 }
 
 
@@ -89,7 +97,7 @@ def _render_benefits_consistency_checklist(
 
     checks = [
         (
-            "Vergütungsrahmen ist intern abgestimmt und kommunizierbar.",
+            "Gehalt ist intern abgestimmt.",
             salary_extracted
             or has_answered_question_with_keywords(
                 questions=visible_questions,
@@ -98,7 +106,7 @@ def _render_benefits_consistency_checklist(
             ),
         ),
         (
-            "Arbeitsmodell (Remote/Hybrid/Onsite) ist abgestimmt.",
+            "Arbeitsmodell ist abgestimmt.",
             remote_extracted
             or has_answered_question_with_keywords(
                 questions=visible_questions,
@@ -107,7 +115,7 @@ def _render_benefits_consistency_checklist(
             ),
         ),
         (
-            "Benefits sind priorisiert und einheitlich benennbar.",
+            "Benefits sind priorisiert.",
             benefits_extracted
             or has_answered_question_with_keywords(
                 questions=visible_questions,
@@ -116,16 +124,16 @@ def _render_benefits_consistency_checklist(
             ),
         ),
         (
-            "Essenzielle Rückfragen für dieses Paket sind beantwortet.",
+            "Wichtige Rückfragen sind beantwortet.",
             step_status["essentials_total"] == 0
             or step_status["essentials_answered"] == step_status["essentials_total"],
         ),
     ]
 
     render_recruiting_consistency_checklist(
-        title="Recruiting-Konsistenzcheck",
+        title="Kurzcheck",
         checks=checks,
-        caption="Kurzcheck: Ist das Offer-Paket intern abgestimmt und extern klar kommunizierbar?",
+        caption="Passt das Angebot für interne Abstimmung und externe Kommunikation?",
     )
 
 
@@ -219,6 +227,66 @@ def _suggestion_dicts_from_labels(labels: list[str], *, source: str) -> list[dic
     return [{"label": label, "source": source} for label in labels if label.strip()]
 
 
+def _salary_period_label(period: object) -> str:
+    return _PERIOD_LABELS.get(compact_text(period), compact_text(period))
+
+
+def _format_salary_range(job: JobAdExtract) -> str:
+    salary_range = job.salary_range
+    if not salary_range:
+        return ""
+
+    salary_min = getattr(salary_range, "min", None)
+    salary_max = getattr(salary_range, "max", None)
+    if not has_meaningful_value(salary_min) and not has_meaningful_value(salary_max):
+        return ""
+
+    if has_meaningful_value(salary_min) and has_meaningful_value(salary_max):
+        amount = f"{salary_min} - {salary_max}"
+    elif has_meaningful_value(salary_min):
+        amount = f"ab {salary_min}"
+    else:
+        amount = f"bis {salary_max}"
+
+    details = [
+        compact_text(getattr(salary_range, "currency", "")),
+        _salary_period_label(getattr(salary_range, "period", "")),
+    ]
+    suffix = " ".join(item for item in details if item)
+    return f"{amount} {suffix}".strip()
+
+
+def _render_compact_value_block(
+    *,
+    title: str,
+    value: str,
+    empty: str = "Noch offen",
+    note: str = "",
+) -> None:
+    st.markdown(f"**{title}**")
+    if value:
+        st.write(value)
+        if note:
+            st.caption(note)
+        return
+    st.caption(empty)
+
+
+def _render_label_list(
+    labels: list[str],
+    *,
+    limit: int = 8,
+    empty: str = "Noch keine Benefits ausgewählt.",
+) -> None:
+    if not labels:
+        st.caption(empty)
+        return
+    st.write(", ".join(labels[:limit]))
+    remaining = len(labels) - limit
+    if remaining > 0:
+        st.caption(f"+ {remaining} weitere")
+
+
 def _answers_with_benefit_context(*, region_context: str) -> dict[str, Any]:
     answers = dict(get_answers())
     region = region_context.strip()
@@ -255,7 +323,7 @@ def _generate_ai_benefit_suggestions(
         )
     except Exception:
         LOGGER.exception("Benefit suggestions could not be generated.")
-        st.warning("AI-Benefit-Vorschläge konnten nicht erzeugt werden.")
+        st.warning("Vorschläge konnten nicht erzeugt werden.")
         return None
 
     blocked = {_normalize_benefit_term(label) for label in existing_benefits}
@@ -275,13 +343,17 @@ def _generate_ai_benefit_suggestions(
 def _render_variable_pay_block() -> None:
     current_raw = fact_value(FactKey.BENEFITS_VARIABLE_PAY, {})
     current = current_raw if isinstance(current_raw, dict) else {}
-    eligible_current = compact_text(current.get("eligible"))
+    eligible_raw = current.get("eligible")
+    if isinstance(eligible_raw, bool):
+        eligible_current = "yes" if eligible_raw else "no"
+    else:
+        eligible_current = compact_text(eligible_raw)
     if eligible_current not in _YES_NO_UNKNOWN_LABELS:
         eligible_current = "unknown"
     col_eligible, col_min, col_max = responsive_three_columns(gap="large")
     with col_eligible:
         eligible = st.selectbox(
-            "Variable Vergütung möglich?",
+            "Variable Vergütung?",
             options=tuple(_YES_NO_UNKNOWN_LABELS),
             index=tuple(_YES_NO_UNKNOWN_LABELS).index(eligible_current),
             format_func=lambda value: _YES_NO_UNKNOWN_LABELS.get(value, value),
@@ -289,7 +361,7 @@ def _render_variable_pay_block() -> None:
         )
     with col_min:
         ote_min = st.number_input(
-            "OTE min",
+            "OTE von",
             min_value=0.0,
             value=float(current.get("ote_min") or 0),
             step=1000.0,
@@ -297,7 +369,7 @@ def _render_variable_pay_block() -> None:
         )
     with col_max:
         ote_max = st.number_input(
-            "OTE max",
+            "OTE bis",
             min_value=0.0,
             value=float(current.get("ote_max") or 0),
             step=1000.0,
@@ -319,10 +391,11 @@ def _render_variable_pay_block() -> None:
                 if compact_text(current.get("period")) in {"yearly", "monthly", "hourly", "one_time"}
                 else "yearly"
             ),
+            format_func=lambda value: _PERIOD_LABELS.get(value, value),
             key=f"fact_input.{FactKey.BENEFITS_VARIABLE_PAY.value}.period",
         )
     bonus_logic = st.text_area(
-        "Bonuslogik / Zielsystem",
+        "Bonuslogik",
         value=str(current.get("bonus_logic") or ""),
         height=80,
         key=f"fact_input.{FactKey.BENEFITS_VARIABLE_PAY.value}.bonus_logic",
@@ -346,7 +419,7 @@ def _render_shift_compensation_block() -> None:
     col_rotation, col_extra = responsive_two_columns(gap="large")
     with col_rotation:
         rotation = st.text_input(
-            "Schicht-/Rufbereitschaftsrotation",
+            "Rotation",
             value=compact_text(current.get("rotation")),
             placeholder="z. B. alle 6 Wochen, keine",
             key=f"fact_input.{FactKey.BENEFITS_SHIFT_COMPENSATION.value}.rotation",
@@ -358,7 +431,7 @@ def _render_shift_compensation_block() -> None:
             key=f"fact_input.{FactKey.BENEFITS_SHIFT_COMPENSATION.value}.compensation",
         )
     notes = st.text_area(
-        "Nacht-/Wochenend-/Sonderregelungen",
+        "Besondere Zeiten",
         value=str(current.get("notes") or ""),
         height=80,
         key=f"fact_input.{FactKey.BENEFITS_SHIFT_COMPENSATION.value}.notes",
@@ -379,7 +452,7 @@ def _render_start_flexibility_block(job: JobAdExtract) -> None:
     col_target, col_flex = responsive_two_columns(gap="large")
     with col_target:
         target_start = st.text_input(
-            "Ziel-Starttermin",
+            "Starttermin",
             value=compact_text(current.get("target_start") or job.start_date or ""),
             placeholder="YYYY-MM-DD oder freier Zeitraum",
             key=f"fact_input.{FactKey.TIMELINE_START_FLEXIBILITY.value}.target",
@@ -393,10 +466,11 @@ def _render_start_flexibility_block(job: JobAdExtract) -> None:
                 if compact_text(current.get("flexibility")) in {"fixed", "plus_minus_2_weeks", "plus_minus_1_month", "flexible", "unknown"}
                 else "unknown"
             ),
+            format_func=lambda value: _START_FLEXIBILITY_LABELS.get(value, value),
             key=f"fact_input.{FactKey.TIMELINE_START_FLEXIBILITY.value}.flexibility",
         )
     notice_period = st.text_input(
-        "Notice-Period-Fenster / Einschränkungen",
+        "Kündigungsfristen / Einschränkungen",
         value=compact_text(current.get("notice_period")),
         key=f"fact_input.{FactKey.TIMELINE_START_FLEXIBILITY.value}.notice",
     )
@@ -411,21 +485,16 @@ def _render_start_flexibility_block(job: JobAdExtract) -> None:
 
 
 def _render_structured_offer_constraints(job: JobAdExtract) -> None:
-    st.markdown("### Compensation & Constraints")
-    st.caption(
-        "Diese Angaben trennen Offer-Bestandteile von harten Beschäftigungs- und Vertragslogiken."
-    )
-    with section_container(border=True):
+    def _render_fields() -> None:
+        st.caption("Nur ausfüllen, wenn diese Punkte für das Angebot relevant sind.")
         st.markdown("#### Variable Vergütung")
         _render_variable_pay_block()
-    with section_container(border=True):
-        st.markdown("#### Arbeitszeit, Schicht und Ausgleich")
+        st.markdown("#### Arbeitszeit und Ausgleich")
         _render_shift_compensation_block()
-    with section_container(border=True):
-        st.markdown("#### Vertrags- und Offer-Komponenten")
+        st.markdown("#### Vertrag und Start")
         render_multiselect_fact(
             FactKey.BENEFITS_COLLECTIVE_AGREEMENT_CONTEXT,
-            "Tarifbindung, Betriebsrat oder branchenspezifische Vorgaben",
+            "Tarif, Betriebsrat oder Vorgaben",
             options=[
                 "Tarifbindung",
                 "Betriebsrat",
@@ -438,14 +507,14 @@ def _render_structured_offer_constraints(job: JobAdExtract) -> None:
         )
         render_select_fact(
             FactKey.LEGAL_WORK_AUTHORIZATION_SUPPORT,
-            "Ist Visa-/Work-Permit-Sponsoring möglich?",
+            "Visa-Support möglich?",
             options=("unknown", "yes", "no"),
             default="unknown",
             labels=_YES_NO_UNKNOWN_LABELS,
         )
         render_multiselect_fact(
             FactKey.BENEFITS_OFFER_COMPONENTS,
-            "Welche zusätzlichen Offer-Komponenten sind relevant?",
+            "Weitere Angebotsbausteine",
             options=[
                 "Equipment",
                 "Homeoffice-Kosten",
@@ -458,6 +527,14 @@ def _render_structured_offer_constraints(job: JobAdExtract) -> None:
             ],
         )
         _render_start_flexibility_block(job)
+
+    expander = getattr(st, "expander", None)
+    if callable(expander):
+        with expander("Weitere Rahmenbedingungen", expanded=False):
+            _render_fields()
+        return
+    st.markdown("#### Weitere Rahmenbedingungen")
+    _render_fields()
 
 
 def _can_render_structured_offer_inputs() -> bool:
@@ -489,45 +566,29 @@ def render(ctx: WizardContext) -> None:
     source_counts: dict[str, int] = {"Jobspec": 0, "ESCO / Kontext": 0, "AI": 0}
 
     def _render_extracted_slot() -> None:
-        shown = False
-        st.caption(
-            "Aus der Jobspec erkannte Offer-Signale. Prüfe hier, was zu Vergütung, "
-            "Arbeitsmodell und Benefits belastbar kommuniziert werden kann."
-        )
-        col_salary, col_benefits, col_remote = responsive_three_columns(gap="large")
+        salary_text = _format_salary_range(job)
+        salary_note = ""
+        if job.salary_range and has_meaningful_value(job.salary_range.notes):
+            salary_note = f"Notiz: {job.salary_range.notes}"
+
+        col_salary, col_work_model, col_benefits = responsive_three_columns(gap="large")
         with col_salary:
-            st.write("**Vergütung:**")
-            if job.salary_range:
-                min_salary = job.salary_range.min
-                max_salary = job.salary_range.max
-                if has_meaningful_value(min_salary) or has_meaningful_value(max_salary):
-                    st.write(
-                        f"{min_salary} – {max_salary} {job.salary_range.currency or ''} ({job.salary_range.period or ''})"
-                    )
-                    shown = True
-                if has_meaningful_value(job.salary_range.notes):
-                    st.caption(f"Notiz: {job.salary_range.notes}")
-                    shown = True
-            else:
-                st.caption("Noch nicht erkannt.")
+            _render_compact_value_block(
+                title="Gehalt",
+                value=salary_text,
+                note=salary_note,
+            )
+        with col_work_model:
+            _render_compact_value_block(
+                title="Arbeitsmodell",
+                value=str(job.remote_policy or "").strip(),
+            )
         with col_benefits:
-            st.write(f"**Benefits ({len(jobspec_benefit_terms)} erkannt):**")
-            if jobspec_benefit_terms:
-                for benefit in jobspec_benefit_terms[:12]:
-                    st.write(f"- {benefit}")
-                shown = True
-            else:
-                st.caption("Noch nicht erkannt.")
-        with col_remote:
-            st.write("**Arbeitsmodell:**")
-            if has_meaningful_value(job.remote_policy):
-                st.write(str(job.remote_policy))
-                shown = True
-            else:
-                st.caption("Noch nicht erkannt.")
-        if not shown:
-            st.info(
-                "Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions."
+            st.markdown(f"**Benefits ({len(jobspec_benefit_terms)})**")
+            _render_label_list(
+                jobspec_benefit_terms,
+                limit=6,
+                empty="Noch nicht erkannt.",
             )
 
     def _render_source_comparison_slot() -> None:
@@ -562,10 +623,9 @@ def render(ctx: WizardContext) -> None:
         ]
         selected_labels = _read_selected_benefits()
 
-        st.markdown("### Offer-Quellen abgleichen")
+        st.markdown("### Benefits auswählen")
         st.caption(
-            "Vergleiche Jobspec, Kontext und AI-Vorschläge. Übernommene Benefits und "
-            "Rahmenbedingungen werden in Folgeartefakten und in der Gehaltsprognose berücksichtigt."
+            "Wähle die Benefits, die später in Anzeige, Briefing und Prognose verwendet werden."
         )
 
         semantic_context = get_esco_semantic_context()
@@ -575,17 +635,7 @@ def render(ctx: WizardContext) -> None:
             and selected_occupation is not None
             and selected_occupation.title
         ):
-            st.caption(
-                "ESCO-Kontext: "
-                f"{selected_occupation.title} hilft bei der Plausibilisierung, "
-                "liefert aber keine kanonische Benefit-Taxonomie."
-            )
-
-        render_compare_adopt_intro(
-            adopt_target="Benefits",
-            canonical_target="SSKey.BENEFITS_SELECTED",
-            source_labels=("Jobspec", "ESCO/Kontext", "AI"),
-        )
+            st.caption(f"Rollenbezug: {selected_occupation.title}")
 
         def _existing_benefits_for_generation() -> list[str]:
             return _dedupe_benefit_terms(
@@ -610,7 +660,7 @@ def render(ctx: WizardContext) -> None:
                     *selected_labels,
                 ]
             )
-            with st.spinner("Generiere Benefit-Vorschläge …"):
+            with st.spinner("Erstelle Vorschläge …"):
                 _generate_ai_benefit_suggestions(
                     job=job,
                     existing_benefits=existing_benefits,
@@ -627,16 +677,16 @@ def render(ctx: WizardContext) -> None:
 
         def _render_ai_controls() -> None:
             st.divider()
-            st.caption("Einflussfaktoren")
+            st.caption("Vorschläge anpassen")
             st.text_input(
-                "Region für lokale Benefits",
+                "Region",
                 key=SSKey.BENEFITS_REGION_CONTEXT.value,
                 placeholder="z. B. Berlin, NRW, DACH",
             )
             count_col, action_col = st.columns([1, 2], gap="small")
             with count_col:
                 st.number_input(
-                    "Wie viele Benefit-Vorschläge möchtest du sehen?",
+                    "Anzahl",
                     min_value=1,
                     max_value=8,
                     step=1,
@@ -645,13 +695,13 @@ def render(ctx: WizardContext) -> None:
             with action_col:
                 st.caption(" ")
                 generate_clicked = st.button(
-                    "Benefit-Vorschläge generieren",
+                    "Weitere Vorschläge",
                     key=SSKey.BENEFITS_AI_GENERATE_CLICKED.value,
                     width="stretch",
                 )
             if not generate_clicked:
                 return
-            with st.spinner("Generiere Benefit-Vorschläge …"):
+            with st.spinner("Erstelle Vorschläge …"):
                 merged_llm = _generate_ai_benefit_suggestions(
                     job=job,
                     existing_benefits=_existing_benefits_for_generation(),
@@ -667,30 +717,33 @@ def render(ctx: WizardContext) -> None:
             if hasattr(st, "rerun"):
                 st.rerun()
             if merged_llm:
-                st.success(f"{len(merged_llm)} AI-Benefit(s) übernommen.")
+                st.success(f"Neue Vorschläge hinzugefügt: {len(merged_llm)}")
             else:
-                st.info("Keine zusätzlichen AI-Benefits gefunden.")
+                st.info("Keine neuen Vorschläge gefunden.")
 
         selection_result = render_source_pill_selection(
             columns=[
                 {
-                    "title": "Aus der Anzeige extrahiert",
+                    "title": "Anzeige",
                     "source_key": "Jobspec",
                     "options": jobspec_benefit_terms,
                     "state_key": SSKey.BENEFITS_JOBSPEC_PILLS.value,
+                    "show_provenance": False,
                 },
                 {
-                    "title": "ESCO / Kontext",
+                    "title": "Antworten",
                     "source_key": "ESCO / Kontext",
                     "options": _benefit_labels_from_suggestions(contextual_suggested),
                     "state_key": SSKey.BENEFITS_CONTEXT_PILLS.value,
+                    "show_provenance": False,
                 },
                 {
-                    "title": "AI-Vorschläge",
+                    "title": "Vorschläge",
                     "source_key": "AI",
                     "options": ai_labels,
                     "state_key": SSKey.BENEFITS_AI_PILLS.value,
                     "footer": _render_ai_controls,
+                    "show_provenance": False,
                 },
             ],
             selected_labels=selected_labels,
@@ -702,44 +755,11 @@ def render(ctx: WizardContext) -> None:
         st.session_state[SSKey.BENEFITS_SELECTED_BULK_BUFFER.value] = (
             selection_result["selected_labels"]
         )
-        st.caption(
-            f"Ausgewählt: {len(selection_result['selected_labels'])} Benefit(s)"
-        )
-        if selection_result["selected_labels"]:
-            st.markdown(
-                " ".join(f"`{label}`" for label in selection_result["selected_labels"])
-            )
-        else:
-            st.caption("Noch keine Benefits ausgewählt.")
+        st.markdown("#### Ausgewählt")
+        _render_label_list(selection_result["selected_labels"], limit=10)
 
         if _can_render_structured_offer_inputs():
             _render_structured_offer_constraints(job)
-
-        confirmed_salary = _confirmed_values_for_keywords(
-            ("gehalt", "salary", "vergütung", "compensation")
-        )
-        confirmed_benefits = _confirmed_values_for_keywords(
-            ("benefit", "perk", "zusatz", "budget")
-        )
-        confirmed_remote = _confirmed_values_for_keywords(
-            ("remote", "hybrid", "onsite", "homeoffice", "arbeitsmodell")
-        )
-
-        st.markdown("#### Details zu Einflussfaktoren")
-        salary_col, benefits_col, remote_col = st.columns(3, gap="large")
-        for column, title, confirmed in (
-            (salary_col, "Vergütung", confirmed_salary),
-            (benefits_col, "Benefits", confirmed_benefits),
-            (remote_col, "Arbeitsmodell", confirmed_remote),
-        ):
-            with column:
-                st.markdown(f"**{title}**")
-                st.caption("Bereits bestätigt")
-                if confirmed:
-                    for item in confirmed[:8]:
-                        st.write(f"- {item}")
-                else:
-                    st.caption("—")
 
     def _render_salary_forecast_slot() -> None:
         selected_benefits_for_forecast = _dedupe_benefit_terms(
@@ -754,7 +774,7 @@ def render(ctx: WizardContext) -> None:
         benefits_for_forecast = selected_benefits_for_forecast or jobspec_benefit_terms
         if not benefits_for_forecast:
             st.caption(
-                "Keine Benefits aus der Anzeige erkannt – Prognose wird ohne Benefit-Filter berechnet."
+                "Noch keine Benefits ausgewählt. Die Prognose läuft ohne Benefit-Einfluss."
             )
         answers = get_answers()
         settings = load_openai_settings()
@@ -785,8 +805,7 @@ def render(ctx: WizardContext) -> None:
     def _render_open_questions_slot() -> None:
         st.markdown("#### Offene Klärungen")
         st.caption(
-            "Diese Fragen schließen Lücken zu Vergütung, Arbeitsmodell, Benefits und "
-            "kommunizierbaren Rahmenbedingungen."
+            "Klärt, was für Angebot und Kommunikation noch fehlt."
         )
         if step is None or not step.questions:
             st.info(
@@ -798,8 +817,7 @@ def render(ctx: WizardContext) -> None:
     def _render_review_slot() -> None:
         st.markdown("#### Review")
         st.caption(
-            "Prüfe, ob Offer-Paket, Kommunikation und offene Essentials intern "
-            "abgestimmt und extern konsistent nutzbar sind."
+            "Prüft, ob Angebot, Auswahl und offene Punkte zusammenpassen."
         )
         render_standard_step_review(
             step,
@@ -819,33 +837,27 @@ def render(ctx: WizardContext) -> None:
     )
 
     render_step_shell(
-        title="Angebot und Rahmenbedingungen schärfen",
+        title="Angebot kompakt machen",
         subtitle=(
-            "Hier definierst du, wie attraktiv und zugleich realistisch das Gesamtpaket "
-            "kommuniziert werden kann: Gehalt, Arbeitsmodell, Benefits und alle Faktoren, "
-            "die intern sauber abgestimmt sein müssen."
+            "Lege fest, welche Punkte im Angebot wirklich zählen: Gehalt, Arbeitsmodell, "
+            "Benefits und wenige zusätzliche Rahmenbedingungen."
         ),
         outcome_text=(
-            "Ein konsistentes Offer-Narrativ zu Compensation, Arbeitsmodell und Benefits, "
-            "das intern und extern einheitlich kommuniziert werden kann."
+            "Ein klares Angebot mit Gehalt, Arbeitsmodell und ausgewählten Benefits."
         ),
         step=step,
         lazy_section_configs={
             "source_comparison_slot": LazySectionConfig(
-                label="Quellenabgleich",
+                label="Benefits auswählen",
                 caption=(
-                    "Lädt Jobspec-, Kontext- und AI-Benefit-Vorschläge erst, "
-                    "wenn du diesen Abgleich öffnest."
+                    "Wähle Benefits aus Anzeige, Antworten und Vorschlägen."
                 ),
-                button_label="Quellenabgleich anzeigen",
+                button_label="Benefits auswählen",
                 default_open=default_lazy_source_section_open(),
             ),
             "salary_forecast_slot": LazySectionConfig(
                 label="Gehaltsprognose",
-                caption=(
-                    "Berechnet die Auswirkung der ausgewählten Benefits erst auf "
-                    "Anforderung."
-                ),
+                caption="Lädt die Prognose erst auf Anforderung.",
                 button_label="Gehaltsprognose laden",
                 default_open=False,
             ),
