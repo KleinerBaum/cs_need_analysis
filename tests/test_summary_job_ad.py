@@ -120,6 +120,23 @@ def test_markdown_article_preview_html_renders_publishable_job_ad_text() -> None
     assert "<li>Sichere Datenqualitaet</li>" in preview_html
 
 
+def test_markdown_article_preview_html_splits_long_job_ad_into_two_pages() -> None:
+    markdown = (
+        "# Senior Engineer\n\n"
+        "Gestalte Plattformen.\n\n"
+        "## Deine Aufgaben\n\n"
+        + "\n".join(f"- Aufgabe {index}" for index in range(1, 18))
+        + "\n\n## Dein Profil\n\n- Python\n- Datenqualitaet"
+    )
+
+    preview_html = markdown_article_preview_html(markdown)
+
+    assert 'class="cs-document-spread"' in preview_html
+    assert preview_html.count('class="cs-document-page"') == 2
+    assert "<li>Aufgabe 1</li>" in preview_html
+    assert "<li>Datenqualitaet</li>" in preview_html
+
+
 def test_estimate_text_area_height_has_minimum_and_cap() -> None:
     assert estimate_text_area_height("Kurz") == 160
     assert estimate_text_area_height("\n".join(["Zeile"] * 50)) == 520

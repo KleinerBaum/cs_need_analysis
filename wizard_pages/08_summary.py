@@ -5212,6 +5212,7 @@ def _render_job_ad_artifact(custom_job_ad_raw: dict[str, Any]) -> None:
         document_preview_shell(
             _job_ad_preview_html(custom_job_ad, logo_payload=logo_payload),
             title="Stellenanzeige",
+            fit_pages=True,
             **shell_options,
         ),
         unsafe_allow_html=True,

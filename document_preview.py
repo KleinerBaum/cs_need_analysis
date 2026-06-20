@@ -36,8 +36,11 @@ def document_preview_shell(
     height_px: int = 280,
     accent_color: str = "#2563eb",
     compact: bool = False,
+    fit_pages: bool = False,
 ) -> str:
     page_padding = "24px 28px" if compact else "30px 36px"
+    preview_height = "auto" if fit_pages else f"{int(height_px)}px"
+    preview_overflow_y = "visible" if fit_pages else "auto"
     escaped_title = html.escape(title)
     escaped_accent = _safe_css_color(accent_color)
     return f"""
@@ -58,21 +61,41 @@ def document_preview_shell(
             background: #f3f4f6;
             border: 1px solid color-mix(in srgb, var(--cs-border) 70%, transparent);
             border-radius: 6px;
-            height: {int(height_px)}px;
-            overflow: auto;
+            height: {preview_height};
+            overflow-x: auto;
+            overflow-y: {preview_overflow_y};
             padding: 18px;
         }}
+        .cs-document-spread {{
+            align-items: flex-start;
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            min-width: min-content;
+        }}
         .cs-document-page {{
+            aspect-ratio: 210 / 297;
             background: #ffffff;
             border-top: 5px solid {escaped_accent};
-            color: #111827;
+            box-sizing: border-box;
+            color: #0f172a !important;
             box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
             font-family: Arial, Helvetica, sans-serif;
-            line-height: 1.55;
+            font-size: 0.78rem;
+            line-height: 1.42;
             margin: 0 auto;
-            max-width: 780px;
+            max-width: 100%;
             min-height: 240px;
             padding: {page_padding};
+            width: min(100%, 420px);
+        }}
+        .cs-document-spread .cs-document-page {{
+            flex: 0 0 min(42vw, 390px);
+            margin: 0;
+        }}
+        .cs-document-page,
+        .cs-document-page * {{
+            color: #0f172a !important;
         }}
         .cs-document-logo {{
             display: block;
@@ -84,28 +107,28 @@ def document_preview_shell(
         .cs-document-page h1,
         .cs-document-page h2,
         .cs-document-page h3 {{
-            color: #111827;
+            color: #0f172a !important;
             line-height: 1.2;
             margin: 0 0 14px;
         }}
-        .cs-document-page h1 {{ font-size: 1.7rem; }}
+        .cs-document-page h1 {{ font-size: 1.32rem; }}
         .cs-document-page h2 {{
             border-bottom: 1px solid #e5e7eb;
-            font-size: 1.3rem;
-            margin-top: 22px;
+            font-size: 1rem;
+            margin-top: 16px;
             padding-bottom: 4px;
         }}
-        .cs-document-page h3 {{ font-size: 1.08rem; margin-top: 18px; }}
+        .cs-document-page h3 {{ font-size: 0.92rem; margin-top: 14px; }}
         .cs-document-page p {{
-            margin: 0 0 12px;
+            margin: 0 0 9px;
             white-space: pre-wrap;
         }}
         .cs-document-page ul {{
-            margin: 0 0 14px 1.2rem;
+            margin: 0 0 10px 1.05rem;
             padding: 0;
         }}
         .cs-document-page li {{
-            margin: 0 0 7px;
+            margin: 0 0 5px;
             padding-left: 2px;
         }}
         .cs-document-page table {{
@@ -140,7 +163,7 @@ def pdf_preview_html(raw: bytes) -> str:
 
 
 def docx_preview_html(raw: bytes) -> str:
-    parts: list[str] = ['<article class="cs-document-page">']
+    parts: list[str] = ['<article class="cs-document-page" style="color:#0f172a;">']
     for block in extract_docx_preview_blocks(raw):
         block_type = block.get("type")
         if block_type == "table":
@@ -175,7 +198,7 @@ def text_preview_html(text: str) -> str:
         if line.strip()
     ]
     return (
-        '<article class="cs-document-page">'
+        '<article class="cs-document-page" style="color:#0f172a;">'
         + "".join(lines or ["<p></p>"])
         + "</article>"
     )
@@ -186,45 +209,87 @@ def markdown_article_preview_html(
     *,
     logo_payload: dict[str, Any] | None = None,
 ) -> str:
-    parts: list[str] = ['<article class="cs-document-page">']
+    blocks = _markdown_preview_blocks(markdown)
+    if _should_split_markdown_preview(markdown, blocks):
+        pages = _split_preview_blocks(blocks)
+        page_html = "".join(
+            _preview_page_html(page_blocks, logo_payload=logo_payload if index == 0 else None)
+            for index, page_blocks in enumerate(pages)
+        )
+        return f'<div class="cs-document-spread">{page_html}</div>'
+    return _preview_page_html(blocks, logo_payload=logo_payload)
+
+
+def _markdown_preview_blocks(markdown: str) -> list[str]:
+    blocks: list[str] = []
+    in_list = False
+    list_items: list[str] = []
+    for raw_line in markdown.splitlines():
+        line = raw_line.strip()
+        if not line:
+            if in_list:
+                blocks.append(
+                    "<ul>"
+                    + "".join(f"<li>{html.escape(item)}</li>" for item in list_items)
+                    + "</ul>"
+                )
+                in_list = False
+                list_items = []
+            continue
+        if line.startswith("- "):
+            in_list = True
+            list_items.append(line[2:].strip())
+            continue
+        if in_list:
+            blocks.append(
+                "<ul>"
+                + "".join(f"<li>{html.escape(item)}</li>" for item in list_items)
+                + "</ul>"
+            )
+            in_list = False
+            list_items = []
+        if line.startswith("## "):
+            blocks.append(f"<h2>{html.escape(line[3:].strip())}</h2>")
+        elif line.startswith("# "):
+            blocks.append(f"<h1>{html.escape(line[2:].strip())}</h1>")
+        else:
+            blocks.append(f"<p>{html.escape(line)}</p>")
+
+    if in_list:
+        blocks.append(
+            "<ul>"
+            + "".join(f"<li>{html.escape(item)}</li>" for item in list_items)
+            + "</ul>"
+        )
+    return blocks or ["<p></p>"]
+
+
+def _should_split_markdown_preview(markdown: str, blocks: Sequence[str]) -> bool:
+    text_length = len(markdown.strip())
+    bullet_count = sum(1 for line in markdown.splitlines() if line.strip().startswith("- "))
+    return text_length > 1800 or bullet_count > 14 or len(blocks) > 9
+
+
+def _split_preview_blocks(blocks: Sequence[str]) -> list[list[str]]:
+    if len(blocks) <= 1:
+        return [list(blocks)]
+    split_at = max(1, (len(blocks) + 1) // 2)
+    return [list(blocks[:split_at]), list(blocks[split_at:])]
+
+
+def _preview_page_html(
+    blocks: Sequence[str],
+    *,
+    logo_payload: dict[str, Any] | None = None,
+) -> str:
+    parts: list[str] = ['<article class="cs-document-page" style="color:#0f172a;">']
     logo_uri = logo_data_uri(logo_payload)
     if logo_uri:
         parts.append(
             '<img class="cs-document-logo" alt="Logo" src="'
             f'{html.escape(logo_uri, quote=True)}">'
         )
-
-    in_list = False
-    has_content = False
-    for raw_line in markdown.splitlines():
-        line = raw_line.strip()
-        if not line:
-            if in_list:
-                parts.append("</ul>")
-                in_list = False
-            continue
-        if line.startswith("- "):
-            if not in_list:
-                parts.append("<ul>")
-                in_list = True
-            parts.append(f"<li>{html.escape(line[2:].strip())}</li>")
-            has_content = True
-            continue
-        if in_list:
-            parts.append("</ul>")
-            in_list = False
-        if line.startswith("## "):
-            parts.append(f"<h2>{html.escape(line[3:].strip())}</h2>")
-        elif line.startswith("# "):
-            parts.append(f"<h1>{html.escape(line[2:].strip())}</h1>")
-        else:
-            parts.append(f"<p>{html.escape(line)}</p>")
-        has_content = True
-
-    if in_list:
-        parts.append("</ul>")
-    if not has_content:
-        parts.append("<p></p>")
+    parts.extend(blocks or ["<p></p>"])
     parts.append("</article>")
     return "".join(parts)
 
@@ -270,7 +335,7 @@ def article_preview_html(
     fallback_text: str = "",
     logo_payload: dict[str, Any] | None = None,
 ) -> str:
-    parts: list[str] = ['<article class="cs-document-page">']
+    parts: list[str] = ['<article class="cs-document-page" style="color:#0f172a;">']
     logo_uri = logo_data_uri(logo_payload)
     if logo_uri:
         parts.append(
