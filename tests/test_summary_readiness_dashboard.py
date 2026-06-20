@@ -375,9 +375,7 @@ def test_readiness_tab_delegates_detail_sections_to_workspaces(monkeypatch) -> N
     monkeypatch.setattr(
         SUMMARY_MODULE,
         "_render_readiness_dashboard_header",
-        lambda _vm: (_ for _ in ()).throw(
-            AssertionError("readiness dashboard header rendered")
-        ),
+        lambda _vm: render_events.append("dashboard"),
     )
     monkeypatch.setattr(SUMMARY_MODULE, "_build_missing_critical_items", lambda _vm: [])
     monkeypatch.setattr(
@@ -433,9 +431,9 @@ def test_readiness_tab_delegates_detail_sections_to_workspaces(monkeypatch) -> N
 
     assert len(workspace_calls) == 1
     assert workspace_calls[0]["vm"] is vm
-    assert len(results_calls) == 1
-    assert render_events.index("facts_overview") < render_events.index("next_action")
-    assert render_events.index("facts_overview") < render_events.index("workspace")
+    assert results_calls == []
+    assert render_events.index("dashboard") < render_events.index("next_action")
+    assert render_events.index("dashboard") < render_events.index("workspace")
 
 
 def test_resolve_next_best_action_keeps_brief_for_missing_core_context(monkeypatch) -> None:

@@ -116,9 +116,9 @@ def test_render_entry_without_brief_still_renders_summary(monkeypatch) -> None:
     )
     assert render_events == [
         "Alles bereit für Recruiting und Hiring-Team",
-        "facts",
         "gaps",
         "grid",
+        "facts",
         "output",
     ]
     assert fake_st.info_calls == []

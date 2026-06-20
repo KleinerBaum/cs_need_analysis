@@ -2864,10 +2864,10 @@ def render(ctx: WizardContext) -> None:
 
     def _render_source_comparison_slot() -> None:
         nonlocal source_counts
-        st.markdown("### Skill-Quellen abgleichen")
+        st.markdown("### Skill-Liste bauen")
         st.caption(
-            "Vergleiche Jobspec, ESCO/Kontext und AI-Vorschläge. Übernommene Skills "
-            "werden anschließend strukturiert und für Matching, Interview und Export genutzt."
+            "Vergleiche Quellen, übernimm relevante Skills und strukturiere sie direkt "
+            "für Matching, Interview und Export."
         )
         source_counts = _render_skills_source_comparison_block(
             job=job,
@@ -2917,12 +2917,12 @@ def render(ctx: WizardContext) -> None:
         step=step,
         lazy_section_configs={
             "source_comparison_slot": LazySectionConfig(
-                label="Quellenabgleich",
+                label="Skill-Liste bauen",
                 caption=(
-                    "Lädt Jobspec-, ESCO-/Kontext- und AI-Skill-Vorschläge erst, "
-                    "wenn du diesen Abgleich öffnest."
+                    "Öffnet Jobspec-, ESCO-/Kontext- und AI-Vorschläge zusammen mit "
+                    "dem finalen Skill-Warenkorb."
                 ),
-                button_label="Quellenabgleich anzeigen",
+                button_label="Skill-Liste öffnen",
                 default_open=default_lazy_source_section_open(),
             ),
             "salary_forecast_slot": LazySectionConfig(

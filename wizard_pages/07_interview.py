@@ -1134,7 +1134,7 @@ def render(ctx: WizardContext) -> None:
 
     step = next((s for s in plan.steps if s.step_key == STEP_KEY_INTERVIEW), None)
 
-    def _render_intro_slot() -> None:
+    def _render_guidance_slot() -> None:
         st.markdown(
             "\n".join(
                 (
@@ -1150,6 +1150,12 @@ def render(ctx: WizardContext) -> None:
 
     def _render_source_comparison_slot() -> None:
         _render_combined_interview_workspace(job)
+        expander = getattr(st, "expander", None)
+        if callable(expander):
+            with expander("Leitlinien für den Prozess", expanded=False):
+                _render_guidance_slot()
+        else:
+            _render_guidance_slot()
 
     def _render_open_questions_slot() -> None:
         st.markdown("#### Offene Fragen")
@@ -1181,7 +1187,6 @@ def render(ctx: WizardContext) -> None:
     render_step_shell(
         title="Interviewprozess klar und fair gestalten",
         subtitle="Klarer Ablauf, verbindliche Updates und faire Bewertung.",
-        outcome_slot=_render_intro_slot,
         step=step,
         **section_kwargs,
         footer_slot=lambda: nav_buttons(ctx),

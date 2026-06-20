@@ -4668,11 +4668,12 @@ def _render_readiness_tab(
             "gestartet werden können."
         ),
     )
-    _render_summary_facts_column_overview(vm)
+    _render_readiness_dashboard_header(vm)
 
     recommendation = _resolve_next_best_action_recommendation(
         action_registry, resolved_brief_model=resolved_brief_model, vm=vm
     )
+    _render_critical_gaps_card(vm)
     action_col, pipeline_col = st.columns([1.12, 0.88], gap="large")
     with action_col:
         _render_next_best_action_card(recommendation=recommendation)
@@ -4681,10 +4682,6 @@ def _render_readiness_tab(
             action_registry,
             resolved_brief_model=resolved_brief_model,
         )
-    if brief is not None:
-        _render_summary_results_workspace(brief=brief)
-
-    _render_critical_gaps_card(vm)
     _render_summary_workspace_tabs(
         vm=vm,
         action_registry=action_registry,
@@ -4694,12 +4691,16 @@ def _render_readiness_tab(
 
 
 def _render_readiness_dashboard_header(vm: SummaryViewModel) -> None:
-    with st.container(border=True):
-        st.markdown("### Readiness-Übersicht")
-        _render_summary_readiness_metrics(vm)
-        st.caption(
-            "Diese Kennzahlen steuern die nächsten Artefakte; Detailwerte stehen im Fakten-Workspace."
-        )
+    container = st.container(border=True) if hasattr(st, "container") else nullcontext()
+    with container:
+        if hasattr(st, "markdown"):
+            st.markdown("### Readiness-Übersicht")
+        if hasattr(st, "columns"):
+            _render_summary_readiness_metrics(vm)
+        if hasattr(st, "caption"):
+            st.caption(
+                "Diese Kennzahlen steuern die nächsten Artefakte; Detailwerte stehen im Fakten-Workspace."
+            )
 
 
 def _render_next_best_action_card(*, recommendation: NextBestActionRecommendation | None) -> None:
@@ -6302,10 +6303,17 @@ def render(ctx: WizardContext) -> None:
         "Alles bereit für Recruiting und Hiring-Team",
         "Prüfe die vorhandenen Fakten, schließe kritische Lücken und erstelle die passenden Outputs.",
     )
+    _render_readiness_dashboard_header(vm)
     _render_esco_coverage_kpis()
-    _render_summary_facts_matrix(vm)
     _render_summary_critical_gaps_table(vm)
     _render_summary_artifact_grid(vm=vm, generator_by_id=generator_by_id)
+    facts_workspace = (
+        st.expander("Fakten je Schritt bearbeiten", expanded=False)
+        if hasattr(st, "expander")
+        else nullcontext()
+    )
+    with facts_workspace:
+        _render_summary_facts_matrix(vm)
     _render_summary_output_workspace(
         vm=vm,
         brief=internal_brief,

@@ -1339,10 +1339,8 @@ def _render_source_upload_status() -> None:
 def _render_phase_a_configuration_controls() -> None:
     st.markdown("#### Einstellungen")
     render_ui_mode_selector()
-    ui_mode = str(st.session_state.get(SSKey.UI_MODE.value, UI_MODE_DEFAULT)).strip().lower()
-    expanded = ui_mode == "expert"
     advanced_context = (
-        st.expander("Optionale Angaben & Berufsabgleich", expanded=expanded)
+        st.expander("Erweiterte Intake-Einstellungen", expanded=False)
         if hasattr(st, "expander")
         else nullcontext()
     )

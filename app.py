@@ -191,6 +191,21 @@ def _inject_theme_styles() -> None:
                 [data-testid="stButton"] button {{
                     min-height: 44px;
                 }}
+
+                [data-testid="stHorizontalBlock"] {{
+                    flex-wrap: wrap;
+                    gap: 0.75rem;
+                }}
+
+                [data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
+                    flex: 1 1 100% !important;
+                    min-width: min(100%, 18rem) !important;
+                }}
+
+                [data-testid="stTabs"] [role="tablist"] {{
+                    overflow-x: auto;
+                    justify-content: flex-start;
+                }}
             }}
         </style>
         """,

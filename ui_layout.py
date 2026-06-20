@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Callable
 from collections.abc import Mapping
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 from urllib.parse import quote
@@ -319,6 +320,45 @@ def render_lazy_section(
         render_slot()
 
 
+StepShellSlotName = Literal[
+    "extracted_from_jobspec_slot",
+    "main_content_slot",
+    "source_comparison_slot",
+    "salary_forecast_slot",
+    "open_questions_slot",
+    "review_slot",
+]
+
+
+def render_grouped_step_section(
+    *,
+    label: str,
+    caption: str = "",
+    render_slot: Callable[[], None],
+    expanded: bool = True,
+) -> None:
+    """Render a named step section with a consistent compact wrapper."""
+    if expanded:
+        _render_step_section_heading(label)
+        if caption:
+            st.caption(caption)
+        render_slot()
+        return
+
+    expander = getattr(st, "expander", None)
+    if callable(expander):
+        with expander(label, expanded=False):
+            if caption:
+                st.caption(caption)
+            render_slot()
+        return
+
+    _render_step_section_heading(label)
+    if caption:
+        st.caption(caption)
+    render_slot()
+
+
 def _normalize_jobspec_note(note: Any) -> str:
     return " ".join(str(note or "").strip().split())
 
@@ -492,6 +532,7 @@ def render_step_shell(
     footer_slot: Callable[[], None] | None = None,
     status_position: Literal["header", "before_footer"] = "header",
     lazy_section_configs: Mapping[str, LazySectionConfig] | None = None,
+    section_order: Sequence[StepShellSlotName] | None = None,
 ) -> None:
     answers = get_answers()
     answer_meta = get_answer_meta()
@@ -521,48 +562,85 @@ def render_step_shell(
     if outcome_slot is not None:
         outcome_slot()
 
-    if extracted_from_jobspec_slot is not None:
-        _render_step_section_heading(extracted_from_jobspec_label)
+    def _render_extracted_section() -> None:
+        if extracted_from_jobspec_slot is None:
+            return
+        if extracted_from_jobspec_label:
+            _render_step_section_heading(extracted_from_jobspec_label)
         extracted_from_jobspec_slot()
         render_jobspec_step_notes(step.step_key if step is not None else None)
 
-    uses_new_slots = any(
+    def _render_source_section() -> None:
+        if source_comparison_slot is None:
+            return
+        config = (lazy_section_configs or {}).get("source_comparison_slot")
+        if config is not None:
+            render_lazy_section(
+                step_key=step.step_key if step is not None else "",
+                slot_name="source_comparison_slot",
+                config=config,
+                render_slot=source_comparison_slot,
+            )
+        else:
+            source_comparison_slot()
+
+    def _render_salary_section() -> None:
+        if salary_forecast_slot is None:
+            return
+        config = (lazy_section_configs or {}).get("salary_forecast_slot")
+        if config is not None:
+            render_lazy_section(
+                step_key=step.step_key if step is not None else "",
+                slot_name="salary_forecast_slot",
+                config=config,
+                render_slot=salary_forecast_slot,
+            )
+        else:
+            salary_forecast_slot()
+
+    section_renderers: dict[str, Callable[[], None]] = {
+        "extracted_from_jobspec_slot": _render_extracted_section,
+        "main_content_slot": main_content_slot or (lambda: None),
+        "source_comparison_slot": _render_source_section,
+        "salary_forecast_slot": _render_salary_section,
+        "open_questions_slot": open_questions_slot or (lambda: None),
+        "review_slot": review_slot or (lambda: None),
+    }
+    has_registered_slots = any(
         slot is not None
         for slot in (
+            extracted_from_jobspec_slot,
+            main_content_slot,
             source_comparison_slot,
             salary_forecast_slot,
             open_questions_slot,
+            review_slot,
         )
     )
-    if uses_new_slots:
-        if source_comparison_slot is not None:
-            config = (lazy_section_configs or {}).get("source_comparison_slot")
-            if config is not None:
-                render_lazy_section(
-                    step_key=step.step_key if step is not None else "",
-                    slot_name="source_comparison_slot",
-                    config=config,
-                    render_slot=source_comparison_slot,
-                )
-            else:
-                source_comparison_slot()
-        if salary_forecast_slot is not None:
-            config = (lazy_section_configs or {}).get("salary_forecast_slot")
-            if config is not None:
-                render_lazy_section(
-                    step_key=step.step_key if step is not None else "",
-                    slot_name="salary_forecast_slot",
-                    config=config,
-                    render_slot=salary_forecast_slot,
-                )
-            else:
-                salary_forecast_slot()
-        if open_questions_slot is not None:
-            open_questions_slot()
-    elif main_content_slot is not None:
-        main_content_slot()
-    if review_slot is not None:
-        review_slot()
+    if has_registered_slots:
+        default_order: tuple[StepShellSlotName, ...] = (
+            "extracted_from_jobspec_slot",
+            "main_content_slot",
+            "source_comparison_slot",
+            "salary_forecast_slot",
+            "open_questions_slot",
+            "review_slot",
+        )
+        resolved_order = tuple(section_order or default_order)
+        for slot_name in resolved_order:
+            if slot_name == "extracted_from_jobspec_slot" and extracted_from_jobspec_slot is None:
+                continue
+            if slot_name == "main_content_slot" and main_content_slot is None:
+                continue
+            if slot_name == "source_comparison_slot" and source_comparison_slot is None:
+                continue
+            if slot_name == "salary_forecast_slot" and salary_forecast_slot is None:
+                continue
+            if slot_name == "open_questions_slot" and open_questions_slot is None:
+                continue
+            if slot_name == "review_slot" and review_slot is None:
+                continue
+            section_renderers[str(slot_name)]()
     if after_review_slot is not None:
         after_review_slot()
     if post_review_slot is not None:

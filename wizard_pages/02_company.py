@@ -1196,10 +1196,19 @@ def render(ctx: WizardContext) -> None:
 
     def _render_source_comparison_slot() -> None:
         render_error_banner()
+        expander = getattr(st, "expander", None)
+        if callable(expander):
+            with expander("Website-Analyse und ESCO-Kontext", expanded=False):
+                _render_company_research_and_esco(job, ctx=ctx, plan=plan)
+            return
         _render_company_research_and_esco(job, ctx=ctx, plan=plan)
 
     def _render_open_questions_slot() -> None:
-        st.markdown("#### Unternehmensangaben")
+        st.markdown("#### Kontext bearbeiten")
+        st.caption(
+            "Unternehmen, Team und offene Klärungen werden hier zusammen gepflegt."
+        )
+        st.markdown("##### Unternehmen")
         _render_company_context(job)
         _render_compact_open_questions(
             title="Offene Fragen zum Unternehmen",
@@ -1207,7 +1216,7 @@ def render(ctx: WizardContext) -> None:
             form_key_suffix="company_context",
         )
 
-        st.markdown("#### Teamangaben")
+        st.markdown("##### Team")
         _render_team_context(job, ctx=ctx)
         _render_compact_open_questions(
             title="Offene Fragen zum Team",

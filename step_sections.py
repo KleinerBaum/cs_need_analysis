@@ -46,41 +46,41 @@ def _section(
 
 
 _COMPANY_STEP_SECTIONS: tuple[StepSectionDef, ...] = (
+    _section(STEP_SECTION_OPEN_QUESTIONS, shell_heading_de="Kontext bearbeiten"),
     _section(STEP_SECTION_EXTRACTED_FROM_JOBSPEC, shell_heading_de=""),
     _section(STEP_SECTION_SOURCE_COMPARISON),
-    _section(STEP_SECTION_OPEN_QUESTIONS),
     _section(STEP_SECTION_REVIEW),
 )
 
 _INTERVIEW_STEP_SECTIONS: tuple[StepSectionDef, ...] = (
+    _section(STEP_SECTION_SOURCE_COMPARISON, shell_heading_de="Interviewprozess planen"),
     _section(
         STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
         shell_heading_de="Identifizierte Interview-Werte",
     ),
-    _section(STEP_SECTION_SOURCE_COMPARISON),
     _section(STEP_SECTION_OPEN_QUESTIONS),
     _section(STEP_SECTION_REVIEW),
 )
 
 _ROLE_TASKS_STEP_SECTIONS: tuple[StepSectionDef, ...] = (
-    _section(STEP_SECTION_EXTRACTED_FROM_JOBSPEC),
     _section(STEP_SECTION_SOURCE_COMPARISON),
+    _section(STEP_SECTION_EXTRACTED_FROM_JOBSPEC),
     _section(STEP_SECTION_SALARY_FORECAST),
     _section(STEP_SECTION_OPEN_QUESTIONS),
     _section(STEP_SECTION_REVIEW),
 )
 
 _SKILLS_STEP_SECTIONS: tuple[StepSectionDef, ...] = (
+    _section(STEP_SECTION_SOURCE_COMPARISON, shell_heading_de="Skill-Liste bauen"),
     _section(STEP_SECTION_EXTRACTED_FROM_JOBSPEC),
-    _section(STEP_SECTION_SOURCE_COMPARISON),
     _section(STEP_SECTION_SALARY_FORECAST),
     _section(STEP_SECTION_OPEN_QUESTIONS),
     _section(STEP_SECTION_REVIEW),
 )
 
 _BENEFITS_STEP_SECTIONS: tuple[StepSectionDef, ...] = (
+    _section(STEP_SECTION_SOURCE_COMPARISON, shell_heading_de="Angebot bearbeiten"),
     _section(STEP_SECTION_EXTRACTED_FROM_JOBSPEC),
-    _section(STEP_SECTION_SOURCE_COMPARISON),
     _section(STEP_SECTION_SALARY_FORECAST),
     _section(STEP_SECTION_OPEN_QUESTIONS),
     _section(STEP_SECTION_REVIEW),
@@ -107,7 +107,10 @@ def build_step_shell_section_kwargs(
 ) -> dict[str, Any]:
     """Build ordered ``render_step_shell`` kwargs from registered sections."""
     shell_kwargs: dict[str, Any] = {}
-    for section in get_step_sections(step_key):
+    sections = get_step_sections(step_key)
+    if sections:
+        shell_kwargs["section_order"] = [section.slot_name for section in sections]
+    for section in sections:
         renderer = renderers.get(section.section_id)
         if renderer is None:
             continue

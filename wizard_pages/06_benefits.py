@@ -1,6 +1,7 @@
 # wizard_pages/06_benefits.py
 from __future__ import annotations
 import logging
+from html import escape
 from typing import Any
 
 import streamlit as st
@@ -281,7 +282,41 @@ def _render_label_list(
     if not labels:
         st.caption(empty)
         return
-    st.write(", ".join(labels[:limit]))
+    shown_labels = labels[:limit]
+    chip_html = "".join(
+        (
+            '<span class="cs-benefit-chip" '
+            f'title="{escape(label, quote=True)}">{escape(label[:72])}'
+            f'{"…" if len(label) > 72 else ""}</span>'
+        )
+        for label in shown_labels
+    )
+    st.markdown(
+        f"""
+        <div class="cs-benefit-chip-row">{chip_html}</div>
+        <style>
+        .cs-benefit-chip-row {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+            margin: 0.25rem 0 0.35rem;
+        }}
+        .cs-benefit-chip {{
+            display: inline-flex;
+            max-width: min(100%, 26rem);
+            padding: 0.22rem 0.55rem;
+            border-radius: 999px;
+            border: 1px solid var(--cs-border-soft);
+            background: var(--cs-surface-muted);
+            color: var(--cs-text);
+            font-size: 0.82rem;
+            line-height: 1.35;
+            overflow-wrap: anywhere;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     remaining = len(labels) - limit
     if remaining > 0:
         st.caption(f"+ {remaining} weitere")
@@ -623,9 +658,10 @@ def render(ctx: WizardContext) -> None:
         ]
         selected_labels = _read_selected_benefits()
 
-        st.markdown("### Benefits auswählen")
+        st.markdown("### Angebot bearbeiten")
         st.caption(
-            "Wähle die Benefits, die später in Anzeige, Briefing und Prognose verwendet werden."
+            "Wähle Benefits und Rahmenbedingungen, die später in Anzeige, Briefing "
+            "und Prognose verwendet werden."
         )
 
         semantic_context = get_esco_semantic_context()
@@ -848,11 +884,12 @@ def render(ctx: WizardContext) -> None:
         step=step,
         lazy_section_configs={
             "source_comparison_slot": LazySectionConfig(
-                label="Benefits auswählen",
+                label="Angebot bearbeiten",
                 caption=(
-                    "Wähle Benefits aus Anzeige, Antworten und Vorschlägen."
+                    "Öffnet Benefits aus Anzeige, Antworten und Vorschlägen sowie "
+                    "die strukturierten Angebotsfelder."
                 ),
-                button_label="Benefits auswählen",
+                button_label="Angebot öffnen",
                 default_open=default_lazy_source_section_open(),
             ),
             "salary_forecast_slot": LazySectionConfig(

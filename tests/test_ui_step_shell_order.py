@@ -177,22 +177,22 @@ def test_role_skills_benefits_use_expected_step_shell_block_order() -> None:
     benefits_slots = _slot_order_from_render_kwargs(benefits_kwargs)
 
     assert role_slots == [
-        "extracted_from_jobspec_slot",
         "source_comparison_slot",
+        "extracted_from_jobspec_slot",
         "salary_forecast_slot",
         "open_questions_slot",
         "review_slot",
     ]
     assert skills_slots == [
-        "extracted_from_jobspec_slot",
         "source_comparison_slot",
+        "extracted_from_jobspec_slot",
         "salary_forecast_slot",
         "open_questions_slot",
         "review_slot",
     ]
     assert benefits_slots == [
-        "extracted_from_jobspec_slot",
         "source_comparison_slot",
+        "extracted_from_jobspec_slot",
         "salary_forecast_slot",
         "open_questions_slot",
         "review_slot",
@@ -213,9 +213,9 @@ def test_company_team_interview_use_step_shell_with_review_slot_and_canonical_or
     interview_kwargs = _capture_step_shell_kwargs(interview, step_key="interview")
 
     assert _slot_order_from_render_kwargs(company_kwargs) == [
+        "open_questions_slot",
         "extracted_from_jobspec_slot",
         "source_comparison_slot",
-        "open_questions_slot",
         "review_slot",
     ]
     assert _slot_order_from_render_kwargs(team_kwargs) == [
@@ -224,8 +224,8 @@ def test_company_team_interview_use_step_shell_with_review_slot_and_canonical_or
         "review_slot",
     ]
     assert _slot_order_from_render_kwargs(interview_kwargs) == [
-        "extracted_from_jobspec_slot",
         "source_comparison_slot",
+        "extracted_from_jobspec_slot",
         "open_questions_slot",
         "review_slot",
     ]
@@ -284,30 +284,30 @@ def test_canonical_step_section_registry_drives_shell_order() -> None:
     expected_contracts = {
         STEP_KEY_COMPANY: (
             [
+                STEP_SECTION_OPEN_QUESTIONS,
                 STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
                 STEP_SECTION_SOURCE_COMPARISON,
-                STEP_SECTION_OPEN_QUESTIONS,
                 STEP_SECTION_REVIEW,
             ],
             [
+                "open_questions_slot",
                 "extracted_from_jobspec_slot",
                 "source_comparison_slot",
-                "open_questions_slot",
                 "review_slot",
             ],
             "",
         ),
         STEP_KEY_ROLE_TASKS: (
             [
-                STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
                 STEP_SECTION_SOURCE_COMPARISON,
+                STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
                 STEP_SECTION_SALARY_FORECAST,
                 STEP_SECTION_OPEN_QUESTIONS,
                 STEP_SECTION_REVIEW,
             ],
             [
-                "extracted_from_jobspec_slot",
                 "source_comparison_slot",
+                "extracted_from_jobspec_slot",
                 "salary_forecast_slot",
                 "open_questions_slot",
                 "review_slot",
@@ -316,15 +316,15 @@ def test_canonical_step_section_registry_drives_shell_order() -> None:
         ),
         STEP_KEY_SKILLS: (
             [
-                STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
                 STEP_SECTION_SOURCE_COMPARISON,
+                STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
                 STEP_SECTION_SALARY_FORECAST,
                 STEP_SECTION_OPEN_QUESTIONS,
                 STEP_SECTION_REVIEW,
             ],
             [
-                "extracted_from_jobspec_slot",
                 "source_comparison_slot",
+                "extracted_from_jobspec_slot",
                 "salary_forecast_slot",
                 "open_questions_slot",
                 "review_slot",
@@ -333,15 +333,15 @@ def test_canonical_step_section_registry_drives_shell_order() -> None:
         ),
         STEP_KEY_BENEFITS: (
             [
-                STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
                 STEP_SECTION_SOURCE_COMPARISON,
+                STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
                 STEP_SECTION_SALARY_FORECAST,
                 STEP_SECTION_OPEN_QUESTIONS,
                 STEP_SECTION_REVIEW,
             ],
             [
-                "extracted_from_jobspec_slot",
                 "source_comparison_slot",
+                "extracted_from_jobspec_slot",
                 "salary_forecast_slot",
                 "open_questions_slot",
                 "review_slot",
@@ -350,14 +350,14 @@ def test_canonical_step_section_registry_drives_shell_order() -> None:
         ),
         STEP_KEY_INTERVIEW: (
             [
-                STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
                 STEP_SECTION_SOURCE_COMPARISON,
+                STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
                 STEP_SECTION_OPEN_QUESTIONS,
                 STEP_SECTION_REVIEW,
             ],
             [
-                "extracted_from_jobspec_slot",
                 "source_comparison_slot",
+                "extracted_from_jobspec_slot",
                 "open_questions_slot",
                 "review_slot",
             ],

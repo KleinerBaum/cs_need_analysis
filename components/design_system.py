@@ -41,7 +41,7 @@ def _render_meta_items(meta_items: Sequence[tuple[str, str, str]]) -> str:
         )
     if not entries:
         return ""
-    return '<ul class="cs-meta-list">' + "".join(entries) + "</ul>"
+    return '<ul class="cs-meta-list" aria-label="Schrittstatus">' + "".join(entries) + "</ul>"
 
 
 def render_ui_styles() -> None:
@@ -881,34 +881,34 @@ def render_ui_styles() -> None:
             max-width: 76rem;
         }
         .cs-meta-list {
-            margin: 0.95rem 0 0;
+            margin: 0.7rem 0 0;
             padding: 0;
             list-style: none;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-            gap: 0.5rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
         }
         .cs-meta-item {
-            display: grid;
-            grid-template-columns: auto minmax(0, 1fr);
+            display: inline-grid;
+            grid-template-columns: auto auto minmax(0, auto);
             column-gap: 0.4rem;
             row-gap: 0.05rem;
             align-items: center;
-            padding: 0.5rem 0.6rem;
+            max-width: min(100%, 34rem);
+            padding: 0.28rem 0.55rem;
             border: 1px solid var(--cs-border-soft);
-            border-radius: 8px;
+            border-radius: 999px;
             background: var(--cs-surface-muted);
-            font-size: 0.86rem;
+            font-size: 0.8rem;
         }
         .cs-meta-icon { opacity: 0.75; }
         .cs-meta-label {
             color: var(--cs-text-subtle);
-            font-size: 0.76rem;
+            font-size: 0.72rem;
             font-weight: 700;
             text-transform: uppercase;
         }
         .cs-meta-value {
-            grid-column: 2;
             color: var(--cs-text);
             font-weight: 650;
             overflow-wrap: anywhere;
@@ -1012,7 +1012,13 @@ def render_ui_styles() -> None:
                 min-width: min(78vw, 18rem);
             }
             .cs-meta-list {
+                display: grid;
                 grid-template-columns: minmax(0, 1fr);
+            }
+            .cs-meta-item {
+                border-radius: 8px;
+                grid-template-columns: auto minmax(0, auto) minmax(0, 1fr);
+                align-items: start;
             }
         }
         </style>

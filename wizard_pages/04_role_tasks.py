@@ -783,7 +783,12 @@ def render(ctx: WizardContext) -> None:
             st.info(
                 "Keine belastbaren Aufgaben erkannt. Kläre die Rolle über die offenen Fragen."
             )
-        _render_work_context_sections(job)
+        expander = getattr(st, "expander", None)
+        if callable(expander):
+            with expander("Arbeitsmodell, Standort und Rahmen aus Jobspec", expanded=False):
+                _render_work_context_sections(job)
+        else:
+            _render_work_context_sections(job)
 
     def _render_source_comparison_slot() -> None:
         nonlocal source_counts
