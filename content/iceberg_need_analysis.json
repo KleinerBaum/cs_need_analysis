@@ -1,42 +1,122 @@
 {
-  "left": {
+  "surface": {
     "headline": "Klassische Bedarfsanalyse",
-    "subline": "Sichtbar, aber lückenhaft",
-    "surface": {
-      "title": "Sichtbare Anforderungen",
-      "body": "Rolle, Aufgaben, Skills, Prozesse und Ziele."
-    },
-    "deep": {
-      "title": "Verborgene Faktoren",
-      "body": "Erwartungen, Prioritäten, Risiken und unausgesprochene Kriterien."
-    },
-    "result": {
-      "title": "Ergebnis",
-      "body": "Teilweises Bild. Höheres Risiko für Fehlbesetzungen."
-    }
+    "subline": "Was oberhalb der Wasserlinie meist sichtbar ist",
+    "groups": [
+      {
+        "title": "Rollenrahmen",
+        "body": "Der sichtbare Startpunkt beschreibt, welche Stelle besetzt werden soll.",
+        "items": [
+          "Jobtitel",
+          "Standort",
+          "Arbeitsmodell",
+          "Vertragsart"
+        ]
+      },
+      {
+        "title": "Aufgaben & Verantwortung",
+        "body": "Die Jobspec nennt Tätigkeiten, bleibt aber oft bei allgemeinen Formulierungen.",
+        "items": [
+          "Aufgabenliste",
+          "Projekte",
+          "Reporting Line",
+          "Prozessschritte"
+        ]
+      },
+      {
+        "title": "Skills & Anforderungen",
+        "body": "Must-haves, Tools und Erfahrung werden gesammelt, aber selten priorisiert.",
+        "items": [
+          "Hard Skills",
+          "Berufserfahrung",
+          "Sprachen",
+          "Zertifikate"
+        ]
+      },
+      {
+        "title": "Angebot & Ablauf",
+        "body": "Benefits, Gehaltsspanne und Interviewprozess sind sichtbar, aber häufig nicht entscheidungslogisch verbunden.",
+        "items": [
+          "Benefits",
+          "Salary Range",
+          "Starttermin",
+          "Interviewprozess"
+        ]
+      }
+    ]
   },
-  "right": {
+  "deep": {
     "headline": "AI-gestützte Need-Analysis",
-    "subline": "Tiefgründig, kontextbasiert, präzise",
-    "surface": {
-      "title": "Vollständiger Kontext",
-      "body": "Rolle, Ziele, Abhängigkeiten und Erfolgskriterien."
-    },
-    "deep": {
-      "title": "Versteckte Insights",
-      "body": "Bedürfnisse, Treiber, Risiken, Chancen und Passungslogik."
-    },
-    "result": {
-      "title": "Ergebnis",
-      "body": "Vollständigeres Bild. Bessere Entscheidungen im Recruiting."
-    }
+    "subline": "Was unterhalb der Wasserlinie recruiting-relevant wird",
+    "groups": [
+      {
+        "title": "Prioritäten & Success Criteria",
+        "body": "Die AI trennt Pflicht, Wunsch und Kontext: Was muss die Person wirklich in den ersten 3 bis 6 Monaten erreichen?",
+        "items": [
+          "Erfolg nach 6 Monaten",
+          "kritische Outcomes",
+          "Must-have vs. Nice-to-have",
+          "Kompromisslinien"
+        ]
+      },
+      {
+        "title": "Passungslogik & Dealbreaker",
+        "body": "Implizite Kriterien werden explizit, damit Matching, Shortlist und Absagen nicht auf Bauchgefühl beruhen.",
+        "items": [
+          "echte Dealbreaker",
+          "Team-Fit Signale",
+          "Stakeholder-Erwartungen",
+          "Risikoprofile"
+        ]
+      },
+      {
+        "title": "Marktargumente & Motivation",
+        "body": "Aus Bedarf und Zielgruppe entstehen Argumente, die Kandidat:innen wirklich erreichen.",
+        "items": [
+          "Wechselmotive",
+          "Salary/Benefit-Trade-offs",
+          "Pitch-Narrativ",
+          "Candidate communication"
+        ]
+      },
+      {
+        "title": "Fragenlogik & Lückensteuerung",
+        "body": "Der Wizard fragt nur dort nach, wo Informationen fehlen, unsicher sind oder für Recruiting-Entscheidungen hohe Wirkung haben.",
+        "items": [
+          "offene Fragen",
+          "Evidence aus der Quelle",
+          "Review-Entscheidungen",
+          "weniger Briefing-Loops"
+        ]
+      },
+      {
+        "title": "Semantik & Vergleichbarkeit",
+        "body": "ESCO-Kontext und strukturierte Fakten machen Anforderungen anschlussfähig für Skill-Matching und internationale Profile.",
+        "items": [
+          "ESCO-Anker",
+          "Skill-Normalisierung",
+          "Titelvarianten",
+          "vergleichbare Rollenprofile"
+        ]
+      },
+      {
+        "title": "Recruiting-Artefakte",
+        "body": "Aus einer vollständigen Informationsbasis entstehen konsistente Outputs für alle Folgeaktivitäten.",
+        "items": [
+          "Recruiting Brief",
+          "Job Ad",
+          "Boolean Search",
+          "Interview Sheets"
+        ]
+      }
+    ]
   },
   "kpis": [
+    "Vollständiger Bedarf",
     "Weniger Rückfragen",
-    "Schneller starten",
-    "Passgenau statt Standard",
-    "Höhere Trefferquote",
-    "Sichere Entscheidungen",
+    "Präzisere Ansprache",
+    "Bessere Shortlists",
+    "Konsistente Interviews",
     "Weniger Fehlbesetzungen"
   ]
 }

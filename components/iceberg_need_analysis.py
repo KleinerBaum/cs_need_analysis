@@ -5,13 +5,13 @@ import json
 from functools import lru_cache
 from html import escape
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_CONTENT_PATH = ROOT_DIR / "content" / "iceberg_need_analysis.json"
 DEFAULT_IMAGE_PATH = ROOT_DIR / "images" / "OpenAI eisberg.png"
-COMPONENT_HEIGHT = 520
+COMPONENT_HEIGHT = 640
 
 
 def load_iceberg_content(path: Path = DEFAULT_CONTENT_PATH) -> dict[str, Any]:
@@ -29,45 +29,64 @@ def _image_uri(image_path: str) -> str:
     return f"data:image/png;base64,{encoded_image}"
 
 
-def _section(content: Mapping[str, Any], side: str) -> Mapping[str, Any]:
-    value = content.get(side)
+def _section(content: Mapping[str, Any], key: str) -> Mapping[str, Any]:
+    value = content.get(key)
     if not isinstance(value, Mapping):
-        raise ValueError(f"Missing iceberg content section: {side}")
+        raise ValueError(f"Missing iceberg content section: {key}")
     return value
 
 
-def _card(section: Mapping[str, Any], key: str, class_name: str, index: int) -> str:
-    value = section.get(key)
-    if not isinstance(value, Mapping):
-        raise ValueError(f"Missing iceberg card content: {key}")
-    title = escape(str(value.get("title", "")))
-    body = escape(str(value.get("body", "")))
+def _list_items(value: Any, label: str) -> Sequence[Any]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValueError(f"Iceberg {label} must be a JSON array.")
+    return value
+
+
+def _group_card(group: Mapping[str, Any], class_name: str, index: int) -> str:
+    title = escape(str(group.get("title", "")))
+    body = escape(str(group.get("body", "")))
+    items = _list_items(group.get("items", []), "group items")
+    item_markup = "".join(
+        f"<li>{escape(str(item))}</li>" for item in items if str(item).strip()
+    )
+    item_list = f'<ul class="ina-group-items">{item_markup}</ul>' if item_markup else ""
     return (
         f'<article class="ina-card {class_name}" tabindex="0" '
         f'style="--reveal-index: {index}">'
         f'<h3>{title}</h3>'
         f"<p>{body}</p>"
+        f"{item_list}"
         "</article>"
     )
 
 
-def _side_header(section: Mapping[str, Any], class_name: str, index: int) -> str:
+def _zone_header(section: Mapping[str, Any], class_name: str, index: int) -> str:
     headline = escape(str(section.get("headline", "")))
     subline = escape(str(section.get("subline", "")))
     return (
-        f'<header class="ina-side-header {class_name}" style="--reveal-index: {index}">'
+        f'<header class="ina-zone-header {class_name}" style="--reveal-index: {index}">'
         f"<h2>{headline}</h2>"
         f"<p>{subline}</p>"
         "</header>"
     )
 
 
+def _zone_groups(section: Mapping[str, Any], class_name: str, start_index: int) -> str:
+    groups = _list_items(section.get("groups", []), "section groups")
+    cards = []
+    for offset, group in enumerate(groups):
+        if not isinstance(group, Mapping):
+            raise ValueError("Iceberg section groups must contain JSON objects.")
+        cards.append(_group_card(group, class_name, start_index + offset))
+    return "".join(cards)
+
+
 def _kpi_bar(content: Mapping[str, Any]) -> str:
-    kpis = content.get("kpis", [])
-    if not isinstance(kpis, list):
-        raise ValueError("Iceberg kpis must be a JSON array.")
+    kpis = _list_items(content.get("kpis", []), "kpis")
     items = "".join(f"<li>{escape(str(kpi))}</li>" for kpi in kpis)
-    return f'<ul class="ina-kpi-bar" style="--reveal-index: 8">{items}</ul>'
+    return f'<ul class="ina-kpi-bar" style="--reveal-index: 13">{items}</ul>'
 
 
 def build_iceberg_need_analysis_html(
@@ -76,8 +95,8 @@ def build_iceberg_need_analysis_html(
     image_path: Path = DEFAULT_IMAGE_PATH,
 ) -> str:
     data = content if content is not None else load_iceberg_content()
-    left = _section(data, "left")
-    right = _section(data, "right")
+    surface = _section(data, "surface")
+    deep = _section(data, "deep")
     image_src = _image_uri(str(image_path))
 
     return f"""
@@ -164,13 +183,6 @@ def build_iceberg_need_analysis_html(
         pointer-events: none;
     }}
 
-    .ina-split-line {{
-        stroke: var(--ina-line);
-        stroke-width: 1.6;
-        stroke-dasharray: 5 10;
-        animation: inaDrawLine 880ms 650ms ease-out both;
-    }}
-
     .ina-waterline {{
         stroke: rgba(255, 255, 255, 0.56);
         stroke-width: 1.8;
@@ -178,7 +190,7 @@ def build_iceberg_need_analysis_html(
         animation: inaWaterGlow 4.8s 1.1s ease-in-out infinite;
     }}
 
-    .ina-side-header,
+    .ina-zone-header,
     .ina-card,
     .ina-kpi-bar {{
         position: absolute;
@@ -189,56 +201,63 @@ def build_iceberg_need_analysis_html(
         animation-delay: calc(260ms + (var(--reveal-index) * 120ms));
     }}
 
-    .ina-side-header {{
-        top: 6.5%;
-        width: 34%;
+    .ina-zone-header {{
+        width: min(37%, 430px);
     }}
 
-    .ina-side-header.left {{
-        left: 6.6%;
+    .ina-zone-header.surface {{
+        top: 6%;
+        left: 5.4%;
     }}
 
-    .ina-side-header.right {{
-        right: 6.6%;
-        text-align: right;
+    .ina-zone-header.deep {{
+        top: 51.5%;
+        left: 5.4%;
     }}
 
-    .ina-side-header h2 {{
+    .ina-zone-header h2 {{
         margin: 0;
         font-family: "Space Grotesk", "Sora", "Inter Tight", Inter, sans-serif;
-        font-size: clamp(1.35rem, 3vw, 2.65rem);
+        font-size: clamp(1.45rem, 3vw, 2.75rem);
         line-height: 1.04;
         letter-spacing: 0;
     }}
 
-    .ina-side-header p {{
+    .ina-zone-header p {{
         margin: 0.45rem 0 0;
         color: var(--ina-muted);
         font-size: clamp(0.78rem, 1.45vw, 1.2rem);
         line-height: 1.25;
     }}
 
-    .ina-vs {{
+    .ina-zone-label {{
         position: absolute;
-        top: 7%;
         left: 50%;
         z-index: 3;
         transform: translateX(-50%);
         border: 1px solid var(--ina-stroke);
         border-radius: 999px;
-        padding: 0.36rem 0.82rem;
-        background: rgba(2, 11, 22, 0.62);
+        padding: 0.34rem 0.78rem;
+        background: rgba(2, 11, 22, 0.66);
         color: var(--ina-text);
         font-weight: 800;
-        letter-spacing: 0.08em;
-        font-size: clamp(0.75rem, 1.2vw, 1rem);
+        letter-spacing: 0.04em;
+        font-size: clamp(0.68rem, 1vw, 0.9rem);
         backdrop-filter: blur(14px);
+        opacity: 0;
+        animation: inaReveal 620ms 580ms ease-out forwards;
+    }}
+
+    .ina-zone-label.surface {{
+        top: 43.4%;
+    }}
+
+    .ina-zone-label.deep {{
+        top: 47.6%;
     }}
 
     .ina-card {{
-        width: 26%;
-        min-height: 13.5%;
-        padding: clamp(0.62rem, 1.55vw, 1.05rem);
+        padding: clamp(0.52rem, 1.05vw, 0.82rem);
         border: 1px solid var(--ina-stroke);
         border-radius: 8px;
         background: var(--ina-card);
@@ -256,8 +275,8 @@ def build_iceberg_need_analysis_html(
     }}
 
     .ina-card h3 {{
-        margin: 0 0 0.42rem;
-        font-size: clamp(0.82rem, 1.4vw, 1.14rem);
+        margin: 0 0 0.32rem;
+        font-size: clamp(0.74rem, 1vw, 0.95rem);
         line-height: 1.12;
         letter-spacing: 0;
     }}
@@ -265,18 +284,62 @@ def build_iceberg_need_analysis_html(
     .ina-card p {{
         margin: 0;
         color: var(--ina-muted);
-        font-size: clamp(0.7rem, 1.08vw, 0.9rem);
-        line-height: 1.36;
+        font-size: clamp(0.6rem, 0.78vw, 0.75rem);
+        line-height: 1.28;
+    }}
+
+    .ina-group-items {{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.22rem;
+        margin: 0.42rem 0 0;
+        padding: 0;
+        list-style: none;
+    }}
+
+    .ina-group-items li {{
+        max-width: 100%;
+        padding: 0.16rem 0.36rem;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--ina-text);
+        font-size: clamp(0.52rem, 0.64vw, 0.63rem);
+        line-height: 1.1;
+        font-weight: 700;
+        overflow-wrap: anywhere;
+    }}
+
+    .ina-surface-grid,
+    .ina-deep-grid {{
+        position: absolute;
+        left: 5.4%;
+        right: 5.4%;
+        z-index: 3;
+        display: grid;
+        gap: 0.52rem;
+    }}
+
+    .ina-surface-grid {{
+        top: 20%;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }}
+
+    .ina-deep-grid {{
+        top: 58%;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }}
 
     .ina-surface {{
-        top: 29%;
-        background: var(--ina-card-light);
+        position: relative;
+        min-height: 122px;
+        background: rgba(20, 41, 55, 0.72);
     }}
 
     .ina-deep {{
-        top: 59%;
-        background: var(--ina-card-deep);
+        position: relative;
+        min-height: 112px;
+        background: rgba(3, 17, 30, 0.80);
         animation-name: inaReveal, inaDeepPulse;
         animation-duration: 620ms, 5s;
         animation-timing-function: ease-out, ease-in-out;
@@ -285,35 +348,20 @@ def build_iceberg_need_analysis_html(
         animation-delay: calc(260ms + (var(--reveal-index) * 120ms)), 2s;
     }}
 
-    .ina-result {{
-        top: 80.5%;
-        width: 37%;
-        min-height: 11%;
-    }}
-
-    .ina-left-card {{
-        left: 7.2%;
-    }}
-
-    .ina-right-card {{
-        right: 7.2%;
-        text-align: right;
-    }}
-
-    .ina-left-card:hover,
-    .ina-left-card:focus-visible {{
+    .ina-surface:hover,
+    .ina-surface:focus-visible {{
         box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35), 0 0 28px rgba(255, 176, 0, 0.28);
     }}
 
-    .ina-right-card:hover,
-    .ina-right-card:focus-visible {{
+    .ina-deep:hover,
+    .ina-deep:focus-visible {{
         box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35), 0 0 28px rgba(46, 236, 232, 0.3);
     }}
 
     .ina-kpi-bar {{
         left: 6.5%;
         right: 6.5%;
-        bottom: 2.4%;
+        bottom: 2.1%;
         display: grid;
         grid-template-columns: repeat(6, minmax(0, 1fr));
         gap: 0.45rem;
@@ -362,17 +410,6 @@ def build_iceberg_need_analysis_html(
         }}
     }}
 
-    @keyframes inaDrawLine {{
-        from {{
-            opacity: 0;
-            stroke-dashoffset: 42;
-        }}
-        to {{
-            opacity: 1;
-            stroke-dashoffset: 0;
-        }}
-    }}
-
     @keyframes inaWaterGlow {{
         0%,
         100% {{
@@ -395,7 +432,7 @@ def build_iceberg_need_analysis_html(
         }}
     }}
 
-    @media (max-width: 760px) {{
+    @media (max-width: 980px) {{
         body {{
             overflow: auto;
         }}
@@ -412,7 +449,7 @@ def build_iceberg_need_analysis_html(
 
         .ina-stage::after,
         .ina-guides,
-        .ina-vs {{
+        .ina-zone-label {{
             display: none;
         }}
 
@@ -430,13 +467,10 @@ def build_iceberg_need_analysis_html(
             object-fit: cover;
         }}
 
-        .ina-side-header,
-        .ina-side-header.left,
-        .ina-side-header.right,
+        .ina-zone-header,
         .ina-card,
-        .ina-left-card,
-        .ina-right-card,
-        .ina-result,
+        .ina-surface-grid,
+        .ina-deep-grid,
         .ina-kpi-bar {{
             position: relative;
             top: auto;
@@ -448,51 +482,41 @@ def build_iceberg_need_analysis_html(
             text-align: left;
         }}
 
-        .ina-side-header {{
+        .ina-zone-header {{
             margin-top: 0.15rem;
             padding-top: 0.3rem;
             border-top: 1px solid rgba(255, 255, 255, 0.14);
         }}
 
-        .ina-side-header h2 {{
+        .ina-zone-header h2 {{
             font-size: clamp(1.08rem, 5.7vw, 1.42rem);
         }}
 
-        .ina-side-header p {{
+        .ina-zone-header p {{
             margin-top: 0.24rem;
             font-size: 0.8rem;
         }}
 
-        .ina-side-header.left {{
+        .ina-zone-header.surface {{
             order: 2;
         }}
 
-        .ina-side-header.right {{
-            order: 6;
-        }}
-
-        .ina-surface.ina-left-card {{
+        .ina-surface-grid {{
             order: 3;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            gap: 0.48rem;
         }}
 
-        .ina-surface.ina-right-card {{
-            order: 7;
-        }}
-
-        .ina-deep.ina-left-card {{
+        .ina-zone-header.deep {{
             order: 4;
         }}
 
-        .ina-deep.ina-right-card {{
-            order: 8;
-        }}
-
-        .ina-result.ina-left-card {{
+        .ina-deep-grid {{
             order: 5;
-        }}
-
-        .ina-result.ina-right-card {{
-            order: 9;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            gap: 0.48rem;
         }}
 
         .ina-card {{
@@ -510,8 +534,17 @@ def build_iceberg_need_analysis_html(
             line-height: 1.28;
         }}
 
+        .ina-group-items {{
+            gap: 0.24rem;
+            margin-top: 0.42rem;
+        }}
+
+        .ina-group-items li {{
+            font-size: 0.66rem;
+        }}
+
         .ina-kpi-bar {{
-            order: 10;
+            order: 6;
             grid-template-columns: repeat(2, minmax(0, 1fr));
             margin-top: 0.12rem;
             padding: 0.48rem;
@@ -524,10 +557,10 @@ def build_iceberg_need_analysis_html(
 
     @media (prefers-reduced-motion: reduce) {{
         .ina-stage,
-        .ina-side-header,
+        .ina-zone-header,
+        .ina-zone-label,
         .ina-card,
         .ina-kpi-bar,
-        .ina-split-line,
         .ina-waterline,
         .ina-deep {{
             animation: none !important;
@@ -543,21 +576,21 @@ def build_iceberg_need_analysis_html(
 </head>
 <body>
     <div class="ina-shell">
-        <section class="ina-stage" aria-label="Vergleich klassischer Bedarfsanalyse und AI Need-Analysis">
+        <section class="ina-stage" aria-label="Eisberg-Modell klassischer und AI-gestützter Need-Analysis">
             <img class="ina-bg" src="{image_src}" alt="" aria-hidden="true">
             <svg class="ina-guides" viewBox="0 0 1920 1080" preserveAspectRatio="none" aria-hidden="true">
-                <line class="ina-split-line" x1="960" y1="0" x2="960" y2="1080"></line>
                 <line class="ina-waterline" x1="0" y1="500" x2="1920" y2="500"></line>
             </svg>
-            <div class="ina-vs">VS</div>
-            {_side_header(left, "left", 0)}
-            {_side_header(right, "right", 1)}
-            {_card(left, "surface", "ina-surface ina-left-card", 2)}
-            {_card(right, "surface", "ina-surface ina-right-card", 3)}
-            {_card(left, "deep", "ina-deep ina-left-card", 4)}
-            {_card(right, "deep", "ina-deep ina-right-card", 5)}
-            {_card(left, "result", "ina-result ina-left-card", 6)}
-            {_card(right, "result", "ina-result ina-right-card", 7)}
+            <div class="ina-zone-label surface">sichtbar: klassische Bedarfsanalyse</div>
+            <div class="ina-zone-label deep">entscheidend: AI-gestützte Need-Analysis</div>
+            {_zone_header(surface, "surface", 0)}
+            <div class="ina-surface-grid">
+                {_zone_groups(surface, "ina-surface", 1)}
+            </div>
+            {_zone_header(deep, "deep", 5)}
+            <div class="ina-deep-grid">
+                {_zone_groups(deep, "ina-deep", 6)}
+            </div>
             {_kpi_bar(data)}
         </section>
     </div>
