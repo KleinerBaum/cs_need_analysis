@@ -315,6 +315,12 @@ def render_ui_styles() -> None:
             font-weight: 650;
             box-shadow: var(--cs-shadow-sm);
         }
+        [data-testid="stButton"] button *,
+        [data-testid="stFormSubmitButton"] button *,
+        [data-testid="stDownloadButton"] button * {
+            color: inherit !important;
+            fill: currentColor !important;
+        }
         [data-testid="stFormSubmitButton"] button,
         [data-testid="stDownloadButton"] button {
             border-radius: var(--cs-radius-sm) !important;
@@ -470,11 +476,19 @@ def render_ui_styles() -> None:
         [data-testid="stAlert"] {
             border-radius: var(--cs-radius-md);
             border-color: var(--cs-border);
+            background: var(--cs-surface-muted) !important;
             color: var(--cs-text);
         }
         [data-testid="stAlert"] [data-testid="stMarkdownContainer"],
+        [data-testid="stAlert"] [data-testid="stMarkdownContainer"] *,
+        [data-testid="stAlert"] div,
+        [data-testid="stAlert"] span,
+        [data-testid="stAlert"] li,
         [data-testid="stAlert"] p {
             color: var(--cs-text) !important;
+        }
+        [data-testid="stAlert"] svg {
+            fill: currentColor !important;
         }
         [data-testid="stTabs"] button {
             color: var(--cs-text-muted) !important;
