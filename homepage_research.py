@@ -6,12 +6,14 @@ import html
 import ipaddress
 import logging
 import re
+import socket
 from collections.abc import Mapping
 from dataclasses import dataclass
 from hashlib import sha1
 from typing import Any
+from urllib.error import HTTPError
 from urllib.parse import urljoin, urlparse, urlunparse
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from constants import (
     INTAKE_FACTS,
@@ -30,12 +32,14 @@ LOGGER = logging.getLogger(__name__)
 
 HOMEPAGE_FETCH_TIMEOUT_SEC = 8.0
 HOMEPAGE_FETCH_MAX_BYTES = 1_000_000
+HOMEPAGE_FETCH_MAX_REDIRECTS = 3
 USER_AGENT = "cs-need-analysis/1.0 (+https://example.invalid)"
 ALLOWED_CONTENT_TYPE_PREFIXES: tuple[str, ...] = (
     "text/html",
     "text/plain",
     "application/xhtml+xml",
 )
+REDIRECT_STATUS_CODES = frozenset({301, 302, 303, 307, 308})
 PAGE_KEYWORDS: dict[str, tuple[str, ...]] = {
     WEBSITE_TOPIC_ABOUT: ("über uns", "ueber uns", "about", "unternehmen", "company"),
     WEBSITE_TOPIC_IMPRINT: ("impressum", "imprint", "legal", "rechtliche", "kontakt"),
@@ -119,6 +123,14 @@ class HomepageFetchError(RuntimeError):
 _FETCH_CACHE: dict[str, HomepageFetchResult] = {}
 
 
+class _NoRedirectHandler(HTTPRedirectHandler):
+    def redirect_request(self, *_args: object, **_kwargs: object) -> None:
+        return None
+
+
+_NO_REDIRECT_OPENER = build_opener(_NoRedirectHandler)
+
+
 def clear_fetch_cache() -> None:
     """Clear in-process homepage fetch cache."""
 
@@ -134,13 +146,16 @@ def normalize_url(raw_url: str) -> str:
     if not raw.lower().startswith(("http://", "https://")):
         raw = f"https://{raw}"
     parsed = urlparse(raw)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+    scheme = parsed.scheme.lower()
+    if scheme not in {"http", "https"} or not parsed.netloc:
+        return ""
+    if not _has_supported_port(parsed):
         return ""
     if _is_disallowed_hostname(parsed.hostname or ""):
         return ""
     return urlunparse(
         (
-            parsed.scheme,
+            scheme,
             parsed.netloc,
             parsed.path or "",
             parsed.params or "",
@@ -166,9 +181,10 @@ def fetch_url_text_result(
     timeout_sec: float = HOMEPAGE_FETCH_TIMEOUT_SEC,
     max_bytes: int = HOMEPAGE_FETCH_MAX_BYTES,
 ) -> HomepageFetchResult:
-    normalized_url = normalize_url(url)
-    if not normalized_url:
-        raise HomepageFetchError("invalid_or_disallowed_url")
+    normalized_url = _validate_public_target(
+        url,
+        error_code="invalid_or_disallowed_url",
+    )
 
     cached = _FETCH_CACHE.get(normalized_url)
     if cached is not None:
@@ -181,12 +197,8 @@ def fetch_url_text_result(
             cache_hit=True,
         )
 
-    request = Request(normalized_url, headers={"User-Agent": USER_AGENT})
-    _log_fetch_event("request", normalized_url, cache_hit=False)
-    with urlopen(request, timeout=timeout_sec) as response:
-        final_url = normalize_url(str(response.geturl() or normalized_url))
-        if not final_url:
-            raise HomepageFetchError("invalid_or_disallowed_redirect")
+    final_url, response = _open_validated_response(normalized_url, timeout_sec)
+    with response:
         content_type = _response_content_type(response)
         if not _is_allowed_content_type(content_type):
             raise HomepageFetchError("unsupported_content_type")
@@ -1000,6 +1012,128 @@ def build_open_question_match_options(
     return options
 
 
+def _open_validated_response(
+    initial_url: str,
+    timeout_sec: float,
+) -> tuple[str, Any]:
+    current_url = initial_url
+    for redirect_count in range(HOMEPAGE_FETCH_MAX_REDIRECTS + 1):
+        current_url = _validate_public_target(
+            current_url,
+            error_code=(
+                "invalid_or_disallowed_url"
+                if redirect_count == 0
+                else "invalid_or_disallowed_redirect"
+            ),
+        )
+        request = Request(current_url, headers={"User-Agent": USER_AGENT})
+        _log_fetch_event("request", current_url, cache_hit=False)
+        try:
+            response = _open_url(request, timeout_sec)
+        except HTTPError as exc:
+            if not _is_redirect_status(exc.code):
+                raise
+            try:
+                if redirect_count >= HOMEPAGE_FETCH_MAX_REDIRECTS:
+                    raise HomepageFetchError("too_many_redirects") from exc
+                current_url = _validated_redirect_target(current_url, exc)
+            finally:
+                _close_response(exc)
+            continue
+
+        status_code = _response_status_code(response)
+        if _is_redirect_status(status_code):
+            try:
+                if redirect_count >= HOMEPAGE_FETCH_MAX_REDIRECTS:
+                    raise HomepageFetchError("too_many_redirects")
+                current_url = _validated_redirect_target(current_url, response)
+            finally:
+                _close_response(response)
+            continue
+
+        try:
+            final_url = _validate_public_target(
+                _response_url(response) or current_url,
+                error_code="invalid_or_disallowed_redirect",
+            )
+        except HomepageFetchError:
+            _close_response(response)
+            raise
+        return final_url, response
+
+    raise HomepageFetchError("too_many_redirects")
+
+
+def _open_url(request: Request, timeout_sec: float) -> Any:
+    return _NO_REDIRECT_OPENER.open(request, timeout=timeout_sec)
+
+
+def _validate_public_target(raw_url: str, *, error_code: str) -> str:
+    normalized = normalize_url(raw_url)
+    if not normalized:
+        raise HomepageFetchError(error_code)
+    parsed = urlparse(normalized)
+    hostname = parsed.hostname or ""
+    if not _hostname_resolves_public(hostname):
+        raise HomepageFetchError(error_code)
+    return normalized
+
+
+def _validated_redirect_target(current_url: str, response: object) -> str:
+    location = _response_header(response, "Location") or _response_header(
+        response, "URI"
+    )
+    if not location:
+        raise HomepageFetchError("invalid_or_disallowed_redirect")
+    return _validate_public_target(
+        urljoin(current_url, location),
+        error_code="invalid_or_disallowed_redirect",
+    )
+
+
+def _response_url(response: object) -> str:
+    geturl = getattr(response, "geturl", None)
+    if not callable(geturl):
+        return ""
+    return str(geturl() or "").strip()
+
+
+def _response_status_code(response: object) -> int | None:
+    getcode = getattr(response, "getcode", None)
+    value = getcode() if callable(getcode) else None
+    if value is None:
+        value = getattr(response, "status", None)
+    if value is None:
+        value = getattr(response, "code", None)
+    try:
+        return int(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _is_redirect_status(status_code: int | None) -> bool:
+    return status_code in REDIRECT_STATUS_CODES
+
+
+def _response_header(response: object, name: str) -> str:
+    headers = getattr(response, "headers", None)
+    if headers is None:
+        info = getattr(response, "info", None)
+        headers = info() if callable(info) else None
+    if headers is None:
+        return ""
+    get = getattr(headers, "get", None)
+    if not callable(get):
+        return ""
+    return str(get(name, "") or "").strip()
+
+
+def _close_response(response: object) -> None:
+    close = getattr(response, "close", None)
+    if callable(close):
+        close()
+
+
 def _response_content_type(response: object) -> str:
     headers = getattr(response, "headers", None)
     if headers is None:
@@ -1019,6 +1153,41 @@ def _is_allowed_content_type(content_type: str) -> bool:
     return content_type.startswith(ALLOWED_CONTENT_TYPE_PREFIXES)
 
 
+def _has_supported_port(parsed: Any) -> bool:
+    try:
+        port = parsed.port
+    except ValueError:
+        return False
+    if port is None:
+        return True
+    scheme = str(parsed.scheme or "").lower()
+    return (scheme == "http" and port == 80) or (scheme == "https" and port == 443)
+
+
+def _hostname_resolves_public(hostname: str) -> bool:
+    normalized = hostname.strip().strip("[]")
+    if _is_disallowed_hostname(normalized):
+        return False
+    try:
+        infos = socket.getaddrinfo(normalized, None, type=socket.SOCK_STREAM)
+    except OSError:
+        return False
+
+    addresses: set[ipaddress.IPv4Address | ipaddress.IPv6Address] = set()
+    for info in infos:
+        sockaddr = info[4] if len(info) > 4 else ()
+        if not sockaddr:
+            continue
+        raw_address = str(sockaddr[0]).split("%", 1)[0]
+        try:
+            addresses.add(ipaddress.ip_address(raw_address))
+        except ValueError:
+            return False
+    return bool(addresses) and all(
+        _is_public_ip_address(address) for address in addresses
+    )
+
+
 def _is_disallowed_hostname(hostname: str) -> bool:
     normalized = hostname.strip().strip("[]").casefold()
     if not normalized:
@@ -1029,13 +1198,20 @@ def _is_disallowed_hostname(hostname: str) -> bool:
         address = ipaddress.ip_address(normalized)
     except ValueError:
         return False
+    return not _is_public_ip_address(address)
+
+
+def _is_public_ip_address(
+    address: ipaddress.IPv4Address | ipaddress.IPv6Address,
+) -> bool:
     return (
-        address.is_private
-        or address.is_loopback
-        or address.is_link_local
-        or address.is_multicast
-        or address.is_reserved
-        or address.is_unspecified
+        address.is_global
+        and not address.is_private
+        and not address.is_loopback
+        and not address.is_link_local
+        and not address.is_multicast
+        and not address.is_reserved
+        and not address.is_unspecified
     )
 
 
@@ -1050,7 +1226,7 @@ def _log_fetch_event(
     LOGGER.info(
         "event=company_homepage_fetch status=%s host=%s cache_hit=%s bytes=%s",
         event_name,
-        parsed.netloc,
+        parsed.hostname or "",
         cache_hit,
         "" if bytes_read is None else bytes_read,
     )

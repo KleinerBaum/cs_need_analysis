@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
+import socket
 from types import SimpleNamespace
 
 import pytest
@@ -27,14 +28,26 @@ SPEC.loader.exec_module(COMPANY_MODULE)  # type: ignore[attr-defined]
 
 
 class _FakeHeaders:
-    def __init__(self, content_type: str = "text/html") -> None:
+    def __init__(
+        self,
+        content_type: str = "text/html",
+        extra: dict[str, str] | None = None,
+    ) -> None:
         self._content_type = content_type
+        self._extra = {
+            str(key).casefold(): str(value) for key, value in (extra or {}).items()
+        }
 
     def get_content_charset(self) -> str:
         return "utf-8"
 
     def get_content_type(self) -> str:
         return self._content_type
+
+    def get(self, key: str, default: str = "") -> str:
+        if key.casefold() == "content-type":
+            return self._content_type
+        return self._extra.get(key.casefold(), default)
 
 
 class _FakeResponse:
@@ -44,22 +57,64 @@ class _FakeResponse:
         *,
         final_url: str = "https://example.com",
         content_type: str = "text/html",
+        status_code: int = 200,
+        headers: dict[str, str] | None = None,
     ) -> None:
         self._payload = payload.encode("utf-8")
         self._final_url = final_url
-        self.headers = _FakeHeaders(content_type)
+        self.headers = _FakeHeaders(content_type, headers)
+        self.status = status_code
+        self.code = status_code
+        self.closed = False
+        self.read_calls = 0
 
     def __enter__(self) -> "_FakeResponse":
         return self
 
     def __exit__(self, *_args: object) -> None:
-        return None
+        self.close()
 
     def geturl(self) -> str:
         return self._final_url
 
+    def getcode(self) -> int:
+        return self.status
+
     def read(self, _size: int = -1) -> bytes:
+        self.read_calls += 1
         return self._payload
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def _patch_dns(
+    monkeypatch: pytest.MonkeyPatch,
+    records: dict[str, tuple[str, ...]] | None = None,
+) -> None:
+    resolved = records or {"example.com": ("93.184.216.34",)}
+
+    def fake_getaddrinfo(
+        host: str,
+        _port: object,
+        *_args: object,
+        **_kwargs: object,
+    ) -> list[tuple[int, int, int, str, tuple[str, int]]]:
+        addresses = resolved.get(str(host).strip("[]").casefold())
+        if addresses is None:
+            raise OSError("unresolved test host")
+        return [
+            (
+                socket.AF_INET6 if ":" in address else socket.AF_INET,
+                socket.SOCK_STREAM,
+                0,
+                "",
+                (address, 0),
+            )
+            for address in addresses
+        ]
+
+    monkeypatch.setattr(homepage_research.socket, "getaddrinfo", fake_getaddrinfo)
 
 
 def test_strip_html_removes_script_payload_noise() -> None:
@@ -83,14 +138,100 @@ def test_normalize_url_rejects_local_or_private_targets() -> None:
     assert COMPANY_MODULE._normalize_url("https://192.168.0.10") == ""
 
 
-def test_fetch_url_text_rejects_unsupported_content_type(monkeypatch) -> None:
+def test_fetch_url_text_allows_public_target(monkeypatch) -> None:
+    homepage_research.clear_fetch_cache()
+    _patch_dns(monkeypatch)
+    opened_urls: list[str] = []
+
+    def fake_open_url(request: object, timeout_sec: float) -> _FakeResponse:
+        assert timeout_sec == 8.0
+        request_url = str(getattr(request, "full_url"))
+        opened_urls.append(request_url)
+        return _FakeResponse(
+            "<html><body>Über uns</body></html>",
+            final_url=request_url,
+        )
+
+    monkeypatch.setattr(homepage_research, "_open_url", fake_open_url)
+
+    result = COMPANY_MODULE._fetch_url_text("example.com")
+
+    assert result == ("https://example.com", "<html><body>Über uns</body></html>")
+    assert opened_urls == ["https://example.com"]
+
+
+def test_fetch_url_text_rejects_hostname_resolving_to_private_ip(monkeypatch) -> None:
+    homepage_research.clear_fetch_cache()
+    _patch_dns(monkeypatch, {"example.com": ("10.0.0.5",)})
+
+    def fake_open_url(_request: object, _timeout_sec: float) -> _FakeResponse:
+        pytest.fail("Fetch should not start for private DNS targets")
+
+    monkeypatch.setattr(homepage_research, "_open_url", fake_open_url)
+
+    with pytest.raises(homepage_research.HomepageFetchError, match="invalid"):
+        COMPANY_MODULE._fetch_url_text("https://example.com")
+
+
+def test_fetch_url_text_rejects_redirect_to_private_target(monkeypatch) -> None:
+    homepage_research.clear_fetch_cache()
+    _patch_dns(monkeypatch)
+    redirect_response = _FakeResponse(
+        "",
+        final_url="https://example.com",
+        status_code=302,
+        headers={"Location": "http://10.0.0.1/"},
+    )
+
+    def fake_open_url(_request: object, _timeout_sec: float) -> _FakeResponse:
+        return redirect_response
+
+    monkeypatch.setattr(homepage_research, "_open_url", fake_open_url)
+
+    with pytest.raises(homepage_research.HomepageFetchError, match="redirect"):
+        COMPANY_MODULE._fetch_url_text("https://example.com")
+    assert redirect_response.read_calls == 0
+
+
+def test_fetch_url_text_rejects_unsupported_explicit_port() -> None:
     homepage_research.clear_fetch_cache()
 
-    def fake_urlopen(_request: object, timeout: float) -> _FakeResponse:
-        assert timeout == 8.0
+    assert COMPANY_MODULE._normalize_url("https://example.com:8443") == ""
+    with pytest.raises(homepage_research.HomepageFetchError, match="invalid"):
+        COMPANY_MODULE._fetch_url_text("https://example.com:8443")
+
+
+def test_fetch_url_text_enforces_redirect_limit(monkeypatch) -> None:
+    homepage_research.clear_fetch_cache()
+    _patch_dns(monkeypatch)
+    opened_urls: list[str] = []
+
+    def fake_open_url(request: object, _timeout_sec: float) -> _FakeResponse:
+        request_url = str(getattr(request, "full_url"))
+        opened_urls.append(request_url)
+        return _FakeResponse(
+            "",
+            final_url=request_url,
+            status_code=302,
+            headers={"Location": f"https://example.com/r{len(opened_urls)}"},
+        )
+
+    monkeypatch.setattr(homepage_research, "_open_url", fake_open_url)
+
+    with pytest.raises(homepage_research.HomepageFetchError, match="too_many"):
+        COMPANY_MODULE._fetch_url_text("https://example.com")
+    assert len(opened_urls) == homepage_research.HOMEPAGE_FETCH_MAX_REDIRECTS + 1
+
+
+def test_fetch_url_text_rejects_unsupported_content_type(monkeypatch) -> None:
+    homepage_research.clear_fetch_cache()
+    _patch_dns(monkeypatch)
+
+    def fake_open_url(_request: object, timeout_sec: float) -> _FakeResponse:
+        assert timeout_sec == 8.0
         return _FakeResponse("%PDF-1.7", content_type="application/pdf")
 
-    monkeypatch.setattr(homepage_research, "urlopen", fake_urlopen)
+    monkeypatch.setattr(homepage_research, "_open_url", fake_open_url)
 
     with pytest.raises(homepage_research.HomepageFetchError, match="unsupported"):
         COMPANY_MODULE._fetch_url_text("https://example.com")
@@ -98,13 +239,14 @@ def test_fetch_url_text_rejects_unsupported_content_type(monkeypatch) -> None:
 
 def test_fetch_url_text_uses_cache(monkeypatch) -> None:
     homepage_research.clear_fetch_cache()
+    _patch_dns(monkeypatch)
     calls: list[str] = []
 
-    def fake_urlopen(_request: object, timeout: float) -> _FakeResponse:
-        calls.append(f"timeout={timeout}")
+    def fake_open_url(_request: object, timeout_sec: float) -> _FakeResponse:
+        calls.append(f"timeout={timeout_sec}")
         return _FakeResponse("<html><body>Über uns</body></html>")
 
-    monkeypatch.setattr(homepage_research, "urlopen", fake_urlopen)
+    monkeypatch.setattr(homepage_research, "_open_url", fake_open_url)
 
     first = COMPANY_MODULE._fetch_url_text("example.com")
     second = COMPANY_MODULE._fetch_url_text("https://example.com")
