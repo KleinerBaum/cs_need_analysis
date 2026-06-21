@@ -65,6 +65,7 @@ from schemas import (
     EscoSuggestionItem,
 )
 from settings_openai import load_openai_settings
+from state_store import StateStore
 from usage_events import reset_usage_events
 
 DEFAULT_ESCO_API_BASE_URL = "https://ec.europa.eu/esco/api/"
@@ -1030,7 +1031,7 @@ def reset_vacancy() -> None:
 
 
 def get_answers() -> Dict[str, Any]:
-    return st.session_state.get(SSKey.ANSWERS.value, {}) or {}
+    return StateStore(st.session_state).answers()
 
 
 def set_answer(question_id: str, value: Any, *, fact_key: str | None = None) -> None:
@@ -1083,8 +1084,7 @@ def _raw_step_questions(raw_step: Any) -> list[Any]:
 
 
 def get_answer_meta() -> AnswerMetaMap:
-    raw = st.session_state.get(SSKey.ANSWER_META.value, {})
-    return raw if isinstance(raw, dict) else {}
+    return cast(AnswerMetaMap, StateStore(st.session_state).answer_meta())
 
 
 def mark_answer_touched(

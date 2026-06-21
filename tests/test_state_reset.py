@@ -3,7 +3,14 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from constants import FactKey, FactSourceType, SSKey, STEP_KEY_INTRO
+from schemas import JobAdExtract
 import state
+from state_store import (
+    EscoState,
+    JobspecSourceState,
+    StateStore,
+    SummaryDirtyState,
+)
 
 
 RESET_EXPECTATIONS: dict[SSKey, object] = {
@@ -185,6 +192,63 @@ RESET_EXPECTATIONS: dict[SSKey, object] = {
 }
 
 
+def test_state_store_read_defaults_do_not_create_missing_keys() -> None:
+    session_state: dict[str, object] = {}
+    store = StateStore(session_state)
+
+    assert store.jobspec_source().active == "manual"
+    assert store.job_extraction().extract is None
+    assert store.esco().anchor_state == "degraded_unconfirmed"
+    assert store.question_answers().answers == {}
+    assert store.question_answers().answer_meta == {}
+    assert store.summary_dirty().is_dirty is False
+    assert session_state == {}
+
+
+def test_state_store_setters_write_only_canonical_session_keys() -> None:
+    session_state: dict[str, object] = {}
+    store = StateStore(session_state)
+
+    store.set_jobspec_source(
+        JobspecSourceState(
+            active="upload",
+            active_fingerprint="source-fp",
+            source_text="synthetic jobspec",
+            file_meta={"size": 123},
+            uploaded_text="synthetic jobspec",
+        )
+    )
+    store.set_job_extract(JobAdExtract(job_title="Data Engineer"))
+    store.set_esco(
+        EscoState(
+            anchor_state="anchored",
+            primary_anchor={"uri": "esco:occupation:1", "title": "Data Engineer"},
+            semantic_export_mode="anchored",
+            occupation_selected={
+                "uri": "esco:occupation:1",
+                "title": "Data Engineer",
+            },
+            selected_occupation_uri="esco:occupation:1",
+        )
+    )
+    store.set_question_answers({"role_title": "Data Engineer"}, {"role_title": {}})
+    store.set_summary_dirty_state(
+        SummaryDirtyState(
+            is_dirty=True,
+            input_fingerprint="current",
+            last_brief_fingerprint="previous",
+            active_artifact="job_ad",
+        )
+    )
+
+    assert set(session_state).issubset({key.value for key in SSKey})
+    assert session_state[SSKey.SOURCE_ACTIVE.value] == "upload"
+    assert session_state[SSKey.JOB_EXTRACT.value]["job_title"] == "Data Engineer"
+    assert session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] == "esco:occupation:1"
+    assert session_state[SSKey.ANSWERS.value] == {"role_title": "Data Engineer"}
+    assert session_state[SSKey.SUMMARY_DIRTY.value] is True
+
+
 def test_reset_vacancy_clears_progressive_disclosure_state(
     monkeypatch,
 ) -> None:
@@ -256,6 +320,12 @@ def test_reset_vacancy_clears_progressive_disclosure_state(
     for key, expected in RESET_EXPECTATIONS.items():
         assert fake_session_state[key.value] == expected
     assert fake_session_state[SSKey.CURRENT_STEP.value] == STEP_KEY_INTRO
+    store = StateStore(fake_session_state)
+    assert store.jobspec_source().active == "manual"
+    assert store.job_extraction().extract is None
+    assert store.esco().selected_occupation_uri == ""
+    assert store.question_answers().answers == {}
+    assert store.summary_dirty().is_dirty is False
 
 
 def test_apply_jobspec_source_change_clears_only_source_dependent_state(

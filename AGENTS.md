@@ -47,6 +47,7 @@ Keep this chain synchronized across `constants.py`, `state.py`, `intake_facts.py
 
 - `constants.py` is the single source of truth for session-state keys, step IDs, UI modes, ESCO modes, artifact IDs, schema-version-like constants, and canonical IDs.
 - Add new session keys to `SSKey`; do not use raw string keys when an enum entry should exist.
+- Prefer `state_store.py` for new typed access to existing high-value session-state domains; keep raw storage keys unchanged unless the task explicitly changes the state contract.
 - Keep schema, logic, UI, summary artifacts, exports, tests, and README in sync.
 - Keep OpenAI settings precedence unchanged unless explicitly redesigned: nested `st.secrets["openai"][KEY]` → root `st.secrets[KEY]` → environment → hard default.
 - Keep model-family capability checks centralized in `model_capabilities.py`.
@@ -66,6 +67,7 @@ Keep this chain synchronized across `constants.py`, `state.py`, `intake_facts.py
 ### Canonical state and contracts
 
 - `constants.py` — canonical state keys, wizard steps, UI modes, ESCO modes, artifact IDs, fact registry, usage event types.
+- `state_store.py` — typed facade over canonical `SSKey` session-state storage; new code should prefer it for high-value state domains.
 - `state.py` — session defaults, reset behavior, source redaction preference sync, ESCO semantic state sync, answer/fact adapters.
 - `schemas.py` — Pydantic contracts for structured OpenAI outputs and exports.
 - `intake_facts.py` — canonical intake fact/evidence helpers and legacy field adapters.

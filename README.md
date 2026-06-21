@@ -99,6 +99,7 @@ The canonical fact registry also covers downstream decision points from the impr
 ### Canonical contracts
 
 - `constants.py` — session keys, step IDs, UI modes, ESCO modes, fact registry, artifact IDs.
+- `state_store.py` — typed facade over canonical `SSKey` session-state storage; new code should prefer it for high-value state domains.
 - `state.py` — session defaults, vacancy reset behavior, answer/fact adapters.
 - `schemas.py` — Pydantic contracts for jobspec extraction, question plans, briefs, and generated artifacts.
 - `intake_facts.py` — canonical fact/evidence storage and legacy field compatibility.

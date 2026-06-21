@@ -1,10 +1,16 @@
 from __future__ import annotations
 
-from constants import AnswerType, FactKey, STEP_KEY_ROLE_TASKS
+from constants import (
+    AnswerType,
+    FactKey,
+    SSKey,
+    STEP_KEY_ROLE_TASKS,
+    UI_PREFERENCE_CONFIDENCE_THRESHOLD,
+)
 from question_dependencies import should_show_question
 from question_limits import build_step_question_scope, select_questions_for_step_scope
 from schemas import JobAdExtract, Question, QuestionDependency, QuestionStep
-from step_payload import build_step_payload
+from step_payload import build_step_payload, build_step_payload_from_state
 from step_status import build_step_status_payload
 
 
@@ -547,3 +553,31 @@ def test_step_payload_keeps_adaptive_status_and_review_scope_in_sync() -> None:
     assert payload["step_status"]["answered"] == 0
     assert payload["step_status"]["missing_essential_ids"] == ["uncovered_core"]
     assert payload["review_payload"]["step_status"] == payload["step_status"]
+
+
+def test_step_payload_from_state_reads_passed_state_without_creating_keys() -> None:
+    question = Question(
+        id="role_title",
+        label="Welche Rolle wird gesucht?",
+        answer_type=AnswerType.SHORT_TEXT,
+        required=True,
+        priority="core",
+    )
+    step = QuestionStep(
+        step_key=STEP_KEY_ROLE_TASKS,
+        title_de="Role",
+        questions=[question],
+    )
+    session_state = {
+        SSKey.ANSWERS.value: {"role_title": "Data Engineer"},
+        SSKey.ANSWER_META.value: {},
+        SSKey.QUESTION_LIMITS.value: {},
+        SSKey.UI_PREFERENCES.value: {UI_PREFERENCE_CONFIDENCE_THRESHOLD: 0.6},
+    }
+    keys_before = set(session_state)
+
+    payload = build_step_payload_from_state(step, session_state=session_state)
+
+    assert payload["answers"] == {"role_title": "Data Engineer"}
+    assert payload["step_status"]["answered"] == 1
+    assert set(session_state) == keys_before

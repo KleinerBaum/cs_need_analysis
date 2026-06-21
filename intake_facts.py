@@ -16,6 +16,7 @@ from constants import (
 from interview_process import normalize_interview_internal_flow
 from parsing import redact_pii
 from schemas import JobAdExtract
+from state_store import StateStore
 
 
 _JOB_EXTRACT_FACT_FIELDS: dict[FactKey, str] = {
@@ -123,27 +124,25 @@ _DEFAULT_SENSITIVITY_BY_FACT: dict[FactKey, FactSensitivity] = {
 def get_intake_fact_state(session_state: Mapping[str, Any]) -> dict[str, Any]:
     """Return the additive fact registry state without creating it."""
 
-    raw_state = session_state.get(SSKey.INTAKE_FACTS.value)
-    return raw_state if isinstance(raw_state, dict) else {}
+    return StateStore(session_state).intake_facts()
 
 
 def reset_intake_fact_state(session_state: MutableMapping[str, Any]) -> None:
     """Reset additive fact registry state; legacy state remains untouched."""
 
-    session_state[SSKey.INTAKE_FACTS.value] = {}
+    StateStore(session_state).set_intake_facts({})
 
 
 def get_intake_fact_evidence_state(session_state: Mapping[str, Any]) -> dict[str, Any]:
     """Return additive fact evidence state without creating it."""
 
-    raw_state = session_state.get(SSKey.INTAKE_FACT_EVIDENCE.value)
-    return raw_state if isinstance(raw_state, dict) else {}
+    return StateStore(session_state).intake_fact_evidence()
 
 
 def reset_intake_fact_evidence_state(session_state: MutableMapping[str, Any]) -> None:
     """Reset additive fact evidence state; legacy state remains untouched."""
 
-    session_state[SSKey.INTAKE_FACT_EVIDENCE.value] = {}
+    StateStore(session_state).set_intake_fact_evidence({})
 
 
 def write_intake_fact(

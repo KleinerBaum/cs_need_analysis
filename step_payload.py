@@ -5,9 +5,6 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any, TypedDict, cast
 
-import streamlit as st
-
-from constants import SSKey, UI_PREFERENCE_CONFIDENCE_THRESHOLD
 from question_dependencies import should_show_question
 from question_limits import (
     QuestionVisibilityPredicate,
@@ -23,7 +20,7 @@ from question_progress import (
     compute_question_progress,
 )
 from schemas import JobAdExtract, Question, QuestionStep
-from state import get_answer_meta, get_answers
+from state_store import StateStore
 from step_status import StepStatusPayload, build_step_status_payload
 
 
@@ -61,58 +58,34 @@ class StepPayload(TypedDict):
     confidence_threshold: float | None
 
 
-def _session_state(session_state: Mapping[str, Any] | None = None) -> Mapping[str, Any]:
-    return session_state if session_state is not None else st.session_state
-
-
 def load_job_extract_from_state(
     session_state: Mapping[str, Any] | None = None,
 ) -> JobAdExtract | None:
-    raw_job = _session_state(session_state).get(SSKey.JOB_EXTRACT.value)
-    if isinstance(raw_job, JobAdExtract):
-        return raw_job
-    if not isinstance(raw_job, dict):
-        return None
-    try:
-        return JobAdExtract.model_validate(raw_job)
-    except Exception:
-        return None
+    return StateStore(session_state).job_extract()
 
 
 def load_intake_facts_from_state(
     session_state: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    raw_facts = _session_state(session_state).get(SSKey.INTAKE_FACTS.value)
-    return raw_facts if isinstance(raw_facts, dict) else {}
+    return StateStore(session_state).intake_facts()
 
 
 def load_intake_fact_evidence_from_state(
     session_state: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    raw_evidence = _session_state(session_state).get(SSKey.INTAKE_FACT_EVIDENCE.value)
-    return raw_evidence if isinstance(raw_evidence, dict) else {}
+    return StateStore(session_state).intake_fact_evidence()
 
 
 def read_question_limits_from_state(
     session_state: Mapping[str, Any] | None = None,
 ) -> Mapping[str, Any] | None:
-    limits_raw = _session_state(session_state).get(SSKey.QUESTION_LIMITS.value, {})
-    return limits_raw if isinstance(limits_raw, Mapping) else None
+    return StateStore(session_state).question_limits()
 
 
 def read_confidence_threshold_from_state(
     session_state: Mapping[str, Any] | None = None,
 ) -> float | None:
-    preferences_raw = _session_state(session_state).get(SSKey.UI_PREFERENCES.value, {})
-    if not isinstance(preferences_raw, Mapping):
-        return None
-    try:
-        return max(
-            0.0,
-            min(1.0, float(preferences_raw.get(UI_PREFERENCE_CONFIDENCE_THRESHOLD))),
-        )
-    except (TypeError, ValueError):
-        return None
+    return StateStore(session_state).confidence_threshold()
 
 
 def build_step_payload(
@@ -271,16 +244,16 @@ def build_step_payload_from_state(
     answer_meta: Mapping[str, Any] | None = None,
     visibility_predicate: QuestionVisibilityPredicate = should_show_question,
 ) -> StepPayload:
-    state = _session_state(session_state)
+    store = StateStore(session_state)
     return build_step_payload(
         step=step,
         questions=questions,
-        answers=get_answers() if answers is None else answers,
-        answer_meta=get_answer_meta() if answer_meta is None else answer_meta,
-        question_limits=read_question_limits_from_state(state),
-        job_extract=load_job_extract_from_state(state),
-        intake_facts=load_intake_facts_from_state(state),
-        intake_fact_evidence=load_intake_fact_evidence_from_state(state),
-        confidence_threshold=read_confidence_threshold_from_state(state),
+        answers=store.answers() if answers is None else answers,
+        answer_meta=store.answer_meta() if answer_meta is None else answer_meta,
+        question_limits=store.question_limits(),
+        job_extract=store.job_extract(),
+        intake_facts=store.intake_facts(),
+        intake_fact_evidence=store.intake_fact_evidence(),
+        confidence_threshold=store.confidence_threshold(),
         visibility_predicate=visibility_predicate,
     )
