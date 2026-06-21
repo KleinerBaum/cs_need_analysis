@@ -396,6 +396,13 @@ streamlit run app.py
 
 Without constraints, `pip install -r requirements.txt` remains possible, but CI uses `constraints.txt`.
 
+Optional browser smoke dependencies are kept separate:
+
+```bash
+pip install -r requirements-e2e.txt -c constraints.txt
+python -m playwright install --with-deps chromium
+```
+
 ## Verification
 
 ### Baseline / CI-equivalent
@@ -450,6 +457,22 @@ The smoke test reports configured mode, effective request kwargs after capabilit
 python scripts/esco_smoke_test.py --mode all --ci-dry-run-if-unavailable --json-only
 ```
 
+### Optional Playwright smoke tests
+
+Browser-near Streamlit smoke tests are opt-in and use only synthetic fixture data.
+Normal `pytest -q` runs skip them unless `CS_RUN_E2E=1` is set.
+
+```bash
+pip install -r requirements-e2e.txt -c constraints.txt
+python -m playwright install --with-deps chromium
+CS_RUN_E2E=1 python -m pytest -q tests/e2e
+```
+
+Useful environment overrides:
+
+- `CS_E2E_PORT=8765`
+- `CS_E2E_STARTUP_TIMEOUT=60`
+
 ## GitHub Actions CI
 
 `.github/workflows/ci.yml` runs on pull requests and pushes to `main`:
@@ -460,6 +483,10 @@ python scripts/esco_smoke_test.py --mode all --ci-dry-run-if-unavailable --json-
 4. `compileall`
 5. `pytest -q`
 6. OpenAI smoke dry-run without requiring an API key
+
+The optional Playwright smoke job is available through manual workflow dispatch
+with `run_e2e=true`. It installs `requirements-e2e.txt`, installs Chromium, and
+runs `CS_RUN_E2E=1 python -m pytest -q tests/e2e`.
 
 No separate lint/type job is configured in this snapshot.
 
