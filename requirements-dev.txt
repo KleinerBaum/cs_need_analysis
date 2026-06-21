@@ -1,0 +1,5 @@
+# Development and CI-only quality gates.
+ruff>=0.8.0
+black>=24.10.0
+mypy>=1.13.0
+bandit[toml]>=1.7.10

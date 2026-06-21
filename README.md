@@ -403,6 +403,12 @@ pip install -r requirements-e2e.txt -c constraints.txt
 python -m playwright install --with-deps chromium
 ```
 
+Development-only QA tools are installed separately from runtime dependencies:
+
+```bash
+pip install -r requirements-dev.txt -c constraints.txt
+```
+
 ## Verification
 
 ### Baseline / CI-equivalent
@@ -457,6 +463,28 @@ The smoke test reports configured mode, effective request kwargs after capabilit
 python scripts/esco_smoke_test.py --mode all --ci-dry-run-if-unavailable --json-only
 ```
 
+### Incremental QA gates
+
+The first local quality gate is intentionally low-noise. Ruff runs critical
+syntax/name checks only with an explicit baseline for existing Summary-page
+noise, Black checks a small allowlist of stable helper modules, mypy checks
+selected pure helper modules in permissive baseline mode, and Bandit starts as
+an advisory security scan.
+
+```bash
+python -m ruff check .
+python -m black --check .
+python -m mypy
+python -m bandit -c pyproject.toml -r .
+```
+
+Bandit is non-blocking in CI and may report existing findings until the
+security baseline is triaged.
+
+Follow-up hardening should expand Ruff rules, expand Black coverage after an
+approved formatting-only change, grow the mypy module allowlist, then make
+Bandit blocking or add Semgrep once findings are triaged.
+
 ### Optional Playwright smoke tests
 
 Browser-near Streamlit smoke tests are opt-in and use only synthetic fixture data.
@@ -477,18 +505,18 @@ Useful environment overrides:
 
 `.github/workflows/ci.yml` runs on pull requests and pushes to `main`:
 
-1. Python 3.11 setup
-2. dependency install with `requirements.txt` and `constraints.txt`
-3. `pip check`
-4. `compileall`
-5. `pytest -q`
-6. OpenAI smoke dry-run without requiring an API key
+1. blocking Ruff, scoped Black, and scoped mypy gates with `requirements-dev.txt`
+2. advisory Bandit security scan with `continue-on-error`
+3. Python 3.11 setup
+4. dependency install with `requirements.txt` and `constraints.txt`
+5. `pip check`
+6. `compileall`
+7. `pytest -q`
+8. OpenAI smoke dry-run without requiring an API key
 
 The optional Playwright smoke job is available through manual workflow dispatch
 with `run_e2e=true`. It installs `requirements-e2e.txt`, installs Chromium, and
 runs `CS_RUN_E2E=1 python -m pytest -q tests/e2e`.
-
-No separate lint/type job is configured in this snapshot.
 
 ## Debugging and incident reports
 
