@@ -12,13 +12,14 @@ The visible wizard route is defined by `constants.STEPS` and enforced by `wizard
 
 | Order | Step key | UI label | Page module |
 |---:|---|---|---|
-| 1 | `landing` | Start | `wizard_pages/00_landing.py` |
-| 2 | `company` | Unternehmen | `wizard_pages/02_company.py` |
-| 3 | `role_tasks` | Rolle & Aufgaben | `wizard_pages/04_role_tasks.py` |
-| 4 | `skills` | Skills & Anforderungen | `wizard_pages/05_skills.py` |
-| 5 | `benefits` | Benefits & Rahmenbedingungen | `wizard_pages/06_benefits.py` |
-| 6 | `interview` | Interviewprozess | `wizard_pages/07_interview.py` |
-| 7 | `summary` | Zusammenfassung | `wizard_pages/08_summary.py` |
+| 1 | `intro` | Einleitung | `wizard_pages/00_intro.py` |
+| 2 | `landing` | Start | `wizard_pages/00_landing.py` |
+| 3 | `company` | Unternehmen | `wizard_pages/02_company.py` |
+| 4 | `role_tasks` | Rolle & Aufgaben | `wizard_pages/04_role_tasks.py` |
+| 5 | `skills` | Skills & Anforderungen | `wizard_pages/05_skills.py` |
+| 6 | `benefits` | Benefits & Rahmenbedingungen | `wizard_pages/06_benefits.py` |
+| 7 | `interview` | Interviewprozess | `wizard_pages/07_interview.py` |
+| 8 | `summary` | Zusammenfassung | `wizard_pages/08_summary.py` |
 
 Legacy/non-routable modules:
 
@@ -31,13 +32,14 @@ Do not reintroduce these modules into routing unless the task explicitly redesig
 
 The current intake process is intentionally staged:
 
-1. **Start / Phase A** — source selection, upload/manual text, consent, PII reduction, UI mode, ESCO operating settings.
-2. **Start / Phase B** — structured jobspec extraction review with field-level fact/evidence handling.
-3. **Start / Phase C** — ESCO occupation anchoring with primary anchor and up to two secondary context anchors.
-4. **Company** — company/team context, optional homepage enrichment, open-question matching.
-5. **Role/Skills/Benefits** — unified blocks: extracted jobspec values, source comparison, salary forecast, open questions, review.
-6. **Interview** — process board, candidate communication, internal roles/timing, export-marked values.
-7. **Summary** — readiness, fact overview, action hub, artifact generation, result workspace, export workspace.
+1. **Einleitung** — short product context before operational intake starts.
+2. **Start / Phase A** — source selection, upload/manual text, consent, PII reduction, UI mode, ESCO operating settings.
+3. **Start / Phase B** — structured jobspec extraction review with field-level fact/evidence handling.
+4. **Start / Phase C** — ESCO occupation anchoring with primary anchor and up to two secondary context anchors.
+5. **Company** — company/team context, optional homepage enrichment, open-question matching.
+6. **Role/Skills/Benefits** — unified blocks: extracted jobspec values, source comparison, salary forecast, open questions, review.
+7. **Interview** — process board, candidate communication, internal roles/timing, export-marked values.
+8. **Summary** — readiness, fact overview, action hub, artifact generation, result workspace, export workspace.
 
 Keep this chain synchronized across `constants.py`, `state.py`, `intake_facts.py`, `job_extract_review_helpers.py`, `question_plan_compiler.py`, `question_*`, wizard pages, summary/export code, tests, and README.
 

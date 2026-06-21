@@ -177,6 +177,7 @@ COMPLETION_STATE_PREFIX_TOKENS: Final[dict[str, str]] = {
 }
 
 # ---- Canonical Wizard Step Keys ----
+STEP_KEY_INTRO: Final[str] = "intro"
 STEP_KEY_LANDING: Final[str] = "landing"
 # Legacy-only key: previously rendered as a standalone step via 01a_jobspec_review.py.
 # The integrated flow now handles extraction review and ESCO confirmation directly in
@@ -209,6 +210,7 @@ QUESTION_IMPACT_TARGETS: Final[tuple[str, str, str, str, str]] = (
 
 # Plan/System steps that are intentionally excluded from intake completion/facts views.
 NON_INTAKE_STEP_KEYS: Final[tuple[str, ...]] = (
+    STEP_KEY_INTRO,
     STEP_KEY_LANDING,
     STEP_KEY_SUMMARY,
 )
@@ -526,6 +528,7 @@ class WizardStepDef:
 
 
 STEPS: Final[List[WizardStepDef]] = [
+    WizardStepDef(key=STEP_KEY_INTRO, title_de="Einleitung", icon="ℹ️"),
     WizardStepDef(key=STEP_KEY_LANDING, title_de="Start", icon="🏁"),
     WizardStepDef(key=STEP_KEY_COMPANY, title_de="Unternehmen", icon="🏢"),
     WizardStepDef(key=STEP_KEY_ROLE_TASKS, title_de="Rolle & Aufgaben", icon="🧭"),

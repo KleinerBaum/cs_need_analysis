@@ -20,6 +20,7 @@ LANGUAGE_WIDGET_KEYS = (
 LAST_LANGUAGE_WIDGET_KEY = "cs.language.last_widget_key"
 
 _TRANSLATIONS_EN: dict[str, str] = {
+    "Einleitung": "Introduction",
     "Start": "Start",
     "Unternehmen": "Company",
     "Rolle & Aufgaben": "Role & tasks",
@@ -71,10 +72,17 @@ _TRANSLATIONS_EN: dict[str, str] = {
     "Weiter →": "Next",
     "Bitte zuerst im Start-Schritt eine Analyse durchführen.": "Please run an analysis in the Start step first.",
     "Zur Startseite": "Go to start page",
+    "Zum Start": "Go to Start",
     "Debug: OpenAI-Auflösung": "Debug: OpenAI resolution",
     "Nur aufgelöste Laufzeitwerte, keine Secrets.": "Resolved runtime values only, no secrets.",
     "Stellenanzeige einlesen und Intake starten": "Import job ad and start intake",
     "Anzeige hochladen oder einfügen": "Upload or paste job ad",
+    "Vakanzanforderungen präzise erfassen": "Capture vacancy requirements precisely",
+    "Bevor Recruiting beginnt, muss klar sein, welche Person wirklich gesucht wird.": "Before recruiting begins, it must be clear which person is really needed.",
+    "Aus langjähriger Erfahrung in der Personalvermittlung zeigt sich immer wieder: Essentielle Informationen zu einer Vakanz ändern sich oft erst im laufenden Bewerbungsprozess, werden zu spät sichtbar oder fehlen vollständig. Das kann Abstimmungsschleifen, Fehlbesetzungen und hohe Folgekosten verursachen.": "Years of recruiting experience show the same pattern again and again: essential information about a vacancy often changes during the application process, appears too late, or is missing entirely. This can create alignment loops, hiring mistakes, and high downstream costs.",
+    "Gerade in großen Unternehmen werden regelmäßig ähnliche Qualitäten gesucht und auf Basis derselben Stellenanzeige ausgeschrieben. Die individuellen Charakteristika einer konkreten Vakanz bleiben dabei häufig zu unscharf.": "Especially in large organizations, similar qualities are often needed and advertised from the same job ad. The individual characteristics of a specific vacancy often remain too vague.",
+    "Diese App fokussiert ausschließlich den ersten Schritt jedes Recruiting-Prozesses: Der fachliche Vorgesetzte definiert, welchen Mitarbeiter er sucht. Diverse Funktionen helfen dabei, mit möglichst wenig Aufwand ein umfassendes Bild der Stelle zu erstellen. Dafür nutzt die App die europäische Berufs- und Skill-Taxonomie ESCO sowie die OpenAI-API, um den Informationsgewinnungsprozess dynamisch an die individuellen Bedürfnisse Ihrer Vakanz anzupassen.": "This app focuses exclusively on the first step of every recruiting process: the hiring manager defines which employee they are looking for. A set of focused functions helps create a comprehensive picture of the role with as little effort as possible. To do that, the app uses the European occupation and skills taxonomy ESCO as well as the OpenAI API to dynamically adapt the information-gathering process to the individual needs of your vacancy.",
+    "Bereit, die Anforderungen Ihrer Vakanz richtig kennenzulernen? Probieren Sie es aus.": "Ready to properly understand the requirements of your vacancy? Try it out.",
     "Von der Jobspec zum klaren Recruiting-Bild.": "From job spec to a clear recruiting picture.",
     "Die App liest eine Stellenanzeige ein, erkennt den fachlichen Kontext und fragt nur dort nach, wo Informationen für gute Recruiting-Entscheidungen fehlen.": "The app reads a job ad, detects the professional context, and only asks where information is missing for good recruiting decisions.",
     "Warum der Intake mehr sieht": "Why the intake sees more",

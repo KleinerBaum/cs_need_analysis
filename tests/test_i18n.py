@@ -28,7 +28,13 @@ def test_translation_uses_german_as_source_copy(monkeypatch) -> None:
     )
 
     assert t("Unternehmen") == "Company"
+    assert t("Einleitung") == "Introduction"
     assert t("Weiter →") == "Next"
+    assert t("Zum Start") == "Go to Start"
+    assert (
+        t("Vakanzanforderungen präzise erfassen")
+        == "Capture vacancy requirements precisely"
+    )
     assert t("Anzeige hochladen oder einfügen") == "Upload or paste job ad"
     assert t('Nach dem Klick auf "Analyse starten"') == 'After clicking "Start analysis"'
     assert t("Text verstehen") == "Understand text"

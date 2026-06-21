@@ -28,6 +28,7 @@ from constants import (
     STEPS,
     STEP_KEY_BENEFITS,
     STEP_KEY_COMPANY,
+    STEP_KEY_INTRO,
     STEP_KEY_LANDING,
     STEP_KEY_SUMMARY,
     UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT,
@@ -65,6 +66,7 @@ _PROCESS_PROGRESS_STATUS_LABELS: dict[str, str] = {
 }
 
 _PROCESS_PROGRESS_DETAIL_LABELS: dict[str, str] = {
+    STEP_KEY_INTRO: "Kontext",
     STEP_KEY_LANDING: "Quelle & Analyse",
     STEP_KEY_SUMMARY: "Review & Export",
 }
@@ -83,6 +85,9 @@ def _process_progress_status_from_payload(
     status = payload["step_status"]
     if status["total"] > 0:
         return status["completion_state"], f"{status['answered']}/{status['total']}"
+
+    if step_key == STEP_KEY_INTRO:
+        return "complete", ""
 
     if step_key == STEP_KEY_LANDING:
         has_job_extract = bool(st.session_state.get(SSKey.JOB_EXTRACT.value))

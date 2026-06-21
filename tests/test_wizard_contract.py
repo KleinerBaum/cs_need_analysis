@@ -7,6 +7,7 @@ from constants import (
     STEP_KEY_BENEFITS,
     STEP_KEY_COMPANY,
     STEP_KEY_INTERVIEW,
+    STEP_KEY_INTRO,
     STEP_KEY_JOBSPEC_REVIEW,
     STEP_KEY_LANDING,
     STEP_KEY_ROLE_TASKS,
@@ -23,6 +24,7 @@ def test_loaded_wizard_pages_match_canonical_steps() -> None:
     pages = load_pages()
     visible_page_keys = [page.key for page in pages]
     expected_visible_step_order = [
+        STEP_KEY_INTRO,
         STEP_KEY_LANDING,
         STEP_KEY_COMPANY,
         STEP_KEY_ROLE_TASKS,
@@ -34,7 +36,7 @@ def test_loaded_wizard_pages_match_canonical_steps() -> None:
 
     assert visible_page_keys == [step.key for step in STEPS]
     assert visible_page_keys == expected_visible_step_order
-    assert visible_page_keys[2:5] == [
+    assert visible_page_keys[3:6] == [
         STEP_KEY_ROLE_TASKS,
         STEP_KEY_SKILLS,
         STEP_KEY_BENEFITS,

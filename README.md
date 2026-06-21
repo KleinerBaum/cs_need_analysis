@@ -34,13 +34,14 @@ The active visible route is defined by `constants.STEPS` and enforced by `wizard
 
 | Order | Step key | UI label | Main module | Purpose |
 |---:|---|---|---|---|
-| 1 | `landing` | Start | `wizard_pages/00_landing.py` + `wizard_pages/jobad_intake.py` | Landing page plus jobspec intake phases A/B/C |
-| 2 | `company` | Unternehmen | `wizard_pages/02_company.py` | Employer profile, website evidence, ESCO context, company questions, team/reporting |
-| 3 | `role_tasks` | Rolle & Aufgaben | `wizard_pages/04_role_tasks.py` | Work model/location, non-negotiables/compliance, role/task curation, ESCO/context/AI suggestions, salary block |
-| 4 | `skills` | Skills & Anforderungen | `wizard_pages/05_skills.py` | Jobspec/ESCO/AI skills, normalization, matrix priors, unmapped-term decisions |
-| 5 | `benefits` | Benefits & Rahmenbedingungen | `wizard_pages/06_benefits.py` | Benefits and operating conditions from jobspec/context/AI |
-| 6 | `interview` | Interviewprozess | `wizard_pages/07_interview.py` | Interview values, candidate communication, internal roles/timing |
-| 7 | `summary` | Zusammenfassung | `wizard_pages/08_summary.py` | Readiness, facts, action hub, artifacts, exports |
+| 1 | `intro` | Einleitung | `wizard_pages/00_intro.py` | Introductory context before the operational intake starts |
+| 2 | `landing` | Start | `wizard_pages/00_landing.py` + `wizard_pages/jobad_intake.py` | Landing page plus jobspec intake phases A/B/C |
+| 3 | `company` | Unternehmen | `wizard_pages/02_company.py` | Employer profile, website evidence, ESCO context, company questions, team/reporting |
+| 4 | `role_tasks` | Rolle & Aufgaben | `wizard_pages/04_role_tasks.py` | Work model/location, non-negotiables/compliance, role/task curation, ESCO/context/AI suggestions, salary block |
+| 5 | `skills` | Skills & Anforderungen | `wizard_pages/05_skills.py` | Jobspec/ESCO/AI skills, normalization, matrix priors, unmapped-term decisions |
+| 6 | `benefits` | Benefits & Rahmenbedingungen | `wizard_pages/06_benefits.py` | Benefits and operating conditions from jobspec/context/AI |
+| 7 | `interview` | Interviewprozess | `wizard_pages/07_interview.py` | Interview values, candidate communication, internal roles/timing |
+| 8 | `summary` | Zusammenfassung | `wizard_pages/08_summary.py` | Readiness, facts, action hub, artifacts, exports |
 
 ### Start step phases
 

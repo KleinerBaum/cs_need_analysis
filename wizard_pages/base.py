@@ -35,6 +35,7 @@ from constants import (
     FactKey,
     SSKey,
     STEPS,
+    STEP_KEY_INTRO,
     UI_PREFERENCE_ANSWER_MODE,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
     UI_PREFERENCE_INFORMATION_DEPTH,
@@ -905,6 +906,8 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
         status: StepStatus = payload["completion_state"]
         if total > 0:
             status = cast(StepStatus, step_status["completion_state"])
+        elif page.key == STEP_KEY_INTRO:
+            status = "complete"
         elif page.key == "landing":
             source_text = st.session_state.get(SSKey.SOURCE_TEXT.value, "")
             has_source = isinstance(source_text, str) and bool(source_text.strip())

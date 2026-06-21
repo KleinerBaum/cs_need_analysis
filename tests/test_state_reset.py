@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from constants import SSKey
+from constants import SSKey, STEP_KEY_INTRO
 import state
 
 
@@ -249,7 +249,7 @@ def test_reset_vacancy_clears_progressive_disclosure_state(
 
     for key, expected in RESET_EXPECTATIONS.items():
         assert fake_session_state[key.value] == expected
-    assert fake_session_state[SSKey.CURRENT_STEP.value] == "landing"
+    assert fake_session_state[SSKey.CURRENT_STEP.value] == STEP_KEY_INTRO
 
 
 def test_init_session_state_and_reset_vacancy_share_same_defaults(monkeypatch) -> None:
