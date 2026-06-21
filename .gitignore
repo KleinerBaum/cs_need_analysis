@@ -51,6 +51,12 @@ coverage.xml
 .pytest_cache/
 cover/
 
+# Local QA/security reports and generated analysis outputs
+reports/
+gitleaks-report.*
+artifact-scan-report.*
+*:Zone.*
+
 # Translations
 *.mo
 *.pot

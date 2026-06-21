@@ -98,7 +98,22 @@ def test_ci_contains_blocking_qa_and_advisory_security_jobs() -> None:
     assert "python -m mypy" in workflow
     assert "security:" in workflow
     assert "continue-on-error: true" in workflow
+    assert "fetch-depth: 0" in workflow
+    assert "gitleaks/gitleaks-action@v3" in workflow
+    assert 'GITLEAKS_ENABLE_COMMENTS: "false"' in workflow
+    assert 'GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"' in workflow
+    assert 'GITLEAKS_ENABLE_SUMMARY: "false"' in workflow
     assert "python -m bandit -c pyproject.toml -r ." in workflow
+    assert "python scripts/check_tracked_artifacts.py" in workflow
+
+
+def test_gitignore_excludes_local_scan_and_generated_report_outputs() -> None:
+    gitignore = _read(".gitignore")
+
+    assert "reports/" in gitignore
+    assert "gitleaks-report.*" in gitignore
+    assert "artifact-scan-report.*" in gitignore
+    assert "*:Zone.*" in gitignore
 
 
 def test_ci_wires_optional_e2e_smoke_job() -> None:

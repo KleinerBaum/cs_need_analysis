@@ -469,7 +469,9 @@ The first local quality gate is intentionally low-noise. Ruff runs critical
 syntax/name checks only with an explicit baseline for existing Summary-page
 noise, Black checks a small allowlist of stable helper modules, mypy checks
 selected pure helper modules in permissive baseline mode, and Bandit starts as
-an advisory security scan. Tool configuration lives in `pyproject.toml`; the
+an advisory security scan. Secret scanning and tracked-artifact drift scanning
+also start advisory in CI so existing baselines can be triaged without blocking
+the fast local/unit path. Tool configuration lives in `pyproject.toml`; the
 development dependency surface lives in `requirements-dev.txt`.
 
 ```bash
@@ -477,10 +479,15 @@ python -m ruff check .
 python -m black --check .
 python -m mypy
 python -m bandit -c pyproject.toml -r .
+gitleaks git --redact .
+python scripts/check_tracked_artifacts.py
 ```
 
-Bandit is non-blocking in CI and may report existing findings until the
-security baseline is triaged.
+Gitleaks is installed separately for local use; CI uses the official Gitleaks
+Action. Gitleaks, Bandit, and the artifact drift scan are non-blocking in CI
+and may report existing findings until the security/artifact baselines are
+triaged. The artifact drift scan reports only paths and reasons, not file
+contents.
 
 Follow-up hardening should expand Ruff rules, expand Black coverage after an
 approved formatting-only change, grow the mypy module allowlist, then make
@@ -511,7 +518,7 @@ Useful environment overrides:
 Current job IDs are `qa`, `security`, `test`, and optional `e2e`.
 
 1. `qa`: blocking Ruff, scoped Black, and scoped mypy gates with `requirements-dev.txt`
-2. `security`: advisory Bandit security scan with `continue-on-error`
+2. `security`: advisory Gitleaks, Bandit, and tracked-artifact drift scans with `continue-on-error`
 3. `test`: Python 3.11 setup, dependency install with `requirements.txt` and `constraints.txt`, `pip check`, `compileall`, `pytest -q`, and OpenAI smoke dry-run without requiring an API key
 
 The optional Playwright smoke job is available through manual workflow dispatch
