@@ -1,0 +1,914 @@
+--- components/iceberg_need_analysis.py	2026-06-19 21:16:18.000000000 +0000
++++ components/iceberg_need_analysis.py	2026-06-21 14:42:05.627350483 +0000
+@@ -5,13 +5,13 @@
+ from functools import lru_cache
+ from html import escape
+ from pathlib import Path
+-from typing import Any, Mapping
++from typing import Any, Mapping, Sequence
+ 
+ 
+ ROOT_DIR = Path(__file__).resolve().parents[1]
+ DEFAULT_CONTENT_PATH = ROOT_DIR / "content" / "iceberg_need_analysis.json"
+ DEFAULT_IMAGE_PATH = ROOT_DIR / "images" / "OpenAI eisberg.png"
+-COMPONENT_HEIGHT = 520
++COMPONENT_HEIGHT = 720
+ 
+ 
+ def load_iceberg_content(path: Path = DEFAULT_CONTENT_PATH) -> dict[str, Any]:
+@@ -29,45 +29,64 @@
+     return f"data:image/png;base64,{encoded_image}"
+ 
+ 
+-def _section(content: Mapping[str, Any], side: str) -> Mapping[str, Any]:
+-    value = content.get(side)
++def _section(content: Mapping[str, Any], key: str) -> Mapping[str, Any]:
++    value = content.get(key)
+     if not isinstance(value, Mapping):
+-        raise ValueError(f"Missing iceberg content section: {side}")
++        raise ValueError(f"Missing iceberg content section: {key}")
+     return value
+ 
+ 
+-def _card(section: Mapping[str, Any], key: str, class_name: str, index: int) -> str:
+-    value = section.get(key)
+-    if not isinstance(value, Mapping):
+-        raise ValueError(f"Missing iceberg card content: {key}")
+-    title = escape(str(value.get("title", "")))
+-    body = escape(str(value.get("body", "")))
++def _list_items(value: Any, label: str) -> Sequence[Any]:
++    if value is None:
++        return []
++    if not isinstance(value, list):
++        raise ValueError(f"Iceberg {label} must be a JSON array.")
++    return value
++
++
++def _group_card(group: Mapping[str, Any], class_name: str, index: int) -> str:
++    title = escape(str(group.get("title", "")))
++    body = escape(str(group.get("body", "")))
++    items = _list_items(group.get("items", []), "group items")
++    item_markup = "".join(
++        f"<li>{escape(str(item))}</li>" for item in items if str(item).strip()
++    )
++    item_list = f'<ul class="ina-group-items">{item_markup}</ul>' if item_markup else ""
+     return (
+         f'<article class="ina-card {class_name}" tabindex="0" '
+         f'style="--reveal-index: {index}">'
+         f'<h3>{title}</h3>'
+         f"<p>{body}</p>"
++        f"{item_list}"
+         "</article>"
+     )
+ 
+ 
+-def _side_header(section: Mapping[str, Any], class_name: str, index: int) -> str:
++def _zone_header(section: Mapping[str, Any], class_name: str, index: int) -> str:
+     headline = escape(str(section.get("headline", "")))
+     subline = escape(str(section.get("subline", "")))
+     return (
+-        f'<header class="ina-side-header {class_name}" style="--reveal-index: {index}">'
++        f'<header class="ina-zone-header {class_name}" style="--reveal-index: {index}">'
+         f"<h2>{headline}</h2>"
+         f"<p>{subline}</p>"
+         "</header>"
+     )
+ 
+ 
++def _zone_groups(section: Mapping[str, Any], class_name: str, start_index: int) -> str:
++    groups = _list_items(section.get("groups", []), "section groups")
++    cards = []
++    for offset, group in enumerate(groups):
++        if not isinstance(group, Mapping):
++            raise ValueError("Iceberg section groups must contain JSON objects.")
++        cards.append(_group_card(group, class_name, start_index + offset))
++    return "".join(cards)
++
++
+ def _kpi_bar(content: Mapping[str, Any]) -> str:
+-    kpis = content.get("kpis", [])
+-    if not isinstance(kpis, list):
+-        raise ValueError("Iceberg kpis must be a JSON array.")
++    kpis = _list_items(content.get("kpis", []), "kpis")
+     items = "".join(f"<li>{escape(str(kpi))}</li>" for kpi in kpis)
+-    return f'<ul class="ina-kpi-bar" style="--reveal-index: 8">{items}</ul>'
++    return f'<ul class="ina-kpi-bar" style="--reveal-index: 13">{items}</ul>'
+ 
+ 
+ def build_iceberg_need_analysis_html(
+@@ -76,8 +95,8 @@
+     image_path: Path = DEFAULT_IMAGE_PATH,
+ ) -> str:
+     data = content if content is not None else load_iceberg_content()
+-    left = _section(data, "left")
+-    right = _section(data, "right")
++    surface = _section(data, "surface")
++    deep = _section(data, "deep")
+     image_src = _image_uri(str(image_path))
+ 
+     return f"""
+@@ -91,14 +110,11 @@
+         color-scheme: dark;
+         --ina-bg: #020B16;
+         --ina-card: rgba(8, 25, 42, 0.72);
+-        --ina-card-light: rgba(14, 38, 59, 0.74);
+-        --ina-card-deep: rgba(3, 17, 30, 0.78);
+         --ina-stroke: rgba(255, 255, 255, 0.14);
+         --ina-text: #F8FAFC;
+-        --ina-muted: #A8B3C2;
++        --ina-muted: #B9C5D4;
+         --ina-amber: #FFB000;
+         --ina-cyan: #2EECE8;
+-        --ina-line: rgba(255, 255, 255, 0.20);
+     }}
+ 
+     * {{
+@@ -129,7 +145,7 @@
+         overflow: hidden;
+         isolation: isolate;
+         border: 1px solid rgba(255, 255, 255, 0.12);
+-        border-radius: 8px;
++        border-radius: 10px;
+         background: var(--ina-bg);
+         box-shadow: 0 22px 70px rgba(0, 0, 0, 0.35);
+         animation: inaFadeIn 720ms ease-out both;
+@@ -150,8 +166,8 @@
+         inset: 0;
+         z-index: 1;
+         background:
+-            linear-gradient(90deg, rgba(255, 176, 0, 0.12), transparent 35%, transparent 65%, rgba(46, 236, 232, 0.12)),
+-            linear-gradient(180deg, rgba(2, 11, 22, 0.15), transparent 46%, rgba(2, 11, 22, 0.24));
++            linear-gradient(180deg, rgba(2, 11, 22, 0.08), rgba(2, 11, 22, 0.04) 43%, rgba(2, 11, 22, 0.18) 48%, rgba(2, 11, 22, 0.48) 100%),
++            linear-gradient(90deg, rgba(255, 176, 0, 0.13), transparent 43%, rgba(46, 236, 232, 0.11));
+         pointer-events: none;
+     }}
+ 
+@@ -164,83 +180,86 @@
+         pointer-events: none;
+     }}
+ 
+-    .ina-split-line {{
+-        stroke: var(--ina-line);
+-        stroke-width: 1.6;
+-        stroke-dasharray: 5 10;
+-        animation: inaDrawLine 880ms 650ms ease-out both;
+-    }}
+-
+     .ina-waterline {{
+-        stroke: rgba(255, 255, 255, 0.56);
+-        stroke-width: 1.8;
+-        filter: drop-shadow(0 0 9px rgba(46, 236, 232, 0.72));
++        stroke: rgba(255, 255, 255, 0.62);
++        stroke-width: 2;
++        filter: drop-shadow(0 0 10px rgba(46, 236, 232, 0.74));
+         animation: inaWaterGlow 4.8s 1.1s ease-in-out infinite;
+     }}
+ 
+-    .ina-side-header,
++    .ina-zone-header,
+     .ina-card,
+-    .ina-kpi-bar {{
++    .ina-kpi-bar,
++    .ina-zone-label {{
+         position: absolute;
+         z-index: 3;
+         opacity: 0;
+         transform: translateY(16px);
+         animation: inaReveal 620ms ease-out forwards;
+-        animation-delay: calc(260ms + (var(--reveal-index) * 120ms));
++        animation-delay: calc(220ms + (var(--reveal-index) * 95ms));
+     }}
+ 
+-    .ina-side-header {{
+-        top: 6.5%;
+-        width: 34%;
++    .ina-zone-header {{
++        width: min(45%, 560px);
+     }}
+ 
+-    .ina-side-header.left {{
+-        left: 6.6%;
++    .ina-zone-header.surface {{
++        top: 5.6%;
++        left: 5.4%;
+     }}
+ 
+-    .ina-side-header.right {{
+-        right: 6.6%;
+-        text-align: right;
++    .ina-zone-header.deep {{
++        top: 49.6%;
++        left: 5.4%;
++        width: min(55%, 700px);
+     }}
+ 
+-    .ina-side-header h2 {{
++    .ina-zone-header h2 {{
+         margin: 0;
+         font-family: "Space Grotesk", "Sora", "Inter Tight", Inter, sans-serif;
+-        font-size: clamp(1.35rem, 3vw, 2.65rem);
+-        line-height: 1.04;
+-        letter-spacing: 0;
++        font-size: clamp(1.42rem, 3vw, 2.7rem);
++        line-height: 1.03;
++        letter-spacing: -0.02em;
++        text-shadow: 0 3px 18px rgba(0, 0, 0, 0.55);
+     }}
+ 
+-    .ina-side-header p {{
+-        margin: 0.45rem 0 0;
++    .ina-zone-header p {{
++        margin: 0.38rem 0 0;
+         color: var(--ina-muted);
+-        font-size: clamp(0.78rem, 1.45vw, 1.2rem);
++        font-size: clamp(0.76rem, 1.25vw, 1.05rem);
+         line-height: 1.25;
+     }}
+ 
+-    .ina-vs {{
+-        position: absolute;
+-        top: 7%;
++    .ina-zone-label {{
+         left: 50%;
+-        z-index: 3;
+         transform: translateX(-50%);
+         border: 1px solid var(--ina-stroke);
+         border-radius: 999px;
+-        padding: 0.36rem 0.82rem;
+-        background: rgba(2, 11, 22, 0.62);
++        padding: 0.32rem 0.74rem;
++        background: rgba(2, 11, 22, 0.70);
+         color: var(--ina-text);
+         font-weight: 800;
+-        letter-spacing: 0.08em;
+-        font-size: clamp(0.75rem, 1.2vw, 1rem);
++        letter-spacing: 0.035em;
++        font-size: clamp(0.62rem, 0.95vw, 0.82rem);
+         backdrop-filter: blur(14px);
++        white-space: nowrap;
++        animation-delay: 520ms;
++    }}
++
++    .ina-zone-label.surface {{
++        top: 43.3%;
++        color: #FFE3A6;
++    }}
++
++    .ina-zone-label.deep {{
++        top: 47.7%;
++        color: #B9FFFF;
+     }}
+ 
+     .ina-card {{
+-        width: 26%;
+-        min-height: 13.5%;
+-        padding: clamp(0.62rem, 1.55vw, 1.05rem);
++        padding: clamp(0.48rem, 0.82vw, 0.70rem);
+         border: 1px solid var(--ina-stroke);
+-        border-radius: 8px;
++        border-radius: 9px;
+         background: var(--ina-card);
+         box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+         backdrop-filter: blur(18px);
+@@ -252,95 +271,124 @@
+         transform: translateY(-3px);
+         outline: none;
+         border-color: rgba(255, 255, 255, 0.32);
+-        background: rgba(12, 34, 54, 0.82);
++        background: rgba(12, 34, 54, 0.84);
+     }}
+ 
+     .ina-card h3 {{
+-        margin: 0 0 0.42rem;
+-        font-size: clamp(0.82rem, 1.4vw, 1.14rem);
++        margin: 0 0 0.28rem;
++        font-size: clamp(0.70rem, 0.94vw, 0.88rem);
+         line-height: 1.12;
+-        letter-spacing: 0;
++        letter-spacing: -0.01em;
+     }}
+ 
+     .ina-card p {{
+         margin: 0;
+         color: var(--ina-muted);
+-        font-size: clamp(0.7rem, 1.08vw, 0.9rem);
+-        line-height: 1.36;
++        font-size: clamp(0.55rem, 0.68vw, 0.68rem);
++        line-height: 1.25;
++    }}
++
++    .ina-group-items {{
++        display: flex;
++        flex-wrap: wrap;
++        gap: 0.18rem;
++        margin: 0.34rem 0 0;
++        padding: 0;
++        list-style: none;
++    }}
++
++    .ina-group-items li {{
++        max-width: 100%;
++        padding: 0.13rem 0.32rem;
++        border: 1px solid rgba(255, 255, 255, 0.14);
++        border-radius: 999px;
++        background: rgba(255, 255, 255, 0.08);
++        color: var(--ina-text);
++        font-size: clamp(0.48rem, 0.58vw, 0.58rem);
++        line-height: 1.05;
++        font-weight: 700;
++        overflow-wrap: anywhere;
++    }}
++
++    .ina-surface-grid,
++    .ina-deep-grid {{
++        position: absolute;
++        left: 5.4%;
++        right: 5.4%;
++        z-index: 3;
++        display: grid;
++        gap: 0.42rem;
++    }}
++
++    .ina-surface-grid {{
++        top: 20%;
++        grid-template-columns: repeat(4, minmax(0, 1fr));
++    }}
++
++    .ina-deep-grid {{
++        top: 58%;
++        grid-template-columns: repeat(3, minmax(0, 1fr));
+     }}
+ 
+     .ina-surface {{
+-        top: 29%;
+-        background: var(--ina-card-light);
++        position: relative;
++        min-height: 102px;
++        background: rgba(27, 42, 52, 0.70);
+     }}
+ 
+     .ina-deep {{
+-        top: 59%;
+-        background: var(--ina-card-deep);
++        position: relative;
++        min-height: 92px;
++        background: rgba(3, 17, 30, 0.82);
+         animation-name: inaReveal, inaDeepPulse;
+         animation-duration: 620ms, 5s;
+         animation-timing-function: ease-out, ease-in-out;
+         animation-fill-mode: forwards, none;
+         animation-iteration-count: 1, infinite;
+-        animation-delay: calc(260ms + (var(--reveal-index) * 120ms)), 2s;
+-    }}
+-
+-    .ina-result {{
+-        top: 80.5%;
+-        width: 37%;
+-        min-height: 11%;
+-    }}
+-
+-    .ina-left-card {{
+-        left: 7.2%;
++        animation-delay: calc(220ms + (var(--reveal-index) * 95ms)), 2s;
+     }}
+ 
+-    .ina-right-card {{
+-        right: 7.2%;
+-        text-align: right;
+-    }}
+-
+-    .ina-left-card:hover,
+-    .ina-left-card:focus-visible {{
++    .ina-surface:hover,
++    .ina-surface:focus-visible {{
+         box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35), 0 0 28px rgba(255, 176, 0, 0.28);
+     }}
+ 
+-    .ina-right-card:hover,
+-    .ina-right-card:focus-visible {{
+-        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35), 0 0 28px rgba(46, 236, 232, 0.3);
++    .ina-deep:hover,
++    .ina-deep:focus-visible {{
++        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35), 0 0 28px rgba(46, 236, 232, 0.30);
+     }}
+ 
+     .ina-kpi-bar {{
+         left: 6.5%;
+         right: 6.5%;
+-        bottom: 2.4%;
++        bottom: 1.8%;
+         display: grid;
+         grid-template-columns: repeat(6, minmax(0, 1fr));
+-        gap: 0.45rem;
++        gap: 0.35rem;
+         margin: 0;
+-        padding: 0.55rem;
++        padding: 0.45rem 0.52rem;
+         list-style: none;
+         border: 1px solid var(--ina-stroke);
+-        border-radius: 8px;
+-        background: rgba(2, 11, 22, 0.58);
++        border-radius: 9px;
++        background: rgba(2, 11, 22, 0.64);
+         backdrop-filter: blur(16px);
+     }}
+ 
+     .ina-kpi-bar li {{
+         min-width: 0;
+         color: var(--ina-text);
+-        font-size: clamp(0.62rem, 1vw, 0.82rem);
+-        line-height: 1.2;
++        font-size: clamp(0.55rem, 0.85vw, 0.74rem);
++        line-height: 1.15;
+         text-align: center;
+-        font-weight: 700;
++        font-weight: 800;
+         overflow-wrap: anywhere;
+     }}
+ 
+-    .ina-kpi-bar li:nth-child(-n+3) {{
++    .ina-kpi-bar li:nth-child(-n+2) {{
+         color: #FFE2A3;
+     }}
+ 
+-    .ina-kpi-bar li:nth-child(n+4) {{
++    .ina-kpi-bar li:nth-child(n+3) {{
+         color: #B7FFFF;
+     }}
+ 
+@@ -362,17 +410,6 @@
+         }}
+     }}
+ 
+-    @keyframes inaDrawLine {{
+-        from {{
+-            opacity: 0;
+-            stroke-dashoffset: 42;
+-        }}
+-        to {{
+-            opacity: 1;
+-            stroke-dashoffset: 0;
+-        }}
+-    }}
+-
+     @keyframes inaWaterGlow {{
+         0%,
+         100% {{
+@@ -380,7 +417,7 @@
+             filter: drop-shadow(0 0 7px rgba(46, 236, 232, 0.45));
+         }}
+         50% {{
+-            opacity: 0.96;
++            opacity: 0.98;
+             filter: drop-shadow(0 0 15px rgba(46, 236, 232, 0.88));
+         }}
+     }}
+@@ -395,7 +432,7 @@
+         }}
+     }}
+ 
+-    @media (max-width: 760px) {{
++    @media (max-width: 980px) {{
+         body {{
+             overflow: auto;
+         }}
+@@ -412,7 +449,7 @@
+ 
+         .ina-stage::after,
+         .ina-guides,
+-        .ina-vs {{
++        .ina-zone-label {{
+             display: none;
+         }}
+ 
+@@ -430,13 +467,10 @@
+             object-fit: cover;
+         }}
+ 
+-        .ina-side-header,
+-        .ina-side-header.left,
+-        .ina-side-header.right,
++        .ina-zone-header,
+         .ina-card,
+-        .ina-left-card,
+-        .ina-right-card,
+-        .ina-result,
++        .ina-surface-grid,
++        .ina-deep-grid,
+         .ina-kpi-bar {{
+             position: relative;
+             top: auto;
+@@ -448,51 +482,41 @@
+             text-align: left;
+         }}
+ 
+-        .ina-side-header {{
++        .ina-zone-header {{
+             margin-top: 0.15rem;
+             padding-top: 0.3rem;
+             border-top: 1px solid rgba(255, 255, 255, 0.14);
+         }}
+ 
+-        .ina-side-header h2 {{
++        .ina-zone-header h2 {{
+             font-size: clamp(1.08rem, 5.7vw, 1.42rem);
+         }}
+ 
+-        .ina-side-header p {{
++        .ina-zone-header p {{
+             margin-top: 0.24rem;
+             font-size: 0.8rem;
+         }}
+ 
+-        .ina-side-header.left {{
++        .ina-zone-header.surface {{
+             order: 2;
+         }}
+ 
+-        .ina-side-header.right {{
+-            order: 6;
+-        }}
+-
+-        .ina-surface.ina-left-card {{
++        .ina-surface-grid {{
+             order: 3;
++            display: grid;
++            grid-template-columns: minmax(0, 1fr);
++            gap: 0.48rem;
+         }}
+ 
+-        .ina-surface.ina-right-card {{
+-            order: 7;
+-        }}
+-
+-        .ina-deep.ina-left-card {{
++        .ina-zone-header.deep {{
+             order: 4;
+         }}
+ 
+-        .ina-deep.ina-right-card {{
+-            order: 8;
+-        }}
+-
+-        .ina-result.ina-left-card {{
++        .ina-deep-grid {{
+             order: 5;
+-        }}
+-
+-        .ina-result.ina-right-card {{
+-            order: 9;
++            display: grid;
++            grid-template-columns: minmax(0, 1fr);
++            gap: 0.48rem;
+         }}
+ 
+         .ina-card {{
+@@ -510,8 +534,17 @@
+             line-height: 1.28;
+         }}
+ 
++        .ina-group-items {{
++            gap: 0.24rem;
++            margin-top: 0.42rem;
++        }}
++
++        .ina-group-items li {{
++            font-size: 0.66rem;
++        }}
++
+         .ina-kpi-bar {{
+-            order: 10;
++            order: 6;
+             grid-template-columns: repeat(2, minmax(0, 1fr));
+             margin-top: 0.12rem;
+             padding: 0.48rem;
+@@ -524,10 +557,10 @@
+ 
+     @media (prefers-reduced-motion: reduce) {{
+         .ina-stage,
+-        .ina-side-header,
++        .ina-zone-header,
++        .ina-zone-label,
+         .ina-card,
+         .ina-kpi-bar,
+-        .ina-split-line,
+         .ina-waterline,
+         .ina-deep {{
+             animation: none !important;
+@@ -543,21 +576,21 @@
+ </head>
+ <body>
+     <div class="ina-shell">
+-        <section class="ina-stage" aria-label="Vergleich klassischer Bedarfsanalyse und AI Need-Analysis">
++        <section class="ina-stage" aria-label="Eisberg-Modell klassischer und AI-gestützter Need-Analysis">
+             <img class="ina-bg" src="{image_src}" alt="" aria-hidden="true">
+             <svg class="ina-guides" viewBox="0 0 1920 1080" preserveAspectRatio="none" aria-hidden="true">
+-                <line class="ina-split-line" x1="960" y1="0" x2="960" y2="1080"></line>
+                 <line class="ina-waterline" x1="0" y1="500" x2="1920" y2="500"></line>
+             </svg>
+-            <div class="ina-vs">VS</div>
+-            {_side_header(left, "left", 0)}
+-            {_side_header(right, "right", 1)}
+-            {_card(left, "surface", "ina-surface ina-left-card", 2)}
+-            {_card(right, "surface", "ina-surface ina-right-card", 3)}
+-            {_card(left, "deep", "ina-deep ina-left-card", 4)}
+-            {_card(right, "deep", "ina-deep ina-right-card", 5)}
+-            {_card(left, "result", "ina-result ina-left-card", 6)}
+-            {_card(right, "result", "ina-result ina-right-card", 7)}
++            <div class="ina-zone-label surface">oberhalb der Wasserlinie: sichtbar in Jobspec & Briefing</div>
++            <div class="ina-zone-label deep">unterhalb der Wasserlinie: entscheidend für Search, Matching & Interview</div>
++            {_zone_header(surface, "surface", 0)}
++            <div class="ina-surface-grid">
++                {_zone_groups(surface, "ina-surface", 1)}
++            </div>
++            {_zone_header(deep, "deep", 5)}
++            <div class="ina-deep-grid">
++                {_zone_groups(deep, "ina-deep", 6)}
++            </div>
+             {_kpi_bar(data)}
+         </section>
+     </div>
+--- content/iceberg_need_analysis.json	2026-06-19 21:16:18.000000000 +0000
++++ content/iceberg_need_analysis.json	2026-06-21 14:42:05.618981568 +0000
+@@ -1,42 +1,72 @@
+ {
+-  "left": {
++  "surface": {
+     "headline": "Klassische Bedarfsanalyse",
+-    "subline": "Sichtbar, aber lückenhaft",
+-    "surface": {
+-      "title": "Sichtbare Anforderungen",
+-      "body": "Rolle, Aufgaben, Skills, Prozesse und Ziele."
+-    },
+-    "deep": {
+-      "title": "Verborgene Faktoren",
+-      "body": "Erwartungen, Prioritäten, Risiken und unausgesprochene Kriterien."
+-    },
+-    "result": {
+-      "title": "Ergebnis",
+-      "body": "Teilweises Bild. Höheres Risiko für Fehlbesetzungen."
+-    }
++    "subline": "sichtbar, sachlich, aber oft unvollständig",
++    "groups": [
++      {
++        "title": "Rollenrahmen",
++        "body": "Was sofort in der Anzeige steht: Titel, Standort, Arbeitsmodell und Vertragsrahmen.",
++        "items": ["Jobtitel", "Standort", "Arbeitsmodell"]
++      },
++      {
++        "title": "Aufgabenbild",
++        "body": "Tätigkeiten werden gesammelt, bleiben aber häufig auf Listen- und Stichwortniveau.",
++        "items": ["Aufgaben", "Projekte", "Reporting"]
++      },
++      {
++        "title": "Anforderungen",
++        "body": "Skills, Tools und Erfahrung werden notiert, aber selten nach Wirkung priorisiert.",
++        "items": ["Must-haves", "Tools", "Sprachen"]
++      },
++      {
++        "title": "Angebot & Ablauf",
++        "body": "Benefits, Gehalt, Starttermin und Prozess sind sichtbar, aber oft nicht entscheidungslogisch verbunden.",
++        "items": ["Benefits", "Gehalt", "Interviews"]
++      }
++    ]
+   },
+-  "right": {
+-    "headline": "AI-gestützte Need-Analysis",
+-    "subline": "Tiefgründig, kontextbasiert, präzise",
+-    "surface": {
+-      "title": "Vollständiger Kontext",
+-      "body": "Rolle, Ziele, Abhängigkeiten und Erfolgskriterien."
+-    },
+-    "deep": {
+-      "title": "Versteckte Insights",
+-      "body": "Bedürfnisse, Treiber, Risiken, Chancen und Passungslogik."
+-    },
+-    "result": {
+-      "title": "Ergebnis",
+-      "body": "Vollständigeres Bild. Bessere Entscheidungen im Recruiting."
+-    }
++  "deep": {
++    "headline": "AI- & ESCO-optimierte Need-Analysis",
++    "subline": "verborgene Bedarfstreiber werden explizit, vergleichbar und nutzbar",
++    "groups": [
++      {
++        "title": "Prioritäten & Erfolgskriterien",
++        "body": "Die App trennt Pflicht, Wunsch und Kontext: Was muss nach 30/90/180 Tagen erreicht sein?",
++        "items": ["Outcomes", "Priorität", "Kompromisse"]
++      },
++      {
++        "title": "Implizite Dealbreaker",
++        "body": "Unausgesprochene Erwartungen werden sichtbar, bevor sie Matching oder Shortlist verzerren.",
++        "items": ["Risiken", "No-Gos", "Passung"]
++      },
++      {
++        "title": "Team- & Stakeholder-Kontext",
++        "body": "Die Analyse zeigt, mit wem die Person Wirkung erzielen muss und wo Reibung entstehen kann.",
++        "items": ["Stakeholder", "Führung", "Zusammenarbeit"]
++      },
++      {
++        "title": "Marktargumente & Motivation",
++        "body": "Aus Bedarf und Zielgruppe entstehen Argumente, die Kandidat:innen wirklich erreichen.",
++        "items": ["Wechselmotive", "Pitch", "Benefits"]
++      },
++      {
++        "title": "ESCO-Semantik & Vergleichbarkeit",
++        "body": "Berufe, Skills und Titelvarianten werden normalisiert, damit Profile anschlussfähig werden.",
++        "items": ["ESCO", "Skill-Mapping", "Titelvarianten"]
++      },
++      {
++        "title": "Interview- & Artefaktlogik",
++        "body": "Fragen, Scorecards, Briefing und Folge-Outputs basieren auf derselben geprüften Faktenlage.",
++        "items": ["Scorecard", "Brief", "Interview"]
++      }
++    ]
+   },
+   "kpis": [
+-    "Weniger Rückfragen",
+-    "Schneller starten",
+-    "Passgenau statt Standard",
+-    "Höhere Trefferquote",
+-    "Sichere Entscheidungen",
++    "Klarere Prioritäten",
++    "Weniger Briefing-Loops",
++    "Präzisere Ansprache",
++    "Bessere Shortlists",
++    "Konsistente Interviews",
+     "Weniger Fehlbesetzungen"
+   ]
+ }
+--- wizard_pages/00_landing.py	2026-06-19 21:16:18.000000000 +0000
++++ wizard_pages/00_landing.py	2026-06-21 14:42:06.705647185 +0000
+@@ -291,30 +291,35 @@
+ 
+ 
+ def _render_landing_explainer_sections() -> None:
+-    with st.expander("Warum Need Analysis?", expanded=False):
+-        st.caption(
+-            str(
+-                t(
+-                    "Kurzer Kontext, warum die App nicht nur sichtbare Anforderungen, "
+-                    "sondern auch Lücken und implizite Bedarfstreiber strukturiert."
+-                )
++    st.markdown(
++        '<section class="landing-section landing-card landing-need-analysis-card">',
++        unsafe_allow_html=True,
++    )
++    st.subheader(str(t("Warum Need Analysis?")))
++    st.caption(
++        str(
++            t(
++                "Kurzer Kontext, warum die App nicht nur sichtbare Anforderungen, "
++                "sondern auch Lücken und implizite Bedarfstreiber strukturiert."
+             )
+         )
+-        st.iframe(
+-            build_iceberg_need_analysis_html(),
+-            height=COMPONENT_HEIGHT,
+-        )
++    )
++    st.iframe(
++        build_iceberg_need_analysis_html(),
++        height=COMPONENT_HEIGHT,
++    )
++    st.markdown("</section>", unsafe_allow_html=True)
+ 
+ 
+ def render(ctx: WizardContext) -> None:
+     render_landing_css(LANDING_STYLE_TOKENS)
+     _render_landing_responsive_overrides()
+     _render_landing_hero()
++    _render_landing_explainer_sections()
+ 
+     st.markdown('<section class="landing-section landing-card landing-intake-card">', unsafe_allow_html=True)
+     render_jobad_intake(ctx, title=str(t(START_PAGE_COPY["primary_cta"])))
+     st.markdown("</section>", unsafe_allow_html=True)
+-    _render_landing_explainer_sections()
+ 
+ 
+ PAGE = WizardPage(
+--- tests/test_landing_iceberg_component.py	2026-06-19 21:16:18.000000000 +0000
++++ tests/test_landing_iceberg_component.py	2026-06-21 14:42:23.092161701 +0000
+@@ -12,12 +12,22 @@
+ )
+ 
+ 
+-def test_landing_page_uses_current_iframe_api() -> None:
++def test_landing_page_uses_current_iframe_api_without_expander() -> None:
+     landing_page = Path("wizard_pages/00_landing.py").read_text(encoding="utf-8")
+ 
+     assert "streamlit.components.v1" not in landing_page
+     assert "components.html" not in landing_page
+     assert "st.iframe(" in landing_page
++    assert 'with st.expander("Warum Need Analysis?"' not in landing_page
++
++
++def test_landing_page_shows_explainer_before_intake() -> None:
++    landing_page = Path("wizard_pages/00_landing.py").read_text(encoding="utf-8")
++
++    render_body = landing_page.split("def render(ctx: WizardContext) -> None:", 1)[1]
++    assert render_body.index("_render_landing_explainer_sections()") < render_body.index(
++        "render_jobad_intake"
++    )
+ 
+ 
+ def test_iceberg_content_loads_required_sections() -> None:
+@@ -25,11 +35,13 @@
+ 
+     assert DEFAULT_CONTENT_PATH.exists()
+     assert DEFAULT_IMAGE_PATH.exists()
+-    assert set(content) >= {"left", "right", "kpis"}
+-    for side in ("left", "right"):
+-        assert set(content[side]) >= {"headline", "subline", "surface", "deep", "result"}
+-        for card_key in ("surface", "deep", "result"):
+-            assert set(content[side][card_key]) >= {"title", "body"}
++    assert set(content) >= {"surface", "deep", "kpis"}
++    for section_key in ("surface", "deep"):
++        section = content[section_key]
++        assert set(section) >= {"headline", "subline", "groups"}
++        assert len(section["groups"]) >= 3
++        for group in section["groups"]:
++            assert set(group) >= {"title", "body", "items"}
+     assert len(content["kpis"]) == 6
+ 
+ 
+@@ -39,10 +51,14 @@
+     assert "data:image/png;base64," in html
+     assert 'class="ina-stage"' in html
+     assert 'class="ina-guides"' in html
+-    assert "ina-split-line" in html
+     assert "ina-waterline" in html
+-    assert "ina-surface ina-left-card" in html
+-    assert "ina-deep ina-right-card" in html
++    assert "ina-split-line" not in html
++    assert 'class="ina-zone-label surface"' in html
++    assert 'class="ina-zone-label deep"' in html
++    assert 'class="ina-surface-grid"' in html
++    assert 'class="ina-deep-grid"' in html
++    assert "ina-surface" in html
++    assert "ina-deep" in html
+     assert 'class="ina-kpi-bar"' in html
+ 
+ 
+@@ -53,19 +69,19 @@
+     html = build_iceberg_need_analysis_html(
+         image_path=image_path,
+         content={
+-            "left": {
++            "surface": {
+                 "headline": "<script>alert(1)</script>",
+                 "subline": "A & B",
+-                "surface": {"title": "Surface", "body": "Rolle < Tasks"},
+-                "deep": {"title": "Deep", "body": "Risk"},
+-                "result": {"title": "Result", "body": "Partial"},
++                "groups": [
++                    {"title": "Surface", "body": "Rolle < Tasks", "items": ["<b>unsafe</b>"]}
++                ],
+             },
+-            "right": {
++            "deep": {
+                 "headline": "AI",
+                 "subline": "Precise",
+-                "surface": {"title": "Context", "body": "Goals"},
+-                "deep": {"title": "Insights", "body": "Needs"},
+-                "result": {"title": "Result", "body": "Better"},
++                "groups": [
++                    {"title": "Deep", "body": "Needs", "items": ["A & B"]}
++                ],
+             },
+             "kpis": ["<b>unsafe</b>"],
+         },
+@@ -90,26 +106,24 @@
+ def test_iceberg_html_includes_mobile_stacked_layout_rules() -> None:
+     html = build_iceberg_need_analysis_html()
+ 
+-    assert "@media (max-width: 760px)" in html
++    assert "@media (max-width: 980px)" in html
+     assert "grid-template-columns: minmax(0, 1fr);" in html
+     assert "position: relative;" in html
+-    assert ".ina-stage::after,\n        .ina-guides,\n        .ina-vs" in html
++    assert ".ina-stage::after,\n        .ina-guides,\n        .ina-zone-label" in html
+     assert ".ina-bg" in html
+     assert "aspect-ratio: 1672 / 941;" in html
+-    assert "order: 10;" in html
++    assert "order: 6;" in html
+     assert "grid-template-columns: repeat(2, minmax(0, 1fr));" in html
+ 
+ 
+ def test_iceberg_html_requires_core_content_sections() -> None:
+-    with pytest.raises(ValueError, match="Missing iceberg content section: right"):
++    with pytest.raises(ValueError, match="Missing iceberg content section: deep"):
+         build_iceberg_need_analysis_html(
+             content={
+-                "left": {
+-                    "headline": "Left",
++                "surface": {
++                    "headline": "Surface",
+                     "subline": "Sub",
+-                    "surface": {"title": "Surface", "body": "Body"},
+-                    "deep": {"title": "Deep", "body": "Body"},
+-                    "result": {"title": "Result", "body": "Body"},
++                    "groups": [{"title": "A", "body": "B", "items": []}],
+                 },
+                 "kpis": [],
+             }
