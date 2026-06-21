@@ -49,17 +49,17 @@ def _render_landing_responsive_overrides() -> None:
             .landing-resource-links {
                 display: flex;
                 flex-wrap: wrap;
-                gap: 0.55rem;
-                margin-top: 0.85rem;
+                gap: 0.45rem;
+                margin-top: 0.65rem;
             }
             .landing-resource-links a {
                 color: #FFFFFF !important;
                 text-decoration: none !important;
                 border: 1px solid var(--cs-success);
                 background: var(--cs-success);
-                border-radius: 999px;
-                padding: 0.38rem 0.78rem;
-                font-size: 0.86rem;
+                border-radius: 8px;
+                padding: 0.32rem 0.58rem;
+                font-size: 0.8rem;
                 font-weight: 650;
             }
             .landing-resource-links a:hover,
@@ -71,11 +71,11 @@ def _render_landing_responsive_overrides() -> None:
             .landing-start-logo {
                 display: flex;
                 align-items: center;
-                margin-bottom: 0.55rem;
+                margin-bottom: 0.35rem;
             }
             .landing-start-logo [data-testid="stImage"] {
-                width: 150px;
-                max-width: min(150px, 48vw);
+                width: 118px;
+                max-width: min(118px, 44vw);
             }
             .landing-start-logo img {
                 width: 100%;
@@ -85,11 +85,17 @@ def _render_landing_responsive_overrides() -> None:
                 border: 1px solid color-mix(in srgb, var(--cs-success) 42%, var(--cs-border));
                 background: var(--cs-surface);
                 border-radius: 8px;
-                padding: 0.95rem;
+                padding: 0.82rem;
                 box-shadow: var(--cs-shadow-sm);
             }
             .landing-intake-card {
-                padding: 1.05rem 1rem;
+                padding: 0.95rem;
+            }
+            .landing-need-analysis-card {
+                padding: 0.9rem;
+            }
+            .landing-need-analysis-card [data-testid="stCaptionContainer"] {
+                margin-bottom: 0.45rem;
             }
             .landing-process-track {
                 display: grid;
@@ -102,8 +108,8 @@ def _render_landing_responsive_overrides() -> None:
                 border: 1px solid var(--cs-border);
                 background: var(--cs-surface-muted);
                 border-radius: 8px;
-                padding: 0.74rem 0.75rem;
-                min-height: 112px;
+                padding: 0.62rem 0.65rem;
+                min-height: 98px;
             }
             .landing-process-step::after {
                 content: "";
@@ -130,7 +136,7 @@ def _render_landing_responsive_overrides() -> None:
                 background: var(--cs-success);
                 font-weight: 800;
                 font-size: 0.84rem;
-                margin-bottom: 0.5rem;
+                margin-bottom: 0.4rem;
             }
             .landing-process-step strong {
                 display: block;
@@ -150,9 +156,9 @@ def _render_landing_responsive_overrides() -> None:
                 line-height: 1.34;
             }
             .landing-process-result {
-                margin-top: 0.8rem;
+                margin-top: 0.65rem;
                 border-left: 3px solid var(--cs-success);
-                padding: 0.55rem 0.7rem;
+                padding: 0.52rem 0.65rem;
                 background: var(--cs-success-soft);
                 border-radius: 8px;
                 color: var(--cs-text);
@@ -162,8 +168,8 @@ def _render_landing_responsive_overrides() -> None:
                 display: flex;
                 flex-wrap: wrap;
                 align-items: center;
-                gap: 0.55rem;
-                margin-top: 0.8rem;
+                gap: 0.5rem;
+                margin-top: 0.65rem;
             }
             .landing-process-resources span {
                 color: var(--cs-text-muted);
@@ -207,6 +213,7 @@ def _render_landing_hero() -> None:
     render_esco_language_toggle()
     st.markdown("</div>", unsafe_allow_html=True)
 
+    st.markdown('<div class="landing-hero-copy">', unsafe_allow_html=True)
     st.title(str(t(START_PAGE_COPY["hero_headline"])))
     hero_subheadline = str(t(START_PAGE_COPY["hero_subheadline"]))
     if hero_subheadline:
@@ -214,6 +221,7 @@ def _render_landing_hero() -> None:
     hero_supporting = str(t(START_PAGE_COPY["hero_supporting_paragraph"]))
     if hero_supporting:
         st.markdown(hero_supporting)
+    st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("</section>", unsafe_allow_html=True)
 
 

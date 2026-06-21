@@ -57,19 +57,19 @@ def _render_intro_overrides() -> None:
         """
         <style>
             .intro-page {
-                max-width: 940px;
+                max-width: 980px;
                 margin: 0 auto;
             }
             .intro-page .landing-hero {
-                padding: clamp(1.2rem, 3vw, 2rem);
+                padding: clamp(1rem, 2.4vw, 1.45rem);
             }
             .intro-body {
                 display: grid;
-                gap: 0.95rem;
-                margin: 1.25rem 0 1.4rem 0;
+                gap: 0.78rem;
+                margin: 1rem 0 1.05rem 0;
                 color: var(--cs-text);
-                font-size: 1rem;
-                line-height: 1.62;
+                font-size: 0.98rem;
+                line-height: 1.56;
             }
             .intro-body p {
                 margin: 0;
@@ -78,18 +78,21 @@ def _render_intro_overrides() -> None:
                 border-left: 4px solid var(--cs-success);
                 background: var(--cs-success-soft);
                 border-radius: 8px;
-                padding: 0.8rem 0.95rem;
-                margin: 0.3rem 0 1.1rem 0;
+                padding: 0.72rem 0.85rem;
+                margin: 0.25rem 0 0.8rem 0;
                 color: var(--cs-text);
                 font-weight: 700;
+            }
+            .intro-start-action {
+                margin: 0 0 0.95rem 0;
             }
             .intro-iceberg {
                 border: 1px solid color-mix(in srgb, var(--cs-success) 34%, var(--cs-border));
                 background: var(--cs-surface);
                 border-radius: 8px;
                 box-shadow: var(--cs-shadow-sm);
-                padding: clamp(0.85rem, 2vw, 1.1rem);
-                margin: 1.2rem 0 1.25rem 0;
+                padding: clamp(0.7rem, 1.6vw, 0.95rem);
+                margin: 0.95rem 0 1rem 0;
             }
             .intro-iceberg h3 {
                 margin: 0 0 0.25rem 0;
@@ -144,10 +147,12 @@ def render(ctx: WizardContext) -> None:
         f'<div class="intro-closing">{t(INTRO_COPY["closing"])}</div>',
         unsafe_allow_html=True,
     )
-    _render_intro_iceberg()
+    st.markdown('<div class="intro-start-action">', unsafe_allow_html=True)
     if st.button(str(t(INTRO_COPY["cta"])), type="primary"):
         ctx.goto(STEP_KEY_LANDING)
         st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
+    _render_intro_iceberg()
     st.markdown("</section>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 

@@ -1732,10 +1732,10 @@ def guard_job_and_plan(
 
 
 LANDING_STYLE_TOKENS: dict[str, str] = {
-    "card_radius": "10px",
-    "section_spacing": "1.2rem 0 1.4rem 0",
+    "card_radius": "8px",
+    "section_spacing": "0.85rem 0 1rem 0",
     "muted_text_color": "var(--cs-text-muted)",
-    "emphasis_border": "4px solid var(--cs-success)",
+    "emphasis_border": "3px solid var(--cs-success)",
     "emphasis_background": "var(--cs-success-soft)",
 }
 
@@ -1768,36 +1768,37 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
             .landing-hero {{
                 background: var(--cs-surface);
                 border: 1px solid var(--cs-border);
-                border-radius: 12px;
-                padding: 1.6rem 1.45rem;
-                box-shadow: var(--cs-shadow-md);
+                border-radius: {style_tokens["card_radius"]};
+                padding: 1.15rem 1.1rem;
+                box-shadow: var(--cs-shadow-sm);
             }}
 
             .landing-hero h1 {{
                 margin: 0;
-                font-size: clamp(1.6rem, 2.3vw, 2.45rem);
+                font-size: clamp(1.55rem, 2vw, 2.15rem);
                 line-height: 1.18;
                 letter-spacing: 0;
                 color: var(--cs-text);
             }}
 
             .landing-hero-copy {{
-                max-width: 66ch;
+                max-width: 72ch;
             }}
 
             .landing-subhead {{
-                margin-top: 0.9rem;
+                margin-top: 0.6rem;
                 color: var(--cs-text-muted);
-                line-height: 1.58;
-                font-size: 1.05rem;
+                line-height: 1.5;
+                font-size: 1rem;
             }}
 
             .landing-card {{
                 background: var(--cs-surface);
                 border: 1px solid var(--cs-border);
                 border-radius: {style_tokens["card_radius"]};
-                padding: 0.8rem 0.75rem;
+                padding: 0.95rem;
                 height: 100%;
+                box-shadow: var(--cs-shadow-sm);
             }}
 
             .landing-card h4 {{
@@ -1816,8 +1817,8 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
                 background: {style_tokens["emphasis_background"]};
                 border-left: {style_tokens["emphasis_border"]};
                 border-radius: {style_tokens["card_radius"]};
-                padding: 0.8rem 0.85rem 0.2rem 0.85rem;
-                margin-bottom: 0.85rem;
+                padding: 0.72rem 0.8rem;
+                margin-bottom: 0.75rem;
             }}
 
             .landing-emphasis p {{
@@ -1871,11 +1872,11 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
             }}
 
             .landing-outcome-callout {{
-                margin-top: 0.9rem;
+                margin-top: 0.75rem;
                 border-radius: {style_tokens["card_radius"]};
                 border: 1px solid var(--cs-success);
                 background: var(--cs-success-soft);
-                padding: 0.75rem 0.85rem;
+                padding: 0.68rem 0.78rem;
             }}
 
             .landing-outcome-badge {{
@@ -1903,9 +1904,9 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
             .landing-flow-step {{
                 background: var(--cs-surface);
                 border: 1px solid var(--cs-border);
-                border-radius: 12px;
-                padding: 0.75rem;
-                min-height: 124px;
+                border-radius: {style_tokens["card_radius"]};
+                padding: 0.68rem;
+                min-height: 108px;
             }}
 
             .landing-list {{
@@ -1997,7 +1998,7 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
 
             @media (max-width: 900px) {{
                 .landing-hero {{
-                    padding: 1.2rem;
+                    padding: 1rem;
                 }}
 
                 .landing-hero-copy {{

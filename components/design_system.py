@@ -705,8 +705,8 @@ def render_ui_styles() -> None:
         }
         .cs-step-header,
         .cs-output-header {
-            padding: 1.05rem 1.1rem;
-            margin-bottom: 1rem;
+            padding: 0.95rem 1rem;
+            margin-bottom: 0.9rem;
             background: linear-gradient(
                 180deg,
                 var(--cs-surface),
@@ -764,43 +764,44 @@ def render_ui_styles() -> None:
         .cs-process-progress {
             display: flex;
             justify-content: flex-start;
-            margin: 0.25rem auto 1rem;
+            margin: 0.1rem auto 0.85rem;
             width: 100%;
             overflow-x: auto;
-            padding-bottom: 0.15rem;
+            padding: 0.12rem 0 0.32rem;
+            scrollbar-gutter: stable;
         }
         .cs-process-progress-list {
             display: flex;
             align-items: stretch;
             justify-content: flex-start;
             flex-wrap: nowrap;
-            gap: 0.5rem;
+            gap: 0.42rem;
             margin: 0;
             padding: 0;
             list-style: none;
-            min-width: min-content;
-            width: 100%;
+            min-width: 100%;
+            width: max-content;
         }
         .cs-process-progress-item {
-            flex: 1 0 12.5rem;
-            min-width: 12.5rem;
-            max-width: 18rem;
+            flex: 1 0 8.35rem;
+            min-width: 8.35rem;
+            max-width: 10.5rem;
         }
         .cs-process-progress-link {
             display: grid;
             grid-template-columns: auto minmax(0, 1fr);
             align-items: flex-start;
-            gap: 0.58rem;
-            min-height: 4.35rem;
+            gap: 0.42rem;
+            min-height: 3.35rem;
             height: 100%;
-            padding: 0.62rem 0.72rem;
+            padding: 0.45rem 0.52rem;
             border: 1px solid var(--cs-border);
-            border-radius: 8px;
-            background: color-mix(in srgb, var(--cs-surface-raised) 94%, var(--cs-primary) 6%);
+            border-radius: 7px;
+            background: color-mix(in srgb, var(--cs-surface-raised) 96%, var(--cs-bg) 4%);
             color: var(--cs-text);
             text-decoration: none;
-            font-size: 0.82rem;
-            line-height: 1.2;
+            font-size: 0.74rem;
+            line-height: 1.16;
             box-shadow: var(--cs-shadow-sm);
             transition:
                 border-color 120ms ease,
@@ -810,7 +811,7 @@ def render_ui_styles() -> None:
         }
         .cs-process-progress-link:hover {
             border-color: var(--cs-primary);
-            background: color-mix(in srgb, var(--cs-surface-raised) 88%, var(--cs-primary) 12%);
+            background: color-mix(in srgb, var(--cs-surface-raised) 90%, var(--cs-primary) 10%);
             color: var(--cs-text);
             text-decoration: none;
             transform: translateY(-1px);
@@ -822,20 +823,28 @@ def render_ui_styles() -> None:
         .cs-process-progress-marker {
             display: grid;
             place-items: center;
-            width: 1.65rem;
-            height: 1.65rem;
+            width: 1.38rem;
+            height: 1.38rem;
             border-radius: 999px;
             border: 1px solid var(--cs-border);
             background: var(--cs-surface);
             color: var(--cs-text-muted);
-            font-size: 0.76rem;
+            font-size: 0.62rem;
             font-weight: 800;
             line-height: 1;
+        }
+        .cs-process-progress-item[data-status="complete"] .cs-process-progress-link {
+            border-color: color-mix(in srgb, var(--cs-success) 42%, var(--cs-border));
+            background: color-mix(in srgb, var(--cs-success-soft) 34%, var(--cs-surface));
         }
         .cs-process-progress-item[data-status="complete"] .cs-process-progress-marker {
             border-color: var(--cs-success);
             background: var(--cs-success-soft);
             color: var(--cs-success);
+        }
+        .cs-process-progress-item[data-status="partial"] .cs-process-progress-link {
+            border-color: color-mix(in srgb, var(--cs-warning) 45%, var(--cs-border));
+            background: color-mix(in srgb, var(--cs-warning-soft) 30%, var(--cs-surface));
         }
         .cs-process-progress-item[data-status="partial"] .cs-process-progress-marker {
             border-color: var(--cs-warning);
@@ -846,7 +855,7 @@ def render_ui_styles() -> None:
             border-color: var(--cs-primary);
             background: color-mix(in srgb, var(--cs-primary-soft) 72%, var(--cs-surface-raised));
             color: var(--cs-text);
-            box-shadow: 0 0 0 3px var(--cs-focus-ring);
+            box-shadow: 0 0 0 2px var(--cs-focus-ring);
         }
         .cs-process-progress-item[data-current="true"] .cs-process-progress-marker {
             border-color: var(--cs-primary);
@@ -855,7 +864,7 @@ def render_ui_styles() -> None:
         }
         .cs-process-progress-body {
             display: grid;
-            gap: 0.28rem;
+            gap: 0.2rem;
             min-width: 0;
         }
         .cs-process-progress-label-row {
@@ -868,6 +877,7 @@ def render_ui_styles() -> None:
             color: var(--cs-text);
             font-weight: 750;
             overflow-wrap: break-word;
+            hyphens: auto;
         }
         .cs-process-progress-icon {
             flex: 0 0 auto;
@@ -879,7 +889,7 @@ def render_ui_styles() -> None:
             flex-wrap: wrap;
             gap: 0.28rem 0.45rem;
             color: var(--cs-text-muted);
-            font-size: 0.76rem;
+            font-size: 0.68rem;
             font-weight: 600;
         }
         .cs-process-progress-status {
@@ -894,7 +904,7 @@ def render_ui_styles() -> None:
         .cs-process-progress-count {
             color: var(--cs-text-subtle);
             font-weight: 600;
-            white-space: nowrap;
+            overflow-wrap: anywhere;
         }
         [data-testid="stSidebar"] .cs-process-progress-link {
             background: var(--cs-sidebar-surface);
@@ -911,6 +921,11 @@ def render_ui_styles() -> None:
             background: var(--cs-sidebar-surface-muted);
             border-color: var(--cs-success);
             color: var(--cs-sidebar-surface-text);
+        }
+        [data-testid="stSidebar"] .cs-process-progress-item[data-status="complete"] .cs-process-progress-link,
+        [data-testid="stSidebar"] .cs-process-progress-item[data-status="partial"] .cs-process-progress-link {
+            background: var(--cs-sidebar-surface);
+            border-color: var(--cs-sidebar-border);
         }
         [data-testid="stSidebar"] .cs-process-progress-label {
             color: var(--cs-sidebar-surface-text);
@@ -1060,7 +1075,9 @@ def render_ui_styles() -> None:
                 justify-content: flex-start;
             }
             .cs-process-progress-item {
-                min-width: min(78vw, 18rem);
+                flex-basis: min(72vw, 15rem);
+                min-width: min(72vw, 15rem);
+                max-width: min(72vw, 15rem);
             }
             .cs-meta-list {
                 display: grid;

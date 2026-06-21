@@ -151,7 +151,8 @@ def test_render_landing_css_uses_theme_tokens(monkeypatch) -> None:
     assert "background: var(--cs-surface);" in css
     assert "border: 1px solid var(--cs-border);" in css
     assert "color: var(--cs-text-muted);" in css
-    assert "box-shadow: var(--cs-shadow-md);" in css
+    assert "box-shadow: var(--cs-shadow-sm);" in css
+    assert "section_spacing" not in css
 
 
 def test_build_process_progress_html_escapes_labels_and_starts_with_company() -> None:

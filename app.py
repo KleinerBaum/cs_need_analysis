@@ -109,6 +109,7 @@ def _inject_theme_styles() -> None:
             .stApp {{
                 --cs-app-bg: var(--background-color, #F6F8FB);
                 --cs-step-background-image: url("{wizard_light_background_uri}");
+                --cs-step-background-blend: soft-light;
                 --cs-app-text: var(--text-color, #142033);
                 --cs-app-surface: var(
                     --secondary-background-color,
@@ -135,12 +136,19 @@ def _inject_theme_styles() -> None:
                 --cs-text: var(--cs-app-text);
                 --cs-text-muted: color-mix(in srgb, var(--cs-app-text) 76%, var(--cs-app-bg));
                 --cs-text-subtle: color-mix(in srgb, var(--cs-app-text) 60%, var(--cs-app-bg));
-                background: var(--cs-app-bg) !important;
-                background-image: var(--cs-step-background-image) !important;
+                background-color: var(--cs-app-bg) !important;
+                background-image:
+                    linear-gradient(
+                        180deg,
+                        color-mix(in srgb, var(--cs-app-bg) 96%, transparent),
+                        color-mix(in srgb, var(--cs-app-bg) 88%, transparent)
+                    ),
+                    var(--cs-step-background-image) !important;
                 background-position: center top !important;
                 background-repeat: no-repeat !important;
-                background-size: cover !important;
+                background-size: auto, cover !important;
                 background-attachment: fixed !important;
+                background-blend-mode: normal, var(--cs-step-background-blend);
                 color: var(--cs-app-text);
             }}
 
@@ -156,6 +164,7 @@ def _inject_theme_styles() -> None:
             [data-theme="dark"] .stApp {{
                 --cs-app-bg: var(--background-color, #0B111B);
                 --cs-step-background-image: url("{wizard_dark_background_uri}");
+                --cs-step-background-blend: screen;
                 --cs-app-text: var(--text-color, #F1F5F9);
                 --cs-app-surface: var(
                     --secondary-background-color,
@@ -179,10 +188,10 @@ def _inject_theme_styles() -> None:
             }}
 
             .block-container {{
-                max-width: none;
-                padding-top: 1rem;
-                padding-left: clamp(1rem, 2vw, 2rem);
-                padding-right: clamp(1rem, 2vw, 2rem);
+                max-width: min(100%, 1180px);
+                padding-top: 0.8rem;
+                padding-left: clamp(0.9rem, 1.8vw, 1.5rem);
+                padding-right: clamp(0.9rem, 1.8vw, 1.5rem);
             }}
 
             [data-testid="stSidebarContent"] [data-testid="stVerticalBlock"] > div {{

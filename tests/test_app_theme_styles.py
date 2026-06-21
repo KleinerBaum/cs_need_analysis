@@ -32,7 +32,10 @@ def test_inject_theme_styles_uses_streamlit_theme_root(monkeypatch) -> None:
     assert "--cs-app-bg: var(--background-color, #0B111B);" in css
     assert "--cs-app-text: var(--text-color, #F1F5F9);" in css
     assert "[data-testid=\"stAppViewContainer" in css
-    assert "background: var(--cs-app-bg) !important;" in css
+    assert "background-color: var(--cs-app-bg) !important;" in css
+    assert "linear-gradient(" in css
+    assert "background-blend-mode: normal, var(--cs-step-background-blend);" in css
+    assert "max-width: min(100%, 1180px);" in css
     assert "background: transparent !important;" in css
 
 
