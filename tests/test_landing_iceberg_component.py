@@ -37,6 +37,7 @@ def test_iceberg_content_loads_required_sections() -> None:
 
     assert DEFAULT_CONTENT_PATH.exists()
     assert DEFAULT_IMAGE_PATH.exists()
+    assert DEFAULT_IMAGE_PATH.name == "eisberg_need_analysis_surface_deep.png"
     assert set(content) >= {"surface", "deep", "kpis"}
     assert set(content["surface"]) >= {"headline", "subline", "groups"}
     assert set(content["deep"]) >= {"headline", "subline", "groups"}

@@ -10,7 +10,7 @@ from typing import Any, Mapping, Sequence
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_CONTENT_PATH = ROOT_DIR / "content" / "iceberg_need_analysis.json"
-DEFAULT_IMAGE_PATH = ROOT_DIR / "images" / "OpenAI eisberg.png"
+DEFAULT_IMAGE_PATH = ROOT_DIR / "images" / "eisberg_need_analysis_surface_deep.png"
 COMPONENT_HEIGHT = 560
 
 
