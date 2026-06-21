@@ -166,8 +166,14 @@ def build_iceberg_need_analysis_html(
         inset: 0;
         z-index: 1;
         background:
-            linear-gradient(180deg, rgba(2, 11, 22, 0.08), rgba(2, 11, 22, 0.04) 43%, rgba(2, 11, 22, 0.18) 48%, rgba(2, 11, 22, 0.48) 100%),
-            linear-gradient(90deg, rgba(255, 176, 0, 0.13), transparent 43%, rgba(46, 236, 232, 0.11));
+            linear-gradient(
+                180deg,
+                rgba(2, 11, 22, 0.14) 0%,
+                rgba(2, 11, 22, 0.04) 42%,
+                rgba(46, 236, 232, 0.13) 46%,
+                rgba(2, 11, 22, 0.48) 100%
+            ),
+            radial-gradient(ellipse at 50% 46%, rgba(46, 236, 232, 0.12), transparent 21%);
         pointer-events: none;
     }}
 
