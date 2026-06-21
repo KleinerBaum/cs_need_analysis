@@ -144,6 +144,11 @@ def _inject_theme_styles() -> None:
                 color: var(--cs-app-text);
             }}
 
+            .stApp[data-cs-theme="dark"],
+            :root[data-cs-theme="dark"] .stApp,
+            html[data-cs-theme="dark"] .stApp,
+            body[data-cs-theme="dark"] .stApp,
+            [data-cs-theme="dark"] .stApp,
             .stApp[data-theme="dark"],
             :root[data-theme="dark"] .stApp,
             html[data-theme="dark"] .stApp,
@@ -224,6 +229,217 @@ def _inject_theme_styles() -> None:
         </style>
         """,
         unsafe_allow_html=True,
+    )
+
+
+def _build_runtime_theme_bridge_html() -> str:
+    """Build the iframe script that mirrors Streamlit's runtime theme into DOM."""
+
+    return """
+        <script>
+        (() => {
+            const THEME_ATTR = "data-cs-theme";
+            const DARK = "dark";
+            const LIGHT = "light";
+            const targetWindow = window.parent || window;
+
+            const normalizeTheme = (value) => {
+                const normalized = String(value || "").trim().toLowerCase();
+                if (normalized === DARK || normalized.includes('"base":"dark"') || normalized.includes('"base": "dark"')) {
+                    return DARK;
+                }
+                if (normalized === LIGHT || normalized.includes('"base":"light"') || normalized.includes('"base": "light"')) {
+                    return LIGHT;
+                }
+                return null;
+            };
+
+            const parseColor = (value) => {
+                const normalized = String(value || "").trim();
+                if (!normalized || normalized === "transparent") {
+                    return null;
+                }
+                const rgbMatch = normalized.match(/rgba?\\(([^)]+)\\)/i);
+                if (rgbMatch) {
+                    const channels = rgbMatch[1]
+                        .split(",")
+                        .slice(0, 3)
+                        .map((channel) => Number.parseFloat(channel.trim()));
+                    if (channels.length === 3 && channels.every(Number.isFinite)) {
+                        return channels.map((channel) => Math.max(0, Math.min(255, channel)));
+                    }
+                }
+                const hexMatch = normalized.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+                if (!hexMatch) {
+                    return null;
+                }
+                let hex = hexMatch[1];
+                if (hex.length === 3) {
+                    hex = hex.split("").map((char) => char + char).join("");
+                }
+                return [0, 2, 4].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16));
+            };
+
+            const luminance = (color) => {
+                const channels = parseColor(color);
+                if (!channels) {
+                    return null;
+                }
+                const linear = channels.map((channel) => {
+                    const value = channel / 255;
+                    return value <= 0.03928
+                        ? value / 12.92
+                        : Math.pow((value + 0.055) / 1.055, 2.4);
+                });
+                return (0.2126 * linear[0]) + (0.7152 * linear[1]) + (0.0722 * linear[2]);
+            };
+
+            const themeFromStorage = () => {
+                try {
+                    const storage = targetWindow.localStorage;
+                    for (let index = 0; index < storage.length; index += 1) {
+                        const key = storage.key(index) || "";
+                        const value = storage.getItem(key) || "";
+                        const keyTheme = normalizeTheme(key);
+                        const valueTheme = normalizeTheme(value);
+                        const haystack = `${key} ${value}`.toLowerCase();
+                        if (!haystack.includes("theme")) {
+                            continue;
+                        }
+                        if (valueTheme) {
+                            return valueTheme;
+                        }
+                        if (keyTheme) {
+                            return keyTheme;
+                        }
+                        const hasDark = haystack.includes("dark");
+                        const hasLight = haystack.includes("light");
+                        if (hasDark !== hasLight) {
+                            return hasDark ? DARK : LIGHT;
+                        }
+                    }
+                } catch (error) {
+                    return null;
+                }
+                return null;
+            };
+
+            const themeFromDom = (doc) => {
+                const nodes = [
+                    doc.documentElement,
+                    doc.body,
+                    doc.querySelector(".stApp"),
+                    doc.querySelector("[data-testid='stAppViewContainer']"),
+                ].filter(Boolean);
+                for (const node of nodes) {
+                    const explicitTheme = normalizeTheme(node.getAttribute("data-theme"));
+                    if (explicitTheme) {
+                        return explicitTheme;
+                    }
+                }
+                return null;
+            };
+
+            const themeFromToolbar = (doc) => {
+                const selectedControls = Array.from(
+                    doc.querySelectorAll(
+                        '[aria-checked="true"], [aria-selected="true"], [data-selected="true"]'
+                    )
+                );
+                for (const control of selectedControls) {
+                    const label = `${control.textContent || ""} ${control.getAttribute("aria-label") || ""}`.toLowerCase();
+                    if (label.includes("dark")) {
+                        return DARK;
+                    }
+                    if (label.includes("light")) {
+                        return LIGHT;
+                    }
+                }
+                return null;
+            };
+
+            const themeFromComputedStyle = (doc) => {
+                const nodes = [
+                    doc.documentElement,
+                    doc.body,
+                    doc.querySelector("[data-testid='stAppViewContainer']"),
+                    doc.querySelector(".stApp"),
+                ].filter(Boolean);
+                for (const node of nodes) {
+                    const style = targetWindow.getComputedStyle(node);
+                    const colorScheme = String(style.colorScheme || "").toLowerCase();
+                    if (colorScheme.split(" ").includes(DARK)) {
+                        return DARK;
+                    }
+                    const bg = style.getPropertyValue("--background-color") || style.backgroundColor;
+                    const text = style.getPropertyValue("--text-color") || style.color;
+                    const bgLuminance = luminance(bg);
+                    const textLuminance = luminance(text);
+                    if (bgLuminance === null || textLuminance === null) {
+                        continue;
+                    }
+                    if (bgLuminance < 0.35 && textLuminance > 0.55) {
+                        return DARK;
+                    }
+                    if (bgLuminance > 0.55 && textLuminance < 0.45) {
+                        return LIGHT;
+                    }
+                }
+                return null;
+            };
+
+            const resolveTheme = (doc) => (
+                themeFromDom(doc)
+                || themeFromToolbar(doc)
+                || themeFromStorage()
+                || themeFromComputedStyle(doc)
+                || LIGHT
+            );
+
+            const applyTheme = () => {
+                try {
+                    const doc = targetWindow.document || document;
+                    const theme = resolveTheme(doc);
+                    doc.documentElement.setAttribute(THEME_ATTR, theme);
+                    if (doc.body) {
+                        doc.body.setAttribute(THEME_ATTR, theme);
+                    }
+                    doc.querySelectorAll(".stApp").forEach((node) => {
+                        node.setAttribute(THEME_ATTR, theme);
+                    });
+                } catch (error) {
+                    return;
+                }
+            };
+
+            applyTheme();
+            try {
+                const doc = targetWindow.document || document;
+                const observer = new MutationObserver(applyTheme);
+                observer.observe(doc.documentElement, {
+                    attributes: true,
+                    attributeFilter: ["data-theme", "aria-checked", "aria-selected", "data-selected", "class", "style"],
+                    childList: true,
+                    subtree: true,
+                });
+                targetWindow.addEventListener("storage", applyTheme);
+                targetWindow.setTimeout(applyTheme, 50);
+                targetWindow.setTimeout(applyTheme, 250);
+                targetWindow.setTimeout(applyTheme, 1000);
+            } catch (error) {
+                return;
+            }
+        })();
+        </script>
+    """
+
+
+def _inject_runtime_theme_bridge() -> None:
+    """Mirror Streamlit's runtime theme into a stable app-shell DOM attribute."""
+
+    st.iframe(
+        _build_runtime_theme_bridge_html(),
+        height=1,
     )
 
 
@@ -476,6 +692,7 @@ def main() -> None:
         initial_sidebar_state="auto",
     )
     _inject_theme_styles()
+    _inject_runtime_theme_bridge()
 
     init_session_state()
     patch_streamlit_text()
