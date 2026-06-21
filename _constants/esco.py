@@ -1,0 +1,107 @@
+"""ESCO and occupation-question constants."""
+
+from __future__ import annotations
+
+from typing import Final
+
+
+DEFAULT_ESCO_SELECTED_VERSION: Final[str] = "v1.2.0"
+ESCO_RELEASE_LANE_STABLE: Final[str] = "stable"
+ESCO_RELEASE_LANE_PREVIEW: Final[str] = "preview"
+DEFAULT_ESCO_RELEASE_LANE: Final[str] = ESCO_RELEASE_LANE_STABLE
+ESCO_RELEASE_LANES: Final[tuple[str, str]] = (
+    ESCO_RELEASE_LANE_STABLE,
+    ESCO_RELEASE_LANE_PREVIEW,
+)
+ESCO_RELEASE_LANE_SELECTED_VERSION: Final[dict[str, str]] = {
+    ESCO_RELEASE_LANE_STABLE: "v1.2.0",
+    ESCO_RELEASE_LANE_PREVIEW: "v1.2.1",
+}
+DEFAULT_ESCO_INDEX_STORAGE_PATH: Final[str] = "data/esco_index"
+DEFAULT_ESCO_DATA_SOURCE_MODE: Final[str] = "live_api"
+ESCO_DATA_SOURCE_MODES: Final[tuple[str, str, str]] = ("live_api", "offline_index", "hybrid")
+ESCO_API_MODES: Final[tuple[str, str]] = ("hosted", "local")
+ESCO_ANCHOR_STATE_DEGRADED: Final[str] = "degraded_unconfirmed"
+ESCO_ANCHOR_STATE_ANCHORED: Final[str] = "anchored"
+ESCO_ANCHOR_STATE_ANCHORED_WITH_CONTEXT: Final[str] = "anchored_with_context"
+ESCO_ANCHOR_STATES: Final[tuple[str, str, str]] = (
+    ESCO_ANCHOR_STATE_DEGRADED,
+    ESCO_ANCHOR_STATE_ANCHORED,
+    ESCO_ANCHOR_STATE_ANCHORED_WITH_CONTEXT,
+)
+ESCO_SEMANTIC_EXPORT_MODE_DEGRADED: Final[str] = "degraded"
+ESCO_SEMANTIC_EXPORT_MODE_ANCHORED: Final[str] = "anchored"
+ESCO_SEMANTIC_EXPORT_MODES: Final[tuple[str, str]] = (
+    ESCO_SEMANTIC_EXPORT_MODE_DEGRADED,
+    ESCO_SEMANTIC_EXPORT_MODE_ANCHORED,
+)
+ESCO_SECONDARY_ANCHOR_MAX: Final[int] = 2
+OCCUPATION_QUESTION_MODULE_BASE: Final[str] = "BASE_RECRUITING"
+OCCUPATION_QUESTION_MODULE_ISCO1_PREFIX: Final[str] = "ISCO1"
+OCCUPATION_QUESTION_MODULE_ISCO3_PREFIX: Final[str] = "ISCO3"
+OCCUPATION_QUESTION_MODULE_ISCO4_PREFIX: Final[str] = "ISCO4"
+OCCUPATION_QUESTION_MODULE_ESCO_PREFIX: Final[str] = "ESCO_OCCUPATION"
+OCCUPATION_QUESTION_MODULE_SKILL_GROUP_PREFIX: Final[str] = "SKILL_GROUP"
+OCCUPATION_QUESTION_MODULE_NACE_PREFIX: Final[str] = "NACE"
+OCCUPATION_QUESTION_MODULE_REGULATED: Final[str] = "REGULATED_PROFESSION"
+ESCO_QUESTION_SKILL_GROUP_DOMAIN_KNOWLEDGE: Final[str] = "domain_knowledge"
+ESCO_QUESTION_SKILL_GROUP_TOOLS_METHODS: Final[str] = "tools_methods"
+ESCO_QUESTION_SKILL_GROUP_REGULATION_SAFETY: Final[str] = "regulation_safety"
+ESCO_QUESTION_SKILL_GROUP_CUSTOMER_CLIENT_INTERACTION: Final[str] = (
+    "customer_client_interaction"
+)
+ESCO_QUESTION_SKILL_GROUP_DOCUMENTATION_REPORTING: Final[str] = (
+    "documentation_reporting"
+)
+ESCO_QUESTION_SKILL_GROUP_LEADERSHIP_COORDINATION: Final[str] = (
+    "leadership_coordination"
+)
+ESCO_QUESTION_SKILL_GROUP_PHYSICAL_MANUAL_CONTEXT: Final[str] = (
+    "physical_manual_context"
+)
+ESCO_QUESTION_SKILL_GROUP_DIGITAL_DATA_AI: Final[str] = "digital_data_ai"
+ESCO_QUESTION_SKILL_GROUP_LANGUAGE_COMMUNICATION: Final[str] = (
+    "language_communication"
+)
+ESCO_QUESTION_SKILL_GROUP_TRANSVERSAL_FIT: Final[str] = "transversal_fit"
+ESCO_QUESTION_SKILL_GROUP_IDS: Final[tuple[str, ...]] = (
+    ESCO_QUESTION_SKILL_GROUP_DOMAIN_KNOWLEDGE,
+    ESCO_QUESTION_SKILL_GROUP_TOOLS_METHODS,
+    ESCO_QUESTION_SKILL_GROUP_REGULATION_SAFETY,
+    ESCO_QUESTION_SKILL_GROUP_CUSTOMER_CLIENT_INTERACTION,
+    ESCO_QUESTION_SKILL_GROUP_DOCUMENTATION_REPORTING,
+    ESCO_QUESTION_SKILL_GROUP_LEADERSHIP_COORDINATION,
+    ESCO_QUESTION_SKILL_GROUP_PHYSICAL_MANUAL_CONTEXT,
+    ESCO_QUESTION_SKILL_GROUP_DIGITAL_DATA_AI,
+    ESCO_QUESTION_SKILL_GROUP_LANGUAGE_COMMUNICATION,
+    ESCO_QUESTION_SKILL_GROUP_TRANSVERSAL_FIT,
+)
+QUESTION_GROUP_DISPLAY_LABELS_DE: Final[dict[str, str]] = {
+    "must_nice_trainable": "Skill-Priorisierung",
+    "data_hygiene": "Datenqualität",
+    "tech_stack": "Tech Stack",
+    "licenses": "Nachweise & Lizenzen",
+    "compensation_contract": "Vergütung & Vertrag",
+    "legal_contract": "Rechtliches",
+    "offer_components": "Angebot",
+    "timeline": "Timing",
+    "assessment": "Assessment",
+    "stage_evaluation": "Bewertung",
+    "candidate_communication": "Kommunikation",
+    "process_compliance": "Prozess & Compliance",
+    ESCO_QUESTION_SKILL_GROUP_DOMAIN_KNOWLEDGE: "Fachwissen",
+    ESCO_QUESTION_SKILL_GROUP_TOOLS_METHODS: "Tools & Methoden",
+    ESCO_QUESTION_SKILL_GROUP_REGULATION_SAFETY: "Regulierung & Sicherheit",
+    ESCO_QUESTION_SKILL_GROUP_CUSTOMER_CLIENT_INTERACTION: "Kundenkontakt",
+    ESCO_QUESTION_SKILL_GROUP_DOCUMENTATION_REPORTING: "Dokumentation & Reporting",
+    ESCO_QUESTION_SKILL_GROUP_LEADERSHIP_COORDINATION: "Führung & Koordination",
+    ESCO_QUESTION_SKILL_GROUP_PHYSICAL_MANUAL_CONTEXT: "Arbeitsumgebung",
+    ESCO_QUESTION_SKILL_GROUP_DIGITAL_DATA_AI: "Digital, Data & AI",
+    ESCO_QUESTION_SKILL_GROUP_LANGUAGE_COMMUNICATION: "Sprache & Kommunikation",
+    ESCO_QUESTION_SKILL_GROUP_TRANSVERSAL_FIT: "Arbeitsweise",
+}
+ESCO_CONCEPT_QUESTION_CAP_BY_UI_MODE: Final[dict[str, int]] = {
+    "quick": 3,
+    "standard": 6,
+    "expert": 10,
+}
