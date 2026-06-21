@@ -42,6 +42,7 @@ from constants import (
     DEFAULT_LANGUAGE,
     FactKey,
     JOB_AD_SCHEMA_VERSION,
+    LLM_RESPONSE_CACHE_MAX_ENTRIES,
     QUESTION_IMPACT_TARGETS,
     QUESTION_SCHEMA_VERSION,
     SSKey,
@@ -793,6 +794,52 @@ def _get_session_response_cache() -> dict[str, dict[str, Any]]:
     return cache
 
 
+def _evict_session_response_cache(cache: dict[str, dict[str, Any]]) -> None:
+    """Keep the session LLM response cache within the canonical size cap."""
+
+    while len(cache) > LLM_RESPONSE_CACHE_MAX_ENTRIES:
+        oldest_key = next(iter(cache), None)
+        if oldest_key is None:
+            return
+        cache.pop(oldest_key, None)
+
+
+def _get_session_response_cache_entry(
+    cache: dict[str, dict[str, Any]],
+    cache_key: str,
+) -> dict[str, Any] | None:
+    """Return a cached entry if it has the expected mapping shape."""
+
+    cached_entry = cache.get(cache_key)
+    if isinstance(cached_entry, dict):
+        return cached_entry
+    return None
+
+
+def _touch_session_response_cache_entry(
+    cache: dict[str, dict[str, Any]],
+    cache_key: str,
+    cached_entry: dict[str, Any],
+) -> None:
+    """Mark a valid cache hit as most recently used."""
+
+    cache.pop(cache_key, None)
+    cache[cache_key] = cached_entry
+    _evict_session_response_cache(cache)
+
+
+def _write_session_response_cache_entry(
+    cache: dict[str, dict[str, Any]],
+    cache_key: str,
+    entry: dict[str, Any],
+) -> None:
+    """Write a response cache entry and evict oldest entries if needed."""
+
+    cache.pop(cache_key, None)
+    cache[cache_key] = entry
+    _evict_session_response_cache(cache)
+
+
 def _build_llm_cache_key(
     *,
     task_kind: str,
@@ -1393,8 +1440,8 @@ def extract_job_ad(
         schema_version=JOB_AD_SCHEMA_VERSION,
     )
     cache = _get_session_response_cache()
-    cached_entry = cache.get(cache_key)
-    if isinstance(cached_entry, dict):
+    cached_entry = _get_session_response_cache_entry(cache, cache_key)
+    if cached_entry is not None:
         cached_result = cached_entry.get("result")
         if isinstance(cached_result, dict):
             try:
@@ -1407,6 +1454,7 @@ def extract_job_ad(
                     model_name=runtime_config.resolved_model,
                 )
             else:
+                _touch_session_response_cache_entry(cache, cache_key, cached_entry)
                 return parsed_cached, _cached_usage(cache_key=cache_key)
 
     parsed, usage = _parse_with_structured_outputs(
@@ -1416,7 +1464,11 @@ def extract_job_ad(
         store=store,
         maybe_temperature=temperature,
     )
-    cache[cache_key] = {"result": parsed.model_dump(mode="json")}
+    _write_session_response_cache_entry(
+        cache,
+        cache_key,
+        {"result": parsed.model_dump(mode="json")},
+    )
 
     return cast(JobAdExtract, parsed), usage
 
@@ -1510,8 +1562,8 @@ def generate_question_plan(
         schema_version=QUESTION_SCHEMA_VERSION,
     )
     cache = _get_session_response_cache()
-    cached_entry = cache.get(cache_key)
-    if isinstance(cached_entry, dict):
+    cached_entry = _get_session_response_cache_entry(cache, cache_key)
+    if cached_entry is not None:
         cached_result = cached_entry.get("result")
         if isinstance(cached_result, dict):
             try:
@@ -1525,6 +1577,7 @@ def generate_question_plan(
                 )
             else:
                 normalized_cached = normalize_question_plan(parsed_cached)
+                _touch_session_response_cache_entry(cache, cache_key, cached_entry)
                 return normalized_cached, _cached_usage(cache_key=cache_key)
 
     parsed, usage = _parse_with_structured_outputs(
@@ -1539,7 +1592,11 @@ def generate_question_plan(
     )
 
     normalized = normalize_question_plan(cast(QuestionPlan, parsed))
-    cache[cache_key] = {"result": normalized.model_dump(mode="json")}
+    _write_session_response_cache_entry(
+        cache,
+        cache_key,
+        {"result": normalized.model_dump(mode="json")},
+    )
     return normalized, usage
 
 
@@ -2119,8 +2176,8 @@ def generate_vacancy_brief(
         schema_version=VACANCY_SCHEMA_VERSION,
     )
     cache = _get_session_response_cache()
-    cached_entry = cache.get(cache_key)
-    if isinstance(cached_entry, dict):
+    cached_entry = _get_session_response_cache_entry(cache, cache_key)
+    if cached_entry is not None:
         cached_result = cached_entry.get("result")
         if isinstance(cached_result, dict):
             try:
@@ -2133,6 +2190,7 @@ def generate_vacancy_brief(
                     model_name=runtime_config.resolved_model,
                 )
             else:
+                _touch_session_response_cache_entry(cache, cache_key, cached_entry)
                 return parsed_cached, _cached_usage(cache_key=cache_key)
 
     parsed, usage = _parse_with_structured_outputs(
@@ -2165,7 +2223,11 @@ def generate_vacancy_brief(
         **parsed_brief.model_dump(),
         structured_data=VacancyStructuredData.model_validate(merged),
     )
-    cache[cache_key] = {"result": brief.model_dump(mode="json")}
+    _write_session_response_cache_entry(
+        cache,
+        cache_key,
+        {"result": brief.model_dump(mode="json")},
+    )
     return brief, usage
 
 
@@ -2229,8 +2291,8 @@ def upgrade_vacancy_brief_critical_sections(
         schema_version=VACANCY_SCHEMA_VERSION,
     )
     cache = _get_session_response_cache()
-    cached_entry = cache.get(cache_key)
-    if isinstance(cached_entry, dict):
+    cached_entry = _get_session_response_cache_entry(cache, cache_key)
+    if cached_entry is not None:
         cached_result = cached_entry.get("result")
         if isinstance(cached_result, dict):
             updated_cached = base_brief.model_copy(deep=True)
@@ -2240,6 +2302,7 @@ def upgrade_vacancy_brief_critical_sections(
             updated_cached.risks_open_questions = cached_result.get(
                 "risks_open_questions", []
             )
+            _touch_session_response_cache_entry(cache, cache_key, cached_entry)
             return updated_cached, _cached_usage(cache_key=cache_key)
 
     parsed, usage = _parse_with_structured_outputs(
@@ -2256,7 +2319,11 @@ def upgrade_vacancy_brief_critical_sections(
     updated = base_brief.model_copy(deep=True)
     updated.evaluation_rubric = parsed_sections.evaluation_rubric
     updated.risks_open_questions = parsed_sections.risks_open_questions
-    cache[cache_key] = {"result": parsed_sections.model_dump(mode="json")}
+    _write_session_response_cache_entry(
+        cache,
+        cache_key,
+        {"result": parsed_sections.model_dump(mode="json")},
+    )
     return updated, usage
 
 
@@ -2340,13 +2407,13 @@ def generate_custom_job_ad(
         schema_version=VACANCY_SCHEMA_VERSION,
     )
     cache = _get_session_response_cache()
-    cached_entry = cache.get(cache_key)
-    if isinstance(cached_entry, dict):
+    cached_entry = _get_session_response_cache_entry(cache, cache_key)
+    if cached_entry is not None:
         cached_result = cached_entry.get("result")
         if isinstance(cached_result, dict):
-            return JobAdGenerationResult.model_validate(cached_result), _cached_usage(
-                cache_key=cache_key
-            )
+            result = JobAdGenerationResult.model_validate(cached_result)
+            _touch_session_response_cache_entry(cache, cache_key, cached_entry)
+            return result, _cached_usage(cache_key=cache_key)
 
     parsed, usage = _parse_with_structured_outputs(
         runtime_config=runtime_config,
@@ -2359,7 +2426,11 @@ def generate_custom_job_ad(
         maybe_temperature=temperature,
     )
     result = cast(JobAdGenerationResult, parsed)
-    cache[cache_key] = {"result": result.model_dump(mode="json")}
+    _write_session_response_cache_entry(
+        cache,
+        cache_key,
+        {"result": result.model_dump(mode="json")},
+    )
     return result, usage
 
 
@@ -2985,8 +3056,8 @@ def generate_requirement_gap_suggestions(
         schema_version=VACANCY_SCHEMA_VERSION,
     )
     cache = _get_session_response_cache()
-    cached_entry = cache.get(cache_key)
-    if isinstance(cached_entry, dict):
+    cached_entry = _get_session_response_cache_entry(cache, cache_key)
+    if cached_entry is not None:
         cached_result = cached_entry.get("result")
         if isinstance(cached_result, dict):
             try:
@@ -2999,6 +3070,7 @@ def generate_requirement_gap_suggestions(
                     model_name=runtime_config.resolved_model,
                 )
             else:
+                _touch_session_response_cache_entry(cache, cache_key, cached_entry)
                 return parsed_cached, _cached_usage(cache_key=cache_key)
 
     fallback_payload: dict[str, Any] = {"skills": [], "tasks": []}
@@ -3017,7 +3089,11 @@ def generate_requirement_gap_suggestions(
     result = cast(RequirementSuggestionPack, parsed)
     result.skills = result.skills[:capped_skill_count]
     result.tasks = result.tasks[:capped_task_count]
-    cache[cache_key] = {"result": result.model_dump(mode="json")}
+    _write_session_response_cache_entry(
+        cache,
+        cache_key,
+        {"result": result.model_dump(mode="json")},
+    )
     return result, usage
 
 
@@ -3292,8 +3368,8 @@ def generate_benefit_suggestions(
         schema_version=VACANCY_SCHEMA_VERSION,
     )
     cache = _get_session_response_cache()
-    cached_entry = cache.get(cache_key)
-    if isinstance(cached_entry, dict):
+    cached_entry = _get_session_response_cache_entry(cache, cache_key)
+    if cached_entry is not None:
         cached_result = cached_entry.get("result")
         if isinstance(cached_result, dict):
             try:
@@ -3312,6 +3388,7 @@ def generate_benefit_suggestions(
                     existing_benefits=existing_benefits,
                     capped_benefit_count=capped_benefit_count,
                 )
+                _touch_session_response_cache_entry(cache, cache_key, cached_entry)
                 return parsed_cached, _cached_usage(cache_key=cache_key)
 
     parsed, usage = _generate_structured_with_fallback(
@@ -3333,7 +3410,11 @@ def generate_benefit_suggestions(
         existing_benefits=existing_benefits,
         capped_benefit_count=capped_benefit_count,
     )
-    cache[cache_key] = {"result": result.model_dump(mode="json")}
+    _write_session_response_cache_entry(
+        cache,
+        cache_key,
+        {"result": result.model_dump(mode="json")},
+    )
     return result, usage
 
 
@@ -3411,8 +3492,8 @@ def generate_role_tasks_salary_forecast(
         schema_version=VACANCY_SCHEMA_VERSION,
     )
     cache = _get_session_response_cache()
-    cached_entry = cache.get(cache_key)
-    if isinstance(cached_entry, dict):
+    cached_entry = _get_session_response_cache_entry(cache, cache_key)
+    if cached_entry is not None:
         cached_result = cached_entry.get("result")
         if isinstance(cached_result, dict):
             try:
@@ -3425,6 +3506,7 @@ def generate_role_tasks_salary_forecast(
                     model_name=runtime_config.resolved_model,
                 )
             else:
+                _touch_session_response_cache_entry(cache, cache_key, cached_entry)
                 return parsed_cached, _cached_usage(cache_key=cache_key)
 
     fallback_payload = {
@@ -3447,5 +3529,9 @@ def generate_role_tasks_salary_forecast(
         temperature=temperature,
     )
     result = cast(RoleTaskSalaryForecast, parsed)
-    cache[cache_key] = {"result": result.model_dump(mode="json")}
+    _write_session_response_cache_entry(
+        cache,
+        cache_key,
+        {"result": result.model_dump(mode="json")},
+    )
     return result, usage

@@ -20,6 +20,7 @@ APP_NAME: Final[str] = "Cognitive Staffing"
 APP_TAGLINE: Final[str] = "AI-gestützte Kompetenz- und Matching-Workflows"
 APP_TITLE: Final[str] = f"{APP_NAME} – Vacancy Intake Wizard"
 DEFAULT_LANGUAGE: Final[str] = "de"
+LLM_RESPONSE_CACHE_MAX_ENTRIES: Final[int] = 64
 DEFAULT_ESCO_SELECTED_VERSION: Final[str] = "v1.2.0"
 ESCO_RELEASE_LANE_STABLE: Final[str] = "stable"
 ESCO_RELEASE_LANE_PREVIEW: Final[str] = "preview"

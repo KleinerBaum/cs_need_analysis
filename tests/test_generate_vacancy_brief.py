@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 import llm_client
-from constants import FactKey
+from constants import FactKey, VACANCY_SCHEMA_VERSION
 from llm_client import OpenAIRuntimeConfig, generate_vacancy_brief
 from schemas import CompanyWebsiteResearch, JobAdExtract, VacancyBrief, VacancyBriefLLM
 from settings_openai import OpenAISettings
@@ -90,6 +90,77 @@ def test_generate_vacancy_brief_uses_llm_parse_model_and_injects_structured_data
     assert structured_data["selected_skills"] is None
     assert structured_data["selected_benefits"] is None
     assert structured_data["company_website_research"] is None
+
+
+def test_generate_vacancy_brief_returns_cached_brief_without_parse(
+    monkeypatch,
+) -> None:
+    runtime_config = _runtime_config()
+    job = JobAdExtract(job_title="Engineer")
+    answers = {"team": {"headcount": 3}}
+    cached_brief = VacancyBrief(
+        one_liner="Cached line",
+        hiring_context="Cached context",
+        role_summary="Cached summary",
+        top_responsibilities=["Cached responsibility"],
+        must_have=["Cached must"],
+        nice_to_have=[],
+        dealbreakers=[],
+        interview_plan=[],
+        evaluation_rubric=[],
+        sourcing_channels=[],
+        risks_open_questions=[],
+        job_ad_draft="Cached draft",
+        structured_data={
+            "job_extract": job.model_dump(),
+            "answers": answers,
+        },
+    )
+    cache_key = llm_client._build_llm_cache_key(
+        task_kind=llm_client.TASK_GENERATE_VACANCY_BRIEF,
+        resolved_model=runtime_config.resolved_model,
+        language="de",
+        reasoning_effort=runtime_config.reasoning_effort,
+        verbosity=runtime_config.verbosity,
+        store=False,
+        normalized_content=llm_client._canonicalize_for_cache(
+            {
+                "job": job.model_dump(mode="json"),
+                "answers": answers,
+                "normalized_structured_fields": llm_client._normalized_structured_fields(
+                    answers
+                ),
+                "selected_role_tasks": [],
+                "selected_skills": [],
+                "selected_benefits": [],
+                "company_website_research": {},
+            }
+        ),
+        schema_version=VACANCY_SCHEMA_VERSION,
+    )
+    cache = {
+        "older-key": {"result": {"one_liner": "old"}},
+        cache_key: {"result": cached_brief.model_dump(mode="json")},
+    }
+
+    def fail_parse(**_kwargs: Any) -> tuple[VacancyBriefLLM, dict[str, int]]:
+        raise AssertionError("parse should not be called on cache hit")
+
+    monkeypatch.setattr(
+        llm_client, "_resolve_runtime_config", lambda **_: runtime_config
+    )
+    monkeypatch.setattr(llm_client, "_get_session_response_cache", lambda: cache)
+    monkeypatch.setattr(llm_client, "_parse_with_structured_outputs", fail_parse)
+
+    brief, usage = generate_vacancy_brief(job, answers, model="gpt-5-mini")
+
+    assert brief.one_liner == "Cached line"
+    assert usage == {
+        "cached": True,
+        "cache_key": cache_key,
+        "provider": "session_state",
+    }
+    assert list(cache)[-1] == cache_key
 
 
 def test_generate_vacancy_brief_includes_selected_role_tasks_skills_and_benefits(

@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import llm_client
+from constants import LLM_RESPONSE_CACHE_MAX_ENTRIES, QUESTION_SCHEMA_VERSION
 from llm_client import OpenAIRuntimeConfig, generate_question_plan
 from schemas import JobAdExtract, QuestionPlan
 from settings_openai import OpenAISettings
@@ -75,3 +76,83 @@ def test_generate_question_plan_prompt_encodes_section_group_contract(monkeypatc
     assert "fruehere Frage im selben Step" in prompt
     assert "brief, salary, skills, interview, export" in prompt
     assert "info_gain_score" in prompt
+
+
+def test_session_response_cache_write_enforces_cap() -> None:
+    cache = {
+        f"key-{index}": {"result": {"value": index}}
+        for index in range(LLM_RESPONSE_CACHE_MAX_ENTRIES)
+    }
+
+    llm_client._write_session_response_cache_entry(
+        cache,
+        "new-key",
+        {"result": {"value": "new"}},
+    )
+
+    assert len(cache) == LLM_RESPONSE_CACHE_MAX_ENTRIES
+    assert "key-0" not in cache
+    assert list(cache)[-1] == "new-key"
+
+
+def test_session_response_cache_touch_updates_recency_before_eviction() -> None:
+    cache = {
+        f"key-{index}": {"result": {"value": index}}
+        for index in range(LLM_RESPONSE_CACHE_MAX_ENTRIES)
+    }
+
+    cached_entry = llm_client._get_session_response_cache_entry(cache, "key-0")
+    assert cached_entry is not None
+    llm_client._touch_session_response_cache_entry(cache, "key-0", cached_entry)
+    llm_client._write_session_response_cache_entry(
+        cache,
+        "new-key",
+        {"result": {"value": "new"}},
+    )
+
+    assert len(cache) == LLM_RESPONSE_CACHE_MAX_ENTRIES
+    assert "key-0" in cache
+    assert "key-1" not in cache
+    assert list(cache)[-2:] == ["key-0", "new-key"]
+
+
+def test_generate_question_plan_returns_cached_plan_without_parse(monkeypatch) -> None:
+    runtime_config = _runtime_config()
+    job = JobAdExtract(job_title="Data Engineer")
+    cache_key = llm_client._build_llm_cache_key(
+        task_kind=llm_client.TASK_GENERATE_QUESTION_PLAN,
+        resolved_model=runtime_config.resolved_model,
+        language="de",
+        reasoning_effort=runtime_config.reasoning_effort,
+        verbosity=runtime_config.verbosity,
+        store=False,
+        normalized_content=llm_client._canonicalize_for_cache(
+            job.model_dump(mode="json")
+        ),
+        schema_version=QUESTION_SCHEMA_VERSION,
+    )
+    cache = {
+        "older-key": {"result": {"steps": []}},
+        cache_key: {"result": QuestionPlan(steps=[]).model_dump(mode="json")},
+    }
+
+    def fail_parse(**_kwargs: Any) -> tuple[QuestionPlan, dict[str, int]]:
+        raise AssertionError("parse should not be called on cache hit")
+
+    monkeypatch.setattr(
+        llm_client,
+        "_resolve_runtime_config",
+        lambda **_kwargs: runtime_config,
+    )
+    monkeypatch.setattr(llm_client, "_get_session_response_cache", lambda: cache)
+    monkeypatch.setattr(llm_client, "_parse_with_structured_outputs", fail_parse)
+
+    plan, usage = generate_question_plan(job, model="gpt-5-mini")
+
+    assert plan.steps == []
+    assert usage == {
+        "cached": True,
+        "cache_key": cache_key,
+        "provider": "session_state",
+    }
+    assert list(cache)[-1] == cache_key
