@@ -43,6 +43,7 @@ from intake_facts import (
     mark_intake_facts_used_by_artifact,
     write_intake_fact,
 )
+from safe_html import render_static_html
 from homepage_research import (
     normalize_company_website_research_payload as _normalize_company_website_research_payload,
 )
@@ -1707,7 +1708,7 @@ def _render_export_bar(*, has_brief: bool) -> None:
 
 
 def _render_summary_dashboard_css() -> None:
-    st.markdown(
+    render_static_html(
         """
         <style>
         .cs-summary-pipeline {
@@ -1780,7 +1781,7 @@ def _render_summary_dashboard_css() -> None:
         }
         </style>
         """,
-        unsafe_allow_html=True,
+        streamlit_module=st,
     )
 
 
@@ -2030,11 +2031,11 @@ def _render_summary_workspace_tabs(
     brief: VacancyBrief | None,
 ) -> None:
     st.markdown("### Workspaces")
-    st.markdown(
+    render_static_html(
         '<p class="cs-summary-section-note">'
         "Details sind nach Aufgabe getrennt, damit Fakten und Exporte nicht doppelt erscheinen."
         "</p>",
-        unsafe_allow_html=True,
+        streamlit_module=st,
     )
     brief_tab, facts_tab, export_tab, advanced_tab = _build_summary_tabs()
 
@@ -2264,16 +2265,16 @@ def _render_job_ad_artifact(custom_job_ad_raw: dict[str, Any]) -> None:
     )
     render_card_start("cs-card cs-result-card")
     st.markdown("### Primary Output")
-    st.markdown(
+    render_static_html(
         document_preview_shell(
             _job_ad_preview_html(custom_job_ad, logo_payload=logo_payload),
             title="Stellenanzeige",
             fit_pages=True,
             **shell_options,
         ),
-        unsafe_allow_html=True,
+        streamlit_module=st,
     )
-    st.markdown("</section>", unsafe_allow_html=True)
+    render_static_html("</section>", streamlit_module=st)
 
     render_card_start("cs-card cs-result-card")
     st.markdown("### Review")
@@ -2295,7 +2296,7 @@ def _render_job_ad_artifact(custom_job_ad_raw: dict[str, Any]) -> None:
     critical_gaps = _dedupe_preserve_order(critical_gaps)
     if critical_gaps:
         render_critical_gaps(critical_gaps, title="Kritische Lücken")
-    st.markdown("</section>", unsafe_allow_html=True)
+    render_static_html("</section>", streamlit_module=st)
 
     render_card_start("cs-card cs-result-card")
     st.markdown("### Export")
@@ -2327,7 +2328,7 @@ def _render_job_ad_artifact(custom_job_ad_raw: dict[str, Any]) -> None:
             file_name="stellenanzeige.md",
             mime="text/markdown",
         )
-    st.markdown("</section>", unsafe_allow_html=True)
+    render_static_html("</section>", streamlit_module=st)
 
 
 def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
@@ -2337,7 +2338,7 @@ def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
             brief,
             structured_data_payload=_build_brief_structured_preview_payload(brief),
         )
-        st.markdown("</section>", unsafe_allow_html=True)
+        render_static_html("</section>", streamlit_module=st)
         return
 
     if artifact_id == "job_ad":

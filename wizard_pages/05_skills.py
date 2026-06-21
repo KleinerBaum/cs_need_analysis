@@ -30,6 +30,7 @@ from llm_client import (
 )
 from occupation_context import build_occupation_question_context
 from question_plan_compiler import compile_question_plan
+from safe_html import render_static_html
 from usage_events import record_enrichment_timed
 from schemas import EscoMappingReport
 from schemas import (
@@ -2025,7 +2026,7 @@ def _render_confirmed_selection_block(
         if _normalize_term(label) not in esco_selected_normalized
     ]
 
-    st.markdown(
+    render_static_html(
         """
         <style>
         div[data-testid="stVerticalBlock"] div[data-testid="stVerticalBlockBorderWrapper"]:has(.skills-selection-sticky) {
@@ -2059,7 +2060,7 @@ def _render_confirmed_selection_block(
         }
         </style>
         """,
-        unsafe_allow_html=True,
+        streamlit_module=st,
     )
 
     if include_details:
@@ -2070,7 +2071,10 @@ def _render_confirmed_selection_block(
     with basket_col:
         sticky = st.container(border=True)
         with sticky:
-            st.markdown('<span class="skills-selection-sticky"></span>', unsafe_allow_html=True)
+            render_static_html(
+                '<span class="skills-selection-sticky"></span>',
+                streamlit_module=st,
+            )
             st.markdown("##### Kategorien")
 
             def _render_compact_group(title: str, labels: list[str]) -> None:
@@ -2085,9 +2089,9 @@ def _render_confirmed_selection_block(
                     )
                     for label in labels
                 )
-                st.markdown(
+                render_static_html(
                     f'<div class="skills-chip-row">{chip_html}</div>',
-                    unsafe_allow_html=True,
+                    streamlit_module=st,
                 )
                 with st.expander("Details anzeigen", expanded=False):
                     for idx, label in enumerate(labels):

@@ -65,6 +65,7 @@ from question_progress import (
     compute_question_progress,
 )
 from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
+from safe_html import escape_html_text, render_static_html
 from step_status import StepStatusPayload, build_step_status_payload
 from state import normalize_ui_preferences
 from usage_events import record_step_entered, record_step_submitted
@@ -1758,17 +1759,22 @@ LANDING_CTA_KEYS: dict[str, str] = {
 
 
 def render_landing_css(style_tokens: Mapping[str, str]) -> None:
-    st.markdown(
+    card_radius = escape_html_text(style_tokens["card_radius"])
+    section_spacing = escape_html_text(style_tokens["section_spacing"])
+    muted_text_color = escape_html_text(style_tokens["muted_text_color"])
+    emphasis_background = escape_html_text(style_tokens["emphasis_background"])
+    emphasis_border = escape_html_text(style_tokens["emphasis_border"])
+    render_static_html(
         f"""
         <style>
             .landing-section {{
-                margin: {style_tokens["section_spacing"]};
+                margin: {section_spacing};
             }}
 
             .landing-hero {{
                 background: var(--cs-surface);
                 border: 1px solid var(--cs-border);
-                border-radius: {style_tokens["card_radius"]};
+                border-radius: {card_radius};
                 padding: 1.15rem 1.1rem;
                 box-shadow: var(--cs-shadow-sm);
             }}
@@ -1795,7 +1801,7 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
             .landing-card {{
                 background: var(--cs-surface);
                 border: 1px solid var(--cs-border);
-                border-radius: {style_tokens["card_radius"]};
+                border-radius: {card_radius};
                 padding: 0.95rem;
                 height: 100%;
                 box-shadow: var(--cs-shadow-sm);
@@ -1814,9 +1820,9 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
             }}
 
             .landing-emphasis {{
-                background: {style_tokens["emphasis_background"]};
-                border-left: {style_tokens["emphasis_border"]};
-                border-radius: {style_tokens["card_radius"]};
+                background: {emphasis_background};
+                border-left: {emphasis_border};
+                border-radius: {card_radius};
                 padding: 0.72rem 0.8rem;
                 margin-bottom: 0.75rem;
             }}
@@ -1839,7 +1845,7 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
             .landing-problem-panel {{
                 background: var(--cs-surface-muted);
                 border: 1px solid var(--cs-border);
-                border-radius: {style_tokens["card_radius"]};
+                border-radius: {card_radius};
                 padding: 0.65rem 0.85rem;
                 margin-top: 0.65rem;
             }}
@@ -1873,7 +1879,7 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
 
             .landing-outcome-callout {{
                 margin-top: 0.75rem;
-                border-radius: {style_tokens["card_radius"]};
+                border-radius: {card_radius};
                 border: 1px solid var(--cs-success);
                 background: var(--cs-success-soft);
                 padding: 0.68rem 0.78rem;
@@ -1904,7 +1910,7 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
             .landing-flow-step {{
                 background: var(--cs-surface);
                 border: 1px solid var(--cs-border);
-                border-radius: {style_tokens["card_radius"]};
+                border-radius: {card_radius};
                 padding: 0.68rem;
                 min-height: 108px;
             }}
@@ -1922,13 +1928,13 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
             .landing-output-panel {{
                 background: var(--cs-surface);
                 border: 1px solid var(--cs-border);
-                border-radius: {style_tokens["card_radius"]};
+                border-radius: {card_radius};
                 padding: 0.65rem 0.85rem;
                 min-height: 100%;
             }}
 
             .landing-caption {{
-                color: {style_tokens["muted_text_color"]};
+                color: {muted_text_color};
                 font-size: 0.9rem;
                 margin-top: 0.35rem;
             }}
@@ -1990,7 +1996,7 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
             .landing-security-note {{
                 background: var(--cs-warning-soft);
                 border: 1px solid var(--cs-warning);
-                border-radius: {style_tokens["card_radius"]};
+                border-radius: {card_radius};
                 padding: 0.8rem 0.95rem;
                 color: var(--cs-text);
                 font-size: 0.9rem;
@@ -2011,7 +2017,7 @@ def render_landing_css(style_tokens: Mapping[str, str]) -> None:
             }}
         </style>
         """,
-        unsafe_allow_html=True,
+        streamlit_module=st,
     )
 
 
@@ -2036,14 +2042,18 @@ def render_hero_section(
     on_start: Callable[[], None],
     start_target: str,
 ) -> None:
-    st.markdown(
-        f'<section id="{section_id}" class="landing-section landing-hero">',
-        unsafe_allow_html=True,
+    safe_section_id = escape_html_text(section_id, quote=True)
+    render_static_html(
+        f'<section id="{safe_section_id}" class="landing-section landing-hero">',
+        streamlit_module=st,
     )
-    st.markdown('<div class="landing-hero-copy">', unsafe_allow_html=True)
-    st.markdown(f"<h1>{headline}</h1>", unsafe_allow_html=True)
+    render_static_html('<div class="landing-hero-copy">', streamlit_module=st)
+    render_static_html(f"<h1>{escape_html_text(headline)}</h1>", streamlit_module=st)
     if subhead:
-        st.markdown(f'<p class="landing-subhead">{subhead}</p>', unsafe_allow_html=True)
+        render_static_html(
+            f'<p class="landing-subhead">{escape_html_text(subhead)}</p>',
+            streamlit_module=st,
+        )
     if primary_cta and st.button(
         primary_cta,
         key=start_button_key,
@@ -2055,9 +2065,9 @@ def render_hero_section(
         ctx.goto(start_target)
         st.rerun()
     if secondary_cta_hint:
-        st.markdown(
-            f'<p class="landing-caption">{secondary_cta_hint}</p>',
-            unsafe_allow_html=True,
+        render_static_html(
+            f'<p class="landing-caption">{escape_html_text(secondary_cta_hint)}</p>',
+            streamlit_module=st,
         )
     if next_step_line:
         st.caption(next_step_line)
@@ -2073,11 +2083,14 @@ def render_hero_section(
         with st.expander("Mehr erfahren", expanded=False):
             if before_start_title and before_start_bullets:
                 st.markdown(f"#### {before_start_title}")
-                st.markdown(
+                render_static_html(
                     '<ul class="landing-list">'
-                    + "".join(f"<li>{bullet}</li>" for bullet in before_start_bullets)
+                    + "".join(
+                        f"<li>{escape_html_text(bullet)}</li>"
+                        for bullet in before_start_bullets
+                    )
                     + "</ul>",
-                    unsafe_allow_html=True,
+                    streamlit_module=st,
                 )
             if reassurance_line:
                 st.caption(reassurance_line)
@@ -2085,18 +2098,18 @@ def render_hero_section(
                 st.info(extraction_helper_copy, icon="ℹ️")
             if post_cta_microcopy:
                 st.caption(post_cta_microcopy)
-    st.markdown("</div>", unsafe_allow_html=True)
+    render_static_html("</div>", streamlit_module=st)
 
-    st.markdown("</section>", unsafe_allow_html=True)
+    render_static_html("</section>", streamlit_module=st)
 
     if show_value_cards and value_cards:
-        st.markdown(
+        render_static_html(
             f'<section id="{LANDING_SECTION_IDS["value_cards"]}" class="landing-section">',
-            unsafe_allow_html=True,
+            streamlit_module=st,
         )
         st.markdown("### Wertbeitrag auf einen Blick")
         render_value_cards(value_cards=value_cards)
-        st.markdown("</section>", unsafe_allow_html=True)
+        render_static_html("</section>", streamlit_module=st)
 
 
 def render_value_cards(*, value_cards: Sequence[tuple[str, str]]) -> None:
@@ -2105,9 +2118,14 @@ def render_value_cards(*, value_cards: Sequence[tuple[str, str]]) -> None:
         row_cols = st.columns(2, gap="small")
         for col, (title, body) in zip(row_cols, value_cards[row_start : row_start + 2]):
             with col:
-                st.markdown(
-                    f'<div class="landing-card"><h4>{title}</h4><p>{body}</p></div>',
-                    unsafe_allow_html=True,
+                render_static_html(
+                    (
+                        '<div class="landing-card">'
+                        f"<h4>{escape_html_text(title)}</h4>"
+                        f"<p>{escape_html_text(body)}</p>"
+                        "</div>"
+                    ),
+                    streamlit_module=st,
                 )
 
 
@@ -2120,104 +2138,114 @@ def render_importance_section(
     leverage_points: Sequence[tuple[str, str]],
     closer: str,
 ) -> None:
-    st.markdown(
-        f'<section id="{section_id}" class="landing-section">',
-        unsafe_allow_html=True,
+    safe_section_id = escape_html_text(section_id, quote=True)
+    render_static_html(
+        f'<section id="{safe_section_id}" class="landing-section">',
+        streamlit_module=st,
     )
     st.subheader(title)
-    st.markdown(
-        f'<div class="landing-emphasis"><p>{intro}</p></div>',
-        unsafe_allow_html=True,
+    render_static_html(
+        f'<div class="landing-emphasis"><p>{escape_html_text(intro)}</p></div>',
+        streamlit_module=st,
     )
     risk_items = "".join(
-        f"<li><strong>{point_title}:</strong> {body}</li>"
+        f"<li><strong>{escape_html_text(point_title)}:</strong> {escape_html_text(body)}</li>"
         for point_title, body in risk_points
     )
     leverage_items = "".join(
-        f"<li><strong>{point_title}:</strong> {body}</li>"
+        f"<li><strong>{escape_html_text(point_title)}:</strong> {escape_html_text(body)}</li>"
         for point_title, body in leverage_points
     )
     if risk_items or leverage_items:
-        st.markdown('<div class="landing-section-stack">', unsafe_allow_html=True)
+        render_static_html('<div class="landing-section-stack">', streamlit_module=st)
     if risk_items:
-        st.markdown(
+        render_static_html(
             (
                 '<div class="landing-problem-panel">'
                 '<h4 class="landing-problem-heading">Ohne sauberen Intake</h4>'
                 f'<ul class="landing-problem-list">{risk_items}</ul>'
                 "</div>"
             ),
-            unsafe_allow_html=True,
+            streamlit_module=st,
         )
 
     if leverage_items:
-        st.markdown(
+        render_static_html(
             (
                 '<div class="landing-problem-panel">'
                 '<h4 class="landing-problem-heading">Mit präzisem Intake</h4>'
                 f'<ul class="landing-problem-list">{leverage_items}</ul>'
                 "</div>"
             ),
-            unsafe_allow_html=True,
+            streamlit_module=st,
         )
     if risk_items or leverage_items:
-        st.markdown("</div>", unsafe_allow_html=True)
+        render_static_html("</div>", streamlit_module=st)
 
-    st.markdown(
+    render_static_html(
         (
             '<div class="landing-outcome-callout">'
             '<span class="landing-outcome-badge">🏁 Ergebnis</span>'
-            f'<p class="landing-outcome-text">{closer}</p>'
+            f'<p class="landing-outcome-text">{escape_html_text(closer)}</p>'
             "</div>"
         ),
-        unsafe_allow_html=True,
+        streamlit_module=st,
     )
-    st.markdown("</section>", unsafe_allow_html=True)
+    render_static_html("</section>", streamlit_module=st)
 
 
 def render_flow_steps(
     *, section_id: str, title: str, steps: Sequence[tuple[str, str]]
 ) -> None:
-    st.markdown(
-        f'<section id="{section_id}" class="landing-section">',
-        unsafe_allow_html=True,
+    safe_section_id = escape_html_text(section_id, quote=True)
+    render_static_html(
+        f'<section id="{safe_section_id}" class="landing-section">',
+        streamlit_module=st,
     )
     st.subheader(title)
     for row_start in range(0, len(steps), 2):
         flow_cols = st.columns(2, gap="small")
         for col, (step_title, body) in zip(flow_cols, steps[row_start : row_start + 2]):
             with col:
-                st.markdown(
-                    f'<div class="landing-flow-step"><h4>{step_title}</h4><p>{body}</p></div>',
-                    unsafe_allow_html=True,
+                render_static_html(
+                    (
+                        '<div class="landing-flow-step">'
+                        f"<h4>{escape_html_text(step_title)}</h4>"
+                        f"<p>{escape_html_text(body)}</p>"
+                        "</div>"
+                    ),
+                    streamlit_module=st,
                 )
-    st.markdown("</section>", unsafe_allow_html=True)
+    render_static_html("</section>", streamlit_module=st)
 
 
 def render_output_section(
     *, section_id: str, title: str, bullets: Sequence[str]
 ) -> None:
-    st.markdown(
-        f'<section id="{section_id}" class="landing-section">',
-        unsafe_allow_html=True,
+    safe_section_id = escape_html_text(section_id, quote=True)
+    render_static_html(
+        f'<section id="{safe_section_id}" class="landing-section">',
+        streamlit_module=st,
     )
     st.subheader(title)
-    st.markdown(
+    render_static_html(
         '<div class="landing-output-panel"><ul class="landing-list">'
-        + "".join(f"<li>{bullet}</li>" for bullet in bullets)
+        + "".join(f"<li>{escape_html_text(bullet)}</li>" for bullet in bullets)
         + "</ul></div>",
-        unsafe_allow_html=True,
+        streamlit_module=st,
     )
-    st.markdown("</section>", unsafe_allow_html=True)
+    render_static_html("</section>", streamlit_module=st)
 
 
 def render_security_note(*, section_id: str, title: str, body: str) -> None:
-    st.markdown(
-        f'<section id="{section_id}" class="landing-section">',
-        unsafe_allow_html=True,
+    safe_section_id = escape_html_text(section_id, quote=True)
+    render_static_html(
+        f'<section id="{safe_section_id}" class="landing-section">',
+        streamlit_module=st,
     )
     st.subheader(title)
-    st.markdown(
-        f'<div class="landing-security-note">{body}</div>', unsafe_allow_html=True
+    render_static_html(
+        f'<div class="landing-security-note">{escape_html_text(body)}</div>',
+        streamlit_module=st,
     )
-    st.markdown("</section>", unsafe_allow_html=True)
+    render_static_html("</section>", streamlit_module=st)

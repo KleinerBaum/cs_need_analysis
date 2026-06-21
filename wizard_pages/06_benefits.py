@@ -24,6 +24,7 @@ from llm_client import (
     resolve_model_for_task,
 )
 from schemas import JobAdExtract, QuestionStep
+from safe_html import render_static_html
 from settings_openai import load_openai_settings
 from state import get_answers, get_esco_semantic_context
 from step_sections import build_step_shell_section_kwargs
@@ -291,7 +292,7 @@ def _render_label_list(
         )
         for label in shown_labels
     )
-    st.markdown(
+    render_static_html(
         f"""
         <div class="cs-benefit-chip-row">{chip_html}</div>
         <style>
@@ -315,7 +316,7 @@ def _render_label_list(
         }}
         </style>
         """,
-        unsafe_allow_html=True,
+        streamlit_module=st,
     )
     remaining = len(labels) - limit
     if remaining > 0:

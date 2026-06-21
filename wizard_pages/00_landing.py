@@ -10,6 +10,7 @@ from components.iceberg_need_analysis import (
 from content.start_page import START_PAGE_COPY
 from constants import APP_TITLE
 from i18n import t
+from safe_html import escape_html_text, render_static_html
 from wizard_pages.jobad_intake import render_jobad_intake
 from wizard_pages.base import (
     LANDING_SECTION_IDS,
@@ -43,7 +44,7 @@ def _landing_logo_path() -> Path:
 
 
 def _render_landing_responsive_overrides() -> None:
-    st.markdown(
+    render_static_html(
         """
         <style>
             .landing-resource-links {
@@ -193,27 +194,30 @@ def _render_landing_responsive_overrides() -> None:
             }
         </style>
         """,
-        unsafe_allow_html=True,
+        streamlit_module=st,
     )
 
 
 def _render_landing_hero() -> None:
-    st.markdown(
-        f'<section id="{LANDING_SECTION_IDS["hero"]}" class="landing-section landing-hero">',
-        unsafe_allow_html=True,
+    render_static_html(
+        (
+            f'<section id="{escape_html_text(LANDING_SECTION_IDS["hero"], quote=True)}" '
+            'class="landing-section landing-hero">'
+        ),
+        streamlit_module=st,
     )
-    st.markdown('<div class="landing-start-logo">', unsafe_allow_html=True)
+    render_static_html('<div class="landing-start-logo">', streamlit_module=st)
     st.image(str(_landing_logo_path()), width=220)
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown('<div class="landing-app-title-row">', unsafe_allow_html=True)
-    st.markdown(
-        f'<span class="landing-app-title">{APP_TITLE}</span>',
-        unsafe_allow_html=True,
+    render_static_html("</div>", streamlit_module=st)
+    render_static_html('<div class="landing-app-title-row">', streamlit_module=st)
+    render_static_html(
+        f'<span class="landing-app-title">{escape_html_text(APP_TITLE)}</span>',
+        streamlit_module=st,
     )
     render_esco_language_toggle()
-    st.markdown("</div>", unsafe_allow_html=True)
+    render_static_html("</div>", streamlit_module=st)
 
-    st.markdown('<div class="landing-hero-copy">', unsafe_allow_html=True)
+    render_static_html('<div class="landing-hero-copy">', streamlit_module=st)
     st.title(str(t(START_PAGE_COPY["hero_headline"])))
     hero_subheadline = str(t(START_PAGE_COPY["hero_subheadline"]))
     if hero_subheadline:
@@ -221,14 +225,17 @@ def _render_landing_hero() -> None:
     hero_supporting = str(t(START_PAGE_COPY["hero_supporting_paragraph"]))
     if hero_supporting:
         st.markdown(hero_supporting)
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("</section>", unsafe_allow_html=True)
+    render_static_html("</div>", streamlit_module=st)
+    render_static_html("</section>", streamlit_module=st)
 
 
 def _render_landing_flow_cards() -> None:
-    st.markdown(
-        f'<section id="{LANDING_SECTION_IDS["flow"]}" class="landing-section">',
-        unsafe_allow_html=True,
+    render_static_html(
+        (
+            f'<section id="{escape_html_text(LANDING_SECTION_IDS["flow"], quote=True)}" '
+            'class="landing-section">'
+        ),
+        streamlit_module=st,
     )
     st.subheader(str(t(START_PAGE_COPY["flow_title"])))
     flow_heading = t('Nach dem Klick auf "Analyse starten"')
@@ -254,54 +261,54 @@ def _render_landing_flow_cards() -> None:
     flow_context_label = t("Mehr Kontext:")
     esco_link_label = t("Was ist ESCO?")
     rag_link_label = t("Was bedeutet RAG?")
-    st.markdown(
+    render_static_html(
         f"""
         <div class="landing-process-diagram">
-            <h4>{flow_heading}</h4>
+            <h4>{escape_html_text(flow_heading)}</h4>
             <div class="landing-process-track">
                 <div class="landing-process-step">
                     <span>1</span>
-                    <strong>{flow_step_1_title}</strong>
-                    <p>{flow_step_1_body}</p>
+                    <strong>{escape_html_text(flow_step_1_title)}</strong>
+                    <p>{escape_html_text(flow_step_1_body)}</p>
                 </div>
                 <div class="landing-process-step">
                     <span>2</span>
-                    <strong>{flow_step_2_title}</strong>
-                    <p>{flow_step_2_body}</p>
+                    <strong>{escape_html_text(flow_step_2_title)}</strong>
+                    <p>{escape_html_text(flow_step_2_body)}</p>
                 </div>
                 <div class="landing-process-step">
                     <span>3</span>
-                    <strong>{flow_step_3_title}</strong>
-                    <p>{flow_step_3_body}</p>
+                    <strong>{escape_html_text(flow_step_3_title)}</strong>
+                    <p>{escape_html_text(flow_step_3_body)}</p>
                 </div>
                 <div class="landing-process-step">
                     <span>4</span>
-                    <strong>{flow_step_4_title}</strong>
-                    <p>{flow_step_4_body}</p>
+                    <strong>{escape_html_text(flow_step_4_title)}</strong>
+                    <p>{escape_html_text(flow_step_4_body)}</p>
                 </div>
             </div>
             <div class="landing-process-result">
-                {flow_result}
+                {escape_html_text(flow_result)}
             </div>
             <div class="landing-process-resources">
-                <span>{flow_context_label}</span>
+                <span>{escape_html_text(flow_context_label)}</span>
                 <div class="landing-resource-links">
-                    <a href="https://employment-social-affairs.ec.europa.eu/policies-and-activities/skills-and-qualifications/skills-jobs/european-skillscompetences-qualifications-and-occupations-esco_en" target="_blank" rel="noopener noreferrer">{esco_link_label}</a>
-                    <a href="https://developers.openai.com/api/docs/guides/retrieval" target="_blank" rel="noopener noreferrer">{rag_link_label}</a>
+                    <a href="https://employment-social-affairs.ec.europa.eu/policies-and-activities/skills-and-qualifications/skills-jobs/european-skillscompetences-qualifications-and-occupations-esco_en" target="_blank" rel="noopener noreferrer">{escape_html_text(esco_link_label)}</a>
+                    <a href="https://developers.openai.com/api/docs/guides/retrieval" target="_blank" rel="noopener noreferrer">{escape_html_text(rag_link_label)}</a>
                     <a href="https://developers.openai.com/api/docs" target="_blank" rel="noopener noreferrer">OpenAI API Docs</a>
                 </div>
             </div>
         </div>
         """,
-        unsafe_allow_html=True,
+        streamlit_module=st,
     )
-    st.markdown("</section>", unsafe_allow_html=True)
+    render_static_html("</section>", streamlit_module=st)
 
 
 def _render_landing_explainer_sections() -> None:
-    st.markdown(
+    render_static_html(
         '<section class="landing-section landing-card landing-need-analysis-card">',
-        unsafe_allow_html=True,
+        streamlit_module=st,
     )
     st.subheader(str(t("Warum Need Analysis?")))
     st.caption(
@@ -316,7 +323,7 @@ def _render_landing_explainer_sections() -> None:
         build_iceberg_need_analysis_html(),
         height=COMPONENT_HEIGHT,
     )
-    st.markdown("</section>", unsafe_allow_html=True)
+    render_static_html("</section>", streamlit_module=st)
 
 
 def render(ctx: WizardContext) -> None:
@@ -325,9 +332,12 @@ def render(ctx: WizardContext) -> None:
     _render_landing_hero()
     _render_landing_explainer_sections()
 
-    st.markdown('<section class="landing-section landing-card landing-intake-card">', unsafe_allow_html=True)
+    render_static_html(
+        '<section class="landing-section landing-card landing-intake-card">',
+        streamlit_module=st,
+    )
     render_jobad_intake(ctx, title=str(t(START_PAGE_COPY["primary_cta"])))
-    st.markdown("</section>", unsafe_allow_html=True)
+    render_static_html("</section>", streamlit_module=st)
 
 
 PAGE = WizardPage(

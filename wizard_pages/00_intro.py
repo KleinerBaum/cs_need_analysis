@@ -8,6 +8,7 @@ from components.iceberg_need_analysis import (
 )
 from constants import STEP_KEY_INTRO, STEP_KEY_LANDING
 from i18n import t
+from safe_html import escape_html_text, render_static_html
 from wizard_pages.base import (
     LANDING_STYLE_TOKENS,
     WizardContext,
@@ -53,7 +54,7 @@ INTRO_COPY = {
 
 
 def _render_intro_overrides() -> None:
-    st.markdown(
+    render_static_html(
         """
         <style>
             .intro-page {
@@ -106,55 +107,58 @@ def _render_intro_overrides() -> None:
             }
         </style>
         """,
-        unsafe_allow_html=True,
+        streamlit_module=st,
     )
 
 
 def _render_intro_iceberg() -> None:
-    st.markdown(
+    render_static_html(
         (
             '<section class="intro-iceberg">'
-            f'<h3>{t(INTRO_COPY["iceberg_title"])}</h3>'
-            f'<p>{t(INTRO_COPY["iceberg_caption"])}</p>'
+            f'<h3>{escape_html_text(t(INTRO_COPY["iceberg_title"]))}</h3>'
+            f'<p>{escape_html_text(t(INTRO_COPY["iceberg_caption"]))}</p>'
         ),
-        unsafe_allow_html=True,
+        streamlit_module=st,
     )
     st.iframe(
         build_iceberg_need_analysis_html(),
         height=COMPONENT_HEIGHT,
     )
-    st.markdown("</section>", unsafe_allow_html=True)
+    render_static_html("</section>", streamlit_module=st)
 
 
 def render(ctx: WizardContext) -> None:
     render_landing_css(LANDING_STYLE_TOKENS)
     _render_intro_overrides()
 
-    st.markdown('<div class="intro-page">', unsafe_allow_html=True)
-    st.markdown(
+    render_static_html('<div class="intro-page">', streamlit_module=st)
+    render_static_html(
         '<section class="landing-section landing-hero">',
-        unsafe_allow_html=True,
+        streamlit_module=st,
     )
     st.title(str(t(INTRO_COPY["headline"])))
     st.subheader(str(t(INTRO_COPY["subheadline"])))
 
-    st.markdown('<div class="intro-body">', unsafe_allow_html=True)
+    render_static_html('<div class="intro-body">', streamlit_module=st)
     for paragraph in INTRO_COPY["body"]:
-        st.markdown(f"<p>{t(paragraph)}</p>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+        render_static_html(
+            f"<p>{escape_html_text(t(paragraph))}</p>",
+            streamlit_module=st,
+        )
+    render_static_html("</div>", streamlit_module=st)
 
-    st.markdown(
-        f'<div class="intro-closing">{t(INTRO_COPY["closing"])}</div>',
-        unsafe_allow_html=True,
+    render_static_html(
+        f'<div class="intro-closing">{escape_html_text(t(INTRO_COPY["closing"]))}</div>',
+        streamlit_module=st,
     )
-    st.markdown('<div class="intro-start-action">', unsafe_allow_html=True)
+    render_static_html('<div class="intro-start-action">', streamlit_module=st)
     if st.button(str(t(INTRO_COPY["cta"])), type="primary"):
         ctx.goto(STEP_KEY_LANDING)
         st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
+    render_static_html("</div>", streamlit_module=st)
     _render_intro_iceberg()
-    st.markdown("</section>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+    render_static_html("</section>", streamlit_module=st)
+    render_static_html("</div>", streamlit_module=st)
 
 
 PAGE = WizardPage(

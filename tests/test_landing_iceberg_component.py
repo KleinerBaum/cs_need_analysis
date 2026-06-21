@@ -12,6 +12,47 @@ from components.iceberg_need_analysis import (
 )
 
 
+def test_landing_value_cards_escape_dynamic_html(monkeypatch) -> None:
+    from wizard_pages import base
+
+    rendered_blocks: list[tuple[str, dict[str, object]]] = []
+
+    class _FakeColumn:
+        def __enter__(self) -> "_FakeColumn":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> bool:
+            del exc_type, exc, tb
+            return False
+
+    class _FakeStreamlit:
+        def columns(self, count: int, gap: str = "small") -> list[_FakeColumn]:
+            del gap
+            return [_FakeColumn() for _ in range(count)]
+
+        def markdown(self, text: str, **kwargs: object) -> None:
+            rendered_blocks.append((str(text), dict(kwargs)))
+
+    monkeypatch.setattr(base, "st", _FakeStreamlit())
+
+    base.render_value_cards(
+        value_cards=[
+            (
+                "<script>alert(1)</script>",
+                '<img src=x onerror="alert(1)">',
+            )
+        ]
+    )
+
+    rendered_html = "\n".join(block for block, _kwargs in rendered_blocks)
+
+    assert "<script>" not in rendered_html
+    assert "<img" not in rendered_html
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in rendered_html
+    assert "&lt;img src=x onerror=&quot;alert(1)&quot;&gt;" in rendered_html
+    assert all(kwargs.get("unsafe_allow_html") is True for _block, kwargs in rendered_blocks)
+
+
 def test_intro_and_landing_pages_use_current_iframe_api_without_expander() -> None:
     landing_page = Path("wizard_pages/00_landing.py").read_text(encoding="utf-8")
     intro_page = Path("wizard_pages/00_intro.py").read_text(encoding="utf-8")

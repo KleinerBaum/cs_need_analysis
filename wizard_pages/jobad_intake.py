@@ -65,6 +65,7 @@ from question_progress import (
     value_hash,
 )
 from question_plan_compiler import compile_question_plan
+from safe_html import render_static_html
 from schemas import JobAdExtract, Question, QuestionPlan
 from settings_openai import load_openai_settings
 from state import (
@@ -116,7 +117,7 @@ HYPOTHESIS_FIELD_TO_STEP: Final[dict[str, str]] = {
 
 
 def _render_start_success_styles() -> None:
-    st.markdown(
+    render_static_html(
         """
         <style>
             .cs-start-success-callout {
@@ -135,18 +136,18 @@ def _render_start_success_styles() -> None:
             }
         </style>
         """,
-        unsafe_allow_html=True,
+        streamlit_module=st,
     )
 
 
 def _render_success_callout(message: str) -> None:
-    st.markdown(
+    render_static_html(
         f"""
         <div class="cs-card cs-start-success-callout">
             <strong>{html.escape(message)}</strong>
         </div>
         """,
-        unsafe_allow_html=True,
+        streamlit_module=st,
     )
 
 
@@ -471,9 +472,9 @@ def _render_uploaded_source_summary(text: str) -> None:
         f"Extrahierter Text ist bereit ({formatted_char_count} Zeichen). "
         "Kompakte Vorschau:"
     )
-    st.markdown(
+    render_static_html(
         "<br>".join(f"• {html.escape(line)}" for line in lines),
-        unsafe_allow_html=True,
+        streamlit_module=st,
     )
 
 
@@ -489,7 +490,7 @@ def _render_uploaded_document_preview(upload: object | None, fallback_text: str)
     preview_html = uploaded_document_preview_html(upload, fallback_text)
     if preview_html is None:
         return False
-    st.markdown(preview_html, unsafe_allow_html=True)
+    render_static_html(preview_html, streamlit_module=st)
     return True
 
 
@@ -1332,7 +1333,7 @@ def _has_completed_intake_analysis() -> bool:
 
 
 def _render_phase_a_style_overrides() -> None:
-    st.markdown(
+    render_static_html(
         """
         <style>
         .st-key-cs_ui_mode [data-baseweb="select"] > div,
@@ -1343,7 +1344,7 @@ def _render_phase_a_style_overrides() -> None:
         }
         </style>
         """,
-        unsafe_allow_html=True,
+        streamlit_module=st,
     )
 
 

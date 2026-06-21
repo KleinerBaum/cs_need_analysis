@@ -28,6 +28,7 @@ from salary.scenarios import (
     map_salary_scenario_to_overrides,
 )
 from salary.types import SalaryEscoContext, SalaryScenarioInputs, SalaryScenarioOverrides
+from safe_html import escape_html_text, render_static_html
 from schemas import JobAdExtract
 
 LOGGER = logging.getLogger(__name__)
@@ -880,7 +881,7 @@ def render_salary_forecast_result_card(
     with st.container(border=True):
         st.markdown(f"**{headline}**")
         if use_main_card_layout:
-            st.markdown(
+            render_static_html(
                 """
                 <style>
                 .salary-main-cards-grid {
@@ -909,17 +910,20 @@ def render_salary_forecast_result_card(
                 }
                 </style>
                 """,
-                unsafe_allow_html=True,
+                streamlit_module=st,
             )
-            st.markdown(
+            p50_label = escape_html_text(_format_eur(p50))
+            p10_label = escape_html_text(_format_eur(p10) if p10 > 0 else "nicht verfügbar")
+            p90_label = escape_html_text(_format_eur(p90) if p90 > 0 else "nicht verfügbar")
+            render_static_html(
                 (
                     "<div class='salary-main-cards-grid'>"
-                    f"<div class='salary-main-card'><div class='salary-main-card-label'>p50 (Median)</div><div class='salary-main-card-value'>{_format_eur(p50)}</div></div>"
-                    f"<div class='salary-main-card'><div class='salary-main-card-label'>p10 (niedrig)</div><div class='salary-main-card-value'>{_format_eur(p10) if p10 > 0 else 'nicht verfügbar'}</div></div>"
-                    f"<div class='salary-main-card'><div class='salary-main-card-label'>p90 (hoch)</div><div class='salary-main-card-value'>{_format_eur(p90) if p90 > 0 else 'nicht verfügbar'}</div></div>"
+                    f"<div class='salary-main-card'><div class='salary-main-card-label'>p50 (Median)</div><div class='salary-main-card-value'>{p50_label}</div></div>"
+                    f"<div class='salary-main-card'><div class='salary-main-card-label'>p10 (niedrig)</div><div class='salary-main-card-value'>{p10_label}</div></div>"
+                    f"<div class='salary-main-card'><div class='salary-main-card-label'>p90 (hoch)</div><div class='salary-main-card-value'>{p90_label}</div></div>"
                     "</div>"
                 ),
-                unsafe_allow_html=True,
+                streamlit_module=st,
             )
         else:
             metric_col_main, metric_col_low, metric_col_high = st.columns(

@@ -27,6 +27,7 @@ from esco_client import (
 )
 from schemas import JobAdExtract
 from esco_semantics import normalize_anchor_ref, sync_esco_semantic_state
+from safe_html import render_static_html
 from ui_components import render_esco_explainability, render_esco_picker_card
 
 _OCCUPATION_DETAIL_RELATIONS: tuple[str, ...] = (
@@ -1258,7 +1259,7 @@ def _render_match_confidence_note(*, confidence: str, reason: str) -> None:
         if escaped_reason
         else ""
     )
-    st.markdown(
+    render_static_html(
         f"""
         <style>
         .cs-esco-match-note {{
@@ -1310,7 +1311,7 @@ def _render_match_confidence_note(*, confidence: str, reason: str) -> None:
             {reason_markup}
         </div>
         """,
-        unsafe_allow_html=True,
+        streamlit_module=st,
     )
 
 
@@ -1738,13 +1739,13 @@ def render_esco_occupation_confirmation(
                 if ui_mode == "expert":
                     _render_capability_status_panel(client=client, capabilities=capabilities)
                     st.caption(capabilities_badge)
-                    st.markdown(
+                    render_static_html(
                         (
                             "<span style='display:inline-block;padding:0.1rem 0.5rem;"
                             "border:1px solid #999;border-radius:0.75rem;font-size:0.8rem;'>"
-                            f"{explainability['badge_label']}</span>"
+                            f"{html.escape(str(explainability['badge_label']))}</span>"
                         ),
-                        unsafe_allow_html=True,
+                        streamlit_module=st,
                     )
                     uri_suffix = occupation_uri.rstrip("/").rsplit("/", 1)[-1] or occupation_uri
                     st.markdown(f"[ESCO URI: …{uri_suffix}]({occupation_uri})")
@@ -1805,13 +1806,13 @@ def render_esco_occupation_confirmation(
             ):
                 _render_capability_status_panel(client=client, capabilities=capabilities)
                 st.caption(capabilities_badge)
-                st.markdown(
+                render_static_html(
                     (
                         "<span style='display:inline-block;padding:0.1rem 0.5rem;"
                         "border:1px solid #999;border-radius:0.75rem;font-size:0.8rem;'>"
-                        f"{explainability['badge_label']}</span>"
+                        f"{html.escape(str(explainability['badge_label']))}</span>"
                     ),
-                    unsafe_allow_html=True,
+                    streamlit_module=st,
                 )
                 uri_suffix = occupation_uri.rstrip("/").rsplit("/", 1)[-1] or occupation_uri
                 st.markdown(f"[ESCO URI: …{uri_suffix}]({occupation_uri})")
