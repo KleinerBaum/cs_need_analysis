@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import streamlit as st
 
+from components.iceberg_need_analysis import (
+    COMPONENT_HEIGHT,
+    build_iceberg_need_analysis_html,
+)
 from constants import STEP_KEY_INTRO, STEP_KEY_LANDING
 from i18n import t
 from wizard_pages.base import (
@@ -40,6 +44,11 @@ INTRO_COPY = {
     ),
     "closing": "Bereit, die Anforderungen Ihrer Vakanz richtig kennenzulernen? Probieren Sie es aus.",
     "cta": "Zum Start",
+    "iceberg_title": "Warum Need Analysis?",
+    "iceberg_caption": (
+        "Das Eisberg-Modell zeigt, welche sichtbaren und verdeckten Informationen "
+        "eine gute Vakanzerfassung zusammenführt."
+    ),
 }
 
 
@@ -74,10 +83,44 @@ def _render_intro_overrides() -> None:
                 color: var(--cs-text);
                 font-weight: 700;
             }
+            .intro-iceberg {
+                border: 1px solid color-mix(in srgb, var(--cs-success) 34%, var(--cs-border));
+                background: var(--cs-surface);
+                border-radius: 8px;
+                box-shadow: var(--cs-shadow-sm);
+                padding: clamp(0.85rem, 2vw, 1.1rem);
+                margin: 1.2rem 0 1.25rem 0;
+            }
+            .intro-iceberg h3 {
+                margin: 0 0 0.25rem 0;
+                color: var(--cs-text);
+                font-size: 1.08rem;
+            }
+            .intro-iceberg p {
+                margin: 0 0 0.75rem 0;
+                color: var(--cs-text-muted);
+                line-height: 1.45;
+            }
         </style>
         """,
         unsafe_allow_html=True,
     )
+
+
+def _render_intro_iceberg() -> None:
+    st.markdown(
+        (
+            '<section class="intro-iceberg">'
+            f'<h3>{t(INTRO_COPY["iceberg_title"])}</h3>'
+            f'<p>{t(INTRO_COPY["iceberg_caption"])}</p>'
+        ),
+        unsafe_allow_html=True,
+    )
+    st.iframe(
+        build_iceberg_need_analysis_html(),
+        height=COMPONENT_HEIGHT,
+    )
+    st.markdown("</section>", unsafe_allow_html=True)
 
 
 def render(ctx: WizardContext) -> None:
@@ -101,6 +144,7 @@ def render(ctx: WizardContext) -> None:
         f'<div class="intro-closing">{t(INTRO_COPY["closing"])}</div>',
         unsafe_allow_html=True,
     )
+    _render_intro_iceberg()
     if st.button(str(t(INTRO_COPY["cta"])), type="primary"):
         ctx.goto(STEP_KEY_LANDING)
         st.rerun()

@@ -12,12 +12,14 @@ from components.iceberg_need_analysis import (
 )
 
 
-def test_landing_page_uses_current_iframe_api() -> None:
+def test_intro_and_landing_pages_use_current_iframe_api() -> None:
+    intro_page = Path("wizard_pages/00_intro.py").read_text(encoding="utf-8")
     landing_page = Path("wizard_pages/00_landing.py").read_text(encoding="utf-8")
 
-    assert "streamlit.components.v1" not in landing_page
-    assert "components.html" not in landing_page
-    assert "st.iframe(" in landing_page
+    for page in (intro_page, landing_page):
+        assert "streamlit.components.v1" not in page
+        assert "components.html" not in page
+        assert "st.iframe(" in page
 
 
 def test_iceberg_content_loads_required_sections() -> None:
