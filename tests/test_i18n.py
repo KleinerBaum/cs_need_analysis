@@ -41,7 +41,7 @@ def test_translation_uses_german_as_source_copy(monkeypatch) -> None:
     assert t("Was bedeutet RAG?") == "What does RAG mean?"
 
 
-def test_sync_language_state_updates_preferences_and_esco_config() -> None:
+def test_sync_language_state_updates_preferences_without_esco_config() -> None:
     session_state = {
         SSKey.UI_PREFERENCES.value: {},
         SSKey.ESCO_CONFIG.value: {"language": "de", "fallback_language": "en"},
@@ -51,8 +51,8 @@ def test_sync_language_state_updates_preferences_and_esco_config() -> None:
 
     assert session_state[SSKey.LANGUAGE.value] == "en"
     assert session_state[SSKey.UI_PREFERENCES.value][UI_PREFERENCE_UI_LANGUAGE] == "en"
-    assert session_state[SSKey.ESCO_CONFIG.value]["language"] == "en"
-    assert session_state[SSKey.ESCO_CONFIG.value]["fallback_language"] == "de"
+    assert session_state[SSKey.ESCO_CONFIG.value]["language"] == "de"
+    assert session_state[SSKey.ESCO_CONFIG.value]["fallback_language"] == "en"
 
 
 def test_known_widget_sync_updates_language_before_render() -> None:
@@ -68,16 +68,16 @@ def test_known_widget_sync_updates_language_before_render() -> None:
     assert synced == "en"
     assert session_state[SSKey.LANGUAGE.value] == "en"
     assert session_state[SSKey.UI_PREFERENCES.value][UI_PREFERENCE_UI_LANGUAGE] == "en"
-    assert session_state[SSKey.ESCO_CONFIG.value]["language"] == "en"
-    assert session_state[SSKey.ESCO_CONFIG.value]["fallback_language"] == "de"
+    assert session_state[SSKey.ESCO_CONFIG.value]["language"] == "de"
+    assert session_state[SSKey.ESCO_CONFIG.value]["fallback_language"] == "en"
 
 
 def test_known_widget_sync_prefers_last_changed_language_widget() -> None:
-    esco_widget_key = f"{SSKey.ESCO_CONFIG.value}.language_choice"
+    page_widget_key = "page.ui_language"
     session_state = {
         "sidebar.ui_language": "de",
-        esco_widget_key: "en",
-        LAST_LANGUAGE_WIDGET_KEY: esco_widget_key,
+        page_widget_key: "en",
+        LAST_LANGUAGE_WIDGET_KEY: page_widget_key,
         SSKey.LANGUAGE.value: "en",
         SSKey.UI_PREFERENCES.value: {UI_PREFERENCE_UI_LANGUAGE: "en"},
         SSKey.ESCO_CONFIG.value: {"language": "en", "fallback_language": "de"},
@@ -128,6 +128,7 @@ class _FakeLanguageToggleStreamlit:
                 "data_source_mode": "live_api",
             },
             SSKey.ESCO_RELEASE_LANE.value: "stable",
+            SSKey.DEBUG.value: True,
         }
 
     def radio(self, _label: str, **kwargs: object) -> str:

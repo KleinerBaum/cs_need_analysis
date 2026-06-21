@@ -436,6 +436,7 @@ def test_compiler_injects_skill_group_pack_and_esco_concept_questions() -> None:
     assert questions["ctx_sg_digital_data_ai"].group_key == "digital_data_ai"
     assert questions["ctx_regulated_requirements"].group_key == "licenses"
     assert questions[esco_question_ids[0]].group_key == "digital_data_ai"
+    assert questions[esco_question_ids[0]].priority == "core"
     assert "SKILL_GROUP:digital_data_ai" in compiled.provenance.resolved_module_keys
     assert "ISCO4:2511" in compiled.provenance.resolved_module_keys
     assert compiled.provenance.source_uris_by_question_id[esco_question_ids[0]] == [
@@ -553,7 +554,7 @@ def test_context_heavy_standard_scope_prioritizes_company_metadata() -> None:
     assert "ctx_leadership_reporting_detail" in selected_ids
     assert "ctx_low_maturity_role_assumptions" in selected_ids
     assert "ctx_confidential_external_narrative" in selected_ids
-    assert "ctx_company_role_business_impact" not in selected_ids
+    assert "ctx_company_role_business_impact" in selected_ids
 
 
 def test_skills_heavy_standard_scope_prioritizes_skill_metadata_and_expert_depth() -> None:

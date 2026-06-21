@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 import inspect
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -11,12 +10,10 @@ from typing import Any, cast
 import streamlit as st
 
 from constants import (
+    QUESTION_LIMIT_SCOPE_META_KEY,
     SSKey,
-    STEP_KEY_BENEFITS,
-    STEP_KEY_COMPANY,
-    STEP_KEY_INTERVIEW,
-    STEP_KEY_ROLE_TASKS,
-    STEP_KEY_SKILLS,
+    UI_MODE_PRIORITY_TIERS,
+    UI_MODE_QUICK_STEP_CAPS,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
 )
 from question_dependencies import should_show_question
@@ -32,14 +29,6 @@ QuestionVisibilityPredicate = Callable[..., bool]
 
 
 @dataclass(frozen=True)
-class ModeLimitProfile:
-    missing_fraction: float
-    min_questions: int
-    context_buffer: int
-    full_depth: bool = False
-
-
-@dataclass(frozen=True)
 class StepQuestionScope:
     selected_questions: list[Question]
     visible_questions: list[Question]
@@ -48,33 +37,17 @@ class StepQuestionScope:
     adaptive_hidden_questions_count: int
 
 
-_MODE_LIMIT_PROFILES: dict[str, ModeLimitProfile] = {
-    "quick": ModeLimitProfile(missing_fraction=0.45, min_questions=1, context_buffer=0),
-    "standard": ModeLimitProfile(
-        missing_fraction=0.7,
-        min_questions=2,
-        context_buffer=1,
-    ),
-    "expert": ModeLimitProfile(
-        missing_fraction=1.0,
-        min_questions=3,
-        context_buffer=2,
-        full_depth=True,
-    ),
-}
-
-_STANDARD_STEP_FLOORS: dict[str, int] = {
-    STEP_KEY_COMPANY: 5,
-    STEP_KEY_ROLE_TASKS: 6,
-    STEP_KEY_SKILLS: 5,
-    STEP_KEY_BENEFITS: 4,
-    STEP_KEY_INTERVIEW: 5,
-}
+@dataclass(frozen=True)
+class StepQuestionLimitRule:
+    limit: int | None = None
+    priority_tiers: tuple[str, ...] | None = None
 
 
-def _resolve_mode_profile(ui_mode: str) -> ModeLimitProfile:
+def _normalize_ui_mode(ui_mode: str) -> str:
     normalized = str(ui_mode).strip().lower()
-    return _MODE_LIMIT_PROFILES.get(normalized, _MODE_LIMIT_PROFILES["standard"])
+    if normalized not in UI_MODE_PRIORITY_TIERS:
+        return "standard"
+    return normalized
 
 
 def _question_is_covered(
@@ -213,6 +186,50 @@ def _select_visible_questions_for_adaptive_limit(
     return [question for _, _, question in selected_questions]
 
 
+def _question_priority_tier(question: Question) -> str:
+    priority = str(question.priority or "standard").strip().lower()
+    if priority not in {"core", "standard", "detail"}:
+        return "standard"
+    return priority
+
+
+def _normalize_priority_tiers(raw_tiers: Any) -> tuple[str, ...] | None:
+    if raw_tiers is None:
+        return None
+    if isinstance(raw_tiers, str):
+        candidates = [raw_tiers]
+    elif isinstance(raw_tiers, (list, tuple, set)):
+        candidates = list(raw_tiers)
+    else:
+        return None
+    tiers = tuple(
+        tier
+        for tier in (
+            str(candidate).strip().lower()
+            for candidate in candidates
+        )
+        if tier in {"core", "standard", "detail"}
+    )
+    return tiers or None
+
+
+def _filter_questions_by_priority_tiers(
+    questions: list[Question],
+    priority_tiers: tuple[str, ...] | None,
+) -> list[Question]:
+    if not priority_tiers:
+        return questions
+    allowed = set(priority_tiers)
+    matched = [
+        question for question in questions if _question_priority_tier(question) in allowed
+    ]
+    if matched:
+        return matched
+    if allowed == {"core"} and all(question.priority is None for question in questions):
+        return questions
+    return matched
+
+
 def select_questions_for_adaptive_limit(
     questions: list[Question],
     *,
@@ -249,6 +266,24 @@ def select_questions_for_adaptive_limit(
     )
 
 
+def _read_step_limit_rule(
+    question_limits: Mapping[str, Any] | None,
+    step_key: str,
+) -> StepQuestionLimitRule:
+    if not isinstance(question_limits, Mapping):
+        return StepQuestionLimitRule()
+    raw_rule = question_limits.get(step_key)
+    if isinstance(raw_rule, Mapping):
+        limit = _coerce_limit(raw_rule.get("limit"), allow_zero=True)
+        tiers = _normalize_priority_tiers(raw_rule.get("priority_tiers"))
+        return StepQuestionLimitRule(
+            limit=limit,
+            priority_tiers=tiers,
+        )
+    limit = _coerce_limit(raw_rule)
+    return StepQuestionLimitRule(limit=limit)
+
+
 def build_step_question_scope(
     questions: list[Question],
     *,
@@ -275,14 +310,24 @@ def build_step_question_scope(
         confidence_threshold=confidence_threshold,
         visibility_predicate=visibility_predicate,
     )
-    step_limit = _read_step_limit(question_limits, step_key)
-    if step_limit is None or step_limit <= 0:
+    step_rule = _read_step_limit_rule(question_limits, step_key)
+    priority_visible_questions = _filter_questions_by_priority_tiers(
+        dependency_visible_questions,
+        step_rule.priority_tiers,
+    )
+    if (
+        step_rule.limit is None
+        and step_rule.priority_tiers is None
+    ):
         selected_questions = questions
         selected_visible_questions = dependency_visible_questions
+    elif step_rule.limit is not None and step_rule.limit <= 0:
+        selected_visible_questions = []
+        selected_questions = []
     else:
         selected_visible_questions = _select_visible_questions_for_adaptive_limit(
-            dependency_visible_questions,
-            limit=step_limit,
+            priority_visible_questions,
+            limit=step_rule.limit,
             answers=answers,
             answer_meta=answer_meta,
             job_extract=job_extract,
@@ -474,9 +519,15 @@ def compute_adaptive_question_limits(
     intake_facts: Mapping[str, Any] | None = None,
     intake_fact_evidence: Mapping[str, Any] | None = None,
     confidence_threshold: float | None = None,
-) -> dict[str, int]:
-    profile = _resolve_mode_profile(ui_mode)
-    limits: dict[str, int] = {}
+) -> dict[str, Any]:
+    normalized_ui_mode = _normalize_ui_mode(ui_mode)
+    priority_tiers = UI_MODE_PRIORITY_TIERS[normalized_ui_mode]
+    limits: dict[str, Any] = {
+        QUESTION_LIMIT_SCOPE_META_KEY: {
+            "ui_mode": normalized_ui_mode,
+            "priority_tiers": list(priority_tiers),
+        }
+    }
 
     for step in plan.steps:
         if not step.questions:
@@ -491,64 +542,35 @@ def compute_adaptive_question_limits(
             intake_fact_evidence=intake_fact_evidence,
             confidence_threshold=confidence_threshold,
         )
-        total = len(visible_questions)
-        if total == 0:
-            continue
-        if profile.full_depth:
-            limits[step.step_key] = total
-            continue
-
-        covered_by_question = {
-            question.id: _question_is_covered(
-                question,
-                answers=answers,
-                answer_meta=answer_meta,
-                job_extract=job_extract,
-                intake_facts=intake_facts,
-                intake_fact_evidence=intake_fact_evidence,
-                confidence_threshold=confidence_threshold,
-            )
-            for question in visible_questions
+        scoped_questions = _filter_questions_by_priority_tiers(
+            visible_questions,
+            priority_tiers,
+        )
+        total = len(scoped_questions)
+        limit = total
+        if normalized_ui_mode == "quick" and total > 0:
+            quick_cap = UI_MODE_QUICK_STEP_CAPS.get(step.step_key)
+            if quick_cap is not None:
+                limit = min(total, max(1, quick_cap))
+        limits[step.step_key] = {
+            "limit": limit,
+            "priority_tiers": list(priority_tiers),
+            "ui_mode": normalized_ui_mode,
         }
-        covered = sum(1 for is_covered in covered_by_question.values() if is_covered)
-        missing = max(total - covered, 0)
-        essential_missing = sum(
-            1
-            for question in visible_questions
-            if not covered_by_question.get(question.id, False)
-            and _question_is_adaptive_essential(question)
-        )
-        adaptive_count = math.ceil(missing * profile.missing_fraction)
-        limit = max(
-            profile.min_questions,
-            _step_min_questions(ui_mode, step.step_key),
-            adaptive_count + profile.context_buffer,
-            essential_missing,
-        )
-        limits[step.step_key] = max(1, min(total, limit))
 
     return limits
 
 
-def _read_step_limit(
-    question_limits: Mapping[str, Any] | None,
-    step_key: str,
-) -> int | None:
-    if not isinstance(question_limits, Mapping):
-        return None
-    raw_limit = question_limits.get(step_key)
+def _coerce_limit(raw_limit: Any, *, allow_zero: bool = False) -> int | None:
     if not isinstance(raw_limit, (int, float, str)):
         return None
     try:
-        return int(raw_limit)
+        limit = int(raw_limit)
     except (TypeError, ValueError):
         return None
-
-
-def _step_min_questions(ui_mode: str, step_key: str) -> int:
-    if str(ui_mode).strip().lower() != "standard":
-        return 0
-    return _STANDARD_STEP_FLOORS.get(step_key, 0)
+    if limit <= 0 and not allow_zero:
+        return None
+    return limit
 
 
 def sync_adaptive_question_limits() -> None:

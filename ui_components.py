@@ -2169,6 +2169,8 @@ def _render_question_limits_editor(
     limits: dict[str, int] = {}
     if isinstance(limits_raw, dict):
         for key, value in limits_raw.items():
+            if isinstance(value, dict):
+                value = value.get("limit")
             try:
                 limits[str(key)] = int(value)
             except (TypeError, ValueError):

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from constants import AnswerType, FactKey
+from collections.abc import Mapping
+
+from constants import AnswerType, FactKey, QUESTION_LIMIT_SCOPE_META_KEY
 from question_limits import (
     build_step_question_scope,
     compute_adaptive_question_limits,
@@ -9,6 +11,13 @@ from question_limits import (
     select_visible_questions_for_step_scope,
 )
 from schemas import JobAdExtract, Question, QuestionDependency, QuestionPlan, QuestionStep
+
+
+def _limit(limits: Mapping[str, object], step_key: str) -> int:
+    raw_limit = limits[step_key]
+    if isinstance(raw_limit, Mapping):
+        return int(raw_limit["limit"])
+    return int(raw_limit)
 
 
 def _build_plan() -> QuestionPlan:
@@ -95,11 +104,12 @@ def test_adaptive_limits_reduce_steps_with_good_jobspec_coverage() -> None:
         job_extract=job_extract,
     )
 
-    assert limits["skills"] == 3
-    assert limits["interview"] == 6
+    assert _limit(limits, "skills") == 3
+    assert _limit(limits, "interview") == 6
+    assert limits[QUESTION_LIMIT_SCOPE_META_KEY]["ui_mode"] == "standard"
 
 
-def test_standard_mode_applies_step_specific_question_floors() -> None:
+def test_standard_mode_includes_all_standard_scope_questions() -> None:
     plan = QuestionPlan(
         steps=[
             QuestionStep(
@@ -132,16 +142,19 @@ def test_standard_mode_applies_step_specific_question_floors() -> None:
         job_extract=None,
     )
 
-    assert limits == {
-        "company": 5,
-        "role_tasks": 6,
-        "skills": 5,
-        "benefits": 4,
-        "interview": 5,
+    assert {
+        step_key: _limit(limits, step_key)
+        for step_key in ("company", "role_tasks", "skills", "benefits", "interview")
+    } == {
+        "company": 8,
+        "role_tasks": 8,
+        "skills": 8,
+        "benefits": 8,
+        "interview": 8,
     }
 
 
-def test_standard_mode_floor_survives_extracted_coverage() -> None:
+def test_standard_mode_keeps_covered_standard_questions_in_scope() -> None:
     plan = QuestionPlan(
         steps=[
             QuestionStep(
@@ -173,7 +186,7 @@ def test_standard_mode_floor_survives_extracted_coverage() -> None:
         confidence_threshold=0.6,
     )
 
-    assert limits["company"] == 5
+    assert _limit(limits, "company") == 8
 
 
 def test_adaptive_limits_scale_by_mode_depth() -> None:
@@ -194,8 +207,8 @@ def test_adaptive_limits_scale_by_mode_depth() -> None:
         job_extract=None,
     )
 
-    assert quick_limits["interview"] < expert_limits["interview"]
-    assert quick_limits["skills"] < expert_limits["skills"]
+    assert _limit(quick_limits, "interview") < _limit(expert_limits, "interview")
+    assert _limit(quick_limits, "skills") == _limit(expert_limits, "skills")
 
 
 def test_expert_mode_uses_full_dependency_visible_question_set() -> None:
@@ -224,7 +237,7 @@ def test_expert_mode_uses_full_dependency_visible_question_set() -> None:
         job_extract=None,
     )
 
-    assert limits["skills"] == 7
+    assert _limit(limits, "skills") == 7
 
 
 def test_expert_scope_counts_dependency_hidden_without_adaptive_hidden() -> None:
@@ -273,7 +286,7 @@ def test_expert_scope_counts_dependency_hidden_without_adaptive_hidden() -> None
         job_extract=None,
     )
 
-    assert limits["company"] == 2
+    assert _limit(limits, "company") == 2
     assert [question.id for question in scope.visible_questions] == [
         "work_model",
         "office_location",
@@ -311,7 +324,7 @@ def test_adaptive_limits_treat_low_confidence_fact_as_uncovered() -> None:
         confidence_threshold=0.6,
     )
 
-    assert limits["skills"] == 3
+    assert _limit(limits, "skills") == 3
 
 
 def test_adaptive_limits_keep_uncovered_core_questions_in_scope() -> None:
@@ -355,7 +368,7 @@ def test_adaptive_limits_keep_uncovered_core_questions_in_scope() -> None:
         job_extract=None,
     )
 
-    assert limits["role_tasks"] == 4
+    assert _limit(limits, "role_tasks") == 4
 
 
 def test_select_questions_for_limit_applies_dependency_visibility_before_slicing() -> None:
@@ -637,7 +650,7 @@ def test_select_questions_for_limit_ranks_information_gain_metadata() -> None:
     assert [question.id for question in selected] == ["high_gain"]
 
 
-def test_high_information_gain_questions_are_adaptive_essential() -> None:
+def test_quick_mode_excludes_detail_questions_even_with_high_information_gain() -> None:
     plan = QuestionPlan(
         steps=[
             QuestionStep(
@@ -667,10 +680,10 @@ def test_high_information_gain_questions_are_adaptive_essential() -> None:
         job_extract=None,
     )
 
-    assert limits["company"] == 3
+    assert _limit(limits, "company") == 0
 
 
-def test_follow_up_prompt_questions_are_treated_as_adaptive_essential() -> None:
+def test_quick_mode_excludes_detail_follow_up_questions() -> None:
     plan = QuestionPlan(
         steps=[
             QuestionStep(
@@ -709,4 +722,4 @@ def test_follow_up_prompt_questions_are_treated_as_adaptive_essential() -> None:
         job_extract=None,
     )
 
-    assert limits["interview"] == 4
+    assert _limit(limits, "interview") == 0

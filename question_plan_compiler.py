@@ -300,7 +300,7 @@ def _build_esco_concept_questions(
             required=False,
             options=_concept_question_options(bucket),
             target_path=f"esco_questions.{question_id}",
-            priority="standard" if bucket.startswith("essential") else "detail",
+            priority="core" if bucket.startswith("essential") else "detail",
             group_key=group_key,
             rationale="ESCO essential/optional concepts require vacancy-specific confirmation.",
             impact_targets=[

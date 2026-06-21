@@ -1369,6 +1369,7 @@ def _render_esco_migration_trigger(legacy_payload: EscoMigrationPendingPayload) 
 
 
 def _render_esco_sidebar_status_block(ui_mode: str) -> None:
+    del ui_mode
     config = _get_esco_config()
     release_lane = str(config["release_lane"])
     selected_version = str(config["selected_version"])
@@ -1378,7 +1379,7 @@ def _render_esco_sidebar_status_block(ui_mode: str) -> None:
     if selected_language not in {"de", "en"}:
         selected_language = "de"
 
-    if ui_mode == "expert":
+    if bool(st.session_state.get(SSKey.DEBUG.value, False)):
         lane_options = (ESCO_RELEASE_LANE_STABLE, ESCO_RELEASE_LANE_PREVIEW)
         release_lane = st.sidebar.selectbox(
             "ESCO Release Lane",
@@ -1393,23 +1394,24 @@ def _render_esco_sidebar_status_block(ui_mode: str) -> None:
         )
         selected_version = selected_version_for_release_lane(release_lane)
         view_obsolete = st.sidebar.toggle(
-            "Obsolete anzeigen (Expert only)",
+            "Obsolete anzeigen (Debug only)",
             value=view_obsolete,
             key=f"{SSKey.ESCO_CONFIG.value}.view_obsolete_toggle",
         )
-
-    config_changed = _set_esco_config(
-        release_lane=release_lane,
-        selected_version=selected_version,
-        view_obsolete=view_obsolete,
-        language=selected_language,
-        fallback_language=fallback_language,
-    )
-    if config_changed:
-        st.sidebar.success("ESCO-Konfiguration aktualisiert. Cache wurde invalidiert.")
+        config_changed = _set_esco_config(
+            release_lane=release_lane,
+            selected_version=selected_version,
+            view_obsolete=view_obsolete,
+            language=selected_language,
+            fallback_language=fallback_language,
+        )
+        if config_changed:
+            st.sidebar.success("ESCO-Konfiguration aktualisiert. Cache wurde invalidiert.")
 
 
 def render_esco_language_toggle() -> None:
+    if not bool(st.session_state.get(SSKey.DEBUG.value, False)):
+        return
     config = _get_esco_config()
     release_lane = str(config["release_lane"])
     selected_version = str(config["selected_version"])

@@ -14,8 +14,6 @@ SUPPORTED_UI_LANGUAGES = ("de", "en")
 LANGUAGE_WIDGET_KEYS = (
     "sidebar.ui_language",
     "page.ui_language",
-    f"{SSKey.ESCO_CONFIG.value}.language_choice",
-    f"{SSKey.ESCO_CONFIG.value}.phase_a.language",
 )
 LAST_LANGUAGE_WIDGET_KEY = "cs.language.last_widget_key"
 
@@ -326,14 +324,6 @@ def sync_language_state(language: object, *, session_state: Any | None = None) -
         updated_preferences = dict(preferences)
         updated_preferences[UI_PREFERENCE_UI_LANGUAGE] = normalized
         state[SSKey.UI_PREFERENCES.value] = updated_preferences
-    config = state.get(SSKey.ESCO_CONFIG.value, {})
-    if isinstance(config, dict):
-        fallback_language = "en" if normalized == "de" else "de"
-        state[SSKey.ESCO_CONFIG.value] = {
-            **config,
-            "language": normalized,
-            "fallback_language": fallback_language,
-        }
     return normalized
 
 
@@ -355,7 +345,7 @@ def sync_language_from_widget_key(
 def sync_language_from_known_widgets(*, session_state: Any | None = None) -> str | None:
     state = session_state if session_state is not None else st.session_state
     last_widget_key = state.get(LAST_LANGUAGE_WIDGET_KEY)
-    if isinstance(last_widget_key, str):
+    if isinstance(last_widget_key, str) and last_widget_key in LANGUAGE_WIDGET_KEYS:
         synced_language = sync_language_from_widget_key(
             last_widget_key, session_state=state
         )

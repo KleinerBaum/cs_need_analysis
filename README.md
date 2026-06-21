@@ -59,11 +59,11 @@ The app supports three global UI modes:
 
 | Stored value | German label | Intended behavior |
 |---|---|---|
-| `quick` | `schnell` | Reduced question depth, compact detail groups |
-| `standard` | `ausführlich` | Balanced depth with per-step visible-question floors, compact detail groups |
-| `expert` | `vollumfänglich` | Full depth, grouped detail panels, extended expert controls on demand |
+| `quick` | `schnell` | Curated core flow with compact detail groups and per-step question caps |
+| `standard` | `ausführlich` | Complete essential intake using all dependency-visible `core` and `standard` questions |
+| `expert` | `vollumfänglich` | Full intake using dependency-visible `core`, `standard`, and conditional `detail` questions |
 
-The mode is controlled through the sidebar preference center and the Start step. It affects visible question depth through `question_limits.py` and compact/detail behavior through shared UI helpers. In `standard`, the main intake steps keep a minimum visible depth when enough dependency-visible questions exist: Company 5, Role & Tasks 6, Skills 5, Benefits 4, Interview 5. `expert` shows the full dependency-visible question set. Expensive secondary blocks such as source comparison and salary forecast render lazily; source comparison follows the detail-expanded preference, while salary forecast remains on-demand.
+The mode is controlled through the sidebar preference center and the Start step. It affects visible question depth through `question_limits.py` and compact/detail behavior through shared UI helpers. `quick` keeps the essential app functions visible but caps the curated core questions per step. `standard` is the default first-run mode and collects all essential information (`core` + `standard`). `expert` adds deep conditional questions that can become relevant in specific cases. Expensive secondary blocks such as source comparison and salary forecast render lazily; source comparison follows the detail-expanded preference, while salary forecast remains on-demand.
 
 Adaptive question ranking can use optional question metadata: `impact_targets`, `acquisition_cost`, and `info_gain_score`. These fields let high-impact unanswered questions rise above lower-value detail questions without changing the visible step contract or existing UI modes.
 
@@ -198,6 +198,9 @@ under `[esco]` with lowercase keys: `api_base_url`, `release_lane`,
 `selected_version`, `api_mode`, `data_source_mode`, `fallback_language`,
 `index_storage_path`, and `index_version`. Runtime precedence is session state,
 then `[esco]` secrets, then environment variables, then defaults.
+Normal users cannot edit these technical ESCO runtime settings through the
+detail-grade selector. Debug mode may expose sanitized diagnostics and operator
+controls for local troubleshooting.
 
 Version mapping:
 

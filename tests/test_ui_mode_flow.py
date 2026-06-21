@@ -163,6 +163,7 @@ def test_visible_step_set_for_ui_mode_navigation_excludes_team_step() -> None:
 
     assert STEP_KEY_TEAM not in visible_step_keys
     assert visible_step_keys == [
+        "intro",
         "landing",
         "company",
         "role_tasks",

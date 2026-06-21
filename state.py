@@ -160,14 +160,14 @@ def get_model_override() -> str | None:
 
 def _default_ui_preferences() -> dict[str, Any]:
     return {
-        UI_PREFERENCE_ANSWER_MODE: "advisory",
-        UI_PREFERENCE_INFORMATION_DEPTH: "hoch",
+        UI_PREFERENCE_ANSWER_MODE: "balanced",
+        UI_PREFERENCE_INFORMATION_DEPTH: "standard",
         UI_PREFERENCE_ESCO_MATCHING_STRICTNESS: "ausgewogen",
         UI_PREFERENCE_REGIONAL_FOCUS: "DACH",
         UI_PREFERENCE_SHOW_SOURCES_DEFAULT: True,
         UI_PREFERENCE_CONFIDENCE_THRESHOLD: 0.6,
         UI_PREFERENCE_PII_REDUCTION: True,
-        UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT: True,
+        UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT: False,
         UI_PREFERENCE_STEP_COMPACT: {},
         UI_PREFERENCE_UI_LANGUAGE: DEFAULT_LANGUAGE,
     }

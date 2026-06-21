@@ -121,7 +121,7 @@ ESCO_CONCEPT_QUESTION_CAP_BY_UI_MODE: Final[dict[str, int]] = {
     "expert": 10,
 }
 UI_MODE_VALUES: Final[tuple[str, str, str]] = ("quick", "standard", "expert")
-UI_MODE_DEFAULT: Final[str] = "expert"
+UI_MODE_DEFAULT: Final[str] = "standard"
 UI_MODE_DISPLAY_LABELS: Final[dict[str, str]] = {
     "quick": "schnell",
     "standard": "ausführlich",
@@ -194,6 +194,20 @@ STEP_KEY_SKILLS: Final[str] = "skills"
 STEP_KEY_BENEFITS: Final[str] = "benefits"
 STEP_KEY_INTERVIEW: Final[str] = "interview"
 STEP_KEY_SUMMARY: Final[str] = "summary"
+
+UI_MODE_PRIORITY_TIERS: Final[dict[str, tuple[str, ...]]] = {
+    "quick": ("core",),
+    "standard": ("core", "standard"),
+    "expert": ("core", "standard", "detail"),
+}
+UI_MODE_QUICK_STEP_CAPS: Final[dict[str, int]] = {
+    STEP_KEY_COMPANY: 3,
+    STEP_KEY_ROLE_TASKS: 4,
+    STEP_KEY_SKILLS: 3,
+    STEP_KEY_BENEFITS: 3,
+    STEP_KEY_INTERVIEW: 3,
+}
+QUESTION_LIMIT_SCOPE_META_KEY: Final[str] = "__scope__"
 
 QUESTION_IMPACT_TARGET_BRIEF: Final[str] = "brief"
 QUESTION_IMPACT_TARGET_SALARY: Final[str] = "salary"

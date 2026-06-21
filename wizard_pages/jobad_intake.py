@@ -1427,21 +1427,22 @@ def _render_esco_operating_block() -> None:
         return
 
     config = _get_esco_config()
-    ui_mode = str(st.session_state.get(SSKey.UI_MODE.value, UI_MODE_DEFAULT)).strip().lower()
-    is_expert = ui_mode == "expert"
+    debug_enabled = bool(st.session_state.get(SSKey.DEBUG.value, False))
     language_options = ("de", "en")
-    selected_language = str(
-        st.session_state.get(SSKey.LANGUAGE.value) or config.get("language") or "de"
-    ).strip().lower()
+    selected_language = str(config.get("language") or "de").strip().lower()
     if selected_language not in language_options:
         selected_language = "de"
-    fallback_language = "en" if selected_language == "de" else "de"
+    fallback_language = str(
+        config.get("fallback_language") or ("en" if selected_language == "de" else "de")
+    ).strip().lower()
+    if fallback_language not in language_options:
+        fallback_language = "en" if selected_language == "de" else "de"
 
     with st.container(border=True):
         st.markdown("#### Berufsabgleich")
-        if is_expert:
+        if debug_enabled:
             st.caption(
-                "Technische ESCO-Einstellungen für Version, API und Datenquelle."
+                "Debug: technische ESCO-Einstellungen für Version, API und Datenquelle."
             )
         else:
             st.caption(
@@ -1477,7 +1478,7 @@ def _render_esco_operating_block() -> None:
             config.get("data_source_mode") or DEFAULT_ESCO_DATA_SOURCE_MODE
         ).strip().lower()
         view_obsolete = bool(config.get("view_obsolete", False))
-        if is_expert:
+        if debug_enabled:
             release_lane_options = (ESCO_RELEASE_LANE_STABLE, ESCO_RELEASE_LANE_PREVIEW)
             release_lane = st.selectbox(
                 "Semantik-Lane",
@@ -1517,12 +1518,6 @@ def _render_esco_operating_block() -> None:
                     value=view_obsolete,
                     key=f"{SSKey.ESCO_CONFIG.value}.phase_a.view_obsolete",
                 )
-        else:
-            release_lane = ESCO_RELEASE_LANE_STABLE
-            selected_version = (
-                selected_version
-                or ESCO_RELEASE_LANE_SELECTED_VERSION[ESCO_RELEASE_LANE_STABLE]
-            )
 
         _set_esco_config(
             release_lane=release_lane,
@@ -1533,7 +1528,7 @@ def _render_esco_operating_block() -> None:
             api_mode=api_mode,
             data_source_mode=data_source_mode,
         )
-        if is_expert:
+        if debug_enabled:
             st.caption(
                 "Diagnose: "
                 f"lane={release_lane} · version={selected_version} · "

@@ -70,13 +70,13 @@ def test_preference_center_defaults_pii_reduction_on_when_missing(monkeypatch) -
         fake_st.session_state[SSKey.UI_PREFERENCES.value][
             UI_PREFERENCE_ANSWER_MODE
         ]
-        == "advisory"
+        == "balanced"
     )
     assert (
         fake_st.session_state[SSKey.UI_PREFERENCES.value][
             UI_PREFERENCE_INFORMATION_DEPTH
         ]
-        == "hoch"
+        == "standard"
     )
     assert "Sprache" not in fake_st.selectbox_labels
     assert "Antwortmodus" not in fake_st.selectbox_labels
@@ -103,5 +103,5 @@ def test_pre_render_language_sync_reads_sidebar_widget(monkeypatch) -> None:
         fake_session_state[SSKey.UI_PREFERENCES.value][UI_PREFERENCE_UI_LANGUAGE]
         == "en"
     )
-    assert fake_session_state[SSKey.ESCO_CONFIG.value]["language"] == "en"
-    assert fake_session_state[SSKey.ESCO_CONFIG.value]["fallback_language"] == "de"
+    assert fake_session_state[SSKey.ESCO_CONFIG.value]["language"] == "de"
+    assert fake_session_state[SSKey.ESCO_CONFIG.value]["fallback_language"] == "en"
