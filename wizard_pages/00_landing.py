@@ -291,30 +291,35 @@ def _render_landing_flow_cards() -> None:
 
 
 def _render_landing_explainer_sections() -> None:
-    with st.expander("Warum Need Analysis?", expanded=False):
-        st.caption(
-            str(
-                t(
-                    "Kurzer Kontext, warum die App nicht nur sichtbare Anforderungen, "
-                    "sondern auch Lücken und implizite Bedarfstreiber strukturiert."
-                )
+    st.markdown(
+        '<section class="landing-section landing-card landing-need-analysis-card">',
+        unsafe_allow_html=True,
+    )
+    st.subheader(str(t("Warum Need Analysis?")))
+    st.caption(
+        str(
+            t(
+                "Kurzer Kontext, warum die App nicht nur sichtbare Anforderungen, "
+                "sondern auch Lücken und implizite Bedarfstreiber strukturiert."
             )
         )
-        st.iframe(
-            build_iceberg_need_analysis_html(),
-            height=COMPONENT_HEIGHT,
-        )
+    )
+    st.iframe(
+        build_iceberg_need_analysis_html(),
+        height=COMPONENT_HEIGHT,
+    )
+    st.markdown("</section>", unsafe_allow_html=True)
 
 
 def render(ctx: WizardContext) -> None:
     render_landing_css(LANDING_STYLE_TOKENS)
     _render_landing_responsive_overrides()
     _render_landing_hero()
+    _render_landing_explainer_sections()
 
     st.markdown('<section class="landing-section landing-card landing-intake-card">', unsafe_allow_html=True)
     render_jobad_intake(ctx, title=str(t(START_PAGE_COPY["primary_cta"])))
     st.markdown("</section>", unsafe_allow_html=True)
-    _render_landing_explainer_sections()
 
 
 PAGE = WizardPage(

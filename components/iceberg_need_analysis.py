@@ -11,7 +11,7 @@ from typing import Any, Mapping, Sequence
 ROOT_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_CONTENT_PATH = ROOT_DIR / "content" / "iceberg_need_analysis.json"
 DEFAULT_IMAGE_PATH = ROOT_DIR / "images" / "OpenAI eisberg.png"
-COMPONENT_HEIGHT = 640
+COMPONENT_HEIGHT = 720
 
 
 def load_iceberg_content(path: Path = DEFAULT_CONTENT_PATH) -> dict[str, Any]:
@@ -110,14 +110,11 @@ def build_iceberg_need_analysis_html(
         color-scheme: dark;
         --ina-bg: #020B16;
         --ina-card: rgba(8, 25, 42, 0.72);
-        --ina-card-light: rgba(14, 38, 59, 0.74);
-        --ina-card-deep: rgba(3, 17, 30, 0.78);
         --ina-stroke: rgba(255, 255, 255, 0.14);
         --ina-text: #F8FAFC;
-        --ina-muted: #A8B3C2;
+        --ina-muted: #B9C5D4;
         --ina-amber: #FFB000;
         --ina-cyan: #2EECE8;
-        --ina-line: rgba(255, 255, 255, 0.20);
     }}
 
     * {{
@@ -148,7 +145,7 @@ def build_iceberg_need_analysis_html(
         overflow: hidden;
         isolation: isolate;
         border: 1px solid rgba(255, 255, 255, 0.12);
-        border-radius: 8px;
+        border-radius: 10px;
         background: var(--ina-bg);
         box-shadow: 0 22px 70px rgba(0, 0, 0, 0.35);
         animation: inaFadeIn 720ms ease-out both;
@@ -169,8 +166,8 @@ def build_iceberg_need_analysis_html(
         inset: 0;
         z-index: 1;
         background:
-            linear-gradient(90deg, rgba(255, 176, 0, 0.12), transparent 35%, transparent 65%, rgba(46, 236, 232, 0.12)),
-            linear-gradient(180deg, rgba(2, 11, 22, 0.15), transparent 46%, rgba(2, 11, 22, 0.24));
+            linear-gradient(180deg, rgba(2, 11, 22, 0.08), rgba(2, 11, 22, 0.04) 43%, rgba(2, 11, 22, 0.18) 48%, rgba(2, 11, 22, 0.48) 100%),
+            linear-gradient(90deg, rgba(255, 176, 0, 0.13), transparent 43%, rgba(46, 236, 232, 0.11));
         pointer-events: none;
     }}
 
@@ -184,82 +181,85 @@ def build_iceberg_need_analysis_html(
     }}
 
     .ina-waterline {{
-        stroke: rgba(255, 255, 255, 0.56);
-        stroke-width: 1.8;
-        filter: drop-shadow(0 0 9px rgba(46, 236, 232, 0.72));
+        stroke: rgba(255, 255, 255, 0.62);
+        stroke-width: 2;
+        filter: drop-shadow(0 0 10px rgba(46, 236, 232, 0.74));
         animation: inaWaterGlow 4.8s 1.1s ease-in-out infinite;
     }}
 
     .ina-zone-header,
     .ina-card,
-    .ina-kpi-bar {{
+    .ina-kpi-bar,
+    .ina-zone-label {{
         position: absolute;
         z-index: 3;
         opacity: 0;
         transform: translateY(16px);
         animation: inaReveal 620ms ease-out forwards;
-        animation-delay: calc(260ms + (var(--reveal-index) * 120ms));
+        animation-delay: calc(220ms + (var(--reveal-index) * 95ms));
     }}
 
     .ina-zone-header {{
-        width: min(37%, 430px);
+        width: min(45%, 560px);
     }}
 
     .ina-zone-header.surface {{
-        top: 6%;
+        top: 5.6%;
         left: 5.4%;
     }}
 
     .ina-zone-header.deep {{
-        top: 51.5%;
+        top: 49.6%;
         left: 5.4%;
+        width: min(55%, 700px);
     }}
 
     .ina-zone-header h2 {{
         margin: 0;
         font-family: "Space Grotesk", "Sora", "Inter Tight", Inter, sans-serif;
-        font-size: clamp(1.45rem, 3vw, 2.75rem);
-        line-height: 1.04;
+        font-size: clamp(1.42rem, 3vw, 2.7rem);
+        line-height: 1.03;
         letter-spacing: 0;
+        text-shadow: 0 3px 18px rgba(0, 0, 0, 0.55);
     }}
 
     .ina-zone-header p {{
-        margin: 0.45rem 0 0;
+        margin: 0.38rem 0 0;
         color: var(--ina-muted);
-        font-size: clamp(0.78rem, 1.45vw, 1.2rem);
+        font-size: clamp(0.76rem, 1.25vw, 1.05rem);
         line-height: 1.25;
     }}
 
     .ina-zone-label {{
-        position: absolute;
         left: 50%;
-        z-index: 3;
         transform: translateX(-50%);
         border: 1px solid var(--ina-stroke);
         border-radius: 999px;
-        padding: 0.34rem 0.78rem;
-        background: rgba(2, 11, 22, 0.66);
+        padding: 0.32rem 0.74rem;
+        background: rgba(2, 11, 22, 0.70);
         color: var(--ina-text);
         font-weight: 800;
-        letter-spacing: 0.04em;
-        font-size: clamp(0.68rem, 1vw, 0.9rem);
+        letter-spacing: 0.035em;
+        font-size: clamp(0.62rem, 0.95vw, 0.82rem);
         backdrop-filter: blur(14px);
-        opacity: 0;
-        animation: inaReveal 620ms 580ms ease-out forwards;
+        white-space: nowrap;
+        animation-delay: 520ms;
     }}
 
     .ina-zone-label.surface {{
-        top: 43.4%;
+        top: 43.3%;
+        color: #FFE3A6;
     }}
 
     .ina-zone-label.deep {{
-        top: 47.6%;
+        top: 47.7%;
+        color: #B9FFFF;
     }}
 
     .ina-card {{
-        padding: clamp(0.52rem, 1.05vw, 0.82rem);
+        padding: clamp(0.48rem, 0.82vw, 0.70rem);
         border: 1px solid var(--ina-stroke);
-        border-radius: 8px;
+        border-radius: 9px;
         background: var(--ina-card);
         box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
         backdrop-filter: blur(18px);
@@ -271,12 +271,12 @@ def build_iceberg_need_analysis_html(
         transform: translateY(-3px);
         outline: none;
         border-color: rgba(255, 255, 255, 0.32);
-        background: rgba(12, 34, 54, 0.82);
+        background: rgba(12, 34, 54, 0.84);
     }}
 
     .ina-card h3 {{
-        margin: 0 0 0.32rem;
-        font-size: clamp(0.74rem, 1vw, 0.95rem);
+        margin: 0 0 0.28rem;
+        font-size: clamp(0.70rem, 0.94vw, 0.88rem);
         line-height: 1.12;
         letter-spacing: 0;
     }}
@@ -284,28 +284,28 @@ def build_iceberg_need_analysis_html(
     .ina-card p {{
         margin: 0;
         color: var(--ina-muted);
-        font-size: clamp(0.6rem, 0.78vw, 0.75rem);
-        line-height: 1.28;
+        font-size: clamp(0.55rem, 0.68vw, 0.68rem);
+        line-height: 1.25;
     }}
 
     .ina-group-items {{
         display: flex;
         flex-wrap: wrap;
-        gap: 0.22rem;
-        margin: 0.42rem 0 0;
+        gap: 0.18rem;
+        margin: 0.34rem 0 0;
         padding: 0;
         list-style: none;
     }}
 
     .ina-group-items li {{
         max-width: 100%;
-        padding: 0.16rem 0.36rem;
+        padding: 0.13rem 0.32rem;
         border: 1px solid rgba(255, 255, 255, 0.14);
         border-radius: 999px;
         background: rgba(255, 255, 255, 0.08);
         color: var(--ina-text);
-        font-size: clamp(0.52rem, 0.64vw, 0.63rem);
-        line-height: 1.1;
+        font-size: clamp(0.48rem, 0.58vw, 0.58rem);
+        line-height: 1.05;
         font-weight: 700;
         overflow-wrap: anywhere;
     }}
@@ -317,7 +317,7 @@ def build_iceberg_need_analysis_html(
         right: 5.4%;
         z-index: 3;
         display: grid;
-        gap: 0.52rem;
+        gap: 0.42rem;
     }}
 
     .ina-surface-grid {{
@@ -332,20 +332,20 @@ def build_iceberg_need_analysis_html(
 
     .ina-surface {{
         position: relative;
-        min-height: 122px;
-        background: rgba(20, 41, 55, 0.72);
+        min-height: 102px;
+        background: rgba(27, 42, 52, 0.70);
     }}
 
     .ina-deep {{
         position: relative;
-        min-height: 112px;
-        background: rgba(3, 17, 30, 0.80);
+        min-height: 92px;
+        background: rgba(3, 17, 30, 0.82);
         animation-name: inaReveal, inaDeepPulse;
         animation-duration: 620ms, 5s;
         animation-timing-function: ease-out, ease-in-out;
         animation-fill-mode: forwards, none;
         animation-iteration-count: 1, infinite;
-        animation-delay: calc(260ms + (var(--reveal-index) * 120ms)), 2s;
+        animation-delay: calc(220ms + (var(--reveal-index) * 95ms)), 2s;
     }}
 
     .ina-surface:hover,
@@ -355,40 +355,40 @@ def build_iceberg_need_analysis_html(
 
     .ina-deep:hover,
     .ina-deep:focus-visible {{
-        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35), 0 0 28px rgba(46, 236, 232, 0.3);
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35), 0 0 28px rgba(46, 236, 232, 0.30);
     }}
 
     .ina-kpi-bar {{
         left: 6.5%;
         right: 6.5%;
-        bottom: 2.1%;
+        bottom: 1.8%;
         display: grid;
         grid-template-columns: repeat(6, minmax(0, 1fr));
-        gap: 0.45rem;
+        gap: 0.35rem;
         margin: 0;
-        padding: 0.55rem;
+        padding: 0.45rem 0.52rem;
         list-style: none;
         border: 1px solid var(--ina-stroke);
-        border-radius: 8px;
-        background: rgba(2, 11, 22, 0.58);
+        border-radius: 9px;
+        background: rgba(2, 11, 22, 0.64);
         backdrop-filter: blur(16px);
     }}
 
     .ina-kpi-bar li {{
         min-width: 0;
         color: var(--ina-text);
-        font-size: clamp(0.62rem, 1vw, 0.82rem);
-        line-height: 1.2;
+        font-size: clamp(0.55rem, 0.85vw, 0.74rem);
+        line-height: 1.15;
         text-align: center;
-        font-weight: 700;
+        font-weight: 800;
         overflow-wrap: anywhere;
     }}
 
-    .ina-kpi-bar li:nth-child(-n+3) {{
+    .ina-kpi-bar li:nth-child(-n+2) {{
         color: #FFE2A3;
     }}
 
-    .ina-kpi-bar li:nth-child(n+4) {{
+    .ina-kpi-bar li:nth-child(n+3) {{
         color: #B7FFFF;
     }}
 
@@ -417,7 +417,7 @@ def build_iceberg_need_analysis_html(
             filter: drop-shadow(0 0 7px rgba(46, 236, 232, 0.45));
         }}
         50% {{
-            opacity: 0.96;
+            opacity: 0.98;
             filter: drop-shadow(0 0 15px rgba(46, 236, 232, 0.88));
         }}
     }}
@@ -581,8 +581,8 @@ def build_iceberg_need_analysis_html(
             <svg class="ina-guides" viewBox="0 0 1920 1080" preserveAspectRatio="none" aria-hidden="true">
                 <line class="ina-waterline" x1="0" y1="500" x2="1920" y2="500"></line>
             </svg>
-            <div class="ina-zone-label surface">sichtbar: klassische Bedarfsanalyse</div>
-            <div class="ina-zone-label deep">entscheidend: AI-gestützte Need-Analysis</div>
+            <div class="ina-zone-label surface">oberhalb der Wasserlinie: sichtbar in Jobspec & Briefing</div>
+            <div class="ina-zone-label deep">unterhalb der Wasserlinie: entscheidend für Search, Matching & Interview</div>
             {_zone_header(surface, "surface", 0)}
             <div class="ina-surface-grid">
                 {_zone_groups(surface, "ina-surface", 1)}

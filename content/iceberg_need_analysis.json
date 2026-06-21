@@ -1,119 +1,69 @@
 {
   "surface": {
     "headline": "Klassische Bedarfsanalyse",
-    "subline": "Was oberhalb der Wasserlinie meist sichtbar ist",
+    "subline": "sichtbar, sachlich, aber oft unvollständig",
     "groups": [
       {
         "title": "Rollenrahmen",
-        "body": "Der sichtbare Startpunkt beschreibt, welche Stelle besetzt werden soll.",
-        "items": [
-          "Jobtitel",
-          "Standort",
-          "Arbeitsmodell",
-          "Vertragsart"
-        ]
+        "body": "Was sofort in der Anzeige steht: Titel, Standort, Arbeitsmodell und Vertragsrahmen.",
+        "items": ["Jobtitel", "Standort", "Arbeitsmodell"]
       },
       {
-        "title": "Aufgaben & Verantwortung",
-        "body": "Die Jobspec nennt Tätigkeiten, bleibt aber oft bei allgemeinen Formulierungen.",
-        "items": [
-          "Aufgabenliste",
-          "Projekte",
-          "Reporting Line",
-          "Prozessschritte"
-        ]
+        "title": "Aufgabenbild",
+        "body": "Tätigkeiten werden gesammelt, bleiben aber häufig auf Listen- und Stichwortniveau.",
+        "items": ["Aufgaben", "Projekte", "Reporting"]
       },
       {
-        "title": "Skills & Anforderungen",
-        "body": "Must-haves, Tools und Erfahrung werden gesammelt, aber selten priorisiert.",
-        "items": [
-          "Hard Skills",
-          "Berufserfahrung",
-          "Sprachen",
-          "Zertifikate"
-        ]
+        "title": "Anforderungen",
+        "body": "Skills, Tools und Erfahrung werden notiert, aber selten nach Wirkung priorisiert.",
+        "items": ["Must-haves", "Tools", "Sprachen"]
       },
       {
         "title": "Angebot & Ablauf",
-        "body": "Benefits, Gehaltsspanne und Interviewprozess sind sichtbar, aber häufig nicht entscheidungslogisch verbunden.",
-        "items": [
-          "Benefits",
-          "Salary Range",
-          "Starttermin",
-          "Interviewprozess"
-        ]
+        "body": "Benefits, Gehalt, Starttermin und Prozess sind sichtbar, aber oft nicht entscheidungslogisch verbunden.",
+        "items": ["Benefits", "Gehalt", "Interviews"]
       }
     ]
   },
   "deep": {
-    "headline": "AI-gestützte Need-Analysis",
-    "subline": "Was unterhalb der Wasserlinie recruiting-relevant wird",
+    "headline": "AI- & ESCO-optimierte Need-Analysis",
+    "subline": "verborgene Bedarfstreiber werden explizit, vergleichbar und nutzbar",
     "groups": [
       {
-        "title": "Prioritäten & Success Criteria",
-        "body": "Die AI trennt Pflicht, Wunsch und Kontext: Was muss die Person wirklich in den ersten 3 bis 6 Monaten erreichen?",
-        "items": [
-          "Erfolg nach 6 Monaten",
-          "kritische Outcomes",
-          "Must-have vs. Nice-to-have",
-          "Kompromisslinien"
-        ]
+        "title": "Prioritäten & Erfolgskriterien",
+        "body": "Die App trennt Pflicht, Wunsch und Kontext: Was muss nach 30/90/180 Tagen erreicht sein?",
+        "items": ["Outcomes", "Priorität", "Kompromisse"]
       },
       {
-        "title": "Passungslogik & Dealbreaker",
-        "body": "Implizite Kriterien werden explizit, damit Matching, Shortlist und Absagen nicht auf Bauchgefühl beruhen.",
-        "items": [
-          "echte Dealbreaker",
-          "Team-Fit Signale",
-          "Stakeholder-Erwartungen",
-          "Risikoprofile"
-        ]
+        "title": "Implizite Dealbreaker",
+        "body": "Unausgesprochene Erwartungen werden sichtbar, bevor sie Matching oder Shortlist verzerren.",
+        "items": ["Risiken", "No-Gos", "Passung"]
+      },
+      {
+        "title": "Team- & Stakeholder-Kontext",
+        "body": "Die Analyse zeigt, mit wem die Person Wirkung erzielen muss und wo Reibung entstehen kann.",
+        "items": ["Stakeholder", "Führung", "Zusammenarbeit"]
       },
       {
         "title": "Marktargumente & Motivation",
         "body": "Aus Bedarf und Zielgruppe entstehen Argumente, die Kandidat:innen wirklich erreichen.",
-        "items": [
-          "Wechselmotive",
-          "Salary/Benefit-Trade-offs",
-          "Pitch-Narrativ",
-          "Candidate communication"
-        ]
+        "items": ["Wechselmotive", "Pitch", "Benefits"]
       },
       {
-        "title": "Fragenlogik & Lückensteuerung",
-        "body": "Der Wizard fragt nur dort nach, wo Informationen fehlen, unsicher sind oder für Recruiting-Entscheidungen hohe Wirkung haben.",
-        "items": [
-          "offene Fragen",
-          "Evidence aus der Quelle",
-          "Review-Entscheidungen",
-          "weniger Briefing-Loops"
-        ]
+        "title": "ESCO-Semantik & Vergleichbarkeit",
+        "body": "Berufe, Skills und Titelvarianten werden normalisiert, damit Profile anschlussfähig werden.",
+        "items": ["ESCO", "Skill-Mapping", "Titelvarianten"]
       },
       {
-        "title": "Semantik & Vergleichbarkeit",
-        "body": "ESCO-Kontext und strukturierte Fakten machen Anforderungen anschlussfähig für Skill-Matching und internationale Profile.",
-        "items": [
-          "ESCO-Anker",
-          "Skill-Normalisierung",
-          "Titelvarianten",
-          "vergleichbare Rollenprofile"
-        ]
-      },
-      {
-        "title": "Recruiting-Artefakte",
-        "body": "Aus einer vollständigen Informationsbasis entstehen konsistente Outputs für alle Folgeaktivitäten.",
-        "items": [
-          "Recruiting Brief",
-          "Job Ad",
-          "Boolean Search",
-          "Interview Sheets"
-        ]
+        "title": "Interview- & Artefaktlogik",
+        "body": "Fragen, Scorecards, Briefing und Folge-Outputs basieren auf derselben geprüften Faktenlage.",
+        "items": ["Scorecard", "Brief", "Interview"]
       }
     ]
   },
   "kpis": [
-    "Vollständiger Bedarf",
-    "Weniger Rückfragen",
+    "Klarere Prioritäten",
+    "Weniger Briefing-Loops",
     "Präzisere Ansprache",
     "Bessere Shortlists",
     "Konsistente Interviews",

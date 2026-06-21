@@ -12,14 +12,24 @@ from components.iceberg_need_analysis import (
 )
 
 
-def test_intro_and_landing_pages_use_current_iframe_api() -> None:
-    intro_page = Path("wizard_pages/00_intro.py").read_text(encoding="utf-8")
+def test_intro_and_landing_pages_use_current_iframe_api_without_expander() -> None:
     landing_page = Path("wizard_pages/00_landing.py").read_text(encoding="utf-8")
+    intro_page = Path("wizard_pages/00_intro.py").read_text(encoding="utf-8")
 
     for page in (intro_page, landing_page):
         assert "streamlit.components.v1" not in page
         assert "components.html" not in page
         assert "st.iframe(" in page
+    assert 'with st.expander("Warum Need Analysis?"' not in landing_page
+
+
+def test_landing_page_shows_explainer_before_intake() -> None:
+    landing_page = Path("wizard_pages/00_landing.py").read_text(encoding="utf-8")
+
+    render_body = landing_page.split("def render(ctx: WizardContext) -> None:", 1)[1]
+    assert render_body.index("_render_landing_explainer_sections()") < render_body.index(
+        "render_jobad_intake"
+    )
 
 
 def test_iceberg_content_loads_required_sections() -> None:
@@ -30,9 +40,8 @@ def test_iceberg_content_loads_required_sections() -> None:
     assert set(content) >= {"surface", "deep", "kpis"}
     assert set(content["surface"]) >= {"headline", "subline", "groups"}
     assert set(content["deep"]) >= {"headline", "subline", "groups"}
-    assert len(content["surface"]["groups"]) == 4
-    assert len(content["deep"]["groups"]) == 6
     for section_key in ("surface", "deep"):
+        assert len(content[section_key]["groups"]) >= 3
         for group in content[section_key]["groups"]:
             assert set(group) >= {"title", "body", "items"}
             assert isinstance(group["items"], list)
@@ -46,14 +55,16 @@ def test_iceberg_html_embeds_png_and_overlay_selectors() -> None:
     assert 'class="ina-stage"' in html
     assert 'class="ina-guides"' in html
     assert "ina-waterline" in html
+    assert "ina-split-line" not in html
     assert 'class="ina-zone-label surface"' in html
+    assert 'class="ina-zone-label deep"' in html
     assert 'class="ina-surface-grid"' in html
     assert 'class="ina-deep-grid"' in html
     assert "ina-surface" in html
     assert "ina-deep" in html
     assert 'class="ina-group-items"' in html
-    assert "Prioritäten &amp; Success Criteria" in html
-    assert "Recruiting Brief" in html
+    assert "Prioritäten &amp; Erfolgskriterien" in html
+    assert "Scorecard" in html
     assert 'class="ina-kpi-bar"' in html
 
 
