@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import io
 import re
+import unicodedata
 import zipfile
 from pathlib import Path
 from typing import Any, Dict, Tuple
@@ -12,6 +13,14 @@ from xml.etree import ElementTree
 
 import docx  # python-docx
 import pdfplumber
+from constants import (
+    SOURCE_UPLOAD_ALLOWED_EXTENSIONS,
+    SOURCE_UPLOAD_FILE_SIGNATURES,
+    SOURCE_UPLOAD_MAX_BYTES,
+    SOURCE_UPLOAD_MAX_BYTES_BY_EXTENSION,
+    SOURCE_UPLOAD_TEXT_ENCODINGS,
+    SOURCE_UPLOAD_TEXT_MAX_CONTROL_CHAR_RATIO,
+)
 from docx.table import Table
 from docx.text.paragraph import Paragraph
 
@@ -26,48 +35,190 @@ def _normalize_text(text: str) -> str:
     return text.strip()
 
 
-def extract_text_from_uploaded_file(upload: Any) -> Tuple[str, Dict[str, Any]]:
-    """Extract plain text from a Streamlit UploadedFile.
+def read_validated_upload_bytes(upload: Any) -> Tuple[bytes, Dict[str, Any]]:
+    """Read upload bytes after cheap size, extension, and signature guards."""
 
-    Returns:
-        (text, meta)
-    """
     meta: Dict[str, Any] = {
         "name": getattr(upload, "name", None),
         "type": getattr(upload, "type", None),
         "size": getattr(upload, "size", None),
     }
+    extension = _upload_extension(meta.get("name"))
+    declared_size = _coerce_upload_size(meta.get("size"))
+    if declared_size is not None:
+        _validate_upload_size(declared_size, extension)
 
     try:
         upload.seek(0)
     except Exception:
         pass
 
-    raw = upload.read()
+    try:
+        raw = upload.read()
+    except Exception as exc:
+        raise ValueError("Datei konnte nicht gelesen werden.") from exc
+    finally:
+        try:
+            upload.seek(0)
+        except Exception:
+            pass
+
+    if isinstance(raw, bytearray):
+        raw = bytes(raw)
+    elif isinstance(raw, memoryview):
+        raw = raw.tobytes()
+    if not isinstance(raw, bytes):
+        raise ValueError("Datei konnte nicht gelesen werden.")
+
+    meta["size"] = len(raw)
+    _validate_upload_size(len(raw), extension)
+    _validate_upload_payload(raw, extension)
+    return raw, meta
+
+
+def _upload_extension(name: Any) -> str:
+    extension = Path(str(name or "")).suffix.lower()
+    if extension not in SOURCE_UPLOAD_ALLOWED_EXTENSIONS:
+        allowed = _format_allowed_extensions()
+        raise ValueError(
+            f"Dateiformat wird nicht unterstützt. Erlaubt sind {allowed}."
+        )
+    return extension
+
+
+def _coerce_upload_size(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        size = int(value)
+    except (TypeError, ValueError):
+        return None
+    return size if size >= 0 else None
+
+
+def _validate_upload_size(size: int, extension: str) -> None:
+    max_bytes = SOURCE_UPLOAD_MAX_BYTES_BY_EXTENSION.get(
+        extension, SOURCE_UPLOAD_MAX_BYTES
+    )
+    if size > max_bytes:
+        raise ValueError(
+            f"Datei ist zu groß. Maximal erlaubt sind {_format_byte_size(max_bytes)}."
+        )
+
+
+def _validate_upload_payload(raw: bytes, extension: str) -> None:
     if not raw:
         raise ValueError("Datei enthält keinen auslesbaren Inhalt.")
-    name = (meta.get("name") or "").lower()
+
+    signatures = SOURCE_UPLOAD_FILE_SIGNATURES.get(extension, ())
+    if signatures and not raw.startswith(signatures):
+        raise ValueError("Dateisignatur passt nicht zur Dateiendung.")
+
+    if extension == ".docx":
+        _validate_docx_container(raw)
+    elif extension == ".pdf":
+        _validate_pdf_payload(raw)
+    elif extension == ".txt":
+        _validate_text_payload(raw)
+
+
+def _validate_docx_container(raw: bytes) -> None:
+    try:
+        with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+            names = set(archive.namelist())
+            if "[Content_Types].xml" not in names or "word/document.xml" not in names:
+                raise ValueError
+    except (zipfile.BadZipFile, ValueError, OSError):
+        raise ValueError("DOCX-Datei ist beschädigt oder unvollständig.") from None
+
+
+def _validate_pdf_payload(raw: bytes) -> None:
+    if b"%%EOF" not in raw[-2048:]:
+        raise ValueError("PDF-Datei ist beschädigt oder unvollständig.")
+
+
+def _validate_text_payload(raw: bytes) -> None:
+    binary_signatures = tuple(
+        signature
+        for extension, signatures in SOURCE_UPLOAD_FILE_SIGNATURES.items()
+        if extension != ".txt"
+        for signature in signatures
+    )
+    if binary_signatures and raw.startswith(binary_signatures):
+        raise ValueError("Dateisignatur passt nicht zur Dateiendung.")
+    _decode_text_payload(raw)
+
+
+def _decode_text_payload(raw: bytes) -> str:
+    for encoding in SOURCE_UPLOAD_TEXT_ENCODINGS:
+        if encoding == "utf-16" and not raw.startswith((b"\xff\xfe", b"\xfe\xff")):
+            continue
+        try:
+            text = raw.decode(encoding)
+        except UnicodeError:
+            continue
+        if _control_char_ratio(text) <= SOURCE_UPLOAD_TEXT_MAX_CONTROL_CHAR_RATIO:
+            return text
+    raise ValueError("TXT-Datei wirkt nicht wie eine Textdatei.")
+
+
+def _control_char_ratio(text: str) -> float:
+    if not text:
+        return 0.0
+    allowed_controls = {"\n", "\r", "\t", "\f"}
+    control_count = sum(
+        1
+        for char in text
+        if char not in allowed_controls and unicodedata.category(char) == "Cc"
+    )
+    return control_count / len(text)
+
+
+def _format_allowed_extensions() -> str:
+    labels = [
+        extension.removeprefix(".").upper()
+        for extension in SOURCE_UPLOAD_ALLOWED_EXTENSIONS
+    ]
+    return ", ".join(labels[:-1]) + f" und {labels[-1]}"
+
+
+def _format_byte_size(size: int) -> str:
+    mib = 1024 * 1024
+    if size % mib == 0:
+        return f"{size // mib} MB"
+    return f"{size} Bytes"
+
+
+def extract_text_from_uploaded_file(upload: Any) -> Tuple[str, Dict[str, Any]]:
+    """Extract plain text from a Streamlit UploadedFile.
+
+    Returns:
+        (text, meta)
+    """
+    raw, meta = read_validated_upload_bytes(upload)
+    extension = _upload_extension(meta.get("name"))
 
     pdf_missing_text_layer = False
-    if name.endswith(".docx"):
+    if extension == ".docx":
         try:
             text = _extract_docx(raw)
         except Exception as exc:
-            raise ValueError("DOCX-Struktur nicht auslesbar.") from exc
-    elif name.endswith(".pdf"):
-        text, pdf_missing_text_layer = _extract_pdf(raw)
-    else:
-        # Try decode as utf-8 text
+            raise ValueError(
+                "DOCX-Datei ist beschädigt oder unvollständig."
+            ) from exc
+    elif extension == ".pdf":
         try:
-            text = raw.decode("utf-8")
-        except UnicodeDecodeError:
-            text = raw.decode("latin-1", errors="replace")
+            text, pdf_missing_text_layer = _extract_pdf(raw)
+        except Exception as exc:
+            raise ValueError("PDF-Datei ist beschädigt oder unvollständig.") from exc
+    else:
+        text = _decode_text_payload(raw)
 
     normalized = _normalize_text(text)
     if not normalized:
-        if name.endswith(".docx"):
+        if extension == ".docx":
             raise ValueError("DOCX enthält keinen auslesbaren Text.")
-        if name.endswith(".pdf"):
+        if extension == ".pdf":
             if pdf_missing_text_layer:
                 raise ValueError("PDF enthält keinen Textlayer (OCR fehlt).")
             raise ValueError("PDF enthält keinen auslesbaren Text.")
@@ -123,6 +274,7 @@ def _extract_docx(raw: bytes) -> str:
 def extract_docx_preview_blocks(raw: bytes) -> list[dict[str, Any]]:
     """Return body-order DOCX blocks for an approximate visual preview."""
 
+    _validate_docx_container(raw)
     doc = docx.Document(io.BytesIO(raw))
     blocks: list[dict[str, Any]] = []
 

@@ -6,7 +6,7 @@ import base64
 import html
 from typing import Any, Sequence
 
-from parsing import extract_docx_preview_blocks
+from parsing import extract_docx_preview_blocks, read_validated_upload_bytes
 
 
 SUPPORTED_PREVIEW_IMAGE_MIME_TYPES = {"image/png", "image/jpeg"}
@@ -14,19 +14,10 @@ SUPPORTED_PREVIEW_IMAGE_MIME_TYPES = {"image/png", "image/jpeg"}
 
 def read_upload_preview_bytes(upload: object) -> bytes | None:
     try:
-        upload.seek(0)  # type: ignore[attr-defined]
-    except Exception:
-        pass
-    try:
-        raw = upload.read()  # type: ignore[attr-defined]
-    except Exception:
+        raw, _meta = read_validated_upload_bytes(upload)
+    except ValueError:
         return None
-    finally:
-        try:
-            upload.seek(0)  # type: ignore[attr-defined]
-        except Exception:
-            pass
-    return raw if isinstance(raw, bytes) and raw else None
+    return raw
 
 
 def document_preview_shell(

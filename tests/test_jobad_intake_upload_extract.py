@@ -15,6 +15,23 @@ class _FakeStreamlit:
         }
 
 
+class _FakeUploadBytes:
+    def __init__(self, payload: bytes, *, name: str) -> None:
+        self.name = name
+        self.size = len(payload)
+        self._payload = payload
+        self._pos = 0
+
+    def seek(self, pos: int) -> int:
+        self._pos = pos
+        return pos
+
+    def read(self) -> bytes:
+        payload = self._payload[self._pos :]
+        self._pos = len(self._payload)
+        return payload
+
+
 def test_extract_upload_to_state_sets_text_input_key_when_successful(
     monkeypatch,
 ) -> None:
@@ -61,6 +78,30 @@ def test_extract_upload_to_state_does_not_overwrite_with_empty_text(
 
     assert result is None
     assert set_error_messages == ["Datei enthält keinen auslesbaren Inhalt."]
+    assert (
+        fake_st.session_state[jobad_intake.SOURCE_UPLOAD_TEXT_KEY]
+        == "bestehender upload-text"
+    )
+
+
+def test_extract_upload_to_state_keeps_previous_text_on_signature_error(
+    monkeypatch,
+) -> None:
+    fake_st = _FakeStreamlit()
+    set_error_messages: list[str] = []
+
+    monkeypatch.setattr(jobad_intake, "st", fake_st)
+    monkeypatch.setattr(
+        jobad_intake, "set_error", lambda msg: set_error_messages.append(msg)
+    )
+
+    result = jobad_intake._extract_upload_to_state(
+        _FakeUploadBytes(b"%PDF-1.4\n%%EOF\n", name="jobspec.docx"),
+        step="test.extract_upload_to_state.signature_guard",
+    )
+
+    assert result is None
+    assert set_error_messages == ["Dateisignatur passt nicht zur Dateiendung."]
     assert (
         fake_st.session_state[jobad_intake.SOURCE_UPLOAD_TEXT_KEY]
         == "bestehender upload-text"
@@ -231,12 +272,21 @@ class _PreviewStreamlit:
 def test_render_uploaded_document_preview_embeds_pdf_bytes(monkeypatch) -> None:
     fake_st = _PreviewStreamlit()
     monkeypatch.setattr(jobad_intake, "st", fake_st)
-    upload = _FakeUploadPreview(b"%PDF-1.4\nbody", name="jobspec.pdf")
+    upload = _FakeUploadPreview(b"%PDF-1.4\nbody\n%%EOF\n", name="jobspec.pdf")
 
     rendered = jobad_intake._render_uploaded_document_preview(upload, "")
 
     assert rendered is True
     assert "data:application/pdf;base64," in fake_st.markdowns[0]
+
+
+def test_uploaded_document_preview_skips_invalid_pdf_bytes() -> None:
+    upload = _FakeUploadPreview(b"%PDF-1.4\nbody", name="jobspec.pdf")
+
+    html = document_preview.uploaded_document_preview_html(upload, "")
+
+    assert html is not None
+    assert "data:application/pdf;base64," not in html
 
 
 def test_text_preview_html_escapes_fallback_text() -> None:

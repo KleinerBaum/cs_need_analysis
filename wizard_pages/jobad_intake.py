@@ -20,6 +20,8 @@ from constants import (
     FactResolutionStatus,
     FactSourceType,
     SSKey,
+    SOURCE_UPLOAD_ALLOWED_EXTENSIONS,
+    SOURCE_UPLOAD_MAX_BYTES,
     UI_MODE_DEFAULT,
 )
 from job_extract_evidence import (
@@ -1299,10 +1301,15 @@ def _render_phase_a_style_overrides() -> None:
 
 
 def _render_source_upload_controls() -> None:
+    allowed_types = [
+        extension.removeprefix(".") for extension in SOURCE_UPLOAD_ALLOWED_EXTENSIONS
+    ]
+    max_upload_mb = SOURCE_UPLOAD_MAX_BYTES // (1024 * 1024)
     st.file_uploader(
         "PDF, DOCX oder TXT hochladen",
-        type=["pdf", "docx", "txt"],
+        type=allowed_types,
         accept_multiple_files=False,
+        help=f"Maximale Dateigröße: {max_upload_mb} MB.",
         key="cs.source_upload_file",
         on_change=_on_upload_change,
     )

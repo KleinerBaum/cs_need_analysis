@@ -157,6 +157,30 @@ UI_PREFERENCE_STEP_COMPACT: Final[str] = "step_compact"
 UI_PREFERENCE_UI_LANGUAGE: Final[str] = "ui_language"
 WIZARD_STEP_QUERY_PARAM: Final[str] = "wizard_step"
 
+SOURCE_UPLOAD_MAX_BYTES: Final[int] = 10 * 1024 * 1024
+SOURCE_UPLOAD_ALLOWED_EXTENSIONS: Final[tuple[str, ...]] = (
+    ".pdf",
+    ".docx",
+    ".txt",
+)
+SOURCE_UPLOAD_MAX_BYTES_BY_EXTENSION: Final[dict[str, int]] = {
+    ".pdf": SOURCE_UPLOAD_MAX_BYTES,
+    ".docx": SOURCE_UPLOAD_MAX_BYTES,
+    ".txt": SOURCE_UPLOAD_MAX_BYTES,
+}
+SOURCE_UPLOAD_FILE_SIGNATURES: Final[dict[str, tuple[bytes, ...]]] = {
+    ".pdf": (b"%PDF-",),
+    ".docx": (b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"),
+    ".txt": (),
+}
+SOURCE_UPLOAD_TEXT_ENCODINGS: Final[tuple[str, ...]] = (
+    "utf-8-sig",
+    "utf-16",
+    "cp1252",
+    "latin-1",
+)
+SOURCE_UPLOAD_TEXT_MAX_CONTROL_CHAR_RATIO: Final[float] = 0.05
+
 COMPLETION_STATE_COMPLETE: Final[str] = "complete"
 COMPLETION_STATE_PARTIAL: Final[str] = "partial"
 COMPLETION_STATE_NOT_STARTED: Final[str] = "not_started"
