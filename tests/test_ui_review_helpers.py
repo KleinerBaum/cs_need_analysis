@@ -7,6 +7,9 @@ from typing import Any
 from typing import Literal
 
 import ui_components
+import ui_fact_review
+import ui_inputs
+import ui_requirement_board
 from constants import (
     FactKey,
     QUESTION_IMPACT_TARGET_EXPORT,
@@ -69,6 +72,12 @@ class _FakeStreamlitRecorder:
         return _NoopContext()
 
 
+def _patch_ui_modules(monkeypatch, fake_st: Any) -> None:
+    monkeypatch.setattr(ui_fact_review, "st", fake_st)
+    monkeypatch.setattr(ui_inputs, "st", fake_st)
+    monkeypatch.setattr(ui_requirement_board, "st", fake_st)
+
+
 def _question(
     *,
     question_id: str,
@@ -94,7 +103,9 @@ def test_render_step_review_card_shows_missing_essentials_before_group_cards(
     monkeypatch,
 ) -> None:
     fake_st = _FakeStreamlitRecorder()
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    _patch_ui_modules(monkeypatch, fake_st)
+    assert ui_components.render_step_review_card is ui_fact_review.render_step_review_card
+    assert ui_components.ReviewRenderMode is ui_fact_review.ReviewRenderMode
 
     q_essential = _question(
         question_id="q_essential",
@@ -140,7 +151,7 @@ def test_render_step_review_card_shows_missing_essentials_before_group_cards(
 
 def test_render_step_review_card_renders_group_status_indicators(monkeypatch) -> None:
     fake_st = _FakeStreamlitRecorder()
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    _patch_ui_modules(monkeypatch, fake_st)
 
     full_q1 = _question(question_id="g1_q1", label="G1 Frage 1", group_key="group_full")
     full_q2 = _question(question_id="g1_q2", label="G1 Frage 2", group_key="group_full")
@@ -176,7 +187,7 @@ def test_render_step_review_card_renders_group_status_indicators(monkeypatch) ->
 
 def test_render_step_review_card_truncates_long_answer_previews(monkeypatch) -> None:
     fake_st = _FakeStreamlitRecorder()
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    _patch_ui_modules(monkeypatch, fake_st)
 
     long_question = _question(
         question_id="long_text",
@@ -207,7 +218,7 @@ def test_render_step_review_card_truncates_long_answer_previews(monkeypatch) -> 
 
 def test_render_step_review_card_displays_jobspec_covered_answer(monkeypatch) -> None:
     fake_st = _FakeStreamlitRecorder()
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    _patch_ui_modules(monkeypatch, fake_st)
 
     company_question = _question(
         question_id="company_context_name",
@@ -245,7 +256,7 @@ def test_render_step_review_card_marks_open_low_confidence_fact_without_snippet(
     monkeypatch,
 ) -> None:
     fake_st = _FakeStreamlitRecorder()
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    _patch_ui_modules(monkeypatch, fake_st)
 
     company_question = _question(
         question_id="company_name",
@@ -285,7 +296,7 @@ def test_render_step_review_card_marks_open_low_confidence_fact_without_snippet(
 
 def test_render_step_review_card_prefers_user_answer_over_jobspec(monkeypatch) -> None:
     fake_st = _FakeStreamlitRecorder()
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    _patch_ui_modules(monkeypatch, fake_st)
 
     company_question = _question(
         question_id="company_name",
@@ -324,7 +335,7 @@ def test_render_step_review_card_maps_missing_essentials_by_id_with_duplicate_la
     monkeypatch,
 ) -> None:
     fake_st = _FakeStreamlitRecorder()
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    _patch_ui_modules(monkeypatch, fake_st)
 
     q_dup_a = _question(
         question_id="dup_a",
@@ -375,7 +386,7 @@ def test_render_step_review_card_mode_compact_hides_direct_answer_block(
     monkeypatch,
 ) -> None:
     fake_st = _FakeStreamlitRecorder()
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    _patch_ui_modules(monkeypatch, fake_st)
 
     unanswered_question = _question(
         question_id="group_open_q1",
@@ -402,7 +413,7 @@ def test_render_step_review_card_mode_compact_hides_direct_answer_block(
 
 def test_render_step_review_card_compact_summary_with_group_counts(monkeypatch) -> None:
     fake_st = _FakeStreamlitRecorder()
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    _patch_ui_modules(monkeypatch, fake_st)
 
     questions = [
         _question(question_id="q1", label="Frage 1", group_key="group_a"),
@@ -461,11 +472,12 @@ def test_render_question_step_hides_verbose_progress_captions(monkeypatch) -> No
             return [_NoopContext() for _ in range(count)]
 
     fake_st = _FakeStepStreamlit()
-    monkeypatch.setattr(ui_components, "st", fake_st)
-    monkeypatch.setattr(ui_components, "get_answers", lambda: {})
-    monkeypatch.setattr(ui_components, "get_answer_meta", lambda: {})
+    _patch_ui_modules(monkeypatch, fake_st)
+    assert ui_components.render_question_step is ui_inputs.render_question_step
+    monkeypatch.setattr(ui_inputs, "get_answers", lambda: {})
+    monkeypatch.setattr(ui_inputs, "get_answer_meta", lambda: {})
     monkeypatch.setattr(
-        ui_components,
+        ui_inputs,
         "_render_questions_two_columns",
         lambda _questions, _answers, **_kwargs: [],
     )
@@ -534,11 +546,11 @@ def test_render_question_step_shows_adaptive_hidden_scope_caption(monkeypatch) -
             return [_NoopContext() for _ in range(count)]
 
     fake_st = _FakeStepStreamlit()
-    monkeypatch.setattr(ui_components, "st", fake_st)
-    monkeypatch.setattr(ui_components, "get_answers", lambda: {})
-    monkeypatch.setattr(ui_components, "get_answer_meta", lambda: {})
+    _patch_ui_modules(monkeypatch, fake_st)
+    monkeypatch.setattr(ui_inputs, "get_answers", lambda: {})
+    monkeypatch.setattr(ui_inputs, "get_answer_meta", lambda: {})
     monkeypatch.setattr(
-        ui_components,
+        ui_inputs,
         "_render_questions_two_columns",
         lambda _questions, _answers, **_kwargs: [],
     )
@@ -628,11 +640,11 @@ def test_render_question_step_hides_visible_provenance_and_sensitive_details(
             return [_NoopContext() for _ in range(count)]
 
     fake_st = _FakeStepStreamlit()
-    monkeypatch.setattr(ui_components, "st", fake_st)
-    monkeypatch.setattr(ui_components, "get_answers", lambda: {})
-    monkeypatch.setattr(ui_components, "get_answer_meta", lambda: {})
+    _patch_ui_modules(monkeypatch, fake_st)
+    monkeypatch.setattr(ui_inputs, "get_answers", lambda: {})
+    monkeypatch.setattr(ui_inputs, "get_answer_meta", lambda: {})
     monkeypatch.setattr(
-        ui_components,
+        ui_inputs,
         "_render_questions_two_columns",
         lambda _questions, _answers, **_kwargs: [],
     )
@@ -714,9 +726,9 @@ def test_render_question_step_compact_context_hides_visible_provenance(
 
     fake_st = _FakeStepStreamlit()
     captured_context_modes: list[str] = []
-    monkeypatch.setattr(ui_components, "st", fake_st)
-    monkeypatch.setattr(ui_components, "get_answers", lambda: {})
-    monkeypatch.setattr(ui_components, "get_answer_meta", lambda: {})
+    _patch_ui_modules(monkeypatch, fake_st)
+    monkeypatch.setattr(ui_inputs, "get_answers", lambda: {})
+    monkeypatch.setattr(ui_inputs, "get_answer_meta", lambda: {})
 
     def _capture_questions_two_columns(
         _questions: list[Question],
@@ -727,7 +739,7 @@ def test_render_question_step_compact_context_hides_visible_provenance(
         return []
 
     monkeypatch.setattr(
-        ui_components,
+        ui_inputs,
         "_render_questions_two_columns",
         _capture_questions_two_columns,
     )
@@ -794,7 +806,7 @@ def test_question_provenance_display_uses_safe_labels_and_canonical_impacts() ->
 
 def test_render_section_provenance_does_not_emit_visible_details(monkeypatch) -> None:
     fake_st = _FakeStreamlitRecorder()
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    _patch_ui_modules(monkeypatch, fake_st)
     question = Question(
         id="ctx_esco_skill",
         label="ESCO Skill",
@@ -874,16 +886,16 @@ def test_render_question_step_form_waits_for_submit_before_persisting(
     fake_st = _QuestionFormFakeStreamlit(submitted=False)
     persisted_answers: list[tuple[str, Any]] = []
     touched_answers: list[tuple[str, Any, Any]] = []
-    monkeypatch.setattr(ui_components, "st", fake_st)
-    monkeypatch.setattr(ui_components, "get_answers", lambda: {})
-    monkeypatch.setattr(ui_components, "get_answer_meta", lambda: {})
+    _patch_ui_modules(monkeypatch, fake_st)
+    monkeypatch.setattr(ui_inputs, "get_answers", lambda: {})
+    monkeypatch.setattr(ui_inputs, "get_answer_meta", lambda: {})
     monkeypatch.setattr(
-        ui_components,
+        ui_inputs,
         "set_answer",
         lambda question_id, value: persisted_answers.append((question_id, value)),
     )
     monkeypatch.setattr(
-        ui_components,
+        ui_inputs,
         "mark_answer_touched",
         lambda question_id, previous, current: touched_answers.append(
             (question_id, previous, current)
@@ -913,16 +925,16 @@ def test_render_question_step_form_persists_answers_on_submit(monkeypatch) -> No
     fake_st = _QuestionFormFakeStreamlit(submitted=True)
     persisted_answers: list[tuple[str, Any]] = []
     touched_answers: list[tuple[str, Any, Any]] = []
-    monkeypatch.setattr(ui_components, "st", fake_st)
-    monkeypatch.setattr(ui_components, "get_answers", lambda: {})
-    monkeypatch.setattr(ui_components, "get_answer_meta", lambda: {})
+    _patch_ui_modules(monkeypatch, fake_st)
+    monkeypatch.setattr(ui_inputs, "get_answers", lambda: {})
+    monkeypatch.setattr(ui_inputs, "get_answer_meta", lambda: {})
     monkeypatch.setattr(
-        ui_components,
+        ui_inputs,
         "set_answer",
         lambda question_id, value: persisted_answers.append((question_id, value)),
     )
     monkeypatch.setattr(
-        ui_components,
+        ui_inputs,
         "mark_answer_touched",
         lambda question_id, previous, current: touched_answers.append(
             (question_id, previous, current)
@@ -950,9 +962,9 @@ def test_render_question_step_form_persists_answers_on_submit(monkeypatch) -> No
 
 def test_render_question_step_form_key_accepts_instance_suffix(monkeypatch) -> None:
     fake_st = _QuestionFormFakeStreamlit(submitted=False)
-    monkeypatch.setattr(ui_components, "st", fake_st)
-    monkeypatch.setattr(ui_components, "get_answers", lambda: {})
-    monkeypatch.setattr(ui_components, "get_answer_meta", lambda: {})
+    _patch_ui_modules(monkeypatch, fake_st)
+    monkeypatch.setattr(ui_inputs, "get_answers", lambda: {})
+    monkeypatch.setattr(ui_inputs, "get_answer_meta", lambda: {})
     step = QuestionStep(
         step_key="company",
         title_de="Company",
@@ -980,7 +992,7 @@ def test_question_step_form_is_disabled_for_language_widgets(monkeypatch) -> Non
         form=lambda *_args, **_kwargs: _NoopContext(),
         form_submit_button=lambda *_args, **_kwargs: False,
     )
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    _patch_ui_modules(monkeypatch, fake_st)
 
     normal_question = Question(
         id="company_context",
@@ -1001,8 +1013,8 @@ def test_render_step_review_card_direct_answers_mode_shows_hint_when_inline_disa
     monkeypatch,
 ) -> None:
     fake_st = _FakeStreamlitRecorder()
-    monkeypatch.setattr(ui_components, "st", fake_st)
-    monkeypatch.setattr(ui_components, "_can_render_inline_answer_inputs", lambda: False)
+    _patch_ui_modules(monkeypatch, fake_st)
+    monkeypatch.setattr(ui_fact_review, "_can_render_inline_answer_inputs", lambda: False)
 
     questions = [
         _question(question_id="q1", label="Essentiell 1", group_key="group_a"),
@@ -1044,8 +1056,8 @@ def test_render_step_review_card_hides_direct_answer_hint_when_no_open_questions
     monkeypatch,
 ) -> None:
     fake_st = _FakeStreamlitRecorder()
-    monkeypatch.setattr(ui_components, "st", fake_st)
-    monkeypatch.setattr(ui_components, "_can_render_inline_answer_inputs", lambda: False)
+    _patch_ui_modules(monkeypatch, fake_st)
+    monkeypatch.setattr(ui_fact_review, "_can_render_inline_answer_inputs", lambda: False)
 
     questions = [
         _question(question_id="q1", label="Essentiell 1", group_key="group_a"),
@@ -1078,8 +1090,8 @@ def test_render_step_review_card_full_mode_shows_group_level_open_question_count
     monkeypatch,
 ) -> None:
     fake_st = _FakeStreamlitRecorder()
-    monkeypatch.setattr(ui_components, "st", fake_st)
-    monkeypatch.setattr(ui_components, "_can_render_inline_answer_inputs", lambda: False)
+    _patch_ui_modules(monkeypatch, fake_st)
+    monkeypatch.setattr(ui_fact_review, "_can_render_inline_answer_inputs", lambda: False)
 
     question = _question(question_id="q1", label="Offen", group_key="group_open")
     step = _step_with_questions([question])
@@ -1117,7 +1129,7 @@ def test_render_compare_adopt_intro_renders_no_explanatory_copy(monkeypatch) -> 
         def html(self, html: str) -> None:
             calls.append(html)
 
-    monkeypatch.setattr(ui_components, "st", _FakeStreamlit())
+    _patch_ui_modules(monkeypatch, _FakeStreamlit())
 
     ui_components.render_compare_adopt_intro(
         adopt_target="Skills",

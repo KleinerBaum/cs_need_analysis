@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import ui_components
+import ui_inputs
 from schemas import AnswerType, Question
 
 
@@ -22,7 +23,8 @@ class _FakeStreamlit:
 
 def test_render_number_question_uses_percent_slider_bounds(monkeypatch) -> None:
     fake_st = _FakeStreamlit()
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_inputs, "st", fake_st)
+    assert ui_components._render_number_question is ui_inputs._render_number_question
     question = Question(
         id="team_role_distribution_percent",
         label="Wie stark ist der Anteil ... in typischen Einsätzen?",

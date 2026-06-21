@@ -4,6 +4,7 @@ from typing import Any
 from typing import Literal
 
 import ui_components
+import ui_esco_picker
 
 
 class _NoopContext:
@@ -81,7 +82,8 @@ class _FakeStreamlit:
 
 def test_render_esco_picker_card_uses_default_copy(monkeypatch) -> None:
     fake_st = _FakeStreamlit()
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_esco_picker, "st", fake_st)
+    assert ui_components.render_esco_picker_card is ui_esco_picker.render_esco_picker_card
 
     ui_components.render_esco_picker_card(
         concept_type="occupation",
@@ -99,7 +101,7 @@ def test_render_esco_picker_card_uses_default_copy(monkeypatch) -> None:
 
 def test_render_esco_picker_card_uses_copy_overrides(monkeypatch) -> None:
     fake_st = _FakeStreamlit()
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_esco_picker, "st", fake_st)
 
     ui_components.render_esco_picker_card(
         concept_type="occupation",
@@ -124,7 +126,7 @@ def test_render_esco_picker_card_anchor_card_uses_compact_occupation_copy(
     monkeypatch,
 ) -> None:
     fake_st = _FakeStreamlit()
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_esco_picker, "st", fake_st)
 
     ui_components.render_esco_picker_card(
         concept_type="occupation",
@@ -150,7 +152,7 @@ def test_render_esco_picker_card_anchor_card_bundles_confirmed_summary_and_bread
         "title": "Data Engineer",
         "type": "occupation",
     }
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_esco_picker, "st", fake_st)
 
     ui_components.render_esco_picker_card(
         concept_type="occupation",
@@ -172,7 +174,7 @@ def test_render_esco_picker_card_anchor_card_shows_metadata_only_in_expert(
     monkeypatch,
 ) -> None:
     fake_st = _FakeStreamlit()
-    fake_st.session_state[ui_components.SSKey.UI_MODE.value] = "expert"
+    fake_st.session_state[ui_esco_picker.SSKey.UI_MODE.value] = "expert"
     fake_st.session_state["esco.occupation"] = {
         "uri": "https://example.test/occupation/1",
         "title": "Data Engineer",
@@ -182,7 +184,7 @@ def test_render_esco_picker_card_anchor_card_shows_metadata_only_in_expert(
         "version": "v1.2.3",
         "source": "manual",
     }
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_esco_picker, "st", fake_st)
 
     ui_components.render_esco_picker_card(
         concept_type="occupation",
@@ -200,7 +202,7 @@ def test_render_esco_picker_card_anchor_card_does_not_change_skill_picker(
     monkeypatch,
 ) -> None:
     fake_st = _FakeStreamlit()
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_esco_picker, "st", fake_st)
 
     ui_components.render_esco_picker_card(
         concept_type="skill",
@@ -247,8 +249,8 @@ def test_render_esco_picker_card_retries_occupation_query_without_context(
 
     fake_st = _FakeStreamlit()
     fake_st.text_input_value = "Data Engineer (Analytics, Berlin)"
-    monkeypatch.setattr(ui_components, "st", fake_st)
-    monkeypatch.setattr(ui_components, "EscoClient", _RecordingEscoClient)
+    monkeypatch.setattr(ui_esco_picker, "st", fake_st)
+    monkeypatch.setattr(ui_esco_picker, "EscoClient", _RecordingEscoClient)
 
     ui_components.render_esco_picker_card(
         concept_type="occupation",
@@ -297,8 +299,8 @@ def test_render_esco_picker_card_does_not_clean_skill_queries(monkeypatch) -> No
 
     fake_st = _FakeStreamlit()
     fake_st.text_input_value = "Python (Backend)"
-    monkeypatch.setattr(ui_components, "st", fake_st)
-    monkeypatch.setattr(ui_components, "EscoClient", _RecordingEscoClient)
+    monkeypatch.setattr(ui_esco_picker, "st", fake_st)
+    monkeypatch.setattr(ui_esco_picker, "EscoClient", _RecordingEscoClient)
 
     ui_components.render_esco_picker_card(
         concept_type="skill",
@@ -318,11 +320,11 @@ def test_render_esco_picker_card_results_overview_uses_three_candidate_columns(
     fake_st = _FakeStreamlit()
     fake_st.text_input_value = "Data"
     fake_st.selectbox_value = 1
-    fake_st.session_state[ui_components.SSKey.UI_MODE.value] = "expert"
-    monkeypatch.setattr(ui_components, "st", fake_st)
-    monkeypatch.setattr(ui_components, "EscoClient", _FakeEscoClient)
+    fake_st.session_state[ui_esco_picker.SSKey.UI_MODE.value] = "expert"
+    monkeypatch.setattr(ui_esco_picker, "st", fake_st)
+    monkeypatch.setattr(ui_esco_picker, "EscoClient", _FakeEscoClient)
     monkeypatch.setattr(
-        ui_components,
+        ui_esco_picker,
         "_extract_esco_suggestions",
         lambda *_args, **_kwargs: [
             {

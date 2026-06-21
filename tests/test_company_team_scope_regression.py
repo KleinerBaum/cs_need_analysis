@@ -8,6 +8,7 @@ import sys
 from constants import AnswerType, FactKey, SSKey
 from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
 import ui_components
+import ui_fact_review
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE_PATH = ROOT / "wizard_pages" / "base.py"
@@ -87,8 +88,8 @@ def test_company_scope_excludes_team_questions_and_keeps_progress_denominator(mo
         [BASE_MODULE.WizardPage(key="company", title_de="Company", icon="", render=_noop_render)]
     )
 
-    monkeypatch.setattr(ui_components, "get_answers", lambda: answers)
-    monkeypatch.setattr(ui_components, "get_answer_meta", lambda: answer_meta)
+    monkeypatch.setattr(ui_fact_review, "get_answers", lambda: answers)
+    monkeypatch.setattr(ui_fact_review, "get_answer_meta", lambda: answer_meta)
     review_payload = ui_components.build_step_review_payload(company_step)
 
     assert {question.id for question in review_payload["visible_questions"]} == {
@@ -200,10 +201,10 @@ def test_structured_company_facts_still_cover_original_step_review(monkeypatch) 
         FactKey.COMPANY_NON_NEGOTIABLES.value: ["Standort"],
     }
 
-    monkeypatch.setattr(ui_components, "get_answers", lambda: {})
-    monkeypatch.setattr(ui_components, "get_answer_meta", lambda: {})
+    monkeypatch.setattr(ui_fact_review, "get_answers", lambda: {})
+    monkeypatch.setattr(ui_fact_review, "get_answer_meta", lambda: {})
     monkeypatch.setattr(
-        ui_components,
+        ui_fact_review,
         "st",
         SimpleNamespace(
             session_state={

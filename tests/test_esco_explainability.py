@@ -4,6 +4,7 @@ from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
 import ui_components
+import ui_badges
 
 JOBSPEC_PATH = (
     Path(__file__).resolve().parents[1] / "wizard_pages" / "01a_jobspec_review.py"
@@ -90,7 +91,8 @@ def test_render_esco_explainability_renders_collapsed_technical_details(monkeypa
             self.markdown_calls.append(message)
 
     fake_st = _FakeStreamlit()
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_badges, "st", fake_st)
+    assert ui_components.render_esco_explainability is ui_badges.render_esco_explainability
 
     ui_components.render_esco_explainability(
         labels=["exact label match", "manually selected by user"],

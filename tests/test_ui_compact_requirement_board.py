@@ -4,6 +4,7 @@ from typing import Any
 from typing import Literal
 
 import ui_components
+import ui_requirement_board
 
 
 class _NoopContext:
@@ -67,7 +68,11 @@ class _FakeStreamlit:
 
 def test_render_compact_requirement_board_handles_empty_board(monkeypatch) -> None:
     fake_st = _FakeStreamlit()
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_requirement_board, "st", fake_st)
+    assert (
+        ui_components.render_compact_requirement_board
+        is ui_requirement_board.render_compact_requirement_board
+    )
 
     selected = ui_components.render_compact_requirement_board(
         title_jobspec="Aus Jobspec extrahiert",
@@ -87,7 +92,7 @@ def test_render_compact_requirement_board_handles_empty_board(monkeypatch) -> No
 
 def test_render_compact_requirement_board_collects_selected_labels(monkeypatch) -> None:
     fake_st = _FakeStreamlit()
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_requirement_board, "st", fake_st)
 
     fake_st.editor_rows_by_key["skills.board.editor.jobspec"] = [
         {
@@ -119,7 +124,7 @@ def test_render_compact_requirement_board_does_not_request_long_item_toggle(
     monkeypatch,
 ) -> None:
     fake_st = _FakeStreamlit()
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_requirement_board, "st", fake_st)
 
     selected = ui_components.render_compact_requirement_board(
         title_jobspec="Aus Jobspec extrahiert",
@@ -143,7 +148,7 @@ def test_render_compact_requirement_board_filters_only_new_default_on(
     monkeypatch,
 ) -> None:
     fake_st = _FakeStreamlit()
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_requirement_board, "st", fake_st)
 
     selected = ui_components.render_compact_requirement_board(
         title_jobspec="Aus Jobspec extrahiert",

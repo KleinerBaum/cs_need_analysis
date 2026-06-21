@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import ui_components
+import ui_summary_artifacts
 from schemas import BooleanSearchPack
 
 
@@ -85,7 +86,11 @@ def test_first_boolean_query_uses_priority_order() -> None:
 
 def test_render_boolean_search_pack_shows_empty_message(monkeypatch) -> None:
     fake_st = _FakeStreamlit()
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_summary_artifacts, "st", fake_st)
+    assert (
+        ui_components.render_boolean_search_pack
+        is ui_summary_artifacts.render_boolean_search_pack
+    )
 
     ui_components.render_boolean_search_pack(
         _pack(
@@ -101,7 +106,7 @@ def test_render_boolean_search_pack_shows_empty_message(monkeypatch) -> None:
 
 def test_render_boolean_search_pack_renders_visible_queries_only(monkeypatch) -> None:
     fake_st = _FakeStreamlit()
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_summary_artifacts, "st", fake_st)
     pack = _pack(
         google={"broad": ["g-b1", "g-b2"], "focused": ["g-f1"], "fallback": ["g-x"]},
         linkedin={"broad": ["li-b"], "focused": [], "fallback": ["li-x"]},

@@ -6,6 +6,7 @@ from typing import cast
 from constants import FactResolutionStatus, FactSourceType, SSKey
 from schemas import JobAdExtract, JobAdFieldEvidence, RecruitmentStep
 import ui_components
+import ui_job_extract
 import wizard_pages.jobad_intake as jobad_intake
 
 
@@ -168,7 +169,7 @@ def test_identified_info_shows_mixed_source_warning_and_provenance(monkeypatch) 
     )
 
     monkeypatch.setattr(jobad_intake, "st", fake_st)
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_job_extract, "st", fake_st)
     monkeypatch.setattr(jobad_intake, "get_esco_occupation_selected", lambda: None)
     monkeypatch.setattr(jobad_intake, "has_confirmed_esco_anchor", lambda: False)
 
@@ -195,9 +196,9 @@ def test_identified_info_next_is_enabled_without_esco_anchor(monkeypatch) -> Non
     )
 
     monkeypatch.setattr(jobad_intake, "st", fake_st)
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_job_extract, "st", fake_st)
     monkeypatch.setattr(
-        ui_components, "_render_editable_job_extract", lambda *_args, **_kwargs: None
+        ui_job_extract, "_render_editable_job_extract", lambda *_args, **_kwargs: None
     )
     monkeypatch.setattr(jobad_intake, "get_esco_occupation_selected", lambda: None)
     monkeypatch.setattr(jobad_intake, "has_confirmed_esco_anchor", lambda: False)
@@ -246,9 +247,9 @@ def test_identified_info_next_uses_selected_occupation_fallback(monkeypatch) -> 
     )
 
     monkeypatch.setattr(jobad_intake, "st", fake_st)
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_job_extract, "st", fake_st)
     monkeypatch.setattr(
-        ui_components, "_render_editable_job_extract", lambda *_args, **_kwargs: None
+        ui_job_extract, "_render_editable_job_extract", lambda *_args, **_kwargs: None
     )
     monkeypatch.setattr(
         jobad_intake,
@@ -293,9 +294,9 @@ def test_has_completed_landing_analysis_true_when_both_dicts(monkeypatch) -> Non
 
 def test_job_extract_overview_maps_gap_labels_to_german(monkeypatch) -> None:
     fake_st = _FakeStreamlit(session_state={})
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_job_extract, "st", fake_st)
     monkeypatch.setattr(
-        ui_components, "_render_editable_job_extract", lambda *_args, **_kwargs: None
+        ui_job_extract, "_render_editable_job_extract", lambda *_args, **_kwargs: None
     )
 
     extract = JobAdExtract.model_validate(
@@ -321,9 +322,9 @@ def test_job_extract_overview_maps_gap_labels_to_german(monkeypatch) -> None:
 
 def test_job_extract_overview_shows_redacted_field_evidence(monkeypatch) -> None:
     fake_st = _FakeStreamlit(session_state={})
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_job_extract, "st", fake_st)
     monkeypatch.setattr(
-        ui_components, "_render_editable_job_extract", lambda *_args, **_kwargs: None
+        ui_job_extract, "_render_editable_job_extract", lambda *_args, **_kwargs: None
     )
 
     extract = JobAdExtract(
@@ -352,7 +353,7 @@ def test_editable_job_extract_renders_empty_job_title_for_review(
     monkeypatch,
 ) -> None:
     fake_st = _FakeStreamlit(session_state={})
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_job_extract, "st", fake_st)
 
     ui_components._render_editable_job_extract(
         JobAdExtract(company_name="Acme"),
@@ -370,7 +371,7 @@ def test_editable_job_extract_renders_empty_job_title_for_review(
 
 def test_editable_job_extract_includes_field_evidence_columns(monkeypatch) -> None:
     fake_st = _FakeStreamlit(session_state={})
-    monkeypatch.setattr(ui_components, "st", fake_st)
+    monkeypatch.setattr(ui_job_extract, "st", fake_st)
 
     ui_components._render_editable_job_extract(
         JobAdExtract(
