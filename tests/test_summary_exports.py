@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+
 from document_preview import (
     article_preview_html,
     document_preview_shell,
@@ -170,3 +172,24 @@ def test_pdf_preview_html_uses_base64_data_uri_without_raw_payload() -> None:
     )
     assert "<script>" not in html
     assert "%%EOF" not in html
+
+
+def test_markdown_article_preview_html_accepts_normalized_logo_payload() -> None:
+    png_bytes = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5vS3wAAAAASUVORK5CYII="
+    )
+    html = markdown_article_preview_html(
+        "# Data Engineer",
+        logo_payload={
+            "name": "brand.png",
+            "mime_type": "image/png",
+            "extension": ".png",
+            "byte_size": len(png_bytes),
+            "width_px": 1,
+            "height_px": 1,
+            "bytes": png_bytes,
+        },
+    )
+
+    assert "data:image/png;base64," in html
+    assert base64.b64encode(png_bytes).decode("ascii") in html

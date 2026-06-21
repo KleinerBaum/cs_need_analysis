@@ -181,6 +181,21 @@ SOURCE_UPLOAD_TEXT_ENCODINGS: Final[tuple[str, ...]] = (
     "latin-1",
 )
 SOURCE_UPLOAD_TEXT_MAX_CONTROL_CHAR_RATIO: Final[float] = 0.05
+SUMMARY_LOGO_UPLOAD_MAX_BYTES: Final[int] = 2 * 1024 * 1024
+SUMMARY_LOGO_UPLOAD_ALLOWED_MIME_TYPES: Final[tuple[str, ...]] = (
+    "image/png",
+    "image/jpeg",
+)
+SUMMARY_LOGO_UPLOAD_ALLOWED_EXTENSIONS: Final[tuple[str, ...]] = (
+    ".png",
+    ".jpg",
+    ".jpeg",
+)
+SUMMARY_LOGO_UPLOAD_MIME_TYPE_BY_EXTENSION: Final[dict[str, str]] = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+}
 JOBSPEC_SOURCE_MANUAL: Final[str] = "manual"
 JOBSPEC_SOURCE_UPLOAD: Final[str] = "upload"
 JOBSPEC_SOURCE_LEGACY_TEXT: Final[str] = "text"

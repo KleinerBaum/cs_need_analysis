@@ -12,6 +12,7 @@ from typing import Any, Callable, Final, Mapping, Protocol, Sequence, TypedDict
 
 import streamlit as st
 import docx
+from docx.image.image import Image as DocxImage
 
 from constants import (
     INTAKE_FACTS,
@@ -26,6 +27,10 @@ from constants import (
     STEP_KEY_INTERVIEW,
     STEP_KEY_ROLE_TASKS,
     STEP_KEY_SKILLS,
+    SUMMARY_LOGO_UPLOAD_ALLOWED_EXTENSIONS,
+    SUMMARY_LOGO_UPLOAD_ALLOWED_MIME_TYPES,
+    SUMMARY_LOGO_UPLOAD_MAX_BYTES,
+    SUMMARY_LOGO_UPLOAD_MIME_TYPE_BY_EXTENSION,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
 )
 from interview_process import (
@@ -172,9 +177,10 @@ from wizard_pages.base import (
 )
 
 SUPPORTED_LOGO_MIME_TYPES: dict[str, str] = {
-    "image/png": "PNG",
-    "image/jpeg": "JPEG",
+    mime_type: "JPEG" if mime_type.endswith("jpeg") else "PNG"
+    for mime_type in SUMMARY_LOGO_UPLOAD_ALLOWED_MIME_TYPES
 }
+SUPPORTED_LOGO_EXTENSIONS: tuple[str, ...] = SUMMARY_LOGO_UPLOAD_ALLOWED_EXTENSIONS
 
 
 class DocxPictureDocument(Protocol):
@@ -184,6 +190,10 @@ class DocxPictureDocument(Protocol):
 class LogoPayload(TypedDict):
     name: str
     mime_type: str
+    extension: str
+    byte_size: int
+    width_px: int
+    height_px: int
     bytes: bytes
 
 
@@ -1309,20 +1319,113 @@ def _employment_contract_to_docx_bytes(draft: EmploymentContractDraft) -> bytes:
     return bio.getvalue()
 
 
+def _logo_basename(name: Any) -> str:
+    raw_name = str(name or "").replace("\x00", "").replace("\\", "/").strip()
+    return raw_name.rsplit("/", 1)[-1].strip()
+
+
+def _logo_extension_from_name(name: Any) -> str:
+    lower_name = _logo_basename(name).lower()
+    for extension in sorted(
+        SUMMARY_LOGO_UPLOAD_ALLOWED_EXTENSIONS,
+        key=len,
+        reverse=True,
+    ):
+        if lower_name.endswith(extension):
+            return extension
+    return ""
+
+
+def _safe_logo_filename(name: Any, extension: str) -> str:
+    basename = _logo_basename(name)
+    stem = (
+        basename[: -len(extension)]
+        if basename.lower().endswith(extension)
+        else basename
+    )
+    safe_stem = "".join(
+        char if char.isprintable() and char not in {"/", "\\"} else "_"
+        for char in stem
+    ).strip(" ._")
+    return f"{(safe_stem or 'logo')[:120]}{extension}"
+
+
+def _coerce_logo_bytes(raw_bytes: Any) -> bytes | None:
+    if isinstance(raw_bytes, memoryview):
+        raw_bytes = raw_bytes.tobytes()
+    if not isinstance(raw_bytes, (bytes, bytearray)):
+        return None
+    logo_bytes = bytes(raw_bytes)
+    if not logo_bytes or len(logo_bytes) > SUMMARY_LOGO_UPLOAD_MAX_BYTES:
+        return None
+    return logo_bytes
+
+
+def _decode_logo_image(logo_bytes: bytes) -> tuple[str, int, int] | None:
+    try:
+        image = DocxImage.from_blob(logo_bytes)
+        mime_type = str(image.content_type or "").strip().lower()
+        width_px = int(image.px_width or 0)
+        height_px = int(image.px_height or 0)
+    except Exception:
+        return None
+    if (
+        mime_type not in SUMMARY_LOGO_UPLOAD_ALLOWED_MIME_TYPES
+        or width_px <= 0
+        or height_px <= 0
+    ):
+        return None
+    return mime_type, width_px, height_px
+
+
+def _normalize_logo_payload_data(
+    *,
+    name: Any,
+    mime_type: Any,
+    raw_bytes: Any,
+) -> LogoPayload | None:
+    normalized_mime_type = str(mime_type or "").lower().strip()
+    if normalized_mime_type not in SUMMARY_LOGO_UPLOAD_ALLOWED_MIME_TYPES:
+        return None
+    extension = _logo_extension_from_name(name)
+    if (
+        not extension
+        or SUMMARY_LOGO_UPLOAD_MIME_TYPE_BY_EXTENSION.get(extension)
+        != normalized_mime_type
+    ):
+        return None
+    logo_bytes = _coerce_logo_bytes(raw_bytes)
+    if logo_bytes is None:
+        return None
+    decoded_logo = _decode_logo_image(logo_bytes)
+    if decoded_logo is None:
+        return None
+    decoded_mime_type, width_px, height_px = decoded_logo
+    if decoded_mime_type != normalized_mime_type:
+        return None
+    return {
+        "name": _safe_logo_filename(name, extension),
+        "mime_type": normalized_mime_type,
+        "extension": extension,
+        "byte_size": len(logo_bytes),
+        "width_px": width_px,
+        "height_px": height_px,
+        "bytes": logo_bytes,
+    }
+
+
 def _normalize_logo_payload(uploaded_logo: Any) -> LogoPayload | None:
     if uploaded_logo is None:
         return None
-    mime_type = str(getattr(uploaded_logo, "type", "") or "").lower().strip()
-    if mime_type not in SUPPORTED_LOGO_MIME_TYPES:
+    try:
+        raw_bytes = uploaded_logo.getvalue()
+    except Exception:
         return None
-    raw_bytes = uploaded_logo.getvalue()
-    if not raw_bytes:
-        return None
-    return {
-        "name": str(getattr(uploaded_logo, "name", "") or "logo"),
-        "mime_type": mime_type,
-        "bytes": bytes(raw_bytes),
-    }
+    return _normalize_logo_payload_data(
+        name=getattr(uploaded_logo, "name", ""),
+        mime_type=getattr(uploaded_logo, "type", ""),
+        raw_bytes=raw_bytes,
+    )
 
 
 def _read_logo_payload() -> LogoPayload | None:
@@ -1332,16 +1435,17 @@ def _read_logo_payload() -> LogoPayload | None:
 
 def _normalize_stored_logo_payload(raw_payload: Any) -> LogoPayload | None:
     if isinstance(raw_payload, dict):
-        name = str(raw_payload.get("name") or "logo").strip() or "logo"
-        mime_type = str(raw_payload.get("mime_type") or "").strip().lower()
-        logo_bytes = raw_payload.get("bytes")
+        name = raw_payload.get("name") or ""
         if (
-            mime_type in SUPPORTED_LOGO_MIME_TYPES
-            and isinstance(logo_bytes, (bytes, bytearray))
-            and logo_bytes
+            not name
+            and raw_payload.get("extension") in SUMMARY_LOGO_UPLOAD_ALLOWED_EXTENSIONS
         ):
-            return {"name": name, "mime_type": mime_type, "bytes": bytes(logo_bytes)}
-        return None
+            name = f"logo{raw_payload.get('extension')}"
+        return _normalize_logo_payload_data(
+            name=name,
+            mime_type=raw_payload.get("mime_type"),
+            raw_bytes=raw_payload.get("bytes"),
+        )
     return _normalize_logo_payload(raw_payload)
 
 

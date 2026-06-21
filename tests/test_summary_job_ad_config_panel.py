@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import base64
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from typing import Any, Literal
 
-from constants import SSKey
+from constants import SSKey, SUMMARY_LOGO_UPLOAD_MAX_BYTES
 
 
 SUMMARY_PATH = Path(__file__).resolve().parents[1] / "wizard_pages" / "08_summary.py"
@@ -70,6 +71,23 @@ class _UploadedLogo:
 
     def getvalue(self) -> bytes:
         return self._payload
+
+
+_VALID_PNG_BYTES = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5vS3wAAAAASUVORK5CYII="
+)
+_VALID_JPEG_BYTES = base64.b64decode(
+    "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////"
+    "////////////////////////////////////////////2wBDAf//////////////////////////"
+    "////////////////////////////////////////////////////////////wAARCAABAAEDASIA"
+    "AhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMB"
+    "AAIQAxAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAEFAqf/xAAUEQEAAAAAAAAAAAAA"
+    "AAAAAAAA/9oACAEDAQE/Aaf/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAECAQE/Aaf/xAAUEAEA"
+    "AAAAAAAAAAAAAAAAAAAA/9oACAEBAAY/Aqf/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAE/"
+    "IV//2gAMAwEAAgADAAAAEP/EABQRAQAAAAAAAAAAAAAAAAAAABD/2gAIAQMBAT8QH//EABQRAQAA"
+    "AAAAAAAAAAAAAAAAABD/2gAIAQIBAT8QH//EABQQAQAAAAAAAAAAAAAAAAAAABD/2gAIAQEAAT8Q"
+    "H//Z"
+)
 
 
 def _job_ad_action_with_inputs(renderer) -> dict[str, Any]:
@@ -219,25 +237,72 @@ def test_selection_options_by_group_dedupes_values() -> None:
     assert grouped["Benefits · Benefit"] == ["Remote"]
 
 
-def test_normalize_logo_payload_supports_png_and_jpeg_only() -> None:
-    png_logo = _UploadedLogo(name="brand.png", mime_type="image/png", payload=b"png")
-    jpg_logo = _UploadedLogo(name="brand.jpg", mime_type="image/jpeg", payload=b"jpeg")
-    svg_logo = _UploadedLogo(
-        name="brand.svg", mime_type="image/svg+xml", payload=b"svg"
+def test_normalize_logo_payload_accepts_valid_png_and_jpeg() -> None:
+    png_logo = _UploadedLogo(
+        name="brand.png", mime_type="image/png", payload=_VALID_PNG_BYTES
+    )
+    jpg_logo = _UploadedLogo(
+        name="brand.jpg", mime_type="image/jpeg", payload=_VALID_JPEG_BYTES
     )
 
     normalized_png = SUMMARY_MODULE._normalize_logo_payload(png_logo)
     normalized_jpg = SUMMARY_MODULE._normalize_logo_payload(jpg_logo)
-    normalized_svg = SUMMARY_MODULE._normalize_logo_payload(svg_logo)
 
     assert normalized_png == {
         "name": "brand.png",
         "mime_type": "image/png",
-        "bytes": b"png",
+        "extension": ".png",
+        "byte_size": len(_VALID_PNG_BYTES),
+        "width_px": 1,
+        "height_px": 1,
+        "bytes": _VALID_PNG_BYTES,
     }
     assert normalized_jpg == {
         "name": "brand.jpg",
         "mime_type": "image/jpeg",
-        "bytes": b"jpeg",
+        "extension": ".jpg",
+        "byte_size": len(_VALID_JPEG_BYTES),
+        "width_px": 1,
+        "height_px": 1,
+        "bytes": _VALID_JPEG_BYTES,
     }
+
+
+def test_normalize_logo_payload_rejects_unsupported_mime() -> None:
+    svg_logo = _UploadedLogo(
+        name="brand.svg", mime_type="image/svg+xml", payload=b"<svg></svg>"
+    )
+
+    normalized_svg = SUMMARY_MODULE._normalize_logo_payload(svg_logo)
+
     assert normalized_svg is None
+
+
+def test_normalize_logo_payload_rejects_oversized_payload() -> None:
+    oversized_logo = _UploadedLogo(
+        name="brand.png",
+        mime_type="image/png",
+        payload=b"0" * (SUMMARY_LOGO_UPLOAD_MAX_BYTES + 1),
+    )
+
+    assert SUMMARY_MODULE._normalize_logo_payload(oversized_logo) is None
+
+
+def test_normalize_logo_payload_rejects_corrupt_image_bytes() -> None:
+    corrupt_logo = _UploadedLogo(
+        name="brand.png",
+        mime_type="image/png",
+        payload=b"not a png",
+    )
+
+    assert SUMMARY_MODULE._normalize_logo_payload(corrupt_logo) is None
+
+
+def test_normalize_logo_payload_rejects_missing_extension() -> None:
+    extensionless_logo = _UploadedLogo(
+        name="brand",
+        mime_type="image/png",
+        payload=_VALID_PNG_BYTES,
+    )
+
+    assert SUMMARY_MODULE._normalize_logo_payload(extensionless_logo) is None

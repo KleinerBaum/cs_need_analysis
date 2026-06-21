@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from typing import Any, Literal
@@ -13,6 +14,10 @@ if SPEC is None or SPEC.loader is None:
     raise RuntimeError("Could not load summary page module")
 SUMMARY_MODULE = module_from_spec(SPEC)
 SPEC.loader.exec_module(SUMMARY_MODULE)  # type: ignore[attr-defined]
+
+_VALID_PNG_BYTES = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5vS3wAAAAASUVORK5CYII="
+)
 
 
 class _NoopContext:
@@ -299,13 +304,14 @@ def test_render_job_ad_artifact_includes_supported_logo_in_preview(monkeypatch) 
             "logo": {
                 "name": "brand.png",
                 "mime_type": "image/png",
-                "bytes": b"logo",
+                "bytes": _VALID_PNG_BYTES,
             },
         }
     )
 
     preview_html = "\n".join(fake_st.markdown_calls)
-    assert "data:image/png;base64,bG9nbw==" in preview_html
+    encoded_logo = base64.b64encode(_VALID_PNG_BYTES).decode("ascii")
+    assert f"data:image/png;base64,{encoded_logo}" in preview_html
     assert 'class="cs-document-logo"' in preview_html
 
 

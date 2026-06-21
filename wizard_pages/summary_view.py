@@ -26,6 +26,7 @@ from constants import (
     STEP_KEY_INTERVIEW,
     STEP_KEY_ROLE_TASKS,
     STEP_KEY_SKILLS,
+    SUMMARY_LOGO_UPLOAD_ALLOWED_EXTENSIONS,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
 )
 from interview_process import (
@@ -1209,11 +1210,19 @@ def _render_job_ad_compact_controls(vm: SummaryViewModel) -> None:
         )
     logo_file = st.file_uploader(
         "Logo (PNG/JPG)",
-        type=["png", "jpg", "jpeg"],
+        type=[
+            extension.lstrip(".")
+            for extension in SUMMARY_LOGO_UPLOAD_ALLOWED_EXTENSIONS
+        ],
         key=SSKey.SUMMARY_LOGO_UPLOAD_WIDGET.value,
     )
     normalized_logo = _normalize_logo_payload(logo_file)
     st.session_state[SSKey.SUMMARY_LOGO.value] = normalized_logo
+    if logo_file is not None and normalized_logo is None:
+        st.warning(
+            "Logo kann nicht verwendet werden. Bitte PNG oder JPG/JPEG mit "
+            "unterstützter Größe und gültigen Bilddaten verwenden."
+        )
     style_upload = st.file_uploader(
         "Styleguide (TXT/MD)",
         type=["txt", "md"],

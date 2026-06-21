@@ -25,6 +25,7 @@ from constants import (
     STEP_KEY_INTERVIEW,
     STEP_KEY_ROLE_TASKS,
     STEP_KEY_SKILLS,
+    SUMMARY_LOGO_UPLOAD_ALLOWED_EXTENSIONS,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
 )
 from interview_process import (
@@ -1098,7 +1099,10 @@ def render(ctx: WizardContext) -> None:
 
         logo_file = st.file_uploader(
             "Logo-Upload (optional)",
-            type=["png", "jpg", "jpeg", "svg"],
+            type=[
+                extension.lstrip(".")
+                for extension in SUMMARY_LOGO_UPLOAD_ALLOWED_EXTENSIONS
+            ],
             help="Das Logo wird als Metadatum gespeichert und kann im Exportprozess weiterverwendet werden.",
             key=SSKey.SUMMARY_LOGO_UPLOAD_WIDGET.value,
         )
@@ -1106,7 +1110,8 @@ def render(ctx: WizardContext) -> None:
         st.session_state[SSKey.SUMMARY_LOGO.value] = normalized_logo
         if logo_file is not None and normalized_logo is None:
             st.warning(
-                "Logo-Format wird für Exporte nicht unterstützt. Bitte PNG oder JPG/JPEG verwenden."
+                "Logo kann nicht verwendet werden. Bitte PNG oder JPG/JPEG mit "
+                "unterstützter Größe und gültigen Bilddaten verwenden."
             )
         if normalized_logo:
             st.image(
