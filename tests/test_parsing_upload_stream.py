@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import io
+import zipfile
 
+import document_preview
 import docx
 import pytest
 
@@ -47,6 +49,26 @@ def _pdf_payload(text: str) -> bytes:
     pdf = canvas.Canvas(out)
     pdf.drawString(72, 720, text)
     pdf.save()
+    return out.getvalue()
+
+
+def _malformed_docx_container() -> bytes:
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as archive:
+        archive.writestr(
+            "[Content_Types].xml",
+            (
+                '<?xml version="1.0" encoding="UTF-8"?>'
+                '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+                '<Default Extension="rels" '
+                'ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+                '<Default Extension="xml" ContentType="application/xml"/>'
+                '<Override PartName="/word/document.xml" '
+                'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+                "</Types>"
+            ),
+        )
+        archive.writestr("word/document.xml", "<w:document>")
     return out.getvalue()
 
 
@@ -125,6 +147,19 @@ def test_extract_text_from_uploaded_file_rejects_declared_oversize_before_read()
     assert upload.read_calls == 0
 
 
+def test_extract_text_from_uploaded_file_rejects_actual_oversize_after_read() -> None:
+    upload = _FakeUpload(
+        b"x" * (SOURCE_UPLOAD_MAX_BYTES + 1),
+        name="jobspec.txt",
+        size=1,
+    )
+
+    with pytest.raises(ValueError, match="Datei ist zu groß"):
+        extract_text_from_uploaded_file(upload)
+
+    assert upload.read_calls == 1
+
+
 def test_extract_text_from_uploaded_file_rejects_unsupported_extension_before_read() -> None:
     upload = _FakeUpload(b"{\\rtf1 jobspec}", name="jobspec.rtf")
 
@@ -162,6 +197,18 @@ def test_extract_text_from_uploaded_file_rejects_corrupt_docx_before_parser(
         extract_text_from_uploaded_file(upload)
 
 
+def test_extract_text_from_uploaded_file_maps_malformed_docx_parser_error() -> None:
+    upload = _FakeUpload(_malformed_docx_container(), name="jobspec.docx")
+
+    with pytest.raises(ValueError) as exc_info:
+        extract_text_from_uploaded_file(upload)
+
+    message = str(exc_info.value)
+    assert message == "DOCX-Datei ist beschädigt oder unvollständig."
+    assert "Package" not in message
+    assert "XML" not in message
+
+
 def test_extract_text_from_uploaded_file_rejects_corrupt_pdf_before_parser(
     monkeypatch,
 ) -> None:
@@ -176,8 +223,31 @@ def test_extract_text_from_uploaded_file_rejects_corrupt_pdf_before_parser(
         extract_text_from_uploaded_file(upload)
 
 
+def test_extract_text_from_uploaded_file_maps_pdf_parser_error(monkeypatch) -> None:
+    upload = _FakeUpload(b"%PDF-1.4\n%%EOF\n", name="jobspec.pdf")
+
+    def fake_extract_pdf(_raw: bytes) -> tuple[str, bool]:
+        raise RuntimeError("private parser detail")
+
+    monkeypatch.setattr(parsing, "_extract_pdf", fake_extract_pdf)
+
+    with pytest.raises(ValueError) as exc_info:
+        extract_text_from_uploaded_file(upload)
+
+    message = str(exc_info.value)
+    assert message == "PDF-Datei ist beschädigt oder unvollständig."
+    assert "private parser detail" not in message
+
+
 def test_extract_text_from_uploaded_file_rejects_binary_txt() -> None:
     upload = _FakeUpload(b"\x00\x01\x02\x03", name="jobspec.txt")
+
+    with pytest.raises(ValueError, match="TXT-Datei wirkt nicht wie eine Textdatei"):
+        extract_text_from_uploaded_file(upload)
+
+
+def test_extract_text_from_uploaded_file_rejects_control_heavy_utf16_txt() -> None:
+    upload = _FakeUpload(b"\xff\xfe" + (b"\x00\x00" * 64), name="jobspec.txt")
 
     with pytest.raises(ValueError, match="TXT-Datei wirkt nicht wie eine Textdatei"):
         extract_text_from_uploaded_file(upload)
@@ -217,3 +287,34 @@ def test_extract_text_from_uploaded_file_pdf_without_ocr_has_specific_error(
         ValueError, match="PDF enthält keinen Textlayer \\(OCR fehlt\\)"
     ):
         extract_text_from_uploaded_file(upload)
+
+
+def test_text_preview_html_escapes_hostile_html() -> None:
+    html = document_preview.text_preview_html(
+        'Hello <img src=x onerror="alert(1)">\n<script>alert(1)</script>'
+    )
+
+    assert "<img" not in html
+    assert "<script>" not in html
+    assert "&lt;img src=x onerror=&quot;alert(1)&quot;&gt;" in html
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+
+
+def test_docx_preview_html_escapes_hostile_paragraphs_and_table_cells(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        document_preview,
+        "extract_docx_preview_blocks",
+        lambda _raw: [
+            {"type": "paragraph", "text": '<img src=x onerror="alert(1)">', "level": 0},
+            {"type": "table", "rows": [["<script>alert(1)</script>"]]},
+        ],
+    )
+
+    html = document_preview.docx_preview_html(b"docx")
+
+    assert "<img" not in html
+    assert "<script>" not in html
+    assert "&lt;img src=x onerror=&quot;alert(1)&quot;&gt;" in html
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html

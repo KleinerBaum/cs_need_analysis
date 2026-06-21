@@ -111,6 +111,49 @@ def test_iceberg_html_escapes_content(tmp_path: Path) -> None:
     assert "&lt;b&gt;unsafe&lt;/b&gt;" in html
 
 
+def test_iceberg_html_escapes_svg_and_attribute_payloads(tmp_path: Path) -> None:
+    image_path = tmp_path / "clean.png"
+    image_path.write_bytes(b"png")
+
+    html = build_iceberg_need_analysis_html(
+        image_path=image_path,
+        content={
+            "surface": {
+                "headline": '<svg onload="alert(1)"></svg>',
+                "subline": '<a href="javascript:alert(1)">bad</a>',
+                "groups": [
+                    {
+                        "title": 'Title" autofocus onfocus="alert(1)',
+                        "body": "<math><mi>x</mi></math>",
+                        "items": ['<img src=x onerror="alert(1)">'],
+                    }
+                ],
+            },
+            "deep": {
+                "headline": "Deep",
+                "subline": "Safe",
+                "groups": [
+                    {
+                        "title": "Context",
+                        "body": "Needs",
+                        "items": [],
+                    }
+                ],
+            },
+            "kpis": ['<iframe src="javascript:alert(1)"></iframe>'],
+        },
+    )
+
+    assert '<svg onload="alert(1)">' not in html
+    assert '<a href="javascript:alert(1)">' not in html
+    assert "<math><mi>x</mi></math>" not in html
+    assert '<img src=x onerror="alert(1)">' not in html
+    assert '<iframe src="javascript:alert(1)">' not in html
+    assert "&lt;svg onload=&quot;alert(1)&quot;&gt;&lt;/svg&gt;" in html
+    assert "&lt;a href=&quot;javascript:alert(1)&quot;&gt;bad&lt;/a&gt;" in html
+    assert "&lt;img src=x onerror=&quot;alert(1)&quot;&gt;" in html
+
+
 def test_iceberg_html_includes_css_motion_controls() -> None:
     html = build_iceberg_need_analysis_html()
 

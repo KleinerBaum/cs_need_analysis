@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+from document_preview import (
+    article_preview_html,
+    document_preview_shell,
+    markdown_article_preview_html,
+    pdf_preview_html,
+)
 from schemas import (
     BooleanSearchChannelQueries,
     BooleanSearchPack,
@@ -96,3 +102,71 @@ def test_boolean_search_pack_to_markdown_formats_channel_queries() -> None:
     assert "- `site:linkedin.com/in Python`" in markdown
     assert "### Focused\n- —" in markdown
     assert "## Usage Notes\n- Start broad, then tighten" in markdown
+
+
+def test_markdown_article_preview_html_escapes_hostile_markdown() -> None:
+    html = markdown_article_preview_html(
+        "# <script>alert(1)</script>\n\n"
+        'Intro <img src=x onerror="alert(1)">\n\n'
+        '## <svg onload="alert(1)"></svg>\n\n'
+        '- <a href="javascript:alert(1)">bad</a>'
+    )
+
+    assert "<script>" not in html
+    assert "<img" not in html
+    assert "<svg" not in html
+    assert "<a href=" not in html
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+    assert "&lt;img src=x onerror=&quot;alert(1)&quot;&gt;" in html
+    assert "&lt;svg onload=&quot;alert(1)&quot;&gt;&lt;/svg&gt;" in html
+    assert "&lt;a href=&quot;javascript:alert(1)&quot;&gt;bad&lt;/a&gt;" in html
+
+
+def test_article_preview_html_escapes_hostile_structured_fields() -> None:
+    html = article_preview_html(
+        headline='<script>alert("headline")</script>',
+        intro='<img src=x onerror="alert(1)">',
+        sections=[
+            (
+                '<svg onload="alert(1)"></svg>',
+                ['<a href="javascript:alert(1)">bad</a>'],
+            )
+        ],
+        closing=['<iframe src="javascript:alert(1)"></iframe>'],
+    )
+
+    assert "<script>" not in html
+    assert "<img" not in html
+    assert "<svg" not in html
+    assert "<a href=" not in html
+    assert "<iframe" not in html
+    assert "&lt;script&gt;alert(&quot;headline&quot;)&lt;/script&gt;" in html
+    assert "&lt;img src=x onerror=&quot;alert(1)&quot;&gt;" in html
+    assert "&lt;svg onload=&quot;alert(1)&quot;&gt;&lt;/svg&gt;" in html
+    assert "&lt;a href=&quot;javascript:alert(1)&quot;&gt;bad&lt;/a&gt;" in html
+    assert "&lt;iframe src=&quot;javascript:alert(1)&quot;&gt;&lt;/iframe&gt;" in html
+
+
+def test_document_preview_shell_escapes_title_and_rejects_css_injection() -> None:
+    html = document_preview_shell(
+        "<article>trusted</article>",
+        title="<script>alert(1)</script>",
+        accent_color='red; background-image: url("javascript:alert(1)")',
+    )
+
+    assert "<script>" not in html
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+    assert "javascript:alert" not in html
+    assert 'background-image: url("javascript:alert(1)")' not in html
+    assert "border-top: 5px solid #2563eb;" in html
+
+
+def test_pdf_preview_html_uses_base64_data_uri_without_raw_payload() -> None:
+    html = pdf_preview_html(b"%PDF-1.4\n<script>alert(1)</script>\n%%EOF\n")
+
+    assert html.startswith(
+        '<iframe class="cs-document-pdf-frame" title="Dokumentvorschau" '
+        'src="data:application/pdf;base64,'
+    )
+    assert "<script>" not in html
+    assert "%%EOF" not in html

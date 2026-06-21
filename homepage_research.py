@@ -1150,7 +1150,8 @@ def _response_content_type(response: object) -> str:
 def _is_allowed_content_type(content_type: str) -> bool:
     if not content_type:
         return True
-    return content_type.startswith(ALLOWED_CONTENT_TYPE_PREFIXES)
+    media_type = content_type.split(";", 1)[0].strip().lower()
+    return media_type in ALLOWED_CONTENT_TYPE_PREFIXES
 
 
 def _has_supported_port(parsed: Any) -> bool:

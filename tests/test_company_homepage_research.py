@@ -136,6 +136,10 @@ def test_normalize_url_rejects_local_or_private_targets() -> None:
     assert COMPANY_MODULE._normalize_url("localhost") == ""
     assert COMPANY_MODULE._normalize_url("http://127.0.0.1:8501") == ""
     assert COMPANY_MODULE._normalize_url("https://192.168.0.10") == ""
+    assert COMPANY_MODULE._normalize_url("http://[::1]/") == ""
+    assert COMPANY_MODULE._normalize_url("http://[fd00::1]/") == ""
+    assert COMPANY_MODULE._normalize_url("http://[fe80::1%25eth0]/") == ""
+    assert COMPANY_MODULE._normalize_url("https://example.com@127.0.0.1/") == ""
 
 
 def test_fetch_url_text_allows_public_target(monkeypatch) -> None:
@@ -173,6 +177,21 @@ def test_fetch_url_text_rejects_hostname_resolving_to_private_ip(monkeypatch) ->
         COMPANY_MODULE._fetch_url_text("https://example.com")
 
 
+def test_fetch_url_text_rejects_hostname_resolving_to_private_ipv6(
+    monkeypatch,
+) -> None:
+    homepage_research.clear_fetch_cache()
+    _patch_dns(monkeypatch, {"example.com": ("fd00::5",)})
+
+    def fake_open_url(_request: object, _timeout_sec: float) -> _FakeResponse:
+        pytest.fail("Fetch should not start for private IPv6 DNS targets")
+
+    monkeypatch.setattr(homepage_research, "_open_url", fake_open_url)
+
+    with pytest.raises(homepage_research.HomepageFetchError, match="invalid"):
+        COMPANY_MODULE._fetch_url_text("https://example.com")
+
+
 def test_fetch_url_text_rejects_redirect_to_private_target(monkeypatch) -> None:
     homepage_research.clear_fetch_cache()
     _patch_dns(monkeypatch)
@@ -191,6 +210,25 @@ def test_fetch_url_text_rejects_redirect_to_private_target(monkeypatch) -> None:
     with pytest.raises(homepage_research.HomepageFetchError, match="redirect"):
         COMPANY_MODULE._fetch_url_text("https://example.com")
     assert redirect_response.read_calls == 0
+
+
+def test_fetch_url_text_rejects_private_final_url_before_read(monkeypatch) -> None:
+    homepage_research.clear_fetch_cache()
+    _patch_dns(monkeypatch)
+    response = _FakeResponse(
+        "<html><body>secret</body></html>",
+        final_url="http://127.0.0.1/admin",
+    )
+
+    def fake_open_url(_request: object, _timeout_sec: float) -> _FakeResponse:
+        return response
+
+    monkeypatch.setattr(homepage_research, "_open_url", fake_open_url)
+
+    with pytest.raises(homepage_research.HomepageFetchError, match="redirect"):
+        COMPANY_MODULE._fetch_url_text("https://example.com")
+    assert response.read_calls == 0
+    assert response.closed is True
 
 
 def test_fetch_url_text_rejects_unsupported_explicit_port() -> None:
@@ -235,6 +273,74 @@ def test_fetch_url_text_rejects_unsupported_content_type(monkeypatch) -> None:
 
     with pytest.raises(homepage_research.HomepageFetchError, match="unsupported"):
         COMPANY_MODULE._fetch_url_text("https://example.com")
+
+
+def test_fetch_url_text_rejects_spoofed_content_type_prefix(
+    monkeypatch,
+) -> None:
+    homepage_research.clear_fetch_cache()
+    _patch_dns(monkeypatch)
+    response = _FakeResponse(
+        "<html><body>Über uns</body></html>",
+        content_type="text/html-malicious",
+    )
+
+    def fake_open_url(_request: object, _timeout_sec: float) -> _FakeResponse:
+        return response
+
+    monkeypatch.setattr(homepage_research, "_open_url", fake_open_url)
+
+    with pytest.raises(homepage_research.HomepageFetchError, match="unsupported"):
+        COMPANY_MODULE._fetch_url_text("https://example.com")
+    assert response.read_calls == 0
+
+
+def test_fetch_url_text_allows_parameterized_content_type(monkeypatch) -> None:
+    homepage_research.clear_fetch_cache()
+    _patch_dns(monkeypatch)
+
+    def fake_open_url(_request: object, _timeout_sec: float) -> _FakeResponse:
+        return _FakeResponse(
+            "<html><body>Über uns</body></html>",
+            content_type="text/html; charset=utf-8",
+        )
+
+    monkeypatch.setattr(homepage_research, "_open_url", fake_open_url)
+
+    result = COMPANY_MODULE._fetch_url_text("https://example.com")
+
+    assert result == ("https://example.com", "<html><body>Über uns</body></html>")
+
+
+def test_fetch_url_text_rejects_oversize_payload_without_caching(
+    monkeypatch,
+) -> None:
+    homepage_research.clear_fetch_cache()
+    _patch_dns(monkeypatch)
+    opened_urls: list[str] = []
+
+    def fake_open_url(request: object, _timeout_sec: float) -> _FakeResponse:
+        request_url = str(getattr(request, "full_url"))
+        opened_urls.append(request_url)
+        if len(opened_urls) == 1:
+            return _FakeResponse("123456", final_url=request_url)
+        return _FakeResponse("OK", final_url=request_url)
+
+    monkeypatch.setattr(homepage_research, "_open_url", fake_open_url)
+
+    with pytest.raises(homepage_research.HomepageFetchError, match="content_too_large"):
+        homepage_research.fetch_url_text_result("https://example.com/large", max_bytes=5)
+
+    result = homepage_research.fetch_url_text_result(
+        "https://example.com/large",
+        max_bytes=5,
+    )
+
+    assert result.payload == "OK"
+    assert opened_urls == [
+        "https://example.com/large",
+        "https://example.com/large",
+    ]
 
 
 def test_fetch_url_text_uses_cache(monkeypatch) -> None:
