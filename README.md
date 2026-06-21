@@ -25,7 +25,7 @@ Known partials / explicit non-goals in this snapshot:
 
 - Full official ESCO bulk-dataset ingestion is not implemented; the offline index path is lookup-focused.
 - ESCO matrix priors are optional and do not include ISCO distribution benchmarking or advanced coherence metrics.
-- There is no repo-local Ruff/Black/Mypy/Pyright configuration; CI relies on install checks, compilation, pytest, and OpenAI smoke dry-run.
+- Repo-local QA config is intentionally scoped in `pyproject.toml`: Ruff, Black, mypy, and Bandit run through `requirements-dev.txt`; Pyright is not configured.
 - `wizard_pages/01a_jobspec_review.py` and `wizard_pages/03_team.py` are legacy/non-routable modules.
 
 ## Wizard flow
@@ -426,7 +426,7 @@ Use this smaller set for documentation or routed-step contract changes:
 
 ```bash
 python -m compileall README.md AGENTS.md CHANGELOG.md
-python -m pytest -q tests/test_wizard_contract.py tests/test_public_page_links.py
+python -m pytest -q tests/test_repo_contract_drift.py tests/test_wizard_contract.py tests/test_quality_gate_config.py tests/test_public_page_links.py
 rg -n '01[_]jobad|wizard_pages/01[_]jobad' README.md AGENTS.md CHANGELOG.md
 ```
 
@@ -469,7 +469,8 @@ The first local quality gate is intentionally low-noise. Ruff runs critical
 syntax/name checks only with an explicit baseline for existing Summary-page
 noise, Black checks a small allowlist of stable helper modules, mypy checks
 selected pure helper modules in permissive baseline mode, and Bandit starts as
-an advisory security scan.
+an advisory security scan. Tool configuration lives in `pyproject.toml`; the
+development dependency surface lives in `requirements-dev.txt`.
 
 ```bash
 python -m ruff check .
@@ -488,7 +489,9 @@ Bandit blocking or add Semgrep once findings are triaged.
 ### Optional Playwright smoke tests
 
 Browser-near Streamlit smoke tests are opt-in and use only synthetic fixture data.
-Normal `pytest -q` runs skip them unless `CS_RUN_E2E=1` is set.
+Normal `pytest -q` runs skip them unless `CS_RUN_E2E=1` is set. The marker is
+registered in `pytest.ini`, and Playwright dependencies live in
+`requirements-e2e.txt`.
 
 ```bash
 pip install -r requirements-e2e.txt -c constraints.txt
@@ -505,18 +508,15 @@ Useful environment overrides:
 
 `.github/workflows/ci.yml` runs on pull requests and pushes to `main`:
 
-1. blocking Ruff, scoped Black, and scoped mypy gates with `requirements-dev.txt`
-2. advisory Bandit security scan with `continue-on-error`
-3. Python 3.11 setup
-4. dependency install with `requirements.txt` and `constraints.txt`
-5. `pip check`
-6. `compileall`
-7. `pytest -q`
-8. OpenAI smoke dry-run without requiring an API key
+Current job IDs are `qa`, `security`, `test`, and optional `e2e`.
+
+1. `qa`: blocking Ruff, scoped Black, and scoped mypy gates with `requirements-dev.txt`
+2. `security`: advisory Bandit security scan with `continue-on-error`
+3. `test`: Python 3.11 setup, dependency install with `requirements.txt` and `constraints.txt`, `pip check`, `compileall`, `pytest -q`, and OpenAI smoke dry-run without requiring an API key
 
 The optional Playwright smoke job is available through manual workflow dispatch
-with `run_e2e=true`. It installs `requirements-e2e.txt`, installs Chromium, and
-runs `CS_RUN_E2E=1 python -m pytest -q tests/e2e`.
+with `run_e2e=true` as job ID `e2e`. It installs `requirements-e2e.txt`,
+installs Chromium, and runs `CS_RUN_E2E=1 python -m pytest -q tests/e2e`.
 
 ## Debugging and incident reports
 

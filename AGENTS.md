@@ -324,7 +324,7 @@ Use this smaller set for documentation or routed-step contract changes:
 
 ```bash
 python -m compileall README.md AGENTS.md CHANGELOG.md
-python -m pytest -q tests/test_wizard_contract.py tests/test_public_page_links.py
+python -m pytest -q tests/test_repo_contract_drift.py tests/test_wizard_contract.py tests/test_quality_gate_config.py tests/test_public_page_links.py
 rg -n '01[_]jobad|wizard_pages/01[_]jobad' README.md AGENTS.md CHANGELOG.md
 ```
 
@@ -410,10 +410,12 @@ python -m pytest -q \
 
 ## Linting policy
 
-There is no repo-local Ruff, Black, Mypy, or Pyright configuration checked in.
+Repo-local QA config is intentionally scoped in `pyproject.toml`: Ruff, Black, mypy, and Bandit run through `requirements-dev.txt`; Pyright is not configured.
 
-- Do not silently introduce a lint/type toolchain in routine implementation tasks.
-- For this repo, the practical quality gate is targeted pytest, syntax compilation, and smoke tests where relevant.
+- Do not silently broaden or replace the existing lint/type toolchain in routine implementation tasks.
+- For this repo, the practical quality gate is targeted pytest, syntax compilation, scoped QA checks, and smoke tests where relevant.
+- Optional browser smoke tests use the `e2e` marker in `pytest.ini` and Playwright dependencies from `requirements-e2e.txt`.
+- Current CI job IDs in `.github/workflows/ci.yml` are `qa`, `security`, `test`, and optional `e2e`.
 - If the task explicitly asks for lint/type tooling, propose it as a separate small PR.
 
 ## Do-not-touch areas without explicit request
