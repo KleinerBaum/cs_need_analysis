@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from constants import SSKey, STEP_KEY_INTRO
+from constants import FactKey, FactSourceType, SSKey, STEP_KEY_INTRO
 import state
 
 
@@ -10,6 +10,12 @@ RESET_EXPECTATIONS: dict[SSKey, object] = {
     SSKey.SOURCE_TEXT: "",
     SSKey.SOURCE_FILE_META: {},
     SSKey.SOURCE_REDACT_PII: True,
+    SSKey.SOURCE_ACTIVE: "manual",
+    SSKey.SOURCE_ACTIVE_FINGERPRINT: "",
+    SSKey.SOURCE_MANUAL_TEXT: "",
+    SSKey.SOURCE_UPLOADED_TEXT: "",
+    SSKey.SOURCE_UPLOAD_TEXT_INPUT: "",
+    SSKey.SOURCE_UPLOAD_SIGNATURE: None,
     SSKey.JOB_EXTRACT: None,
     SSKey.INTAKE_FACTS: {},
     SSKey.INTAKE_FACT_EVIDENCE: {},
@@ -250,6 +256,172 @@ def test_reset_vacancy_clears_progressive_disclosure_state(
     for key, expected in RESET_EXPECTATIONS.items():
         assert fake_session_state[key.value] == expected
     assert fake_session_state[SSKey.CURRENT_STEP.value] == STEP_KEY_INTRO
+
+
+def test_apply_jobspec_source_change_clears_only_source_dependent_state(
+    monkeypatch,
+) -> None:
+    old_fingerprint = state.build_jobspec_source_fingerprint(
+        "upload",
+        "Alter Upload",
+        file_meta={"name": "old.pdf", "size": 123},
+        upload_signature=("old.pdf", 123),
+    )
+    manual_fact_key = FactKey.COMPANY_COMPANY_NAME.value
+    jobspec_fact_key = FactKey.ROLE_JOB_TITLE.value
+    mixed_fact_key = FactKey.BENEFITS_BENEFITS.value
+    fake_session_state = {
+        SSKey.SOURCE_ACTIVE.value: "upload",
+        SSKey.SOURCE_ACTIVE_FINGERPRINT.value: old_fingerprint,
+        SSKey.SOURCE_TEXT.value: "Alter Upload",
+        SSKey.SOURCE_FILE_META.value: {"name": "old.pdf", "size": 123},
+        SSKey.JOB_EXTRACT.value: {"job_title": "Old Engineer"},
+        SSKey.QUESTION_PLAN_BASE.value: {"steps": ["old"]},
+        SSKey.QUESTION_PLAN.value: {"steps": ["old"]},
+        SSKey.QUESTION_LIMITS.value: {"company": 3},
+        SSKey.OCCUPATION_PROFILE.value: {"occupation_family": "digital"},
+        SSKey.OCCUPATION_QUESTION_CONTEXT.value: {"modules": ["old"]},
+        SSKey.OCCUPATION_CLASSIFICATION_TRACE.value: [{"signal": "old"}],
+        SSKey.OCCUPATION_PACK_KEYS.value: ["old"],
+        SSKey.QUESTION_FLOW_PROVENANCE.value: {"compiled_question_count": 2},
+        SSKey.QUESTION_FLOW_FINGERPRINT.value: "old-flow",
+        SSKey.ANSWERS.value: {
+            "job_title": "Old Engineer",
+            "manual_q": "Manual value",
+            FactKey.INTAKE_URGENCY.value: "high",
+        },
+        SSKey.ANSWER_META.value: {
+            "job_title": {"touched": False, "last_value_hash": "old"},
+            "manual_q": {"touched": True, "last_value_hash": "manual"},
+        },
+        SSKey.INTAKE_FACTS.value: {
+            jobspec_fact_key: "Old Engineer",
+            manual_fact_key: "Manual GmbH",
+            mixed_fact_key: ["Mobiles Arbeiten"],
+        },
+        SSKey.INTAKE_FACT_EVIDENCE.value: {
+            jobspec_fact_key: {"source_type": FactSourceType.JOBSPEC.value},
+            manual_fact_key: {"source_type": FactSourceType.MANUAL.value},
+            mixed_fact_key: {
+                "source_type": FactSourceType.MANUAL.value,
+                "secondary_evidence": [
+                    {"source_type": FactSourceType.JOBSPEC.value},
+                    {"source_type": FactSourceType.HOMEPAGE.value},
+                ],
+            },
+        },
+        SSKey.ESCO_OCCUPATION_SELECTED.value: {"uri": "uri:old", "title": "Old"},
+        SSKey.ESCO_SELECTED_OCCUPATION_URI.value: "uri:old",
+        SSKey.ESCO_OCCUPATION_PAYLOAD.value: {"uri": "uri:old"},
+        SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value: {"skills": 5},
+        SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value: [{"group": "old"}],
+        SSKey.ESCO_OCCUPATION_CANDIDATES.value: [{"uri": "uri:candidate"}],
+        SSKey.ESCO_MATCH_REASON.value: "old match",
+        SSKey.ESCO_MATCH_CONFIDENCE.value: "high",
+        SSKey.ESCO_MATCH_PROVENANCE.value: ["old provenance"],
+        SSKey.ESCO_SKILLS_SELECTED_MUST.value: [{"uri": "skill:old"}],
+        SSKey.ESCO_SKILLS_SELECTED_NICE.value: [{"uri": "skill:nice"}],
+        SSKey.ESCO_SKILLS_REMOVED.value: ["skill:removed"],
+        SSKey.ESCO_CONFIRMED_ESSENTIAL_SKILLS.value: [{"uri": "skill:old"}],
+        SSKey.ESCO_CONFIRMED_OPTIONAL_SKILLS.value: [{"uri": "skill:nice"}],
+        SSKey.ESCO_UNMAPPED_REQUIREMENT_TERMS.value: ["legacy"],
+        SSKey.ESCO_UNMAPPED_ROLE_TERMS.value: ["legacy role"],
+        SSKey.ESCO_UNMAPPED_TERM_ACTIONS.value: {"legacy": "ignore"},
+        SSKey.ESCO_UNRESOLVED_TERM_DECISIONS.value: [{"term": "legacy"}],
+        SSKey.ESCO_SKILLS_MAPPING_REPORT.value: {"mapped": True},
+        SSKey.ESCO_MATRIX_COVERAGE_ROWS.value: [{"row": 1}],
+        SSKey.ROLE_TASKS_JOBSPEC_SUGGESTED.value: [{"label": "old"}],
+        SSKey.ROLE_TASKS_ESCO_SUGGESTED.value: [{"label": "old esco"}],
+        SSKey.ROLE_TASKS_SELECTED.value: ["Keep selected task"],
+        SSKey.ROLE_TASKS_JOBSPEC_PILLS.value: ["old"],
+        SSKey.ROLE_TASKS_ESCO_PILLS.value: ["old esco"],
+        SSKey.SKILLS_JOBSPEC_SUGGESTED.value: [{"label": "old"}],
+        SSKey.SKILLS_LLM_SUGGESTED.value: [{"label": "old ai"}],
+        SSKey.SKILLS_SELECTED.value: ["Keep selected skill"],
+        SSKey.SKILLS_JOBSPEC_PILLS.value: ["old"],
+        SSKey.SKILLS_ESCO_PILLS.value: ["old esco"],
+        SSKey.BENEFITS_JOBSPEC_SUGGESTED.value: [{"label": "old"}],
+        SSKey.BENEFITS_LLM_SUGGESTED.value: [{"label": "old ai"}],
+        SSKey.BENEFITS_SELECTED.value: ["Keep selected benefit"],
+        SSKey.BENEFITS_JOBSPEC_PILLS.value: ["old"],
+        SSKey.SALARY_FORECAST_LAST_RESULT.value: {"base": 1},
+        SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value: {"role_tasks": "old"},
+        SSKey.SALARY_FORECAST_INPUT_SELECTIONS.value: {"role_tasks": {}},
+        SSKey.JOBAD_CACHE_HIT.value: {"extract_job_ad": True},
+        SSKey.LLM_RESPONSE_CACHE.value: {"keep": {"result": "cached"}},
+        SSKey.LAST_ERROR.value: "old error",
+        SSKey.LAST_ERROR_DEBUG.value: "old debug",
+    }
+    monkeypatch.setattr(state, "st", SimpleNamespace(session_state=fake_session_state))
+
+    next_fingerprint = state.apply_jobspec_source_change("manual", "Neuer Freitext")
+
+    assert fake_session_state[SSKey.SOURCE_ACTIVE.value] == "manual"
+    assert fake_session_state[SSKey.SOURCE_TEXT.value] == "Neuer Freitext"
+    assert fake_session_state[SSKey.SOURCE_ACTIVE_FINGERPRINT.value] == next_fingerprint
+    assert fake_session_state[SSKey.SOURCE_FILE_META.value] == {}
+    assert fake_session_state[SSKey.JOB_EXTRACT.value] is None
+    assert fake_session_state[SSKey.QUESTION_PLAN_BASE.value] is None
+    assert fake_session_state[SSKey.QUESTION_PLAN.value] is None
+    assert fake_session_state[SSKey.QUESTION_LIMITS.value] == {}
+    assert fake_session_state[SSKey.QUESTION_FLOW_FINGERPRINT.value] == ""
+    assert fake_session_state[SSKey.INTAKE_FACTS.value] == {
+        manual_fact_key: "Manual GmbH",
+        mixed_fact_key: ["Mobiles Arbeiten"],
+    }
+    assert jobspec_fact_key not in fake_session_state[SSKey.INTAKE_FACT_EVIDENCE.value]
+    assert fake_session_state[SSKey.INTAKE_FACT_EVIDENCE.value][manual_fact_key][
+        "source_type"
+    ] == FactSourceType.MANUAL.value
+    assert fake_session_state[SSKey.INTAKE_FACT_EVIDENCE.value][mixed_fact_key][
+        "secondary_evidence"
+    ] == [{"source_type": FactSourceType.HOMEPAGE.value}]
+    assert fake_session_state[SSKey.ANSWERS.value] == {
+        "manual_q": "Manual value",
+        FactKey.INTAKE_URGENCY.value: "high",
+    }
+    assert fake_session_state[SSKey.ANSWER_META.value] == {
+        "manual_q": {"touched": True, "last_value_hash": "manual"}
+    }
+    assert fake_session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] == ""
+    assert fake_session_state[SSKey.ESCO_OCCUPATION_SELECTED.value] is None
+    assert fake_session_state[SSKey.ROLE_TASKS_JOBSPEC_SUGGESTED.value] == []
+    assert fake_session_state[SSKey.ROLE_TASKS_ESCO_SUGGESTED.value] == []
+    assert fake_session_state[SSKey.ROLE_TASKS_SELECTED.value] == [
+        "Keep selected task"
+    ]
+    assert fake_session_state[SSKey.SKILLS_SELECTED.value] == ["Keep selected skill"]
+    assert fake_session_state[SSKey.BENEFITS_SELECTED.value] == [
+        "Keep selected benefit"
+    ]
+    assert fake_session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] == {}
+    assert fake_session_state[SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value] == {}
+    assert fake_session_state[SSKey.JOBAD_CACHE_HIT.value] == {}
+    assert fake_session_state[SSKey.LLM_RESPONSE_CACHE.value] == {
+        "keep": {"result": "cached"}
+    }
+    assert fake_session_state[SSKey.LAST_ERROR.value] is None
+    assert fake_session_state[SSKey.LAST_ERROR_DEBUG.value] is None
+
+
+def test_apply_jobspec_source_change_preserves_state_for_same_fingerprint(
+    monkeypatch,
+) -> None:
+    fingerprint = state.build_jobspec_source_fingerprint("manual", "Gleicher Text")
+    fake_session_state = {
+        SSKey.SOURCE_ACTIVE.value: "manual",
+        SSKey.SOURCE_ACTIVE_FINGERPRINT.value: fingerprint,
+        SSKey.JOB_EXTRACT.value: {"job_title": "Engineer"},
+        SSKey.QUESTION_PLAN.value: {"steps": []},
+        SSKey.JOBAD_CACHE_HIT.value: {"extract_job_ad": True},
+    }
+    monkeypatch.setattr(state, "st", SimpleNamespace(session_state=fake_session_state))
+
+    state.apply_jobspec_source_change("text", "Gleicher Text")
+
+    assert fake_session_state[SSKey.JOB_EXTRACT.value] == {"job_title": "Engineer"}
+    assert fake_session_state[SSKey.QUESTION_PLAN.value] == {"steps": []}
+    assert fake_session_state[SSKey.JOBAD_CACHE_HIT.value] == {"extract_job_ad": True}
 
 
 def test_init_session_state_and_reset_vacancy_share_same_defaults(monkeypatch) -> None:

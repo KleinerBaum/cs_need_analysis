@@ -51,9 +51,10 @@ def test_extract_upload_to_state_sets_text_input_key_when_successful(
 
     assert result == "Extrahierter Inhalt"
     assert (
-        fake_st.session_state[jobad_intake.SOURCE_TEXT_INPUT_KEY]
+        fake_st.session_state[jobad_intake.SOURCE_UPLOAD_TEXT_INPUT_KEY]
         == "Extrahierter Inhalt"
     )
+    assert jobad_intake.SOURCE_TEXT_INPUT_KEY not in fake_st.session_state
 
 
 def test_extract_upload_to_state_does_not_overwrite_with_empty_text(
@@ -106,6 +107,116 @@ def test_extract_upload_to_state_keeps_previous_text_on_signature_error(
         fake_st.session_state[jobad_intake.SOURCE_UPLOAD_TEXT_KEY]
         == "bestehender upload-text"
     )
+
+
+def test_manual_to_upload_preserves_manual_draft_and_invalidates_stale_analysis(
+    monkeypatch,
+) -> None:
+    fake_st = _FakeStreamlit()
+    fake_st.session_state.update(
+        {
+            jobad_intake.SOURCE_TEXT_INPUT_KEY: "Manueller Entwurf",
+            SSKey.JOB_EXTRACT.value: {"job_title": "Alter Titel"},
+            SSKey.QUESTION_PLAN.value: {"steps": []},
+            SSKey.JOBAD_CACHE_HIT.value: {"extract_job_ad": True},
+        }
+    )
+    monkeypatch.setattr(jobad_intake, "st", fake_st)
+    jobad_intake._set_active_source("manual", "Manueller Entwurf")
+    monkeypatch.setattr(
+        jobad_intake,
+        "extract_text_from_uploaded_file",
+        lambda _upload: ("Upload Inhalt", {"name": "jobspec.txt", "size": 13}),
+    )
+
+    result = jobad_intake._extract_upload_to_state(
+        object(), step="test.manual_to_upload"
+    )
+
+    assert result == "Upload Inhalt"
+    assert fake_st.session_state[jobad_intake.SOURCE_TEXT_INPUT_KEY] == (
+        "Manueller Entwurf"
+    )
+    assert fake_st.session_state[jobad_intake.SOURCE_UPLOAD_TEXT_INPUT_KEY] == (
+        "Upload Inhalt"
+    )
+    assert fake_st.session_state[SSKey.SOURCE_TEXT.value] == "Upload Inhalt"
+    assert fake_st.session_state[jobad_intake.SOURCE_ACTIVE_KEY] == "upload"
+    assert fake_st.session_state[SSKey.JOB_EXTRACT.value] is None
+    assert fake_st.session_state[SSKey.QUESTION_PLAN.value] is None
+    assert fake_st.session_state[SSKey.JOBAD_CACHE_HIT.value] == {}
+
+
+def test_upload_to_manual_restores_manual_draft_and_invalidates_stale_analysis(
+    monkeypatch,
+) -> None:
+    fake_st = _FakeStreamlit()
+    fake_st.session_state.update(
+        {
+            jobad_intake.SOURCE_TEXT_INPUT_KEY: "Manueller Entwurf",
+            jobad_intake.SOURCE_UPLOAD_TEXT_KEY: "Upload Inhalt",
+            jobad_intake.SOURCE_UPLOAD_TEXT_INPUT_KEY: "Upload Inhalt",
+            jobad_intake.SOURCE_UPLOAD_SIG_KEY: ("jobspec.txt", 13),
+            SSKey.SOURCE_FILE_META.value: {"name": "jobspec.txt", "size": 13},
+        }
+    )
+    monkeypatch.setattr(jobad_intake, "st", fake_st)
+    jobad_intake._set_active_source(
+        "upload",
+        "Upload Inhalt",
+        file_meta={"name": "jobspec.txt", "size": 13},
+        upload_signature=("jobspec.txt", 13),
+    )
+    fake_st.session_state.update(
+        {
+            SSKey.JOB_EXTRACT.value: {"job_title": "Alter Upload Titel"},
+            SSKey.QUESTION_PLAN.value: {"steps": []},
+            SSKey.JOBAD_CACHE_HIT.value: {"extract_job_ad": True},
+        }
+    )
+
+    jobad_intake._on_upload_change()
+
+    assert fake_st.session_state[jobad_intake.SOURCE_TEXT_INPUT_KEY] == (
+        "Manueller Entwurf"
+    )
+    assert fake_st.session_state[jobad_intake.SOURCE_UPLOAD_TEXT_KEY] == ""
+    assert fake_st.session_state[jobad_intake.SOURCE_UPLOAD_TEXT_INPUT_KEY] == ""
+    assert fake_st.session_state[SSKey.SOURCE_TEXT.value] == "Manueller Entwurf"
+    assert fake_st.session_state[jobad_intake.SOURCE_ACTIVE_KEY] == "manual"
+    assert fake_st.session_state[SSKey.SOURCE_FILE_META.value] == {}
+    assert fake_st.session_state[SSKey.JOB_EXTRACT.value] is None
+    assert fake_st.session_state[SSKey.QUESTION_PLAN.value] is None
+    assert fake_st.session_state[SSKey.JOBAD_CACHE_HIT.value] == {}
+
+
+def test_same_upload_fingerprint_reselect_preserves_analysis_state(monkeypatch) -> None:
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(jobad_intake, "st", fake_st)
+    monkeypatch.setattr(
+        jobad_intake,
+        "extract_text_from_uploaded_file",
+        lambda _upload: ("Upload Inhalt", {"name": "jobspec.txt", "size": 13}),
+    )
+
+    jobad_intake._extract_upload_to_state(object(), step="test.same_upload.first")
+    fake_st.session_state[SSKey.JOB_EXTRACT.value] = {"job_title": "Upload Titel"}
+    fake_st.session_state[SSKey.QUESTION_PLAN.value] = {"steps": []}
+    fake_st.session_state[SSKey.JOBAD_CACHE_HIT.value] = {"extract_job_ad": True}
+    first_fingerprint = fake_st.session_state[SSKey.SOURCE_ACTIVE_FINGERPRINT.value]
+
+    jobad_intake._extract_upload_to_state(object(), step="test.same_upload.second")
+
+    assert fake_st.session_state[SSKey.SOURCE_ACTIVE_FINGERPRINT.value] == (
+        first_fingerprint
+    )
+    assert fake_st.session_state[SSKey.JOB_EXTRACT.value] == {
+        "job_title": "Upload Titel"
+    }
+    assert fake_st.session_state[SSKey.QUESTION_PLAN.value] == {"steps": []}
+    assert fake_st.session_state[SSKey.JOBAD_CACHE_HIT.value] == {
+        "extract_job_ad": True
+    }
 
 
 class _DummyContext:
@@ -171,11 +282,12 @@ def test_phase_a_shows_failed_extraction_status_without_no_file_caption(
     upload = type("Upload", (), {"name": "scan.pdf", "size": 128})()
     fake_st = _FakeStreamlitPhaseA(
         {
-            "cs.source_upload_file": upload,
+            jobad_intake.SOURCE_UPLOAD_FILE_KEY: upload,
             jobad_intake.SOURCE_UPLOAD_TEXT_KEY: "",
             jobad_intake.SOURCE_UPLOAD_SIG_KEY: ("scan.pdf", 128),
             SSKey.LAST_ERROR.value: "Datei enthält keinen auslesbaren Inhalt.",
             SSKey.SOURCE_TEXT.value: "",
+            jobad_intake.SOURCE_UPLOAD_TEXT_INPUT_KEY: "",
             jobad_intake.SOURCE_TEXT_INPUT_KEY: "",
             SSKey.SOURCE_FILE_META.value: {"name": "scan.pdf"},
         }
@@ -198,11 +310,12 @@ def test_phase_a_shows_pdf_ocr_error_message(monkeypatch) -> None:
     upload = type("Upload", (), {"name": "scan.pdf", "size": 128})()
     fake_st = _FakeStreamlitPhaseA(
         {
-            "cs.source_upload_file": upload,
+            jobad_intake.SOURCE_UPLOAD_FILE_KEY: upload,
             jobad_intake.SOURCE_UPLOAD_TEXT_KEY: "",
             jobad_intake.SOURCE_UPLOAD_SIG_KEY: ("scan.pdf", 128),
             SSKey.LAST_ERROR.value: "PDF enthält keinen Textlayer (OCR fehlt).",
             SSKey.SOURCE_TEXT.value: "",
+            jobad_intake.SOURCE_UPLOAD_TEXT_INPUT_KEY: "",
             jobad_intake.SOURCE_TEXT_INPUT_KEY: "",
             SSKey.SOURCE_FILE_META.value: {"name": "scan.pdf"},
         }
@@ -223,12 +336,13 @@ def test_phase_a_keeps_editable_extracted_text_after_upload(monkeypatch) -> None
     upload = type("Upload", (), {"name": "jobspec.txt", "size": 12})()
     fake_st = _FakeStreamlitPhaseA(
         {
-            "cs.source_upload_file": upload,
+            jobad_intake.SOURCE_UPLOAD_FILE_KEY: upload,
             jobad_intake.SOURCE_UPLOAD_TEXT_KEY: "Extrahierter Inhalt",
             jobad_intake.SOURCE_UPLOAD_SIG_KEY: ("jobspec.txt", 12),
             SSKey.LAST_ERROR.value: "",
             SSKey.SOURCE_TEXT.value: "Extrahierter Inhalt",
-            jobad_intake.SOURCE_TEXT_INPUT_KEY: "Extrahierter Inhalt",
+            jobad_intake.SOURCE_UPLOAD_TEXT_INPUT_KEY: "Extrahierter Inhalt",
+            jobad_intake.SOURCE_TEXT_INPUT_KEY: "Manueller Entwurf",
             SSKey.SOURCE_FILE_META.value: {"name": "jobspec.txt"},
         }
     )
@@ -446,7 +560,7 @@ def test_render_jobad_intake_uses_manual_text_when_upload_empty(monkeypatch) -> 
             jobad_intake.SOURCE_TEXT_INPUT_KEY: manual_text,
             SSKey.SOURCE_REDACT_PII.value: False,
             SSKey.STORE_API_OUTPUT.value: False,
-            "cs.source_upload_file": object(),
+            jobad_intake.SOURCE_UPLOAD_FILE_KEY: object(),
         }
     )
     captured: dict[str, object] = {}
@@ -500,7 +614,7 @@ def test_render_jobad_intake_redacts_by_default_when_privacy_key_missing(
             jobad_intake.SOURCE_UPLOAD_TEXT_KEY: "",
             jobad_intake.SOURCE_TEXT_INPUT_KEY: manual_text,
             SSKey.STORE_API_OUTPUT.value: False,
-            "cs.source_upload_file": object(),
+            jobad_intake.SOURCE_UPLOAD_FILE_KEY: object(),
         }
     )
     captured: dict[str, object] = {}

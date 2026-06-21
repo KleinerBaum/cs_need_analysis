@@ -181,6 +181,13 @@ SOURCE_UPLOAD_TEXT_ENCODINGS: Final[tuple[str, ...]] = (
     "latin-1",
 )
 SOURCE_UPLOAD_TEXT_MAX_CONTROL_CHAR_RATIO: Final[float] = 0.05
+JOBSPEC_SOURCE_MANUAL: Final[str] = "manual"
+JOBSPEC_SOURCE_UPLOAD: Final[str] = "upload"
+JOBSPEC_SOURCE_LEGACY_TEXT: Final[str] = "text"
+JOBSPEC_SOURCE_VALUES: Final[tuple[str, str]] = (
+    JOBSPEC_SOURCE_MANUAL,
+    JOBSPEC_SOURCE_UPLOAD,
+)
 
 COMPLETION_STATE_COMPLETE: Final[str] = "complete"
 COMPLETION_STATE_PARTIAL: Final[str] = "partial"
@@ -374,6 +381,13 @@ class SSKey(str, Enum):
     SOURCE_TEXT = "cs.source_text"
     SOURCE_FILE_META = "cs.source_file_meta"
     SOURCE_REDACT_PII = "cs.source_redact_pii"
+    SOURCE_ACTIVE = "cs.source_active"
+    SOURCE_ACTIVE_FINGERPRINT = "cs.source_active_fingerprint"
+    SOURCE_MANUAL_TEXT = "cs.source_text_input"
+    SOURCE_UPLOADED_TEXT = "cs.source_uploaded_text"
+    SOURCE_UPLOAD_TEXT_INPUT = "cs.source_upload_text_input"
+    SOURCE_UPLOAD_SIGNATURE = "cs.source_upload_signature"
+    SOURCE_UPLOAD_FILE = "cs.source_upload_file"
 
     JOB_EXTRACT = "cs.job_extract"
     INTAKE_FACTS = "cs.intake_facts"

@@ -7,8 +7,10 @@ of a wizard workflow.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
-from collections.abc import Mapping
+from collections.abc import Mapping, MutableMapping
 from dataclasses import dataclass
 from typing import Any, Dict, cast
 
@@ -22,6 +24,11 @@ from constants import (
     ESCO_ANCHOR_STATE_DEGRADED,
     ESCO_DATA_SOURCE_MODES,
     ESCO_SEMANTIC_EXPORT_MODE_DEGRADED,
+    FactSourceType,
+    JOBSPEC_SOURCE_LEGACY_TEXT,
+    JOBSPEC_SOURCE_MANUAL,
+    JOBSPEC_SOURCE_UPLOAD,
+    JOBSPEC_SOURCE_VALUES,
     SSKey,
     UI_PREFERENCE_ANSWER_MODE,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
@@ -61,6 +68,67 @@ from settings_openai import load_openai_settings
 from usage_events import reset_usage_events
 
 DEFAULT_ESCO_API_BASE_URL = "https://ec.europa.eu/esco/api/"
+
+
+def _normalize_jobspec_source(source: str) -> str:
+    normalized = str(source or "").strip().lower()
+    if normalized == JOBSPEC_SOURCE_LEGACY_TEXT:
+        return JOBSPEC_SOURCE_MANUAL
+    if normalized in JOBSPEC_SOURCE_VALUES:
+        return normalized
+    return JOBSPEC_SOURCE_MANUAL
+
+
+def _hash_text(value: object) -> str:
+    return hashlib.sha256(str(value or "").encode("utf-8")).hexdigest()
+
+
+def _safe_int(value: object, *, default: int = 0) -> int:
+    try:
+        return int(value or default)
+    except (TypeError, ValueError):
+        return default
+
+
+def _upload_signature_parts(upload_signature: object) -> tuple[str, int]:
+    if isinstance(upload_signature, (list, tuple)) and len(upload_signature) >= 2:
+        return str(upload_signature[0] or ""), _safe_int(upload_signature[1])
+    if isinstance(upload_signature, Mapping):
+        return str(upload_signature.get("name") or ""), _safe_int(
+            upload_signature.get("size")
+        )
+    return "", 0
+
+
+def build_jobspec_source_fingerprint(
+    source: str,
+    text: str,
+    *,
+    file_meta: Mapping[str, Any] | None = None,
+    upload_signature: object = None,
+) -> str:
+    """Return a non-sensitive fingerprint for the active jobspec source."""
+
+    normalized_source = _normalize_jobspec_source(source)
+    source_text = str(text or "")
+    meta = file_meta if isinstance(file_meta, Mapping) else {}
+    signature_name, signature_size = _upload_signature_parts(upload_signature)
+    file_name = str(meta.get("name") or signature_name or "")
+    file_size = _safe_int(meta.get("size"), default=signature_size)
+    payload: dict[str, object] = {
+        "source": normalized_source,
+        "text_hash": _hash_text(source_text),
+        "text_length": len(source_text),
+    }
+    if normalized_source == JOBSPEC_SOURCE_UPLOAD:
+        payload.update(
+            {
+                "file_name_hash": _hash_text(file_name) if file_name else "",
+                "file_size": file_size,
+            }
+        )
+    serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
 def _streamlit_esco_secret(key: str) -> object:
@@ -114,6 +182,260 @@ def _clear_stale_redesign_state() -> None:
             if session_key in legacy_keys:
                 st.session_state.pop(session_key, None)
                 break
+
+
+def _clear_jobspec_fact_state(session_state: MutableMapping[str, Any]) -> None:
+    fact_state_raw = session_state.get(SSKey.INTAKE_FACTS.value)
+    evidence_state_raw = session_state.get(SSKey.INTAKE_FACT_EVIDENCE.value)
+    fact_state = dict(fact_state_raw) if isinstance(fact_state_raw, Mapping) else {}
+    evidence_state = (
+        dict(evidence_state_raw) if isinstance(evidence_state_raw, Mapping) else {}
+    )
+    changed = False
+    for fact_key, raw_evidence in list(evidence_state.items()):
+        if not isinstance(raw_evidence, Mapping):
+            continue
+        if raw_evidence.get("source_type") == FactSourceType.JOBSPEC.value:
+            evidence_state.pop(fact_key, None)
+            fact_state.pop(fact_key, None)
+            changed = True
+            continue
+        secondary_raw = raw_evidence.get("secondary_evidence")
+        if not isinstance(secondary_raw, list):
+            continue
+        filtered_secondary = [
+            entry
+            for entry in secondary_raw
+            if not (
+                isinstance(entry, Mapping)
+                and entry.get("source_type") == FactSourceType.JOBSPEC.value
+            )
+        ]
+        if filtered_secondary == secondary_raw:
+            continue
+        entry = dict(raw_evidence)
+        if filtered_secondary:
+            entry["secondary_evidence"] = filtered_secondary
+        else:
+            entry.pop("secondary_evidence", None)
+        evidence_state[fact_key] = entry
+        changed = True
+    if changed:
+        session_state[SSKey.INTAKE_FACTS.value] = fact_state
+        session_state[SSKey.INTAKE_FACT_EVIDENCE.value] = evidence_state
+
+
+def _prune_auto_promoted_answers(session_state: MutableMapping[str, Any]) -> None:
+    answers_raw = session_state.get(SSKey.ANSWERS.value)
+    meta_raw = session_state.get(SSKey.ANSWER_META.value)
+    answers = dict(answers_raw) if isinstance(answers_raw, Mapping) else {}
+    meta = dict(meta_raw) if isinstance(meta_raw, Mapping) else {}
+    changed = False
+    for question_id, raw_meta in list(meta.items()):
+        if not isinstance(raw_meta, Mapping):
+            continue
+        if raw_meta.get("touched"):
+            continue
+        if "last_value_hash" not in raw_meta:
+            continue
+        answers.pop(question_id, None)
+        meta.pop(question_id, None)
+        changed = True
+    if changed:
+        session_state[SSKey.ANSWERS.value] = answers
+        session_state[SSKey.ANSWER_META.value] = meta
+
+
+def _has_jobspec_source_dependent_state(session_state: Mapping[str, Any]) -> bool:
+    if session_state.get(SSKey.JOB_EXTRACT.value) is not None:
+        return True
+    nullable_keys = (
+        SSKey.QUESTION_PLAN_BASE,
+        SSKey.QUESTION_PLAN,
+        SSKey.OCCUPATION_PROFILE,
+        SSKey.OCCUPATION_QUESTION_CONTEXT,
+        SSKey.ESCO_OCCUPATION_SELECTED,
+        SSKey.ESCO_OCCUPATION_PAYLOAD,
+        SSKey.ESCO_MATCH_REASON,
+        SSKey.ESCO_MATCH_CONFIDENCE,
+        SSKey.ESCO_SKILLS_MAPPING_REPORT,
+    )
+    if any(session_state.get(key.value) is not None for key in nullable_keys):
+        return True
+    collection_keys = (
+        SSKey.QUESTION_LIMITS,
+        SSKey.OCCUPATION_CLASSIFICATION_TRACE,
+        SSKey.OCCUPATION_PACK_KEYS,
+        SSKey.QUESTION_FLOW_PROVENANCE,
+        SSKey.JOBAD_CACHE_HIT,
+        SSKey.ESCO_OCCUPATION_RELATED_COUNTS,
+        SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE,
+        SSKey.ESCO_OCCUPATION_CANDIDATES,
+        SSKey.ESCO_MATCH_PROVENANCE,
+        SSKey.ESCO_SKILLS_SELECTED_MUST,
+        SSKey.ESCO_SKILLS_SELECTED_NICE,
+        SSKey.ESCO_SKILLS_REMOVED,
+        SSKey.ESCO_CONFIRMED_ESSENTIAL_SKILLS,
+        SSKey.ESCO_CONFIRMED_OPTIONAL_SKILLS,
+        SSKey.ESCO_UNMAPPED_REQUIREMENT_TERMS,
+        SSKey.ESCO_UNMAPPED_ROLE_TERMS,
+        SSKey.ESCO_UNMAPPED_TERM_ACTIONS,
+        SSKey.ESCO_UNRESOLVED_TERM_DECISIONS,
+        SSKey.ESCO_MATRIX_COVERAGE_ROWS,
+        SSKey.ROLE_TASKS_JOBSPEC_SUGGESTED,
+        SSKey.ROLE_TASKS_ESCO_SUGGESTED,
+        SSKey.ROLE_TASKS_JOBSPEC_PILLS,
+        SSKey.ROLE_TASKS_ESCO_PILLS,
+        SSKey.SKILLS_JOBSPEC_SUGGESTED,
+        SSKey.SKILLS_JOBSPEC_PILLS,
+        SSKey.SKILLS_ESCO_PILLS,
+        SSKey.BENEFITS_JOBSPEC_SUGGESTED,
+        SSKey.BENEFITS_JOBSPEC_PILLS,
+        SSKey.SALARY_FORECAST_LAST_RESULT,
+        SSKey.SALARY_FORECAST_INPUT_FINGERPRINT,
+        SSKey.SALARY_FORECAST_INPUT_SELECTIONS,
+    )
+    if any(bool(session_state.get(key.value)) for key in collection_keys):
+        return True
+    if str(session_state.get(SSKey.QUESTION_FLOW_FINGERPRINT.value) or "").strip():
+        return True
+    if str(session_state.get(SSKey.ESCO_SELECTED_OCCUPATION_URI.value) or "").strip():
+        return True
+    if str(session_state.get(SSKey.LAST_ERROR.value) or "").strip():
+        return True
+    if str(session_state.get(SSKey.LAST_ERROR_DEBUG.value) or "").strip():
+        return True
+    evidence_raw = session_state.get(SSKey.INTAKE_FACT_EVIDENCE.value)
+    if isinstance(evidence_raw, Mapping):
+        for raw_evidence in evidence_raw.values():
+            if not isinstance(raw_evidence, Mapping):
+                continue
+            if raw_evidence.get("source_type") == FactSourceType.JOBSPEC.value:
+                return True
+    meta_raw = session_state.get(SSKey.ANSWER_META.value)
+    if isinstance(meta_raw, Mapping):
+        return any(
+            isinstance(raw_meta, Mapping)
+            and not raw_meta.get("touched")
+            and "last_value_hash" in raw_meta
+            for raw_meta in meta_raw.values()
+        )
+    return False
+
+
+def _reset_jobspec_source_dependent_state(
+    session_state: MutableMapping[str, Any],
+) -> None:
+    session_state[SSKey.JOB_EXTRACT.value] = None
+    session_state[SSKey.QUESTION_PLAN_BASE.value] = None
+    session_state[SSKey.QUESTION_PLAN.value] = None
+    session_state[SSKey.QUESTION_LIMITS.value] = {}
+    session_state[SSKey.OCCUPATION_PROFILE.value] = None
+    session_state[SSKey.OCCUPATION_QUESTION_CONTEXT.value] = None
+    session_state[SSKey.OCCUPATION_CLASSIFICATION_TRACE.value] = []
+    session_state[SSKey.OCCUPATION_PACK_KEYS.value] = []
+    session_state[SSKey.QUESTION_FLOW_PROVENANCE.value] = {}
+    session_state[SSKey.QUESTION_FLOW_FINGERPRINT.value] = ""
+    _clear_jobspec_fact_state(session_state)
+    _prune_auto_promoted_answers(session_state)
+
+    session_state[SSKey.ESCO_OCCUPATION_SELECTED.value] = None
+    session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] = ""
+    session_state[SSKey.ESCO_OCCUPATION_PAYLOAD.value] = None
+    session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = {}
+    session_state[SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value] = []
+    session_state[SSKey.ESCO_OCCUPATION_CANDIDATES.value] = []
+    session_state[SSKey.ESCO_MATCH_REASON.value] = None
+    session_state[SSKey.ESCO_MATCH_CONFIDENCE.value] = None
+    session_state[SSKey.ESCO_MATCH_PROVENANCE.value] = []
+    session_state[SSKey.ESCO_SKILLS_SELECTED_MUST.value] = []
+    session_state[SSKey.ESCO_SKILLS_SELECTED_NICE.value] = []
+    session_state[SSKey.ESCO_SKILLS_REMOVED.value] = []
+    session_state[SSKey.ESCO_CONFIRMED_ESSENTIAL_SKILLS.value] = []
+    session_state[SSKey.ESCO_CONFIRMED_OPTIONAL_SKILLS.value] = []
+    session_state[SSKey.ESCO_UNMAPPED_REQUIREMENT_TERMS.value] = []
+    session_state[SSKey.ESCO_UNMAPPED_ROLE_TERMS.value] = []
+    session_state[SSKey.ESCO_UNMAPPED_TERM_ACTIONS.value] = {}
+    session_state[SSKey.ESCO_UNRESOLVED_TERM_DECISIONS.value] = []
+    session_state[SSKey.ESCO_SKILLS_MAPPING_REPORT.value] = None
+    session_state[SSKey.ESCO_MATRIX_COVERAGE_ROWS.value] = []
+    session_state[SSKey.ESCO_MATRIX_COVERAGE_CONTEXT.value] = {
+        "reason": "source_changed",
+        "occupation_group": "",
+        "rows": 0,
+    }
+    session_state[SSKey.ESCO_ANCHOR_STATE.value] = ESCO_ANCHOR_STATE_DEGRADED
+    session_state[SSKey.ESCO_PRIMARY_ANCHOR.value] = None
+    session_state[SSKey.ESCO_SECONDARY_ANCHORS.value] = []
+    session_state[SSKey.ESCO_SEMANTIC_EXPORT_MODE.value] = (
+        ESCO_SEMANTIC_EXPORT_MODE_DEGRADED
+    )
+    session_state[SSKey.ESCO_CAPABILITY_SNAPSHOT.value] = {}
+
+    session_state[SSKey.ROLE_TASKS_JOBSPEC_SUGGESTED.value] = []
+    session_state[SSKey.ROLE_TASKS_ESCO_SUGGESTED.value] = []
+    session_state[SSKey.ROLE_TASKS_LLM_SUGGESTED.value] = []
+    session_state[SSKey.ROLE_TASKS_JOBSPEC_PILLS.value] = []
+    session_state[SSKey.ROLE_TASKS_ESCO_PILLS.value] = []
+    session_state[SSKey.SKILLS_JOBSPEC_SUGGESTED.value] = []
+    session_state[SSKey.SKILLS_LLM_SUGGESTED.value] = []
+    session_state[SSKey.SKILLS_AI_INITIAL_GENERATED.value] = False
+    session_state[SSKey.SKILLS_JOBSPEC_PILLS.value] = []
+    session_state[SSKey.SKILLS_ESCO_PILLS.value] = []
+    session_state[SSKey.SKILLS_AI_GENERATE_CLICKED.value] = False
+    session_state[SSKey.BENEFITS_JOBSPEC_SUGGESTED.value] = []
+    session_state[SSKey.BENEFITS_LLM_SUGGESTED.value] = []
+    session_state[SSKey.BENEFITS_JOBSPEC_PILLS.value] = []
+    session_state[SSKey.BENEFITS_AI_GENERATE_CLICKED.value] = False
+    session_state[SSKey.BENEFITS_AI_INITIAL_GENERATED.value] = False
+
+    session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {}
+    session_state[SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value] = {}
+    session_state[SSKey.SALARY_FORECAST_INPUT_SELECTIONS.value] = {}
+    session_state[SSKey.JOBAD_CACHE_HIT.value] = {}
+    session_state[SSKey.LAST_ERROR.value] = None
+    session_state[SSKey.LAST_ERROR_DEBUG.value] = None
+    sync_esco_semantic_state(session_state)
+
+
+def apply_jobspec_source_change(
+    source: str,
+    text: str,
+    *,
+    file_meta: Mapping[str, Any] | None = None,
+    upload_signature: object = None,
+    explicit_reset: bool = False,
+    session_state: MutableMapping[str, Any] | None = None,
+) -> str:
+    """Set the active jobspec source and clear stale source-derived state."""
+
+    target_state = session_state if session_state is not None else st.session_state
+    normalized_source = _normalize_jobspec_source(source)
+    source_text = str(text or "")
+    fingerprint = build_jobspec_source_fingerprint(
+        normalized_source,
+        source_text,
+        file_meta=file_meta,
+        upload_signature=upload_signature,
+    )
+    current_fingerprint = str(
+        target_state.get(SSKey.SOURCE_ACTIVE_FINGERPRINT.value, "") or ""
+    )
+    should_reset = explicit_reset or (
+        current_fingerprint != fingerprint
+        and (bool(current_fingerprint) or _has_jobspec_source_dependent_state(target_state))
+    )
+    if should_reset:
+        _reset_jobspec_source_dependent_state(target_state)
+    target_state[SSKey.SOURCE_TEXT.value] = source_text
+    target_state[SSKey.SOURCE_ACTIVE.value] = normalized_source
+    target_state[SSKey.SOURCE_ACTIVE_FINGERPRINT.value] = fingerprint
+    if normalized_source == JOBSPEC_SOURCE_UPLOAD:
+        if isinstance(file_meta, Mapping):
+            target_state[SSKey.SOURCE_FILE_META.value] = dict(file_meta)
+    else:
+        target_state[SSKey.SOURCE_FILE_META.value] = {}
+    return fingerprint
 
 
 @dataclass(frozen=True)
@@ -291,6 +613,12 @@ def init_session_state() -> None:
         SSKey.SOURCE_TEXT.value: "",
         SSKey.SOURCE_FILE_META.value: {},
         SSKey.SOURCE_REDACT_PII.value: True,
+        SSKey.SOURCE_ACTIVE.value: JOBSPEC_SOURCE_MANUAL,
+        SSKey.SOURCE_ACTIVE_FINGERPRINT.value: "",
+        SSKey.SOURCE_MANUAL_TEXT.value: "",
+        SSKey.SOURCE_UPLOADED_TEXT.value: "",
+        SSKey.SOURCE_UPLOAD_TEXT_INPUT.value: "",
+        SSKey.SOURCE_UPLOAD_SIGNATURE.value: None,
         SSKey.JOB_EXTRACT.value: None,
         SSKey.INTAKE_FACTS.value: {},
         SSKey.INTAKE_FACT_EVIDENCE.value: {},
@@ -509,6 +837,13 @@ def reset_vacancy() -> None:
     """Reset only vacancy-related state, not preferences."""
     st.session_state[SSKey.SOURCE_TEXT.value] = ""
     st.session_state[SSKey.SOURCE_FILE_META.value] = {}
+    st.session_state[SSKey.SOURCE_ACTIVE.value] = JOBSPEC_SOURCE_MANUAL
+    st.session_state[SSKey.SOURCE_ACTIVE_FINGERPRINT.value] = ""
+    st.session_state[SSKey.SOURCE_MANUAL_TEXT.value] = ""
+    st.session_state[SSKey.SOURCE_UPLOADED_TEXT.value] = ""
+    st.session_state[SSKey.SOURCE_UPLOAD_TEXT_INPUT.value] = ""
+    st.session_state[SSKey.SOURCE_UPLOAD_SIGNATURE.value] = None
+    st.session_state.pop(SSKey.SOURCE_UPLOAD_FILE.value, None)
     st.session_state[SSKey.JOB_EXTRACT.value] = None
     reset_intake_fact_state(st.session_state)
     reset_intake_fact_evidence_state(st.session_state)

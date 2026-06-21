@@ -19,6 +19,8 @@ from constants import (
     FactKey,
     FactResolutionStatus,
     FactSourceType,
+    JOBSPEC_SOURCE_MANUAL,
+    JOBSPEC_SOURCE_UPLOAD,
     SSKey,
     SOURCE_UPLOAD_ALLOWED_EXTENSIONS,
     SOURCE_UPLOAD_MAX_BYTES,
@@ -74,6 +76,7 @@ from state import (
     handle_unexpected_exception,
     set_error,
     set_answer,
+    apply_jobspec_source_change,
 )
 from ui_components import (
     render_error_banner,
@@ -92,10 +95,12 @@ from wizard_pages.base import (
 from wizard_pages.esco_occupation_ui import render_esco_occupation_confirmation
 
 
-SOURCE_TEXT_INPUT_KEY: Final[str] = "cs.source_text_input"
-SOURCE_UPLOAD_SIG_KEY: Final[str] = "cs.source_upload_signature"
-SOURCE_UPLOAD_TEXT_KEY: Final[str] = "cs.source_uploaded_text"
-SOURCE_ACTIVE_KEY: Final[str] = "cs.source_active"
+SOURCE_TEXT_INPUT_KEY: Final[str] = SSKey.SOURCE_MANUAL_TEXT.value
+SOURCE_UPLOAD_SIG_KEY: Final[str] = SSKey.SOURCE_UPLOAD_SIGNATURE.value
+SOURCE_UPLOAD_TEXT_KEY: Final[str] = SSKey.SOURCE_UPLOADED_TEXT.value
+SOURCE_UPLOAD_TEXT_INPUT_KEY: Final[str] = SSKey.SOURCE_UPLOAD_TEXT_INPUT.value
+SOURCE_UPLOAD_FILE_KEY: Final[str] = SSKey.SOURCE_UPLOAD_FILE.value
+SOURCE_ACTIVE_KEY: Final[str] = SSKey.SOURCE_ACTIVE.value
 HYPOTHESIS_ACTION_ACCEPT: Final[str] = "accept"
 HYPOTHESIS_ACTION_EDIT: Final[str] = "edit"
 HYPOTHESIS_ACTION_SKIP: Final[str] = "skip"
@@ -1127,9 +1132,29 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
         )
 
 
-def _set_active_source(source: str, text: str) -> None:
-    st.session_state[SSKey.SOURCE_TEXT.value] = text
-    st.session_state[SOURCE_ACTIVE_KEY] = source
+def _current_upload_signature() -> object:
+    return st.session_state.get(SOURCE_UPLOAD_SIG_KEY)
+
+
+def _current_upload_file_meta() -> dict[str, Any]:
+    upload_meta = st.session_state.get(SSKey.SOURCE_FILE_META.value, {})
+    return dict(upload_meta) if isinstance(upload_meta, dict) else {}
+
+
+def _set_active_source(
+    source: str,
+    text: str,
+    *,
+    file_meta: dict[str, Any] | None = None,
+    upload_signature: object = None,
+) -> None:
+    apply_jobspec_source_change(
+        source,
+        text,
+        file_meta=file_meta,
+        upload_signature=upload_signature,
+        session_state=st.session_state,
+    )
 
 
 def _routing_answer(fact_key: FactKey, default: Any) -> Any:
@@ -1228,7 +1253,18 @@ def _usage_has_cache_hit(usage: Any) -> bool:
 
 def _on_manual_text_change() -> None:
     manual_text = str(st.session_state.get(SOURCE_TEXT_INPUT_KEY, ""))
-    _set_active_source("text", manual_text)
+    _set_active_source(JOBSPEC_SOURCE_MANUAL, manual_text)
+
+
+def _on_upload_text_change() -> None:
+    upload_text = str(st.session_state.get(SOURCE_UPLOAD_TEXT_INPUT_KEY, ""))
+    st.session_state[SOURCE_UPLOAD_TEXT_KEY] = upload_text
+    _set_active_source(
+        JOBSPEC_SOURCE_UPLOAD,
+        upload_text,
+        file_meta=_current_upload_file_meta(),
+        upload_signature=_current_upload_signature(),
+    )
 
 
 def _extract_upload_to_state(
@@ -1253,20 +1289,31 @@ def _extract_upload_to_state(
         return None
 
     st.session_state[SOURCE_UPLOAD_TEXT_KEY] = uploaded_text
+    st.session_state[SOURCE_UPLOAD_TEXT_INPUT_KEY] = uploaded_text
     st.session_state[SSKey.SOURCE_FILE_META.value] = source_meta
-    st.session_state[SOURCE_UPLOAD_SIG_KEY] = (
+    upload_signature = (
         source_meta.get("name", ""),
         source_meta.get("size", 0),
     )
-    if uploaded_text.strip():
-        st.session_state[SOURCE_TEXT_INPUT_KEY] = uploaded_text
-    _set_active_source("upload", uploaded_text)
+    st.session_state[SOURCE_UPLOAD_SIG_KEY] = upload_signature
+    _set_active_source(
+        JOBSPEC_SOURCE_UPLOAD,
+        uploaded_text,
+        file_meta=source_meta,
+        upload_signature=upload_signature,
+    )
     return uploaded_text
 
 
 def _on_upload_change() -> None:
-    upload = st.session_state.get("cs.source_upload_file")
+    upload = st.session_state.get(SOURCE_UPLOAD_FILE_KEY)
     if upload is None:
+        st.session_state[SOURCE_UPLOAD_TEXT_KEY] = ""
+        st.session_state[SOURCE_UPLOAD_TEXT_INPUT_KEY] = ""
+        st.session_state[SOURCE_UPLOAD_SIG_KEY] = None
+        st.session_state[SSKey.SOURCE_FILE_META.value] = {}
+        manual_text = str(st.session_state.get(SOURCE_TEXT_INPUT_KEY, ""))
+        _set_active_source(JOBSPEC_SOURCE_MANUAL, manual_text)
         return
 
     _extract_upload_to_state(
@@ -1310,11 +1357,13 @@ def _render_source_upload_controls() -> None:
         type=allowed_types,
         accept_multiple_files=False,
         help=f"Maximale Dateigröße: {max_upload_mb} MB.",
-        key="cs.source_upload_file",
+        key=SOURCE_UPLOAD_FILE_KEY,
         on_change=_on_upload_change,
     )
-    upload = st.session_state.get("cs.source_upload_file")
+    upload = st.session_state.get(SOURCE_UPLOAD_FILE_KEY)
     if upload is None:
+        if st.session_state.get(SOURCE_ACTIVE_KEY) == JOBSPEC_SOURCE_UPLOAD:
+            _on_upload_change()
         return
 
     current_sig = (
@@ -1332,7 +1381,7 @@ def _render_source_upload_controls() -> None:
 def _render_source_upload_status() -> None:
     uploaded_text = str(st.session_state.get(SOURCE_UPLOAD_TEXT_KEY, ""))
     upload_meta = st.session_state.get(SSKey.SOURCE_FILE_META.value, {})
-    upload = st.session_state.get("cs.source_upload_file")
+    upload = st.session_state.get(SOURCE_UPLOAD_FILE_KEY)
     last_error = str(st.session_state.get(SSKey.LAST_ERROR.value, "") or "")
     file_name = str(upload_meta.get("name") or getattr(upload, "name", "") or "")
 
@@ -1374,20 +1423,25 @@ def _render_phase_a_action_controls() -> bool:
 
 def _render_source_text_or_preview() -> None:
     manual_text = str(st.session_state.get(SOURCE_TEXT_INPUT_KEY, ""))
-    upload = st.session_state.get("cs.source_upload_file")
+    upload = st.session_state.get(SOURCE_UPLOAD_FILE_KEY)
     if upload is not None:
-        _render_uploaded_source_summary(manual_text)
+        upload_text = str(
+            st.session_state.get(SOURCE_UPLOAD_TEXT_INPUT_KEY)
+            or st.session_state.get(SOURCE_UPLOAD_TEXT_KEY)
+            or ""
+        )
+        _render_uploaded_source_summary(upload_text)
         preview_context = (
             st.expander("Dokumentvorschau anzeigen", expanded=False)
             if hasattr(st, "expander")
             else nullcontext()
         )
         with preview_context:
-            _render_uploaded_document_preview(upload, manual_text)
+            _render_uploaded_document_preview(upload, upload_text)
         text_area_context = (
             st.expander(
                 "Extrahierter Text für die Analyse",
-                expanded=not bool(manual_text.strip()),
+                expanded=not bool(upload_text.strip()),
             )
             if hasattr(st, "expander")
             else nullcontext()
@@ -1395,9 +1449,9 @@ def _render_source_text_or_preview() -> None:
         with text_area_context:
             st.text_area(
                 "Extrahierter Text für die Analyse",
-                key=SOURCE_TEXT_INPUT_KEY,
-                height=min(260, max(160, _manual_input_height_for_text(manual_text))),
-                on_change=_on_manual_text_change,
+                key=SOURCE_UPLOAD_TEXT_INPUT_KEY,
+                height=min(260, max(160, _manual_input_height_for_text(upload_text))),
+                on_change=_on_upload_text_change,
                 placeholder="Füge hier den vollständigen Ausschreibungstext ein …",
             )
         return
@@ -1637,6 +1691,10 @@ def render_jobad_intake(
         st.session_state[SOURCE_TEXT_INPUT_KEY] = st.session_state.get(
             SSKey.SOURCE_TEXT.value, ""
         )
+    if SOURCE_UPLOAD_TEXT_INPUT_KEY not in st.session_state:
+        st.session_state[SOURCE_UPLOAD_TEXT_INPUT_KEY] = st.session_state.get(
+            SOURCE_UPLOAD_TEXT_KEY, ""
+        )
 
     if analysis_complete:
         render_intake_process_animation(state="done")
@@ -1659,13 +1717,50 @@ def render_jobad_intake(
         )
         raw = effective_source_text
         if not raw.strip():
-            uploaded_text = str(st.session_state.get(SOURCE_UPLOAD_TEXT_KEY, "") or "")
-            if uploaded_text.strip():
-                _set_active_source("upload", uploaded_text)
+            active_source = st.session_state.get(SOURCE_ACTIVE_KEY)
+            uploaded_text = str(
+                st.session_state.get(SOURCE_UPLOAD_TEXT_INPUT_KEY)
+                or st.session_state.get(SOURCE_UPLOAD_TEXT_KEY)
+                or ""
+            )
+            manual_text = str(st.session_state.get(SOURCE_TEXT_INPUT_KEY, "") or "")
+            if active_source == JOBSPEC_SOURCE_UPLOAD and uploaded_text.strip():
+                _set_active_source(
+                    JOBSPEC_SOURCE_UPLOAD,
+                    uploaded_text,
+                    file_meta=_current_upload_file_meta(),
+                    upload_signature=_current_upload_signature(),
+                )
+                raw = uploaded_text
+            elif manual_text.strip():
+                _set_active_source(JOBSPEC_SOURCE_MANUAL, manual_text)
+                raw = manual_text
+            elif uploaded_text.strip():
+                _set_active_source(
+                    JOBSPEC_SOURCE_UPLOAD,
+                    uploaded_text,
+                    file_meta=_current_upload_file_meta(),
+                    upload_signature=_current_upload_signature(),
+                )
                 raw = uploaded_text
 
         if not raw.strip():
-            upload = st.session_state.get("cs.source_upload_file")
+            uploaded_text = str(
+                st.session_state.get(SOURCE_UPLOAD_TEXT_INPUT_KEY)
+                or st.session_state.get(SOURCE_UPLOAD_TEXT_KEY)
+                or ""
+            )
+            if uploaded_text.strip():
+                _set_active_source(
+                    JOBSPEC_SOURCE_UPLOAD,
+                    uploaded_text,
+                    file_meta=_current_upload_file_meta(),
+                    upload_signature=_current_upload_signature(),
+                )
+                raw = uploaded_text
+
+        if not raw.strip():
+            upload = st.session_state.get(SOURCE_UPLOAD_FILE_KEY)
             if upload is not None:
                 extracted_upload_text = _extract_upload_to_state(
                     upload,
@@ -1678,6 +1773,16 @@ def render_jobad_intake(
         if not raw.strip():
             set_error("Bitte lade eine Datei hoch oder füge Text ein.")
             st.rerun()
+
+        if st.session_state.get(SOURCE_ACTIVE_KEY) == JOBSPEC_SOURCE_UPLOAD:
+            _set_active_source(
+                JOBSPEC_SOURCE_UPLOAD,
+                raw,
+                file_meta=_current_upload_file_meta(),
+                upload_signature=_current_upload_signature(),
+            )
+        else:
+            _set_active_source(JOBSPEC_SOURCE_MANUAL, raw)
 
         redact = bool(st.session_state.get(SSKey.SOURCE_REDACT_PII.value, True))
         submitted = redact_pii(raw) if redact else raw
