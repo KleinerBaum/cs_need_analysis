@@ -3,9 +3,10 @@ from __future__ import annotations
 import base64
 import json
 from functools import lru_cache
-from html import escape
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+
+from safe_html import escape_html_text
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -45,11 +46,11 @@ def _list_items(value: Any, label: str) -> Sequence[Any]:
 
 
 def _group_card(group: Mapping[str, Any], class_name: str, index: int) -> str:
-    title = escape(str(group.get("title", "")))
-    body = escape(str(group.get("body", "")))
+    title = escape_html_text(group.get("title", ""))
+    body = escape_html_text(group.get("body", ""))
     items = _list_items(group.get("items", []), "group items")
     item_markup = "".join(
-        f"<li>{escape(str(item))}</li>" for item in items if str(item).strip()
+        f"<li>{escape_html_text(item)}</li>" for item in items if str(item).strip()
     )
     item_list = f'<ul class="ina-group-items">{item_markup}</ul>' if item_markup else ""
     return (
@@ -63,8 +64,8 @@ def _group_card(group: Mapping[str, Any], class_name: str, index: int) -> str:
 
 
 def _zone_header(section: Mapping[str, Any], class_name: str, index: int) -> str:
-    headline = escape(str(section.get("headline", "")))
-    subline = escape(str(section.get("subline", "")))
+    headline = escape_html_text(section.get("headline", ""))
+    subline = escape_html_text(section.get("subline", ""))
     return (
         f'<header class="ina-zone-header {class_name}" style="--reveal-index: {index}">'
         f"<h2>{headline}</h2>"
@@ -85,7 +86,7 @@ def _zone_groups(section: Mapping[str, Any], class_name: str, start_index: int) 
 
 def _kpi_bar(content: Mapping[str, Any]) -> str:
     kpis = _list_items(content.get("kpis", []), "kpis")
-    items = "".join(f"<li>{escape(str(kpi))}</li>" for kpi in kpis)
+    items = "".join(f"<li>{escape_html_text(kpi)}</li>" for kpi in kpis)
     return f'<ul class="ina-kpi-bar" style="--reveal-index: 13">{items}</ul>'
 
 

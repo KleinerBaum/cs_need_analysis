@@ -6,7 +6,13 @@ from pathlib import Path
 
 from app import SIDEBAR_PAGE_LINKS
 from components.sidebar import render_sidebar
-from config.preferences import PAGE_DEFS
+from config.preferences import (
+    PAGE_DEFS,
+    PAGE_ROUTE_TYPE_FILE,
+    PAGE_ROUTE_TYPE_QUERY_PARAM,
+    PREFERENCE_CENTER_QUERY_PARAM,
+    PREFERENCE_CENTER_QUERY_VALUE,
+)
 
 
 def test_app_sidebar_links_hide_requested_public_and_legal_pages() -> None:
@@ -53,6 +59,26 @@ def test_public_sidebar_link_targets_exist_and_are_allowed() -> None:
         assert page_path == "app.py" or page_path.startswith("pages/")
         assert page_path.endswith(".py")
         assert (repo_root / page_path).is_file(), f"Missing public sidebar target: {page_path}"
+
+
+def test_page_defs_are_existing_files_or_explicit_non_file_routes() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+
+    for page in PAGE_DEFS:
+        if page.route_type == PAGE_ROUTE_TYPE_FILE:
+            assert page.query_params is None
+            assert page.path.endswith(".py")
+            assert (repo_root / page.path).is_file(), (
+                f"Missing file-backed PAGE_DEF target: {page.path}"
+            )
+            continue
+
+        assert page.route_type == PAGE_ROUTE_TYPE_QUERY_PARAM
+        assert page.path == "app.py"
+        assert page.query_params == {
+            PREFERENCE_CENTER_QUERY_PARAM: PREFERENCE_CENTER_QUERY_VALUE
+        }
+        assert (repo_root / page.path).is_file()
 
 
 def test_sidebar_does_not_render_preference_center(monkeypatch) -> None:

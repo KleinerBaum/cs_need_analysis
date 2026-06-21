@@ -81,7 +81,7 @@ def test_iceberg_html_escapes_content(tmp_path: Path) -> None:
                 "subline": "A & B",
                 "groups": [
                     {
-                        "title": "Surface",
+                        "title": 'Surface "quoted"',
                         "body": "Rolle < Tasks",
                         "items": ["<b>unsafe item</b>"],
                     }
@@ -105,6 +105,7 @@ def test_iceberg_html_escapes_content(tmp_path: Path) -> None:
     assert "<script>" not in html
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
     assert "A &amp; B" in html
+    assert "Surface &quot;quoted&quot;" in html
     assert "Rolle &lt; Tasks" in html
     assert "&lt;b&gt;unsafe item&lt;/b&gt;" in html
     assert "&lt;b&gt;unsafe&lt;/b&gt;" in html

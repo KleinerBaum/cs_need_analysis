@@ -47,6 +47,7 @@ from step_payload import (
 )
 from step_status import StepStatusPayload
 from state import get_answer_meta, get_answers, mark_answer_touched, set_answer
+from safe_html import render_static_html
 
 
 def _load_question_plan_from_state() -> QuestionPlan | None:
@@ -264,9 +265,9 @@ def _render_step_section_heading(label: str) -> None:
     heading_html = build_step_section_heading_html(label)
     if not heading_html:
         return
-    st.markdown(
+    render_static_html(
         heading_html,
-        unsafe_allow_html=True,
+        streamlit_module=st,
     )
 
 

@@ -7,6 +7,8 @@ from html import escape
 
 import streamlit as st
 
+from safe_html import render_static_html
+
 _PILL_TONE_CLASS_MAP = {
     "neutral": "cs-pill--neutral",
     "primary": "cs-pill--primary",
@@ -20,7 +22,7 @@ def _render_html_block(html: str) -> None:
     if callable(render_html):
         render_html(html)
         return
-    st.markdown(html, unsafe_allow_html=True)
+    render_static_html(html, streamlit_module=st)
 
 
 def _render_meta_items(meta_items: Sequence[tuple[str, str, str]]) -> str:

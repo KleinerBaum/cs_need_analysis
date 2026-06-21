@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import streamlit as st
 
 from constants import APP_NAME, APP_TAGLINE
+from safe_html import escape_html_text, render_static_html
 
 @dataclass(frozen=True)
 class SectionBlock:
@@ -17,33 +18,35 @@ class SectionBlock:
 
 def load_css(path: str = "styles/theme.css") -> None:
     with open(path, "r", encoding="utf-8") as css_file:
-        st.markdown(f"<style>{css_file.read()}</style>", unsafe_allow_html=True)
+        render_static_html(f"<style>{css_file.read()}</style>", streamlit_module=st)
 
 
 def render_page_header(title: str, intro: str, eyebrow: str | None = None) -> None:
-    eyebrow_html = f'<div class="cs-eyebrow">{eyebrow}</div>' if eyebrow else ""
-    st.markdown(
+    eyebrow_html = (
+        f'<div class="cs-eyebrow">{escape_html_text(eyebrow)}</div>' if eyebrow else ""
+    )
+    render_static_html(
         f"""
         <section class="cs-hero">
             {eyebrow_html}
-            <h1>{title}</h1>
-            <p>{intro}</p>
+            <h1>{escape_html_text(title)}</h1>
+            <p>{escape_html_text(intro)}</p>
         </section>
         """,
-        unsafe_allow_html=True,
+        streamlit_module=st,
     )
 
 
 def render_sections(sections: Iterable[Mapping[str, str]]) -> None:
     for section in sections:
-        st.markdown(
+        render_static_html(
             f"""
             <section class="cs-section">
-                <h2>{section['title']}</h2>
-                <p>{section['body']}</p>
+                <h2>{escape_html_text(section['title'])}</h2>
+                <p>{escape_html_text(section['body'])}</p>
             </section>
             """,
-            unsafe_allow_html=True,
+            streamlit_module=st,
         )
 
 

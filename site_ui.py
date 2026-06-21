@@ -6,6 +6,8 @@ from typing import Iterable
 
 import streamlit as st
 
+from safe_html import escape_html_text, render_static_html
+
 
 @dataclass(frozen=True)
 class SiteProfile:
@@ -36,7 +38,7 @@ PROFILE = SiteProfile()
 
 
 def inject_site_styles() -> None:
-    st.markdown(
+    render_static_html(
         """
         <style>
             .cs-hero {
@@ -155,25 +157,28 @@ def inject_site_styles() -> None:
             }
         </style>
         """,
-        unsafe_allow_html=True,
+        streamlit_module=st,
     )
 
 
 def render_hero(title: str, lead: str, eyebrow: str = "Cognitive Staffing") -> None:
-    st.markdown(
+    render_static_html(
         f"""
         <div class="cs-hero">
-            <div class="cs-eyebrow">{eyebrow}</div>
-            <div class="cs-title">{title}</div>
-            <p class="cs-lead">{lead}</p>
+            <div class="cs-eyebrow">{escape_html_text(eyebrow)}</div>
+            <div class="cs-title">{escape_html_text(title)}</div>
+            <p class="cs-lead">{escape_html_text(lead)}</p>
         </div>
         """,
-        unsafe_allow_html=True,
+        streamlit_module=st,
     )
 
 
 def render_meta_line(text: str) -> None:
-    st.markdown(f'<div class="cs-meta">{text}</div>', unsafe_allow_html=True)
+    render_static_html(
+        f'<div class="cs-meta">{escape_html_text(text)}</div>',
+        streamlit_module=st,
+    )
 
 
 def render_cards(cards: Iterable[dict[str, str]], columns: int = 3) -> None:
@@ -186,14 +191,14 @@ def render_cards(cards: Iterable[dict[str, str]], columns: int = 3) -> None:
         chunk = cards[start : start + columns]
         for col, card in zip(cols, chunk):
             with col:
-                st.markdown(
+                render_static_html(
                     f"""
                     <div class="cs-card">
-                        <h4>{card["title"]}</h4>
-                        <p>{card["body"]}</p>
+                        <h4>{escape_html_text(card["title"])}</h4>
+                        <p>{escape_html_text(card["body"])}</p>
                     </div>
                     """,
-                    unsafe_allow_html=True,
+                    streamlit_module=st,
                 )
 
 
@@ -204,24 +209,24 @@ def render_callout(title: str, body: str, tone: str = "info") -> None:
     elif tone == "success":
         extra = " cs-callout-success"
 
-    st.markdown(
+    render_static_html(
         f"""
         <div class="cs-callout{extra}">
-            <strong>{title}</strong><br>
-            {body}
+            <strong>{escape_html_text(title)}</strong><br>
+            {escape_html_text(body)}
         </div>
         """,
-        unsafe_allow_html=True,
+        streamlit_module=st,
     )
 
 
 def render_cta(title: str, body: str) -> None:
-    st.markdown(
+    render_static_html(
         f"""
         <div class="cs-cta">
-            <strong>{title}</strong><br><br>
-            {body}
+            <strong>{escape_html_text(title)}</strong><br><br>
+            {escape_html_text(body)}
         </div>
         """,
-        unsafe_allow_html=True,
+        streamlit_module=st,
     )

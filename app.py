@@ -8,6 +8,10 @@ from pathlib import Path
 import streamlit as st
 
 from components.design_system import render_ui_styles
+from config.preferences import (
+    PREFERENCE_CENTER_QUERY_PARAM,
+    PREFERENCE_CENTER_QUERY_VALUE,
+)
 from constants import (
     APP_TITLE,
     SSKey,
@@ -29,6 +33,7 @@ from llm_client import (
     TASK_GENERATE_VACANCY_BRIEF,
     resolve_model_for_task,
 )
+from safe_html import render_static_html
 from settings_openai import load_openai_settings
 from state import init_session_state, normalize_ui_preferences, reset_vacancy
 from ui_layout import render_intake_process_progress
@@ -99,7 +104,7 @@ def _inject_theme_styles() -> None:
     wizard_light_background_uri = _image_data_uri(WIZARD_LIGHT_BACKGROUND_PATH)
 
     # App-shell specific styles (header/sidebar spacing/layout quirks).
-    st.markdown(
+    render_static_html(
         f"""
         <style>
             [data-testid="stHeader"] {{
@@ -237,7 +242,7 @@ def _inject_theme_styles() -> None:
             }}
         </style>
         """,
-        unsafe_allow_html=True,
+        streamlit_module=st,
     )
 
 
@@ -624,13 +629,19 @@ def _render_sidebar_primary_links() -> None:
     with st.sidebar:
         for page_path, label in SIDEBAR_PRIMARY_PAGE_LINKS:
             st.page_link(page_path, label=label)
-        st.markdown('<div class="cs-sidebar-nav-gap"></div>', unsafe_allow_html=True)
+        render_static_html(
+            '<div class="cs-sidebar-nav-gap"></div>',
+            streamlit_module=st,
+        )
 
 
 def _render_sidebar_footer_links() -> None:
     """Render non-wizard legal sidebar links below contextual controls."""
     with st.sidebar:
-        st.markdown('<div class="cs-sidebar-nav-gap"></div>', unsafe_allow_html=True)
+        render_static_html(
+            '<div class="cs-sidebar-nav-gap"></div>',
+            streamlit_module=st,
+        )
         for page_path, label in SIDEBAR_FOOTER_PAGE_LINKS:
             st.page_link(page_path, label=label)
 
@@ -711,10 +722,10 @@ def main() -> None:
     pages = load_pages()
     ctx = WizardContext(pages=pages)
 
-    page_param = st.query_params.get("page")
+    page_param = st.query_params.get(PREFERENCE_CENTER_QUERY_PARAM)
     if isinstance(page_param, list):
         page_param = page_param[0] if page_param else None
-    if page_param == "preferences":
+    if page_param == PREFERENCE_CENTER_QUERY_VALUE:
         _render_sidebar_primary_links()
         sidebar_navigation(ctx)
         _render_preferences_page()

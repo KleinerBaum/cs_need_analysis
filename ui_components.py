@@ -15,6 +15,7 @@ from typing import Any, Dict, Literal, Optional, TypedDict
 
 import streamlit as st
 
+from safe_html import render_static_html
 from constants import (
     AnswerType,
     FactKey,
@@ -163,7 +164,7 @@ def _render_html_block(html: str) -> None:
     if callable(render_html):
         render_html(html)
         return
-    st.markdown(html, unsafe_allow_html=True)
+    render_static_html(html, streamlit_module=st)
 
 
 class QuestionProvenanceDisplay(TypedDict):
@@ -626,7 +627,7 @@ def render_esco_explainability(
                 for badge in entries
             )
             if badge_html:
-                st.markdown(badge_html, unsafe_allow_html=True)
+                render_static_html(badge_html, streamlit_module=st)
 
         with st.expander("Technische Details", expanded=False):
             _render_badges(badges)
@@ -2792,7 +2793,7 @@ def _render_grouped_question_inputs(
             answered_lookup=answered_lookup,
         )
         with st.container(border=True):
-            st.markdown(
+            render_static_html(
                 """
                 <div class="cs-question-group-title">
                     <strong>{group_title}</strong>
@@ -2803,7 +2804,7 @@ def _render_grouped_question_inputs(
                     answered=progress["answered"],
                     total=progress["total"],
                 ),
-                unsafe_allow_html=True,
+                streamlit_module=st,
             )
             if context_mode != "compact" or ui_mode == "expert":
                 _render_section_provenance(
@@ -3018,9 +3019,9 @@ def render_step_review_card(
     max_inline_unanswered = 2
     if not visible_questions:
         with st.container(border=True):
-            st.markdown(
+            render_static_html(
                 '<div class="cs-review-card-title"><strong>Antworten prüfen</strong></div>',
-                unsafe_allow_html=True,
+                streamlit_module=st,
             )
             st.caption("Keine sichtbaren Fragen in diesem Schritt.")
             st.caption(
@@ -3149,9 +3150,9 @@ def render_step_review_card(
             incomplete_group_titles.append(group_title)
 
     with st.container(border=True):
-        st.markdown(
+        render_static_html(
             '<div class="cs-review-card-title"><strong>Antworten prüfen</strong></div>',
-            unsafe_allow_html=True,
+            streamlit_module=st,
         )
         if step_status is not None:
             answered = int(step_status.get("answered", 0))
@@ -3190,9 +3191,9 @@ def render_step_review_card(
                     f"<li>{escape(label)}</li>"
                     for label in missing_essential_labels_display
                 )
-                st.markdown(
+                render_static_html(
                     f'<ul class="cs-review-essential-list">{essential_items}</ul>',
-                    unsafe_allow_html=True,
+                    streamlit_module=st,
                 )
                 if additional_missing_essentials > 0:
                     st.caption(f"+{additional_missing_essentials} weitere")

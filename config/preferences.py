@@ -11,6 +11,11 @@ import streamlit as st
 
 from constants import APP_NAME as APP_NAME, APP_TAGLINE as APP_TAGLINE
 
+PAGE_ROUTE_TYPE_FILE = "file"
+PAGE_ROUTE_TYPE_QUERY_PARAM = "query_param"
+PREFERENCE_CENTER_QUERY_PARAM = "page"
+PREFERENCE_CENTER_QUERY_VALUE = "preferences"
+
 SESSION_KEYS = {
     "preferences": "cs_preferences",
     "cookie_consent": "cs_cookie_consent",
@@ -72,13 +77,23 @@ class PageDef:
     path: str
     nav_group: str
     is_main_nav: bool = True
+    route_type: str = PAGE_ROUTE_TYPE_FILE
+    query_params: Dict[str, str] | None = None
 
 
 PAGE_DEFS: List[PageDef] = [
     PageDef("competencies", "Unsere Kompetenzen", "pages/01_Unsere_Kompetenzen.py", "main", True),
     PageDef("about", "Über Cognitive Staffing", "pages/02_Über_Cognitive_Staffing.py", "main", True),
     PageDef("imprint", "Impressum", "pages/03_Impressum.py", "main", True),
-    PageDef("preference_center", "Präferenz-Center", "pages/10_Praeferenz_Center.py", "preferences", False),
+    PageDef(
+        "preference_center",
+        "Präferenz-Center",
+        "app.py",
+        "preferences",
+        False,
+        PAGE_ROUTE_TYPE_QUERY_PARAM,
+        {PREFERENCE_CENTER_QUERY_PARAM: PREFERENCE_CENTER_QUERY_VALUE},
+    ),
     PageDef("privacy", "Datenschutzrichtlinie", "pages/11_Datenschutzrichtlinie.py", "legal", False),
     PageDef("terms", "Nutzungsbedingungen", "pages/12_Nutzungsbedingungen.py", "legal", False),
     PageDef("cookies", "Cookie Policy/Settings", "pages/13_Cookie_Policy_Settings.py", "legal", False),
