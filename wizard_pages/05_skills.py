@@ -20,8 +20,11 @@ from constants import (
 )
 from intake_facts import sync_selected_skill_intake_facts
 from esco_client import (
+    ESCO_RELATED_ENDPOINT_UNSUPPORTED_MESSAGE,
     EscoClient,
     EscoClientError,
+    extract_skill_candidates as _extract_skill_candidates_service,
+    load_related_occupation_skill_suggestions,
 )
 from esco_matrix import load_esco_matrix
 from esco_rag import extract_skill_suggestions, retrieve_esco_context_multi
@@ -76,10 +79,6 @@ from wizard_pages.base import (
 from wizard_pages.fact_inputs import compact_text, fact_value, persist_fact, split_lines
 from wizard_pages.salary_forecast_panel import render_skills_salary_forecast_panel
 
-ESCO_RELATED_ENDPOINT_UNSUPPORTED_MESSAGE = (
-    "Dieser ESCO-Endpunkt wird in der aktuell gewählten API-Variante "
-    "nicht unterstützt. Occupation-Skill-Vorschläge sind daher hier nicht verfügbar."
-)
 _SKILL_STATUS_LABELS = {
     "must": "Must-have",
     "nice": "Nice-to-have",
@@ -159,38 +158,7 @@ def _dedupe_selected_skills_across_buckets(
 
 
 def _extract_skill_candidates(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    candidates: list[dict[str, Any]] = []
-    seen: set[str] = set()
-
-    def _walk(value: Any) -> None:
-        if isinstance(value, dict):
-            uri = str(value.get("uri") or "").strip()
-            concept_type = str(value.get("type") or "").strip().lower()
-            title = str(
-                value.get("title")
-                or value.get("preferredLabel")
-                or value.get("label")
-                or value.get("name")
-                or ""
-            ).strip()
-            is_skill_like = concept_type == "skill" or "/skill/" in uri.casefold()
-            if uri and is_skill_like and uri not in seen:
-                candidates.append(
-                    {
-                        "uri": uri,
-                        "title": title or uri,
-                        "type": concept_type or "skill",
-                    }
-                )
-                seen.add(uri)
-            for nested in value.values():
-                _walk(nested)
-        elif isinstance(value, list):
-            for nested in value:
-                _walk(nested)
-
-    _walk(payload)
-    return candidates
+    return _extract_skill_candidates_service(payload)
 
 
 def _merge_suggested_skills_by_uri(
@@ -1321,31 +1289,10 @@ def _render_selected_skill_details(
 def _load_related_skills_from_selected_occupation(
     occupation_uri: str,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], EscoClientError | None]:
-    client = EscoClient()
-    try:
-        client.get_occupation_detail(uri=occupation_uri)
-        if not client.supports_endpoint("resource/related"):
-            return (
-                [],
-                [],
-                EscoClientError(
-                    status_code=None,
-                    endpoint="resource/related",
-                    message=ESCO_RELATED_ENDPOINT_UNSUPPORTED_MESSAGE,
-                ),
-            )
-        must_payload = client.get_occupation_essential_skills(
-            occupation_uri=occupation_uri
-        )
-        nice_payload = client.get_occupation_optional_skills(
-            occupation_uri=occupation_uri
-        )
-    except EscoClientError as exc:
-        return [], [], exc
-
-    must_suggestions = _extract_skill_candidates(must_payload)
-    nice_suggestions = _extract_skill_candidates(nice_payload)
-    return must_suggestions, nice_suggestions, None
+    return load_related_occupation_skill_suggestions(
+        occupation_uri,
+        client=EscoClient(),
+    )
 
 
 def _load_matrix_priors(

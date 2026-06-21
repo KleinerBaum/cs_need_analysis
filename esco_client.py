@@ -60,6 +60,10 @@ ENDPOINT_OCCUPATION_SKILL_GROUP_SHARE = "resource/occupationSkillsGroupShare"
 OFFLINE_INDEX_SUPPORTED_ENDPOINTS = frozenset(
     {"search", "suggest2", "terms", "resource/occupation", "resource/skill", "resource/related"}
 )
+ESCO_RELATED_ENDPOINT_UNSUPPORTED_MESSAGE = (
+    "Dieser ESCO-Endpunkt wird in der aktuell gewählten API-Variante "
+    "nicht unterstützt. Occupation-Skill-Vorschläge sind daher hier nicht verfügbar."
+)
 
 _ALL_OCCUPATION_RELATIONS: tuple[str, ...] = (
     OCCUPATION_RELATION_ESSENTIAL_SKILL,
@@ -923,3 +927,76 @@ class EscoClient:
             status_code,
             ESCO_NEGATIVE_CACHE_TTL_SECONDS,
         )
+
+
+def extract_skill_candidates(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Extract unique ESCO skill-like candidates from a related-resource payload."""
+
+    candidates: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    def _walk(value: Any) -> None:
+        if isinstance(value, dict):
+            uri = str(value.get("uri") or "").strip()
+            concept_type = str(value.get("type") or "").strip().lower()
+            title = str(
+                value.get("title")
+                or value.get("preferredLabel")
+                or value.get("label")
+                or value.get("name")
+                or ""
+            ).strip()
+            is_skill_like = concept_type == "skill" or "/skill/" in uri.casefold()
+            if uri and is_skill_like and uri not in seen:
+                candidates.append(
+                    {
+                        "uri": uri,
+                        "title": title or uri,
+                        "type": concept_type or "skill",
+                    }
+                )
+                seen.add(uri)
+            for nested in value.values():
+                _walk(nested)
+        elif isinstance(value, list):
+            for nested in value:
+                _walk(nested)
+
+    _walk(payload)
+    return candidates
+
+
+def load_related_occupation_skill_suggestions(
+    occupation_uri: str,
+    *,
+    client: EscoClient | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], EscoClientError | None]:
+    """Load essential and optional ESCO skill suggestions for an occupation."""
+
+    esco_client = client or EscoClient()
+    try:
+        esco_client.get_occupation_detail(uri=occupation_uri)
+        if not esco_client.supports_endpoint("resource/related"):
+            return (
+                [],
+                [],
+                EscoClientError(
+                    status_code=None,
+                    endpoint="resource/related",
+                    message=ESCO_RELATED_ENDPOINT_UNSUPPORTED_MESSAGE,
+                ),
+            )
+        must_payload = esco_client.get_occupation_essential_skills(
+            occupation_uri=occupation_uri
+        )
+        nice_payload = esco_client.get_occupation_optional_skills(
+            occupation_uri=occupation_uri
+        )
+    except EscoClientError as exc:
+        return [], [], exc
+
+    return (
+        extract_skill_candidates(must_payload),
+        extract_skill_candidates(nice_payload),
+        None,
+    )

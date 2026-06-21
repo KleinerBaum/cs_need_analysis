@@ -7,6 +7,11 @@ from types import SimpleNamespace
 import pytest
 
 from constants import SSKey
+from esco_client import (
+    ESCO_RELATED_ENDPOINT_UNSUPPORTED_MESSAGE,
+    extract_skill_candidates,
+    load_related_occupation_skill_suggestions,
+)
 from schemas import JobAdExtract
 from state import EscoAnchorStatus
 
@@ -48,6 +53,124 @@ def test_extract_skill_candidates_filters_non_skill_entries() -> None:
             "type": "skill",
         }
     ]
+
+
+def test_extract_skill_candidates_service_filters_non_skill_entries() -> None:
+    payload = {
+        "_embedded": {
+            "hasEssentialSkill": [
+                {
+                    "uri": "http://data.europa.eu/esco/skill/a",
+                    "preferredLabel": "Python",
+                    "type": "skill",
+                },
+                {
+                    "uri": "http://data.europa.eu/esco/occupation/1",
+                    "preferredLabel": "Data Engineer",
+                    "type": "occupation",
+                },
+            ]
+        }
+    }
+
+    assert extract_skill_candidates(payload) == [
+        {
+            "uri": "http://data.europa.eu/esco/skill/a",
+            "title": "Python",
+            "type": "skill",
+        }
+    ]
+
+
+def test_load_related_occupation_skill_suggestions_service_uses_client_payloads() -> None:
+    class DummyClient:
+        def get_occupation_detail(self, *, uri: str) -> dict[str, str]:
+            assert uri == "uri:occupation:test"
+            return {"uri": uri}
+
+        def supports_endpoint(self, endpoint: str) -> bool:
+            assert endpoint == "resource/related"
+            return True
+
+        def get_occupation_essential_skills(
+            self, *, occupation_uri: str
+        ) -> dict[str, object]:
+            assert occupation_uri == "uri:occupation:test"
+            return {
+                "_embedded": {
+                    "hasEssentialSkill": [
+                        {
+                            "uri": "uri:skill:python",
+                            "preferredLabel": "Python",
+                            "type": "skill",
+                        }
+                    ]
+                }
+            }
+
+        def get_occupation_optional_skills(
+            self, *, occupation_uri: str
+        ) -> dict[str, object]:
+            assert occupation_uri == "uri:occupation:test"
+            return {
+                "_embedded": {
+                    "hasOptionalSkill": [
+                        {
+                            "uri": "uri:skill:git",
+                            "preferredLabel": "Git",
+                            "type": "skill",
+                        }
+                    ]
+                }
+            }
+
+    must, nice, error = load_related_occupation_skill_suggestions(
+        "uri:occupation:test",
+        client=DummyClient(),
+    )
+
+    assert error is None
+    assert must == [{"uri": "uri:skill:python", "title": "Python", "type": "skill"}]
+    assert nice == [{"uri": "uri:skill:git", "title": "Git", "type": "skill"}]
+
+
+def test_load_related_occupation_skill_suggestions_service_handles_unsupported_endpoint() -> None:
+    class DummyClient:
+        def __init__(self) -> None:
+            self.resource_related_calls = 0
+
+        def get_occupation_detail(self, *, uri: str) -> dict[str, str]:
+            return {"uri": uri}
+
+        def supports_endpoint(self, endpoint: str) -> bool:
+            assert endpoint == "resource/related"
+            return False
+
+        def get_occupation_essential_skills(
+            self, *, occupation_uri: str
+        ) -> dict[str, str]:
+            self.resource_related_calls += 1
+            return {"uri": occupation_uri}
+
+        def get_occupation_optional_skills(
+            self, *, occupation_uri: str
+        ) -> dict[str, str]:
+            self.resource_related_calls += 1
+            return {"uri": occupation_uri}
+
+    dummy_client = DummyClient()
+
+    must, nice, error = load_related_occupation_skill_suggestions(
+        "uri:occupation:test",
+        client=dummy_client,
+    )
+
+    assert must == []
+    assert nice == []
+    assert dummy_client.resource_related_calls == 0
+    assert error is not None
+    assert error.endpoint == "resource/related"
+    assert error.message == ESCO_RELATED_ENDPOINT_UNSUPPORTED_MESSAGE
 
 
 def test_merge_suggested_skills_dedupes_against_existing_must_and_nice() -> None:

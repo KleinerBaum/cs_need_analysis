@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
 from time import perf_counter
 from typing import Any, Callable
 
@@ -20,11 +19,9 @@ from constants import (
     STEP_SECTION_OPEN_QUESTIONS,
     STEP_SECTION_REVIEW,
     STEP_SECTION_SOURCE_COMPARISON,
-    WEBSITE_RESEARCH_HOMEPAGE_URL,
     WEBSITE_RESEARCH_OPEN_QUESTION_MATCHES,
     WEBSITE_RESEARCH_SECTIONS,
     WEBSITE_SECTION_FACTS,
-    WEBSITE_SECTION_FETCHED_AT,
     WEBSITE_SECTION_SOURCE_URL,
     WEBSITE_SECTION_SUMMARY,
     WEBSITE_TOPIC_ABOUT,
@@ -32,18 +29,15 @@ from constants import (
     WEBSITE_TOPIC_VISION_MISSION,
 )
 from homepage_research import (
-    PAGE_KEYWORDS as _PAGE_KEYWORDS,
     WEBSITE_TOPIC_LABELS as _TOPIC_LABELS,
+    HomepageResearchInvalidUrlError as _HomepageResearchInvalidUrlError,
+    build_company_website_research as _build_company_website_research,
     build_open_question_match_options as _build_open_question_match_options,
     build_website_fact_candidates as _build_website_fact_candidates,
     derive_insights_from_open_questions as _derive_insights_from_open_questions,
     derive_topic_facts as _derive_topic_facts,
-    extract_essential_sentences as _extract_essential_sentences,
     extract_imprint_facts as _extract_imprint_facts,
-    extract_links as _extract_links,
     fetch_url_text as _fetch_url_text,
-    find_candidate_url as _find_candidate_url,
-    find_candidate_urls as _find_candidate_urls,
     normalize_company_website_research_payload as _normalize_company_website_research_payload,
     normalize_research_facts as _normalize_research_facts,
     normalize_url as _normalize_url,
@@ -324,8 +318,17 @@ def _run_website_research(
     plan: QuestionPlan,
 ) -> None:
     started_at = perf_counter()
-    normalized_homepage = _normalize_url(homepage_url)
-    if not normalized_homepage:
+    try:
+        result = _build_company_website_research(
+            homepage_url=homepage_url,
+            topic_key=topic_key,
+            existing_research=st.session_state.get(
+                SSKey.COMPANY_WEBSITE_RESEARCH.value,
+                {},
+            ),
+            open_questions=_collect_open_questions(plan),
+        )
+    except _HomepageResearchInvalidUrlError:
         st.session_state[SSKey.COMPANY_WEBSITE_LAST_ERROR.value] = (
             "Keine valide Homepage-URL gefunden."
         )
@@ -342,60 +345,6 @@ def _run_website_research(
             error_type="invalid_url",
         )
         return
-    try:
-        resolved_homepage, homepage_html = _fetch_url_text(normalized_homepage)
-        links = _extract_links(resolved_homepage, homepage_html)
-        keywords = _PAGE_KEYWORDS.get(topic_key, ())
-        candidate_urls = _find_candidate_urls(links, keywords)
-        if not candidate_urls:
-            fallback = _find_candidate_url(links, keywords) or resolved_homepage
-            candidate_urls = [fallback]
-        if resolved_homepage not in candidate_urls:
-            candidate_urls.append(resolved_homepage)
-
-        best_payload: tuple[str, str, list[str], dict[str, str]] | None = None
-        for candidate_url in candidate_urls[:5]:
-            resolved_topic_url, topic_html = _fetch_url_text(candidate_url)
-            text = _strip_html(topic_html)
-            summary = _extract_essential_sentences(text)
-            facts = _derive_topic_facts(topic_key, text, topic_html)
-            payload_score = len(summary) * 2 + len(facts)
-            if best_payload is None or payload_score > (
-                len(best_payload[2]) * 2 + len(best_payload[3])
-            ):
-                best_payload = (resolved_topic_url, topic_html, summary, facts)
-        if best_payload is None:
-            raise RuntimeError("Keine verwertbaren Inhalte auf der Firmenhomepage gefunden.")
-
-        resolved_topic_url, _, summary, facts = best_payload
-        research_raw = st.session_state.get(SSKey.COMPANY_WEBSITE_RESEARCH.value, {})
-        normalized_research = _normalize_company_website_research_payload(research_raw)
-        research = normalized_research if isinstance(normalized_research, dict) else {}
-        sections_raw = research.get(WEBSITE_RESEARCH_SECTIONS, {})
-        sections = sections_raw if isinstance(sections_raw, dict) else {}
-        sections[topic_key] = {
-            WEBSITE_SECTION_SOURCE_URL: resolved_topic_url,
-            WEBSITE_SECTION_SUMMARY: summary,
-            WEBSITE_SECTION_FACTS: facts,
-            WEBSITE_SECTION_FETCHED_AT: datetime.now(UTC).isoformat(),
-        }
-        research[WEBSITE_RESEARCH_HOMEPAGE_URL] = resolved_homepage
-        research[WEBSITE_RESEARCH_SECTIONS] = sections
-        research[WEBSITE_RESEARCH_OPEN_QUESTION_MATCHES] = _derive_insights_from_open_questions(
-            _collect_open_questions(plan),
-            sections,
-        )
-        st.session_state[SSKey.COMPANY_WEBSITE_RESEARCH.value] = (
-            _normalize_company_website_research_payload(research)
-        )
-        st.session_state[SSKey.COMPANY_WEBSITE_LAST_ERROR.value] = None
-        record_enrichment_timed(
-            st.session_state,
-            stage="homepage_research",
-            path=topic_key,
-            duration_ms=int((perf_counter() - started_at) * 1000),
-            result_count=len(summary) + len(facts),
-        )
     except Exception as exc:
         error_type = type(exc).__name__
         record_enrichment_timed(
@@ -414,6 +363,17 @@ def _run_website_research(
         st.session_state[SSKey.COMPANY_WEBSITE_LAST_ERROR.value] = (
             f"Homepage konnte nicht verarbeitet werden: {error_type}"
         )
+        return
+
+    st.session_state[SSKey.COMPANY_WEBSITE_RESEARCH.value] = result.research
+    st.session_state[SSKey.COMPANY_WEBSITE_LAST_ERROR.value] = None
+    record_enrichment_timed(
+        st.session_state,
+        stage="homepage_research",
+        path=topic_key,
+        duration_ms=int((perf_counter() - started_at) * 1000),
+        result_count=result.result_count,
+    )
 
 
 def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:

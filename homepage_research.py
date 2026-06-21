@@ -9,6 +9,7 @@ import re
 import socket
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from hashlib import sha1
 from typing import Any
 from urllib.error import HTTPError
@@ -20,8 +21,11 @@ from constants import (
     FactKey,
     FactValueType,
     WEBSITE_RESEARCH_HOMEPAGE_URL,
+    WEBSITE_RESEARCH_OPEN_QUESTION_MATCHES,
     WEBSITE_RESEARCH_SECTIONS,
+    WEBSITE_SECTION_FETCHED_AT,
     WEBSITE_SECTION_FACTS,
+    WEBSITE_SECTION_SOURCE_URL,
     WEBSITE_SECTION_SUMMARY,
     WEBSITE_TOPIC_ABOUT,
     WEBSITE_TOPIC_IMPRINT,
@@ -116,8 +120,20 @@ class HomepageFetchResult:
     cache_hit: bool = False
 
 
+@dataclass(frozen=True)
+class CompanyWebsiteResearchResult:
+    research: dict[str, Any]
+    resolved_homepage_url: str
+    resolved_topic_url: str
+    result_count: int
+
+
 class HomepageFetchError(RuntimeError):
     """Raised when homepage content fails fetch guardrails."""
+
+
+class HomepageResearchInvalidUrlError(ValueError):
+    """Raised when a homepage research request has no public URL target."""
 
 
 _FETCH_CACHE: dict[str, HomepageFetchResult] = {}
@@ -218,6 +234,73 @@ def fetch_url_text_result(
     _FETCH_CACHE[normalized_url] = result
     _log_fetch_event("success", final_url, cache_hit=False, bytes_read=result.bytes_read)
     return result
+
+
+def build_company_website_research(
+    *,
+    homepage_url: str,
+    topic_key: str,
+    existing_research: Any = None,
+    open_questions: list[dict[str, str]] | None = None,
+) -> CompanyWebsiteResearchResult:
+    """Fetch and assemble homepage research data without Streamlit state writes."""
+
+    normalized_homepage = normalize_url(homepage_url)
+    if not normalized_homepage:
+        raise HomepageResearchInvalidUrlError("invalid_url")
+
+    resolved_homepage, homepage_html = fetch_url_text(normalized_homepage)
+    links = extract_links(resolved_homepage, homepage_html)
+    keywords = PAGE_KEYWORDS.get(topic_key, ())
+    candidate_urls = find_candidate_urls(links, keywords)
+    if not candidate_urls:
+        fallback = find_candidate_url(links, keywords) or resolved_homepage
+        candidate_urls = [fallback]
+    if resolved_homepage not in candidate_urls:
+        candidate_urls.append(resolved_homepage)
+
+    best_payload: tuple[str, list[str], dict[str, str]] | None = None
+    for candidate_url in candidate_urls[:5]:
+        resolved_topic_url, topic_html = fetch_url_text(candidate_url)
+        text = strip_html(topic_html)
+        summary = extract_essential_sentences(text)
+        facts = derive_topic_facts(topic_key, text, topic_html)
+        payload_score = len(summary) * 2 + len(facts)
+        if best_payload is None or payload_score > (
+            len(best_payload[1]) * 2 + len(best_payload[2])
+        ):
+            best_payload = (resolved_topic_url, summary, facts)
+    if best_payload is None:
+        raise RuntimeError(
+            "Keine verwertbaren Inhalte auf der Firmenhomepage gefunden."
+        )
+
+    resolved_topic_url, summary, facts = best_payload
+    normalized_research = normalize_company_website_research_payload(existing_research)
+    research = (
+        dict(normalized_research) if isinstance(normalized_research, Mapping) else {}
+    )
+    sections_raw = research.get(WEBSITE_RESEARCH_SECTIONS, {})
+    sections = dict(sections_raw) if isinstance(sections_raw, Mapping) else {}
+    sections[topic_key] = {
+        WEBSITE_SECTION_SOURCE_URL: resolved_topic_url,
+        WEBSITE_SECTION_SUMMARY: summary,
+        WEBSITE_SECTION_FACTS: facts,
+        WEBSITE_SECTION_FETCHED_AT: datetime.now(UTC).isoformat(),
+    }
+    research[WEBSITE_RESEARCH_HOMEPAGE_URL] = resolved_homepage
+    research[WEBSITE_RESEARCH_SECTIONS] = sections
+    research[WEBSITE_RESEARCH_OPEN_QUESTION_MATCHES] = derive_insights_from_open_questions(
+        open_questions or [],
+        sections,
+    )
+    normalized_payload = normalize_company_website_research_payload(research)
+    return CompanyWebsiteResearchResult(
+        research=normalized_payload if isinstance(normalized_payload, dict) else research,
+        resolved_homepage_url=resolved_homepage,
+        resolved_topic_url=resolved_topic_url,
+        result_count=len(summary) + len(facts),
+    )
 
 
 def strip_html(raw_html: str) -> str:

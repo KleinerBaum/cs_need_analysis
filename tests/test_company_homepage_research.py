@@ -14,6 +14,12 @@ from constants import (
     FactResolutionStatus,
     FactSourceType,
     SSKey,
+    WEBSITE_RESEARCH_HOMEPAGE_URL,
+    WEBSITE_RESEARCH_OPEN_QUESTION_MATCHES,
+    WEBSITE_RESEARCH_SECTIONS,
+    WEBSITE_SECTION_FACTS,
+    WEBSITE_SECTION_SOURCE_URL,
+    WEBSITE_SECTION_SUMMARY,
     WEBSITE_TOPIC_ABOUT,
 )
 from schemas import CompanyWebsiteResearch, QuestionPlan
@@ -384,6 +390,86 @@ def test_run_website_research_records_invalid_url_event(monkeypatch) -> None:
         "topic_key": WEBSITE_TOPIC_ABOUT,
         "error_type": "invalid_url",
     }
+
+
+def test_build_company_website_research_returns_normalized_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payloads = {
+        "https://example.com": (
+            "https://example.com",
+            """
+            <html><body>
+              <a href="/about">Über uns</a>
+              <a href="/impressum">Impressum</a>
+            </body></html>
+            """,
+        ),
+        "https://example.com/about": (
+            "https://example.com/about",
+            """
+            <html><body>
+              <h1>Über uns</h1>
+              <p>Unsere Vision ist nachhaltiges Wachstum mit Cloud Projekten.</p>
+              <p>Acme wurde im Jahr 2001 gegründet.</p>
+              <p>Heute arbeiten 745 Mitarbeitende an Kundennutzen.</p>
+            </body></html>
+            """,
+        ),
+    }
+
+    def fake_fetch(url: str) -> tuple[str, str]:
+        normalized_url = homepage_research.normalize_url(url)
+        return payloads[normalized_url]
+
+    monkeypatch.setattr(homepage_research, "fetch_url_text", fake_fetch)
+
+    result = homepage_research.build_company_website_research(
+        homepage_url="example.com",
+        topic_key=WEBSITE_TOPIC_ABOUT,
+        existing_research={
+            WEBSITE_RESEARCH_SECTIONS: {
+                "imprint": {
+                    WEBSITE_SECTION_SOURCE_URL: "https://example.com/impressum",
+                    WEBSITE_SECTION_SUMMARY: ["Impressum bleibt erhalten."],
+                    WEBSITE_SECTION_FACTS: {},
+                }
+            }
+        },
+        open_questions=[
+            {
+                "id": "company_q_vision",
+                "step": "company",
+                "label": "Welche Vision verfolgt das Unternehmen?",
+            }
+        ],
+    )
+
+    research = result.research
+    section = research[WEBSITE_RESEARCH_SECTIONS][WEBSITE_TOPIC_ABOUT]
+    assert result.resolved_homepage_url == "https://example.com"
+    assert result.resolved_topic_url == "https://example.com/about"
+    assert research[WEBSITE_RESEARCH_HOMEPAGE_URL] == "https://example.com"
+    assert "imprint" in research[WEBSITE_RESEARCH_SECTIONS]
+    assert section[WEBSITE_SECTION_SOURCE_URL] == "https://example.com/about"
+    assert section[WEBSITE_SECTION_FACTS]["Gegründet"] == "2001"
+    assert section[WEBSITE_SECTION_FACTS]["Mitarbeitende (Hinweis)"] == "745"
+    assert result.result_count == len(section[WEBSITE_SECTION_SUMMARY]) + len(
+        section[WEBSITE_SECTION_FACTS]
+    )
+    assert research[WEBSITE_RESEARCH_OPEN_QUESTION_MATCHES][0]["question_id"] == (
+        "company_q_vision"
+    )
+
+
+def test_build_company_website_research_rejects_invalid_homepage() -> None:
+    with pytest.raises(homepage_research.HomepageResearchInvalidUrlError):
+        homepage_research.build_company_website_research(
+            homepage_url="http://127.0.0.1:8501",
+            topic_key=WEBSITE_TOPIC_ABOUT,
+            existing_research={},
+            open_questions=[],
+        )
 
 
 def test_extract_imprint_facts_picks_essential_fields() -> None:
