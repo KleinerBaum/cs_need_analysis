@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+import io
 import re
+from html import escape
+from typing import Any, Mapping, Sequence
 
+import docx
+
+from document_preview import markdown_article_preview_html
 from llm_client import JobAdGenerationResult
 
 
 MARKDOWN_TOKEN_RE = re.compile(r"(\*\*|__|`|^#{1,6}\s*)", re.MULTILINE)
+LogoPayload = Mapping[str, Any]
 
 
 def normalize_list_item(value: str) -> str:
@@ -154,6 +161,199 @@ def build_publishable_job_ad_plain_text(job_ad: JobAdGenerationResult) -> str:
         else:
             lines.append(line)
     return "\n".join(lines).strip()
+
+
+def _add_logo_to_docx(document: Any, logo_payload: LogoPayload | None) -> bool:
+    if logo_payload is None:
+        return False
+    logo_bytes = logo_payload.get("bytes")
+    if not isinstance(logo_bytes, bytes):
+        return False
+    image_stream = io.BytesIO(bytes(logo_bytes))
+    image_stream.seek(0)
+    try:
+        document.add_picture(image_stream, width=docx.shared.Cm(4.0))
+    except Exception:
+        return False
+    return True
+
+
+def job_ad_to_docx_bytes(
+    job_ad: JobAdGenerationResult,
+    styleguide: str = "",
+    *,
+    logo_payload: LogoPayload | None = None,
+) -> bytes:
+    _ = styleguide
+    document = docx.Document()
+    _add_logo_to_docx(document=document, logo_payload=logo_payload)
+    document.add_heading(job_ad.headline or "Stellenanzeige", level=1)
+    if has_structured_job_ad_sections(job_ad):
+        if job_ad.intro.strip():
+            document.add_paragraph(job_ad.intro.strip())
+        for heading, items in (
+            ("Deine Aufgaben", job_ad.responsibilities),
+            ("Dein Profil", job_ad.profile),
+            ("Was wir bieten", job_ad.offer),
+        ):
+            clean_items = dedupe_preserve_order(items)
+            if not clean_items:
+                continue
+            document.add_heading(heading, level=2)
+            for item in clean_items:
+                document.add_paragraph(item, style="List Bullet")
+        if job_ad.cta.strip():
+            document.add_paragraph(job_ad.cta.strip())
+        if job_ad.equal_opportunity_note.strip():
+            document.add_paragraph(job_ad.equal_opportunity_note.strip())
+    else:
+        document.add_paragraph(build_publishable_job_ad_plain_text(job_ad))
+    document.add_heading("Zielgruppe", level=2)
+    for item in job_ad.target_group:
+        document.add_paragraph(item, style="List Bullet")
+    document.add_heading("AGG-Checkliste", level=2)
+    for item in job_ad.agg_checklist:
+        document.add_paragraph(item, style="List Bullet")
+    bio = io.BytesIO()
+    document.save(bio)
+    return bio.getvalue()
+
+
+def job_ad_to_pdf_bytes(
+    job_ad: JobAdGenerationResult,
+    styleguide: str = "",
+    *,
+    logo_payload: LogoPayload | None = None,
+) -> bytes | None:
+    _ = styleguide
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.units import cm
+        from reportlab.lib.utils import ImageReader
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.platypus import (
+            Image,
+            ListFlowable,
+            ListItem,
+            Paragraph,
+            SimpleDocTemplate,
+            Spacer,
+        )
+    except Exception:
+        return None
+
+    bio = io.BytesIO()
+    document = SimpleDocTemplate(
+        bio,
+        pagesize=A4,
+        leftMargin=2 * cm,
+        rightMargin=2 * cm,
+        topMargin=2 * cm,
+        bottomMargin=2 * cm,
+        title=job_ad.headline or "Stellenanzeige",
+        author="anonymous",
+    )
+    styles = getSampleStyleSheet()
+    story: list[Any] = []
+
+    if logo_payload is not None:
+        logo_bytes = logo_payload.get("bytes")
+        if isinstance(logo_bytes, bytes) and logo_bytes:
+            image_stream = io.BytesIO(logo_bytes)
+            try:
+                image_width, image_height = ImageReader(image_stream).getSize()
+                max_width = 4.2 * cm
+                max_height = 1.8 * cm
+                scale = min(max_width / image_width, max_height / image_height, 1)
+                story.append(
+                    Image(
+                        io.BytesIO(logo_bytes),
+                        width=image_width * scale,
+                        height=image_height * scale,
+                    )
+                )
+                story.append(Spacer(1, 0.5 * cm))
+            except Exception:
+                pass
+
+    def _paragraph(value: str, style_name: str = "BodyText") -> Paragraph:
+        return Paragraph(escape(value).replace("\n", "<br/>"), styles[style_name])
+
+    def _append_heading(value: str, style_name: str = "Heading2") -> None:
+        if value.strip():
+            story.append(_paragraph(value.strip(), style_name))
+
+    def _append_bullets(items: Sequence[str]) -> None:
+        clean_items = dedupe_preserve_order(list(items))
+        if not clean_items:
+            return
+        story.append(
+            ListFlowable(
+                [ListItem(_paragraph(item), leftIndent=0) for item in clean_items],
+                bulletType="bullet",
+                leftIndent=14,
+            )
+        )
+
+    _append_heading(job_ad.headline or "Stellenanzeige", "Title")
+    if has_structured_job_ad_sections(job_ad):
+        if job_ad.intro.strip():
+            story.append(_paragraph(job_ad.intro.strip()))
+            story.append(Spacer(1, 0.25 * cm))
+        for heading, items in (
+            ("Deine Aufgaben", job_ad.responsibilities),
+            ("Dein Profil", job_ad.profile),
+            ("Was wir bieten", job_ad.offer),
+        ):
+            clean_items = dedupe_preserve_order(items)
+            if not clean_items:
+                continue
+            _append_heading(heading)
+            _append_bullets(clean_items)
+            story.append(Spacer(1, 0.2 * cm))
+        for value in (job_ad.cta, job_ad.equal_opportunity_note):
+            if value.strip():
+                story.append(_paragraph(value.strip()))
+                story.append(Spacer(1, 0.2 * cm))
+    else:
+        for paragraph in build_publishable_job_ad_plain_text(job_ad).split("\n\n"):
+            if paragraph.strip():
+                story.append(_paragraph(paragraph.strip()))
+                story.append(Spacer(1, 0.2 * cm))
+
+    _append_heading("Zielgruppe")
+    _append_bullets(job_ad.target_group)
+    _append_heading("AGG-Checkliste")
+    _append_bullets(job_ad.agg_checklist)
+    document.build(story)
+    return bio.getvalue()
+
+
+def job_ad_preview_shell_options(options: Mapping[str, Any] | None) -> dict[str, Any]:
+    raw_options = options if isinstance(options, Mapping) else {}
+    tone = str(raw_options.get("tone") or "").strip()
+    length = str(raw_options.get("length") or "").strip()
+    accent_by_tone = {
+        "Professionell & nahbar": "#2563eb",
+        "Direkt & pragmatisch": "#374151",
+        "Motivierend": "#0f766e",
+    }
+    return {
+        "accent_color": accent_by_tone.get(tone, "#2563eb"),
+        "compact": length == "Kompakt",
+        "height_px": 620 if length == "Ausführlich" else 560,
+    }
+
+
+def job_ad_preview_html(
+    job_ad: JobAdGenerationResult,
+    *,
+    logo_payload: LogoPayload | None,
+) -> str:
+    return markdown_article_preview_html(
+        build_publishable_job_ad_markdown(job_ad),
+        logo_payload=logo_payload,
+    )
 
 
 def estimate_text_area_height(text: str) -> int:

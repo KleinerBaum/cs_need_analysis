@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import io
+from zipfile import ZipFile
+
 from document_preview import markdown_article_preview_html
 from llm_client import JobAdGenerationResult
 from summary_job_ad import (
@@ -7,6 +10,7 @@ from summary_job_ad import (
     build_publishable_job_ad_plain_text,
     dedupe_preserve_order,
     estimate_text_area_height,
+    job_ad_to_docx_bytes,
     normalize_list_item,
     sanitize_generated_job_ad,
 )
@@ -102,6 +106,32 @@ def test_publishable_job_ad_markdown_uses_structured_sections_without_raw_markdo
     assert "- Baue Pipelines" in markdown
     assert "**" not in markdown
     assert "# " not in plain_text
+
+
+def test_job_ad_to_docx_bytes_exports_publishable_sections_without_styleguide() -> None:
+    job_ad = JobAdGenerationResult(
+        headline="Senior Engineer",
+        target_group=["Senior Professionals"],
+        agg_checklist=["AGG-konform formuliert."],
+        job_ad_text="Fallback",
+        intro="Gestalte Plattformen.",
+        responsibilities=["Baue Pipelines"],
+        profile=["Python"],
+        offer=["Mentoring"],
+        cta="Bewirb dich jetzt.",
+        equal_opportunity_note="Alle Menschen sind willkommen.",
+    )
+
+    docx_bytes = job_ad_to_docx_bytes(
+        job_ad,
+        styleguide="Styleguide darf nicht exportiert werden.",
+    )
+
+    with ZipFile(io.BytesIO(docx_bytes), "r") as archive:
+        document_xml = archive.read("word/document.xml").decode("utf-8")
+    assert "Senior Engineer" in document_xml
+    assert "Baue Pipelines" in document_xml
+    assert "Styleguide darf nicht exportiert werden" not in document_xml
 
 
 def test_markdown_article_preview_html_renders_publishable_job_ad_text() -> None:
