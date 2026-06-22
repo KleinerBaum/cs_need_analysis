@@ -20,7 +20,14 @@ LEGACY_MODULES = (
     "wizard_pages/01a_jobspec_review.py",
     "wizard_pages/03_team.py",
 )
-EXPECTED_CI_JOB_IDS = ["qa", "security", "test", "e2e"]
+EXPECTED_CI_JOB_IDS = [
+    "qa",
+    "contract",
+    "unit",
+    "apptest",
+    "browser_smoke",
+    "security",
+]
 
 
 def _read(path: Path) -> str:

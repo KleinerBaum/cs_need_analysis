@@ -314,8 +314,10 @@ streamlit run app.py
 ```bash
 pip check
 python -m compileall app.py homepage_research.py job_extract_evidence.py job_extract_review_helpers.py summary_artifacts.py summary_esco.py summary_exports.py summary_facts.py summary_job_ad.py usage_events.py components config pages salary scripts tests wizard_pages
-python -m pytest -q
-python scripts/openai_smoke_test.py --mode all --ci-dry-run-if-no-key --json-only
+python -m pytest -q tests/test_repo_contract_drift.py tests/test_wizard_contract.py tests/test_quality_gate_config.py tests/test_public_page_links.py tests/test_constants_import_contract.py tests/test_schema_contracts.py --junitxml=reports/junit/contract.xml
+python -m pytest -q tests --ignore=tests/e2e --ignore=tests/apptest --junitxml=reports/junit/unit.xml
+python -m pytest -q tests/apptest --junitxml=reports/junit/apptest.xml
+python scripts/openai_smoke_test.py --mode all --ci-dry-run-if-no-key --json-only > reports/openai-smoke.json
 ```
 
 ### Docs and wizard contract
@@ -414,8 +416,9 @@ Repo-local QA config is intentionally scoped in `pyproject.toml`: Ruff, Black, m
 
 - Do not silently broaden or replace the existing lint/type toolchain in routine implementation tasks.
 - For this repo, the practical quality gate is targeted pytest, syntax compilation, scoped QA checks, and smoke tests where relevant.
-- Optional browser smoke tests use the `e2e` marker in `pytest.ini` and Playwright dependencies from `requirements-e2e.txt`.
-- Current CI job IDs in `.github/workflows/ci.yml` are `qa`, `security`, `test`, and optional `e2e`.
+- AppTest smoke tests use the `apptest` marker in `pytest.ini` and the Streamlit runtime dependency.
+- Optional/advisory browser smoke tests use the `e2e` marker in `pytest.ini` and Playwright dependencies from `requirements-e2e.txt`.
+- Current CI job IDs in `.github/workflows/ci.yml` are `qa`, `contract`, `unit`, `apptest`, `browser_smoke`, and `security`.
 - If the task explicitly asks for lint/type tooling, propose it as a separate small PR.
 
 ## Do-not-touch areas without explicit request

@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       run_e2e:
-        description: "Run optional Playwright Streamlit smoke tests"
+        description: "Run optional Playwright Streamlit smoke tests on manual dispatch"
         required: false
         type: boolean
         default: false
@@ -41,6 +41,198 @@ jobs:
 
       - name: Mypy scoped baseline
         run: python -m mypy
+
+  contract:
+    name: Fast contract tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -c constraints.txt
+          pip install -r requirements-dev.txt -c constraints.txt
+
+      - name: Prepare report directory
+        run: mkdir -p reports/junit
+
+      - name: Run contract tests
+        run: |
+          python -m pytest -q \
+            tests/test_repo_contract_drift.py \
+            tests/test_wizard_contract.py \
+            tests/test_quality_gate_config.py \
+            tests/test_public_page_links.py \
+            tests/test_constants_import_contract.py \
+            tests/test_schema_contracts.py \
+            --junitxml=reports/junit/contract.xml
+
+      - name: Publish contract summary
+        if: ${{ always() }}
+        run: python scripts/ci_junit_summary.py reports/junit/contract.xml "Contract"
+
+      - name: Upload contract test report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-contract-junit
+          path: reports/junit/contract.xml
+          if-no-files-found: warn
+          retention-days: 14
+
+  unit:
+    name: Python unit tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -c constraints.txt
+          pip install -r requirements-dev.txt -c constraints.txt
+
+      - name: Prepare report directory
+        run: mkdir -p reports/junit
+
+      - name: Check installed packages
+        run: pip check
+
+      - name: Compile Python sources
+        run: python -m compileall app.py homepage_research.py job_extract_evidence.py job_extract_review_helpers.py summary_artifacts.py summary_esco.py summary_exports.py summary_facts.py summary_job_ad.py usage_events.py components config pages salary scripts tests wizard_pages
+
+      - name: Run unit tests
+        run: |
+          python -m pytest -q tests \
+            --ignore=tests/e2e \
+            --ignore=tests/apptest \
+            --junitxml=reports/junit/unit.xml
+
+      - name: Publish unit summary
+        if: ${{ always() }}
+        run: python scripts/ci_junit_summary.py reports/junit/unit.xml "Unit"
+
+      - name: OpenAI smoke dry-run
+        run: |
+          python scripts/openai_smoke_test.py \
+            --mode all \
+            --ci-dry-run-if-no-key \
+            --json-only > reports/openai-smoke.json
+
+      - name: Upload unit reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-unit-reports
+          path: |
+            reports/junit/unit.xml
+            reports/openai-smoke.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  apptest:
+    name: Streamlit AppTest smoke
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -c constraints.txt
+          pip install -r requirements-dev.txt -c constraints.txt
+
+      - name: Prepare report directory
+        run: mkdir -p reports/junit
+
+      - name: Run AppTest smoke tests
+        run: python -m pytest -q tests/apptest --junitxml=reports/junit/apptest.xml
+
+      - name: Publish AppTest summary
+        if: ${{ always() }}
+        run: python scripts/ci_junit_summary.py reports/junit/apptest.xml "AppTest"
+
+      - name: Upload AppTest report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-apptest-junit
+          path: reports/junit/apptest.xml
+          if-no-files-found: warn
+          retention-days: 14
+
+  browser_smoke:
+    name: Advisory Playwright browser smoke
+    if: github.event_name != 'workflow_dispatch' || inputs.run_e2e == true
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -c constraints.txt
+          pip install -r requirements-dev.txt -c constraints.txt
+          pip install -r requirements-e2e.txt -c constraints.txt
+
+      - name: Prepare report directory
+        run: mkdir -p reports/junit
+
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+
+      - name: Run Streamlit browser smoke tests
+        env:
+          CS_RUN_E2E: "1"
+          CS_E2E_PORT: "8765"
+        run: python -m pytest -q tests/e2e --junitxml=reports/junit/browser-smoke.xml
+
+      - name: Publish browser smoke summary
+        if: ${{ always() }}
+        run: python scripts/ci_junit_summary.py reports/junit/browser-smoke.xml "Browser smoke"
+
+      - name: Upload browser smoke report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-browser-smoke-junit
+          path: reports/junit/browser-smoke.xml
+          if-no-files-found: warn
+          retention-days: 14
 
   security:
     name: Advisory security and artifact scans
@@ -84,65 +276,3 @@ jobs:
       - name: Tracked artifact drift scan
         continue-on-error: true
         run: python scripts/check_tracked_artifacts.py
-
-  test:
-    name: Python checks
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt -c constraints.txt
-          pip install -r requirements-dev.txt -c constraints.txt
-
-      - name: Check installed packages
-        run: pip check
-
-      - name: Compile Python sources
-        run: python -m compileall app.py homepage_research.py job_extract_evidence.py job_extract_review_helpers.py summary_artifacts.py summary_esco.py summary_exports.py summary_facts.py summary_job_ad.py usage_events.py components config pages salary scripts tests wizard_pages
-
-      - name: Run tests
-        run: python -m pytest -q
-
-      - name: OpenAI smoke dry-run
-        run: python scripts/openai_smoke_test.py --mode all --ci-dry-run-if-no-key --json-only
-
-  e2e:
-    name: Optional Playwright smoke
-    if: github.event_name == 'workflow_dispatch' && inputs.run_e2e == true
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt -c constraints.txt
-          pip install -r requirements-e2e.txt -c constraints.txt
-
-      - name: Install Chromium
-        run: python -m playwright install --with-deps chromium
-
-      - name: Run Streamlit browser smoke tests
-        env:
-          CS_RUN_E2E: "1"
-          CS_E2E_PORT: "8765"
-        run: python -m pytest -q tests/e2e

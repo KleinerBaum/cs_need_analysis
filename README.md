@@ -423,9 +423,14 @@ pip install -r requirements-dev.txt -c constraints.txt
 ```bash
 pip check
 python -m compileall app.py homepage_research.py job_extract_evidence.py job_extract_review_helpers.py summary_artifacts.py summary_esco.py summary_exports.py summary_facts.py summary_job_ad.py usage_events.py components config pages salary scripts tests wizard_pages
-python -m pytest -q
-python scripts/openai_smoke_test.py --mode all --ci-dry-run-if-no-key --json-only
+python -m pytest -q tests/test_repo_contract_drift.py tests/test_wizard_contract.py tests/test_quality_gate_config.py tests/test_public_page_links.py tests/test_constants_import_contract.py tests/test_schema_contracts.py --junitxml=reports/junit/contract.xml
+python -m pytest -q tests --ignore=tests/e2e --ignore=tests/apptest --junitxml=reports/junit/unit.xml
+python -m pytest -q tests/apptest --junitxml=reports/junit/apptest.xml
+python scripts/openai_smoke_test.py --mode all --ci-dry-run-if-no-key --json-only > reports/openai-smoke.json
 ```
+
+CI uploads JUnit reports from `reports/junit/*.xml`; the local `reports/`
+directory is intentionally ignored.
 
 ### Docs and wizard contract
 
@@ -510,7 +515,7 @@ registered in `pytest.ini`, and Playwright dependencies live in
 ```bash
 pip install -r requirements-e2e.txt -c constraints.txt
 python -m playwright install --with-deps chromium
-CS_RUN_E2E=1 python -m pytest -q tests/e2e
+CS_RUN_E2E=1 python -m pytest -q tests/e2e --junitxml=reports/junit/browser-smoke.xml
 ```
 
 Useful environment overrides:
@@ -522,15 +527,20 @@ Useful environment overrides:
 
 `.github/workflows/ci.yml` runs on pull requests and pushes to `main`:
 
-Current job IDs are `qa`, `security`, `test`, and optional `e2e`.
+Current job IDs are `qa`, `contract`, `unit`, `apptest`, `browser_smoke`, and
+`security`.
 
 1. `qa`: blocking Ruff, scoped Black, and scoped mypy gates with `requirements-dev.txt`
-2. `security`: advisory Gitleaks, Bandit, and tracked-artifact drift scans with `continue-on-error`
-3. `test`: Python 3.11 setup, dependency install with `requirements.txt`, `requirements-dev.txt`, and `constraints.txt`, `pip check`, `compileall`, `pytest -q`, and OpenAI smoke dry-run without requiring an API key
+2. `contract`: blocking fast repo/wizard/config contract tests with JUnit upload
+3. `unit`: blocking Python unit suite excluding AppTest and E2E tests, plus `pip check`, `compileall`, and OpenAI smoke dry-run report upload
+4. `apptest`: blocking Streamlit AppTest smoke tests through `streamlit.testing.v1`
+5. `browser_smoke`: advisory Playwright Streamlit smoke tests with JUnit upload
+6. `security`: advisory Gitleaks, Bandit, and tracked-artifact drift scans with `continue-on-error`
 
-The optional Playwright smoke job is available through manual workflow dispatch
-with `run_e2e=true` as job ID `e2e`. It installs `requirements-e2e.txt`,
-installs Chromium, and runs `CS_RUN_E2E=1 python -m pytest -q tests/e2e`.
+The Playwright smoke job runs advisory on pull requests and pushes. It is also
+available through manual workflow dispatch with `run_e2e=true` as job ID
+`browser_smoke`. It installs `requirements-e2e.txt`, installs Chromium, and runs
+`CS_RUN_E2E=1 python -m pytest -q tests/e2e --junitxml=reports/junit/browser-smoke.xml`.
 
 ## Debugging and incident reports
 

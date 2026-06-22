@@ -91,9 +91,10 @@ def test_e2e_requirements_cover_optional_browser_smoke_tests() -> None:
     assert "playwright" in _requirement_names("requirements-e2e.txt")
 
 
-def test_pytest_registers_optional_e2e_marker() -> None:
+def test_pytest_registers_app_and_e2e_markers() -> None:
     pytest_ini = _read("pytest.ini")
 
+    assert "apptest:" in pytest_ini
     assert "e2e:" in pytest_ini
     assert "CS_RUN_E2E=1" in pytest_ini
 
@@ -116,12 +117,28 @@ def test_ci_contains_blocking_qa_and_advisory_security_jobs() -> None:
     assert "python scripts/check_tracked_artifacts.py" in workflow
 
 
-def test_ci_test_job_installs_runtime_and_dev_test_layers() -> None:
+def test_ci_wires_contract_unit_and_apptest_layers() -> None:
     workflow = _read(".github/workflows/ci.yml")
-    test_job = workflow.split("  test:", 1)[1].split("  e2e:", 1)[0]
+    contract_job = workflow.split("  contract:", 1)[1].split("  unit:", 1)[0]
+    unit_job = workflow.split("  unit:", 1)[1].split("  apptest:", 1)[0]
+    apptest_job = workflow.split("  apptest:", 1)[1].split("  browser_smoke:", 1)[0]
 
-    assert "pip install -r requirements.txt -c constraints.txt" in test_job
-    assert "pip install -r requirements-dev.txt -c constraints.txt" in test_job
+    for job in (contract_job, unit_job, apptest_job):
+        assert "pip install -r requirements.txt -c constraints.txt" in job
+        assert "pip install -r requirements-dev.txt -c constraints.txt" in job
+        assert "actions/upload-artifact@v4" in job
+        assert "retention-days: 14" in job
+
+    assert "tests/test_repo_contract_drift.py" in contract_job
+    assert "--junitxml=reports/junit/contract.xml" in contract_job
+    assert "python -m pytest -q tests \\" in unit_job
+    assert "--ignore=tests/e2e" in unit_job
+    assert "--ignore=tests/apptest" in unit_job
+    assert "--junitxml=reports/junit/unit.xml" in unit_job
+    assert "python scripts/openai_smoke_test.py \\" in unit_job
+    assert "--json-only > reports/openai-smoke.json" in unit_job
+    assert "python -m pytest -q tests/apptest" in apptest_job
+    assert "--junitxml=reports/junit/apptest.xml" in apptest_job
 
 
 def test_gitignore_excludes_local_scan_and_generated_report_outputs() -> None:
@@ -133,13 +150,34 @@ def test_gitignore_excludes_local_scan_and_generated_report_outputs() -> None:
     assert "*:Zone.*" in gitignore
 
 
-def test_ci_wires_optional_e2e_smoke_job() -> None:
+def test_ci_wires_advisory_browser_smoke_job() -> None:
     workflow = _read(".github/workflows/ci.yml")
+    browser_job = workflow.split("  browser_smoke:", 1)[1].split("  security:", 1)[0]
 
     assert "run_e2e:" in workflow
-    assert "inputs.run_e2e == true" in workflow
-    assert "e2e:" in workflow
-    assert "pip install -r requirements-e2e.txt -c constraints.txt" in workflow
-    assert "python -m playwright install --with-deps chromium" in workflow
-    assert 'CS_RUN_E2E: "1"' in workflow
-    assert "python -m pytest -q tests/e2e" in workflow
+    assert "browser_smoke:" in workflow
+    assert "github.event_name != 'workflow_dispatch' || inputs.run_e2e == true" in (
+        browser_job
+    )
+    assert "continue-on-error: true" in browser_job
+    assert "pip install -r requirements-e2e.txt -c constraints.txt" in browser_job
+    assert "python -m playwright install --with-deps chromium" in browser_job
+    assert 'CS_RUN_E2E: "1"' in browser_job
+    assert (
+        "python -m pytest -q tests/e2e --junitxml=reports/junit/browser-smoke.xml"
+        in browser_job
+    )
+    assert "actions/upload-artifact@v4" in browser_job
+    assert "ci-browser-smoke-junit" in browser_job
+
+
+def test_ci_uses_compact_junit_summary_script() -> None:
+    workflow = _read(".github/workflows/ci.yml")
+
+    assert "python scripts/ci_junit_summary.py reports/junit/contract.xml" in workflow
+    assert "python scripts/ci_junit_summary.py reports/junit/unit.xml" in workflow
+    assert "python scripts/ci_junit_summary.py reports/junit/apptest.xml" in workflow
+    assert (
+        "python scripts/ci_junit_summary.py reports/junit/browser-smoke.xml"
+        in workflow
+    )
