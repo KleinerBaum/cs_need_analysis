@@ -163,6 +163,7 @@ from ui_components import (
     render_interview_prep_hr,
     render_openai_error,
 )
+from ui_badges import render_provenance_badge
 from usage_events import get_usage_events, record_artifact_generated
 from usage_utils import usage_has_cache_hit
 from wizard_pages.base import (
@@ -1078,11 +1079,68 @@ def _render_summary_facts_matrix(vm: SummaryViewModel) -> None:
                         st.info("Keine Änderungen erkannt.")
 
 
-def _render_summary_critical_gaps_table(vm: SummaryViewModel) -> None:
+def _summary_gap_navigation_payload(row: Mapping[str, str]) -> dict[str, str]:
+    return {
+        "target_step": str(row.get("target_step") or "").strip(),
+        "target_section": str(row.get("target_section") or "").strip(),
+        "target_fact_key": str(row.get("target_fact_key") or "").strip(),
+        "target_question_id": str(row.get("target_question_id") or "").strip(),
+        "label": str(row.get("Feld") or "").strip(),
+        "source": "summary_critical_gap",
+    }
+
+
+def _render_summary_critical_gap_actions(
+    gap_rows: Sequence[Mapping[str, str]],
+    *,
+    ctx: WizardContext,
+) -> None:
+    for index, row in enumerate(gap_rows):
+        field_label = str(row.get("Feld") or "").strip() or "Angabe"
+        step_label = str(row.get("Schritt") or "").strip() or "Wizard"
+        status = str(row.get("Status") or "").strip()
+        requirement = str(row.get("Pflichtigkeit") or "").strip()
+        action = str(row.get("Aktion") or "").strip()
+        provenance = str(row.get("Provenienz") or "").strip()
+        target = _summary_gap_navigation_payload(row)
+        target_step = target["target_step"]
+        row_id = str(row.get("_id") or f"{index}").strip()
+        with st.container(border=True):
+            st.markdown(f"**{field_label}**")
+            meta = " · ".join(
+                item for item in (step_label, status, requirement) if item
+            )
+            if meta:
+                st.caption(meta)
+            if provenance:
+                render_provenance_badge(label=provenance, streamlit_module=st)
+            if action:
+                st.caption(action)
+            if st.button(
+                "Zum Feld",
+                key=_widget_key(
+                    SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
+                    f"critical_gap.{row_id}.goto",
+                ),
+                disabled=not target_step,
+            ):
+                st.session_state[SSKey.NAV_DEEP_LINK_TARGET.value] = target
+                ctx.goto(target_step)
+                st.rerun()
+
+
+def _render_summary_critical_gaps_table(
+    vm: SummaryViewModel,
+    *,
+    ctx: WizardContext | None = None,
+) -> None:
     st.markdown("### Kritische Lücken")
     gap_rows = _build_summary_critical_gap_rows(vm)
     if not gap_rows:
         st.success("Keine kritischen Lücken erkannt.")
+        return
+    if ctx is not None:
+        _render_summary_critical_gap_actions(gap_rows, ctx=ctx)
         return
     st.dataframe(
         gap_rows,

@@ -1244,7 +1244,7 @@ def render(ctx: WizardContext) -> None:
     )
     _render_readiness_dashboard_header(vm)
     _render_esco_coverage_kpis()
-    _render_summary_critical_gaps_table(vm)
+    _render_summary_critical_gaps_table(vm, ctx=ctx)
     _render_summary_artifact_grid(vm=vm, generator_by_id=generator_by_id)
     facts_workspace = (
         st.expander("Fakten je Schritt bearbeiten", expanded=False)

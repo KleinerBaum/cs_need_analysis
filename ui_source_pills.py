@@ -8,6 +8,8 @@ from typing import TypedDict
 
 import streamlit as st
 
+from constants import FactResolutionStatus, FactSourceType
+from ui_badges import render_provenance_badge
 from ui_inputs import inject_pills_grid_css
 
 def render_multi_select_pills(
@@ -92,6 +94,19 @@ def _source_pill_provenance_caption(source_key: str) -> str:
     return ""
 
 
+def _source_pill_provenance_source(source_key: str) -> FactSourceType | None:
+    normalized = normalize_source_pill_label(source_key)
+    if "jobspec" in normalized:
+        return FactSourceType.JOBSPEC
+    if "esco" in normalized or "kontext" in normalized:
+        return FactSourceType.ESCO
+    if normalized == "ai" or "ai" in normalized:
+        return FactSourceType.LLM
+    if "manual" in normalized or "antwort" in normalized or "eingabe" in normalized:
+        return FactSourceType.MANUAL
+    return None
+
+
 def render_source_pill_selection(
     *,
     columns: Sequence[SourcePillColumnWithFooter],
@@ -134,7 +149,23 @@ def render_source_pill_selection(
                 if column_show_provenance
                 else ""
             )
-            if provenance_caption:
+            provenance_source = (
+                _source_pill_provenance_source(source_key)
+                if column_show_provenance
+                else None
+            )
+            if provenance_source is not None:
+                render_provenance_badge(
+                    source_type=provenance_source.value,
+                    resolution_status=(
+                        FactResolutionStatus.CONFIRMED.value
+                        if provenance_source == FactSourceType.MANUAL
+                        else FactResolutionStatus.INFERRED.value
+                    ),
+                    confirmed=provenance_source == FactSourceType.MANUAL,
+                    streamlit_module=st,
+                )
+            elif provenance_caption:
                 st.caption(provenance_caption)
             if options:
                 picked = render_multi_select_pills(

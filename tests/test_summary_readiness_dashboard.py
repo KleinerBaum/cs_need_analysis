@@ -11,7 +11,9 @@ from constants import (
     FactRequirementStage,
     FactResolutionStatus,
     SSKey,
+    STEP_KEY_COMPANY,
     STEP_KEY_ROLE_TASKS,
+    STEP_SECTION_OPEN_QUESTIONS,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
 )
 from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
@@ -552,6 +554,25 @@ def test_build_summary_critical_gap_rows_ignores_optional_rows() -> None:
 
     assert [row["Feld"] for row in rows] == ["Land"]
     assert rows[0]["Pflichtigkeit"] == "Pflicht vor Summary"
+
+
+def test_build_summary_critical_gap_rows_include_deep_link_targets() -> None:
+    vm = SimpleNamespace(
+        fact_rows=[
+            _fact_row(
+                "Kernprofil",
+                "Land",
+                "Fehlend",
+                fact_key=FactKey.COMPANY_LOCATION_COUNTRY,
+            ),
+        ]
+    )
+
+    rows = SUMMARY_MODULE._build_summary_critical_gap_rows(vm)
+
+    assert rows[0]["target_step"] == STEP_KEY_COMPANY
+    assert rows[0]["target_section"] == STEP_SECTION_OPEN_QUESTIONS
+    assert rows[0]["target_fact_key"] == FactKey.COMPANY_LOCATION_COUNTRY.value
 
 
 def test_resolve_next_best_action_recommendation_priority_order(monkeypatch) -> None:

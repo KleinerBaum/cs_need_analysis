@@ -11,6 +11,7 @@ class SSKey(str, Enum):
     LAST_RENDERED_STEP = "cs.last_rendered_step"
     NAV_SELECTED = "cs.nav_selected"
     NAV_SYNC_PENDING = "cs.nav_sync_pending"
+    NAV_DEEP_LINK_TARGET = "cs.nav.deep_link_target"
     LANGUAGE = "cs.language"
     MODEL = "cs.model"
     STORE_API_OUTPUT = "cs.store_api_output"

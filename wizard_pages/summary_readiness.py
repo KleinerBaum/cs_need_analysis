@@ -26,6 +26,7 @@ from constants import (
     STEP_KEY_INTERVIEW,
     STEP_KEY_ROLE_TASKS,
     STEP_KEY_SKILLS,
+    STEP_SECTION_OPEN_QUESTIONS,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
 )
 from interview_process import (
@@ -99,7 +100,7 @@ from state import (
 )
 from question_dependencies import should_show_question
 from question_limits import select_visible_questions_for_step_scope
-from step_sections import get_step_fact_keys
+from step_sections import get_step_fact_keys, get_step_section_for_fact
 from step_status import build_step_status_payload
 from components.design_system import (
     render_card_start,
@@ -1466,6 +1467,20 @@ def _apply_summary_fact_edits(
     return changed
 
 
+def _summary_gap_target_for_row(row: SummaryFactsRow, *, step_key: str) -> dict[str, str]:
+    target_section = ""
+    if row.question_id:
+        target_section = STEP_SECTION_OPEN_QUESTIONS
+    elif row.fact_key:
+        target_section = get_step_section_for_fact(step_key, row.fact_key)
+    return {
+        "target_step": step_key,
+        "target_section": target_section,
+        "target_fact_key": row.fact_key,
+        "target_question_id": row.question_id,
+    }
+
+
 def _build_summary_critical_gap_rows(vm: SummaryViewModel) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     for row in vm.fact_rows:
@@ -1479,13 +1494,17 @@ def _build_summary_critical_gap_rows(vm: SummaryViewModel) -> list[dict[str, str
         if step_key not in SUMMARY_FACT_STEP_LABELS:
             continue
         reason = "Teilweise geklärt" if row.status == "Teilweise" else "Noch offen"
+        target = _summary_gap_target_for_row(row, step_key=step_key)
         rows.append(
             {
+                "_id": _summary_fact_row_id(row),
                 "Schritt": SUMMARY_FACT_STEP_LABELS[step_key],
                 "Feld": row.feld,
                 "Status": row.status,
                 "Pflichtigkeit": _display_requirement_stage(row.requirement_stage),
+                "Provenienz": row.provenienz,
                 "Aktion": f"{reason}: {row.feld} im Schritt „{SUMMARY_FACT_STEP_LABELS[step_key]}“ prüfen.",
+                **target,
             }
         )
     return rows

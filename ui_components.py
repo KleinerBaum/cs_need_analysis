@@ -14,9 +14,12 @@ from job_extract_review_helpers import has_meaningful_value
 from ui_badges import (
     ESCO_CONFIDENCE_BUCKETS,
     ESCO_EXPLAINABILITY_LABELS,
+    ProvenanceBadge,
+    build_provenance_badge,
     _normalize_esco_confidence,
     _normalize_esco_explainability_label,
     render_esco_explainability,
+    render_provenance_badge,
 )
 from ui_esco_picker import (
     _build_esco_concept_id,

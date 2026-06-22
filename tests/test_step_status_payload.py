@@ -5,6 +5,7 @@ from constants import (
     FactKey,
     SSKey,
     STEP_KEY_ROLE_TASKS,
+    STEP_SECTION_OPEN_QUESTIONS,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
 )
 from question_dependencies import should_show_question
@@ -27,6 +28,7 @@ def test_build_step_status_payload_includes_missing_essential_ids_and_labels() -
                 id="q_core_open",
                 label="Pflicht offen",
                 answer_type=AnswerType.SHORT_TEXT,
+                target_path=FactKey.COMPANY_COMPANY_NAME.value,
                 required=True,
                 priority="core",
             ),
@@ -57,6 +59,15 @@ def test_build_step_status_payload_includes_missing_essential_ids_and_labels() -
 
     assert payload["missing_essential_ids"] == ["q_core_open"]
     assert payload["missing_essentials"] == ["Pflicht offen"]
+    assert payload["missing_essential_targets"] == [
+        {
+            "target_step": "company",
+            "target_section": STEP_SECTION_OPEN_QUESTIONS,
+            "target_fact_key": FactKey.COMPANY_COMPANY_NAME.value,
+            "target_question_id": "q_core_open",
+            "label": "Pflicht offen",
+        }
+    ]
     assert payload["essentials_answered"] == 1
     assert payload["essentials_total"] == 2
 

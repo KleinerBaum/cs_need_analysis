@@ -378,6 +378,17 @@ def get_section_fact_keys(step_key: str, section_id: str) -> tuple[FactKey, ...]
     return ()
 
 
+def get_step_section_for_fact(step_key: str, fact_key: FactKey | str) -> str:
+    """Return the first registered section id that owns ``fact_key`` for a step."""
+    resolved_fact_key = fact_key if isinstance(fact_key, FactKey) else _coerce_fact_key(fact_key)
+    if resolved_fact_key is None:
+        return ""
+    for section in get_step_sections(step_key):
+        if resolved_fact_key in section.fact_keys:
+            return section.section_id
+    return ""
+
+
 def get_step_fact_keys(step_key: str) -> tuple[FactKey, ...]:
     """Return all registered FactKeys for a step, preserving first-seen order."""
     fact_keys: list[FactKey] = []

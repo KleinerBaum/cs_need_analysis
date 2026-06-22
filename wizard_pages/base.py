@@ -693,6 +693,7 @@ class SidebarStepDetailStatus(TypedDict):
     essentials_total: int
     missing_essentials: list[str]
     missing_essential_ids: list[str]
+    missing_essential_targets: list[dict[str, str]]
     section_answered: NotRequired[int]
     section_total: NotRequired[int]
 
@@ -893,6 +894,10 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
             "missing_essentials": cast(list[str], step_status["missing_essentials"]),
             "missing_essential_ids": cast(
                 list[str], step_status.get("missing_essential_ids", [])
+            ),
+            "missing_essential_targets": cast(
+                list[dict[str, str]],
+                step_status.get("missing_essential_targets", []),
             ),
             "section_answered": section_answered,
             "section_total": section_total,

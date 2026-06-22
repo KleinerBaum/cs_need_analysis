@@ -608,6 +608,7 @@ def init_session_state() -> None:
         SSKey.LAST_RENDERED_STEP.value: None,
         SSKey.NAV_SELECTED.value: STEPS[0].key,
         SSKey.NAV_SYNC_PENDING.value: False,
+        SSKey.NAV_DEEP_LINK_TARGET.value: {},
         SSKey.LANGUAGE.value: configured_language,
         SSKey.MODEL.value: load_openai_settings().openai_model,
         SSKey.STORE_API_OUTPUT.value: False,
@@ -1029,6 +1030,7 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.LAST_RENDERED_STEP.value] = STEPS[0].key
     st.session_state[SSKey.NAV_SELECTED.value] = STEPS[0].key
     st.session_state[SSKey.NAV_SYNC_PENDING.value] = False
+    st.session_state[SSKey.NAV_DEEP_LINK_TARGET.value] = {}
 
 
 def get_answers() -> Dict[str, Any]:

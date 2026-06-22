@@ -5,6 +5,7 @@ from pathlib import Path
 
 import ui_components
 import ui_badges
+from constants import FactResolutionStatus, FactSourceType
 
 JOBSPEC_PATH = (
     Path(__file__).resolve().parents[1] / "wizard_pages" / "01a_jobspec_review.py"
@@ -108,3 +109,75 @@ def test_render_esco_explainability_renders_collapsed_technical_details(monkeypa
     )
     assert fake_st.expander_calls == [("Technische Details", False)]
     assert any("Exact Label Match" in message for message in fake_st.markdown_calls)
+
+
+def test_build_provenance_badge_maps_sources_and_confidence() -> None:
+    cases = [
+        (
+            {
+                "source_type": FactSourceType.MANUAL.value,
+                "resolution_status": FactResolutionStatus.CONFIRMED.value,
+                "confirmed": True,
+            },
+            "Eingabe",
+            "success",
+        ),
+        (
+            {
+                "source_type": FactSourceType.JOBSPEC.value,
+                "resolution_status": FactResolutionStatus.INFERRED.value,
+                "confidence": 0.9,
+            },
+            "Jobspec · 90%",
+            "primary",
+        ),
+        (
+            {
+                "source_type": FactSourceType.HOMEPAGE.value,
+                "resolution_status": FactResolutionStatus.INFERRED.value,
+            },
+            "Website",
+            "primary",
+        ),
+        (
+            {
+                "source_type": FactSourceType.ESCO.value,
+                "resolution_status": FactResolutionStatus.INFERRED.value,
+            },
+            "ESCO",
+            "primary",
+        ),
+        (
+            {
+                "source_type": FactSourceType.LLM.value,
+                "resolution_status": FactResolutionStatus.INFERRED.value,
+            },
+            "AI-Vorschlag",
+            "primary",
+        ),
+        (
+            {
+                "source_type": FactSourceType.JOBSPEC.value,
+                "resolution_status": FactResolutionStatus.INFERRED.value,
+                "confidence": 0.4,
+            },
+            "Jobspec · 40% · prüfen",
+            "warning",
+        ),
+        (
+            {
+                "source_type": FactSourceType.HOMEPAGE.value,
+                "resolution_status": FactResolutionStatus.CONFLICTED.value,
+            },
+            "Konflikt · prüfen",
+            "warning",
+        ),
+    ]
+
+    for evidence, expected_label, expected_tone in cases:
+        badge = ui_badges.build_provenance_badge(
+            evidence,
+            confidence_threshold=0.6,
+        )
+        assert badge.label == expected_label
+        assert badge.tone == expected_tone

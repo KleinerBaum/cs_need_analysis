@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
+import json
 from time import perf_counter
 from collections.abc import Callable
 from collections.abc import Mapping
@@ -32,6 +34,7 @@ from constants import (
     STEP_KEY_INTRO,
     STEP_KEY_LANDING,
     STEP_KEY_SUMMARY,
+    STEP_SECTION_SLOT_NAMES,
     UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT,
     WIZARD_STEP_QUERY_PARAM,
 )
@@ -49,7 +52,7 @@ from step_payload import (
 from step_sections import section_status_summary
 from step_status import StepStatusPayload
 from state import get_answer_meta, get_answers, mark_answer_touched, set_answer
-from safe_html import render_static_html
+from safe_html import escape_html_text, render_static_html
 from usage_events import record_enrichment_timed
 
 
@@ -299,6 +302,97 @@ def _lazy_section_state_key(*, step_key: str, slot_name: str) -> str:
     normalized_step_key = str(step_key or "unknown").strip() or "unknown"
     normalized_slot_name = str(slot_name or "slot").strip() or "slot"
     return f"cs.lazy_section.{normalized_step_key}.{normalized_slot_name}.revealed"
+
+
+def _deep_link_target_for_step(step_key: str) -> dict[str, str]:
+    raw_target = st.session_state.get(SSKey.NAV_DEEP_LINK_TARGET.value, {})
+    if not isinstance(raw_target, Mapping):
+        return {}
+    target_step = str(raw_target.get("target_step") or "").strip()
+    if not target_step or target_step != step_key:
+        return {}
+    return {
+        "target_step": target_step,
+        "target_section": str(raw_target.get("target_section") or "").strip(),
+        "target_fact_key": str(raw_target.get("target_fact_key") or "").strip(),
+        "target_question_id": str(raw_target.get("target_question_id") or "").strip(),
+        "label": str(raw_target.get("label") or "").strip(),
+        "source": str(raw_target.get("source") or "").strip(),
+    }
+
+
+def _deep_link_slot_name(target: Mapping[str, str]) -> str:
+    target_section = str(target.get("target_section") or "").strip()
+    if not target_section:
+        return ""
+    return str(STEP_SECTION_SLOT_NAMES.get(target_section, "") or "")
+
+
+def _deep_link_anchor_id(*, step_key: str, slot_name: str) -> str:
+    safe_step = "".join(
+        char if char.isalnum() or char in {"-", "_"} else "-"
+        for char in str(step_key or "step").strip()
+    )
+    safe_slot = "".join(
+        char if char.isalnum() or char in {"-", "_"} else "-"
+        for char in str(slot_name or "section").strip()
+    )
+    return f"cs-step-section-{safe_step}-{safe_slot}"
+
+
+def _clear_deep_link_target() -> None:
+    st.session_state[SSKey.NAV_DEEP_LINK_TARGET.value] = {}
+
+
+def _render_deep_link_focus_notice(target: Mapping[str, str]) -> None:
+    label = str(target.get("label") or "").strip()
+    message = "Sprungziel aus der Zusammenfassung."
+    if label:
+        message = f"{message} Bitte prüfe: {label}"
+    st.info(message)
+
+
+def _render_deep_link_anchor(anchor_id: str) -> None:
+    render_static_html(
+        f'<div id="{escape_html_text(anchor_id, quote=True)}" class="cs-deep-link-anchor"></div>',
+        streamlit_module=st,
+    )
+
+
+def _scroll_to_deep_link_anchor(anchor_id: str) -> None:
+    scroll_script = f"""
+        <script>
+        const anchorId = {json.dumps(anchor_id)};
+        const scrollToAnchor = () => {{
+            try {{
+                const targetWindow = window.parent || window;
+                const doc = targetWindow.document || document;
+                const anchor = doc.getElementById(anchorId);
+                if (anchor && typeof anchor.scrollIntoView === "function") {{
+                    anchor.scrollIntoView({{ behavior: "smooth", block: "start" }});
+                }}
+            }} catch (error) {{
+                const anchor = document.getElementById(anchorId);
+                if (anchor && typeof anchor.scrollIntoView === "function") {{
+                    anchor.scrollIntoView({{ behavior: "smooth", block: "start" }});
+                }}
+            }}
+        }};
+        scrollToAnchor();
+        if (typeof window.requestAnimationFrame === "function") {{
+            window.requestAnimationFrame(scrollToAnchor);
+        }}
+        window.setTimeout(scrollToAnchor, 50);
+        window.setTimeout(scrollToAnchor, 200);
+        window.setTimeout(scrollToAnchor, 500);
+        </script>
+    """
+    iframe = getattr(st, "iframe", None)
+    if callable(iframe):
+        encoded_html = base64.b64encode(scroll_script.encode("utf-8")).decode("ascii")
+        iframe(f"data:text/html;base64,{encoded_html}", height=1)
+        return
+    render_static_html(scroll_script, streamlit_module=st)
 
 
 def render_lazy_section(
@@ -601,6 +695,7 @@ def render_step_shell(
     lazy_section_configs: Mapping[str, LazySectionConfig] | None = None,
     section_order: Sequence[StepShellSlotName] | None = None,
 ) -> None:
+    current_step_key = step.step_key if step is not None else ""
     answers = get_answers()
     answer_meta = get_answer_meta()
     step_payload = build_step_payload_from_state(
@@ -635,6 +730,21 @@ def render_step_shell(
     render_step_header(title, subtitle, outcome=outcome_text, meta_items=header_meta)
     if outcome_slot is not None:
         outcome_slot()
+
+    deep_link_target = _deep_link_target_for_step(current_step_key)
+    deep_link_slot = _deep_link_slot_name(deep_link_target)
+    deep_link_rendered = False
+    if deep_link_slot and (lazy_section_configs or {}).get(deep_link_slot) is not None:
+        st.session_state[
+            _lazy_section_state_key(
+                step_key=current_step_key,
+                slot_name=deep_link_slot,
+            )
+        ] = True
+    if deep_link_target and not deep_link_slot:
+        _render_deep_link_focus_notice(deep_link_target)
+        _clear_deep_link_target()
+        deep_link_rendered = True
 
     def _render_extracted_section() -> None:
         if extracted_from_jobspec_slot is None:
@@ -691,6 +801,24 @@ def render_step_shell(
             review_slot,
         )
     )
+    def _render_section_with_deep_link_focus(slot_name: str) -> None:
+        nonlocal deep_link_rendered
+        is_target_slot = bool(
+            deep_link_target and deep_link_slot and str(slot_name) == deep_link_slot
+        )
+        if is_target_slot:
+            anchor_id = _deep_link_anchor_id(
+                step_key=current_step_key,
+                slot_name=str(slot_name),
+            )
+            _render_deep_link_anchor(anchor_id)
+            _render_deep_link_focus_notice(deep_link_target)
+            _scroll_to_deep_link_anchor(anchor_id)
+        section_renderers[str(slot_name)]()
+        if is_target_slot:
+            _clear_deep_link_target()
+            deep_link_rendered = True
+
     if has_registered_slots:
         default_order: tuple[StepShellSlotName, ...] = (
             "extracted_from_jobspec_slot",
@@ -714,7 +842,9 @@ def render_step_shell(
                 continue
             if slot_name == "review_slot" and review_slot is None:
                 continue
-            section_renderers[str(slot_name)]()
+            _render_section_with_deep_link_focus(str(slot_name))
+    if deep_link_target and not deep_link_rendered:
+        _clear_deep_link_target()
     if after_review_slot is not None:
         after_review_slot()
     if post_review_slot is not None:

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any, Literal, TypedDict
 
+from constants import STEP_SECTION_OPEN_QUESTIONS
 from question_limits import (
     QuestionVisibilityPredicate,
     select_visible_questions_for_step_scope,
@@ -15,8 +16,17 @@ from question_progress import (
     compute_question_progress,
 )
 from schemas import JobAdExtract, Question, QuestionStep
+from step_sections import question_canonical_fact_key
 
 CompletionState = Literal["not_started", "partial", "complete"]
+
+
+class MissingEssentialTarget(TypedDict):
+    target_step: str
+    target_section: str
+    target_fact_key: str
+    target_question_id: str
+    label: str
 
 
 class StepStatusPayload(TypedDict):
@@ -27,10 +37,26 @@ class StepStatusPayload(TypedDict):
     essentials_total: int
     missing_essentials: list[str]
     missing_essential_ids: list[str]
+    missing_essential_targets: list[MissingEssentialTarget]
 
 
 def _is_essential_question(question: Question) -> bool:
     return question.priority == "core" or question.required
+
+
+def _missing_essential_target(
+    question: Question,
+    *,
+    step_key: str,
+) -> MissingEssentialTarget:
+    fact_key = question_canonical_fact_key(question)
+    return {
+        "target_step": step_key,
+        "target_section": STEP_SECTION_OPEN_QUESTIONS,
+        "target_fact_key": fact_key.value if fact_key is not None else "",
+        "target_question_id": question.id,
+        "label": question.label,
+    }
 
 
 def build_step_status_payload(
@@ -60,6 +86,7 @@ def build_step_status_payload(
             "essentials_total": 0,
             "missing_essentials": [],
             "missing_essential_ids": [],
+            "missing_essential_targets": [],
         }
 
     if visible_questions is None:
@@ -116,6 +143,10 @@ def build_step_status_payload(
     ][:missing_essentials_max]
     missing_essential_ids = [question.id for question in missing_essential_questions]
     missing_essentials = [question.label for question in missing_essential_questions]
+    missing_essential_targets = [
+        _missing_essential_target(question, step_key=resolved_step_key)
+        for question in missing_essential_questions
+    ]
 
     return {
         "answered": progress["answered"],
@@ -125,4 +156,5 @@ def build_step_status_payload(
         "essentials_total": essentials_progress["total"],
         "missing_essentials": missing_essentials,
         "missing_essential_ids": missing_essential_ids,
+        "missing_essential_targets": missing_essential_targets,
     }

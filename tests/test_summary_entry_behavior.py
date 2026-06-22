@@ -49,6 +49,30 @@ class _FakeCtx:
         self.goto_calls.append(step)
 
 
+class _GapActionFakeStreamlit:
+    def __init__(self) -> None:
+        self.session_state: dict[str, Any] = {}
+        self.rerun_called = False
+
+    def markdown(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    def caption(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    def container(self, **_kwargs: Any) -> _NoopContext:
+        return _NoopContext()
+
+    def button(self, *_args: Any, **_kwargs: Any) -> bool:
+        return True
+
+    def success(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
+
+    def rerun(self) -> None:
+        self.rerun_called = True
+
+
 def test_render_entry_without_brief_still_renders_summary(monkeypatch) -> None:
     session_state = {
         SSKey.JOB_EXTRACT.value: JobAdExtract(job_title="Engineer").model_dump(
@@ -89,7 +113,7 @@ def test_render_entry_without_brief_still_renders_summary(monkeypatch) -> None:
     monkeypatch.setattr(
         SUMMARY_MODULE,
         "_render_summary_critical_gaps_table",
-        lambda _vm: render_events.append("gaps"),
+        lambda _vm, **_kwargs: render_events.append("gaps"),
     )
     monkeypatch.setattr(
         SUMMARY_MODULE,
@@ -122,6 +146,46 @@ def test_render_entry_without_brief_still_renders_summary(monkeypatch) -> None:
         "output",
     ]
     assert fake_st.info_calls == []
+
+
+def test_summary_critical_gap_action_sets_deep_link_target(monkeypatch) -> None:
+    fake_st = _GapActionFakeStreamlit()
+    fake_ctx = _FakeCtx()
+    monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "_build_summary_critical_gap_rows",
+        lambda _vm: [
+            {
+                "_id": "gap1",
+                "Schritt": "Skills & Anforderungen",
+                "Feld": "Must-have Skills",
+                "Status": "Fehlend",
+                "Pflichtigkeit": "Pflicht vor Summary",
+                "Aktion": "Noch offen.",
+                "target_step": "skills",
+                "target_section": "source_comparison",
+                "target_fact_key": "skills.must_have_skills",
+                "target_question_id": "",
+            }
+        ],
+    )
+
+    SUMMARY_MODULE._render_summary_critical_gaps_table(
+        SimpleNamespace(fact_rows=[]),
+        ctx=fake_ctx,
+    )
+
+    assert fake_ctx.goto_calls == ["skills"]
+    assert fake_st.session_state[SSKey.NAV_DEEP_LINK_TARGET.value] == {
+        "target_step": "skills",
+        "target_section": "source_comparison",
+        "target_fact_key": "skills.must_have_skills",
+        "target_question_id": "",
+        "label": "Must-have Skills",
+        "source": "summary_critical_gap",
+    }
+    assert fake_st.rerun_called is True
 
 
 def test_summary_entry_dirty_state_reports_stale_brief_message(monkeypatch) -> None:

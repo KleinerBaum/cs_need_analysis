@@ -19,7 +19,6 @@ from constants import (
     SSKey,
     WIDGET_KEY_PREFIX,
 )
-from job_extract_evidence import format_provenance_label
 from job_extract_review_helpers import has_meaningful_value
 from question_dependencies import should_show_question
 from question_progress import (
@@ -32,6 +31,7 @@ from schemas import JobAdExtract, Question, QuestionStep
 from state import get_answer_meta, get_answers
 from step_payload import StepReviewPayload, build_step_payload_from_state
 from step_status import StepStatusPayload
+from ui_badges import build_provenance_badge
 from ui_inputs import (
     _coerce_language_requirements,
     _coerce_multi_select_values,
@@ -189,22 +189,22 @@ def _question_answer_provenance_label(
     confidence_threshold: float | None,
 ) -> str:
     if user_answered:
-        return format_provenance_label(
+        return build_provenance_badge(
             source_type=FactSourceType.MANUAL.value,
             resolution_status=FactResolutionStatus.CONFIRMED.value,
             confirmed=True,
-        )
+        ).label
     evidence = _question_fact_evidence(question, intake_fact_evidence)
     if evidence:
-        return format_provenance_label(
+        return build_provenance_badge(
             evidence,
             confidence_threshold=confidence_threshold,
-        )
+        ).label
     if from_job_extract:
-        return format_provenance_label(
+        return build_provenance_badge(
             source_type=FactSourceType.JOBSPEC.value,
             resolution_status=FactResolutionStatus.INFERRED.value,
-        )
+        ).label
     return ""
 
 
@@ -229,10 +229,10 @@ def _question_open_provenance_label(
     )
     if status != FactResolutionStatus.CONFLICTED.value and not has_low_confidence:
         return ""
-    return format_provenance_label(
+    return build_provenance_badge(
         evidence,
         confidence_threshold=confidence_threshold,
-    )
+    ).label
 
 
 def render_step_review_card(
