@@ -317,11 +317,18 @@ answer questions automatically.
 Safety constraints in `homepage_research.py`:
 
 - public HTTP(S) only
-- content-type and size checks
-- in-process cache
+- DNS validation for public IP targets only
+- redirect limits with target and final-URL revalidation
+- content-type and size checks before payload processing
+- positive in-process cache plus TTL-based negative cache for repeated failures
+- optional deployment allowlist via `HOMEPAGE_FETCH_ALLOWED_DOMAINS`
 - no sensitive URL/payload logging through usage events
 - normalized facts, backward-compatible open-question matches, and review
   decisions stored in session state
+
+`HOMEPAGE_FETCH_ALLOWED_DOMAINS` is disabled by default. When set, use comma-
+or whitespace-separated domains such as `example.com intranet.example`; each
+entry allows the exact domain and its subdomains by dot-boundary matching.
 
 ## Salary forecast
 

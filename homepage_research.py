@@ -5,8 +5,10 @@ from __future__ import annotations
 import html
 import ipaddress
 import logging
+import os
 import re
 import socket
+import time
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -37,6 +39,8 @@ LOGGER = logging.getLogger(__name__)
 HOMEPAGE_FETCH_TIMEOUT_SEC = 8.0
 HOMEPAGE_FETCH_MAX_BYTES = 1_000_000
 HOMEPAGE_FETCH_MAX_REDIRECTS = 3
+HOMEPAGE_FETCH_NEGATIVE_CACHE_TTL_SECONDS = 600
+HOMEPAGE_FETCH_ALLOWED_DOMAINS_ENV = "HOMEPAGE_FETCH_ALLOWED_DOMAINS"
 USER_AGENT = "cs-need-analysis/1.0 (+https://example.invalid)"
 ALLOWED_CONTENT_TYPE_PREFIXES: tuple[str, ...] = (
     "text/html",
@@ -131,12 +135,25 @@ class CompanyWebsiteResearchResult:
 class HomepageFetchError(RuntimeError):
     """Raised when homepage content fails fetch guardrails."""
 
+    def __init__(
+        self,
+        error_code: str = "fetch_failed",
+        *,
+        from_negative_cache: bool = False,
+        suppressed_repeat_count: int = 0,
+    ) -> None:
+        super().__init__(error_code)
+        self.error_code = error_code
+        self.from_negative_cache = from_negative_cache
+        self.suppressed_repeat_count = suppressed_repeat_count
+
 
 class HomepageResearchInvalidUrlError(ValueError):
     """Raised when a homepage research request has no public URL target."""
 
 
 _FETCH_CACHE: dict[str, HomepageFetchResult] = {}
+_NEGATIVE_FETCH_CACHE: dict[str, dict[str, object]] = {}
 
 
 class _NoRedirectHandler(HTTPRedirectHandler):
@@ -151,34 +168,14 @@ def clear_fetch_cache() -> None:
     """Clear in-process homepage fetch cache."""
 
     _FETCH_CACHE.clear()
+    _NEGATIVE_FETCH_CACHE.clear()
 
 
 def normalize_url(raw_url: str) -> str:
-    raw = str(raw_url or "").strip()
-    if not raw:
+    parsed = _parse_url_candidate(raw_url)
+    if parsed is None:
         return ""
-    if raw.startswith("//"):
-        raw = f"https:{raw}"
-    if not raw.lower().startswith(("http://", "https://")):
-        raw = f"https://{raw}"
-    parsed = urlparse(raw)
-    scheme = parsed.scheme.lower()
-    if scheme not in {"http", "https"} or not parsed.netloc:
-        return ""
-    if not _has_supported_port(parsed):
-        return ""
-    if _is_disallowed_hostname(parsed.hostname or ""):
-        return ""
-    return urlunparse(
-        (
-            scheme,
-            parsed.netloc,
-            parsed.path or "",
-            parsed.params or "",
-            parsed.query or "",
-            "",
-        )
-    )
+    return _normalize_parsed_url(parsed)
 
 
 def fetch_url_text(
@@ -197,10 +194,20 @@ def fetch_url_text_result(
     timeout_sec: float = HOMEPAGE_FETCH_TIMEOUT_SEC,
     max_bytes: int = HOMEPAGE_FETCH_MAX_BYTES,
 ) -> HomepageFetchResult:
-    normalized_url = _validate_public_target(
-        url,
-        error_code="invalid_or_disallowed_url",
-    )
+    raw_url_cache_key = _url_negative_cache_key(url)
+    _raise_if_negative_cached(raw_url_cache_key)
+    try:
+        normalized_url = _validate_public_target(
+            url,
+            error_code="invalid_or_disallowed_url",
+        )
+    except HomepageFetchError as exc:
+        _store_negative_cache(raw_url_cache_key, exc.error_code)
+        raise
+
+    normalized_url_cache_key = _url_negative_cache_key(normalized_url)
+    if normalized_url_cache_key != raw_url_cache_key:
+        _raise_if_negative_cached(normalized_url_cache_key)
 
     cached = _FETCH_CACHE.get(normalized_url)
     if cached is not None:
@@ -213,16 +220,27 @@ def fetch_url_text_result(
             cache_hit=True,
         )
 
-    final_url, response = _open_validated_response(normalized_url, timeout_sec)
-    with response:
-        content_type = _response_content_type(response)
-        if not _is_allowed_content_type(content_type):
-            raise HomepageFetchError("unsupported_content_type")
-        encoding = response.headers.get_content_charset() or "utf-8"
-        raw_payload = response.read(max_bytes + 1)
-        if len(raw_payload) > max_bytes:
-            raise HomepageFetchError("content_too_large")
-        payload = raw_payload.decode(encoding, errors="replace")
+    try:
+        final_url, response = _open_validated_response(normalized_url, timeout_sec)
+        with response:
+            content_type = _response_content_type(response)
+            if not _is_allowed_content_type(content_type):
+                raise HomepageFetchError("unsupported_content_type")
+            encoding = response.headers.get_content_charset() or "utf-8"
+            raw_payload = response.read(max_bytes + 1)
+            if len(raw_payload) > max_bytes:
+                raise HomepageFetchError("content_too_large")
+            payload = raw_payload.decode(encoding, errors="replace")
+    except HomepageFetchError as exc:
+        _store_negative_cache(normalized_url_cache_key, exc.error_code)
+        if raw_url_cache_key != normalized_url_cache_key:
+            _store_negative_cache(raw_url_cache_key, exc.error_code)
+        raise
+    except Exception:
+        _store_negative_cache(normalized_url_cache_key, "fetch_failed")
+        if raw_url_cache_key != normalized_url_cache_key:
+            _store_negative_cache(raw_url_cache_key, "fetch_failed")
+        raise
 
     result = HomepageFetchResult(
         final_url=final_url,
@@ -1152,12 +1170,23 @@ def _open_url(request: Request, timeout_sec: float) -> Any:
 
 
 def _validate_public_target(raw_url: str, *, error_code: str) -> str:
-    normalized = normalize_url(raw_url)
+    parsed_candidate = _parse_url_candidate(raw_url)
+    host_cache_key = _host_negative_cache_key(
+        parsed_candidate.hostname if parsed_candidate is not None else ""
+    )
+    _raise_if_negative_cached(host_cache_key)
+
+    normalized = _normalize_parsed_url(parsed_candidate)
     if not normalized:
+        if _is_host_policy_failure(parsed_candidate):
+            _store_negative_cache(host_cache_key, error_code)
+        else:
+            _store_negative_cache(_url_negative_cache_key(raw_url), error_code)
         raise HomepageFetchError(error_code)
     parsed = urlparse(normalized)
     hostname = parsed.hostname or ""
     if not _hostname_resolves_public(hostname):
+        _store_negative_cache(_host_negative_cache_key(hostname), error_code)
         raise HomepageFetchError(error_code)
     return normalized
 
@@ -1237,6 +1266,42 @@ def _is_allowed_content_type(content_type: str) -> bool:
     return media_type in ALLOWED_CONTENT_TYPE_PREFIXES
 
 
+def _parse_url_candidate(raw_url: str) -> Any | None:
+    raw = str(raw_url or "").strip()
+    if not raw:
+        return None
+    if raw.startswith("//"):
+        raw = f"https:{raw}"
+    if not raw.lower().startswith(("http://", "https://")):
+        raw = f"https://{raw}"
+    return urlparse(raw)
+
+
+def _normalize_parsed_url(parsed: Any | None) -> str:
+    if parsed is None:
+        return ""
+    scheme = str(parsed.scheme or "").lower()
+    if scheme not in {"http", "https"} or not parsed.netloc:
+        return ""
+    if not _has_supported_port(parsed):
+        return ""
+    hostname = parsed.hostname or ""
+    if _is_disallowed_hostname(hostname):
+        return ""
+    if not _hostname_allowed_by_deployment_allowlist(hostname):
+        return ""
+    return urlunparse(
+        (
+            scheme,
+            parsed.netloc,
+            parsed.path or "",
+            parsed.params or "",
+            parsed.query or "",
+            "",
+        )
+    )
+
+
 def _has_supported_port(parsed: Any) -> bool:
     try:
         port = parsed.port
@@ -1285,6 +1350,62 @@ def _is_disallowed_hostname(hostname: str) -> bool:
     return not _is_public_ip_address(address)
 
 
+def _is_host_policy_failure(parsed: Any | None) -> bool:
+    if parsed is None:
+        return False
+    hostname = parsed.hostname or ""
+    if not hostname:
+        return False
+    return (
+        _is_disallowed_hostname(hostname)
+        or not _hostname_allowed_by_deployment_allowlist(hostname)
+    )
+
+
+def _hostname_allowed_by_deployment_allowlist(hostname: str) -> bool:
+    allowed_domains = _configured_allowed_homepage_domains()
+    if not allowed_domains:
+        return True
+    normalized = _normalize_hostname_for_policy(hostname)
+    if not normalized:
+        return False
+    return any(
+        normalized == allowed_domain or normalized.endswith(f".{allowed_domain}")
+        for allowed_domain in allowed_domains
+    )
+
+
+def _configured_allowed_homepage_domains() -> tuple[str, ...]:
+    raw_value = os.getenv(HOMEPAGE_FETCH_ALLOWED_DOMAINS_ENV, "")
+    if not raw_value.strip():
+        return ()
+    domains: list[str] = []
+    seen: set[str] = set()
+    for raw_token in re.split(r"[\s,]+", raw_value):
+        token = raw_token.strip()
+        if not token:
+            continue
+        if token.startswith("//"):
+            token = f"https:{token}"
+        if "://" in token:
+            parsed = urlparse(token)
+            hostname = parsed.hostname or ""
+        else:
+            hostname = token
+        normalized = _normalize_hostname_for_policy(
+            hostname.removeprefix("*.").lstrip(".")
+        )
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        domains.append(normalized)
+    return tuple(domains)
+
+
+def _normalize_hostname_for_policy(hostname: str) -> str:
+    return hostname.strip().strip("[]").casefold().rstrip(".")
+
+
 def _is_public_ip_address(
     address: ipaddress.IPv4Address | ipaddress.IPv6Address,
 ) -> bool:
@@ -1296,6 +1417,76 @@ def _is_public_ip_address(
         and not address.is_multicast
         and not address.is_reserved
         and not address.is_unspecified
+    )
+
+
+def _url_negative_cache_key(url: str) -> str:
+    return _negative_cache_key("url", str(url or "").strip())
+
+
+def _host_negative_cache_key(hostname: str | None) -> str | None:
+    normalized = _normalize_hostname_for_policy(str(hostname or ""))
+    if not normalized:
+        return None
+    return _negative_cache_key("host", normalized)
+
+
+def _negative_cache_key(scope: str, value: str) -> str:
+    digest = sha1(value.encode("utf-8")).hexdigest()[:20]
+    return f"{scope}:{digest}"
+
+
+def _raise_if_negative_cached(cache_key: str | None) -> None:
+    if not cache_key:
+        return
+    cached_entry = _NEGATIVE_FETCH_CACHE.get(cache_key)
+    if not isinstance(cached_entry, dict):
+        return
+    try:
+        expires_at = float(cached_entry.get("expires_at"))
+    except (TypeError, ValueError):
+        _NEGATIVE_FETCH_CACHE.pop(cache_key, None)
+        return
+    now = time.time()
+    if expires_at <= now:
+        _NEGATIVE_FETCH_CACHE.pop(cache_key, None)
+        return
+
+    suppressed_count = int(cached_entry.get("suppressed_count") or 0) + 1
+    cached_entry["suppressed_count"] = suppressed_count
+    if not bool(cached_entry.get("suppression_log_emitted")):
+        cached_entry["suppression_log_emitted"] = True
+        LOGGER.info(
+            "event=company_homepage_fetch status=negative_cache_suppress "
+            "scope=%s error=%s suppressed_count=%s",
+            cache_key.split(":", 1)[0],
+            cached_entry.get("error_code") or "fetch_failed",
+            suppressed_count,
+        )
+    raise HomepageFetchError(
+        str(cached_entry.get("error_code") or "fetch_failed"),
+        from_negative_cache=True,
+        suppressed_repeat_count=suppressed_count,
+    )
+
+
+def _store_negative_cache(cache_key: str | None, error_code: str) -> None:
+    if not cache_key:
+        return
+    now = time.time()
+    _NEGATIVE_FETCH_CACHE[cache_key] = {
+        "error_code": str(error_code or "fetch_failed"),
+        "cached_at": now,
+        "expires_at": now + HOMEPAGE_FETCH_NEGATIVE_CACHE_TTL_SECONDS,
+        "suppressed_count": 0,
+        "suppression_log_emitted": False,
+    }
+    LOGGER.debug(
+        "event=company_homepage_fetch status=negative_cache_store "
+        "scope=%s error=%s ttl_seconds=%s",
+        cache_key.split(":", 1)[0],
+        error_code,
+        HOMEPAGE_FETCH_NEGATIVE_CACHE_TTL_SECONDS,
     )
 
 

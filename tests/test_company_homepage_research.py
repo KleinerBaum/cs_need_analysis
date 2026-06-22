@@ -318,7 +318,7 @@ def test_fetch_url_text_allows_parameterized_content_type(monkeypatch) -> None:
     assert result == ("https://example.com", "<html><body>Über uns</body></html>")
 
 
-def test_fetch_url_text_rejects_oversize_payload_without_caching(
+def test_fetch_url_text_negative_caches_oversize_payload(
     monkeypatch,
 ) -> None:
     homepage_research.clear_fetch_cache()
@@ -328,25 +328,23 @@ def test_fetch_url_text_rejects_oversize_payload_without_caching(
     def fake_open_url(request: object, _timeout_sec: float) -> _FakeResponse:
         request_url = str(getattr(request, "full_url"))
         opened_urls.append(request_url)
-        if len(opened_urls) == 1:
-            return _FakeResponse("123456", final_url=request_url)
-        return _FakeResponse("OK", final_url=request_url)
+        return _FakeResponse("123456", final_url=request_url)
 
     monkeypatch.setattr(homepage_research, "_open_url", fake_open_url)
 
     with pytest.raises(homepage_research.HomepageFetchError, match="content_too_large"):
         homepage_research.fetch_url_text_result("https://example.com/large", max_bytes=5)
 
-    result = homepage_research.fetch_url_text_result(
-        "https://example.com/large",
-        max_bytes=5,
-    )
+    with pytest.raises(homepage_research.HomepageFetchError) as exc_info:
+        homepage_research.fetch_url_text_result(
+            "https://example.com/large",
+            max_bytes=5,
+        )
 
-    assert result.payload == "OK"
-    assert opened_urls == [
-        "https://example.com/large",
-        "https://example.com/large",
-    ]
+    assert exc_info.value.error_code == "content_too_large"
+    assert exc_info.value.from_negative_cache is True
+    assert exc_info.value.suppressed_repeat_count == 1
+    assert opened_urls == ["https://example.com/large"]
 
 
 def test_fetch_url_text_uses_cache(monkeypatch) -> None:

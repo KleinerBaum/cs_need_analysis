@@ -29,6 +29,8 @@ def test_append_usage_event_sanitizes_sensitive_metadata() -> None:
             "artifact_id": "brief",
             "cache_hit": False,
             "api_key": "sk-secret",
+            "domain": "example.com",
+            "hostname": "www.example.com",
             "source_url": "https://example.com/private",
             "prompt_text": "contains PII",
             "long_value": "x" * 140,
