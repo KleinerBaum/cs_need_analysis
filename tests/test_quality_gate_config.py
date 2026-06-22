@@ -72,8 +72,17 @@ def test_bandit_excludes_non_source_and_test_paths() -> None:
     )
 
 
-def test_dev_requirements_cover_configured_qa_tools() -> None:
-    assert {"ruff", "black", "mypy", "bandit"} <= _requirement_names(
+def test_runtime_requirements_exclude_dev_and_test_tools() -> None:
+    runtime_names = _requirement_names("requirements.txt")
+
+    assert "pytest" not in runtime_names
+    assert {"ruff", "black", "mypy", "bandit", "playwright"}.isdisjoint(
+        runtime_names
+    )
+
+
+def test_dev_requirements_cover_configured_qa_and_test_tools() -> None:
+    assert {"pytest", "ruff", "black", "mypy", "bandit"} <= _requirement_names(
         "requirements-dev.txt"
     )
 
@@ -105,6 +114,14 @@ def test_ci_contains_blocking_qa_and_advisory_security_jobs() -> None:
     assert 'GITLEAKS_ENABLE_SUMMARY: "false"' in workflow
     assert "python -m bandit -c pyproject.toml -r ." in workflow
     assert "python scripts/check_tracked_artifacts.py" in workflow
+
+
+def test_ci_test_job_installs_runtime_and_dev_test_layers() -> None:
+    workflow = _read(".github/workflows/ci.yml")
+    test_job = workflow.split("  test:", 1)[1].split("  e2e:", 1)[0]
+
+    assert "pip install -r requirements.txt -c constraints.txt" in test_job
+    assert "pip install -r requirements-dev.txt -c constraints.txt" in test_job
 
 
 def test_gitignore_excludes_local_scan_and_generated_report_outputs() -> None:
