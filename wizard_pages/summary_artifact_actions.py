@@ -514,6 +514,7 @@ def _build_enrichment_timing_rows(session_state: Mapping[str, Any]) -> list[dict
                 "Status": str(metadata.get("status") or ""),
                 "Dauer (ms)": int(metadata.get("duration_ms") or 0),
                 "Cache": metadata.get("cache_hit"),
+                "Fragment": metadata.get("fragment_enabled"),
                 "Treffer": metadata.get("result_count"),
             }
         )

@@ -66,6 +66,7 @@ from question_progress import (
 )
 from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
 from safe_html import escape_html_text, render_static_html
+from step_sections import build_section_status_payloads, section_status_summary
 from step_status import StepStatusPayload, build_step_status_payload
 from state import normalize_ui_preferences
 from usage_events import record_step_entered, record_step_submitted
@@ -692,6 +693,8 @@ class SidebarStepDetailStatus(TypedDict):
     essentials_total: int
     missing_essentials: list[str]
     missing_essential_ids: list[str]
+    section_answered: NotRequired[int]
+    section_total: NotRequired[int]
 
 
 class EscoMigrationPendingPayload(TypedDict):
@@ -869,6 +872,14 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
             confidence_threshold=confidence_threshold,
             visible_questions=question_scope.visible_questions,
         )
+        section_answered, section_total = section_status_summary(
+            build_section_status_payloads(
+                step_key=page.key,
+                intake_facts=intake_facts,
+                intake_fact_evidence=intake_fact_evidence,
+                confidence_threshold=confidence_threshold,
+            )
+        )
         payload: SidebarStepDetailStatus = {
             "answered": int(step_status["answered"]),
             "total": int(step_status["total"]),
@@ -883,6 +894,8 @@ def _compute_step_statuses(pages: Sequence[WizardPage]) -> list[SidebarStepProgr
             "missing_essential_ids": cast(
                 list[str], step_status.get("missing_essential_ids", [])
             ),
+            "section_answered": section_answered,
+            "section_total": section_total,
         }
         overall_lookup = build_answered_lookup(
             questions,
@@ -980,6 +993,10 @@ def _render_sidebar_step_status_card(
         st.caption(scope_labels["visible_label"])
         if scope_labels["has_different_denominator"]:
             st.caption(scope_labels["overall_label"])
+        if status.get("section_total", 0):
+            st.caption(
+                f"Abschnitte: {status.get('section_answered', 0)}/{status['section_total']} geklärt"
+            )
         if missing:
             st.caption(f"Missing: {', '.join(missing)}")
 

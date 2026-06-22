@@ -49,6 +49,7 @@ class SSKey(str, Enum):
     LAST_ERROR_DEBUG = "cs.last_error_debug"
     OPENAI_DEBUG_ERRORS = "OPENAI_DEBUG_ERRORS"
     DEBUG = "cs.debug"
+    PERF_FRAGMENT_PILOT_ENABLED = "cs.perf.fragment_pilot_enabled"
     CONTENT_SHARING_CONSENT = "cs.content_sharing_consent"
     LLM_RESPONSE_CACHE = "cs.llm_response_cache"
     USAGE_EVENTS = "cs.usage_events"

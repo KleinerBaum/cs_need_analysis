@@ -44,7 +44,12 @@ from homepage_research import (
     strip_html as _strip_html,
 )
 from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
-from step_sections import build_step_shell_section_kwargs
+from step_sections import (
+    build_step_shell_section_kwargs,
+    filter_open_questions_for_step,
+    get_step_structured_fact_keys,
+    question_canonical_fact_key,
+)
 from ui_components import (
     has_meaningful_value,
     render_error_banner,
@@ -131,46 +136,6 @@ _TEAM_CONTEXT_FACT_KEYS = frozenset(
         FactKey.TEAM_SUCCESS_CONTEXT_90D,
     }
 )
-_STRUCTURED_COMPANY_FACT_KEYS = frozenset(
-    {
-        FactKey.COMPANY_EMPLOYER_PITCH,
-        FactKey.COMPANY_BUSINESS_UNIT,
-        FactKey.COMPANY_ROLE_RELEVANT_POSITIONING,
-        FactKey.COMPANY_HIRING_REASON,
-        FactKey.COMPANY_GROWTH_CONTEXT,
-        FactKey.COMPANY_ROLE_BUSINESS_IMPACT,
-        FactKey.COMPANY_COMPANY_NAME,
-        FactKey.COMPANY_BRAND_NAME,
-        FactKey.COMPANY_COMPANY_WEBSITE,
-        FactKey.COMPANY_DEPARTMENT_NAME,
-        FactKey.COMPANY_REPORTS_TO,
-        FactKey.COMPANY_DIRECT_REPORTS_COUNT,
-        FactKey.TEAM_NAME,
-        FactKey.TEAM_LEADERSHIP_SCOPE,
-        FactKey.TEAM_SIZE_DIRECT,
-        FactKey.TEAM_STAKEHOLDERS_PRIMARY,
-        FactKey.TEAM_SUCCESS_CONTEXT_90D,
-        FactKey.COMPANY_LOCATION_CITY,
-        FactKey.COMPANY_LOCATION_COUNTRY,
-        FactKey.COMPANY_PLACE_OF_WORK,
-        FactKey.COMPANY_REMOTE_POLICY,
-        FactKey.COMPANY_WORK_ARRANGEMENT,
-        FactKey.COMPANY_OFFICE_DAYS_PER_WEEK,
-        FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES,
-        FactKey.COMPANY_LANGUAGE_INTERNAL,
-        FactKey.COMPANY_LANGUAGE_EXTERNAL,
-        FactKey.COMPANY_NON_NEGOTIABLES,
-        FactKey.COMPANY_COMPLIANCE_CONTEXT,
-        FactKey.COMPANY_TARIFF_CONTEXT,
-    }
-)
-_COMPANY_DISTINCT_FOLLOW_UP_QUESTION_IDS = frozenset(
-    {
-        "ctx_confidential_external_narrative",
-    }
-)
-
-
 def _render_section_form(
     *,
     form_key: str,
@@ -192,25 +157,7 @@ def _render_section_form(
 def _filtered_company_open_question_step(
     step: QuestionStep | None,
 ) -> QuestionStep | None:
-    if step is None:
-        return None
-    questions = list(getattr(step, "questions", []) or [])
-    if not questions:
-        return None
-
-    filtered_questions = [
-        question
-        for question in questions
-        if not _is_structured_company_duplicate_question(question)
-    ]
-    if len(filtered_questions) == len(questions):
-        return step
-    return QuestionStep(
-        step_key=step.step_key,
-        title_de=step.title_de,
-        description_de=step.description_de,
-        questions=filtered_questions,
-    )
+    return filter_open_questions_for_step(step, step_key=STEP_KEY_COMPANY)
 
 
 def _split_company_open_question_steps(
@@ -277,24 +224,14 @@ def _is_team_open_question(question: Any) -> bool:
 
 def _is_structured_company_duplicate_question(question: Any) -> bool:
     question_id = str(getattr(question, "id", "") or "").strip()
-    if question_id in _COMPANY_DISTINCT_FOLLOW_UP_QUESTION_IDS:
+    if question_id in {"ctx_confidential_external_narrative"}:
         return False
     fact_key = _question_canonical_fact_key(question)
-    return fact_key in _STRUCTURED_COMPANY_FACT_KEYS
+    return fact_key in get_step_structured_fact_keys(STEP_KEY_COMPANY)
 
 
 def _question_canonical_fact_key(question: Any) -> FactKey | None:
-    for raw_key in (
-        getattr(question, "fact_key", None),
-        getattr(question, "target_path", None),
-    ):
-        if not isinstance(raw_key, str):
-            continue
-        try:
-            return FactKey(raw_key.strip())
-        except ValueError:
-            continue
-    return None
+    return question_canonical_fact_key(question)
 
 
 def _collect_open_questions(plan: QuestionPlan) -> list[dict[str, str]]:

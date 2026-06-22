@@ -99,6 +99,7 @@ from state import (
 )
 from question_dependencies import should_show_question
 from question_limits import select_visible_questions_for_step_scope
+from step_sections import get_step_fact_keys
 from step_status import build_step_status_payload
 from components.design_system import (
     render_card_start,
@@ -228,6 +229,11 @@ SUMMARY_AREA_TO_STEP_KEY: Final[dict[str, str]] = {
 
 
 SUMMARY_FACT_DEFS_BY_KEY = {fact.fact_key.value: fact for fact in INTAKE_FACTS}
+SUMMARY_SECTION_FACT_KEYS: Final[frozenset[FactKey]] = frozenset(
+    fact_key
+    for step_key in SUMMARY_FACT_STEP_ORDER
+    for fact_key in get_step_fact_keys(step_key)
+)
 
 
 @dataclass(frozen=True)
@@ -1058,6 +1064,8 @@ def _is_meaningful_summary_fact_row(row: SummaryFactsRow) -> bool:
 def _should_include_missing_summary_fact(fact_key: FactKey) -> bool:
     fact_def = SUMMARY_FACT_DEFS_BY_KEY.get(fact_key.value)
     if fact_def is None:
+        return False
+    if fact_key not in SUMMARY_SECTION_FACT_KEYS:
         return False
     return fact_def.requirement_stage == FactRequirementStage.BEFORE_SUMMARY
 

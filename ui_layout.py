@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from time import perf_counter
 from collections.abc import Callable
 from collections.abc import Mapping
 from collections.abc import Sequence
@@ -45,9 +46,11 @@ from step_payload import (
     read_confidence_threshold_from_state,
     read_question_limits_from_state,
 )
+from step_sections import section_status_summary
 from step_status import StepStatusPayload
 from state import get_answer_meta, get_answers, mark_answer_touched, set_answer
 from safe_html import render_static_html
+from usage_events import record_enrichment_timed
 
 
 def _load_question_plan_from_state() -> QuestionPlan | None:
@@ -326,6 +329,64 @@ def render_lazy_section(
         render_slot()
 
 
+def perf_fragment_pilot_enabled() -> bool:
+    """Return whether the internal fragment pilot can run in this session."""
+    return bool(st.session_state.get(SSKey.PERF_FRAGMENT_PILOT_ENABLED.value, False)) and callable(
+        getattr(st, "fragment", None)
+    )
+
+
+def render_timed_panel(
+    *,
+    step_key: str,
+    panel_id: str,
+    render_slot: Callable[[], None],
+    fragment_enabled: bool = False,
+) -> None:
+    """Render a panel and record non-sensitive render timing metadata."""
+    started_at = perf_counter()
+    status = "success"
+    try:
+        render_slot()
+    except Exception:
+        status = "error"
+        raise
+    finally:
+        record_enrichment_timed(
+            st.session_state,
+            stage="render_panel",
+            path=f"{step_key}.{panel_id}",
+            duration_ms=round((perf_counter() - started_at) * 1000),
+            status=status,
+            fragment_enabled=fragment_enabled,
+        )
+
+
+def render_fragment_pilot_panel(
+    *,
+    step_key: str,
+    panel_id: str,
+    render_slot: Callable[[], None],
+) -> None:
+    """Render a self-contained panel through ``st.fragment`` when enabled."""
+    use_fragment = perf_fragment_pilot_enabled()
+
+    def _render_panel() -> None:
+        render_timed_panel(
+            step_key=step_key,
+            panel_id=panel_id,
+            render_slot=render_slot,
+            fragment_enabled=use_fragment,
+        )
+
+    if not use_fragment:
+        _render_panel()
+        return
+
+    fragment = getattr(st, "fragment")
+    fragment(_render_panel)()
+
+
 StepShellSlotName = Literal[
     "extracted_from_jobspec_slot",
     "main_content_slot",
@@ -563,6 +624,13 @@ def render_step_shell(
             missing_summary = _truncate_missing_essentials(status["missing_essentials"])
             if missing_summary:
                 header_meta.append(("⚠️", "Fehlt (essentiell)", missing_summary))
+        complete_sections, total_sections = section_status_summary(
+            step_payload["section_statuses"]
+        )
+        if total_sections:
+            header_meta.append(
+                ("🧩", "Abschnitte", f"{complete_sections}/{total_sections} geklärt")
+            )
 
     render_step_header(title, subtitle, outcome=outcome_text, meta_items=header_meta)
     if outcome_slot is not None:

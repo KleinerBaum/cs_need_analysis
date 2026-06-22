@@ -21,6 +21,7 @@ from question_progress import (
 )
 from schemas import JobAdExtract, Question, QuestionStep
 from state_store import StateStore
+from step_sections import SectionStatusPayload, build_section_status_payloads
 from step_status import StepStatusPayload, build_step_status_payload
 
 
@@ -50,6 +51,7 @@ class StepPayload(TypedDict):
     visible_progress: QuestionProgress
     selected_progress: QuestionProgress
     scope_progress_labels: StepScopeProgressLabels
+    section_statuses: list[SectionStatusPayload]
     step_status: StepStatusPayload
     review_payload: StepReviewPayload
     job_extract: JobAdExtract | None
@@ -196,6 +198,12 @@ def build_step_payload(
         visible_questions=visible_questions,
         answered_lookup=answered_lookup,
     )
+    section_statuses = build_section_status_payloads(
+        step_key=step.step_key if step is not None else "",
+        intake_facts=intake_facts_dict,
+        intake_fact_evidence=intake_fact_evidence_dict,
+        confidence_threshold=confidence_threshold,
+    )
     review_payload: StepReviewPayload = {
         "visible_questions": visible_questions,
         "answers": answers_dict,
@@ -226,6 +234,7 @@ def build_step_payload(
         "visible_progress": visible_progress,
         "selected_progress": selected_progress,
         "scope_progress_labels": scope_progress_labels,
+        "section_statuses": section_statuses,
         "step_status": step_status,
         "review_payload": review_payload,
         "job_extract": job_extract,

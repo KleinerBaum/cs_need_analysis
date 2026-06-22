@@ -988,72 +988,86 @@ def _render_summary_facts_matrix(vm: SummaryViewModel) -> None:
                     }
                     for row_id, row in row_lookup.items()
                 ]
-                data_editor = getattr(st, "data_editor", None)
-                if callable(data_editor):
-                    edited = data_editor(
-                        editor_rows,
-                        key=_widget_key(
-                            SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
-                            f"facts.{step_key}",
-                        ),
-                        width="stretch",
-                        hide_index=True,
-                        column_order=[
-                            "Feld",
-                            "Wert",
-                            "Quelle",
-                            "Salary",
-                            "Pflichtigkeit",
-                            "Second Source",
-                        ],
-                        column_config={
-                            "Feld": st.column_config.TextColumn("Angabe", disabled=True),
-                            "Wert": st.column_config.TextColumn("Inhalt"),
-                            "Quelle": st.column_config.TextColumn("Quelle", disabled=True),
-                            "Salary": st.column_config.TextColumn("Salary", disabled=True),
-                            "Pflichtigkeit": st.column_config.TextColumn(
-                                "Pflichtigkeit",
-                                disabled=True,
-                            ),
-                            "Second Source": st.column_config.TextColumn(
-                                "Second Source",
-                                disabled=True,
-                            ),
-                        },
-                    )
-                else:
-                    st.dataframe(
-                        editor_rows,
-                        width="stretch",
-                        hide_index=True,
-                        column_order=[
-                            "Feld",
-                            "Wert",
-                            "Quelle",
-                            "Salary",
-                            "Pflichtigkeit",
-                            "Second Source",
-                        ],
-                        column_config={
-                            "Feld": st.column_config.TextColumn("Angabe"),
-                            "Wert": st.column_config.TextColumn("Inhalt"),
-                            "Quelle": st.column_config.TextColumn("Quelle"),
-                            "Salary": st.column_config.TextColumn("Salary"),
-                            "Pflichtigkeit": st.column_config.TextColumn("Pflichtigkeit"),
-                            "Second Source": st.column_config.TextColumn("Second Source"),
-                        },
-                    )
-                    edited = editor_rows
                 editable_count = sum(1 for row in rows if row.editable)
-                if st.button(
-                    "Änderungen speichern",
-                    key=_widget_key(
+                data_editor = getattr(st, "data_editor", None)
+                with st.form(
+                    _widget_key(
                         SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
-                        f"facts.save.{step_key}",
+                        f"facts.form.{step_key}",
                     ),
-                    width="stretch",
-                    disabled=editable_count == 0,
+                    clear_on_submit=False,
                 ):
+                    if callable(data_editor):
+                        edited = data_editor(
+                            editor_rows,
+                            key=_widget_key(
+                                SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
+                                f"facts.{step_key}",
+                            ),
+                            width="stretch",
+                            hide_index=True,
+                            column_order=[
+                                "Feld",
+                                "Wert",
+                                "Quelle",
+                                "Salary",
+                                "Pflichtigkeit",
+                                "Second Source",
+                            ],
+                            column_config={
+                                "Feld": st.column_config.TextColumn(
+                                    "Angabe", disabled=True
+                                ),
+                                "Wert": st.column_config.TextColumn("Inhalt"),
+                                "Quelle": st.column_config.TextColumn(
+                                    "Quelle", disabled=True
+                                ),
+                                "Salary": st.column_config.TextColumn(
+                                    "Salary", disabled=True
+                                ),
+                                "Pflichtigkeit": st.column_config.TextColumn(
+                                    "Pflichtigkeit",
+                                    disabled=True,
+                                ),
+                                "Second Source": st.column_config.TextColumn(
+                                    "Second Source",
+                                    disabled=True,
+                                ),
+                            },
+                        )
+                    else:
+                        st.dataframe(
+                            editor_rows,
+                            width="stretch",
+                            hide_index=True,
+                            column_order=[
+                                "Feld",
+                                "Wert",
+                                "Quelle",
+                                "Salary",
+                                "Pflichtigkeit",
+                                "Second Source",
+                            ],
+                            column_config={
+                                "Feld": st.column_config.TextColumn("Angabe"),
+                                "Wert": st.column_config.TextColumn("Inhalt"),
+                                "Quelle": st.column_config.TextColumn("Quelle"),
+                                "Salary": st.column_config.TextColumn("Salary"),
+                                "Pflichtigkeit": st.column_config.TextColumn(
+                                    "Pflichtigkeit"
+                                ),
+                                "Second Source": st.column_config.TextColumn(
+                                    "Second Source"
+                                ),
+                            },
+                        )
+                        edited = editor_rows
+                    submitted = st.form_submit_button(
+                        "Änderungen speichern",
+                        width="stretch",
+                        disabled=editable_count == 0,
+                    )
+                if submitted:
                     if _apply_summary_fact_edits(
                         edited_rows=list(edited),
                         row_lookup=row_lookup,
@@ -2102,6 +2116,7 @@ def _render_summary_workspace_tabs(
                         "Status": st.column_config.TextColumn("Status"),
                         "Dauer (ms)": st.column_config.NumberColumn("Dauer (ms)"),
                         "Cache": st.column_config.CheckboxColumn("Aus Cache"),
+                        "Fragment": st.column_config.CheckboxColumn("Fragment"),
                         "Treffer": st.column_config.NumberColumn("Treffer"),
                     },
                 )
@@ -2530,28 +2545,32 @@ def _render_artifact_refinement_box(
 ) -> None:
     st.markdown(heading)
     current_value = _read_artifact_change_request(artifact_id)
-    request_value = st.text_area(
-        "Was soll am Output angepasst werden?",
-        value=current_value,
-        placeholder="z. B. kürzer, stärker auf Senior-Profile, mehr Interviewfragen zu Stakeholder-Management …",
-        key=_widget_key(
-            SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
-            f"refinement.{artifact_id}",
-        ),
-        height=110,
-    )
-    _write_artifact_change_request(artifact_id, request_value)
     generator = generator_by_id.get(artifact_id)
-    if st.button(
-        "Anpassungen übernehmen",
-        width="stretch",
-        type="primary",
-        disabled=generator is None,
-        key=_widget_key(
+    with st.form(
+        _widget_key(
             SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
-            f"refinement.apply.{artifact_id}",
+            f"refinement.form.{artifact_id}",
         ),
+        clear_on_submit=False,
     ):
+        request_value = st.text_area(
+            "Was soll am Output angepasst werden?",
+            value=current_value,
+            placeholder="z. B. kürzer, stärker auf Senior-Profile, mehr Interviewfragen zu Stakeholder-Management …",
+            key=_widget_key(
+                SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
+                f"refinement.{artifact_id}",
+            ),
+            height=110,
+        )
+        submitted = st.form_submit_button(
+            "Anpassungen übernehmen",
+            width="stretch",
+            type="primary",
+            disabled=generator is None,
+        )
+    if submitted:
+        _write_artifact_change_request(artifact_id, request_value)
         if generator is not None:
             st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = artifact_id
             generator()

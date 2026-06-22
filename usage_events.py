@@ -86,6 +86,7 @@ def record_enrichment_timed(
     duration_ms: int,
     status: str = "success",
     cache_hit: bool | None = None,
+    fragment_enabled: bool | None = None,
     result_count: int | None = None,
     error_type: str | None = None,
 ) -> None:
@@ -97,6 +98,8 @@ def record_enrichment_timed(
     }
     if cache_hit is not None:
         metadata["cache_hit"] = cache_hit
+    if fragment_enabled is not None:
+        metadata["fragment_enabled"] = fragment_enabled
     if result_count is not None:
         metadata["result_count"] = max(0, int(result_count))
     if error_type:

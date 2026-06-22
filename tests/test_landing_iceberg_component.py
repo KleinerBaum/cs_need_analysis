@@ -53,24 +53,25 @@ def test_landing_value_cards_escape_dynamic_html(monkeypatch) -> None:
     assert all(kwargs.get("unsafe_allow_html") is True for _block, kwargs in rendered_blocks)
 
 
-def test_intro_and_landing_pages_use_current_iframe_api_without_expander() -> None:
+def test_intro_page_uses_current_iframe_api_without_expander() -> None:
     landing_page = Path("wizard_pages/00_landing.py").read_text(encoding="utf-8")
     intro_page = Path("wizard_pages/00_intro.py").read_text(encoding="utf-8")
 
-    for page in (intro_page, landing_page):
-        assert "streamlit.components.v1" not in page
-        assert "components.html" not in page
-        assert "st.iframe(" in page
+    assert "streamlit.components.v1" not in intro_page
+    assert "components.html" not in intro_page
+    assert "st.iframe(" in intro_page
+    assert "st.iframe(" not in landing_page
     assert 'with st.expander("Warum Need Analysis?"' not in landing_page
 
 
-def test_landing_page_shows_explainer_before_intake() -> None:
+def test_landing_page_does_not_render_iceberg_explainer() -> None:
     landing_page = Path("wizard_pages/00_landing.py").read_text(encoding="utf-8")
 
     render_body = landing_page.split("def render(ctx: WizardContext) -> None:", 1)[1]
-    assert render_body.index("_render_landing_explainer_sections()") < render_body.index(
-        "render_jobad_intake"
-    )
+    assert "_render_landing_explainer_sections" not in landing_page
+    assert "build_iceberg_need_analysis_html" not in landing_page
+    assert "Warum Need Analysis?" not in landing_page
+    assert "render_jobad_intake" in render_body
 
 
 def test_iceberg_content_loads_required_sections() -> None:

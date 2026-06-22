@@ -2559,17 +2559,27 @@ def _render_free_text_reason_editor(skill_items: list[dict[str, Any]]) -> None:
             }
             for item in free_text_items
         ]
-        edited = st.data_editor(
-            rows,
-            key=f"fact_input.{FactKey.SKILLS_FREE_TEXT_REASON.value}.editor",
-            width="stretch",
-            hide_index=True,
-            num_rows="fixed",
-            column_config={
-                "Skill": st.column_config.TextColumn("Skill", disabled=True),
-                "Begründung": st.column_config.TextColumn("Begründung"),
-            },
-        )
+        with st.form(
+            f"fact_input.{FactKey.SKILLS_FREE_TEXT_REASON.value}.form",
+            clear_on_submit=False,
+        ):
+            edited = st.data_editor(
+                rows,
+                key=f"fact_input.{FactKey.SKILLS_FREE_TEXT_REASON.value}.editor",
+                width="stretch",
+                hide_index=True,
+                num_rows="fixed",
+                column_config={
+                    "Skill": st.column_config.TextColumn("Skill", disabled=True),
+                    "Begründung": st.column_config.TextColumn("Begründung"),
+                },
+            )
+            submitted = st.form_submit_button(
+                "Begründungen übernehmen",
+                width="stretch",
+            )
+        if not submitted:
+            return
         reason_rows = _edited_table_rows(edited)
     persist_fact(
         FactKey.SKILLS_FREE_TEXT_REASON,
@@ -2642,37 +2652,63 @@ def _render_structured_skill_rows() -> None:
                 "_free_text_reason": compact_text(existing.get("free_text_reason")),
             }
         )
-    edited = st.data_editor(
-        rows,
-        key=f"fact_input.{FactKey.SKILLS_ITEMS.value}.editor",
-        width="stretch",
-        hide_index=True,
-        num_rows="fixed",
-        height=min(520, max(180, 72 + len(rows) * 36)),
-        column_config={
-            "Behalten": st.column_config.CheckboxColumn("Behalten"),
-            "Skill": st.column_config.TextColumn("Skill", disabled=True),
-            "Status": st.column_config.SelectboxColumn(
-                "Status", options=list(_SKILL_STATUS_LABELS.values())
-            ),
-            "Mindestniveau": st.column_config.SelectboxColumn(
-                "Mindestniveau", options=list(_SKILL_PROFICIENCY_LABELS.values())
-            ),
-            "Nötig bis": st.column_config.SelectboxColumn(
-                "Nötig bis", options=list(_SKILL_TIMING_LABELS.values())
-            ),
-            "Nachweis": st.column_config.TextColumn("Nachweis"),
-        },
-        column_order=[
-            "Behalten",
-            "Skill",
-            "Status",
-            "Mindestniveau",
-            "Nötig bis",
-            "Nachweis",
-        ],
+    job_extract_raw = st.session_state.get(SSKey.JOB_EXTRACT.value, {})
+    job_extract_payload = job_extract_raw if isinstance(job_extract_raw, dict) else {}
+    current_certifications = fact_value(
+        FactKey.SKILLS_CERTIFICATIONS,
+        job_extract_payload.get("certifications", []),
     )
-
+    with st.form(
+        f"fact_input.{FactKey.SKILLS_ITEMS.value}.form",
+        clear_on_submit=False,
+    ):
+        edited = st.data_editor(
+            rows,
+            key=f"fact_input.{FactKey.SKILLS_ITEMS.value}.editor",
+            width="stretch",
+            hide_index=True,
+            num_rows="fixed",
+            height=min(520, max(180, 72 + len(rows) * 36)),
+            column_config={
+                "Behalten": st.column_config.CheckboxColumn("Behalten"),
+                "Skill": st.column_config.TextColumn("Skill", disabled=True),
+                "Status": st.column_config.SelectboxColumn(
+                    "Status", options=list(_SKILL_STATUS_LABELS.values())
+                ),
+                "Mindestniveau": st.column_config.SelectboxColumn(
+                    "Mindestniveau", options=list(_SKILL_PROFICIENCY_LABELS.values())
+                ),
+                "Nötig bis": st.column_config.SelectboxColumn(
+                    "Nötig bis", options=list(_SKILL_TIMING_LABELS.values())
+                ),
+                "Nachweis": st.column_config.TextColumn("Nachweis"),
+            },
+            column_order=[
+                "Behalten",
+                "Skill",
+                "Status",
+                "Mindestniveau",
+                "Nötig bis",
+                "Nachweis",
+            ],
+        )
+        certifications_text = st.text_area(
+            "Zertifikate / Nachweise mit Pflichtgrad, Frist oder Gültigkeit",
+            value="\n".join(split_lines(current_certifications)),
+            height=90,
+            key=f"fact_input.{FactKey.SKILLS_CERTIFICATIONS.value}",
+        )
+        submitted = st.form_submit_button(
+            "Skill-Anforderungen übernehmen",
+            type="primary",
+            width="stretch",
+        )
+    if not submitted:
+        st.caption("Tabellenänderungen werden erst nach dem Übernehmen gespeichert.")
+        _render_free_text_reason_editor(
+            list(_skill_item_by_label(fact_value(FactKey.SKILLS_ITEMS, [])).values())
+        )
+        return
     edited_rows = _edited_table_rows(edited)
     kept_labels: list[str] = []
     skill_items: list[dict[str, Any]] = []
@@ -2730,18 +2766,6 @@ def _render_structured_skill_rows() -> None:
         [item["label"] for item in skill_items if item["status"] == "trainable"],
     )
     _render_free_text_reason_editor(skill_items)
-    job_extract_raw = st.session_state.get(SSKey.JOB_EXTRACT.value, {})
-    job_extract_payload = job_extract_raw if isinstance(job_extract_raw, dict) else {}
-    current_certifications = fact_value(
-        FactKey.SKILLS_CERTIFICATIONS,
-        job_extract_payload.get("certifications", []),
-    )
-    certifications_text = st.text_area(
-        "Zertifikate / Nachweise mit Pflichtgrad, Frist oder Gültigkeit",
-        value="\n".join(split_lines(current_certifications)),
-        height=90,
-        key=f"fact_input.{FactKey.SKILLS_CERTIFICATIONS.value}",
-    )
     persist_fact(FactKey.SKILLS_CERTIFICATIONS, split_lines(certifications_text))
 
 

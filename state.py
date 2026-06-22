@@ -643,6 +643,7 @@ def init_session_state() -> None:
         SSKey.OPENAI_LAST_STRUCTURED_OUTPUT_PATH.value: None,
         SSKey.OPENAI_DEBUG_ERRORS.value: False,
         SSKey.DEBUG.value: False,
+        SSKey.PERF_FRAGMENT_PILOT_ENABLED.value: False,
         SSKey.CONTENT_SHARING_CONSENT.value: False,
         SSKey.LLM_RESPONSE_CACHE.value: {},
         SSKey.USAGE_EVENTS.value: [],

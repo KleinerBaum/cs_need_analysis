@@ -3,10 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import streamlit as st
-from components.iceberg_need_analysis import (
-    COMPONENT_HEIGHT,
-    build_iceberg_need_analysis_html,
-)
 from content.start_page import START_PAGE_COPY
 from constants import APP_TITLE
 from i18n import t
@@ -91,12 +87,6 @@ def _render_landing_responsive_overrides() -> None:
             }
             .landing-intake-card {
                 padding: 0.95rem;
-            }
-            .landing-need-analysis-card {
-                padding: 0.9rem;
-            }
-            .landing-need-analysis-card [data-testid="stCaptionContainer"] {
-                margin-bottom: 0.45rem;
             }
             .landing-process-track {
                 display: grid;
@@ -305,32 +295,10 @@ def _render_landing_flow_cards() -> None:
     render_static_html("</section>", streamlit_module=st)
 
 
-def _render_landing_explainer_sections() -> None:
-    render_static_html(
-        '<section class="landing-section landing-card landing-need-analysis-card">',
-        streamlit_module=st,
-    )
-    st.subheader(str(t("Warum Need Analysis?")))
-    st.caption(
-        str(
-            t(
-                "Kurzer Kontext, warum die App nicht nur sichtbare Anforderungen, "
-                "sondern auch Lücken und implizite Bedarfstreiber strukturiert."
-            )
-        )
-    )
-    st.iframe(
-        build_iceberg_need_analysis_html(),
-        height=COMPONENT_HEIGHT,
-    )
-    render_static_html("</section>", streamlit_module=st)
-
-
 def render(ctx: WizardContext) -> None:
     render_landing_css(LANDING_STYLE_TOKENS)
     _render_landing_responsive_overrides()
     _render_landing_hero()
-    _render_landing_explainer_sections()
 
     render_static_html(
         '<section class="landing-section landing-card landing-intake-card">',

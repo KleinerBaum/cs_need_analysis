@@ -8,41 +8,18 @@ import re
 from collections.abc import Mapping
 from typing import Any, Literal, TypedDict
 
-from constants import INTAKE_FACTS, AnswerType, FactKey, FactResolutionStatus
-from intake_facts import latest_fact_confidence
+from constants import AnswerType, FactKey
 from schemas import JobAdExtract, Question
+from step_sections import (
+    fact_evidence_allows_coverage,
+    has_meaningful_fact_value,
+    question_candidate_fact_keys,
+)
 
 WizardUIMode = Literal["quick", "standard", "expert"]
 
 SINGLE_SELECT_PLACEHOLDERS = frozenset({"", "— Bitte wählen —"})
 _JOB_EXTRACT_FIELDS = frozenset(JobAdExtract.model_fields)
-_VALID_FACT_KEYS = frozenset(fact.fact_key for fact in INTAKE_FACTS)
-_FACT_JOB_EXTRACT_FIELDS: dict[FactKey, str] = {
-    FactKey.COMPANY_COMPANY_NAME: "company_name",
-    FactKey.COMPANY_COMPANY_WEBSITE: "company_website",
-    FactKey.COMPANY_BRAND_NAME: "brand_name",
-    FactKey.COMPANY_LOCATION_CITY: "location_city",
-    FactKey.COMPANY_LOCATION_COUNTRY: "location_country",
-    FactKey.COMPANY_PLACE_OF_WORK: "place_of_work",
-    FactKey.COMPANY_REMOTE_POLICY: "remote_policy",
-    FactKey.ROLE_JOB_TITLE: "job_title",
-    FactKey.ROLE_EMPLOYMENT_TYPE: "employment_type",
-    FactKey.ROLE_CONTRACT_TYPE: "contract_type",
-    FactKey.ROLE_RESPONSIBILITIES: "responsibilities",
-    FactKey.ROLE_SUCCESS_METRICS: "success_metrics",
-    FactKey.SKILLS_MUST_HAVE_SKILLS: "must_have_skills",
-    FactKey.SKILLS_NICE_TO_HAVE_SKILLS: "nice_to_have_skills",
-    FactKey.SKILLS_LANGUAGES: "languages",
-    FactKey.BENEFITS_SALARY_RANGE: "salary_range",
-    FactKey.BENEFITS_BENEFITS: "benefits",
-    FactKey.INTERVIEW_RECRUITMENT_STEPS: "recruitment_steps",
-    FactKey.INTERVIEW_CONTACTS: "contacts",
-}
-_JOB_EXTRACT_FIELD_FACTS = {
-    field_name: fact_key
-    for fact_key, field_name in _FACT_JOB_EXTRACT_FIELDS.items()
-    if field_name in _JOB_EXTRACT_FIELDS
-}
 _LOW_CONFIDENCE_FACT = object()
 
 _JOB_EXTRACT_ALIAS_RULES: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
@@ -380,55 +357,15 @@ def _fact_evidence_allows_coverage(
     intake_fact_evidence: Mapping[str, Any] | None,
     confidence_threshold: float | None,
 ) -> bool:
-    if isinstance(intake_fact_evidence, Mapping):
-        evidence_raw = intake_fact_evidence.get(fact_key.value)
-        evidence = evidence_raw if isinstance(evidence_raw, Mapping) else {}
-        if evidence.get("resolution_status") == FactResolutionStatus.CONFLICTED.value:
-            return False
-    threshold = _normalize_confidence_threshold(confidence_threshold)
-    if threshold is None or not isinstance(intake_fact_evidence, Mapping):
-        return True
-    confidence = latest_fact_confidence(fact_key, intake_fact_evidence)
-    if confidence is None:
-        return True
-    return confidence >= threshold
-
-
-def _normalize_confidence_threshold(raw_threshold: float | None) -> float | None:
-    if raw_threshold is None:
-        return None
-    try:
-        return max(0.0, min(1.0, float(raw_threshold)))
-    except (TypeError, ValueError):
-        return None
+    return fact_evidence_allows_coverage(
+        fact_key,
+        intake_fact_evidence=intake_fact_evidence,
+        confidence_threshold=confidence_threshold,
+    )
 
 
 def _candidate_question_fact_keys(question: Question) -> tuple[FactKey, ...]:
-    candidates: list[FactKey] = []
-    for raw_key in (
-        getattr(question, "fact_key", None),
-        question.target_path,
-        _normalize_path_tail(question.target_path),
-        question.id,
-        _normalize_path_tail(question.id),
-    ):
-        fact_key = _coerce_fact_key(raw_key)
-        if fact_key is None:
-            fact_key = _JOB_EXTRACT_FIELD_FACTS.get(str(raw_key or "").strip())
-        if fact_key is None or fact_key in candidates:
-            continue
-        candidates.append(fact_key)
-    return tuple(candidates)
-
-
-def _coerce_fact_key(raw_key: Any) -> FactKey | None:
-    if not isinstance(raw_key, str):
-        return None
-    try:
-        fact_key = FactKey(raw_key.strip())
-    except ValueError:
-        return None
-    return fact_key if fact_key in _VALID_FACT_KEYS else None
+    return question_candidate_fact_keys(question)
 
 
 def extract_job_extract_value_by_path(
@@ -459,15 +396,7 @@ def extract_job_extract_value_by_path(
 
 
 def _has_meaningful_extract_value(value: Any) -> bool:
-    if value is None:
-        return False
-    if isinstance(value, str):
-        return bool(value.strip())
-    if isinstance(value, dict):
-        return any(_has_meaningful_extract_value(item) for item in value.values())
-    if isinstance(value, (list, tuple, set)):
-        return any(_has_meaningful_extract_value(item) for item in value)
-    return True
+    return has_meaningful_fact_value(value)
 
 
 def _normalize_path_tail(value: str | None) -> str:

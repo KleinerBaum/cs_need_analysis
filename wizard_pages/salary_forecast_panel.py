@@ -30,6 +30,7 @@ from salary.scenarios import (
 from salary.types import SalaryEscoContext, SalaryScenarioInputs, SalaryScenarioOverrides
 from safe_html import escape_html_text, render_static_html
 from schemas import JobAdExtract
+from ui_layout import render_fragment_pilot_panel
 
 LOGGER = logging.getLogger(__name__)
 
@@ -974,7 +975,16 @@ def render_salary_forecast_step_sections(
             )
             st.markdown("---")
             st.markdown("#### Szenario-Steuerung")
-            scenario_controls_slot()
+            with st.form(
+                f"salary.forecast.controls.{source_mix_chart_key}",
+                clear_on_submit=False,
+            ):
+                scenario_controls_slot()
+                st.form_submit_button(
+                    "Prognose aktualisieren",
+                    type="primary",
+                    width="stretch",
+                )
             st.markdown("---")
             st.markdown("#### Prognose-Ergebnis")
             forecast_result_slot()
@@ -1040,12 +1050,16 @@ def render_role_tasks_salary_forecast_panel(
             headline="Gehaltsprognose (Jahr)",
         )
 
-    render_salary_forecast_step_sections(
-        influence_factors_slot=_render_influence_factors,
-        scenario_controls_slot=_render_scenario_controls,
-        forecast_result_slot=_render_forecast_result,
-        source_counts=source_counts,
-        source_mix_chart_key="role_tasks.salary.source_mix",
+    render_fragment_pilot_panel(
+        step_key="role_tasks",
+        panel_id="salary_forecast",
+        render_slot=lambda: render_salary_forecast_step_sections(
+            influence_factors_slot=_render_influence_factors,
+            scenario_controls_slot=_render_scenario_controls,
+            forecast_result_slot=_render_forecast_result,
+            source_counts=source_counts,
+            source_mix_chart_key="role_tasks.salary.source_mix",
+        ),
     )
 
 
@@ -1133,12 +1147,16 @@ def render_benefits_salary_forecast_panel(
             use_main_card_layout=True,
         )
 
-    render_salary_forecast_step_sections(
-        influence_factors_slot=_render_influence_factors,
-        scenario_controls_slot=_render_scenario_controls,
-        forecast_result_slot=_render_forecast_result,
-        source_counts=source_counts,
-        source_mix_chart_key="benefits.salary.source_mix",
+    render_fragment_pilot_panel(
+        step_key="benefits",
+        panel_id="salary_forecast",
+        render_slot=lambda: render_salary_forecast_step_sections(
+            influence_factors_slot=_render_influence_factors,
+            scenario_controls_slot=_render_scenario_controls,
+            forecast_result_slot=_render_forecast_result,
+            source_counts=source_counts,
+            source_mix_chart_key="benefits.salary.source_mix",
+        ),
     )
 
 
@@ -1272,10 +1290,14 @@ def render_skills_salary_forecast_panel(
             headline="Gehaltsprognose (Jahr)",
         )
 
-    render_salary_forecast_step_sections(
-        influence_factors_slot=_render_influence_factors,
-        scenario_controls_slot=_render_scenario_controls,
-        forecast_result_slot=_render_forecast_result,
-        source_counts=source_counts,
-        source_mix_chart_key="skills.salary.source_mix",
+    render_fragment_pilot_panel(
+        step_key="skills",
+        panel_id="salary_forecast",
+        render_slot=lambda: render_salary_forecast_step_sections(
+            influence_factors_slot=_render_influence_factors,
+            scenario_controls_slot=_render_scenario_controls,
+            forecast_result_slot=_render_forecast_result,
+            source_counts=source_counts,
+            source_mix_chart_key="skills.salary.source_mix",
+        ),
     )

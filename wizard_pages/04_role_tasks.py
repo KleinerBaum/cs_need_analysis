@@ -28,7 +28,10 @@ from state import (
     get_esco_semantic_context,
     sync_esco_shared_state,
 )
-from step_sections import build_step_shell_section_kwargs
+from step_sections import (
+    build_step_shell_section_kwargs,
+    filter_open_questions_for_step,
+)
 from ui_components import (
     has_meaningful_value,
     render_source_pill_selection,
@@ -95,24 +98,6 @@ _WORK_ARRANGEMENT_LABELS = {
     "unknown": "Noch unklar",
 }
 _CEFR_LEVELS = ("A1", "A2", "B1", "B2", "C1", "C2")
-_STRUCTURED_WORK_CONTEXT_FACT_KEYS = frozenset(
-    {
-        FactKey.COMPANY_LOCATION_CITY,
-        FactKey.COMPANY_LOCATION_COUNTRY,
-        FactKey.COMPANY_PLACE_OF_WORK,
-        FactKey.COMPANY_REMOTE_POLICY,
-        FactKey.COMPANY_WORK_ARRANGEMENT,
-        FactKey.COMPANY_OFFICE_DAYS_PER_WEEK,
-        FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES,
-        FactKey.COMPANY_LANGUAGE_INTERNAL,
-        FactKey.COMPANY_LANGUAGE_EXTERNAL,
-        FactKey.COMPANY_NON_NEGOTIABLES,
-        FactKey.COMPANY_COMPLIANCE_CONTEXT,
-        FactKey.COMPANY_TARIFF_CONTEXT,
-    }
-)
-
-
 def _normalize_task_term(term: str) -> str:
     return " ".join(term.strip().casefold().split())
 
@@ -375,41 +360,10 @@ def _has_compact_payload(value: Any) -> bool:
     return has_meaningful_value(value)
 
 
-def _question_canonical_fact_key(question: Any) -> FactKey | None:
-    for raw_key in (
-        getattr(question, "fact_key", None),
-        getattr(question, "target_path", None),
-    ):
-        if not isinstance(raw_key, str):
-            continue
-        try:
-            return FactKey(raw_key.strip())
-        except ValueError:
-            continue
-    return None
-
-
 def _filtered_role_tasks_open_question_step(
     step: QuestionStep | None,
 ) -> QuestionStep | None:
-    if step is None:
-        return None
-    questions = list(getattr(step, "questions", []) or [])
-    if not questions:
-        return None
-    filtered_questions = [
-        question
-        for question in questions
-        if _question_canonical_fact_key(question) not in _STRUCTURED_WORK_CONTEXT_FACT_KEYS
-    ]
-    if len(filtered_questions) == len(questions):
-        return step
-    return QuestionStep(
-        step_key=step.step_key,
-        title_de=step.title_de,
-        description_de=step.description_de,
-        questions=filtered_questions,
-    )
+    return filter_open_questions_for_step(step, step_key=STEP_KEY_ROLE_TASKS)
 
 
 def _render_language_fact(

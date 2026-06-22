@@ -39,7 +39,13 @@ from state import (
     mark_answer_touched,
     set_answer,
 )
-from step_payload import build_step_payload_from_state
+from step_payload import (
+    build_step_payload_from_state,
+    load_intake_fact_evidence_from_state,
+    load_intake_facts_from_state,
+    read_confidence_threshold_from_state,
+)
+from step_sections import filter_open_questions_for_step
 
 PILLS_GRID_COLUMNS = 3
 QUESTION_PROVENANCE_TEXT_MAX_CHARS = 180
@@ -785,6 +791,21 @@ def render_question_step(
     context_mode: Literal["default", "compact"] = "default",
     form_key_suffix: str | None = None,
 ) -> None:
+    filtered_step = filter_open_questions_for_step(
+        step,
+        intake_facts=load_intake_facts_from_state(st.session_state),
+        intake_fact_evidence=load_intake_fact_evidence_from_state(st.session_state),
+        confidence_threshold=read_confidence_threshold_from_state(st.session_state),
+    )
+    if filtered_step is None:
+        step = QuestionStep(
+            step_key=step.step_key,
+            title_de=step.title_de,
+            description_de=step.description_de,
+            questions=[],
+        )
+    else:
+        step = filtered_step
     answers = get_answers()
     answer_meta = get_answer_meta()
     ui_mode_raw = st.session_state.get(SSKey.UI_MODE.value, "standard")
