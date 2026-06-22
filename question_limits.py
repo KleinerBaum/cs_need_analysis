@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from math import ceil
 from typing import Any, cast
 
 import streamlit as st
@@ -13,7 +14,7 @@ from constants import (
     QUESTION_LIMIT_SCOPE_META_KEY,
     SSKey,
     UI_MODE_PRIORITY_TIERS,
-    UI_MODE_QUICK_STEP_CAPS,
+    UI_MODE_QUESTION_LIMIT_RATIOS,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
 )
 from question_dependencies import should_show_question
@@ -48,6 +49,23 @@ def _normalize_ui_mode(ui_mode: str) -> str:
     if normalized not in UI_MODE_PRIORITY_TIERS:
         return "standard"
     return normalized
+
+
+def _mode_question_limit_ratio(ui_mode: str) -> float:
+    raw_ratio = UI_MODE_QUESTION_LIMIT_RATIOS.get(ui_mode)
+    try:
+        ratio = float(raw_ratio)
+    except (TypeError, ValueError):
+        ratio = UI_MODE_QUESTION_LIMIT_RATIOS["standard"]
+    return max(0.0, min(1.0, ratio))
+
+
+def _limit_for_ratio(total: int, ratio: float) -> int:
+    if total <= 0:
+        return 0
+    if ratio >= 1.0:
+        return total
+    return min(total, max(1, ceil(total * ratio)))
 
 
 def _question_is_covered(
@@ -522,10 +540,12 @@ def compute_adaptive_question_limits(
 ) -> dict[str, Any]:
     normalized_ui_mode = _normalize_ui_mode(ui_mode)
     priority_tiers = UI_MODE_PRIORITY_TIERS[normalized_ui_mode]
+    question_limit_ratio = _mode_question_limit_ratio(normalized_ui_mode)
     limits: dict[str, Any] = {
         QUESTION_LIMIT_SCOPE_META_KEY: {
             "ui_mode": normalized_ui_mode,
             "priority_tiers": list(priority_tiers),
+            "question_limit_ratio": question_limit_ratio,
         }
     }
 
@@ -547,15 +567,12 @@ def compute_adaptive_question_limits(
             priority_tiers,
         )
         total = len(scoped_questions)
-        limit = total
-        if normalized_ui_mode == "quick" and total > 0:
-            quick_cap = UI_MODE_QUICK_STEP_CAPS.get(step.step_key)
-            if quick_cap is not None:
-                limit = min(total, max(1, quick_cap))
+        limit = _limit_for_ratio(total, question_limit_ratio)
         limits[step.step_key] = {
             "limit": limit,
             "priority_tiers": list(priority_tiers),
             "ui_mode": normalized_ui_mode,
+            "question_limit_ratio": question_limit_ratio,
         }
 
     return limits

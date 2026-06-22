@@ -59,11 +59,11 @@ The app supports three global UI modes:
 
 | Stored value | German label | Intended behavior |
 |---|---|---|
-| `quick` | `schnell` | Curated core flow with compact detail groups and per-step question caps |
-| `standard` | `ausführlich` | Complete essential intake using all dependency-visible `core` and `standard` questions |
+| `quick` | `schnell` | Curated core flow with compact detail groups and 30% of dependency-visible `core` questions per step |
+| `standard` | `ausführlich` | Essential intake using 50% of dependency-visible `core` and `standard` questions per step |
 | `expert` | `vollumfänglich` | Full intake using dependency-visible `core`, `standard`, and conditional `detail` questions |
 
-The mode is controlled through the sidebar preference center and the Start step. It affects visible question depth through `question_limits.py` and compact/detail behavior through shared UI helpers. `quick` keeps the essential app functions visible but caps the curated core questions per step. `standard` is the default first-run mode and collects all essential information (`core` + `standard`). `expert` adds deep conditional questions that can become relevant in specific cases. Expensive secondary blocks such as source comparison and salary forecast render lazily; source comparison follows the detail-expanded preference, while salary forecast remains on-demand.
+The mode is controlled through the sidebar preference center and the Start step. It affects the number of visible follow-up inputs through `question_limits.py` and compact/detail behavior through shared UI helpers, but does not reduce extraction, enrichment, artifact, export, or forecast quality. `quick` keeps the essential app functions visible and asks the highest-ranked 30% of eligible core questions per step. `standard` is the default first-run mode and asks the highest-ranked 50% of eligible `core` + `standard` questions per step. `expert` adds deep conditional questions that can become relevant in specific cases. Expensive secondary blocks such as source comparison and salary forecast render lazily; source comparison follows the detail-expanded preference, while salary forecast remains on-demand.
 
 Adaptive question ranking can use optional question metadata: `impact_targets`, `acquisition_cost`, and `info_gain_score`. These fields let high-impact unanswered questions rise above lower-value detail questions without changing the visible step contract or existing UI modes.
 

@@ -444,7 +444,7 @@ def test_compiler_injects_skill_group_pack_and_esco_concept_questions() -> None:
     ]
 
 
-def test_compiler_caps_esco_concept_questions_by_ui_mode() -> None:
+def test_compiler_keeps_esco_concept_candidates_independent_of_ui_mode() -> None:
     profile = classify_occupation_context(job=JobAdExtract(job_title="Data Engineer"))
     context = OccupationQuestionContext(
         occupation_uri="uri:occupation:data-engineer",
@@ -473,7 +473,7 @@ def test_compiler_caps_esco_concept_questions_by_ui_mode() -> None:
         if q.id.startswith("ctx_esco_")
     ]
 
-    assert len(esco_questions) == 3
+    assert len(esco_questions) == 5
 
 
 def test_compiler_injects_routing_facet_questions() -> None:
@@ -551,10 +551,11 @@ def test_context_heavy_standard_scope_prioritizes_company_metadata() -> None:
     )
     selected_ids = [question.id for question in selected]
 
+    assert len(selected_ids) == limits[STEP_KEY_COMPANY]["limit"]
     assert "ctx_leadership_reporting_detail" in selected_ids
     assert "ctx_low_maturity_role_assumptions" in selected_ids
     assert "ctx_confidential_external_narrative" in selected_ids
-    assert "ctx_company_role_business_impact" in selected_ids
+    assert "ctx_company_role_business_impact" not in selected_ids
 
 
 def test_skills_heavy_standard_scope_prioritizes_skill_metadata_and_expert_depth() -> None:
@@ -609,13 +610,11 @@ def test_skills_heavy_standard_scope_prioritizes_skill_metadata_and_expert_depth
     )
     standard_ids = [question.id for question in standard_selected]
 
+    assert len(standard_ids) == standard_limits[STEP_KEY_SKILLS]["limit"]
     assert "ctx_tech_stack_must" in standard_ids
     assert "ctx_regulated_requirements" in standard_ids
-    assert "ctx_sg_digital_data_ai" in standard_ids
+    assert "ctx_sg_digital_data_ai" not in standard_ids
     assert "ctx_skills_free_text_reason" not in standard_ids
-    assert standard_ids.index("ctx_regulated_requirements") < standard_ids.index(
-        "ctx_sg_tools_methods"
-    )
 
     expert_limits = compute_adaptive_question_limits(
         plan=compiled.plan,
@@ -637,6 +636,6 @@ def test_skills_heavy_standard_scope_prioritizes_skill_metadata_and_expert_depth
     )
 
     assert len(expert_selected) == len(skills_step.questions)
-    assert "ctx_skills_free_text_reason" in [
-        question.id for question in expert_selected
-    ]
+    expert_ids = [question.id for question in expert_selected]
+    assert "ctx_sg_digital_data_ai" in expert_ids
+    assert "ctx_skills_free_text_reason" in expert_ids

@@ -1563,7 +1563,7 @@ def get_ui_mode_badge_text(ui_mode: str | None = None) -> str:
 def render_active_ui_mode_caption(*, ui_mode: str | None = None) -> None:
     st.caption(
         f"{get_ui_mode_badge_text(ui_mode)} · "
-        f"{t('Der Modus steuert Frageumfang und Detailgrad der Ergebnisse.')}"
+        f"{t('Der Modus steuert die Anzahl der Rückfragen; die Analysequalität bleibt gleich.')}"
     )
 
 
@@ -1587,8 +1587,8 @@ def render_ui_mode_selector(
             t(UI_MODE_DISPLAY_LABELS.get(mode, str(mode).capitalize()))
         ),
         help=(
-            "Steuert, wie intensiv der Bedarf abgefragt wird und wie genau "
-            "die Ergebnisse des Informationsgewinnungsprozesses ausfallen."
+            "Steuert, wie viele Rückfragen pro Schritt gestellt werden. "
+            "Analyse, Extraktion und Ergebnisqualität bleiben unverändert."
         ),
         on_change=_sync_mode_change,
         label_visibility="visible" if show_label else "collapsed",

@@ -8,7 +8,6 @@ from typing import Any, Mapping
 
 from constants import (
     AnswerType,
-    ESCO_CONCEPT_QUESTION_CAP_BY_UI_MODE,
     QUESTION_IMPACT_TARGET_EXPORT,
     QUESTION_IMPACT_TARGET_INTERVIEW,
     QUESTION_IMPACT_TARGET_SKILLS,
@@ -272,19 +271,12 @@ def _build_esco_concept_questions(
     *,
     context: OccupationQuestionContext | None,
     seen_ids: set[str],
-    ui_mode: str,
 ) -> tuple[list[Question], dict[str, list[str]]]:
     if context is None:
         return [], {}
-    cap = ESCO_CONCEPT_QUESTION_CAP_BY_UI_MODE.get(
-        ui_mode,
-        ESCO_CONCEPT_QUESTION_CAP_BY_UI_MODE["standard"],
-    )
     questions: list[Question] = []
     source_uris_by_question_id: dict[str, list[str]] = {}
     for bucket, concept in _concept_candidates(context):
-        if len(questions) >= cap:
-            break
         label = concept.label.strip()
         if not label:
             continue
@@ -382,7 +374,6 @@ def compile_question_plan(
     esco_questions, source_uris_by_question_id = _build_esco_concept_questions(
         context=question_context,
         seen_ids=seen_ids,
-        ui_mode=ui_mode,
     )
     if esco_questions:
         step_by_key.setdefault(

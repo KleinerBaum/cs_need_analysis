@@ -4,15 +4,6 @@ from __future__ import annotations
 
 from typing import Final
 
-from _constants.wizard import (
-    STEP_KEY_BENEFITS,
-    STEP_KEY_COMPANY,
-    STEP_KEY_INTERVIEW,
-    STEP_KEY_ROLE_TASKS,
-    STEP_KEY_SKILLS,
-)
-
-
 UI_MODE_VALUES: Final[tuple[str, str, str]] = ("quick", "standard", "expert")
 UI_MODE_DEFAULT: Final[str] = "standard"
 UI_MODE_DISPLAY_LABELS: Final[dict[str, str]] = {
@@ -54,10 +45,8 @@ UI_MODE_PRIORITY_TIERS: Final[dict[str, tuple[str, ...]]] = {
     "standard": ("core", "standard"),
     "expert": ("core", "standard", "detail"),
 }
-UI_MODE_QUICK_STEP_CAPS: Final[dict[str, int]] = {
-    STEP_KEY_COMPANY: 3,
-    STEP_KEY_ROLE_TASKS: 4,
-    STEP_KEY_SKILLS: 3,
-    STEP_KEY_BENEFITS: 3,
-    STEP_KEY_INTERVIEW: 3,
+UI_MODE_QUESTION_LIMIT_RATIOS: Final[dict[str, float]] = {
+    "quick": 0.30,
+    "standard": 0.50,
+    "expert": 1.00,
 }

@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from constants import AnswerType, FactKey, QUESTION_LIMIT_SCOPE_META_KEY
+from constants import (
+    AnswerType,
+    FactKey,
+    QUESTION_LIMIT_SCOPE_META_KEY,
+    UI_MODE_QUESTION_LIMIT_RATIOS,
+)
 from question_limits import (
     build_step_question_scope,
     compute_adaptive_question_limits,
@@ -104,12 +109,16 @@ def test_adaptive_limits_reduce_steps_with_good_jobspec_coverage() -> None:
         job_extract=job_extract,
     )
 
-    assert _limit(limits, "skills") == 3
-    assert _limit(limits, "interview") == 6
+    assert _limit(limits, "skills") == 2
+    assert _limit(limits, "interview") == 3
     assert limits[QUESTION_LIMIT_SCOPE_META_KEY]["ui_mode"] == "standard"
+    assert (
+        limits[QUESTION_LIMIT_SCOPE_META_KEY]["question_limit_ratio"]
+        == UI_MODE_QUESTION_LIMIT_RATIOS["standard"]
+    )
 
 
-def test_standard_mode_includes_all_standard_scope_questions() -> None:
+def test_standard_mode_limits_standard_scope_to_half_per_step() -> None:
     plan = QuestionPlan(
         steps=[
             QuestionStep(
@@ -137,7 +146,9 @@ def test_standard_mode_includes_all_standard_scope_questions() -> None:
     limits = compute_adaptive_question_limits(
         plan=plan,
         ui_mode="standard",
-        answers={question.id: "covered" for step in plan.steps for question in step.questions},
+        answers={
+            question.id: "covered" for step in plan.steps for question in step.questions
+        },
         answer_meta={},
         job_extract=None,
     )
@@ -146,15 +157,15 @@ def test_standard_mode_includes_all_standard_scope_questions() -> None:
         step_key: _limit(limits, step_key)
         for step_key in ("company", "role_tasks", "skills", "benefits", "interview")
     } == {
-        "company": 8,
-        "role_tasks": 8,
-        "skills": 8,
-        "benefits": 8,
-        "interview": 8,
+        "company": 4,
+        "role_tasks": 4,
+        "skills": 4,
+        "benefits": 4,
+        "interview": 4,
     }
 
 
-def test_standard_mode_keeps_covered_standard_questions_in_scope() -> None:
+def test_standard_mode_applies_half_ratio_to_covered_standard_questions() -> None:
     plan = QuestionPlan(
         steps=[
             QuestionStep(
@@ -186,7 +197,7 @@ def test_standard_mode_keeps_covered_standard_questions_in_scope() -> None:
         confidence_threshold=0.6,
     )
 
-    assert _limit(limits, "company") == 8
+    assert _limit(limits, "company") == 4
 
 
 def test_adaptive_limits_scale_by_mode_depth() -> None:
@@ -199,6 +210,13 @@ def test_adaptive_limits_scale_by_mode_depth() -> None:
         answer_meta={},
         job_extract=None,
     )
+    standard_limits = compute_adaptive_question_limits(
+        plan=plan,
+        ui_mode="standard",
+        answers={},
+        answer_meta={},
+        job_extract=None,
+    )
     expert_limits = compute_adaptive_question_limits(
         plan=plan,
         ui_mode="expert",
@@ -207,8 +225,12 @@ def test_adaptive_limits_scale_by_mode_depth() -> None:
         job_extract=None,
     )
 
-    assert _limit(quick_limits, "interview") < _limit(expert_limits, "interview")
-    assert _limit(quick_limits, "skills") == _limit(expert_limits, "skills")
+    assert _limit(quick_limits, "interview") == 2
+    assert _limit(standard_limits, "interview") == 3
+    assert _limit(expert_limits, "interview") == 6
+    assert _limit(quick_limits, "skills") == 1
+    assert _limit(standard_limits, "skills") == 2
+    assert _limit(expert_limits, "skills") == 3
 
 
 def test_expert_mode_uses_full_dependency_visible_question_set() -> None:
@@ -324,10 +346,10 @@ def test_adaptive_limits_treat_low_confidence_fact_as_uncovered() -> None:
         confidence_threshold=0.6,
     )
 
-    assert _limit(limits, "skills") == 3
+    assert _limit(limits, "skills") == 2
 
 
-def test_adaptive_limits_keep_uncovered_core_questions_in_scope() -> None:
+def test_quick_mode_limits_uncovered_core_questions_to_thirty_percent() -> None:
     plan = QuestionPlan(
         steps=[
             QuestionStep(
@@ -368,7 +390,7 @@ def test_adaptive_limits_keep_uncovered_core_questions_in_scope() -> None:
         job_extract=None,
     )
 
-    assert _limit(limits, "role_tasks") == 4
+    assert _limit(limits, "role_tasks") == 2
 
 
 def test_select_questions_for_limit_applies_dependency_visibility_before_slicing() -> None:

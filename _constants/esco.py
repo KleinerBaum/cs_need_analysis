@@ -100,8 +100,3 @@ QUESTION_GROUP_DISPLAY_LABELS_DE: Final[dict[str, str]] = {
     ESCO_QUESTION_SKILL_GROUP_LANGUAGE_COMMUNICATION: "Sprache & Kommunikation",
     ESCO_QUESTION_SKILL_GROUP_TRANSVERSAL_FIT: "Arbeitsweise",
 }
-ESCO_CONCEPT_QUESTION_CAP_BY_UI_MODE: Final[dict[str, int]] = {
-    "quick": 3,
-    "standard": 6,
-    "expert": 10,
-}
