@@ -403,7 +403,7 @@ pip install -r requirements-e2e.txt -c constraints.txt
 python -m playwright install --with-deps chromium
 ```
 
-Development-only QA tools are installed separately from runtime dependencies:
+Development and test-only QA tools are installed separately from runtime dependencies:
 
 ```bash
 pip install -r requirements-dev.txt -c constraints.txt
@@ -519,7 +519,7 @@ Current job IDs are `qa`, `security`, `test`, and optional `e2e`.
 
 1. `qa`: blocking Ruff, scoped Black, and scoped mypy gates with `requirements-dev.txt`
 2. `security`: advisory Gitleaks, Bandit, and tracked-artifact drift scans with `continue-on-error`
-3. `test`: Python 3.11 setup, dependency install with `requirements.txt` and `constraints.txt`, `pip check`, `compileall`, `pytest -q`, and OpenAI smoke dry-run without requiring an API key
+3. `test`: Python 3.11 setup, dependency install with `requirements.txt`, `requirements-dev.txt`, and `constraints.txt`, `pip check`, `compileall`, `pytest -q`, and OpenAI smoke dry-run without requiring an API key
 
 The optional Playwright smoke job is available through manual workflow dispatch
 with `run_e2e=true` as job ID `e2e`. It installs `requirements-e2e.txt`,
