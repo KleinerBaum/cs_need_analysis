@@ -9,6 +9,27 @@ from typing import Any
 import streamlit as st
 
 from job_extract_review_helpers import has_meaningful_value
+from safe_html import render_static_html
+
+
+def _render_requirement_board_responsive_css() -> None:
+    render_static_html(
+        """
+        <style>
+        @media (max-width: 760px) {
+            div[data-testid="stHorizontalBlock"]:has(.cs-requirement-board-source) {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            div[data-testid="stHorizontalBlock"]:has(.cs-requirement-board-source) > div {
+                width: 100% !important;
+                flex: 1 1 100% !important;
+            }
+        }
+        </style>
+        """,
+        streamlit_module=st,
+    )
 
 def _normalize_requirement_label(value: str) -> str:
     return " ".join(value.strip().casefold().split())
@@ -158,7 +179,7 @@ def _render_requirement_selection_table(
         selected_row = edited_rows[selected_index]
         selected_label = str(selected_row.get("_full_label") or "").strip()
         notes = str(selected_row.get("notes") or "").strip()
-        with st.expander("Preview", expanded=False):
+        with st.expander("Vorschau", expanded=False):
             st.write(selected_label or "Keine Details verfügbar.")
             if notes:
                 st.caption(notes)
@@ -206,9 +227,15 @@ def render_compact_requirement_board(
         return []
 
     bulk_labels: list[str] = []
+    if len(board_items) > 1:
+        _render_requirement_board_responsive_css()
     columns = st.columns(len(board_items), gap="large")
     for column, (title, entries, source_badge) in zip(columns, board_items):
         with column:
+            render_static_html(
+                '<span class="cs-requirement-board-source" aria-hidden="true"></span>',
+                streamlit_module=st,
+            )
             if entries:
                 bulk_labels.extend(
                     _render_requirement_selection_table(

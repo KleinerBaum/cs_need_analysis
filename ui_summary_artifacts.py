@@ -26,13 +26,13 @@ def render_brief(
 ) -> None:
     if show_title:
         st.subheader("Recruiting Brief")
-    st.markdown(f"**One-liner:** {brief.one_liner}")
-    st.markdown("**Hiring Context**")
+    st.markdown(f"**Kurzprofil:** {brief.one_liner}")
+    st.markdown("**Einstellungskontext**")
     st.write(brief.hiring_context)
-    st.markdown("**Role Summary**")
+    st.markdown("**Rollenzusammenfassung**")
     st.write(brief.role_summary)
 
-    st.markdown("**Top Responsibilities**")
+    st.markdown("**Wichtigste Aufgaben**")
     for x in brief.top_responsibilities:
         st.write(f"- {x}")
 
@@ -44,23 +44,23 @@ def render_brief(
     for x in brief.nice_to_have:
         st.write(f"- {x}")
 
-    st.markdown("**Dealbreakers**")
+    st.markdown("**Ausschlusskriterien**")
     for x in brief.dealbreakers:
         st.write(f"- {x}")
 
-    st.markdown("**Interview Plan**")
+    st.markdown("**Interviewplan**")
     for x in brief.interview_plan:
         st.write(f"- {x}")
 
-    st.markdown("**Evaluation Rubric**")
+    st.markdown("**Bewertungsraster**")
     for x in brief.evaluation_rubric:
         st.write(f"- {x}")
 
-    st.markdown("**Risks / Open Questions**")
+    st.markdown("**Risiken / offene Fragen**")
     for x in brief.risks_open_questions:
         st.write(f"- {x}")
 
-    st.markdown("**Job Ad Draft (DE)**")
+    st.markdown("**Stellenanzeigenentwurf (DE)**")
     st.write(brief.job_ad_draft)
 
     if show_structured_data:
@@ -75,9 +75,9 @@ def render_brief(
             indent=2,
         )
 
-        st.markdown("**Structured Data**")
+        st.markdown("**Strukturierte Daten**")
         st.caption(
-            "Kompakte Preview. Der vollständige Export-JSON steht im Bereich „Export“ bereit."
+            "Kompakte Vorschau. Der vollständige Export-JSON steht im Bereich „Export“ bereit."
         )
         show_col, download_col = st.columns([1, 1])
         with show_col:
@@ -94,10 +94,10 @@ def render_brief(
 
 def render_interview_prep_hr(sheet: InterviewPrepSheetHR) -> None:
     st.markdown(
-        f"**Rolle:** {sheet.role_title} · **Stage:** {sheet.interview_stage} · "
+        f"**Rolle:** {sheet.role_title} · **Phase:** {sheet.interview_stage} · "
         f"**Dauer:** {sheet.duration_minutes} Min."
     )
-    st.markdown("**Opening Script**")
+    st.markdown("**Einstiegsskript**")
     st.write(sheet.opening_script)
 
     st.markdown("**Frageblöcke**")
@@ -111,7 +111,7 @@ def render_interview_prep_hr(sheet: InterviewPrepSheetHR) -> None:
             for question in block.questions:
                 st.write(f"- {question}")
         if block.follow_up_prompts:
-            st.write("Follow-ups:")
+            st.write("Nachfragen:")
             for follow_up in block.follow_up_prompts:
                 st.write(f"- {follow_up}")
 
@@ -147,7 +147,7 @@ def render_interview_prep_hr(sheet: InterviewPrepSheetHR) -> None:
 
 def render_interview_prep_fach(sheet: InterviewPrepSheetHiringManager) -> None:
     st.markdown(
-        f"**Rolle:** {sheet.role_title} · **Stage:** {sheet.interview_stage} · "
+        f"**Rolle:** {sheet.role_title} · **Phase:** {sheet.interview_stage} · "
         f"**Dauer:** {sheet.duration_minutes} Min."
     )
 
@@ -169,22 +169,22 @@ def render_interview_prep_fach(sheet: InterviewPrepSheetHiringManager) -> None:
             for question in block.questions:
                 st.write(f"- {question}")
         if block.follow_up_prompts:
-            st.write("Follow-ups:")
+            st.write("Nachfragen:")
             for follow_up in block.follow_up_prompts:
                 st.write(f"- {follow_up}")
 
-    st.markdown("**Technical Deep Dive Topics**")
+    st.markdown("**Fachliche Vertiefungsthemen**")
     if sheet.technical_deep_dive_topics:
         for topic in sheet.technical_deep_dive_topics:
             st.write(f"- {topic}")
     else:
         st.info("Keine Deep-Dive-Themen hinterlegt.")
 
-    st.markdown("**Case / Task Prompt**")
+    st.markdown("**Case-/Aufgabenbriefing**")
     if sheet.case_or_task_prompt:
         st.write(sheet.case_or_task_prompt)
     else:
-        st.info("Kein Case/Task Prompt hinterlegt.")
+        st.info("Kein Case-/Aufgabenbriefing hinterlegt.")
 
     st.markdown("**Bewertungsrubrik**")
     if not sheet.evaluation_rubric:
@@ -238,22 +238,22 @@ def _render_boolean_code_card(
     st.markdown(f"**{variant}**")
     normalized_queries = [query.strip() for query in queries if query.strip()]
     if not normalized_queries:
-        st.caption("Keine Queries vorhanden.")
+        st.caption("Keine Suchstrings vorhanden.")
         return
 
     for index, query in enumerate(normalized_queries, start=1):
         if len(normalized_queries) > 1:
-            st.caption(f"Query {index}")
+            st.caption(f"Suchstring {index}")
         st.code(query, language="text")
 
 
 def render_boolean_supporting_terms(pack: BooleanSearchPack) -> None:
-    st.markdown("### Supporting Terms")
+    st.markdown("### Suchbegriffe")
     metadata_fields = (
-        ("Must-have Terms", pack.must_have_terms),
-        ("Seniority Terms", pack.seniority_terms),
-        ("Exclusion Terms", pack.exclusion_terms),
-        ("Target Locations", pack.target_locations),
+        ("Must-have-Begriffe", pack.must_have_terms),
+        ("Senioritätsbegriffe", pack.seniority_terms),
+        ("Ausschlussbegriffe", pack.exclusion_terms),
+        ("Zielregionen", pack.target_locations),
     )
     for label, values in metadata_fields:
         st.markdown(f"**{label}**")
@@ -265,16 +265,16 @@ def render_boolean_supporting_terms(pack: BooleanSearchPack) -> None:
 
 
 def render_boolean_usage_notes(pack: BooleanSearchPack) -> None:
-    st.markdown("### Usage Notes")
+    st.markdown("### Nutzungshinweise")
     if pack.usage_notes:
         for note in pack.usage_notes:
             st.write(f"- {note}")
     else:
-        st.info("Keine Usage Notes hinterlegt.")
+        st.info("Keine Nutzungshinweise hinterlegt.")
 
 
 def render_boolean_risks(pack: BooleanSearchPack) -> None:
-    st.markdown("### Risks")
+    st.markdown("### Risiken")
     if pack.channel_limitations:
         for limitation in pack.channel_limitations:
             st.write(f"- {limitation}")
@@ -305,10 +305,10 @@ def render_boolean_search_pack(pack: BooleanSearchPack) -> None:
     st.caption(f"Rolle: {pack.role_title} · Zielregionen: {locations}")
 
     if not _has_visible_boolean_queries(pack):
-        st.info("Keine Boolean Queries vorhanden.")
+        st.info("Keine Boolean-Suchstrings vorhanden.")
         return
 
-    st.markdown("### Channel Variants")
+    st.markdown("### Kanalvarianten")
     visible_channels = _visible_boolean_channels(pack)
     columns = st.columns(min(len(visible_channels), 5))
     for column, (channel_name, channel_queries) in zip(columns, visible_channels):
@@ -316,14 +316,14 @@ def render_boolean_search_pack(pack: BooleanSearchPack) -> None:
             st.markdown(f"#### {channel_name}")
             _render_boolean_code_card(
                 channel_name,
-                "Broad",
+                "Breit",
                 channel_queries.broad,
                 key_prefix=f"{channel_name.lower()}.broad",
             )
-            with st.expander("Focused", expanded=False):
+            with st.expander("Fokussiert", expanded=False):
                 _render_boolean_code_card(
                     channel_name,
-                    "Focused",
+                    "Fokussiert",
                     channel_queries.focused,
                     key_prefix=f"{channel_name.lower()}.focused",
                 )
@@ -331,19 +331,19 @@ def render_boolean_search_pack(pack: BooleanSearchPack) -> None:
 
 def render_employment_contract_draft(draft: EmploymentContractDraft) -> None:
     st.info(
-        "Template-Draft zur Prüfung. Kein finaler Vertrag und keine Rechtsberatung."
+        "Vorlagenentwurf zur Prüfung. Kein finaler Vertrag und keine Rechtsberatung."
     )
     st.markdown(
-        f"**Jurisdiction:** {draft.jurisdiction} · "
+        f"**Rechtsraum:** {draft.jurisdiction} · "
         f"**Rolle:** {draft.role_title} · "
-        f"**Employment Type:** {draft.employment_type} · "
-        f"**Contract Type:** {draft.contract_type}"
+        f"**Beschäftigungsart:** {draft.employment_type} · "
+        f"**Vertragsart:** {draft.contract_type}"
     )
 
     details = [
-        ("Start Date", draft.start_date),
+        ("Startdatum", draft.start_date),
         (
-            "Probation (Monate)",
+            "Probezeit (Monate)",
             (
                 str(draft.probation_period_months)
                 if draft.probation_period_months is not None
@@ -351,16 +351,16 @@ def render_employment_contract_draft(draft: EmploymentContractDraft) -> None:
             ),
         ),
         (
-            "Salary",
+            "Gehalt",
             (
                 f"{draft.salary.min if draft.salary.min is not None else '—'} - "
                 f"{draft.salary.max if draft.salary.max is not None else '—'} "
                 f"{draft.salary.currency or ''} / {draft.salary.period or ''}".strip()
             ),
         ),
-        ("Salary Notes", draft.salary.notes),
+        ("Gehaltshinweise", draft.salary.notes),
         (
-            "Hours / Week",
+            "Stunden / Woche",
             (
                 str(draft.working_hours_per_week)
                 if draft.working_hours_per_week is not None
@@ -368,15 +368,15 @@ def render_employment_contract_draft(draft: EmploymentContractDraft) -> None:
             ),
         ),
         (
-            "Vacation Days / Year",
+            "Urlaubstage / Jahr",
             (
                 str(draft.vacation_days_per_year)
                 if draft.vacation_days_per_year is not None
                 else None
             ),
         ),
-        ("Place of Work", draft.place_of_work),
-        ("Notice Period", draft.notice_period),
+        ("Arbeitsort", draft.place_of_work),
+        ("Kündigungsfrist", draft.notice_period),
     ]
     meta_col_left, meta_col_right = st.columns(2)
     for index, (label, value) in enumerate(details):
@@ -385,15 +385,15 @@ def render_employment_contract_draft(draft: EmploymentContractDraft) -> None:
             st.markdown(f"**{label}**")
             st.write(value or "—")
 
-    st.markdown("**Missing Inputs (Pflicht-Checkliste vor Finalisierung)**")
+    st.markdown("**Fehlende Angaben (Pflicht-Checkliste vor Finalisierung)**")
     if draft.missing_inputs:
         st.warning(
-            "Folgende Inputs fehlen noch. Bitte vor rechtlicher Finalisierung ergänzen."
+            "Folgende Angaben fehlen noch. Bitte vor rechtlicher Finalisierung ergänzen."
         )
         for missing_input in draft.missing_inputs:
             st.write(f"- [ ] {missing_input}")
     else:
-        st.success("Keine fehlenden Inputs markiert.")
+        st.success("Keine fehlenden Angaben markiert.")
 
     st.markdown("**Klauseln**")
     if draft.clauses:
@@ -402,13 +402,13 @@ def render_employment_contract_draft(draft: EmploymentContractDraft) -> None:
             st.markdown(f"**{clause.title}** · `{required_tag}`")
             st.write(clause.clause_text)
             if clause.legal_note:
-                st.caption(f"Legal note: {clause.legal_note}")
+                st.caption(f"Rechtlicher Hinweis: {clause.legal_note}")
     else:
         st.info("Keine Klauseln vorhanden.")
 
-    st.markdown("**Signature Requirements**")
+    st.markdown("**Unterschriftsanforderungen**")
     signature_requirements = list(draft.signature_requirements)
-    legal_review_note = "Legal review required"
+    legal_review_note = "Rechtliche Prüfung erforderlich"
     if all(
         legal_review_note.lower() not in requirement.lower()
         for requirement in signature_requirements

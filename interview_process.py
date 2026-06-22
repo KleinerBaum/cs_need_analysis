@@ -199,7 +199,7 @@ def build_interview_value_rows(
     if info_loop_items:
         _add_row(
             rows,
-            area="Candidate Communication",
+            area="Kandidatenkommunikation",
             field="Recruiting-Infoloop",
             value=", ".join(info_loop_items),
             source="Interview-Step",
@@ -210,7 +210,7 @@ def build_interview_value_rows(
     if earliest_start:
         _add_row(
             rows,
-            area="Timing",
+            area="Zeitplan",
             field="Frühestmöglicher Startzeitpunkt",
             value=earliest_start,
             source="Interview-Step",
@@ -218,7 +218,7 @@ def build_interview_value_rows(
     if latest_start:
         _add_row(
             rows,
-            area="Timing",
+            area="Zeitplan",
             field="Spätester Startzeitpunkt",
             value=latest_start,
             source="Interview-Step",
@@ -267,7 +267,7 @@ def build_interview_value_rows(
         if interview_datetime:
             _add_row(
                 rows,
-                area="Timing",
+                area="Zeitplan",
                 field=f"{role} Interviewtag" if role else "Interviewtag",
                 value=interview_datetime,
                 source="Interview-Step",

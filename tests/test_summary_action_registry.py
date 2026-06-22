@@ -310,7 +310,7 @@ def test_has_required_state_requires_all_truthy_values(monkeypatch) -> None:
 
 
 def test_follow_up_actions_describe_explicit_brief_dependency() -> None:
-    """Expected vs Actual: Follow-up-Inputs verlangen explizit aktuellen Brief (kein optionaler Auto-Brief)."""
+    """Expected vs Actual: Follow-up-Eingaben verlangen explizit aktuellen Brief."""
     action_registry = SUMMARY_MODULE._build_action_registry(
         resolved_brief_model="gpt-5-mini",
         resolved_job_ad_model="gpt-4o-mini",
@@ -339,7 +339,7 @@ def test_follow_up_actions_describe_explicit_brief_dependency() -> None:
     for action in action_registry:
         if action["id"] in follow_up_ids:
             hints = " ".join(action["input_hints"]).lower()
-            assert "kein auto-fallback" in hints
+            assert "kein automatischer fallback" in hints
             assert "optional auto brief" not in hints
             assert (
                 action["requirement_text"]
@@ -360,7 +360,7 @@ def test_render_artifact_launcher_cards_uses_artifact_specific_labels(monkeypatc
     monkeypatch.setattr(
         SUMMARY_MODULE,
         "_get_brief_status",
-        lambda **_: ("dirty", "Inputs geändert", "Brief aktualisieren"),
+        lambda **_: ("dirty", "Eingaben geändert", "Brief aktualisieren"),
     )
 
     action_registry = [

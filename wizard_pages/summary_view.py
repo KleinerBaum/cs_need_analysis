@@ -539,7 +539,7 @@ def _build_selection_rows(
         formatted_single_language = _format_language_requirement(raw)
         if formatted_single_language:
             add_row(
-                "Manager-Input",
+                "Manager-Eingabe",
                 answer_key,
                 formatted_single_language,
                 "Antwort",
@@ -551,16 +551,16 @@ def _build_selection_rows(
                 formatted_language = _format_language_requirement(value)
                 if formatted_language:
                     add_row(
-                        "Manager-Input",
+                        "Manager-Eingabe",
                         answer_key,
                         formatted_language,
                         "Antwort",
                         False,
                     )
                     continue
-                add_row("Manager-Input", answer_key, str(value), "Antwort", False)
+                add_row("Manager-Eingabe", answer_key, str(value), "Antwort", False)
             continue
-        add_row("Manager-Input", answer_key, str(raw), "Antwort", False)
+        add_row("Manager-Eingabe", answer_key, str(raw), "Antwort", False)
 
     return rows
 
@@ -800,11 +800,11 @@ def _render_summary_meta_badges(meta: SummaryMeta, status: SummaryStatus) -> Non
         ("Unternehmen", meta.company_label or "Nicht angegeben"),
         ("Land", meta.country_label or "Nicht angegeben"),
         ("ESCO", "✅" if status.esco_ready else "—"),
-        ("Readiness", readiness),
+        ("Bereitschaft", readiness),
     )
-    columns = st.columns(len(badges))
+    columns = st.columns(3)
     for idx, (label, value) in enumerate(badges):
-        columns[idx].metric(label, str(value))
+        columns[idx % len(columns)].metric(label, str(value))
 
 
 def _render_esco_coverage_kpis() -> None:
@@ -815,14 +815,14 @@ def _render_esco_coverage_kpis() -> None:
     if requirements_total == 0 and unmapped_requirements == 0:
         st.info("Keine ESCO-RAG-Anforderungsdaten verfügbar.")
     else:
-        st.caption("ESCO RAG Coverage: kompakte KPI-Übersicht zur Anforderungsabdeckung")
+        st.caption("ESCO-RAG-Abdeckung: kompakte KPI-Übersicht zur Anforderungsabdeckung")
         kpis = _build_esco_coverage_kpis(
             metrics=coverage_metrics,
             unmapped_requirements_count=unmapped_requirements,
         )
-        columns = st.columns(4)
+        columns = st.columns(2)
         for idx, (label, value) in enumerate(kpis):
-            columns[idx].metric(label=label, value=str(value))
+            columns[idx % len(columns)].metric(label=label, value=str(value))
 
 
 def _render_summary_facts_column_overview(vm: SummaryViewModel) -> None:
@@ -871,7 +871,7 @@ def _summary_fact_caption(row: SummaryFactsRow) -> str:
     if requirement and requirement != "Optional":
         parts.append(requirement)
     if row.website_enrichable:
-        parts.append("Second Source: Website-Review")
+        parts.append("Zweitquelle: Website-Prüfung")
     return " · ".join(parts)
 
 
@@ -949,7 +949,7 @@ def _render_summary_facts_table(rows: list[dict[str, str]]) -> None:
                 "Provenienz": st.column_config.TextColumn("Provenienz"),
                 "Salary": st.column_config.TextColumn("Salary"),
                 "Pflichtigkeit": st.column_config.TextColumn("Pflichtigkeit"),
-                "Second Source": st.column_config.TextColumn("Second Source"),
+                "Second Source": st.column_config.TextColumn("Zweitquelle"),
             },
         )
 
@@ -984,7 +984,7 @@ def _render_summary_facts_matrix(vm: SummaryViewModel) -> None:
                             row.requirement_stage
                         ),
                         "Second Source": (
-                            "Website-Review" if row.website_enrichable else ""
+                            "Website-Prüfung" if row.website_enrichable else ""
                         ),
                     }
                     for row_id, row in row_lookup.items()
@@ -1031,7 +1031,7 @@ def _render_summary_facts_matrix(vm: SummaryViewModel) -> None:
                                     disabled=True,
                                 ),
                                 "Second Source": st.column_config.TextColumn(
-                                    "Second Source",
+                                    "Zweitquelle",
                                     disabled=True,
                                 ),
                             },
@@ -1058,7 +1058,7 @@ def _render_summary_facts_matrix(vm: SummaryViewModel) -> None:
                                     "Pflichtigkeit"
                                 ),
                                 "Second Source": st.column_config.TextColumn(
-                                    "Second Source"
+                                    "Zweitquelle"
                                 ),
                             },
                         )
@@ -1162,8 +1162,8 @@ def _default_job_ad_selected_values(vm: SummaryViewModel) -> dict[str, list[str]
     grouped_values = _selection_options_by_group(rows)
     selected_values: dict[str, list[str]] = {}
     for group_key, max_items in (
-        (_first_existing_group(grouped_values, ("Rolle · Kurzbeschreibung", "Manager-Input · role_tasks")), 3),
-        (_first_existing_group(grouped_values, ("Skills · Must-have", "Manager-Input · must_have_skills")), 5),
+        (_first_existing_group(grouped_values, ("Rolle · Kurzbeschreibung", "Manager-Eingabe · role_tasks")), 3),
+        (_first_existing_group(grouped_values, ("Skills · Must-have", "Manager-Eingabe · must_have_skills")), 5),
         (_first_existing_group(grouped_values, ("Benefits · Ausgewählter Benefit", "Benefits · Benefit")), 5),
     ):
         values = grouped_values.get(group_key)
@@ -1344,7 +1344,7 @@ def _render_interview_compact_controls(vm: SummaryViewModel) -> str:
     left, right = st.columns(2)
     with left:
         stage = st.selectbox(
-            "Stage",
+            "Phase",
             options=["Screening", "Erstgespräch", "Fachinterview", "Finale Runde"],
             index=0,
             key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "interview.stage"),
@@ -1358,7 +1358,7 @@ def _render_interview_compact_controls(vm: SummaryViewModel) -> str:
     with right:
         focus = st.selectbox(
             "Fokus",
-            options=["Kultur & Motivation", "Must-haves", "Deep Dive", "Scorecard"],
+            options=["Kultur & Motivation", "Must-haves", "Fachliche Vertiefung", "Scorecard"],
             index=1,
             key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "interview.focus"),
         )
@@ -1517,7 +1517,7 @@ def _render_contract_compact_controls() -> None:
         placeholder="z. B. 40h/Woche, Gehaltsband aus Intake übernehmen",
         key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "contract.working_hours"),
     )
-    st.caption("Legal Review bleibt erforderlich; der Output ist nur ein Template-Draft.")
+    st.caption("Rechtliche Prüfung bleibt erforderlich; das Ergebnis ist nur ein Vorlagenentwurf.")
     _write_artifact_options(
         "employment_contract",
         {
@@ -1536,11 +1536,11 @@ def _render_summary_artifact_grid(
     generator_by_id: Mapping[str, Callable[[], None]],
 ) -> None:
     st.markdown("### Artefakte")
-    st.caption("Wähle ein Output, schärfe die wichtigsten Einflussfaktoren und generiere direkt aus den aktuellen Daten.")
+    st.caption("Wähle ein Artefakt, schärfe die wichtigsten Einflussfaktoren und generiere direkt aus den aktuellen Daten.")
     specs: list[dict[str, Any]] = [
         {
             "id": "job_ad",
-            "title": "Job-Ad-Generator",
+            "title": "Stellenanzeigen-Generator",
             "description": "Zielgruppenorientierte Stellenanzeige mit AGG-Check.",
             "controls": lambda: _render_job_ad_compact_controls(vm),
             "cta": "Stellenanzeige erstellen",
@@ -1562,14 +1562,14 @@ def _render_summary_artifact_grid(
         {
             "id": "employment_contract",
             "title": "Arbeitsvertrag",
-            "description": "Template-Draft mit Platzhaltern und Review-Hinweisen.",
+            "description": "Vorlagenentwurf mit Platzhaltern und Prüfhinweisen.",
             "controls": _render_contract_compact_controls,
             "cta": "Arbeitsvertrag erstellen",
         },
         {
             "id": "reserved_export",
             "title": "Weitere Exportformate",
-            "description": "Reserviert für zusätzliche Download-Workflows.",
+            "description": "Reserviert für zusätzliche Download-Abläufe.",
         },
         {
             "id": "reserved_templates",
@@ -1577,9 +1577,9 @@ def _render_summary_artifact_grid(
             "description": "Reserviert für künftige Hiring-Team-Artefakte.",
         },
     ]
-    for row_start in range(0, len(specs), 3):
-        columns = st.columns(3, gap="medium")
-        for column, spec in zip(columns, specs[row_start : row_start + 3]):
+    for row_start in range(0, len(specs), 2):
+        columns = st.columns(2, gap="medium")
+        for column, spec in zip(columns, specs[row_start : row_start + 2]):
             with column:
                 with st.container(border=True):
                     st.markdown(f"**{spec['title']}**")
@@ -1635,7 +1635,7 @@ def _render_action_card(action: SummaryAction) -> bool:
     with st.container(border=True):
         st.markdown(f"**{action['title']}**")
         st.caption(action["benefit"])
-        st.caption(f"Status-Chip: {status_chip}")
+        st.caption(f"Status: {status_chip}")
 
         requirement_label = action["requirement_text"]
         if requirement_status_message:
@@ -1647,7 +1647,7 @@ def _render_action_card(action: SummaryAction) -> bool:
 
         input_renderer = action.get("input_renderer")
         if input_renderer is not None:
-            st.caption("Vorbereitung im separaten Panel unterhalb der Action Cards.")
+            st.caption("Vorbereitung im separaten Panel unterhalb der Aktionskarten.")
             open_config_clicked = st.button(
                 "Stellenanzeige vorbereiten",
                 width="stretch",
@@ -1659,7 +1659,7 @@ def _render_action_card(action: SummaryAction) -> bool:
             if open_config_clicked:
                 st.session_state[SSKey.SUMMARY_SHOW_JOB_AD_CONFIG.value] = True
         elif action["input_hints"]:
-            st.markdown("**Inputs**")
+            st.markdown("**Eingaben**")
             for input_hint in action["input_hints"]:
                 st.write(f"- {input_hint}")
 
@@ -1870,7 +1870,7 @@ def _render_artifact_pipeline(
     action_registry: list[SummaryAction], *, resolved_brief_model: str
 ) -> None:
     st.markdown("#### Artefakt-Pipeline")
-    st.caption("Status der wichtigsten Folge-Outputs auf einen Blick.")
+    st.caption("Status der wichtigsten Folgeartefakte auf einen Blick.")
     card_columns = st.columns(2)
     for index, action in enumerate(action_registry):
         status_key, status_label = _artifact_pipeline_status(
@@ -1929,11 +1929,15 @@ def _render_summary_readiness_metrics(vm: SummaryViewModel) -> None:
         "invalid": "Ungültig",
         "blocked": "Blockiert",
     }.get(vm.status.brief_state, vm.status.brief_status_label)
-    metric_columns = st.columns(4)
-    metric_columns[0].metric("Readiness", f"{vm.status.readiness_percent}%")
-    metric_columns[1].metric("Kritische Fakten", vm.status.completion_text)
-    metric_columns[2].metric("ESCO", "Bestätigt" if vm.status.esco_ready else "Offen")
-    metric_columns[3].metric("Brief", brief_label)
+    metrics = (
+        ("Bereitschaft", f"{vm.status.readiness_percent}%"),
+        ("Kritische Fakten", vm.status.completion_text),
+        ("ESCO", "Bestätigt" if vm.status.esco_ready else "Offen"),
+        ("Brief", brief_label),
+    )
+    metric_columns = st.columns(2)
+    for index, (label, value) in enumerate(metrics):
+        metric_columns[index % len(metric_columns)].metric(label, value)
 
 
 def _render_readiness_tab(
@@ -1978,7 +1982,7 @@ def _render_readiness_dashboard_header(vm: SummaryViewModel) -> None:
     container = st.container(border=True) if hasattr(st, "container") else nullcontext()
     with container:
         if hasattr(st, "markdown"):
-            st.markdown("### Readiness-Übersicht")
+            st.markdown("### Bereitschaftsübersicht")
         if hasattr(st, "columns"):
             _render_summary_readiness_metrics(vm)
         if hasattr(st, "caption"):
@@ -2004,7 +2008,7 @@ def _render_next_best_action_card(*, recommendation: NextBestActionRecommendatio
     render_next_best_action(
         next_action["title"],
         recommendation.reason,
-        f"CTA: {recommendation.cta_label}",
+        f"Aktion: {recommendation.cta_label}",
     )
     requirement_label = next_action["requirement_text"]
     if requirement_status_message:
@@ -2013,7 +2017,7 @@ def _render_next_best_action_card(*, recommendation: NextBestActionRecommendatio
         f"Voraussetzung: {'✅' if (requirements_ok and requirement_status_ok) else '⚠️'} {requirement_label}"
     )
     if st.button(
-        f"CTA: {recommendation.cta_label}",
+        f"Aktion: {recommendation.cta_label}",
         type="primary",
         width="stretch",
         key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "readiness.next_action"),
@@ -2084,7 +2088,7 @@ def _render_artifact_launcher_cards(
 
 
 def _build_summary_tabs() -> SummaryTabs:
-    tab_labels = ["Brief", "Fakten", "Export", "Advanced"]
+    tab_labels = ["Brief", "Fakten", "Export", "Technik"]
     if hasattr(st, "tabs"):
         tabs = st.tabs(tab_labels)
         if len(tabs) == 4:
@@ -2111,7 +2115,7 @@ def _render_summary_workspace_tabs(
     resolved_brief_model: str,
     brief: VacancyBrief | None,
 ) -> None:
-    st.markdown("### Workspaces")
+    st.markdown("### Arbeitsbereiche")
     render_static_html(
         '<p class="cs-summary-section-note">'
         "Details sind nach Aufgabe getrennt, damit Fakten und Exporte nicht doppelt erscheinen."
@@ -2126,7 +2130,7 @@ def _render_summary_workspace_tabs(
         else:
             render_output_header(
                 "Recruiting Brief",
-                "Kompakte Vorschau ohne Export-JSON. Downloads liegen im Export-Workspace.",
+                "Kompakte Vorschau ohne Export-JSON. Downloads liegen im Export-Arbeitsbereich.",
             )
             render_brief(
                 brief,
@@ -2145,12 +2149,12 @@ def _render_summary_workspace_tabs(
             _render_summary_export_workspace(brief=brief)
 
     with advanced_tab:
-        st.subheader("Advanced")
+        st.subheader("Technik")
         st.caption("Technische Vorschauen und Statusdaten bleiben hier gebündelt.")
         if brief is not None:
-            with st.expander("Structured Export Preview", expanded=False):
+            with st.expander("Strukturierte Exportvorschau", expanded=False):
                 st.json(_build_brief_structured_preview_payload(brief), expanded=False)
-        with st.expander("Artifact Status", expanded=False):
+        with st.expander("Artefaktstatus", expanded=False):
             st.dataframe(
                 _build_artifact_status_rows(action_registry=action_registry),
                 width="stretch",
@@ -2161,7 +2165,7 @@ def _render_summary_workspace_tabs(
                     "Voraussetzungen": st.column_config.TextColumn("Voraussetzungen"),
                 },
             )
-        with st.expander("Enrichment Timing", expanded=False):
+        with st.expander("Anreicherungs-Laufzeiten", expanded=False):
             timing_rows = _build_enrichment_timing_rows(st.session_state)
             if timing_rows:
                 st.dataframe(
@@ -2225,8 +2229,8 @@ def _render_summary_processing_hub(
     header_columns = st.columns([2.1, 1.1, 1.2, 2.0], gap="small")
     header_columns[0].markdown("**Artefakt**")
     header_columns[1].markdown("**Status**")
-    header_columns[2].markdown("**Prereqs**")
-    header_columns[3].markdown("**Primary CTA**")
+    header_columns[2].markdown("**Voraussetzungen**")
+    header_columns[3].markdown("**Primäre Aktion**")
 
     for action in [primary_action, *follow_up_actions]:
         has_result = bool(st.session_state.get(action["result_key"].value))
@@ -2284,7 +2288,7 @@ def _render_summary_processing_hub(
                 ):
                     st.session_state[SSKey.SUMMARY_SHOW_JOB_AD_CONFIG.value] = True
             elif action["input_hints"]:
-                st.markdown("**Inputs**")
+                st.markdown("**Eingaben**")
                 for input_hint in action["input_hints"]:
                     st.write(f"- {input_hint}")
 
@@ -2346,7 +2350,7 @@ def _render_job_ad_artifact(custom_job_ad_raw: dict[str, Any]) -> None:
         "Generierte Stellenanzeige mit Zielgruppen- und AGG-Hinweisen.",
     )
     render_card_start("cs-card cs-result-card")
-    st.markdown("### Primary Output")
+    st.markdown("### Ergebnis")
     render_static_html(
         document_preview_shell(
             _job_ad_preview_html(custom_job_ad, logo_payload=logo_payload),
@@ -2359,7 +2363,7 @@ def _render_job_ad_artifact(custom_job_ad_raw: dict[str, Any]) -> None:
     render_static_html("</section>", streamlit_module=st)
 
     render_card_start("cs-card cs-result-card")
-    st.markdown("### Review")
+    st.markdown("### Prüfung")
     st.markdown("**Zielgruppe**")
     if custom_job_ad.target_group:
         for index, group in enumerate(custom_job_ad.target_group):
@@ -2385,27 +2389,27 @@ def _render_job_ad_artifact(custom_job_ad_raw: dict[str, Any]) -> None:
     custom_docx = _job_ad_to_docx_bytes(custom_job_ad, logo_payload=logo_payload)
     custom_pdf = _job_ad_to_pdf_bytes(custom_job_ad, logo_payload=logo_payload)
     custom_md = publishable_markdown.encode("utf-8")
-    x1, x2, x3 = st.columns(3)
-    with x1:
+    export_columns = st.columns(2)
+    with export_columns[0]:
         st.download_button(
-            "Download Stellenanzeige (DOCX)",
+            "Stellenanzeige herunterladen (DOCX)",
             data=custom_docx,
             file_name="stellenanzeige.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         )
-    with x2:
+    with export_columns[1]:
         if custom_pdf is None:
             st.caption("PDF-Export benötigt reportlab (nicht verfügbar).")
         else:
             st.download_button(
-                "Download Stellenanzeige (PDF)",
+                "Stellenanzeige herunterladen (PDF)",
                 data=custom_pdf,
                 file_name="stellenanzeige.pdf",
                 mime="application/pdf",
             )
-    with x3:
+    with export_columns[0]:
         st.download_button(
-            "Download Stellenanzeige (Markdown)",
+            "Stellenanzeige herunterladen (Markdown)",
             data=custom_md,
             file_name="stellenanzeige.md",
             mime="text/markdown",
@@ -2443,14 +2447,14 @@ def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
             x1, x2 = st.columns(2)
             with x1:
                 st.download_button(
-                    "Download Interview Sheet JSON",
+                    "Interview Sheet herunterladen (JSON)",
                     data=hr_json_bytes,
                     file_name="interview_sheet_hr.json",
                     mime="application/json",
                 )
             with x2:
                 st.download_button(
-                    "Download Interview Sheet DOCX",
+                    "Interview Sheet herunterladen (DOCX)",
                     data=hr_docx_bytes,
                     file_name="interview_sheet_hr.docx",
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -2479,27 +2483,27 @@ def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
                 logo_payload=logo_payload,
                 styleguide=styleguide,
             )
-            x1, x2, x3 = st.columns(3)
-            with x1:
+            download_columns = st.columns(2)
+            with download_columns[0]:
                 st.download_button(
-                    "Download Interview Sheet (Fachbereich) JSON",
+                    "Interview Sheet (Fachbereich) herunterladen (JSON)",
                     data=fach_json_bytes,
                     file_name="interview_sheet_fachbereich.json",
                     mime="application/json",
                 )
-            with x2:
+            with download_columns[1]:
                 st.download_button(
-                    "Download Interview Sheet (Fachbereich) DOCX",
+                    "Interview Sheet (Fachbereich) herunterladen (DOCX)",
                     data=fach_docx_bytes,
                     file_name="interview_sheet_fachbereich.docx",
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 )
-            with x3:
+            with download_columns[0]:
                 if fach_pdf_bytes is None:
                     st.caption("PDF-Export benötigt reportlab (nicht verfügbar).")
                 else:
                     st.download_button(
-                        "Download Interview Sheet (Fachbereich) PDF",
+                        "Interview Sheet (Fachbereich) herunterladen (PDF)",
                         data=fach_pdf_bytes,
                         file_name="interview_sheet_fachbereich.pdf",
                         mime="application/pdf",
@@ -2529,14 +2533,14 @@ def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
             x1, x2 = st.columns(2)
             with x1:
                 st.download_button(
-                    "Download Arbeitsvertrag JSON",
+                    "Arbeitsvertrag herunterladen (JSON)",
                     data=contract_json_bytes,
                     file_name="employment_contract_draft.json",
                     mime="application/json",
                 )
             with x2:
                 st.download_button(
-                    "Download Arbeitsvertrag DOCX",
+                    "Arbeitsvertrag herunterladen (DOCX)",
                     data=contract_docx_bytes,
                     file_name="employment_contract_draft.docx",
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -2577,8 +2581,8 @@ def _render_artifact_result_switcher(
 ) -> None:
     if len(available_artifact_ids) <= 1:
         return
-    st.caption("Vorhandene Outputs")
-    columns = st.columns(min(len(available_artifact_ids), 3), gap="small")
+    st.caption("Vorhandene Ergebnisse")
+    columns = st.columns(min(len(available_artifact_ids), 2), gap="small")
     for index, artifact_id in enumerate(available_artifact_ids):
         with columns[index % len(columns)]:
             if st.button(
@@ -2612,7 +2616,7 @@ def _render_artifact_refinement_box(
         clear_on_submit=False,
     ):
         request_value = st.text_area(
-            "Was soll am Output angepasst werden?",
+            "Was soll am Ergebnis angepasst werden?",
             value=current_value,
             placeholder="z. B. kürzer, stärker auf Senior-Profile, mehr Interviewfragen zu Stakeholder-Management …",
             key=_widget_key(
@@ -2655,20 +2659,21 @@ def _render_boolean_artifact_context_panels(
     if boolean_pack is None:
         return False
 
-    columns = st.columns(4)
-    with columns[0]:
-        render_boolean_supporting_terms(boolean_pack)
-    with columns[1]:
-        render_boolean_usage_notes(boolean_pack)
-    with columns[2]:
-        render_boolean_risks(boolean_pack)
-    with columns[3]:
-        _render_artifact_refinement_box(
+    columns = st.columns(2)
+    panels = (
+        lambda: render_boolean_supporting_terms(boolean_pack),
+        lambda: render_boolean_usage_notes(boolean_pack),
+        lambda: render_boolean_risks(boolean_pack),
+        lambda: _render_artifact_refinement_box(
             vm=vm,
             artifact_id="boolean_search",
             generator_by_id=generator_by_id,
             heading="### Anpassungswünsche",
-        )
+        ),
+    )
+    for index, render_panel in enumerate(panels):
+        with columns[index % len(columns)]:
+            render_panel()
     return True
 
 
@@ -2678,7 +2683,7 @@ def _render_summary_output_workspace(
     brief: VacancyBrief,
     generator_by_id: Mapping[str, Callable[[], None]],
 ) -> None:
-    st.markdown("### Output")
+    st.markdown("### Ergebnis")
     available_artifact_ids = _generated_summary_artifact_ids()
     active_artifact_id = _resolve_output_artifact_id(
         available_artifact_ids=available_artifact_ids,
@@ -2695,7 +2700,7 @@ def _render_summary_output_workspace(
         f"Status: {status_label}",
     )
     if status_key == "stale":
-        st.warning("Dieser Output basiert auf älteren Fakten oder Optionen. Bitte neu generieren.")
+        st.warning("Dieses Ergebnis basiert auf älteren Fakten oder Optionen. Bitte neu generieren.")
     if active_artifact_id in available_artifact_ids:
         _render_active_artifact(artifact_id=active_artifact_id, brief=brief)
     else:
@@ -2795,24 +2800,24 @@ def _render_summary_export_workspace(*, brief: VacancyBrief) -> None:
     st.caption(
         "Lade die Exportformate direkt herunter. JSON-Vorschau und Debug-Details sind standardmäßig eingeklappt."
     )
-    c1, c2, c3 = st.columns(3)
-    with c1:
+    download_columns = st.columns(2)
+    with download_columns[0]:
         st.download_button(
-            "Download JSON",
+            "JSON herunterladen",
             data=json_bytes,
             file_name="vacancy_brief.json",
             mime="application/json",
         )
-    with c2:
+    with download_columns[1]:
         st.download_button(
-            "Download Markdown",
+            "Markdown herunterladen",
             data=md.encode("utf-8"),
             file_name="vacancy_brief.md",
             mime="text/markdown",
         )
-    with c3:
+    with download_columns[0]:
         st.download_button(
-            "Download DOCX",
+            "DOCX herunterladen",
             data=docx_bytes,
             file_name="vacancy_brief.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",

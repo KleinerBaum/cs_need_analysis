@@ -315,6 +315,10 @@ def render_ui_styles() -> None:
             color: var(--cs-text) !important;
             font-family: var(--cs-font-sans);
             font-weight: 650;
+            min-height: 2.75rem;
+            padding: 0.55rem 0.85rem;
+            line-height: 1.2;
+            white-space: normal;
             box-shadow: var(--cs-shadow-sm);
         }
         [data-testid="stButton"] button *,
@@ -331,6 +335,10 @@ def render_ui_styles() -> None:
             color: var(--cs-text) !important;
             font-family: var(--cs-font-sans);
             font-weight: 650;
+            min-height: 2.75rem;
+            padding: 0.55rem 0.85rem;
+            line-height: 1.2;
+            white-space: normal;
             box-shadow: var(--cs-shadow-sm);
         }
         [data-testid="stButton"] button:hover,
@@ -342,11 +350,17 @@ def render_ui_styles() -> None:
         [data-testid="stButton"] button:focus-visible,
         [data-testid="stFormSubmitButton"] button:focus-visible,
         [data-testid="stDownloadButton"] button:focus-visible,
+        [data-testid="stTabs"] button:focus-visible,
+        [data-testid="stExpander"] summary:focus-visible,
+        [data-testid="stPageLink"] a:focus-visible,
         [data-testid="stRadio"] label:focus-within,
         [data-testid="stCheckbox"] label:focus-within,
         [data-testid="stToggle"] label:focus-within,
+        a:focus-visible,
         input:focus,
         textarea:focus,
+        [data-baseweb="input"] > div:focus-within,
+        [data-baseweb="textarea"] textarea:focus,
         [data-baseweb="select"] > div:focus-within {
             outline: 3px solid var(--cs-focus-ring) !important;
             outline-offset: 2px;
@@ -376,6 +390,7 @@ def render_ui_styles() -> None:
             color: var(--cs-text) !important;
             border-radius: var(--cs-radius-sm) !important;
             font-family: var(--cs-font-sans);
+            min-height: 2.75rem;
         }
         [data-baseweb="select"] *,
         [data-baseweb="input"] *,
@@ -390,6 +405,8 @@ def render_ui_styles() -> None:
         [data-testid="stRadio"] label,
         [data-testid="stToggle"] label {
             color: var(--cs-text) !important;
+            min-height: 2.75rem;
+            align-items: center;
         }
         [data-testid="stCheckbox"] span,
         [data-testid="stRadio"] span,
@@ -475,6 +492,10 @@ def render_ui_styles() -> None:
             color: var(--cs-text) !important;
             font-weight: 650;
         }
+        [data-testid="stExpander"] summary {
+            min-height: 2.75rem;
+            align-items: center;
+        }
         [data-testid="stAlert"] {
             border-radius: var(--cs-radius-md);
             border-color: var(--cs-border);
@@ -495,6 +516,8 @@ def render_ui_styles() -> None:
         [data-testid="stTabs"] button {
             color: var(--cs-text-muted) !important;
             font-family: var(--cs-font-sans);
+            min-height: 2.75rem;
+            padding: 0.5rem 0.75rem;
         }
         [data-testid="stTabs"] button[aria-selected="true"] {
             color: var(--cs-text) !important;

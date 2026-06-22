@@ -418,8 +418,8 @@ def _resolve_next_best_action_recommendation(
     }
     role_profile_group = {("Rolle & Aufgaben", "Aufgaben"), ("Rolle & Aufgaben", "Ziele")}
     skills_profile_group = {
-        ("Skills", "Must-have Skills"),
-        ("Skills", "Nice-to-have Skills"),
+        ("Skills", "Must-have-Skills"),
+        ("Skills", "Nice-to-have-Skills"),
     }
     benefits_group = {("Benefits", "Benefit")}
     interview_group = {("Interview", "Interviewphasen")}
@@ -443,7 +443,7 @@ def _resolve_next_best_action_recommendation(
 
     sourcing_action = _first_available_action(("job_ad", "boolean_search"))
     if sourcing_action is not None:
-        reason = "Recruiting Brief ist verfügbar, nächster Schritt ist Sourcing-Output."
+        reason = "Recruiting Brief ist verfügbar, nächster Schritt ist ein Sourcing-Artefakt."
         return NextBestActionRecommendation(action=sourcing_action, reason=reason, cta_label=sourcing_action["cta_label"])
 
     contract_prereq_group = core_profile_group | company_basics_group | role_profile_group
@@ -553,13 +553,13 @@ def _build_action_registry(
             "input_hints": (
                 "Extrahierte Jobspec-Daten",
                 "Strukturierte Wizard-Antworten",
-                f"Draft-Modell: {resolved_brief_model}",
+                f"Entwurfsmodell: {resolved_brief_model}",
             ),
             "input_renderer": None,
         },
         {
             "id": "job_ad",
-            "title": "Job-Ad-Generator",
+            "title": "Stellenanzeigen-Generator",
             "benefit": "Erstellt eine zielgruppenorientierte Stellenanzeige mit nachvollziehbarer AGG-Checkliste.",
             "cta_label": "Stellenanzeige erstellen",
             "blocked_cta_label": None,
@@ -583,7 +583,7 @@ def _build_action_registry(
             "generator_fn": generate_interview_prep_hr,
             "result_key": SSKey.INTERVIEW_PREP_HR,
             "input_hints": (
-                "Aktueller Recruiting Brief (kein Auto-Fallback)",
+                "Aktueller Recruiting Brief (kein automatischer Fallback)",
                 "Kritische Must-haves",
                 f"HR-Sheet-Modell: {resolved_hr_sheet_model}",
             ),
@@ -592,7 +592,7 @@ def _build_action_registry(
         {
             "id": "interview_fach",
             "title": "Interview-Vorbereitungssheet (Fachbereich)",
-            "benefit": "Liefert ein fachliches Interviewblatt für Deep Dives und konsistente Bewertung.",
+            "benefit": "Liefert ein fachliches Interviewblatt für Vertiefungen und konsistente Bewertung.",
             "cta_label": "Fachbereich-Sheet erstellen",
             "blocked_cta_label": "Recruiting Brief erstellen und danach Fachbereich-Sheet erstellen",
             "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
@@ -601,8 +601,8 @@ def _build_action_registry(
             "generator_fn": generate_interview_prep_fach,
             "result_key": SSKey.INTERVIEW_PREP_FACH,
             "input_hints": (
-                "Aktueller Recruiting Brief (kein Auto-Fallback)",
-                "Must-have-Skills und Top Responsibilities",
+                "Aktueller Recruiting Brief (kein automatischer Fallback)",
+                "Must-have-Skills und Top-Aufgaben",
                 f"Fachbereich-Sheet-Modell: {resolved_fach_sheet_model}",
             ),
             "input_renderer": None,
@@ -619,7 +619,7 @@ def _build_action_registry(
             "generator_fn": generate_boolean_search,
             "result_key": SSKey.BOOLEAN_SEARCH_STRING,
             "input_hints": (
-                "Aktueller Recruiting Brief (kein Auto-Fallback)",
+                "Aktueller Recruiting Brief (kein automatischer Fallback)",
                 "Must-have- und Nice-to-have-Skills",
                 f"Boolean-Modell: {resolved_boolean_search_model}",
             ),
@@ -628,7 +628,7 @@ def _build_action_registry(
         {
             "id": "employment_contract",
             "title": "Arbeitsvertrag",
-            "benefit": "Erstellt einen Vertragsentwurf mit Platzhaltern und klarer Review-Struktur.",
+            "benefit": "Erstellt einen Vertragsentwurf mit Platzhaltern und klarer Prüfstruktur.",
             "cta_label": "Arbeitsvertrag erstellen",
             "blocked_cta_label": "Recruiting Brief erstellen und danach Arbeitsvertrag erstellen",
             "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
@@ -637,9 +637,9 @@ def _build_action_registry(
             "generator_fn": generate_employment_contract,
             "result_key": SSKey.EMPLOYMENT_CONTRACT_DRAFT,
             "input_hints": (
-                "Aktueller Recruiting Brief (kein Auto-Fallback)",
+                "Aktueller Recruiting Brief (kein automatischer Fallback)",
                 "Vertragsart und Konditionen",
-                f"Contract-Modell: {resolved_employment_contract_model}",
+                f"Vertragsmodell: {resolved_employment_contract_model}",
             ),
             "input_renderer": None,
         },

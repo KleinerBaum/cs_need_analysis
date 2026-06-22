@@ -985,7 +985,7 @@ def _render_skills_source_columns(
         )
     with col_selected:
         st.metric("Übernommen", selected_count)
-        st.caption("Finaler Warenkorb für Brief, Matching und Interview.")
+        st.caption("Finale Auswahl für Brief, Matching und Interview.")
         _render_selected_group(
             title="Must-have",
             labels=must_titles,
@@ -1951,7 +1951,7 @@ def _render_confirmed_selection_block(
     include_details: bool = True,
 ) -> None:
     st.markdown("#### Auswahl")
-    st.caption("Finaler Warenkorb für Brief, Matching und Interview.")
+    st.caption("Finale Auswahl für Brief, Matching und Interview.")
     selected_labels_raw = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
     selected_labels = (
         _dedupe_terms([str(item) for item in selected_labels_raw])
@@ -2450,7 +2450,7 @@ def _render_skills_source_comparison_block(
             f"{selected_count} Skills übernommen · "
             f"{open_count} offene Begriffe · {status_label}"
         )
-        with st.expander("Advanced / Technische Prüfung", expanded=False):
+        with st.expander("Technische Prüfung", expanded=False):
             st.caption("Technische ESCO- und Mapping-Prüfung für Expert:innen.")
             if show_esco_sections:
                 _render_matrix_coverage_section(matrix_snapshot, ui_mode=ui_mode)
@@ -2833,7 +2833,7 @@ def render(ctx: WizardContext) -> None:
         st.caption(
             "Automatische Skill-Vorschläge basieren auf dem im Start bestätigten "
             f"Referenzberuf: {selected_occupation.get('title', '—')}. "
-            "Übernommene Skills fließen in Summary, Matching, Interviewfragen "
+            "Übernommene Skills fließen in Zusammenfassung, Matching, Interviewfragen "
             "und Gehaltsprognose ein."
         )
 
@@ -2854,7 +2854,7 @@ def render(ctx: WizardContext) -> None:
         _render_structured_skill_rows()
 
     def _render_review_slot() -> None:
-        st.markdown("#### Review")
+        st.markdown("#### Prüfung")
         st.caption(
             "Prüfe, ob Skill-Auswahl, Pflichtgrad und offene Pflichtangaben für Brief, "
             "Matching und Interview verwertbar sind."
@@ -2895,7 +2895,7 @@ def render(ctx: WizardContext) -> None:
                 label="Skill-Liste bauen",
                 caption=(
                     "Öffnet Jobspec-, ESCO-/Kontext- und AI-Vorschläge zusammen mit "
-                    "dem finalen Skill-Warenkorb."
+                    "der finalen Skill-Auswahl."
                 ),
                 button_label="Skill-Liste öffnen",
                 default_open=default_lazy_source_section_open(),

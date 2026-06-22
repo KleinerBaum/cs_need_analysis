@@ -223,7 +223,7 @@ def test_build_summary_fact_rows_append_homepage_secondary_evidence(
 
     fields = {row.feld: row.to_dict() for row in rows}
     assert fields["Unternehmen"]["Quelle"] == "Manual input + Homepage-Konflikt"
-    assert fields["Brand"]["Quelle"] == "Manual input + Homepage bestätigt"
+    assert fields["Marke"]["Quelle"] == "Manual input + Homepage bestätigt"
 
 
 def test_build_summary_fact_rows_include_populated_extended_core_facts(
@@ -268,7 +268,7 @@ def test_build_summary_fact_rows_include_populated_extended_core_facts(
     assert fields["Remote-Regelung"]["Quelle"] == "Manual input"
     assert fields["Beschäftigungsart"]["Wert"] == "Vollzeit"
     assert fields["Gehalt"]["Wert"] == "min: 60000.0 | max: 80000.0 | currency: EUR"
-    assert fields["Must-have Skills"]["Wert"] == "Python | SQL"
+    assert fields["Must-have-Skills"]["Wert"] == "Python | SQL"
     remote_row = next(row for row in rows if row.feld == "Remote-Regelung")
     assert remote_row.salary_impact == "p50_direct"
     assert remote_row.requirement_stage == "before_summary"
@@ -315,18 +315,18 @@ def test_build_summary_fact_rows_include_extracted_gap_facts(monkeypatch) -> Non
     )
 
     fields = {row.feld: row for row in rows}
-    assert fields["Brand"].wert == "Acme Jobs"
+    assert fields["Marke"].wert == "Acme Jobs"
     assert fields["Abteilung"].wert == "Data Platform"
     assert fields["Berichtet an"].wert == "CTO"
     assert fields["Direkte Reports"].wert == "2"
     assert fields["Rollenüberblick"].wert == "Own the data platform"
-    assert fields["Deliverables"].wert == "Lakehouse"
+    assert fields["Lieferergebnisse"].wert == "Lakehouse"
     assert fields["Erfolgsmetriken"].wert == "Reliable reporting"
     assert fields["Tech Stack"].wert == "Python | SQL"
     assert fields["Domänen-Expertise"].wert == "Retail"
     assert fields["Reise erforderlich"].wert == "Nein"
     assert fields["Rufbereitschaft"].wert == "Ja"
-    assert fields["Onboarding Notes"].wert == "Buddy program"
+    assert fields["Onboarding-Hinweise"].wert == "Buddy program"
     assert fields["Extraktionslücken"].wert == "Budget klaeren"
     assert fields["Annahmen"].wert == "Hybrid possible"
     assert fields["Soft Skills"].wert == "Kommunikation"
@@ -471,7 +471,7 @@ def test_build_summary_fact_rows_include_selected_interview_flow_values(
     )
 
     fields = {row.feld: row.to_dict() for row in rows}
-    assert fields["Recruiting-Infoloop"]["Bereich"] == "Candidate Communication"
+    assert fields["Recruiting-Infoloop"]["Bereich"] == "Kandidatenkommunikation"
     assert fields["Money Ansprechpartner"]["Wert"] == "M. Example"
     assert fields["Frühestmöglicher Startzeitpunkt"]["Wert"] == "2026-07-01"
 

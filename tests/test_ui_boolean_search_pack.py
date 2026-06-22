@@ -100,7 +100,7 @@ def test_render_boolean_search_pack_shows_empty_message(monkeypatch) -> None:
         )
     )
 
-    assert "Keine Boolean Queries vorhanden." in fake_st.info_calls
+    assert "Keine Boolean-Suchstrings vorhanden." in fake_st.info_calls
     assert fake_st.code_calls == []
 
 
@@ -119,7 +119,7 @@ def test_render_boolean_search_pack_renders_visible_queries_only(monkeypatch) ->
     assert "g-x" not in fake_st.code_calls
     assert "li-x" not in fake_st.code_calls
     assert fake_st.expander_calls == [
-        ("Focused", False),
-        ("Focused", False),
-        ("Focused", False),
+        ("Fokussiert", False),
+        ("Fokussiert", False),
+        ("Fokussiert", False),
     ]

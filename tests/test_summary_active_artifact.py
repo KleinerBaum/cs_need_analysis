@@ -276,14 +276,14 @@ def test_render_job_ad_artifact_renders_cards_in_expected_order(monkeypatch) -> 
     section_markers = [
         marker
         for marker in fake_st.markdown_calls
-        if marker in {"### Primary Output", "### Review", "### Export"}
+        if marker in {"### Ergebnis", "### Prüfung", "### Export"}
     ]
     assert card_markers == [
         "start:cs-card cs-result-card",
         "start:cs-card cs-result-card",
         "start:cs-card cs-result-card",
     ]
-    assert section_markers == ["### Primary Output", "### Review", "### Export"]
+    assert section_markers == ["### Ergebnis", "### Prüfung", "### Export"]
     assert fake_st.text_area_calls == []
     assert any("cs-document-preview" in marker for marker in fake_st.markdown_calls)
     assert any("<p>Line 1</p>" in marker for marker in fake_st.markdown_calls)
@@ -326,7 +326,7 @@ def test_render_job_ad_artifact_has_markdown_download_button(monkeypatch) -> Non
         {"headline": "Senior Engineer", "job_ad_text": "Text"}
     )
 
-    assert "Download Stellenanzeige (Markdown)" in fake_st.download_button_labels
+    assert "Stellenanzeige herunterladen (Markdown)" in fake_st.download_button_labels
 
 
 def test_artifact_display_label_maps_expected_labels_and_fallbacks() -> None:

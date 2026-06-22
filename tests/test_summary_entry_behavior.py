@@ -159,7 +159,7 @@ def test_summary_critical_gap_action_sets_deep_link_target(monkeypatch) -> None:
             {
                 "_id": "gap1",
                 "Schritt": "Skills & Anforderungen",
-                "Feld": "Must-have Skills",
+                "Feld": "Must-have-Skills",
                 "Status": "Fehlend",
                 "Pflichtigkeit": "Pflicht vor Summary",
                 "Aktion": "Noch offen.",
@@ -182,7 +182,7 @@ def test_summary_critical_gap_action_sets_deep_link_target(monkeypatch) -> None:
         "target_section": "source_comparison",
         "target_fact_key": "skills.must_have_skills",
         "target_question_id": "",
-        "label": "Must-have Skills",
+        "label": "Must-have-Skills",
         "source": "summary_critical_gap",
     }
     assert fake_st.rerun_called is True

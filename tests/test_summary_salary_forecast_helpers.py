@@ -271,7 +271,7 @@ def test_build_selection_rows_formats_language_requirements() -> None:
     language_rows = [
         row
         for row in rows
-        if row["Kategorie"] == "Manager-Input" and row["Feld"] == "sprachen"
+        if row["Kategorie"] == "Manager-Eingabe" and row["Feld"] == "sprachen"
     ]
 
     assert len(language_rows) == 2

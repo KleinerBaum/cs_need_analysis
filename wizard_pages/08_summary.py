@@ -958,7 +958,7 @@ def render(ctx: WizardContext) -> None:
         brief_model = _resolve_brief_for_follow_up_action()
         try:
             store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
-            with st.spinner("Generiere Arbeitsvertrags-Template…"):
+            with st.spinner("Generiere Arbeitsvertragsvorlage…"):
                 draft, usage = generate_employment_contract_draft(
                     brief=brief_model,
                     model=resolved_employment_contract_model,
@@ -1020,7 +1020,7 @@ def render(ctx: WizardContext) -> None:
             label="Wichtigste Aufgaben / Rollenbeschreibung",
             group_key=_first_existing_group(
                 grouped_values,
-                ("Rolle · Kurzbeschreibung", "Manager-Input · role_tasks"),
+                ("Rolle · Kurzbeschreibung", "Manager-Eingabe · role_tasks"),
             ),
             grouped=grouped_values,
             selected_values=selected_values,
@@ -1031,7 +1031,7 @@ def render(ctx: WizardContext) -> None:
             label="Wichtigste Anforderungen",
             group_key=_first_existing_group(
                 grouped_values,
-                ("Skills · Must-have", "Manager-Input · must_have_skills"),
+                ("Skills · Must-have", "Manager-Eingabe · must_have_skills"),
             ),
             grouped=grouped_values,
             selected_values=selected_values,
@@ -1240,7 +1240,7 @@ def render(ctx: WizardContext) -> None:
 
     render_output_header(
         "Alles bereit für Recruiting und Hiring-Team",
-        "Prüfe die vorhandenen Fakten, schließe kritische Lücken und erstelle die passenden Outputs.",
+        "Prüfe die vorhandenen Fakten, schließe kritische Lücken und erstelle die passenden Ergebnisse.",
     )
     _render_readiness_dashboard_header(vm)
     _render_esco_coverage_kpis()

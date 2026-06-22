@@ -114,7 +114,7 @@ def test_build_summary_tabs_uses_dashboard_workspace_labels(monkeypatch) -> None
     tabs = SUMMARY_MODULE._build_summary_tabs()
 
     assert len(tabs) == 4
-    assert captured_labels == ["Brief", "Fakten", "Export", "Advanced"]
+    assert captured_labels == ["Brief", "Fakten", "Export", "Technik"]
 
 
 def test_artifact_pipeline_status_uses_brief_freshness(monkeypatch) -> None:
