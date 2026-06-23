@@ -1,8 +1,14 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts import check_repo_hygiene
 from constants import (
     SSKey,
     STEP_KEY_BENEFITS,
@@ -107,6 +113,76 @@ def test_locale_files_have_matching_key_shapes() -> None:
     en_locale = json.loads((locales_dir / "en.json").read_text(encoding="utf-8"))
 
     assert _locale_leaf_keys(de_locale) == _locale_leaf_keys(en_locale)
+
+
+def test_i18n_hygiene_contract_guard_passes_current_repo() -> None:
+    assert check_repo_hygiene.find_i18n_contract_findings() == []
+
+
+def test_raw_wizard_ui_guard_flags_changed_literal_without_translation() -> None:
+    source = 'import streamlit as st\nst.button("Neue Rohkopie")\n'
+
+    findings = check_repo_hygiene.find_raw_ui_string_findings_in_source(
+        "wizard_pages/demo.py",
+        source,
+        changed_lines={2},
+        documented_allowlist=set(),
+    )
+
+    assert findings == [
+        check_repo_hygiene.RawUiStringFinding(
+            path="wizard_pages/demo.py",
+            line=2,
+            method="button",
+            text="Neue Rohkopie",
+        )
+    ]
+
+
+def test_raw_wizard_ui_guard_allows_translated_or_explicitly_documented_copy() -> None:
+    translated_source = (
+        "import streamlit as st\n"
+        "from i18n import t\n"
+        'st.button(t("Analyse starten"))\n'
+    )
+    assert (
+        check_repo_hygiene.find_raw_ui_string_findings_in_source(
+            "wizard_pages/demo.py",
+            translated_source,
+            changed_lines={3},
+            documented_allowlist=set(),
+        )
+        == []
+    )
+
+    commented_source = (
+        "import streamlit as st\n"
+        'st.button("HR")  # i18n: allow-raw-ui language-neutral abbreviation\n'
+    )
+    assert (
+        check_repo_hygiene.find_raw_ui_string_findings_in_source(
+            "wizard_pages/demo.py",
+            commented_source,
+            changed_lines={2},
+            documented_allowlist=set(),
+        )
+        == []
+    )
+
+
+def test_raw_wizard_ui_guard_uses_i18n_backlog_as_explicit_allowlist() -> None:
+    allowlist = check_repo_hygiene.load_i18n_raw_ui_allowlist()
+
+    assert ("wizard_pages/base.py", "Mehr erfahren") in allowlist
+    assert (
+        check_repo_hygiene.find_raw_ui_string_findings_in_source(
+            "wizard_pages/base.py",
+            'st.button("Mehr erfahren")\n',
+            changed_lines={1},
+            documented_allowlist=allowlist,
+        )
+        == []
+    )
 
 
 def test_active_step_copy_locale_contract_has_de_en_parity() -> None:

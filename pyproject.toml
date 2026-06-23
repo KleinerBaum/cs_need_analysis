@@ -28,6 +28,7 @@ include = '''
     model_capabilities
   | usage_utils
   | eures_mapping
+  | scripts/check_repo_hygiene
 )\.py$
 '''
 extend-exclude = '''
@@ -51,6 +52,7 @@ files = [
     "usage_utils.py",
     "summary_artifacts.py",
     "eures_mapping.py",
+    "scripts/check_repo_hygiene.py",
 ]
 ignore_missing_imports = true
 follow_imports = "silent"
@@ -65,6 +67,7 @@ include = [
     "usage_utils.py",
     "summary_artifacts.py",
     "eures_mapping.py",
+    "scripts/check_repo_hygiene.py",
 ]
 exclude = [
     ".git",

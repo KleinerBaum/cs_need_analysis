@@ -22,7 +22,7 @@ This document is an inventory of the current translation surface. It does not in
 | `locales/en.json` leaf keys | 300 | English Locale values; key shape must match DE |
 | `_TRANSLATIONS_EN` | 263 | German-source copy translated by `t()` |
 | `_PHRASE_TRANSLATIONS_EN` | 64 | fallback phrase replacements inside `t()` |
-| High-confidence unkeyed UI-copy candidates | 729 | backlog only, generated from direct Streamlit/helper literals |
+| High-confidence unkeyed UI-copy candidates | 729 | explicit migration backlog and allowlist baseline for the changed-line raw UI guard |
 
 ## Locale Leaf Keys
 
@@ -627,7 +627,7 @@ These replacements are applied after exact `t(text)` lookup misses. They are use
 
 ## Gap Backlog: High-Confidence Visible UI Copy
 
-This table is a migration backlog, not a runtime contract. It is generated from direct Streamlit/helper string literals that are not already Locale keys, exact German-source mappings, or phrase replacements. It intentionally excludes prompts, schemas, logs, tests, CSS, and dynamic JSON content.
+This table is a migration backlog and the explicit allowlist baseline used by `scripts/check_repo_hygiene.py` for already-known raw Wizard UI copy. It is generated from direct Streamlit/helper string literals that are not already Locale keys, exact German-source mappings, or phrase replacements. It intentionally excludes prompts, schemas, logs, tests, CSS, and dynamic JSON content.
 
 Priority guide: `P1` visible wizard workflow copy, `P2` shared/public/helper copy, `P3` legacy/debug/preview copy.
 
@@ -1366,6 +1366,9 @@ Priority guide: `P1` visible wizard workflow copy, `P2` shared/public/helper cop
 ## Maintenance Notes
 
 - Keep `locales/de.json` and `locales/en.json` leaf-key shapes identical.
+- Keep placeholder names aligned between DE and EN values.
+- Keep required `ux_copy.steps.*` and inline `ux_copy_contract.py` entries aligned for DE and EN.
 - Prefer `tr("dotted.key")` for new public-page and reusable UI copy.
 - Existing German-source wizard copy may stay on `t(text)` until migrated deliberately.
+- Changed `wizard_pages/*.py` lines fail the raw UI guard when direct Streamlit UI literals are introduced without translation. Use `tr(...)`, `tr_safe(...)`, `t(...)`, or `ux_copy_contract.py`; intentional exceptions require `# i18n: allow-raw-ui <reason>` on the same or previous line, or a reviewed backlog entry in this document.
 - When migrating a gap item, update UI, state-dependent labels, exports, prompt construction, and tests together when they share copy semantics.

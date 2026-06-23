@@ -46,6 +46,7 @@ def test_black_is_scoped_to_stable_helper_modules() -> None:
 
     assert "model_capabilities" in include
     assert "eures_mapping" in include
+    assert "scripts/check_repo_hygiene" in include
     assert "wizard_pages" not in include
     assert "summary_artifacts" not in include
 
@@ -59,6 +60,7 @@ def test_mypy_uses_permissive_selected_module_baseline() -> None:
         "usage_utils.py",
         "summary_artifacts.py",
         "eures_mapping.py",
+        "scripts/check_repo_hygiene.py",
     ]
     assert mypy["ignore_missing_imports"] is True
     assert mypy["follow_imports"] == "silent"
@@ -74,6 +76,7 @@ def test_pyright_uses_staged_selected_module_baseline() -> None:
         "usage_utils.py",
         "summary_artifacts.py",
         "eures_mapping.py",
+        "scripts/check_repo_hygiene.py",
     ]
     assert pyright["pythonVersion"] == "3.11"
     assert pyright["typeCheckingMode"] == "basic"
@@ -128,6 +131,10 @@ def test_ci_contains_blocking_qa_and_advisory_security_jobs() -> None:
 
     assert "qa:" in workflow
     assert "python scripts/check_repo_hygiene.py" in qa_job
+    assert "fetch-depth: 0" in qa_job
+    assert "CS_I18N_RAW_UI_BASE_REF" in qa_job
+    assert "github.event.pull_request.base.sha" in qa_job
+    assert "github.event.before" in qa_job
     assert "python -m ruff check ." in workflow
     assert "python -m black --check ." in workflow
     assert "python -m mypy" in workflow

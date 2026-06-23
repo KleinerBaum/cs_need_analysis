@@ -21,6 +21,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -29,6 +31,8 @@ jobs:
           cache: pip
 
       - name: Repository hygiene guard
+        env:
+          CS_I18N_RAW_UI_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
         run: python scripts/check_repo_hygiene.py
 
       - name: Install QA dependencies
