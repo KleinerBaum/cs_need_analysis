@@ -105,6 +105,13 @@ _SKILL_TIMING_LABELS = {
     "6_months": "Nach 6 Monaten",
     "later": "Später",
 }
+_UNMAPPED_ACTION_LABELS = {
+    "map_to_esco_skill": "Mit ESCO-Begriff verknüpfen",
+    "keep_free_text": "Als Freitext behalten",
+    "ignore": "Ignorieren",
+    "retry_search": "Erneut suchen",
+}
+_SAFE_BULK_UNMAPPED_ACTIONS = ("keep_free_text", "ignore")
 
 
 def _extract_skill_candidates(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -544,6 +551,189 @@ def _build_jobspec_skill_groups(job: JobAdExtract) -> dict[str, list[str]]:
     }
 
 
+def _render_skill_subflow_header(
+    *,
+    number: int,
+    title: str,
+    caption: str,
+) -> None:
+    st.markdown(f"#### {number}. {title}")
+    st.caption(caption)
+
+
+def _render_skills_step_framing(
+    *,
+    selected_occupation: dict[str, Any] | None,
+    show_esco_sections: bool,
+) -> None:
+    occupation_title = (
+        str(selected_occupation.get("title") or "").strip()
+        if isinstance(selected_occupation, dict)
+        else ""
+    )
+    esco_status = (
+        f"ESCO-Mapping aktiv: {occupation_title}"
+        if show_esco_sections and occupation_title
+        else "ESCO-Mapping wird nach bestätigtem Referenzberuf aktiv."
+    )
+    framing_text = (
+        "Entscheidungsworkflow: Skill-Signale priorisieren, offene Begriffe klären, "
+        "Must-have und Nice-to-have trennen, Exportfelder kalibrieren."
+    )
+    info = getattr(st, "info", None)
+    if callable(info):
+        info(framing_text)
+    else:
+        st.caption(framing_text)
+    st.caption(esco_status)
+
+
+def _selected_skill_groups(
+    *,
+    selected_labels: list[str],
+    deduped_must: list[dict[str, Any]],
+    deduped_nice: list[dict[str, Any]],
+) -> dict[str, list[str]]:
+    must_titles = _dedupe_terms([_skill_title(item) for item in deduped_must])
+    nice_titles = _dedupe_terms([_skill_title(item) for item in deduped_nice])
+    esco_selected_normalized = {
+        _normalize_term(item) for item in [*must_titles, *nice_titles]
+    }
+    free_status_by_label = {
+        _normalize_term(str(value.get("label") or "")): str(
+            value.get("status") or ""
+        ).strip()
+        for value in _get_free_skill_statuses().values()
+        if isinstance(value, dict)
+    }
+
+    free_must: list[str] = []
+    free_nice: list[str] = []
+    free_unclassified: list[str] = []
+    for label in selected_labels:
+        normalized = _normalize_term(label)
+        if not normalized or normalized in esco_selected_normalized:
+            continue
+        status = free_status_by_label.get(normalized, "")
+        if status == "must":
+            free_must.append(label)
+        elif status == "nice":
+            free_nice.append(label)
+        else:
+            free_unclassified.append(label)
+
+    return {
+        "must": _dedupe_terms([*must_titles, *free_must]),
+        "nice": _dedupe_terms([*nice_titles, *free_nice]),
+        "free_must": _dedupe_terms(free_must),
+        "free_nice": _dedupe_terms(free_nice),
+        "free_unclassified": _dedupe_terms(free_unclassified),
+    }
+
+
+def _render_skill_export_consequences(
+    *,
+    selected_labels: list[str],
+    deduped_must: list[dict[str, Any]],
+    deduped_nice: list[dict[str, Any]],
+) -> None:
+    groups = _selected_skill_groups(
+        selected_labels=selected_labels,
+        deduped_must=deduped_must,
+        deduped_nice=deduped_nice,
+    )
+    esco_mapped_count = len(deduped_must) + len(deduped_nice)
+    free_text_count = (
+        len(groups["free_must"])
+        + len(groups["free_nice"])
+        + len(groups["free_unclassified"])
+    )
+    skill_items_raw = fact_value(FactKey.SKILLS_ITEMS, [])
+    calibrated_count = (
+        len(skill_items_raw) if isinstance(skill_items_raw, list) else 0
+    )
+
+    with st.container(border=True):
+        st.markdown("##### Exportwirkung")
+        metric_mapped, metric_free_text, metric_calibrated = st.columns(
+            3,
+            gap="small",
+        )
+        with metric_mapped:
+            st.metric("ESCO-gemappt", esco_mapped_count)
+        with metric_free_text:
+            st.metric("Freitext", free_text_count)
+        with metric_calibrated:
+            st.metric("Kalibriert", calibrated_count)
+        st.caption(
+            "Must-have, Nice-to-have, Timing, Niveau und Nachweise werden in "
+            "`skills.items` gespeichert. ESCO-gemappte Skills behalten ihre URI für "
+            "semantic exports; Freitext bleibt sichtbar in Brief, Job Ad und Review."
+        )
+        if free_text_count > 0:
+            st.caption(
+                "Freitext-Begriffe bleiben erhalten. Eine kurze Begründung verbessert "
+                "Review- und Exportqualität."
+            )
+
+
+def _unmapped_term_bucket(
+    term: str,
+    unresolved_requirement_terms: set[str],
+) -> str:
+    return (
+        "must" if _normalize_term(term) in unresolved_requirement_terms else "unknown"
+    )
+
+
+def _build_unmapped_term_decision(
+    *,
+    term: str,
+    action: str,
+    bucket: str,
+    source_mode: str | None,
+    mapped_uri: str | None = None,
+    mapped_title: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "raw_term": term,
+        "action": action,
+        "mapped_uri": mapped_uri,
+        "mapped_title": mapped_title,
+        "bucket": bucket,
+        "source_mode": source_mode,
+    }
+
+
+def _apply_bulk_unmapped_term_action(
+    *,
+    flagged_terms: list[str],
+    actions: dict[str, Any],
+    unresolved_requirement_terms: set[str],
+    source_mode: str | None,
+    action: str,
+) -> int:
+    if action not in _SAFE_BULK_UNMAPPED_ACTIONS:
+        return 0
+    applied_count = 0
+    for term in flagged_terms:
+        if not has_meaningful_value(term):
+            continue
+        existing = actions.get(term)
+        if isinstance(existing, dict) and str(
+            existing.get("action") or ""
+        ).strip():
+            continue
+        actions[term] = _build_unmapped_term_decision(
+            term=term,
+            action=action,
+            mapped_uri=None,
+            mapped_title=None,
+            bucket=_unmapped_term_bucket(term, unresolved_requirement_terms),
+            source_mode=source_mode,
+        )
+        applied_count += 1
+    return applied_count
 
 def _mark_esco_skill_optional(uri: str, label: str) -> None:
     """Move an ESCO skill from must-have to nice-to-have."""
@@ -631,7 +821,20 @@ def _render_skill_action_row(
             width="stretch",
             disabled=not can_mark_optional,
         ):
-            _mark_esco_skill_optional(uri, label)
+            if uri:
+                _mark_esco_skill_optional(uri, label)
+            else:
+                existing_status = _get_free_skill_statuses().get(
+                    _free_skill_status_key(label, ""),
+                    {},
+                )
+                _set_free_skill_status(
+                    label=label,
+                    uri="",
+                    source=str(existing_status.get("source") or source or "Eingabe"),
+                    group_hint=str(existing_status.get("group_hint") or group_hint),
+                    status="nice",
+                )
     with remove_col:
         if st.button("Entfernen", key=f"{key_prefix}.remove", width="stretch"):
             if uri:
@@ -1496,7 +1699,7 @@ def _sync_question_context_from_esco_skills() -> None:
 
 
 def _render_matrix_coverage_section(snapshot: dict[str, Any], *, ui_mode: str) -> None:
-    st.markdown("#### ESCO Matrix Coverage")
+    st.markdown("##### ESCO Matrix Coverage")
     reason = str(snapshot.get("reason") or "").strip()
     rows = snapshot.get("rows", [])
 
@@ -1559,6 +1762,41 @@ def _render_matrix_coverage_section(snapshot: dict[str, Any], *, ui_mode: str) -
                 "Status": st.column_config.TextColumn("Status"),
             },
         )
+
+
+def _render_open_term_and_diagnostic_subflow(
+    *,
+    flagged_terms: list[str],
+    show_esco_sections: bool,
+    matrix_snapshot: dict[str, Any],
+    ui_mode: str,
+) -> None:
+    _render_skill_subflow_header(
+        number=2,
+        title="Offene Begriffe klären",
+        caption=(
+            "Unklare Begriffe werden gemappt, bewusst als Freitext behalten oder "
+            "ausgeschlossen. Matrix Coverage bleibt eine Diagnose, nicht die Hauptliste."
+        ),
+    )
+    if show_esco_sections and flagged_terms:
+        with st.expander(
+            f"Offene Begriffe bearbeiten ({len(flagged_terms)})",
+            expanded=True,
+        ):
+            _render_unmapped_term_workflow(flagged_terms)
+    elif show_esco_sections:
+        st.success("Keine offenen Skill-Begriffe aus Jobspec oder ESCO-Abgleich.")
+    else:
+        st.caption(
+            "ESCO-spezifisches Mapping erscheint nach bestätigtem Referenzberuf."
+        )
+
+    with st.expander("Diagnose: Matrix Coverage", expanded=False):
+        if show_esco_sections:
+            _render_matrix_coverage_section(matrix_snapshot, ui_mode=ui_mode)
+        else:
+            st.caption("Matrix Coverage benötigt einen bestätigten ESCO-Anker.")
 
 
 def _generate_ai_skill_suggestions(
@@ -1668,40 +1906,93 @@ def _initial_ai_skill_generation_action(
 
 
 def _render_unmapped_term_workflow(flagged_terms: list[str]) -> None:
-    st.markdown("#### Offene Begriffe")
-    st.caption("Für jeden Begriff: ESCO mappen, Freitext behalten, ignorieren oder erneut suchen.")
+    st.markdown("##### Offene Begriffe")
+    st.caption(
+        "Unklare Begriffe werden einzeln entschieden. Bulk actions füllen nur Begriffe "
+        "ohne bestehende Entscheidung."
+    )
     actions_raw = st.session_state.get(SSKey.ESCO_UNMAPPED_TERM_ACTIONS.value, {})
     actions = actions_raw if isinstance(actions_raw, dict) else {}
-    action_labels = {
-        "map_to_esco_skill": "Mit ESCO-Begriff verknüpfen",
-        "keep_free_text": "Als Freitext behalten",
-        "ignore": "Ignorieren",
-        "retry_search": "Erneut suchen",
-    }
     unresolved_requirement_terms_raw = st.session_state.get(
         SSKey.ESCO_UNMAPPED_REQUIREMENT_TERMS.value, []
     )
     unresolved_requirement_terms = {
         _normalize_term(str(term))
-        for term in (unresolved_requirement_terms_raw if isinstance(unresolved_requirement_terms_raw, list) else [])
+        for term in (
+            unresolved_requirement_terms_raw
+            if isinstance(unresolved_requirement_terms_raw, list)
+            else []
+        )
         if has_meaningful_value(str(term))
     }
     esco_config_raw = st.session_state.get(SSKey.ESCO_CONFIG.value, {})
     esco_config = esco_config_raw if isinstance(esco_config_raw, dict) else {}
     source_mode = str(esco_config.get("data_source_mode") or "").strip() or None
 
+    undecided_terms = [
+        term
+        for term in flagged_terms
+        if not (
+            isinstance(actions.get(term), dict)
+            and str(actions[term].get("action") or "").strip()
+        )
+    ]
+    if undecided_terms:
+        bulk_action_col, bulk_apply_col = st.columns([2, 1], gap="small")
+        with bulk_action_col:
+            bulk_action = st.selectbox(
+                "Bulk action für unentschiedene Begriffe",
+                options=["", *_SAFE_BULK_UNMAPPED_ACTIONS],
+                key="skills.unresolved.bulk_action",
+                format_func=lambda value: (
+                    "Keine Bulk action"
+                    if not value
+                    else _UNMAPPED_ACTION_LABELS.get(value, value)
+                ),
+            )
+        with bulk_apply_col:
+            applied = st.button(
+                "Bulk action anwenden",
+                key="skills.unresolved.bulk_apply",
+                disabled=not bool(bulk_action),
+                width="stretch",
+            )
+        if applied and bulk_action:
+            applied_count = _apply_bulk_unmapped_term_action(
+                flagged_terms=flagged_terms,
+                actions=actions,
+                unresolved_requirement_terms=unresolved_requirement_terms,
+                source_mode=source_mode,
+                action=bulk_action,
+            )
+            if applied_count:
+                st.success(f"Bulk action angewendet: {applied_count}")
+            else:
+                st.caption("Keine unentschiedenen Begriffe für diese Bulk action.")
+
     for term in flagged_terms:
         normalized_term = _normalize_term(term)
         term_key = f"skills.unresolved.{normalized_term}"
-        existing = actions.get(term, {}) if isinstance(actions.get(term, {}), dict) else {}
-        bucket = "must" if normalized_term in unresolved_requirement_terms else "unknown"
+        existing = (
+            actions.get(term, {})
+            if isinstance(actions.get(term, {}), dict)
+            else {}
+        )
+        bucket = _unmapped_term_bucket(term, unresolved_requirement_terms)
         st.markdown(f"**{term}**")
+        action_options = list(_UNMAPPED_ACTION_LABELS)
+        existing_action = str(existing.get("action") or "").strip()
+        action_index = (
+            action_options.index(existing_action)
+            if existing_action in action_options
+            else 0
+        )
         action = st.selectbox(
             "Aktion",
-            options=["map_to_esco_skill", "keep_free_text", "ignore", "retry_search"],
-            index=0,
+            options=action_options,
+            index=action_index,
             key=f"{term_key}.action",
-            format_func=lambda value: action_labels.get(value, value),
+            format_func=lambda value: _UNMAPPED_ACTION_LABELS.get(value, value),
         )
         if action == "map_to_esco_skill":
             render_esco_picker_card(
@@ -1712,35 +2003,43 @@ def _render_unmapped_term_workflow(flagged_terms: list[str]) -> None:
                 auto_apply_single_select=False,
             )
             picked = st.session_state.get(f"{term_key}.map")
-            mapped_uri = str((picked or {}).get("uri") or "").strip() if isinstance(picked, dict) else ""
-            mapped_title = str((picked or {}).get("title") or "").strip() if isinstance(picked, dict) else ""
+            mapped_uri = (
+                str((picked or {}).get("uri") or "").strip()
+                if isinstance(picked, dict)
+                else str(existing.get("mapped_uri") or "").strip()
+            )
+            mapped_title = (
+                str((picked or {}).get("title") or "").strip()
+                if isinstance(picked, dict)
+                else str(existing.get("mapped_title") or "").strip()
+            )
             if mapped_uri:
-                actions[term] = {
-                    "raw_term": term,
-                    "action": action,
-                    "mapped_uri": mapped_uri,
-                    "mapped_title": mapped_title or None,
-                    "bucket": bucket,
-                    "source_mode": source_mode,
-                }
+                actions[term] = _build_unmapped_term_decision(
+                    term=term,
+                    action=action,
+                    mapped_uri=mapped_uri,
+                    mapped_title=mapped_title or None,
+                    bucket=bucket,
+                    source_mode=source_mode,
+                )
         elif action == "keep_free_text":
-            actions[term] = {
-                "raw_term": term,
-                "action": action,
-                "mapped_uri": None,
-                "mapped_title": None,
-                "bucket": bucket,
-                "source_mode": source_mode,
-            }
+            actions[term] = _build_unmapped_term_decision(
+                term=term,
+                action=action,
+                mapped_uri=None,
+                mapped_title=None,
+                bucket=bucket,
+                source_mode=source_mode,
+            )
         elif action == "ignore":
-            actions[term] = {
-                "raw_term": term,
-                "action": action,
-                "mapped_uri": None,
-                "mapped_title": None,
-                "bucket": bucket,
-                "source_mode": source_mode,
-            }
+            actions[term] = _build_unmapped_term_decision(
+                term=term,
+                action=action,
+                mapped_uri=None,
+                mapped_title=None,
+                bucket=bucket,
+                source_mode=source_mode,
+            )
         else:
             retry_language = st.radio(
                 "Retry Sprache",
@@ -1756,14 +2055,18 @@ def _render_unmapped_term_workflow(flagged_terms: list[str]) -> None:
                 selection_label="Erneute ESCO-Suche",
             )
             picked_retry = st.session_state.get(f"{term_key}.retry_map")
-            actions[term] = {
-                "raw_term": term,
-                "action": action,
-                "mapped_uri": str((picked_retry or {}).get("uri") or "").strip() if isinstance(picked_retry, dict) else None,
-                "mapped_title": str((picked_retry or {}).get("title") or "").strip() if isinstance(picked_retry, dict) else None,
-                "bucket": bucket,
-                "source_mode": source_mode,
-            }
+            actions[term] = _build_unmapped_term_decision(
+                term=term,
+                action=action,
+                mapped_uri=str((picked_retry or {}).get("uri") or "").strip()
+                if isinstance(picked_retry, dict)
+                else None,
+                mapped_title=str((picked_retry or {}).get("title") or "").strip()
+                if isinstance(picked_retry, dict)
+                else None,
+                bucket=bucket,
+                source_mode=source_mode,
+            )
         if existing and term not in actions:
             actions[term] = existing
     st.session_state[SSKey.ESCO_UNMAPPED_TERM_ACTIONS.value] = actions
@@ -1825,28 +2128,22 @@ def _render_confirmed_selection_block(
     is_expert_mode: bool,
     include_details: bool = True,
 ) -> None:
-    st.markdown("#### Auswahl")
-    st.caption("Finale Auswahl für Brief, Matching und Interview.")
+    st.markdown("#### 3. Finale Auswahl")
+    st.caption(
+        "Prüfe Must-have, Nice-to-have und Freitext, bevor die Exportfelder "
+        "kalibriert werden."
+    )
     selected_labels_raw = st.session_state.get(SSKey.SKILLS_SELECTED.value, [])
     selected_labels = (
         _dedupe_terms([str(item) for item in selected_labels_raw])
         if isinstance(selected_labels_raw, list)
         else []
     )
-    must_titles = _dedupe_terms(
-        [str(item.get("title") or "").strip() for item in deduped_must]
+    selected_groups = _selected_skill_groups(
+        selected_labels=selected_labels,
+        deduped_must=deduped_must,
+        deduped_nice=deduped_nice,
     )
-    nice_titles = _dedupe_terms(
-        [str(item.get("title") or "").strip() for item in deduped_nice]
-    )
-    esco_selected_normalized = {
-        _normalize_term(item) for item in [*must_titles, *nice_titles]
-    }
-    company_specific_labels = [
-        label
-        for label in selected_labels
-        if _normalize_term(label) not in esco_selected_normalized
-    ]
 
     render_static_html(
         """
@@ -1936,21 +2233,22 @@ def _render_confirmed_selection_block(
                             can_mark_optional=title != "Nice-to-have",
                         )
 
-            _render_compact_group("Must-have", must_titles)
-            _render_compact_group("Nice-to-have", nice_titles)
-            _render_compact_group(
-                "Unternehmensspezifisch",
-                _dedupe_terms(company_specific_labels),
-            )
+            _render_compact_group("Must-have", selected_groups["must"])
+            _render_compact_group("Nice-to-have", selected_groups["nice"])
+            if selected_groups["free_unclassified"]:
+                _render_compact_group(
+                    "Freitext ohne Status",
+                    selected_groups["free_unclassified"],
+                )
 
     if not include_details:
         return
 
-    cc1, cc2, cc3 = responsive_three_columns(gap="large")
     if details_col is None:
         return
     with details_col:
         with st.expander("Vertiefung (optional)", expanded=False):
+            cc1, cc2, cc3 = responsive_three_columns(gap="large")
             with cc1:
                 _render_selected_skill_details(
                     title="ESCO · Essential",
@@ -2083,6 +2381,87 @@ def _maybe_autoload_esco_skill_suggestions(
     return matrix_expected_must, matrix_expected_nice, recommended_must, recommended_nice
 
 
+def _sync_skill_mapping_report(
+    *,
+    normalized_must_terms: list[str],
+    normalized_nice_terms: list[str],
+    deduped_must: list[dict[str, Any]],
+    deduped_nice: list[dict[str, Any]],
+    notes: list[str],
+) -> EscoCoverageSnapshot:
+    mapped_titles = {
+        _normalize_term(str(item.get("title") or ""))
+        for item in (deduped_must + deduped_nice)
+    }
+    follow_up_terms = [
+        term
+        for term in _dedupe_terms(normalized_must_terms + normalized_nice_terms)
+        if _normalize_term(term) not in mapped_titles
+    ]
+    mapping_report = EscoMappingReport.model_validate(
+        {
+            "mapped_count": len(deduped_must) + len(deduped_nice),
+            "unmapped_terms": _dedupe_terms(follow_up_terms),
+            "collisions": [],
+            "notes": notes,
+        }
+    ).model_dump()
+    st.session_state[SSKey.ESCO_SKILLS_MAPPING_REPORT.value] = mapping_report
+    st.session_state[SSKey.ESCO_UNMAPPED_REQUIREMENT_TERMS.value] = list(
+        mapping_report["unmapped_terms"]
+    )
+    return sync_esco_shared_state()
+
+
+def _compute_and_store_matrix_snapshot(
+    *,
+    show_esco_sections: bool,
+    occupation_uri: str,
+    occupation_group: str,
+    matrix_expected_must: list[dict[str, Any]],
+    matrix_expected_nice: list[dict[str, Any]],
+    deduped_must: list[dict[str, Any]],
+    deduped_nice: list[dict[str, Any]],
+) -> dict[str, Any]:
+    if show_esco_sections and occupation_uri:
+        if not matrix_expected_must and not matrix_expected_nice:
+            try:
+                matrix_expected_must, matrix_expected_nice = _load_matrix_priors(
+                    occupation_uri,
+                    occupation_group=occupation_group,
+                )
+            except Exception:
+                matrix_expected_must, matrix_expected_nice = [], []
+        matrix_snapshot = _compute_matrix_coverage_snapshot(
+            matrix_loaded=bool(
+                st.session_state.get(SSKey.ESCO_MATRIX_LOADED.value, False)
+            ),
+            occupation_group=occupation_group,
+            expected_must=matrix_expected_must,
+            expected_nice=matrix_expected_nice,
+            confirmed_must=deduped_must,
+            confirmed_nice=deduped_nice,
+        )
+    else:
+        matrix_snapshot = {
+            "rows": [],
+            "reason": "occupation_group_missing",
+            "occupation_group": "",
+            "rows_count": 0,
+        }
+    st.session_state[SSKey.ESCO_MATRIX_COVERAGE_ROWS.value] = (
+        list(matrix_snapshot.get("rows", []))
+        if isinstance(matrix_snapshot.get("rows", []), list)
+        else []
+    )
+    st.session_state[SSKey.ESCO_MATRIX_COVERAGE_CONTEXT.value] = {
+        "reason": str(matrix_snapshot.get("reason") or ""),
+        "occupation_group": str(matrix_snapshot.get("occupation_group") or ""),
+        "rows": int(matrix_snapshot.get("rows_count") or 0),
+    }
+    return matrix_snapshot
+
+
 def _render_skills_source_comparison_block(
     *,
     job: JobAdExtract,
@@ -2169,6 +2548,14 @@ def _render_skills_source_comparison_block(
             *_get_selected_skill_labels(),
         ]
     )
+    _render_skill_subflow_header(
+        number=1,
+        title="Skill-Signale priorisieren",
+        caption=(
+            "Jobspec, ESCO/Kontext und AI bleiben getrennt sichtbar. Übernommen wird "
+            "erst, was für die finale Anforderungsliste relevant ist."
+        ),
+    )
     generate_ai_clicked = _render_skill_status_surface(
         jobspec_count=len(_dedupe_terms(jobspec_labels)),
         esco_count=len(
@@ -2183,64 +2570,6 @@ def _render_skills_source_comparison_block(
         selected_count=len(selected_status_labels),
     )
 
-    mapped_titles = {
-        _normalize_term(str(item.get("title") or ""))
-        for item in (deduped_must + deduped_nice)
-    }
-    follow_up_terms = [
-        term
-        for term in _dedupe_terms(normalized_must_terms + normalized_nice_terms)
-        if _normalize_term(term) not in mapped_titles
-    ]
-    mapping_report = EscoMappingReport.model_validate(
-        {
-            "mapped_count": len(deduped_must) + len(deduped_nice),
-            "unmapped_terms": _dedupe_terms(follow_up_terms),
-            "collisions": [],
-            "notes": notes,
-        }
-    ).model_dump()
-    st.session_state[SSKey.ESCO_SKILLS_MAPPING_REPORT.value] = mapping_report
-    st.session_state[SSKey.ESCO_UNMAPPED_REQUIREMENT_TERMS.value] = list(
-        mapping_report["unmapped_terms"]
-    )
-    coverage_snapshot = sync_esco_shared_state()
-
-    if show_esco_sections and occupation_uri:
-        if not matrix_expected_must and not matrix_expected_nice:
-            try:
-                matrix_expected_must, matrix_expected_nice = _load_matrix_priors(
-                    occupation_uri,
-                    occupation_group=occupation_group,
-                )
-            except Exception:
-                matrix_expected_must, matrix_expected_nice = [], []
-        matrix_snapshot = _compute_matrix_coverage_snapshot(
-            matrix_loaded=bool(
-                st.session_state.get(SSKey.ESCO_MATRIX_LOADED.value, False)
-            ),
-            occupation_group=occupation_group,
-            expected_must=matrix_expected_must,
-            expected_nice=matrix_expected_nice,
-            confirmed_must=deduped_must,
-            confirmed_nice=deduped_nice,
-        )
-    else:
-        matrix_snapshot = {
-            "rows": [],
-            "reason": "occupation_group_missing",
-            "occupation_group": "",
-            "rows_count": 0,
-        }
-    st.session_state[SSKey.ESCO_MATRIX_COVERAGE_ROWS.value] = list(
-        matrix_snapshot.get("rows", [])
-    ) if isinstance(matrix_snapshot.get("rows", []), list) else []
-    st.session_state[SSKey.ESCO_MATRIX_COVERAGE_CONTEXT.value] = {
-        "reason": str(matrix_snapshot.get("reason") or ""),
-        "occupation_group": str(matrix_snapshot.get("occupation_group") or ""),
-        "rows": int(matrix_snapshot.get("rows_count") or 0),
-    }
-    _sync_question_context_from_esco_skills()
     suggestion_context = _build_skill_suggestion_context(
         job=job,
         esco_must_selected=deduped_must,
@@ -2294,6 +2623,30 @@ def _render_skills_source_comparison_block(
         esco_items=esco_items,
         llm_items=llm_items,
     )
+    refreshed_view_data = _build_skills_source_view_data(
+        job=job,
+        show_esco_sections=show_esco_sections,
+    )
+    deduped_must = refreshed_view_data[3]
+    deduped_nice = refreshed_view_data[4]
+    llm_suggested = refreshed_view_data[5]
+    coverage_snapshot = _sync_skill_mapping_report(
+        normalized_must_terms=normalized_must_terms,
+        normalized_nice_terms=normalized_nice_terms,
+        deduped_must=deduped_must,
+        deduped_nice=deduped_nice,
+        notes=notes,
+    )
+    matrix_snapshot = _compute_and_store_matrix_snapshot(
+        show_esco_sections=show_esco_sections,
+        occupation_uri=occupation_uri,
+        occupation_group=occupation_group,
+        matrix_expected_must=matrix_expected_must,
+        matrix_expected_nice=matrix_expected_nice,
+        deduped_must=deduped_must,
+        deduped_nice=deduped_nice,
+    )
+    _sync_question_context_from_esco_skills()
     selected_after = _get_selected_skill_labels()
     st.caption(f"Ausgewählt: {len(selected_after)} Skills")
     source_counts = _count_selected_sources(
@@ -2315,33 +2668,38 @@ def _render_skills_source_comparison_block(
     flagged_terms = _dedupe_terms([*ambiguous_terms, *unmapped_terms])
     selected_count = len(_get_selected_skill_labels())
     open_count = len(flagged_terms)
-    if ui_mode == "expert":
-        status_label = (
-            "Bereit für Recruiting Brief und Interviewfragen"
-            if open_count == 0
-            else "Bitte offene Begriffe technisch prüfen"
-        )
+    if open_count:
         st.info(
             f"{selected_count} Skills übernommen · "
-            f"{open_count} offene Begriffe · {status_label}"
+            f"{open_count} offene Begriffe zur Entscheidung."
         )
-        with st.expander("Technische Prüfung", expanded=False):
-            st.caption("Technische ESCO- und Mapping-Prüfung für Expert:innen.")
-            if show_esco_sections:
-                _render_matrix_coverage_section(matrix_snapshot, ui_mode=ui_mode)
-            if show_esco_sections and flagged_terms:
-                _render_unmapped_term_workflow(flagged_terms)
-            else:
-                st.caption(
-                    "Keine offenen oder mehrdeutigen Skill-Begriffe vorhanden."
-                    if show_esco_sections
-                    else "ESCO-spezifische Normalisierung ist ohne bestätigten ESCO-Anker ausgeblendet."
-                )
     else:
         st.info(
             f"{selected_count} Skills übernommen · "
             "Bereit für Recruiting Brief, Matching und Interviewfragen."
         )
+    _render_open_term_and_diagnostic_subflow(
+        flagged_terms=flagged_terms,
+        show_esco_sections=show_esco_sections,
+        matrix_snapshot=matrix_snapshot,
+        ui_mode=ui_mode,
+    )
+    detail_cache_raw = st.session_state.get(SSKey.ESCO_SKILL_DETAIL_CACHE.value, {})
+    detail_cache = detail_cache_raw if isinstance(detail_cache_raw, dict) else {}
+    st.session_state[SSKey.ESCO_SKILL_DETAIL_CACHE.value] = detail_cache
+    _render_confirmed_selection_block(
+        deduped_must=deduped_must,
+        deduped_nice=deduped_nice,
+        detail_cache=detail_cache,
+        llm_suggested=llm_suggested,
+        is_expert_mode=ui_mode == "expert",
+        include_details=ui_mode == "expert",
+    )
+    _render_skill_export_consequences(
+        selected_labels=_get_selected_skill_labels(),
+        deduped_must=deduped_must,
+        deduped_nice=deduped_nice,
+    )
     return source_counts
 
 
@@ -2494,7 +2852,7 @@ def _render_structured_skill_rows() -> None:
         for value in free_statuses.values()
         if isinstance(value, dict)
     }
-    st.markdown("### Skill-Anforderungen strukturieren")
+    st.markdown("#### 4. Kalibrierung")
     st.caption(
         "Status, Mindestniveau, Timing und Nachweis werden als kompakte Tabelle gespeichert."
     )
@@ -2704,6 +3062,10 @@ def render(ctx: WizardContext) -> None:
     step = next((value for value in plan.steps if value.step_key == "skills"), None)
     source_counts: dict[str, int] = {"Jobspec": 0, "ESCO / Kontext": 0, "AI": 0}
 
+    _render_skills_step_framing(
+        selected_occupation=selected_occupation,
+        show_esco_sections=show_esco_sections,
+    )
     if show_esco_sections and selected_occupation:
         st.caption(
             "Automatische Skill-Vorschläge basieren auf dem im Start bestätigten "

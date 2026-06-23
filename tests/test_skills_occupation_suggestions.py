@@ -681,6 +681,38 @@ def test_compute_matrix_coverage_rows_marks_overrepresented_custom_group() -> No
     assert rows[0]["matched_skill_uris"] == ["uri:skill:x"]
 
 
+def test_bulk_unmapped_term_action_only_fills_undecided_terms() -> None:
+    actions = {
+        "Kafka": {
+            "raw_term": "Kafka",
+            "action": "map_to_esco_skill",
+            "mapped_uri": "uri:skill:kafka",
+            "mapped_title": "Apache Kafka",
+            "bucket": "must",
+            "source_mode": "hybrid",
+        }
+    }
+
+    applied = SKILLS_MODULE._apply_bulk_unmapped_term_action(
+        flagged_terms=["Kafka", "PySpark"],
+        actions=actions,
+        unresolved_requirement_terms={"kafka", "pyspark"},
+        source_mode="hybrid",
+        action="keep_free_text",
+    )
+
+    assert applied == 1
+    assert actions["Kafka"]["mapped_uri"] == "uri:skill:kafka"
+    assert actions["PySpark"] == {
+        "raw_term": "PySpark",
+        "action": "keep_free_text",
+        "mapped_uri": None,
+        "mapped_title": None,
+        "bucket": "must",
+        "source_mode": "hybrid",
+    }
+
+
 def test_render_unmapped_term_workflow_serializes_canonical_retry_and_bucket() -> None:
     state = {
         SSKey.ESCO_UNMAPPED_TERM_ACTIONS.value: {},
@@ -691,6 +723,13 @@ def test_render_unmapped_term_workflow_serializes_canonical_retry_and_bucket() -
             "title": "Apache Spark",
         },
     }
+
+    class DummyColumn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
 
     class DummySt:
         session_state = state
@@ -704,8 +743,22 @@ def test_render_unmapped_term_workflow_serializes_canonical_retry_and_bucket() -
             return None
 
         @staticmethod
-        def selectbox(*args, **kwargs):
+        def columns(*args, **kwargs):
+            return [DummyColumn(), DummyColumn()]
+
+        @staticmethod
+        def selectbox(label, *args, **kwargs):
+            if "Bulk action" in str(label):
+                return ""
             return "retry_search"
+
+        @staticmethod
+        def button(*args, **kwargs):
+            return False
+
+        @staticmethod
+        def success(*args, **kwargs):
+            return None
 
         @staticmethod
         def radio(*args, **kwargs):
