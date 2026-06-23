@@ -1364,5 +1364,5 @@ def test_interview_value_board_includes_compact_provenance_column(monkeypatch) -
     INTERVIEW_MODULE._render_interview_value_board(job=JobAdExtract(), plan=None)
 
     assert "Provenienz" in fake_st.column_order
-    assert fake_st.dataframe_rows[0]["Provenienz"] == "Jobspec"
-    assert fake_st.dataframe_rows[1]["Provenienz"] == "Eingabe"
+    assert fake_st.dataframe_rows[0]["Provenienz"] == "Erkannt · Jobspec"
+    assert fake_st.dataframe_rows[1]["Provenienz"] == "Bestätigt · Eingabe"

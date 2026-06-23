@@ -85,6 +85,7 @@ from ui_components import (
     render_job_extract_overview,
     render_openai_error,
 )
+from ui_badges import render_source_evidence_popover
 from usage_utils import usage_has_cache_hit
 from usage_events import record_enrichment_timed
 from wizard_pages.base import (
@@ -105,7 +106,6 @@ SOURCE_ACTIVE_KEY: Final[str] = SSKey.SOURCE_ACTIVE.value
 HYPOTHESIS_ACTION_ACCEPT: Final[str] = "accept"
 HYPOTHESIS_ACTION_EDIT: Final[str] = "edit"
 HYPOTHESIS_ACTION_SKIP: Final[str] = "skip"
-HYPOTHESIS_EVIDENCE_FIELD_KEY: Final[str] = "cs.jobspec.hypothesis.evidence_field"
 HYPOTHESIS_REVIEW_STEP_COLUMNS: Final[tuple[str, ...]] = tuple(
     JOB_EXTRACT_TAB_FIELDS.keys()
 )
@@ -713,13 +713,14 @@ def _render_hypothesis_evidence_controls(
     rows: list[dict[str, Any]],
     evidence_by_field: dict[str, Any],
 ) -> None:
-    evidence_rows: list[tuple[str, str, str]] = []
+    evidence_rows: list[tuple[str, str, Any]] = []
     seen: set[str] = set()
     for row in rows:
         field_name = str(row.get("field_name") or "").strip()
         if not field_name or field_name in seen:
             continue
-        snippet = format_field_evidence_snippet(evidence_by_field.get(field_name))
+        evidence = evidence_by_field.get(field_name)
+        snippet = format_field_evidence_snippet(evidence)
         if not snippet:
             continue
         seen.add(field_name)
@@ -727,32 +728,24 @@ def _render_hypothesis_evidence_controls(
             (
                 field_name,
                 str(row.get("label") or field_name),
-                snippet,
+                evidence,
             )
         )
     if not evidence_rows:
         return
 
-    st.caption("Kleine Info-Icons zeigen die jeweilige Fundstelle bei Bedarf.")
-    for field_name, label, _snippet in evidence_rows:
-        cols = st.columns([0.08, 0.92], gap="small")
+    st.caption("Quelle & Beleg sind bei Bedarf direkt je Angabe einsehbar.")
+    for field_name, label, evidence in evidence_rows:
+        cols = st.columns([0.22, 0.78], gap="small")
         with cols[0]:
-            popover = getattr(st, "popover", None)
-            if callable(popover):
-                with popover("ⓘ"):
-                    st.caption(f"{label}: {_snippet}")
-            elif st.button("ⓘ", key=f"cs.jobspec.hypothesis.evidence.{field_name}"):
-                st.session_state[HYPOTHESIS_EVIDENCE_FIELD_KEY] = field_name
+            render_source_evidence_popover(
+                evidence,
+                source_type=FactSourceType.JOBSPEC.value,
+                trigger_label="Quelle & Beleg",
+                streamlit_module=st,
+            )
         with cols[1]:
             st.caption(label)
-
-    selected_field = str(
-        st.session_state.get(HYPOTHESIS_EVIDENCE_FIELD_KEY, "") or ""
-    ).strip()
-    for field_name, label, snippet in evidence_rows:
-        if field_name == selected_field:
-            st.caption(f"{label}: {snippet}")
-            break
 
 
 def _hypothesis_editor_row_id(row: dict[str, Any]) -> str:
@@ -1002,10 +995,10 @@ def _render_job_extract_provenance_block(job: JobAdExtract) -> None:
         str(note).strip() for note in job.assumptions if str(note).strip()
     ]
 
-    st.markdown("#### Herkunft der Informationen")
+    st.markdown("#### Quelle & Beleg")
     focus_specs = (
-        ("Unsicher / prüfen", uncertain, "Niedrige Sicherheit oder prüfpflichtig markiert."),
-        ("Offene Lücken", gaps, "Nicht gefundene oder unklare Angaben."),
+        ("Erkannt · prüfen", uncertain, "Niedrige Sicherheit oder als prüfpflichtig markiert."),
+        ("Fehlt · ergänzen", gaps, "Nicht gefundene oder unklare Angaben."),
     )
     focus_columns = st.columns(2, gap="small")
     for column, (title, items, caption) in zip(focus_columns, focus_specs):
@@ -1013,24 +1006,23 @@ def _render_job_extract_provenance_block(job: JobAdExtract) -> None:
             _render_source_bucket(title, items, caption)
 
     details_context = (
-        st.expander("Belegte Fundstellen und Annahmen anzeigen", expanded=False)
+        st.expander("Quelle & Beleg anzeigen", expanded=False)
         if hasattr(st, "expander")
         else nullcontext()
     )
     with details_context:
         st.caption(
-            "Die Buckets trennen belegte Upload-Fundstellen, unsichere Ableitungen, "
-            "offene Lücken und explizite Annahmen. ESCO-/Kontextvorschläge erscheinen "
-            "separat als bestätigungspflichtige Vorschläge."
+            "Erkannte Angaben, fehlende Punkte und Annahmen bleiben getrennt, "
+            "damit nur passende Werte bestätigt werden."
         )
         columns = st.columns(2, gap="small")
         bucket_specs = (
             (
-                "Aus Upload belegt",
+                "Beleg verfügbar",
                 upload_backed,
                 "Felder mit kurzer Fundstelle aus dem hochgeladenen Text.",
             ),
-            ("Annahmen", assumptions, "Vom Modell dokumentierte Ableitungen."),
+            ("Annahme · prüfen", assumptions, "Dokumentierte Ableitungen vor Übernahme prüfen."),
         )
         for column, (title, items, caption) in zip(columns, bucket_specs):
             with column:
@@ -1882,7 +1874,7 @@ def render_jobad_intake(
                 "Briefing-Basis vorbereitet: Informationen erkannt und nächste Fragen priorisiert."
             )
             if extract_cached or plan_cached:
-                st.info("Mindestens ein Ergebnis wurde aus dem Cache geladen.")
+                st.info("Aus Cache: Ergebnis wurde wiederverwendet.")
         except OpenAICallError as e:
             render_openai_error(e)
         except Exception as exc:

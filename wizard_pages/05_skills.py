@@ -832,7 +832,7 @@ def _render_skills_source_columns(
             _render_term_group(title, values)
 
     with col_esco:
-        st.metric("ESCO ergänzt", esco_count)
+        st.metric("ESCO / AI", esco_count)
         if show_esco_sections:
             st.caption("ESCO + AI als gemeinsame Empfehlungsliste.")
         else:
@@ -1023,7 +1023,7 @@ def _apply_board_selection(
                 label=label,
                 uri="",
                 source="AI",
-                group_hint="AI-Vorschläge",
+                group_hint="AI",
                 status=_status_from_candidate(item),
             )
             selected_labels = _dedupe_terms([*selected_labels, label])
@@ -1636,9 +1636,9 @@ def _generate_ai_skill_suggestions(
     combined_llm = [*existing_llm, *merged_llm]
     st.session_state[SSKey.SKILLS_LLM_SUGGESTED.value] = combined_llm
     if merged_llm:
-        st.success(f"{len(merged_llm)} AI-Skill(s) übernommen.")
+        st.success(f"AI-Vorschläge ergänzt: {len(merged_llm)}")
     else:
-        st.info("Keine zusätzlichen AI-Skills gefunden.")
+        st.info("Keine zusätzlichen AI-Vorschläge gefunden.")
     return combined_llm
 
 
@@ -1975,7 +1975,7 @@ def _render_confirmed_selection_block(
                         if label:
                             st.write(f"- {label}")
                 else:
-                    st.caption("Noch keine AI-Skills vorhanden.")
+                    st.caption("Noch keine AI-Vorschläge vorhanden.")
 
 
 def _maybe_autoload_esco_skill_suggestions(
@@ -2277,7 +2277,7 @@ def _render_skills_source_comparison_block(
         jobspec_items=jobspec_items,
         title_esco="ESCO / Kontext",
         esco_items=esco_items if show_esco_sections else [],
-        title_llm="AI-Vorschläge",
+        title_llm="AI",
         llm_items=llm_items,
         selected_labels=_get_selected_skill_labels(),
         selection_state_key=SSKey.SKILLS_SELECTED_BULK_BUFFER.value,

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from contextlib import nullcontext
 from dataclasses import dataclass
 from html import escape
 from typing import Any, Mapping
@@ -11,7 +12,11 @@ from typing import Any, Mapping
 import streamlit as st
 
 from constants import FactResolutionStatus, FactSourceType
-from job_extract_evidence import format_provenance_label
+from job_extract_evidence import (
+    canonical_source_label,
+    format_field_evidence_snippet,
+    format_provenance_label,
+)
 from safe_html import render_static_html
 
 ESCO_EXPLAINABILITY_LABELS: tuple[str, ...] = (
@@ -63,6 +68,37 @@ def _resolved_evidence_value(
     return fallback
 
 
+def trust_source_label(source_type: str = "", source_label: str = "") -> str:
+    """Return the canonical short source label for trust UI."""
+
+    return canonical_source_label(source_type=source_type, source_label=source_label)
+
+
+def trust_status_label(
+    evidence: Any = None,
+    *,
+    source_type: str = "",
+    source_label: str = "",
+    resolution_status: str = "",
+    confirmed: bool | None = None,
+    confidence: Any = None,
+    needs_confirmation: bool = False,
+    confidence_threshold: float | None = None,
+) -> str:
+    """Return compact trust text without exposing raw evidence."""
+
+    return format_provenance_label(
+        evidence,
+        source_type=source_type,
+        source_label=source_label,
+        resolution_status=resolution_status,
+        confirmed=confirmed,
+        confidence=confidence,
+        needs_confirmation=needs_confirmation,
+        confidence_threshold=confidence_threshold,
+    )
+
+
 def _provenance_badge_tone(
     *,
     label: str,
@@ -101,14 +137,17 @@ def _provenance_badge_tone(
         in {FactResolutionStatus.CONFLICTED.value, FactResolutionStatus.MISSING.value}
         or resolved_needs_confirmation
         or is_low_confidence
-        or any(token in normalized_label for token in ("konflikt", "offen", "prüfen"))
+        or any(
+            token in normalized_label
+            for token in ("konflikt", "fehlt", "ergänzen", "offen", "prüfen")
+        )
     ):
         return "warning"
     if (
         resolved_source_type == FactSourceType.MANUAL.value
         or resolved_confirmed is True
         or resolved_status == FactResolutionStatus.CONFIRMED.value
-        or "eingabe" in normalized_label
+        or any(token in normalized_label for token in ("bestätigt", "eingabe"))
     ):
         return "success"
     if resolved_source_type in {
@@ -197,6 +236,74 @@ def render_provenance_badge(
         f'<span class="cs-pill {tone_class}">{escape(badge.label)}</span>',
         streamlit_module=streamlit_module or st,
     )
+
+
+def render_source_evidence_popover(
+    evidence: Any = None,
+    *,
+    source_type: str = "",
+    source_label: str = "",
+    evidence_snippet: str = "",
+    trigger_label: str = "Quelle & Beleg",
+    confidence_threshold: float | None = None,
+    streamlit_module: Any | None = None,
+) -> None:
+    """Render a compact, consistent source/evidence disclosure."""
+
+    st_module = streamlit_module or st
+    evidence_map = evidence if isinstance(evidence, Mapping) else {}
+    resolved_source_type = str(evidence_map.get("source_type") or source_type).strip()
+    raw_source_label = str(evidence_map.get("source_label") or source_label).strip()
+    display_source = trust_source_label(resolved_source_type, raw_source_label)
+    if not display_source and raw_source_label:
+        display_source = raw_source_label
+
+    snippet_source: Mapping[str, Any]
+    if evidence_map:
+        snippet_source = evidence_map
+    else:
+        snippet_source = {"evidence_snippet": evidence_snippet}
+    snippet = format_field_evidence_snippet(snippet_source)
+
+    badge = build_provenance_badge(
+        evidence_map,
+        source_type=resolved_source_type,
+        source_label=raw_source_label,
+        confidence_threshold=confidence_threshold,
+    )
+    if not any((display_source, snippet, badge.label)):
+        return
+
+    popover = getattr(st_module, "popover", None)
+    expander = getattr(st_module, "expander", None)
+    if callable(popover):
+        context = popover(trigger_label)
+    elif callable(expander):
+        context = expander(trigger_label, expanded=False)
+    else:
+        context = nullcontext()
+
+    with context:
+        if badge.label:
+            render_provenance_badge(
+                evidence_map,
+                label=badge.label,
+                source_type=resolved_source_type,
+                source_label=raw_source_label,
+                confidence_threshold=confidence_threshold,
+                streamlit_module=st_module,
+            )
+        if display_source:
+            st_module.caption(f"Quelle: {display_source}")
+        if snippet:
+            render_static_html(
+                (
+                    '<div class="cs-source-evidence-snippet">'
+                    f"{escape(snippet)}"
+                    "</div>"
+                ),
+                streamlit_module=st_module,
+            )
 
 
 def render_esco_explainability(

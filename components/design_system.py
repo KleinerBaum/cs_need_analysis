@@ -786,6 +786,17 @@ def render_ui_styles() -> None:
             background: var(--cs-surface-muted);
             color: var(--cs-text-muted);
         }
+        .cs-source-evidence-snippet {
+            margin-top: 0.45rem;
+            padding: 0.55rem 0.7rem;
+            border: 1px solid var(--cs-border-soft);
+            border-radius: var(--cs-radius-sm);
+            background: var(--cs-surface-muted);
+            color: var(--cs-text);
+            font-size: 0.86rem;
+            line-height: 1.45;
+            overflow-wrap: anywhere;
+        }
         .cs-process-progress {
             display: flex;
             justify-content: flex-start;

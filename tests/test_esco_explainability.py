@@ -119,7 +119,7 @@ def test_build_provenance_badge_maps_sources_and_confidence() -> None:
                 "resolution_status": FactResolutionStatus.CONFIRMED.value,
                 "confirmed": True,
             },
-            "Eingabe",
+            "Bestätigt · Eingabe",
             "success",
         ),
         (
@@ -128,7 +128,7 @@ def test_build_provenance_badge_maps_sources_and_confidence() -> None:
                 "resolution_status": FactResolutionStatus.INFERRED.value,
                 "confidence": 0.9,
             },
-            "Jobspec · 90%",
+            "Erkannt · Jobspec · 90%",
             "primary",
         ),
         (
@@ -136,7 +136,7 @@ def test_build_provenance_badge_maps_sources_and_confidence() -> None:
                 "source_type": FactSourceType.HOMEPAGE.value,
                 "resolution_status": FactResolutionStatus.INFERRED.value,
             },
-            "Website",
+            "Erkannt · Website",
             "primary",
         ),
         (
@@ -144,7 +144,7 @@ def test_build_provenance_badge_maps_sources_and_confidence() -> None:
                 "source_type": FactSourceType.ESCO.value,
                 "resolution_status": FactResolutionStatus.INFERRED.value,
             },
-            "ESCO",
+            "Vorschlag · ESCO",
             "primary",
         ),
         (
@@ -152,7 +152,7 @@ def test_build_provenance_badge_maps_sources_and_confidence() -> None:
                 "source_type": FactSourceType.LLM.value,
                 "resolution_status": FactResolutionStatus.INFERRED.value,
             },
-            "AI-Vorschlag",
+            "Vorschlag · AI",
             "primary",
         ),
         (
@@ -161,7 +161,7 @@ def test_build_provenance_badge_maps_sources_and_confidence() -> None:
                 "resolution_status": FactResolutionStatus.INFERRED.value,
                 "confidence": 0.4,
             },
-            "Jobspec · 40% · prüfen",
+            "Erkannt · Jobspec · 40% · prüfen",
             "warning",
         ),
         (

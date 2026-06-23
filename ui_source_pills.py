@@ -9,7 +9,7 @@ from typing import TypedDict
 import streamlit as st
 
 from constants import FactResolutionStatus, FactSourceType
-from ui_badges import render_provenance_badge
+from ui_badges import render_provenance_badge, trust_source_label
 from ui_inputs import inject_pills_grid_css
 
 def render_multi_select_pills(
@@ -84,13 +84,13 @@ def dedupe_source_pill_labels(values: Sequence[str]) -> list[str]:
 def _source_pill_provenance_caption(source_key: str) -> str:
     normalized = normalize_source_pill_label(source_key)
     if "jobspec" in normalized:
-        return "Provenienz: Jobspec"
+        return f"Quelle: {trust_source_label(FactSourceType.JOBSPEC.value)}"
     if "esco" in normalized or "kontext" in normalized:
-        return "Provenienz: ESCO"
+        return f"Quelle: {trust_source_label(FactSourceType.ESCO.value)}"
     if normalized == "ai" or "ai" in normalized:
-        return "Provenienz: AI-Vorschlag"
+        return f"Quelle: {trust_source_label(FactSourceType.LLM.value)}"
     if "manual" in normalized or "antwort" in normalized or "eingabe" in normalized:
-        return "Provenienz: Eingabe"
+        return f"Quelle: {trust_source_label(FactSourceType.MANUAL.value)}"
     return ""
 
 

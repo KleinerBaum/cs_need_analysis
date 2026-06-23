@@ -8,8 +8,10 @@ from typing import Any
 
 import streamlit as st
 
+from constants import FactResolutionStatus, FactSourceType
 from job_extract_review_helpers import has_meaningful_value
 from safe_html import render_static_html
+from ui_badges import render_provenance_badge
 
 
 def _render_requirement_board_responsive_css() -> None:
@@ -91,6 +93,17 @@ def _is_high_importance(importance: str) -> bool:
     return normalized in high_markers
 
 
+def _source_type_for_requirement_source(source_key: str) -> FactSourceType | None:
+    normalized = _normalize_requirement_label(source_key)
+    if "jobspec" in normalized:
+        return FactSourceType.JOBSPEC
+    if "esco" in normalized or "kontext" in normalized:
+        return FactSourceType.ESCO
+    if normalized == "ai" or "ai" in normalized:
+        return FactSourceType.LLM
+    return None
+
+
 def _render_requirement_selection_table(
     *,
     title: str,
@@ -114,6 +127,13 @@ def _render_requirement_selection_table(
         return []
 
     st.caption(title)
+    provenance_source = _source_type_for_requirement_source(source_key)
+    if provenance_source is not None:
+        render_provenance_badge(
+            source_type=provenance_source.value,
+            resolution_status=FactResolutionStatus.INFERRED.value,
+            streamlit_module=st,
+        )
     filter_key_prefix = f"{key_prefix}.filters.{source_key.casefold()}"
     default_only_new_key = f"{filter_key_prefix}.default_only_new"
     if default_only_new_key not in st.session_state:

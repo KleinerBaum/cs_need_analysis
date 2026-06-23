@@ -352,7 +352,7 @@ def test_phase_a_keeps_editable_extracted_text_after_upload(monkeypatch) -> None
 
     jobad_intake._render_phase_a_source_and_privacy_controls()
 
-    assert "Extrahierter Text für die Analyse" in fake_st.text_area_labels
+    assert "Quelle für die Briefing-Analyse" in fake_st.text_area_labels
 
 
 class _FakeUploadPreview:

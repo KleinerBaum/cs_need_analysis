@@ -423,7 +423,7 @@ def _question_widget_help(
             max_why_chars=120,
         )
         if provenance_text:
-            parts.append(f"Provenienz: {provenance_text}")
+            parts.append(f"Quelle: {provenance_text}")
     return "\n\n".join(part for part in parts if part) or None
 _OTHER_OPTION = "Sonstiges"
 _OTHER_PREFIX = f"{_OTHER_OPTION}: "

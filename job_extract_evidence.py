@@ -3,11 +3,25 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, Final
 
 from constants import FactResolutionStatus, FactSourceType
 from parsing import redact_pii
 from schemas import JobAdExtract
+
+_SOURCE_LABELS: Final[dict[str, str]] = {
+    FactSourceType.MANUAL.value: "Eingabe",
+    FactSourceType.JOBSPEC.value: "Jobspec",
+    FactSourceType.HOMEPAGE.value: "Website",
+    FactSourceType.ESCO.value: "ESCO",
+    FactSourceType.LLM.value: "AI",
+}
+_DETECTED_SOURCE_TYPES: Final[frozenset[str]] = frozenset(
+    {FactSourceType.JOBSPEC.value, FactSourceType.HOMEPAGE.value}
+)
+_SUGGESTED_SOURCE_TYPES: Final[frozenset[str]] = frozenset(
+    {FactSourceType.ESCO.value, FactSourceType.LLM.value}
+)
 
 
 def job_extract_field_evidence_by_name(job: JobAdExtract) -> dict[str, Any]:
@@ -41,7 +55,31 @@ def _coerce_confidence(value: Any) -> float | None:
         return None
 
 
-def _provenance_status_label(
+def canonical_source_label(source_type: str = "", source_label: str = "") -> str:
+    """Return the short source label used in user-facing trust copy."""
+
+    normalized_type = str(source_type or "").strip()
+    if normalized_type in _SOURCE_LABELS:
+        return _SOURCE_LABELS[normalized_type]
+    normalized_label = str(source_label or "").strip().casefold()
+    if "jobspec" in normalized_label:
+        return _SOURCE_LABELS[FactSourceType.JOBSPEC.value]
+    if "website" in normalized_label or "homepage" in normalized_label:
+        return _SOURCE_LABELS[FactSourceType.HOMEPAGE.value]
+    if "esco" in normalized_label:
+        return _SOURCE_LABELS[FactSourceType.ESCO.value]
+    if normalized_label == "ai" or "ai-" in normalized_label or "llm" in normalized_label:
+        return _SOURCE_LABELS[FactSourceType.LLM.value]
+    if (
+        "manual" in normalized_label
+        or "antwort" in normalized_label
+        or "eingabe" in normalized_label
+    ):
+        return _SOURCE_LABELS[FactSourceType.MANUAL.value]
+    return ""
+
+
+def _provenance_trust_label(
     *,
     source_type: str = "",
     source_label: str = "",
@@ -52,28 +90,32 @@ def _provenance_status_label(
     if resolution_status == FactResolutionStatus.CONFLICTED.value:
         return "Konflikt"
     if resolution_status == FactResolutionStatus.MISSING.value:
-        return "Offen"
+        return "Fehlt"
     if resolution_status == FactResolutionStatus.ASSUMED.value:
         return "Annahme"
-    if source_type == FactSourceType.MANUAL.value:
-        return "Eingabe"
-    if (
-        source_type == FactSourceType.JOBSPEC.value
-        or "jobspec" in source_label.casefold()
-    ):
-        return "Jobspec"
-    if source_type == FactSourceType.ESCO.value:
-        return "ESCO"
-    if source_type == FactSourceType.HOMEPAGE.value:
-        return "Website"
-    if source_type == FactSourceType.LLM.value:
-        return "AI-Vorschlag"
     if confirmed is True or resolution_status == FactResolutionStatus.CONFIRMED.value:
-        return "Eingabe"
+        return "Bestätigt"
+    if source_type == FactSourceType.MANUAL.value:
+        return "Bestätigt"
     if resolution_status == FactResolutionStatus.INFERRED.value:
-        return "Angereichert"
+        if source_type in _SUGGESTED_SOURCE_TYPES:
+            return "Vorschlag"
+        return "Erkannt"
+    if source_type in _DETECTED_SOURCE_TYPES:
+        return "Erkannt"
+    if source_type in _SUGGESTED_SOURCE_TYPES:
+        return "Vorschlag"
     if needs_confirmation:
-        return "prüfen"
+        return "Prüfen"
+    if source_label:
+        source = canonical_source_label(source_type, source_label)
+        if source == _SOURCE_LABELS[FactSourceType.LLM.value]:
+            return "Vorschlag"
+        if source in {
+            _SOURCE_LABELS[FactSourceType.JOBSPEC.value],
+            _SOURCE_LABELS[FactSourceType.HOMEPAGE.value],
+        }:
+            return "Erkannt"
     return ""
 
 
@@ -104,30 +146,52 @@ def format_provenance_label(
     resolved_needs_confirmation = bool(
         evidence_map.get("needs_confirmation", needs_confirmation)
     )
-    status_label = _provenance_status_label(
+    status_label = _provenance_trust_label(
         source_type=resolved_source_type,
         source_label=resolved_source_label,
         resolution_status=resolved_status,
         confirmed=resolved_confirmed,
         needs_confirmation=resolved_needs_confirmation,
     )
+    source_label_display = canonical_source_label(
+        resolved_source_type,
+        resolved_source_label,
+    )
 
     resolved_confidence = _coerce_confidence(
         evidence_map.get("confidence") if "confidence" in evidence_map else confidence
     )
     parts = [status_label] if status_label else []
+    if (
+        source_label_display
+        and source_label_display not in parts
+        and resolved_status
+        not in {
+            FactResolutionStatus.CONFLICTED.value,
+            FactResolutionStatus.MISSING.value,
+            FactResolutionStatus.ASSUMED.value,
+        }
+    ):
+        parts.append(source_label_display)
     if resolved_confidence is not None:
         parts.append(f"{resolved_confidence:.0%}")
     threshold = _coerce_confidence(confidence_threshold)
-    if (
-        resolved_status == FactResolutionStatus.CONFLICTED.value
+    needs_review = (
+        resolved_status
+        in {
+            FactResolutionStatus.CONFLICTED.value,
+            FactResolutionStatus.ASSUMED.value,
+        }
         or resolved_needs_confirmation
         or (
             threshold is not None
             and resolved_confidence is not None
             and resolved_confidence < threshold
         )
-    ) and "prüfen" not in parts:
+    )
+    if resolved_status == FactResolutionStatus.MISSING.value and "ergänzen" not in parts:
+        parts.append("ergänzen")
+    elif needs_review and "prüfen" not in parts:
         parts.append("prüfen")
     return " · ".join(part for part in parts if part)
 
@@ -174,9 +238,9 @@ def field_evidence_caption_text(
     confidence = provenance or format_field_evidence_confidence(evidence)
     snippet = format_field_evidence_snippet(evidence)
     if confidence and snippet:
-        return f"Provenienz: {confidence} · {snippet}"
+        return f"Quelle & Beleg: {confidence} · {snippet}"
     if confidence:
-        return f"Provenienz: {confidence}"
+        return f"Quelle: {confidence}"
     if snippet:
-        return f"Provenienz: {snippet}"
+        return f"Beleg verfügbar: {snippet}"
     return ""

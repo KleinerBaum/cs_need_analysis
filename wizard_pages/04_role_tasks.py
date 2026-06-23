@@ -821,7 +821,7 @@ def render(ctx: WizardContext) -> None:
             meta_items=(
                 ("📄", "Anzeige", str(len(jobspec_labels))),
                 ("🧭", "Berufsprofil", str(len(esco_labels))),
-                ("✦", "Ergänzt", str(len(ai_labels))),
+                ("✦", "AI", str(len(ai_labels))),
             ),
         )
         ai_control_col, ai_action_col = st.columns([1, 2], gap="small")
@@ -882,25 +882,22 @@ def render(ctx: WizardContext) -> None:
         selection_result = render_source_pill_selection(
             columns=[
                 {
-                    "title": "Aus Anzeige",
+                    "title": "Jobspec",
                     "source_key": "Jobspec",
                     "options": jobspec_labels,
                     "state_key": SSKey.ROLE_TASKS_JOBSPEC_PILLS.value,
-                    "show_provenance": False,
                 },
                 {
-                    "title": "Berufsprofil",
+                    "title": "ESCO / Kontext",
                     "source_key": "ESCO / Kontext",
                     "options": esco_labels,
                     "state_key": SSKey.ROLE_TASKS_ESCO_PILLS.value,
-                    "show_provenance": False,
                 },
                 {
-                    "title": "Ergänzt",
+                    "title": "AI",
                     "source_key": "AI",
                     "options": llm_after_labels,
                     "state_key": SSKey.ROLE_TASKS_AI_PILLS.value,
-                    "show_provenance": False,
                 },
             ],
             selected_labels=selected,

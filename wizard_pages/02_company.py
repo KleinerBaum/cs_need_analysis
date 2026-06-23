@@ -81,8 +81,8 @@ from wizard_pages.fact_inputs import (
     split_lines,
 )
 from intake_facts import append_intake_fact_secondary_evidence, write_intake_fact
-from job_extract_evidence import format_field_evidence_snippet
 from state import mark_answer_touched
+from ui_badges import render_source_evidence_popover
 from wizard_pages.team_section import render_role_context_enrichment
 
 
@@ -520,20 +520,26 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
                 if not _is_empty_fact_value(current_value) and _fact_values_equal(
                     current_value, parsed_value
                 ):
-                    candidate_resolution = "Bestätigt vorhandene Angabe"
+                    candidate_resolution = "Bestätigt · Website"
+                    candidate_status = FactResolutionStatus.CONFIRMED.value
                 elif has_confirmed_conflict:
-                    candidate_resolution = "Weicht von bestätigter Angabe ab"
+                    candidate_resolution = "Konflikt · prüfen"
+                    candidate_status = FactResolutionStatus.CONFLICTED.value
                 else:
-                    candidate_resolution = "Neue Website-Angabe"
-                st.caption(f"Quelle: {source_label}")
+                    candidate_resolution = "Erkannt · Website"
+                    candidate_status = FactResolutionStatus.INFERRED.value
                 st.caption(candidate_resolution)
-                if evidence:
-                    safe_evidence = format_field_evidence_snippet(
-                        {"evidence_snippet": evidence}, max_chars=160
-                    )
-                    if safe_evidence:
-                        with st.expander("Beleg anzeigen", expanded=False):
-                            st.caption(safe_evidence)
+                render_source_evidence_popover(
+                    {
+                        "source_type": FactSourceType.HOMEPAGE.value,
+                        "source_label": source_label,
+                        "resolution_status": candidate_status,
+                        "confidence": candidate.get("confidence"),
+                        "evidence_snippet": evidence,
+                    },
+                    trigger_label="Quelle & Beleg",
+                    streamlit_module=st,
+                )
                 override_conflict = False
                 if has_confirmed_conflict:
                     override_conflict = st.checkbox(
