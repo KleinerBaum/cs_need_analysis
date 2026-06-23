@@ -199,6 +199,8 @@ SummaryMeta = _summary_readiness.SummaryMeta
 SummaryStatus = _summary_readiness.SummaryStatus
 SummaryArtifactState = _summary_readiness.SummaryArtifactState
 CanonicalBriefStatus = _summary_readiness.CanonicalBriefStatus
+SummaryReleaseBlocker = _summary_readiness.SummaryReleaseBlocker
+SummaryArtifactGate = _summary_readiness.SummaryArtifactGate
 SummaryViewModel = _summary_readiness.SummaryViewModel
 SummaryFactReadiness = _summary_readiness.SummaryFactReadiness
 SummaryAction = _summary_artifact_actions.SummaryAction
@@ -268,6 +270,8 @@ _SUMMARY_SLICE_ORIGINALS = {
         "_build_summary_fact_readiness": _summary_readiness._build_summary_fact_readiness,
         "_build_summary_status": _summary_readiness._build_summary_status,
         "_build_summary_view_model": _summary_readiness._build_summary_view_model,
+        "_release_state_label": _summary_readiness._release_state_label,
+        "_release_gate_headline": _summary_readiness._release_gate_headline,
         "_summary_fact_allows_readiness": _summary_readiness._summary_fact_allows_readiness,
         "_resolve_summary_meta_value": _summary_readiness._resolve_summary_meta_value,
         "_build_summary_meta": _summary_readiness._build_summary_meta,
@@ -345,6 +349,17 @@ _SUMMARY_SLICE_ORIGINALS = {
         "_render_interview_compact_controls": _summary_view._render_interview_compact_controls,
         "_render_boolean_compact_controls": _summary_view._render_boolean_compact_controls,
         "_render_contract_compact_controls": _summary_view._render_contract_compact_controls,
+        "_artifact_release_fact_rows": _summary_view._artifact_release_fact_rows,
+        "_summary_fact_blocks_release": _summary_view._summary_fact_blocks_release,
+        "_summary_fact_blocker_reason": _summary_view._summary_fact_blocker_reason,
+        "_summary_fact_blocker_next_step": _summary_view._summary_fact_blocker_next_step,
+        "_release_blockers_for_artifact": _summary_view._release_blockers_for_artifact,
+        "_brief_blocker_for_artifact": _summary_view._brief_blocker_for_artifact,
+        "_stale_result_blocker": _summary_view._stale_result_blocker,
+        "_build_artifact_release_gate": _summary_view._build_artifact_release_gate,
+        "_build_summary_release_gates": _summary_view._build_summary_release_gates,
+        "_release_blocker_count": _summary_view._release_blocker_count,
+        "_render_artifact_blockers": _summary_view._render_artifact_blockers,
         "_render_summary_artifact_grid": _summary_view._render_summary_artifact_grid,
         "_render_action_card": _summary_view._render_action_card,
         "_render_job_ad_configuration_panel": _summary_view._render_job_ad_configuration_panel,
@@ -504,6 +519,8 @@ for _summary_helper_name, _summary_helper_module in {
     "_build_summary_fact_readiness": _summary_readiness,
     "_build_summary_status": _summary_readiness,
     "_build_summary_view_model": _summary_readiness,
+    "_release_state_label": _summary_readiness,
+    "_release_gate_headline": _summary_readiness,
     "_summary_fact_allows_readiness": _summary_readiness,
     "_resolve_summary_meta_value": _summary_readiness,
     "_build_summary_meta": _summary_readiness,
@@ -577,6 +594,17 @@ for _summary_helper_name, _summary_helper_module in {
     "_render_interview_compact_controls": _summary_view,
     "_render_boolean_compact_controls": _summary_view,
     "_render_contract_compact_controls": _summary_view,
+    "_artifact_release_fact_rows": _summary_view,
+    "_summary_fact_blocks_release": _summary_view,
+    "_summary_fact_blocker_reason": _summary_view,
+    "_summary_fact_blocker_next_step": _summary_view,
+    "_release_blockers_for_artifact": _summary_view,
+    "_brief_blocker_for_artifact": _summary_view,
+    "_stale_result_blocker": _summary_view,
+    "_build_artifact_release_gate": _summary_view,
+    "_build_summary_release_gates": _summary_view,
+    "_release_blocker_count": _summary_view,
+    "_render_artifact_blockers": _summary_view,
     "_render_summary_artifact_grid": _summary_view,
     "_render_action_card": _summary_view,
     "_render_job_ad_configuration_panel": _summary_view,
@@ -1241,12 +1269,18 @@ def render(ctx: WizardContext) -> None:
         "boolean_search": _generate_boolean_search_pack,
         "employment_contract": _generate_employment_contract,
     }
+    release_gates = _build_summary_release_gates(
+        vm,
+        action_registry,
+        resolved_brief_model=resolved_brief_model,
+    )
+    release_blocker_count = _release_blocker_count(release_gates)
 
     summary_copy = resolve_dynamic_step_copy(
         STEP_KEY_SUMMARY,
         job=vm.job,
         readiness_score=vm.status.readiness_percent,
-        critical_gaps_count=len(_build_missing_critical_items(vm)),
+        critical_gaps_count=release_blocker_count,
     )
     render_output_header(
         summary_copy.headline,
@@ -1255,7 +1289,7 @@ def render(ctx: WizardContext) -> None:
         if summary_copy.value_line
         else (),
     )
-    _render_readiness_dashboard_header(vm)
+    _render_readiness_dashboard_header(vm, blocker_count=release_blocker_count)
     _render_esco_coverage_kpis()
     _render_summary_critical_gaps_table(vm, ctx=ctx)
     render_live_artifact_preview_panel(
@@ -1279,7 +1313,12 @@ def render(ctx: WizardContext) -> None:
             ),
         ),
     )
-    _render_summary_artifact_grid(vm=vm, generator_by_id=generator_by_id)
+    _render_summary_artifact_grid(
+        vm=vm,
+        generator_by_id=generator_by_id,
+        action_registry=action_registry,
+        resolved_brief_model=resolved_brief_model,
+    )
     facts_workspace = (
         st.expander("Fakten je Schritt bearbeiten", expanded=False)
         if hasattr(st, "expander")

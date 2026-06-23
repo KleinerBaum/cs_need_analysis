@@ -61,7 +61,10 @@ def test_stale_model_mismatch_is_consistent_across_summary_and_gating(
         "gpt-5-mini"
     )
     assert requirement_ok is False
-    assert requirement_message == "Recruiting Brief ist veraltet."
+    assert requirement_message == (
+        "Recruiting Brief wurde mit einem anderen Modell erstellt. "
+        "Aktualisieren Sie ihn vor Export oder Folgeunterlagen."
+    )
 
     brief_state, _, cta_label = SUMMARY_MODULE._get_brief_status(
         primary_action={

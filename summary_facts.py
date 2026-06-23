@@ -163,6 +163,18 @@ def status_for_value(value: Any) -> str:
     return "Vollständig"
 
 
+def release_label_for_fact_status(value: str) -> str:
+    """Return decisive Summary release-gate copy for a fact status."""
+
+    normalized = str(value or "").strip()
+    return {
+        "Vollständig": "Geprüft und verwendbar",
+        "Automatisch erkannt": "Automatisch erkannt - prüfen",
+        "Teilweise": "Teilweise geklärt - prüfen",
+        "Fehlend": "Fehlt - klären",
+    }.get(normalized, normalized or "Status offen")
+
+
 def format_summary_fact_value(value: Any) -> str:
     if isinstance(value, list):
         return " | ".join(

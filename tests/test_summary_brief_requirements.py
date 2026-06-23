@@ -95,7 +95,10 @@ def test_follow_up_requirement_blocks_without_current_brief(monkeypatch) -> None
     ok, reason = SUMMARY_MODULE._get_brief_requirement_status("gpt-5-mini")
 
     assert ok is False
-    assert reason == "Kein Recruiting Brief vorhanden."
+    assert reason == (
+        "Recruiting Brief fehlt. Erstellen Sie ihn, bevor Sie Folgeunterlagen "
+        "oder Exporte freigeben."
+    )
 
 
 def test_follow_up_requirement_blocks_stale_brief(monkeypatch) -> None:
@@ -110,7 +113,10 @@ def test_follow_up_requirement_blocks_stale_brief(monkeypatch) -> None:
     ok, reason = SUMMARY_MODULE._get_brief_requirement_status("gpt-5-mini")
 
     assert ok is False
-    assert reason == "Recruiting Brief ist veraltet."
+    assert reason == (
+        "Recruiting Brief wurde mit einem anderen Modell erstellt. "
+        "Aktualisieren Sie ihn vor Export oder Folgeunterlagen."
+    )
 
 
 def test_follow_up_requirement_accepts_current_brief(monkeypatch) -> None:
@@ -127,7 +133,7 @@ def test_follow_up_requirement_accepts_current_brief(monkeypatch) -> None:
     ok, reason = SUMMARY_MODULE._get_brief_requirement_status("gpt-5-mini")
 
     assert ok is True
-    assert reason == "Aktueller Recruiting Brief vorhanden."
+    assert reason == "Recruiting Brief ist aktuell und als Grundlage verwendbar."
 
 
 def test_get_brief_status_changes_primary_cta_label_by_state(monkeypatch) -> None:

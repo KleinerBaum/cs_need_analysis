@@ -189,4 +189,4 @@ def test_summary_hero_meta_badges_show_dynamic_readiness(monkeypatch) -> None:
     ]
     assert "Senior Data Engineer" in metric_values
     assert "Cognitive Staffing GmbH" in metric_values
-    assert "Bereit" in metric_values
+    assert "Releasebereit" in metric_values

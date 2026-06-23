@@ -54,8 +54,8 @@ def test_summary_copy_uses_gap_state_when_critical_gaps_exist() -> None:
         ),
     )
 
-    assert copy.headline == "Noch 3 kritische Punkte offen"
-    assert "bevor Sie Stellenanzeige" in copy.subheadline
+    assert copy.headline == "Noch 3 Release-Blocker offen"
+    assert "blockierenden Punkte" in copy.subheadline
     assert copy.primary_cta == "Recruiting-Unterlagen erstellen"
 
 

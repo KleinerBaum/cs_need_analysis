@@ -199,15 +199,19 @@ from wizard_pages.summary_exporters import (
 
 from wizard_pages.summary_readiness import (
     SUMMARY_FACT_OVERVIEW_COLUMNS,
+    SUMMARY_AREA_TO_STEP_KEY,
     SUMMARY_FACT_STEP_LABELS,
     SUMMARY_FACT_STEP_ORDER,
     SummaryMeta,
+    SummaryArtifactGate,
+    SummaryReleaseBlocker,
     SummaryStatus,
     SummaryViewModel,
     _apply_summary_fact_edits,
     _build_missing_critical_items,
     _build_summary_critical_gap_rows,
     _is_visible_summary_fact_row,
+    _release_state_label,
     _summary_fact_row_id,
     _summary_fact_rows_by_step,
     _summary_visible_fact_rows,
@@ -405,6 +409,68 @@ SummaryTabs = tuple[
     RenderableContainer,
     RenderableContainer,
 ]
+
+
+SUMMARY_RELEASE_FACT_AREAS_BY_ARTIFACT: Final[dict[str, frozenset[str] | None]] = {
+    "brief": None,
+    "job_ad": frozenset(
+        {
+            "Kernprofil",
+            "Klassifikation",
+            "Routing",
+            "Unternehmen",
+            "Team",
+            "Rolle",
+            "Rolle & Aufgaben",
+            "Skills",
+            "Benefits",
+            "Rechtliches",
+        }
+    ),
+    "interview_hr": frozenset(
+        {
+            "Kernprofil",
+            "Unternehmen",
+            "Team",
+            "Rolle",
+            "Rolle & Aufgaben",
+            "Skills",
+            "Interview",
+            "Kandidatenkommunikation",
+        }
+    ),
+    "interview_fach": frozenset(
+        {
+            "Kernprofil",
+            "Rolle",
+            "Rolle & Aufgaben",
+            "Skills",
+            "Interview",
+        }
+    ),
+    "boolean_search": frozenset(
+        {
+            "Kernprofil",
+            "Klassifikation",
+            "Rolle",
+            "Rolle & Aufgaben",
+            "Skills",
+        }
+    ),
+    "employment_contract": frozenset(
+        {
+            "Kernprofil",
+            "Unternehmen",
+            "Rolle",
+            "Rolle & Aufgaben",
+            "Benefits",
+            "Rechtliches",
+            "Zeitplan",
+            "Timeline",
+            "Timing",
+        }
+    ),
+}
 
 
 def _widget_key(base_key: SSKey, suffix: str | None = None) -> str:
@@ -746,12 +812,18 @@ def _render_selection_matrix(
 
 
 def _render_summary_hero(vm: SummaryViewModel) -> None:
-    st.header(_build_summary_headline(vm.meta))
+    st.header(_build_summary_headline(vm.meta, vm.status))
     st.markdown(_build_summary_subheader(vm.meta, vm.status))
     _render_summary_meta_badges(vm.meta, vm.status)
 
 
-def _build_summary_headline(meta: SummaryMeta) -> str:
+def _build_summary_headline(
+    meta: SummaryMeta, status: SummaryStatus | None = None
+) -> str:
+    if status is not None:
+        if status.ready_for_follow_ups:
+            return f"{status.readiness_percent}% bereit für Recruiting-Unterlagen"
+        return f"{status.readiness_percent}% bereit - offene Punkte zuerst klären"
     role = meta.role_label
     company = meta.company_label
     if role and company:
@@ -777,30 +849,30 @@ def _build_summary_subheader(meta: SummaryMeta, status: SummaryStatus) -> str:
     mapping_status = " und ".join(mapping_fragments)
 
     readiness_intro = (
-        "Die Vakanz ist inhaltlich bereit für weitere Recruiting-Unterlagen."
+        "Die Vakanz ist inhaltlich bereit; prüfen Sie nur noch die gewünschte Unterlage vor Export."
         if status.ready_for_follow_ups
-        else "Die Vakanz ist noch nicht vollständig entscheidungsreif."
+        else "Die Vakanz ist noch nicht releasebereit."
     )
     brief_clause = (
-        "Der Recruiting Brief ist aktuell."
+        "Der Recruiting Brief ist aktuell und als Grundlage verwendbar."
         if status.brief_state == "current"
         else status.brief_status_label
     )
     return (
         f"**Für {company} ist die Rolle {role} für den Zielmarkt {country} als klare Hiring-Story "
         "zusammengeführt.**\n\n"
-        f"{readiness_intro} Aktueller Stand: **{status.completion_text}**, {brief_clause}\n\n"
+        f"{readiness_intro} Stand: **{status.completion_text}**. {brief_clause}\n\n"
         f"Die fachliche Verortung ist {mapping_status}, damit Übergaben an Sourcing, Interview und "
         "Angebotsphase konsistent bleiben.\n\n"
-        f"**Empfohlener nächster Schritt:** {status.next_step}."
+        f"**Nächster Schritt:** {status.next_step}."
     )
 
 
 def _render_summary_meta_badges(meta: SummaryMeta, status: SummaryStatus) -> None:
     readiness = (
-        "Bereit"
+        "Releasebereit"
         if status.ready_for_follow_ups
-        else ("Veraltet" if status.brief_state == "stale" else "In Arbeit")
+        else ("Brief aktualisieren" if status.brief_state == "stale" else "Blocker prüfen")
     )
     badges = (
         ("Rolle", meta.role_label or "Nicht angegeben"),
@@ -1537,13 +1609,262 @@ def _render_contract_compact_controls() -> None:
     )
 
 
+def _artifact_release_fact_rows(
+    vm: SummaryViewModel,
+    artifact_id: str,
+) -> list[SummaryFactsRow]:
+    scoped_areas = SUMMARY_RELEASE_FACT_AREAS_BY_ARTIFACT.get(artifact_id)
+    rows: list[SummaryFactsRow] = []
+    for row in vm.fact_rows:
+        if row.bereich == "Recruiting-Unterlagen":
+            continue
+        if scoped_areas is not None and row.bereich not in scoped_areas:
+            continue
+        requirement_stage = str(row.requirement_stage or "").strip()
+        if requirement_stage == FactRequirementStage.BEFORE_SUMMARY.value:
+            rows.append(row)
+        elif (
+            artifact_id != "brief"
+            and requirement_stage == FactRequirementStage.BEFORE_ARTIFACT.value
+        ):
+            rows.append(row)
+    return rows
+
+
+def _summary_fact_blocks_release(row: SummaryFactsRow) -> bool:
+    resolution_status = str(row.resolution_status or "").strip()
+    return (
+        row.status in {"Fehlend", "Teilweise"}
+        or resolution_status
+        in {
+            FactResolutionStatus.MISSING.value,
+            FactResolutionStatus.CONFLICTED.value,
+        }
+    )
+
+
+def _summary_fact_blocker_reason(row: SummaryFactsRow) -> str:
+    resolution_status = str(row.resolution_status or "").strip()
+    if resolution_status == FactResolutionStatus.CONFLICTED.value:
+        return f"Widerspruch prüfen: {row.bereich} · {row.feld}"
+    if row.status == "Teilweise":
+        return f"Teilweise geklärt: {row.bereich} · {row.feld}"
+    return f"Fehlt: {row.bereich} · {row.feld}"
+
+
+def _summary_fact_blocker_next_step(row: SummaryFactsRow) -> str:
+    step_key = row.step_key or SUMMARY_AREA_TO_STEP_KEY.get(row.bereich, "")
+    step_label = SUMMARY_FACT_STEP_LABELS.get(step_key, "passenden Wizard-Schritt")
+    return f"{row.feld} im Schritt „{step_label}“ prüfen."
+
+
+def _release_blockers_for_artifact(
+    vm: SummaryViewModel,
+    *,
+    artifact_id: str,
+    artifact_label: str,
+    limit: int = 4,
+) -> list[SummaryReleaseBlocker]:
+    blockers: list[SummaryReleaseBlocker] = []
+    for row in _artifact_release_fact_rows(vm, artifact_id):
+        if not _summary_fact_blocks_release(row):
+            continue
+        blockers.append(
+            SummaryReleaseBlocker(
+                artifact_id=artifact_id,
+                artifact_label=artifact_label,
+                reason=_summary_fact_blocker_reason(row),
+                next_step=_summary_fact_blocker_next_step(row),
+                blocker_type="fact",
+            )
+        )
+        if len(blockers) >= limit:
+            break
+    return blockers
+
+
+def _brief_blocker_for_artifact(
+    *,
+    artifact_id: str,
+    artifact_label: str,
+    requirement_ok: bool,
+    requirement_message: str,
+) -> SummaryReleaseBlocker | None:
+    if requirement_ok or not requirement_message:
+        return None
+    next_step = "Recruiting Brief erstellen oder aktualisieren."
+    if "ungültig" in requirement_message.casefold():
+        next_step = "Recruiting Brief neu erstellen."
+    elif (
+        "veraltet" in requirement_message.casefold()
+        or "passt nicht" in requirement_message.casefold()
+    ):
+        next_step = "Recruiting Brief aktualisieren."
+    return SummaryReleaseBlocker(
+        artifact_id=artifact_id,
+        artifact_label=artifact_label,
+        reason=requirement_message,
+        next_step=next_step,
+        blocker_type="brief",
+    )
+
+
+def _stale_result_blocker(
+    *,
+    artifact_id: str,
+    artifact_label: str,
+    status_key: str,
+) -> SummaryReleaseBlocker | None:
+    if status_key != "stale":
+        return None
+    return SummaryReleaseBlocker(
+        artifact_id=artifact_id,
+        artifact_label=artifact_label,
+        reason=f"{artifact_label} passt nicht mehr zu den aktuellen Eingaben.",
+        next_step=f"{artifact_label} neu erstellen.",
+        blocker_type="stale_artifact",
+    )
+
+
+def _build_artifact_release_gate(
+    vm: SummaryViewModel,
+    action: SummaryAction,
+    *,
+    resolved_brief_model: str,
+) -> SummaryArtifactGate:
+    artifact_id = _to_canonical_artifact_id(action["id"]) or action["id"]
+    artifact_label = _artifact_display_label(artifact_id) or action["title"]
+    blockers: list[SummaryReleaseBlocker] = []
+    requirements_ok = _has_required_state(action["requires"])
+    requirement_ok = True
+    requirement_message = ""
+    requirement_check_fn = action.get("requirement_check_fn")
+    if requirement_check_fn is not None:
+        requirement_ok, requirement_message = requirement_check_fn()
+    if not requirements_ok:
+        blockers.append(
+            SummaryReleaseBlocker(
+                artifact_id=artifact_id,
+                artifact_label=artifact_label,
+                reason="Jobspec oder Wizard-Plan fehlt.",
+                next_step="Start-Schritt abschließen und Summary erneut öffnen.",
+                blocker_type="prerequisite",
+            )
+        )
+    brief_blocker = _brief_blocker_for_artifact(
+        artifact_id=artifact_id,
+        artifact_label=artifact_label,
+        requirement_ok=requirement_ok,
+        requirement_message=requirement_message,
+    )
+    if brief_blocker is not None:
+        blockers.append(brief_blocker)
+    blockers.extend(
+        _release_blockers_for_artifact(
+            vm,
+            artifact_id=artifact_id,
+            artifact_label=artifact_label,
+        )
+    )
+
+    if artifact_id == "brief":
+        state, status_label, cta_label = _get_brief_status(
+            primary_action=action,
+            resolved_brief_model=resolved_brief_model,
+        )
+        if state in {"stale", "invalid", "blocked"} and not blockers:
+            blockers.append(
+                SummaryReleaseBlocker(
+                    artifact_id=artifact_id,
+                    artifact_label=artifact_label,
+                    reason=status_label,
+                    next_step=cta_label,
+                    blocker_type=state,
+                )
+            )
+    else:
+        state, status_label = _artifact_status_label(vm, artifact_id)
+        stale_blocker = _stale_result_blocker(
+            artifact_id=artifact_id,
+            artifact_label=artifact_label,
+            status_key=state,
+        )
+        if stale_blocker is not None:
+            blockers.append(stale_blocker)
+        if state == "open" and not blockers and action["generator_fn"] is not None:
+            state = "ready"
+            status_label = _release_state_label(state)
+
+    if blockers:
+        state_label = f"{len(blockers)} Blocker"
+        next_step = blockers[0].next_step
+    else:
+        state_label = _release_state_label(state)
+        if state in {"current"}:
+            next_step = "Kann exportiert oder bei Änderungen aktualisiert werden."
+        elif state == "ready":
+            next_step = f"{artifact_label} erstellen."
+        else:
+            next_step = str(status_label or action["cta_label"])
+    return SummaryArtifactGate(
+        artifact_id=artifact_id,
+        artifact_label=artifact_label,
+        state=state,
+        state_label=state_label,
+        blockers=blockers,
+        next_step=next_step,
+    )
+
+
+def _build_summary_release_gates(
+    vm: SummaryViewModel,
+    action_registry: list[SummaryAction],
+    *,
+    resolved_brief_model: str,
+) -> list[SummaryArtifactGate]:
+    return [
+        _build_artifact_release_gate(
+            vm,
+            action,
+            resolved_brief_model=resolved_brief_model,
+        )
+        for action in action_registry
+    ]
+
+
+def _release_blocker_count(gates: Sequence[SummaryArtifactGate]) -> int:
+    unique_blockers = {
+        (blocker.blocker_type, blocker.reason, blocker.next_step)
+        for gate in gates
+        for blocker in gate.blockers
+    }
+    return len(unique_blockers)
+
+
+def _render_artifact_blockers(gate: SummaryArtifactGate) -> None:
+    if not gate.blockers:
+        st.caption(f"Nächster Schritt: {gate.next_step}")
+        return
+    for blocker in gate.blockers[:3]:
+        st.caption(f"Blocker: {blocker.reason}")
+        st.caption(f"To do: {blocker.next_step}")
+    remaining = len(gate.blockers) - 3
+    if remaining > 0:
+        st.caption(f"Weitere {remaining} Blocker im Fakten-Workspace prüfen.")
+
+
 def _render_summary_artifact_grid(
     *,
     vm: SummaryViewModel,
     generator_by_id: Mapping[str, Callable[[], None]],
+    action_registry: list[SummaryAction] | None = None,
+    resolved_brief_model: str = "",
 ) -> None:
     st.markdown("### Recruiting-Unterlagen")
-    st.caption("Wähle eine Unterlage, schärfe die wichtigsten Einflussfaktoren und generiere direkt aus den aktuellen Daten.")
+    st.caption(
+        "Wähle eine Unterlage, schärfe die wichtigsten Einflussfaktoren und "
+        "generiere direkt aus den aktuellen Daten."
+    )
     specs: list[dict[str, Any]] = [
         {
             "id": "job_ad",
@@ -1584,6 +1905,7 @@ def _render_summary_artifact_grid(
             "description": "Reserviert für künftige Hiring-Team-Unterlagen.",
         },
     ]
+    action_by_id = {action["id"]: action for action in action_registry or []}
     for row_start in range(0, len(specs), 2):
         columns = st.columns(2, gap="medium")
         for column, spec in zip(columns, specs[row_start : row_start + 2]):
@@ -1606,9 +1928,29 @@ def _render_summary_artifact_grid(
                         maybe_artifact_id = controls()
                         if isinstance(maybe_artifact_id, str) and maybe_artifact_id:
                             artifact_id = maybe_artifact_id
-                    status_key, status_label = _artifact_status_label(vm, artifact_id)
-                    st.caption(f"Status: {status_label}")
-                    button_type = "primary" if status_key in {"open", "stale"} else "secondary"
+                    gate = None
+                    action = action_by_id.get(artifact_id)
+                    if action is not None:
+                        gate = _build_artifact_release_gate(
+                            vm,
+                            action,
+                            resolved_brief_model=resolved_brief_model,
+                        )
+                    if gate is not None:
+                        status_key = gate.state
+                        status_label = gate.state_label
+                        st.caption(f"Release Gate: {status_label}")
+                        _render_artifact_blockers(gate)
+                    else:
+                        status_key, status_label = _artifact_status_label(
+                            vm, artifact_id
+                        )
+                        st.caption(f"Status: {_release_state_label(status_key)}")
+                    button_type = (
+                        "primary"
+                        if status_key in {"ready", "open", "stale", "missing"}
+                        else "secondary"
+                    )
                     if st.button(
                         str(spec["cta"]),
                         type=button_type,
@@ -1783,15 +2125,18 @@ def _render_export_bar(*, has_brief: bool) -> None:
     st.markdown("### Export")
     with st.container(border=True):
         st.caption(
-            "Export wird im Bereich **Brief & Export** bereitgestellt (JSON, Markdown, DOCX, ESCO-Mapping)."
+            "Exportfreigabe im Bereich **Brief & Export**: erst prüfen, dann JSON, "
+            "Markdown, DOCX oder ESCO-Mapping herunterladen."
         )
         if has_brief:
             st.success(
-                "Bereit: Recruiting Brief vorhanden – Exporte können erstellt werden."
+                "Bereit zur Prüfung: Ein gültiger Recruiting Brief ist vorhanden. "
+                "Exportieren Sie nur, wenn die Release Gate Karten keine Blocker zeigen."
             )
         else:
             st.info(
-                "Noch nicht bereit: Erst den Recruiting Brief erstellen, dann Exporte nutzen."
+                "Blockiert: Erstellen Sie zuerst den Recruiting Brief. Danach werden "
+                "Exportformate freigegeben."
             )
 
 
@@ -1874,16 +2219,31 @@ def _render_summary_dashboard_css() -> None:
 
 
 def _render_artifact_pipeline(
-    action_registry: list[SummaryAction], *, resolved_brief_model: str
+    action_registry: list[SummaryAction],
+    *,
+    resolved_brief_model: str,
+    vm: SummaryViewModel | None = None,
 ) -> None:
     st.markdown("#### Unterlagen-Pipeline")
-    st.caption("Status der wichtigsten Recruiting-Unterlagen auf einen Blick.")
+    st.caption("Release-Status je Unterlage: bereit, offen oder durch konkrete Punkte blockiert.")
     card_columns = st.columns(2)
     for index, action in enumerate(action_registry):
-        status_key, status_label = _artifact_pipeline_status(
-            action,
-            resolved_brief_model=resolved_brief_model,
+        gate = (
+            _build_artifact_release_gate(
+                vm,
+                action,
+                resolved_brief_model=resolved_brief_model,
+            )
+            if vm is not None
+            else None
         )
+        if gate is not None:
+            status_key, status_label = gate.state, gate.state_label
+        else:
+            status_key, status_label = _artifact_pipeline_status(
+                action,
+                resolved_brief_model=resolved_brief_model,
+            )
         requirements_ok = _has_required_state(action["requires"])
         requirement_ok = True
         requirement_message = ""
@@ -1903,11 +2263,13 @@ def _render_artifact_pipeline(
             with st.container(border=True):
                 st.markdown(f"**{action['title']}**")
                 st.caption(action["benefit"])
-                st.caption(f"Status: {status_label}")
+                st.caption(f"Release Gate: {status_label}")
                 requirement_text = action["requirement_text"]
                 if requirement_message:
                     requirement_text = f"{requirement_text} — {requirement_message}"
                 st.caption(f"Voraussetzungen: {requirement_text}")
+                if gate is not None:
+                    _render_artifact_blockers(gate)
                 if st.button(
                     cta_label,
                     width="stretch",
@@ -1940,6 +2302,12 @@ def _render_readiness_tab(
     brief: VacancyBrief | None = None,
 ) -> None:
     _render_summary_dashboard_css()
+    release_gates = _build_summary_release_gates(
+        vm,
+        action_registry,
+        resolved_brief_model=resolved_brief_model,
+    )
+    release_blocker_count = _release_blocker_count(release_gates)
     summary_copy = build_step_copy(
         STEP_KEY_SUMMARY,
         language=active_language(),
@@ -1948,11 +2316,11 @@ def _render_readiness_tab(
             company_name=vm.meta.company_label,
             location=vm.meta.country_label,
             readiness_score=vm.status.readiness_percent,
-            critical_gaps_count=len(_build_missing_critical_items(vm)),
+            critical_gaps_count=release_blocker_count,
         )
     )
     render_output_header(summary_copy.headline, summary_copy.subheadline)
-    _render_readiness_dashboard_header(vm)
+    _render_readiness_dashboard_header(vm, blocker_count=release_blocker_count)
 
     recommendation = _resolve_next_best_action_recommendation(
         action_registry, resolved_brief_model=resolved_brief_model, vm=vm
@@ -1965,6 +2333,7 @@ def _render_readiness_tab(
         _render_artifact_pipeline(
             action_registry,
             resolved_brief_model=resolved_brief_model,
+            vm=vm,
         )
     _render_summary_workspace_tabs(
         vm=vm,
@@ -1974,10 +2343,13 @@ def _render_readiness_tab(
     )
 
 
-def _render_readiness_dashboard_header(vm: SummaryViewModel) -> None:
+def _render_readiness_dashboard_header(
+    vm: SummaryViewModel, *, blocker_count: int | None = None
+) -> None:
     _render_readiness_dashboard_header_impl(
         vm,
         metric_renderer=_render_summary_readiness_metrics,
+        blocker_count=blocker_count,
         streamlit_module=st,
     )
 
@@ -2025,9 +2397,12 @@ def _render_next_best_action_card(*, recommendation: NextBestActionRecommendatio
 def _render_critical_gaps_card(vm: SummaryViewModel) -> None:
     missing_items = _build_missing_critical_items(vm)
     if not missing_items:
-        st.success("Keine kritischen Lücken erkannt.")
+        st.success(
+            "Keine kritischen Fakten-Blocker erkannt. Prüfen Sie jetzt die "
+            "Unterlagenkarten."
+        )
         return
-    render_critical_gaps(missing_items, title="Kritische Lücken (Top 5)")
+    render_critical_gaps(missing_items, title="Fakten-Blocker vor Export (Top 5)")
 
 
 def _render_artifact_launcher_cards(
@@ -2135,7 +2510,9 @@ def _render_summary_workspace_tabs(
 
     with export_tab:
         if brief is None:
-            st.info("Export ist verfügbar, sobald ein gültiger Recruiting Brief vorhanden ist.")
+            st.info(
+                "Export blockiert: Erstellen oder aktualisieren Sie zuerst den Recruiting Brief."
+            )
         else:
             _render_summary_export_workspace(brief=brief)
 

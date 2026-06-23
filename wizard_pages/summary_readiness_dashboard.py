@@ -8,7 +8,12 @@ from typing import Any, Callable
 
 import streamlit as st
 
-from wizard_pages.summary_readiness import SummaryViewModel
+from wizard_pages.summary_readiness import (
+    SummaryViewModel,
+    _build_missing_critical_items,
+    _release_gate_headline,
+    _release_state_label,
+)
 
 
 def render_summary_readiness_metrics(
@@ -16,13 +21,7 @@ def render_summary_readiness_metrics(
     *,
     streamlit_module: Any = st,
 ) -> None:
-    brief_label = {
-        "current": "Aktuell",
-        "stale": "Veraltet",
-        "missing": "Fehlt",
-        "invalid": "Ungültig",
-        "blocked": "Blockiert",
-    }.get(vm.status.brief_state, vm.status.brief_status_label)
+    brief_label = _release_state_label(vm.status.brief_state)
     metrics = (
         ("Bereitschaft", f"{vm.status.readiness_percent}%"),
         ("Kritische Fakten", vm.status.completion_text),
@@ -38,8 +37,14 @@ def render_readiness_dashboard_header(
     vm: SummaryViewModel,
     *,
     metric_renderer: Callable[[SummaryViewModel], None],
+    blocker_count: int | None = None,
     streamlit_module: Any = st,
 ) -> None:
+    resolved_blocker_count = (
+        len(_build_missing_critical_items(vm))
+        if blocker_count is None
+        else max(0, int(blocker_count))
+    )
     container = (
         streamlit_module.container(border=True)
         if hasattr(streamlit_module, "container")
@@ -47,11 +52,17 @@ def render_readiness_dashboard_header(
     )
     with container:
         if hasattr(streamlit_module, "markdown"):
-            streamlit_module.markdown("### Bereitschaftsübersicht")
+            streamlit_module.markdown(
+                "### "
+                + _release_gate_headline(
+                    readiness_percent=vm.status.readiness_percent,
+                    blocker_count=resolved_blocker_count,
+                )
+            )
         if hasattr(streamlit_module, "columns"):
             metric_renderer(vm)
         if hasattr(streamlit_module, "caption"):
             streamlit_module.caption(
-                "Diese Kennzahlen steuern die nächsten Recruiting-Unterlagen; "
-                "Detailwerte stehen im Fakten-Workspace."
+                "Diese Übersicht entscheidet, welche Unterlagen exportierbar sind "
+                "und welche Eingaben vorher geprüft werden müssen."
             )

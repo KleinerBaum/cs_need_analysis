@@ -114,7 +114,7 @@ def test_dynamic_step_copy_keeps_english_parity_and_summary_readiness() -> None:
     assert company.headline == "Position ACME as the employer for Product Manager"
     assert company.subheadline.startswith("Clarify company context")
     assert company.value_line == "Helps explain why this role exists."
-    assert summary_gap.headline == "2 critical points still open"
+    assert summary_gap.headline == "2 release blockers still open"
     assert summary_ready.headline == "Ready for recruiting, interviews, and active sourcing"
 
 

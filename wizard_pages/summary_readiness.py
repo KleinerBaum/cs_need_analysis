@@ -118,6 +118,7 @@ from summary_facts import (
     format_summary_answer_value as _format_summary_answer_value,
     format_summary_fact_value as _format_summary_fact_value,
     group_summary_fact_rows_by_area as _group_summary_fact_rows_by_area,
+    release_label_for_fact_status as _release_label_for_fact_status,
     status_for_answer_value as _status_for_answer_value,
     status_for_classification_value as _status_for_classification_value,
     status_for_value as _status_for_value,
@@ -283,6 +284,29 @@ class CanonicalBriefStatus:
 
 
 @dataclass(frozen=True)
+class SummaryReleaseBlocker:
+    artifact_id: str
+    artifact_label: str
+    reason: str
+    next_step: str
+    blocker_type: str = "fact"
+
+
+@dataclass(frozen=True)
+class SummaryArtifactGate:
+    artifact_id: str
+    artifact_label: str
+    state: str
+    state_label: str
+    blockers: list[SummaryReleaseBlocker]
+    next_step: str
+
+    @property
+    def is_release_ready(self) -> bool:
+        return not self.blockers and self.state == "current"
+
+
+@dataclass(frozen=True)
 class SummaryViewModel:
     job: JobAdExtract
     answers: dict[str, Any]
@@ -304,7 +328,10 @@ def _resolve_canonical_brief_status(
     if not has_brief_prerequisites:
         return CanonicalBriefStatus(
             state="blocked",
-            message="Brief-Grundlagen fehlen",
+            message=(
+                "Jobspec oder Wizard-Plan fehlt. Der Recruiting Brief kann noch "
+                "nicht erstellt werden."
+            ),
             cta_label="Recruiting Brief vorbereiten",
             ready_for_follow_ups=False,
         )
@@ -313,7 +340,10 @@ def _resolve_canonical_brief_status(
     if not isinstance(brief_payload, dict):
         return CanonicalBriefStatus(
             state="missing",
-            message="Kein Recruiting Brief vorhanden.",
+            message=(
+                "Recruiting Brief fehlt. Erstellen Sie ihn, bevor Sie Folgeunterlagen "
+                "oder Exporte freigeben."
+            ),
             cta_label="Recruiting Brief erstellen",
             ready_for_follow_ups=False,
         )
@@ -322,7 +352,10 @@ def _resolve_canonical_brief_status(
     except Exception:
         return CanonicalBriefStatus(
             state="invalid",
-            message="Recruiting Brief ist ungültig.",
+            message=(
+                "Recruiting Brief ist ungültig. Erstellen Sie ihn neu, bevor Sie "
+                "exportieren."
+            ),
             cta_label="Recruiting Brief neu erstellen",
             ready_for_follow_ups=False,
         )
@@ -332,7 +365,10 @@ def _resolve_canonical_brief_status(
     if dirty:
         return CanonicalBriefStatus(
             state="stale",
-            message="Recruiting Brief ist veraltet.",
+            message=(
+                "Recruiting Brief ist veraltet. Aktualisieren Sie ihn vor Export "
+                "oder Folgeunterlagen."
+            ),
             cta_label="Recruiting Brief aktualisieren",
             ready_for_follow_ups=False,
         )
@@ -342,7 +378,10 @@ def _resolve_canonical_brief_status(
     if resolved_brief_model and last_models.get("draft_model") != resolved_brief_model:
         return CanonicalBriefStatus(
             state="stale",
-            message="Recruiting Brief ist veraltet.",
+            message=(
+                "Recruiting Brief wurde mit einem anderen Modell erstellt. "
+                "Aktualisieren Sie ihn vor Export oder Folgeunterlagen."
+            ),
             cta_label="Recruiting Brief aktualisieren",
             ready_for_follow_ups=False,
         )
@@ -360,7 +399,10 @@ def _resolve_canonical_brief_status(
     if current_input_fingerprint and not resolved_last_brief_fingerprint:
         return CanonicalBriefStatus(
             state="stale",
-            message="Recruiting Brief hat keinen aktuellen Eingabe-Snapshot.",
+            message=(
+                "Recruiting Brief hat keinen aktuellen Eingabe-Snapshot. "
+                "Aktualisieren Sie ihn vor Export oder Folgeunterlagen."
+            ),
             cta_label="Recruiting Brief aktualisieren",
             ready_for_follow_ups=False,
         )
@@ -371,17 +413,38 @@ def _resolve_canonical_brief_status(
     ):
         return CanonicalBriefStatus(
             state="stale",
-            message="Recruiting Brief passt nicht mehr zu den aktuellen Eingaben.",
+            message=(
+                "Recruiting Brief passt nicht mehr zu den aktuellen Eingaben. "
+                "Aktualisieren Sie ihn vor Export oder Folgeunterlagen."
+            ),
             cta_label="Recruiting Brief aktualisieren",
             ready_for_follow_ups=False,
         )
 
     return CanonicalBriefStatus(
         state="current",
-        message="Aktueller Recruiting Brief vorhanden.",
+        message="Recruiting Brief ist aktuell und als Grundlage verwendbar.",
         cta_label="Brief aktualisieren",
         ready_for_follow_ups=True,
     )
+
+
+def _release_state_label(state: str) -> str:
+    return {
+        "current": "Aktuell und exportierbar",
+        "ready": "Bereit zur Erstellung",
+        "stale": "Veraltet - vor Export aktualisieren",
+        "missing": "Fehlt - zuerst erstellen",
+        "invalid": "Ungültig - neu erstellen",
+        "blocked": "Blockiert - Grundlagen klären",
+        "open": "Offen",
+    }.get(str(state or "").strip(), "Status offen")
+
+
+def _release_gate_headline(*, readiness_percent: int, blocker_count: int) -> str:
+    if blocker_count > 0:
+        return f"{blocker_count} Blocker vor Exportfreigabe"
+    return f"{readiness_percent}% bereit - keine Release-Blocker"
 
 
 def _read_summary_confidence_threshold() -> float | None:
@@ -1495,7 +1558,7 @@ def _build_summary_critical_gap_rows(vm: SummaryViewModel) -> list[dict[str, str
         step_key = row.step_key or _summary_step_key_for_area(row.bereich)
         if step_key not in SUMMARY_FACT_STEP_LABELS:
             continue
-        reason = "Teilweise geklärt" if row.status == "Teilweise" else "Noch offen"
+        reason = _release_label_for_fact_status(row.status)
         target = _summary_gap_target_for_row(row, step_key=step_key)
         rows.append(
             {
@@ -1505,7 +1568,10 @@ def _build_summary_critical_gap_rows(vm: SummaryViewModel) -> list[dict[str, str
                 "Status": row.status,
                 "Pflichtigkeit": _display_requirement_stage(row.requirement_stage),
                 "Provenienz": row.provenienz,
-                "Aktion": f"{reason}: {row.feld} im Schritt „{SUMMARY_FACT_STEP_LABELS[step_key]}“ prüfen.",
+                "Aktion": (
+                    f"{reason}: {row.feld} im Schritt "
+                    f"„{SUMMARY_FACT_STEP_LABELS[step_key]}“ prüfen."
+                ),
                 **target,
             }
         )

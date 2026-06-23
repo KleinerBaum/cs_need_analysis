@@ -382,7 +382,7 @@ def test_readiness_tab_delegates_detail_sections_to_workspaces(monkeypatch) -> N
     monkeypatch.setattr(
         SUMMARY_MODULE,
         "_render_readiness_dashboard_header",
-        lambda _vm: render_events.append("dashboard"),
+        lambda _vm, **_kwargs: render_events.append("dashboard"),
     )
     monkeypatch.setattr(SUMMARY_MODULE, "_build_missing_critical_items", lambda _vm: [])
     monkeypatch.setattr(

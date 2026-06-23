@@ -126,7 +126,7 @@ _COPY: dict[str, dict[str, dict[str, str]]] = {
         },
         STEP_KEY_SUMMARY: {
             "headline_default": "Das Recruiting-Briefing für {role_title} ist zu {readiness_score}% bereit",
-            "headline_gap": "Noch {critical_gaps_count} kritische Punkte offen",
+            "headline_gap": "Noch {critical_gaps_count} Release-Blocker offen",
             "headline_ready": "Bereit für Recruiting, Interviews und Active Sourcing",
             "subheadline_default": (
                 "Prüfen Sie offene Lücken, übernehmen Sie finale Anpassungen und "
@@ -134,8 +134,8 @@ _COPY: dict[str, dict[str, dict[str, str]]] = {
                 "HR und Active Sourcing."
             ),
             "subheadline_gap": (
-                "Klären Sie diese Angaben, bevor Sie Stellenanzeige, Interviewleitfaden "
-                "oder Suchstrings exportieren."
+                "Klären oder aktualisieren Sie die blockierenden Punkte, bevor Sie "
+                "Stellenanzeige, Interviewleitfaden, Suchstrings oder Vertrag freigeben."
             ),
             "subheadline_ready": (
                 "Alle wichtigen Fakten sind geprüft. Erstellen Sie jetzt Stellenanzeige, "
@@ -225,14 +225,15 @@ _COPY: dict[str, dict[str, dict[str, str]]] = {
         },
         STEP_KEY_SUMMARY: {
             "headline_default": "The recruiting brief for {role_title} is {readiness_score}% ready",
-            "headline_gap": "{critical_gaps_count} critical points still open",
+            "headline_gap": "{critical_gaps_count} release blockers still open",
             "headline_ready": "Ready for recruiting, interviews, and active sourcing",
             "subheadline_default": (
                 "Review remaining gaps, apply final adjustments, and generate the right "
                 "recruiting outputs for recruiting, HR, and active sourcing."
             ),
             "subheadline_gap": (
-                "Clarify these items before exporting a job ad, interview guide, or search strings."
+                "Clarify or refresh the blocking items before releasing a job ad, "
+                "interview guide, search strings, or contract."
             ),
             "subheadline_ready": (
                 "All important facts are checked. Generate the job ad, HR sheet, and search strings now."
