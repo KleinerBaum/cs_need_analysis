@@ -192,6 +192,14 @@ def _dedupe_preview_items(values: Any, *, limit: int = 4) -> list[str]:
     return output
 
 
+def _preview_sequence_values(value: Any) -> list[Any]:
+    if isinstance(value, str | bytes) or isinstance(value, Mapping):
+        return [value] if _compact_preview_text(value) else []
+    if isinstance(value, Sequence):
+        return list(value)
+    return []
+
+
 def _preview_salary_text(job: JobAdExtract) -> str:
     salary_range = getattr(job, "salary_range", None)
     if salary_range is None:
@@ -258,6 +266,58 @@ def _safe_interview_preview_items(interview_process: Mapping[str, Any]) -> list[
     return _dedupe_preview_items(output, limit=3)
 
 
+def _preview_decision_scope_label(value: Any) -> str:
+    normalized = _compact_preview_text(value)
+    return {
+        "keine_eigenen_entscheidungen": "keine eigenen Entscheidungen",
+        "fachliche_empfehlungen": "fachliche Empfehlungen",
+        "eigenstaendige_fachentscheidungen": "eigenständige Fachentscheidungen",
+        "budget_personal_oder_prioritaeten": "Budget, Personal oder Prioritäten",
+        "unklar": "",
+    }.get(normalized, normalized)
+
+
+def _preview_timeline_items(value: Any, *, limit: int = 3) -> list[str]:
+    if not isinstance(value, Mapping):
+        return []
+    labels = {
+        "30_days": "30 Tage",
+        "60_days": "60 Tage",
+        "90_days": "90 Tage",
+        "180_days": "180 Tage",
+    }
+    items: list[str] = []
+    for key, label in labels.items():
+        compact = _compact_preview_text(value.get(key))
+        if compact:
+            items.append(f"{label}: {compact}")
+        if len(items) >= limit:
+            break
+    return items
+
+
+def _preview_prioritized_items(
+    value: Any,
+    *,
+    priority: str,
+    limit: int = 3,
+) -> list[str]:
+    if not isinstance(value, Sequence) or isinstance(value, str | bytes):
+        return []
+    output: list[str] = []
+    for item in value:
+        if not isinstance(item, Mapping):
+            continue
+        if _compact_preview_text(item.get("priority")) != priority:
+            continue
+        label = _compact_preview_text(item.get("label"))
+        if label:
+            output.append(label)
+        if len(output) >= limit:
+            break
+    return _dedupe_preview_items(output, limit=limit)
+
+
 def build_live_artifact_preview_payload(
     *,
     job: JobAdExtract,
@@ -278,8 +338,55 @@ def build_live_artifact_preview_payload(
     remote_policy = _compact_preview_text(job.remote_policy)
     salary_text = _preview_salary_text(job)
     role_summary = _compact_preview_text(job.role_overview) or role_title
+    role_outcome = (
+        _compact_preview_text(
+            facts.get(FactKey.ROLE_BUSINESS_OUTCOME_PRIMARY.value)
+        )
+        or role_summary
+    )
+    day1_responsibilities = _dedupe_preview_items(
+        facts.get(FactKey.ROLE_DAY1_RESPONSIBILITIES.value, []),
+        limit=3,
+    )
+    expected_outputs = _dedupe_preview_items(
+        [
+            *list(job.deliverables or []),
+            *_preview_sequence_values(facts.get(FactKey.ROLE_DELIVERABLES.value)),
+        ],
+        limit=3,
+    )
+    first_success_signals = _dedupe_preview_items(
+        [
+            *_preview_timeline_items(
+                facts.get(FactKey.ROLE_SUCCESS_METRICS_TIMELINE.value, {})
+            ),
+            *_dedupe_preview_items(
+                facts.get(FactKey.ROLE_YEAR1_SUCCESS_SIGNALS.value, []),
+                limit=2,
+            ),
+            *list(job.success_metrics or []),
+        ],
+        limit=3,
+    )
+    decision_scope = _preview_decision_scope_label(
+        facts.get(FactKey.ROLE_DECISION_SCOPE.value)
+    )
+    must_responsibilities = _preview_prioritized_items(
+        facts.get(FactKey.ROLE_RESPONSIBILITIES_PRIORITIZED.value, []),
+        priority="must",
+        limit=3,
+    )
+    non_negotiables = _dedupe_preview_items(
+        facts.get(FactKey.COMPANY_NON_NEGOTIABLES.value, []),
+        limit=3,
+    )
     tasks = _dedupe_preview_items(
-        [*(selected_role_tasks or []), *list(job.responsibilities or [])],
+        [
+            *(selected_role_tasks or []),
+            *day1_responsibilities,
+            *must_responsibilities,
+            *list(job.responsibilities or []),
+        ],
         limit=4,
     )
     skills = _dedupe_preview_items(
@@ -342,6 +449,8 @@ def build_live_artifact_preview_payload(
     job_ad_signals = _dedupe_preview_items(
         [
             f"Rolle: {role_title}",
+            f"Wofür die Rolle da ist: {role_outcome}" if role_outcome else "",
+            f"Outputs: {', '.join(expected_outputs[:2])}" if expected_outputs else "",
             f"Aufgaben: {', '.join(tasks[:2])}" if tasks else "",
             f"Must-have: {', '.join(skills[:3])}" if skills else "",
             f"Candidate Value: {', '.join(benefits[:3])}" if benefits else "",
@@ -354,6 +463,10 @@ def build_live_artifact_preview_payload(
             f"Suchkern: {' + '.join(boolean_terms[:4])}" if boolean_terms else "",
             f"Standortfilter: {location}" if location else "",
             f"Remote-Signal: {remote_policy}" if remote_policy else "",
+            f"Nicht verhandelbar: {', '.join(non_negotiables)}"
+            if non_negotiables
+            else "",
+            f"Entscheidungsspielraum: {decision_scope}" if decision_scope else "",
             f"Offen klären: {', '.join(open_clarifications)}"
             if open_clarifications
             else "",
@@ -365,8 +478,16 @@ def build_live_artifact_preview_payload(
     )
     interview_guidance = _dedupe_preview_items(
         [
+            f"Erfolg erkennen: {', '.join(first_success_signals[:2])}"
+            if first_success_signals
+            else "",
+            f"Verantwortung validieren: {decision_scope}"
+            if decision_scope
+            else "",
             f"Validieren: {', '.join(skills[:3])}" if skills else "",
-            f"Arbeitsprobe/Evidenz: {', '.join(tasks[:2])}" if tasks else "",
+            f"Arbeitsprobe/Evidenz: {', '.join(expected_outputs[:2] or tasks[:2])}"
+            if expected_outputs or tasks
+            else "",
             f"Stufen: {', '.join(stages)}" if stages else "",
             f"Scorecard: {', '.join(scorecard_items)}" if scorecard_items else "",
             f"Kernfragen: {', '.join(core_questions)}" if core_questions else "",
@@ -384,7 +505,13 @@ def build_live_artifact_preview_payload(
                 "summary": one_liner,
                 "bullets": _dedupe_preview_items(
                     [
-                        role_summary,
+                        role_outcome,
+                        f"Outputs: {', '.join(expected_outputs)}"
+                        if expected_outputs
+                        else "",
+                        f"Erster Erfolgshorizont: {', '.join(first_success_signals[:2])}"
+                        if first_success_signals
+                        else "",
                         f"Top-Aufgaben: {', '.join(tasks[:3])}" if tasks else "",
                         f"Must-have: {', '.join(skills[:3])}" if skills else "",
                         f"Angebot: {', '.join(benefits[:3])}" if benefits else "",
@@ -416,6 +543,8 @@ def build_live_artifact_preview_payload(
             "benefit_count": len(benefits),
             "skill_count": len(skills) + len(nice_skills),
             "task_count": len(tasks),
+            "output_count": len(expected_outputs),
+            "non_negotiable_count": len(non_negotiables),
         },
     }
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import base64
 
-from constants import SSKey, VACANCY_DRAFT_SCHEMA_VERSION
+from constants import FactKey, SSKey, VACANCY_DRAFT_SCHEMA_VERSION
 from document_preview import (
     article_preview_html,
     document_preview_shell,
@@ -154,6 +154,47 @@ def test_live_artifact_preview_payload_uses_current_inputs_without_contact_detai
     interview_bullets = "\n".join(payload["fragments"]["interview_guide"]["bullets"])
     assert "Technical interview" in interview_bullets
     assert "person@example.com" not in interview_bullets
+
+
+def test_live_artifact_preview_payload_uses_role_outcome_facts() -> None:
+    payload = build_live_artifact_preview_payload(
+        job=JobAdExtract(
+            job_title="Product Lead",
+            responsibilities=["Coordinate delivery"],
+            must_have_skills=["Roadmapping"],
+        ),
+        selected_role_tasks=[],
+        selected_skills=["Stakeholder management"],
+        intake_facts={
+            FactKey.ROLE_BUSINESS_OUTCOME_PRIMARY.value: "Reduce release cycle time",
+            FactKey.ROLE_DELIVERABLES.value: ["Release dashboard"],
+            FactKey.ROLE_SUCCESS_METRICS_TIMELINE.value: {
+                "90_days": "Dashboard live with weekly adoption review",
+            },
+            FactKey.ROLE_DECISION_SCOPE.value: "fachliche_empfehlungen",
+            FactKey.ROLE_RESPONSIBILITIES_PRIORITIZED.value: [
+                {"label": "Own delivery roadmap", "priority": "must"},
+            ],
+            FactKey.COMPANY_NON_NEGOTIABLES.value: ["Berlin"],
+        },
+    )
+
+    brief_bullets = "\n".join(payload["fragments"]["brief"]["bullets"])
+    job_ad_bullets = "\n".join(payload["fragments"]["job_ad"]["bullets"])
+    search_bullets = "\n".join(payload["fragments"]["boolean_search"]["bullets"])
+    interview_bullets = "\n".join(payload["fragments"]["interview_guide"]["bullets"])
+
+    assert "Reduce release cycle time" in brief_bullets
+    assert "Release dashboard" in job_ad_bullets
+    assert "Nicht verhandelbar: Berlin" in search_bullets
+    assert "Dashboard live with weekly adoption review" in interview_bullets
+    assert payload["context"]["output_count"] == 1
+    assert set(payload["fragments"]) == {
+        "brief",
+        "job_ad",
+        "boolean_search",
+        "interview_guide",
+    }
 
 
 def test_vacancy_draft_payload_exports_schema_and_allowed_state_only() -> None:

@@ -70,7 +70,10 @@ from wizard_pages.fact_inputs import (
     render_text_area_fact,
     render_text_fact,
 )
-from wizard_pages.company_work_context import render_work_context_sections
+from wizard_pages.company_work_context import (
+    render_non_negotiables_compliance_section,
+    render_work_context_sections,
+)
 from wizard_pages.salary_forecast_panel import render_role_tasks_salary_forecast_panel
 
 
@@ -91,6 +94,20 @@ _YES_NO_UNKNOWN_LABELS = {
     "yes": "Ja",
     "no": "Nein",
 }
+_ROLE_PREVIEW_FACT_KEYS = (
+    FactKey.ROLE_BUSINESS_OUTCOME_PRIMARY,
+    FactKey.ROLE_DELIVERABLES,
+    FactKey.ROLE_DAY1_RESPONSIBILITIES,
+    FactKey.ROLE_EXPANSION_SCOPE,
+    FactKey.ROLE_RESPONSIBILITIES_PRIORITIZED,
+    FactKey.ROLE_SUCCESS_METRICS_TIMELINE,
+    FactKey.ROLE_DECISION_SCOPE,
+    FactKey.ROLE_YEAR1_SUCCESS_SIGNALS,
+    FactKey.COMPANY_NON_NEGOTIABLES,
+    FactKey.ROLE_TRAVEL_PROFILE,
+)
+
+
 def _normalize_task_term(term: str) -> str:
     return " ".join(term.strip().casefold().split())
 
@@ -362,6 +379,91 @@ def _has_compact_payload(value: Any) -> bool:
     return has_meaningful_value(value)
 
 
+def _fact_text_items(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return _dedupe_task_terms([str(item) for item in value])
+    if isinstance(value, str):
+        return _split_task_like_text(value)
+    return []
+
+
+def _build_role_preview_fact_payload() -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    for fact_key in _ROLE_PREVIEW_FACT_KEYS:
+        value = fact_value(fact_key, None)
+        if _has_compact_payload(value):
+            payload[fact_key.value] = value
+    return payload
+
+
+def _first_success_horizon_text(job: JobAdExtract) -> str:
+    timeline_raw = fact_value(FactKey.ROLE_SUCCESS_METRICS_TIMELINE, {})
+    timeline = timeline_raw if isinstance(timeline_raw, dict) else {}
+    for key, label in (
+        ("30_days", "30 Tage"),
+        ("60_days", "60 Tage"),
+        ("90_days", "90 Tage"),
+        ("180_days", "180 Tage"),
+    ):
+        value = compact_text(timeline.get(key))
+        if value:
+            return f"{label}: {value}"
+    year1 = compact_text(fact_value(FactKey.ROLE_YEAR1_SUCCESS_SIGNALS, ""))
+    if year1:
+        return f"12 Monate: {year1}"
+    if job.success_metrics:
+        return f"{len(job.success_metrics)} Erfolgskriterien aus Jobspec"
+    return "Noch offen"
+
+
+def _render_role_search_start_snapshot(
+    *,
+    job: JobAdExtract,
+    selected_tasks: list[str],
+) -> None:
+    preview_facts = _build_role_preview_fact_payload()
+    outcome = (
+        compact_text(preview_facts.get(FactKey.ROLE_BUSINESS_OUTCOME_PRIMARY.value))
+        or compact_text(job.role_overview)
+        or "Noch offen"
+    )
+    outputs = _dedupe_task_terms(
+        [
+            *job.deliverables,
+            *_fact_text_items(preview_facts.get(FactKey.ROLE_DELIVERABLES.value, [])),
+        ]
+    )
+    non_negotiables = _fact_text_items(
+        preview_facts.get(FactKey.COMPANY_NON_NEGOTIABLES.value, [])
+    )
+    with section_container(border=True):
+        st.markdown("#### Suchstart-Check")
+        st.caption(
+            "Kurzer Live-Stand für Recruiter: Rollenauftrag, Output, erster "
+            "Erfolgshorizont und harte Suchgrenzen."
+        )
+        cols = st.columns(2, gap="large")
+        items = (
+            ("Rollenauftrag", outcome),
+            ("Outputs", ", ".join(outputs[:3]) if outputs else "Noch offen"),
+            ("Erster Erfolg", _first_success_horizon_text(job)),
+            (
+                "Nicht verhandelbar",
+                ", ".join(non_negotiables[:3]) if non_negotiables else "Noch offen",
+            ),
+        )
+        for index, (label, value) in enumerate(items):
+            col = cols[index % len(cols)]
+            with col:
+                st.markdown(f"**{label}**")
+                st.write(value)
+        if selected_tasks:
+            st.caption(
+                f"{len(selected_tasks)} ausgewählte Aufgaben prägen Brief, Job-Ad, "
+                "Boolean Search und Interview-Evidenz."
+            )
+
+
 def _filtered_role_tasks_open_question_step(
     step: QuestionStep | None,
 ) -> QuestionStep | None:
@@ -463,35 +565,91 @@ def _render_travel_profile() -> None:
     )
 
 
-def _render_structured_role_scope(job: JobAdExtract, candidate_tasks: list[str]) -> None:
-    task_options = _dedupe_task_terms(candidate_tasks)
-    st.markdown("### Aufgaben schärfen")
+def _render_structured_role_scope(
+    job: JobAdExtract,
+    candidate_tasks: list[str],
+    *,
+    selected_tasks: list[str],
+) -> None:
+    selected_task_options = _dedupe_task_terms(selected_tasks)
+    task_options = _dedupe_task_terms([*selected_task_options, *candidate_tasks])
+    existing_outputs = _fact_text_items(fact_value(FactKey.ROLE_DELIVERABLES, []))
+    output_options = _dedupe_task_terms(
+        [
+            *existing_outputs,
+            *job.deliverables,
+            *selected_task_options,
+            *candidate_tasks,
+        ]
+    )
+    st.markdown("### Rollenauftrag vor Suchstart")
+    st.caption(
+        "Kläre, wofür die Rolle da ist, welche Outputs entstehen müssen und "
+        "welche Verantwortung Recruiter vor der Suche verstanden haben müssen."
+    )
     with section_container(border=True):
         render_text_fact(
             FactKey.ROLE_BUSINESS_OUTCOME_PRIMARY,
-            "Wichtigstes Ergebnis",
+            "Wofür ist die Rolle da?",
             default=job.role_overview or "",
             placeholder="z. B. stabile Datenplattform, schnellere Kundenantworten",
         )
-        col_day1, col_later = st.columns(2, gap="large")
+        col_outputs, col_day1, col_later = responsive_three_columns(gap="large")
+        with col_outputs:
+            render_multiselect_fact(
+                FactKey.ROLE_DELIVERABLES,
+                "Erwartete Outputs",
+                options=output_options
+                or [
+                    "Betriebsergebnis",
+                    "Kundenlieferung",
+                    "Reporting",
+                    "Projektabschluss",
+                    "Prozessverbesserung",
+                    "Team Enablement",
+                    "Sonstiges",
+                ],
+                default=job.deliverables,
+            )
         with col_day1:
             render_multiselect_fact(
                 FactKey.ROLE_DAY1_RESPONSIBILITIES,
-                "Ab Tag 1",
-                options=task_options or ["Kernbetrieb", "Kundenkontakt", "Reporting", "Projektstart", "Teamkoordination", "Sonstiges"],
+                "Verantwortung ab Tag 1",
+                options=task_options
+                or [
+                    "Kernbetrieb",
+                    "Kundenkontakt",
+                    "Reporting",
+                    "Projektstart",
+                    "Teamkoordination",
+                    "Sonstiges",
+                ],
             )
         with col_later:
             render_multiselect_fact(
                 FactKey.ROLE_EXPANSION_SCOPE,
                 "Später ausbaubar",
-                options=task_options or ["Automatisierung", "Strategie", "Mentoring", "Reporting", "Stakeholder-Ausbau", "Tooling", "Sonstiges"],
+                options=task_options
+                or [
+                    "Automatisierung",
+                    "Strategie",
+                    "Mentoring",
+                    "Reporting",
+                    "Stakeholder-Ausbau",
+                    "Tooling",
+                    "Sonstiges",
+                ],
             )
         existing_priorities = _priority_by_label(
             fact_value(FactKey.ROLE_RESPONSIBILITIES_PRIORITIZED, [])
         )
         prioritized: list[dict[str, str]] = []
         if task_options:
-            with st.expander("Prioritäten prüfen", expanded=False):
+            with st.expander("Verantwortung priorisieren", expanded=False):
+                st.caption(
+                    "Must-Aufgaben sind Such- und Interviewanker. Optionales bleibt "
+                    "nice-to-have und sollte den Search nicht verengen."
+                )
                 for idx, label in enumerate(task_options[:10]):
                     cols = st.columns([2, 1], gap="small")
                     with cols[0]:
@@ -517,7 +675,7 @@ def _render_structured_role_scope(job: JobAdExtract, candidate_tasks: list[str])
         with col_decision:
             render_select_fact(
                 FactKey.ROLE_DECISION_SCOPE,
-                "Entscheidungsspielraum",
+                "Entscheidungsspielraum der Rolle",
                 options=tuple(_DECISION_SCOPE_LABELS),
                 default="unklar",
                 labels=_DECISION_SCOPE_LABELS,
@@ -525,12 +683,19 @@ def _render_structured_role_scope(job: JobAdExtract, candidate_tasks: list[str])
         with col_success:
             render_text_area_fact(
                 FactKey.ROLE_YEAR1_SUCCESS_SIGNALS,
-                "Erfolg nach 12 Monaten",
+                "Erfolg nach 12 Monaten / dauerhaft",
                 default="\n".join(job.success_metrics[:3]),
                 height=100,
             )
-        with st.expander("Meilensteine 30 bis 180 Tage", expanded=False):
+        with st.expander("Erster Erfolgshorizont (30 bis 180 Tage)", expanded=True):
             _render_success_timeline()
+
+    st.markdown("### Suchstart-Guardrails")
+    render_non_negotiables_compliance_section(
+        heading="Nicht verhandelbar vor Suchstart",
+        collapse_secondary_details=True,
+    )
+    _render_role_search_start_snapshot(job=job, selected_tasks=selected_task_options)
 
     travel_current = fact_value(FactKey.ROLE_TRAVEL_PROFILE, {})
     with st.expander(
@@ -764,10 +929,17 @@ def render(ctx: WizardContext) -> None:
                     *llm_after_labels,
                 ]
             ),
+            selected_tasks=selection_result["selected_labels"],
         )
         render_live_artifact_preview_panel(
             key="role_tasks",
             default_open=True,
+            title="Warum das zählt",
+            caption=(
+                "Live aus den aktuellen Angaben: welche Signale später in Brief, "
+                "Job-Ad, Boolean Search und Interview-Sheets landen. Keine "
+                "Artefaktgenerierung."
+            ),
             streamlit_module=st,
             preview_builder=lambda: build_live_artifact_preview_payload(
                 job=job,
@@ -775,6 +947,7 @@ def render(ctx: WizardContext) -> None:
                 selected_role_tasks=selection_result["selected_labels"],
                 selected_skills=_read_selected_texts(SSKey.SKILLS_SELECTED),
                 selected_benefits=_read_selected_texts(SSKey.BENEFITS_SELECTED),
+                intake_facts=_build_role_preview_fact_payload(),
             ),
         )
 
