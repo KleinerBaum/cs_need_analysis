@@ -15,6 +15,85 @@
     "surface_label": "above the waterline: visible in jobspec and briefing",
     "deep_label": "below the waterline: essential for search, matching, and interview"
   },
+  "ux_copy": {
+    "steps": {
+      "landing": {
+        "headline": "Upload a job ad. Start the recruiting brief.",
+        "subheadline": "Upload a job ad, jobspec, or role description. The app detects what is already clear and shows what is still needed for a reliable recruiting brief.",
+        "value_line": "Turn a rough jobspec into a strong starting point for search, matching, interview, and offer decisions.",
+        "primary_cta": "Analyze job ad",
+        "secondary_cta": "See example",
+        "empty_state": "No source loaded yet.",
+        "readiness": "Ready for intake"
+      },
+      "company": {
+        "headline": "Position {company_name} as the employer for {role_title}",
+        "subheadline": "Clarify company context, team structure, and positioning so recruiting and candidates understand why this role matters.",
+        "value_line": "Helps explain why this role exists.",
+        "primary_cta": "Save company context",
+        "secondary_cta": "Review website findings",
+        "empty_state": "No company context yet.",
+        "readiness": "Employer story sharpened"
+      },
+      "role_tasks": {
+        "headline": "Clarify what {role_title} is truly responsible for",
+        "subheadline": "Prioritize tasks, outcomes, and success criteria so recruiting looks for the right impact, not just a list of activities.",
+        "value_line": "Prevents recruiting from searching by title alone.",
+        "primary_cta": "Save role scope",
+        "secondary_cta": "Review success criteria",
+        "empty_state": "No role tasks confirmed yet.",
+        "readiness": "Role impact clarified"
+      },
+      "skills": {
+        "headline": "Separate must-haves from nice-to-haves",
+        "subheadline": "Build a testable skill list for matching, interview questions, salary forecasting, and the final job ad.",
+        "value_line": "Separates real requirements from wish lists.",
+        "primary_cta": "Save skills",
+        "secondary_cta": "Review open terms",
+        "empty_state": "No skills prioritized yet.",
+        "readiness": "Skill profile testable"
+      },
+      "benefits": {
+        "headline": "Describe the offer for {role_title} clearly and convincingly",
+        "subheadline": "Capture salary, work model, benefits, and start conditions so candidates understand early why the role is worth considering.",
+        "value_line": "Makes the offer comparable and negotiable.",
+        "primary_cta": "Save offer details",
+        "secondary_cta": "Review conditions",
+        "empty_state": "No offer details yet.",
+        "readiness": "Offer ready to describe"
+      },
+      "interview": {
+        "headline": "Plan a fair interview process for {role_title}",
+        "subheadline": "Define interview stages, responsibilities, scorecards, and evidence so every decision stays transparent.",
+        "value_line": "Supports fair and consistent evaluation.",
+        "primary_cta": "Save interview plan",
+        "secondary_cta": "Review scorecards",
+        "empty_state": "No interview process defined yet.",
+        "readiness": "Evaluation structured"
+      },
+      "summary": {
+        "headline": {
+          "default": "Recruiting brief for {role_title} in {location}: {readiness_score}% ready",
+          "gap": "{critical_gaps_count} critical points still open",
+          "ready": "Ready for recruiting, interviews, and active sourcing"
+        },
+        "subheadline": {
+          "default": "Review remaining gaps, apply final adjustments, and generate the right outputs for recruiting, HR, and active sourcing.",
+          "gap": "Clarify these items before exporting a job ad, interview guide, or search strings.",
+          "ready": "All important facts are checked. Generate the job ad, HR sheet, and search strings now."
+        },
+        "value_line": "Creates directly usable material for HR, recruiting, and sourcing.",
+        "primary_cta": "Generate recruiting outputs",
+        "secondary_cta": "Review gaps",
+        "empty_state": "No analysis available for the summary yet.",
+        "readiness": {
+          "default": "{readiness_score}% ready",
+          "gap": "{critical_gaps_count} critical gaps",
+          "ready": "Ready"
+        }
+      }
+    }
+  },
   "public_pages": {
     "legal_placeholder_title": "🟧 **Placeholder - subject-matter input missing**",
     "legal_template_notice": "This page is a template and becomes binding only after legal review.",

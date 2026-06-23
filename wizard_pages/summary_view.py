@@ -163,6 +163,7 @@ from ui_components import (
     render_interview_prep_hr,
     render_openai_error,
 )
+from ux_copy_contract import VacancyCopyContext, build_summary_copy
 from ui_badges import render_provenance_badge
 from usage_events import get_usage_events, record_artifact_generated
 from usage_utils import usage_has_cache_hit
@@ -1937,14 +1938,16 @@ def _render_readiness_tab(
     brief: VacancyBrief | None = None,
 ) -> None:
     _render_summary_dashboard_css()
-    render_output_header(
-        "Alles bereit für Recruiting und Hiring-Team",
-        (
-            "Hier siehst du, wie entscheidungsreif die Vakanz bereits ist, welche "
-            "Lücken noch offen sind und welche Folgeartefakte jetzt sinnvoll "
-            "gestartet werden können."
-        ),
+    summary_copy = build_summary_copy(
+        context=VacancyCopyContext(
+            role_title=vm.meta.role_label,
+            company_name=vm.meta.company_label,
+            location=vm.meta.country_label,
+            readiness_score=vm.status.readiness_percent,
+            critical_gaps_count=len(_build_missing_critical_items(vm)),
+        )
     )
+    render_output_header(summary_copy.headline, summary_copy.subheadline)
     _render_readiness_dashboard_header(vm)
 
     recommendation = _resolve_next_best_action_recommendation(

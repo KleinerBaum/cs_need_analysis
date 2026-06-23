@@ -408,6 +408,22 @@ def tr(key: str, /, **params: Any) -> str:
     return text.format(**params) if params else text
 
 
+class _SafeFormatDict(dict[str, Any]):
+    def __missing__(self, key: str) -> str:
+        return ""
+
+
+def tr_safe(key: str, /, *, language: str | None = None, **params: Any) -> str:
+    selected_language = normalize_language(language or active_language())
+    value = _deep_get(_load_locale(selected_language), key)
+    if value is None and selected_language != DEFAULT_LANGUAGE:
+        value = _deep_get(_load_locale(DEFAULT_LANGUAGE), key)
+    if value is None:
+        value = key
+    text = str(value)
+    return text.format_map(_SafeFormatDict(params)).strip()
+
+
 def t(text: object, *, language: str | None = None) -> object:
     if not isinstance(text, str):
         return text

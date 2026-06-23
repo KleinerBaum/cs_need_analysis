@@ -15,6 +15,85 @@
     "surface_label": "oberhalb der Wasserlinie: sichtbar in Jobspec & Briefing",
     "deep_label": "unterhalb der Wasserlinie: entscheidend für Search, Matching & Interview"
   },
+  "ux_copy": {
+    "steps": {
+      "landing": {
+        "headline": "Stellenanzeige hochladen. Recruiting-Briefing starten.",
+        "subheadline": "Laden Sie eine Stellenanzeige, Jobspec oder Rollenbeschreibung hoch. Die App erkennt vorhandene Informationen und zeigt, was für ein belastbares Recruiting-Briefing noch fehlt.",
+        "value_line": "Aus einer unklaren Jobspec wird ein klarer Startpunkt für Search, Matching, Interview und Angebot.",
+        "primary_cta": "Stellenanzeige analysieren",
+        "secondary_cta": "Beispiel ansehen",
+        "empty_state": "Noch keine Quelle geladen.",
+        "readiness": "Bereit für den Intake"
+      },
+      "company": {
+        "headline": "{company_name} als Arbeitgeber für {role_title} einordnen",
+        "subheadline": "Klären Sie Unternehmenskontext, Teamstruktur und Positionierung, damit Recruiting und Kandidat:innen verstehen, warum diese Rolle relevant ist.",
+        "value_line": "Hilft zu erklären, warum diese Rolle existiert.",
+        "primary_cta": "Unternehmenskontext speichern",
+        "secondary_cta": "Website-Funde prüfen",
+        "empty_state": "Noch kein Unternehmenskontext vorhanden.",
+        "readiness": "Arbeitgeberbild geschärft"
+      },
+      "role_tasks": {
+        "headline": "Klären, wofür {role_title} wirklich verantwortlich ist",
+        "subheadline": "Priorisieren Sie Aufgaben, Ergebnisse und Erfolgskriterien, damit Recruiting nicht nur Tätigkeiten sucht, sondern die richtige Wirkung.",
+        "value_line": "Verhindert, dass Recruiting nur nach Titeln sucht.",
+        "primary_cta": "Aufgaben speichern",
+        "secondary_cta": "Erfolgskriterien prüfen",
+        "empty_state": "Noch keine Rollenaufgaben bestätigt.",
+        "readiness": "Rollenwirkung geklärt"
+      },
+      "skills": {
+        "headline": "Must-haves von Nice-to-haves trennen",
+        "subheadline": "Erstellen Sie eine prüfbare Skill-Liste für Matching, Interviewfragen, Gehaltsprognose und die finale Stellenanzeige.",
+        "value_line": "Trennt echte Anforderungen von Wunschlisten.",
+        "primary_cta": "Skills speichern",
+        "secondary_cta": "Offene Begriffe prüfen",
+        "empty_state": "Noch keine Skills priorisiert.",
+        "readiness": "Skill-Profil prüfbar"
+      },
+      "benefits": {
+        "headline": "Das Angebot für {role_title} klar und überzeugend formulieren",
+        "subheadline": "Erfassen Sie Gehalt, Arbeitsmodell, Benefits und Startbedingungen, damit Kandidat:innen früh verstehen, warum sich die Rolle lohnt.",
+        "value_line": "Macht das Angebot vergleichbar und verhandelbar.",
+        "primary_cta": "Angebot speichern",
+        "secondary_cta": "Rahmenbedingungen prüfen",
+        "empty_state": "Noch keine Angebotsdetails vorhanden.",
+        "readiness": "Angebot formulierbar"
+      },
+      "interview": {
+        "headline": "Einen fairen Interviewprozess für {role_title} planen",
+        "subheadline": "Definieren Sie Interviewstufen, Verantwortlichkeiten, Scorecards und Nachweise, damit jede Entscheidung nachvollziehbar bleibt.",
+        "value_line": "Sorgt für faire, konsistente Bewertung.",
+        "primary_cta": "Interviewprozess speichern",
+        "secondary_cta": "Bewertungskriterien prüfen",
+        "empty_state": "Noch kein Interviewprozess definiert.",
+        "readiness": "Bewertung strukturiert"
+      },
+      "summary": {
+        "headline": {
+          "default": "Recruiting-Briefing für {role_title} in {location}: {readiness_score}% bereit",
+          "gap": "Noch {critical_gaps_count} kritische Punkte offen",
+          "ready": "Bereit für Recruiting, Interviews und Active Sourcing"
+        },
+        "subheadline": {
+          "default": "Prüfen Sie offene Lücken, übernehmen Sie finale Anpassungen und erstellen Sie die passenden Ergebnisse für Recruiting, HR und Active Sourcing.",
+          "gap": "Klären Sie diese Angaben, bevor Sie Stellenanzeige, Interviewleitfaden oder Suchstrings exportieren.",
+          "ready": "Alle wichtigen Fakten sind geprüft. Erstellen Sie jetzt Stellenanzeige, HR-Sheet und Suchstrings."
+        },
+        "value_line": "Erstellt direkt nutzbare Unterlagen für HR, Recruiting und Sourcing.",
+        "primary_cta": "Recruiting-Unterlagen erstellen",
+        "secondary_cta": "Lücken prüfen",
+        "empty_state": "Noch keine Analyse für die Zusammenfassung vorhanden.",
+        "readiness": {
+          "default": "{readiness_score}% bereit",
+          "gap": "{critical_gaps_count} kritische Lücken",
+          "ready": "Bereit"
+        }
+      }
+    }
+  },
   "public_pages": {
     "legal_placeholder_title": "🟧 **Platzhalter – Fachinput fehlt**",
     "legal_template_notice": "Diese Seite ist eine Vorlage und wird erst nach rechtlicher Prüfung verbindlich.",

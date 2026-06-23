@@ -1,13 +1,6 @@
 from __future__ import annotations
 
 START_PAGE_COPY: dict[str, object] = {
-    "hero_headline": "Cognitive Staffing",
-    "hero_subheadline": "Von der Jobspec zum klaren Recruiting-Bild.",
-    "hero_supporting_paragraph": (
-        "Die App liest eine Stellenanzeige ein, erkennt den fachlichen Kontext und "
-        "fragt nur dort nach, wo Informationen für gute Recruiting-Entscheidungen fehlen."
-    ),
-    "primary_cta": "Anzeige hochladen oder einfügen",
     "secondary_cta_hint": "",
     "next_step_line": "",
     "before_start_title": "",

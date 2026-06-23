@@ -162,6 +162,7 @@ from ui_components import (
     render_interview_prep_hr,
     render_openai_error,
 )
+from ux_copy_contract import VacancyCopyContext, build_summary_copy
 from usage_events import get_usage_events, record_artifact_generated
 from usage_utils import usage_has_cache_hit
 from wizard_pages.base import (
@@ -1238,10 +1239,16 @@ def render(ctx: WizardContext) -> None:
         "employment_contract": _generate_employment_contract,
     }
 
-    render_output_header(
-        "Alles bereit für Recruiting und Hiring-Team",
-        "Prüfe die vorhandenen Fakten, schließe kritische Lücken und erstelle die passenden Ergebnisse.",
+    summary_copy = build_summary_copy(
+        context=VacancyCopyContext(
+            role_title=vm.meta.role_label,
+            company_name=vm.meta.company_label,
+            location=vm.meta.country_label,
+            readiness_score=vm.status.readiness_percent,
+            critical_gaps_count=len(_build_missing_critical_items(vm)),
+        )
     )
+    render_output_header(summary_copy.headline, summary_copy.subheadline)
     _render_readiness_dashboard_header(vm)
     _render_esco_coverage_kpis()
     _render_summary_critical_gaps_table(vm, ctx=ctx)

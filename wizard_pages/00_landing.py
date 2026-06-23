@@ -7,6 +7,7 @@ from content.start_page import START_PAGE_COPY
 from constants import APP_TITLE
 from i18n import LANGUAGE_WIDGET_KEY_PAGE, render_language_toggle, t
 from safe_html import escape_html_text, render_static_html
+from ux_copy_contract import StepCopy, build_landing_copy
 from wizard_pages.jobad_intake import render_jobad_intake
 from wizard_pages.base import (
     LANDING_SECTION_IDS,
@@ -188,7 +189,7 @@ def _render_landing_responsive_overrides() -> None:
     )
 
 
-def _render_landing_hero() -> None:
+def _render_landing_hero(copy: StepCopy) -> None:
     render_static_html(
         (
             f'<section id="{escape_html_text(LANDING_SECTION_IDS["hero"], quote=True)}" '
@@ -209,13 +210,11 @@ def _render_landing_hero() -> None:
     render_static_html("</div>", streamlit_module=st)
 
     render_static_html('<div class="landing-hero-copy">', streamlit_module=st)
-    st.title(str(t(START_PAGE_COPY["hero_headline"])))
-    hero_subheadline = str(t(START_PAGE_COPY["hero_subheadline"]))
-    if hero_subheadline:
-        st.subheader(hero_subheadline)
-    hero_supporting = str(t(START_PAGE_COPY["hero_supporting_paragraph"]))
-    if hero_supporting:
-        st.markdown(hero_supporting)
+    st.title(copy.headline)
+    if copy.value_line:
+        st.subheader(copy.value_line)
+    if copy.subheadline:
+        st.markdown(copy.subheadline)
     render_static_html("</div>", streamlit_module=st)
     render_static_html("</section>", streamlit_module=st)
 
@@ -299,13 +298,14 @@ def _render_landing_flow_cards() -> None:
 def render(ctx: WizardContext) -> None:
     render_landing_css(LANDING_STYLE_TOKENS)
     _render_landing_responsive_overrides()
-    _render_landing_hero()
+    landing_copy = build_landing_copy()
+    _render_landing_hero(landing_copy)
 
     render_static_html(
         '<section class="landing-section landing-card landing-intake-card">',
         streamlit_module=st,
     )
-    render_jobad_intake(ctx, title=str(t(START_PAGE_COPY["primary_cta"])))
+    render_jobad_intake(ctx, title=landing_copy.primary_cta)
     render_static_html("</section>", streamlit_module=st)
 
 

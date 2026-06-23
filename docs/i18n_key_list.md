@@ -7,6 +7,8 @@ This document is an inventory of the current translation surface. It does not in
 ## Scope And Sources
 
 - `tr("dotted.key")` resolves entries from `locales/de.json` and `locales/en.json`.
+- `tr_safe("dotted.key")` uses the same Locale lookup with runtime-safe placeholder formatting for copy contracts.
+- `ux_copy.steps.*` keys are the runtime contract for short Wizard UX copy resolved by `ux_copy_contract.py`.
 - `t("German source copy")` resolves German-source UI copy through `_TRANSLATIONS_EN` in `i18n.py`.
 - `_PHRASE_TRANSLATIONS_EN` in `i18n.py` is a fallback replacement layer for partial strings and generated captions.
 - Public pages use dynamic prefixes such as `public_pages.competencies.*`; those keys are valid Locale keys even when a static `tr("...")` search cannot see the full dotted key.
@@ -15,8 +17,8 @@ This document is an inventory of the current translation surface. It does not in
 
 | Source | Count | Contract |
 |---|---:|---|
-| `locales/de.json` leaf keys | 242 | German source Locale values |
-| `locales/en.json` leaf keys | 242 | English Locale values; key shape must match DE |
+| `locales/de.json` leaf keys | 297 | German source Locale values, including 55 `ux_copy` contract keys |
+| `locales/en.json` leaf keys | 297 | English Locale values; key shape must match DE |
 | `_TRANSLATIONS_EN` | 222 | German-source copy translated by `t()` |
 | `_PHRASE_TRANSLATIONS_EN` | 61 | fallback phrase replacements inside `t()` |
 | High-confidence unkeyed UI-copy candidates | 729 | backlog only, generated from direct Streamlit/helper literals |
@@ -27,6 +29,61 @@ All Locale leaf keys below exist in both `locales/de.json` and `locales/en.json`
 
 | Category | Key | Params | DE | EN |
 |---|---|---|---|---|
+| ux_copy | `ux_copy.steps.landing.headline` | - | Stellenanzeige hochladen. Recruiting-Briefing starten. | Upload a job ad. Start the recruiting brief. |
+| ux_copy | `ux_copy.steps.landing.subheadline` | - | Laden Sie eine Stellenanzeige, Jobspec oder Rollenbeschreibung hoch. Die App erkennt vorhandene Informationen und zeigt, was für ein belastbares Recruiting-Briefing noch fehlt. | Upload a job ad, jobspec, or role description. The app detects what is already clear and shows what is still needed for a reliable recruiting brief. |
+| ux_copy | `ux_copy.steps.landing.value_line` | - | Aus einer unklaren Jobspec wird ein klarer Startpunkt für Search, Matching, Interview und Angebot. | Turn a rough jobspec into a strong starting point for search, matching, interview, and offer decisions. |
+| ux_copy | `ux_copy.steps.landing.primary_cta` | - | Stellenanzeige analysieren | Analyze job ad |
+| ux_copy | `ux_copy.steps.landing.secondary_cta` | - | Beispiel ansehen | See example |
+| ux_copy | `ux_copy.steps.landing.empty_state` | - | Noch keine Quelle geladen. | No source loaded yet. |
+| ux_copy | `ux_copy.steps.landing.readiness` | - | Bereit für den Intake | Ready for intake |
+| ux_copy | `ux_copy.steps.company.headline` | company_name, role_title | {company_name} als Arbeitgeber für {role_title} einordnen | Position {company_name} as the employer for {role_title} |
+| ux_copy | `ux_copy.steps.company.subheadline` | - | Klären Sie Unternehmenskontext, Teamstruktur und Positionierung, damit Recruiting und Kandidat:innen verstehen, warum diese Rolle relevant ist. | Clarify company context, team structure, and positioning so recruiting and candidates understand why this role matters. |
+| ux_copy | `ux_copy.steps.company.value_line` | - | Hilft zu erklären, warum diese Rolle existiert. | Helps explain why this role exists. |
+| ux_copy | `ux_copy.steps.company.primary_cta` | - | Unternehmenskontext speichern | Save company context |
+| ux_copy | `ux_copy.steps.company.secondary_cta` | - | Website-Funde prüfen | Review website findings |
+| ux_copy | `ux_copy.steps.company.empty_state` | - | Noch kein Unternehmenskontext vorhanden. | No company context yet. |
+| ux_copy | `ux_copy.steps.company.readiness` | - | Arbeitgeberbild geschärft | Employer story sharpened |
+| ux_copy | `ux_copy.steps.role_tasks.headline` | role_title | Klären, wofür {role_title} wirklich verantwortlich ist | Clarify what {role_title} is truly responsible for |
+| ux_copy | `ux_copy.steps.role_tasks.subheadline` | - | Priorisieren Sie Aufgaben, Ergebnisse und Erfolgskriterien, damit Recruiting nicht nur Tätigkeiten sucht, sondern die richtige Wirkung. | Prioritize tasks, outcomes, and success criteria so recruiting looks for the right impact, not just a list of activities. |
+| ux_copy | `ux_copy.steps.role_tasks.value_line` | - | Verhindert, dass Recruiting nur nach Titeln sucht. | Prevents recruiting from searching by title alone. |
+| ux_copy | `ux_copy.steps.role_tasks.primary_cta` | - | Aufgaben speichern | Save role scope |
+| ux_copy | `ux_copy.steps.role_tasks.secondary_cta` | - | Erfolgskriterien prüfen | Review success criteria |
+| ux_copy | `ux_copy.steps.role_tasks.empty_state` | - | Noch keine Rollenaufgaben bestätigt. | No role tasks confirmed yet. |
+| ux_copy | `ux_copy.steps.role_tasks.readiness` | - | Rollenwirkung geklärt | Role impact clarified |
+| ux_copy | `ux_copy.steps.skills.headline` | - | Must-haves von Nice-to-haves trennen | Separate must-haves from nice-to-haves |
+| ux_copy | `ux_copy.steps.skills.subheadline` | - | Erstellen Sie eine prüfbare Skill-Liste für Matching, Interviewfragen, Gehaltsprognose und die finale Stellenanzeige. | Build a testable skill list for matching, interview questions, salary forecasting, and the final job ad. |
+| ux_copy | `ux_copy.steps.skills.value_line` | - | Trennt echte Anforderungen von Wunschlisten. | Separates real requirements from wish lists. |
+| ux_copy | `ux_copy.steps.skills.primary_cta` | - | Skills speichern | Save skills |
+| ux_copy | `ux_copy.steps.skills.secondary_cta` | - | Offene Begriffe prüfen | Review open terms |
+| ux_copy | `ux_copy.steps.skills.empty_state` | - | Noch keine Skills priorisiert. | No skills prioritized yet. |
+| ux_copy | `ux_copy.steps.skills.readiness` | - | Skill-Profil prüfbar | Skill profile testable |
+| ux_copy | `ux_copy.steps.benefits.headline` | role_title | Das Angebot für {role_title} klar und überzeugend formulieren | Describe the offer for {role_title} clearly and convincingly |
+| ux_copy | `ux_copy.steps.benefits.subheadline` | - | Erfassen Sie Gehalt, Arbeitsmodell, Benefits und Startbedingungen, damit Kandidat:innen früh verstehen, warum sich die Rolle lohnt. | Capture salary, work model, benefits, and start conditions so candidates understand early why the role is worth considering. |
+| ux_copy | `ux_copy.steps.benefits.value_line` | - | Macht das Angebot vergleichbar und verhandelbar. | Makes the offer comparable and negotiable. |
+| ux_copy | `ux_copy.steps.benefits.primary_cta` | - | Angebot speichern | Save offer details |
+| ux_copy | `ux_copy.steps.benefits.secondary_cta` | - | Rahmenbedingungen prüfen | Review conditions |
+| ux_copy | `ux_copy.steps.benefits.empty_state` | - | Noch keine Angebotsdetails vorhanden. | No offer details yet. |
+| ux_copy | `ux_copy.steps.benefits.readiness` | - | Angebot formulierbar | Offer ready to describe |
+| ux_copy | `ux_copy.steps.interview.headline` | role_title | Einen fairen Interviewprozess für {role_title} planen | Plan a fair interview process for {role_title} |
+| ux_copy | `ux_copy.steps.interview.subheadline` | - | Definieren Sie Interviewstufen, Verantwortlichkeiten, Scorecards und Nachweise, damit jede Entscheidung nachvollziehbar bleibt. | Define interview stages, responsibilities, scorecards, and evidence so every decision stays transparent. |
+| ux_copy | `ux_copy.steps.interview.value_line` | - | Sorgt für faire, konsistente Bewertung. | Supports fair and consistent evaluation. |
+| ux_copy | `ux_copy.steps.interview.primary_cta` | - | Interviewprozess speichern | Save interview plan |
+| ux_copy | `ux_copy.steps.interview.secondary_cta` | - | Bewertungskriterien prüfen | Review scorecards |
+| ux_copy | `ux_copy.steps.interview.empty_state` | - | Noch kein Interviewprozess definiert. | No interview process defined yet. |
+| ux_copy | `ux_copy.steps.interview.readiness` | - | Bewertung strukturiert | Evaluation structured |
+| ux_copy | `ux_copy.steps.summary.headline.default` | location, readiness_score, role_title | Recruiting-Briefing für {role_title} in {location}: {readiness_score}% bereit | Recruiting brief for {role_title} in {location}: {readiness_score}% ready |
+| ux_copy | `ux_copy.steps.summary.headline.gap` | critical_gaps_count | Noch {critical_gaps_count} kritische Punkte offen | {critical_gaps_count} critical points still open |
+| ux_copy | `ux_copy.steps.summary.headline.ready` | - | Bereit für Recruiting, Interviews und Active Sourcing | Ready for recruiting, interviews, and active sourcing |
+| ux_copy | `ux_copy.steps.summary.subheadline.default` | - | Prüfen Sie offene Lücken, übernehmen Sie finale Anpassungen und erstellen Sie die passenden Ergebnisse für Recruiting, HR und Active Sourcing. | Review remaining gaps, apply final adjustments, and generate the right outputs for recruiting, HR, and active sourcing. |
+| ux_copy | `ux_copy.steps.summary.subheadline.gap` | - | Klären Sie diese Angaben, bevor Sie Stellenanzeige, Interviewleitfaden oder Suchstrings exportieren. | Clarify these items before exporting a job ad, interview guide, or search strings. |
+| ux_copy | `ux_copy.steps.summary.subheadline.ready` | - | Alle wichtigen Fakten sind geprüft. Erstellen Sie jetzt Stellenanzeige, HR-Sheet und Suchstrings. | All important facts are checked. Generate the job ad, HR sheet, and search strings now. |
+| ux_copy | `ux_copy.steps.summary.value_line` | - | Erstellt direkt nutzbare Unterlagen für HR, Recruiting und Sourcing. | Creates directly usable material for HR, recruiting, and sourcing. |
+| ux_copy | `ux_copy.steps.summary.primary_cta` | - | Recruiting-Unterlagen erstellen | Generate recruiting outputs |
+| ux_copy | `ux_copy.steps.summary.secondary_cta` | - | Lücken prüfen | Review gaps |
+| ux_copy | `ux_copy.steps.summary.empty_state` | - | Noch keine Analyse für die Zusammenfassung vorhanden. | No analysis available for the summary yet. |
+| ux_copy | `ux_copy.steps.summary.readiness.default` | readiness_score | {readiness_score}% bereit | {readiness_score}% ready |
+| ux_copy | `ux_copy.steps.summary.readiness.gap` | critical_gaps_count | {critical_gaps_count} kritische Lücken | {critical_gaps_count} critical gaps |
+| ux_copy | `ux_copy.steps.summary.readiness.ready` | - | Bereit | Ready |
 | common.language | `common.language` | - | Sprache | Language |
 | common.german | `common.german` | - | Deutsch | German |
 | common.english | `common.english` | - | Englisch | English |

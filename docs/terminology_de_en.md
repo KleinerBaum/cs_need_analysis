@@ -9,6 +9,7 @@ This glossary maps product terminology between German UI copy and English techni
 - Use English technical identifiers in code and schemas.
 - Preserve existing German UI copy unless a task explicitly changes wording.
 - Prefer canonical constants/enums and existing i18n entries over duplicating string literals.
+- Short Wizard headline, CTA, empty-state, and readiness copy should come from `ux_copy_contract.py` and `locales/*.json`.
 - `canonical` means the term pair is already represented in code, Locale files, or `i18n.py`.
 - `proposed` means the English code/source term exists, but the German counterpart is glossary guidance until a future localization migration makes it canonical.
 
@@ -24,6 +25,7 @@ This glossary maps product terminology between German UI copy and English techni
 | product | Stellenanzeige | job ad | canonical | `summary_artifacts.py / i18n.py` | Use `job ad`, not `job advertisement`, for UI brevity. |
 | product | Jobspec | job spec | canonical | `AGENTS.md / i18n.py` | Use for source vacancy description/specification. |
 | product | Recruiting Brief | recruiting brief | canonical | `summary_artifacts.py` | Artifact label keeps the English term in German UI. |
+| product | Recruiting-Briefing | recruiting brief | canonical | `ux_copy.steps.*` | Use for the user-facing outcome of the intake before artifact generation. |
 | product | Hiring-Team | hiring team | canonical | `i18n.py` | Use for stakeholders involved in hiring. |
 | product | Fachbereich | specialist department | proposed | `summary_artifacts.py` | For artifact naming, current EN label is `department sheet` only where explicitly used. |
 | wizard.step | Einleitung | Introduction | canonical | `constants.STEPS / i18n.py` | Visible wizard route label. |
@@ -83,6 +85,7 @@ This glossary maps product terminology between German UI copy and English techni
 | status | Bereit | Ready | canonical | `i18n.py` | Readiness state. |
 | status | Erfüllt | Met | canonical | `i18n.py` | Requirement state. |
 | status | Kritische Lücken | Critical gaps | canonical | `i18n.py` | Readiness/action dashboard wording. |
+| status | kritische Punkte | critical points | canonical | `ux_copy.steps.summary.headline.gap` | Short Summary headline wording; use when the count refers to blocking facts. |
 | status | Keine kritischen Lücken erkannt | No critical gaps detected | canonical | `i18n.py` | Readiness/action dashboard wording. |
 | status | Pflicht vor Summary | Required before Summary | canonical | `_constants/facts.py` | Requirement stage display label. |
 | status | Pflicht vor Artefakt | Required before artifact | canonical | `_constants/facts.py` | Requirement stage display label. |
@@ -220,6 +223,7 @@ This glossary maps product terminology between German UI copy and English techni
 | public.legal | Cookies & Präferenzen | Cookies & preferences | canonical | `i18n.py` | Public/legal page terminology. |
 | public.legal | Wichtiger Hinweis | Important note | canonical | `i18n.py` | Public/legal page terminology. |
 | public.legal | Platzhalter | Placeholder | canonical | `locales/common.placeholder_missing` | Public/legal page terminology. |
+| ui.copy | UX-Copy-Contract | UX copy contract | canonical | `ux_copy_contract.py` | Runtime contract for short Wizard copy; code identifiers stay English. |
 
 ## Maintenance Notes
 

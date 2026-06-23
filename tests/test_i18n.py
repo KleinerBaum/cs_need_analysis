@@ -13,6 +13,7 @@ from i18n import (
     sync_language_state,
     t,
     tr,
+    tr_safe,
 )
 import wizard_pages.base as wizard_base
 import i18n
@@ -69,6 +70,15 @@ def test_tr_reads_locale_files(monkeypatch) -> None:
     assert (
         tr("public_pages.accessibility.enforcement.heading")
         == "## Enforcement or mediation information"
+    )
+
+
+def test_tr_safe_formats_missing_params_without_error(monkeypatch) -> None:
+    monkeypatch.setattr(i18n, "active_language", lambda: "en")
+
+    assert tr_safe("common.last_updated") == "Last updated:"
+    assert tr_safe("common.last_updated", date="23.06.2026") == (
+        "Last updated: 23.06.2026"
     )
 
 
