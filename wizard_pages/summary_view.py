@@ -209,6 +209,10 @@ from wizard_pages.summary_readiness import (
     _summary_fact_rows_by_step,
     _summary_visible_fact_rows,
 )
+from wizard_pages.summary_readiness_dashboard import (
+    render_readiness_dashboard_header as _render_readiness_dashboard_header_impl,
+    render_summary_readiness_metrics as _render_summary_readiness_metrics_impl,
+)
 
 from wizard_pages.summary_artifact_actions import (
     NextBestActionRecommendation,
@@ -1922,22 +1926,7 @@ def _render_artifact_pipeline(
 
 
 def _render_summary_readiness_metrics(vm: SummaryViewModel) -> None:
-    brief_label = {
-        "current": "Aktuell",
-        "stale": "Veraltet",
-        "missing": "Fehlt",
-        "invalid": "Ungültig",
-        "blocked": "Blockiert",
-    }.get(vm.status.brief_state, vm.status.brief_status_label)
-    metrics = (
-        ("Bereitschaft", f"{vm.status.readiness_percent}%"),
-        ("Kritische Fakten", vm.status.completion_text),
-        ("ESCO", "Bestätigt" if vm.status.esco_ready else "Offen"),
-        ("Brief", brief_label),
-    )
-    metric_columns = st.columns(2)
-    for index, (label, value) in enumerate(metrics):
-        metric_columns[index % len(metric_columns)].metric(label, value)
+    _render_summary_readiness_metrics_impl(vm, streamlit_module=st)
 
 
 def _render_readiness_tab(
@@ -1979,16 +1968,11 @@ def _render_readiness_tab(
 
 
 def _render_readiness_dashboard_header(vm: SummaryViewModel) -> None:
-    container = st.container(border=True) if hasattr(st, "container") else nullcontext()
-    with container:
-        if hasattr(st, "markdown"):
-            st.markdown("### Bereitschaftsübersicht")
-        if hasattr(st, "columns"):
-            _render_summary_readiness_metrics(vm)
-        if hasattr(st, "caption"):
-            st.caption(
-                "Diese Kennzahlen steuern die nächsten Artefakte; Detailwerte stehen im Fakten-Workspace."
-            )
+    _render_readiness_dashboard_header_impl(
+        vm,
+        metric_renderer=_render_summary_readiness_metrics,
+        streamlit_module=st,
+    )
 
 
 def _render_next_best_action_card(*, recommendation: NextBestActionRecommendation | None) -> None:
