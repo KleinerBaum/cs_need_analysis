@@ -6,6 +6,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from i18n import active_language, t, tr
 from safe_html import escape_html_text
 
 
@@ -45,12 +46,24 @@ def _list_items(value: Any, label: str) -> Sequence[Any]:
     return value
 
 
-def _group_card(group: Mapping[str, Any], class_name: str, index: int) -> str:
-    title = escape_html_text(group.get("title", ""))
-    body = escape_html_text(group.get("body", ""))
+def _content_text(value: object, *, translate: bool) -> object:
+    return t(value) if translate else value
+
+
+def _group_card(
+    group: Mapping[str, Any],
+    class_name: str,
+    index: int,
+    *,
+    translate: bool,
+) -> str:
+    title = escape_html_text(_content_text(group.get("title", ""), translate=translate))
+    body = escape_html_text(_content_text(group.get("body", ""), translate=translate))
     items = _list_items(group.get("items", []), "group items")
     item_markup = "".join(
-        f"<li>{escape_html_text(item)}</li>" for item in items if str(item).strip()
+        f"<li>{escape_html_text(_content_text(item, translate=translate))}</li>"
+        for item in items
+        if str(item).strip()
     )
     item_list = f'<ul class="ina-group-items">{item_markup}</ul>' if item_markup else ""
     return (
@@ -63,9 +76,19 @@ def _group_card(group: Mapping[str, Any], class_name: str, index: int) -> str:
     )
 
 
-def _zone_header(section: Mapping[str, Any], class_name: str, index: int) -> str:
-    headline = escape_html_text(section.get("headline", ""))
-    subline = escape_html_text(section.get("subline", ""))
+def _zone_header(
+    section: Mapping[str, Any],
+    class_name: str,
+    index: int,
+    *,
+    translate: bool,
+) -> str:
+    headline = escape_html_text(
+        _content_text(section.get("headline", ""), translate=translate)
+    )
+    subline = escape_html_text(
+        _content_text(section.get("subline", ""), translate=translate)
+    )
     return (
         f'<header class="ina-zone-header {class_name}" style="--reveal-index: {index}">'
         f"<h2>{headline}</h2>"
@@ -74,19 +97,30 @@ def _zone_header(section: Mapping[str, Any], class_name: str, index: int) -> str
     )
 
 
-def _zone_groups(section: Mapping[str, Any], class_name: str, start_index: int) -> str:
+def _zone_groups(
+    section: Mapping[str, Any],
+    class_name: str,
+    start_index: int,
+    *,
+    translate: bool,
+) -> str:
     groups = _list_items(section.get("groups", []), "section groups")
     cards = []
     for offset, group in enumerate(groups):
         if not isinstance(group, Mapping):
             raise ValueError("Iceberg section groups must contain JSON objects.")
-        cards.append(_group_card(group, class_name, start_index + offset))
+        cards.append(
+            _group_card(group, class_name, start_index + offset, translate=translate)
+        )
     return "".join(cards)
 
 
-def _kpi_bar(content: Mapping[str, Any]) -> str:
+def _kpi_bar(content: Mapping[str, Any], *, translate: bool) -> str:
     kpis = _list_items(content.get("kpis", []), "kpis")
-    items = "".join(f"<li>{escape_html_text(kpi)}</li>" for kpi in kpis)
+    items = "".join(
+        f"<li>{escape_html_text(_content_text(kpi, translate=translate))}</li>"
+        for kpi in kpis
+    )
     return f'<ul class="ina-kpi-bar" style="--reveal-index: 13">{items}</ul>'
 
 
@@ -95,14 +129,16 @@ def build_iceberg_need_analysis_html(
     content: Mapping[str, Any] | None = None,
     image_path: Path = DEFAULT_IMAGE_PATH,
 ) -> str:
+    translate_content = content is None
     data = content if content is not None else load_iceberg_content()
     surface = _section(data, "surface")
     deep = _section(data, "deep")
     image_src = _image_uri(str(image_path))
+    language = active_language()
 
     return f"""
 <!doctype html>
-<html lang="de">
+<html lang="{escape_html_text(language)}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -583,22 +619,22 @@ def build_iceberg_need_analysis_html(
 </head>
 <body>
     <div class="ina-shell">
-        <section class="ina-stage" aria-label="Eisberg-Modell klassischer und AI-gestützter Need-Analysis">
+        <section class="ina-stage" aria-label="{escape_html_text(tr('iceberg.aria_label'))}">
             <img class="ina-bg" src="{image_src}" alt="" aria-hidden="true">
             <svg class="ina-guides" viewBox="0 0 1920 1080" preserveAspectRatio="none" aria-hidden="true">
                 <line class="ina-waterline" x1="0" y1="500" x2="1920" y2="500"></line>
             </svg>
-            <div class="ina-zone-label surface">oberhalb der Wasserlinie: sichtbar in Jobspec & Briefing</div>
-            <div class="ina-zone-label deep">unterhalb der Wasserlinie: entscheidend für Search, Matching & Interview</div>
-            {_zone_header(surface, "surface", 0)}
+            <div class="ina-zone-label surface">{escape_html_text(tr('iceberg.surface_label'))}</div>
+            <div class="ina-zone-label deep">{escape_html_text(tr('iceberg.deep_label'))}</div>
+            {_zone_header(surface, "surface", 0, translate=translate_content)}
             <div class="ina-surface-grid">
-                {_zone_groups(surface, "ina-surface", 1)}
+                {_zone_groups(surface, "ina-surface", 1, translate=translate_content)}
             </div>
-            {_zone_header(deep, "deep", 5)}
+            {_zone_header(deep, "deep", 5, translate=translate_content)}
             <div class="ina-deep-grid">
-                {_zone_groups(deep, "ina-deep", 6)}
+                {_zone_groups(deep, "ina-deep", 6, translate=translate_content)}
             </div>
-            {_kpi_bar(data)}
+            {_kpi_bar(data, translate=translate_content)}
         </section>
     </div>
 </body>

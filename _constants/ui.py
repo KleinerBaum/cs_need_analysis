@@ -39,6 +39,17 @@ UI_PREFERENCE_PII_REDUCTION: Final[str] = "pii_reduction"
 UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT: Final[str] = "details_expanded_default"
 UI_PREFERENCE_STEP_COMPACT: Final[str] = "step_compact"
 UI_PREFERENCE_UI_LANGUAGE: Final[str] = "ui_language"
+UI_LANGUAGE_VALUES: Final[tuple[str, str]] = ("de", "en")
+UI_LANGUAGE_QUERY_PARAM: Final[str] = "lang"
+UI_LANGUAGE_STORAGE_KEY: Final[str] = "cs.ui_language"
+UI_LANGUAGE_COOKIE_KEY: Final[str] = "cs_ui_language"
+UI_LANGUAGE_WIDGET_KEY_SIDEBAR: Final[str] = "sidebar.ui_language"
+UI_LANGUAGE_WIDGET_KEY_PAGE: Final[str] = "page.ui_language"
+UI_LANGUAGE_WIDGET_KEYS: Final[tuple[str, str]] = (
+    UI_LANGUAGE_WIDGET_KEY_SIDEBAR,
+    UI_LANGUAGE_WIDGET_KEY_PAGE,
+)
+UI_LANGUAGE_LAST_WIDGET_KEY: Final[str] = "cs.language.last_widget_key"
 
 UI_MODE_PRIORITY_TIERS: Final[dict[str, tuple[str, ...]]] = {
     "quick": ("core",),

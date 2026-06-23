@@ -1,165 +1,104 @@
-# pages/03_Datenschutzrichtlinie.py
 from __future__ import annotations
 
 import streamlit as st
 
-from site_ui import PROFILE, inject_site_styles, render_callout, render_cta, render_hero, render_meta_line
+from i18n import (
+    LANGUAGE_WIDGET_KEY_SIDEBAR,
+    bootstrap_public_page,
+    render_language_toggle,
+    tr,
+)
+from site_ui import (
+    PROFILE,
+    inject_site_styles,
+    localized_profile_value,
+    profile_last_updated_label,
+    render_callout,
+    render_cta,
+    render_hero,
+    render_meta_line,
+)
 
 
-st.set_page_config(page_title="Datenschutzrichtlinie", page_icon="🔒", layout="wide")
+PREFIX = "public_pages.privacy"
+
+
+def _copy(key: str, **params: object) -> str:
+    return tr(f"{PREFIX}.{key}", **params)
+
+
+bootstrap_public_page(page_title=_copy("title"), page_icon="🔒")
 inject_site_styles()
+render_language_toggle(location="sidebar", key=LANGUAGE_WIDGET_KEY_SIDEBAR)
 
 render_hero(
-    title="Datenschutzrichtlinie",
-    lead=(
-        "Der Schutz personenbezogener Daten ist uns wichtig. Auf dieser Seite informieren wir darüber, "
-        "welche Daten bei der Nutzung unserer Website und App verarbeitet werden, zu welchen Zwecken dies geschieht "
-        "und welche Rechte betroffene Personen haben."
-    ),
-    eyebrow="Datenschutz",
+    title=_copy("title"),
+    lead=_copy("hero.lead"),
+    eyebrow=_copy("hero.eyebrow"),
 )
-render_meta_line(f"Stand: {PROFILE.last_updated}")
+render_meta_line(profile_last_updated_label())
 
 render_callout(
-    "Hinweis",
-    (
-        "Bitte gleichen Sie diese Seite vor Veröffentlichung mit den tatsächlich eingesetzten Dienstleistern, "
-        "Kontaktwegen, Speicherfristen und internen Prozessen ab."
-    ),
+    _copy("notice.title"),
+    _copy("notice.body"),
     tone="warning",
 )
 
-st.markdown("## 1. Verantwortlicher")
+st.markdown(_copy("controller.heading"))
 st.markdown(
-    f"""
-**{PROFILE.legal_entity}**  
-{PROFILE.street}  
-{PROFILE.postal_code} {PROFILE.city}  
-{PROFILE.country}
-
-**E-Mail:** {PROFILE.email}  
-**Telefon:** {PROFILE.phone}  
-**Website:** {PROFILE.website}
-"""
+    _copy(
+        "controller.body",
+        legal_entity=PROFILE.legal_entity,
+        street=localized_profile_value(PROFILE.street),
+        postal_code=localized_profile_value(PROFILE.postal_code),
+        city=localized_profile_value(PROFILE.city),
+        country=localized_profile_value(PROFILE.country),
+        email=PROFILE.email,
+        phone=PROFILE.phone,
+        website=PROFILE.website,
+    )
 )
 
-st.markdown("## 2. Datenschutzkontakt")
+st.markdown(_copy("privacy_contact.heading"))
 st.markdown(
-    f"""
-Fragen zum Datenschutz können an folgende Stelle gerichtet werden:
-
-**E-Mail:** {PROFILE.privacy_email}  
-**Datenschutzbeauftragte Person / Stelle:** {PROFILE.dpo_name}
-"""
+    _copy(
+        "privacy_contact.body",
+        privacy_email=PROFILE.privacy_email,
+        dpo_name=localized_profile_value(PROFILE.dpo_name),
+    )
 )
 
-st.markdown("## 3. Welche Daten wir verarbeiten")
-st.markdown(
-    """
-Je nach Nutzung der Website und App können insbesondere folgende Daten verarbeitet werden:
+st.markdown(_copy("processed_data.heading"))
+st.markdown(_copy("processed_data.body"))
 
-- technische Zugriffsdaten und Protokolldaten,
-- Kontakt- und Kommunikationsdaten,
-- Inhalte, die Nutzerinnen und Nutzer aktiv eingeben oder hochladen,
-- Nutzungs- und Einstellungsdaten,
-- Einwilligungs- und Präferenzdaten, soweit einschlägig,
-- organisationsbezogene Informationen im Rahmen der App-Nutzung.
-"""
-)
+st.markdown(_copy("purposes.heading"))
+st.markdown(_copy("purposes.body"))
 
-st.markdown("## 4. Zwecke der Verarbeitung")
-st.markdown(
-    """
-Wir verarbeiten Daten insbesondere zu folgenden Zwecken:
+st.markdown(_copy("hr_content.heading"))
+st.markdown(_copy("hr_content.body"))
 
-- Bereitstellung und Betrieb der Website und App,
-- Bearbeitung von Anfragen,
-- strukturierte Aufbereitung von Recruiting- und Stelleninformationen,
-- Generierung von Folgeartefakten innerhalb der Anwendung,
-- Gewährleistung von IT-Sicherheit, Fehleranalyse und Missbrauchsprävention,
-- Nachweis- und Dokumentationspflichten.
-"""
-)
+st.markdown(_copy("legal_basis.heading"))
+st.markdown(_copy("legal_basis.body"))
 
-st.markdown("## 5. Besondere Hinweise zu HR-Inhalten")
-st.markdown(
-    """
-Unsere Anwendung kann zur Verarbeitung von Stelleninformationen, Jobspecs und vergleichbaren Dokumenten genutzt werden.  
-Bitte laden Sie nur solche Inhalte hoch oder übermitteln Sie nur solche Informationen, deren Verarbeitung zulässig, erforderlich und intern freigegeben ist.
+st.markdown(_copy("recipients.heading"))
+for key in ("hosting", "ai", "email", "consent"):
+    st.markdown(f"- {_copy(f'recipients.providers.{key}')}")
 
-Besonders sensible personenbezogene Daten sollten nur dann verarbeitet werden, wenn hierfür eine tragfähige rechtliche Grundlage und ein geeigneter organisatorischer Rahmen bestehen.
-"""
-)
+st.markdown(_copy("recipients.body"))
 
-st.markdown("## 6. Rechtsgrundlagen")
-st.markdown(
-    """
-Die Verarbeitung erfolgt – je nach Fallgestaltung – insbesondere auf Grundlage von:
+st.markdown(_copy("retention.heading"))
+st.markdown(_copy("retention.body"))
 
-- Art. 6 Abs. 1 lit. a DSGVO,
-- Art. 6 Abs. 1 lit. b DSGVO,
-- Art. 6 Abs. 1 lit. c DSGVO,
-- Art. 6 Abs. 1 lit. f DSGVO.
+st.markdown(_copy("cookies.heading"))
+st.markdown(_copy("cookies.body"))
 
-Soweit besondere Kategorien personenbezogener Daten betroffen sind, gelten zusätzlich die hierfür einschlägigen spezialgesetzlichen und datenschutzrechtlichen Anforderungen.
-"""
-)
+st.markdown(_copy("rights.heading"))
+st.markdown(_copy("rights.body"))
 
-st.markdown("## 7. Empfänger und eingesetzte Dienstleister")
-for provider in PROFILE.service_providers:
-    st.markdown(f"- {provider}")
-
-st.markdown(
-    """
-Sofern externe technische Dienstleister oder KI-Dienste eingebunden sind, erfolgt dies nur im Rahmen der jeweils vorgesehenen technischen, organisatorischen und vertraglichen Vorkehrungen.
-"""
-)
-
-st.markdown("## 8. Speicherung und Löschung")
-st.markdown(
-    """
-Wir speichern personenbezogene Daten nur so lange, wie dies für die jeweiligen Zwecke erforderlich ist oder gesetzliche Aufbewahrungspflichten dies verlangen.
-
-Soweit Inhalte innerhalb der Anwendung verarbeitet werden, sollte die Verarbeitung auf das erforderliche Maß begrenzt und organisatorisch kontrolliert werden. Exportierte Dokumente und Folgeartefakte unterliegen zusätzlich den Regeln der jeweiligen Nutzerorganisation.
-"""
-)
-
-st.markdown("## 9. Cookies und ähnliche Technologien")
-st.markdown(
-    """
-Wir verwenden Cookies und vergleichbare Technologien nur im jeweils erforderlichen Umfang.  
-Soweit nicht unbedingt erforderliche Technologien eingesetzt werden, erfolgt dies nur auf der Grundlage einer wirksamen Einwilligung oder einer sonst einschlägigen Rechtsgrundlage.
-
-Weitere Informationen finden Sie in unserer Cookie Policy.
-"""
-)
-
-st.markdown("## 10. Ihre Rechte")
-st.markdown(
-    """
-Betroffene Personen haben im Rahmen der gesetzlichen Voraussetzungen insbesondere das Recht auf:
-
-- Auskunft,
-- Berichtigung,
-- Löschung,
-- Einschränkung der Verarbeitung,
-- Datenübertragbarkeit,
-- Widerspruch,
-- Widerruf erteilter Einwilligungen mit Wirkung für die Zukunft,
-- Beschwerde bei einer zuständigen Aufsichtsbehörde.
-"""
-)
-
-st.markdown("## 11. Datensicherheit")
-st.markdown(
-    """
-Wir treffen angemessene technische und organisatorische Maßnahmen, um personenbezogene Daten vor Verlust, Manipulation, unberechtigtem Zugriff und sonstigen Risiken zu schützen.
-
-Dazu gehören insbesondere Maßnahmen zur Zugriffskontrolle, zur Begrenzung unnötiger Datenverarbeitung, zur sicheren Konfiguration der eingesetzten Systeme und zur nachvollziehbaren Steuerung sensibler Prozesse.
-"""
-)
+st.markdown(_copy("security.heading"))
+st.markdown(_copy("security.body"))
 
 render_cta(
-    "Fragen zum Datenschutz",
-    f"Für datenschutzbezogene Anliegen erreichen Sie uns unter **{PROFILE.privacy_email}**.",
+    _copy("cta.title"),
+    _copy("cta.body", privacy_email=PROFILE.privacy_email),
 )

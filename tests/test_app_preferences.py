@@ -5,6 +5,7 @@ from typing import Any
 import app
 from constants import (
     SSKey,
+    UI_LANGUAGE_WIDGET_KEY_SIDEBAR,
     UI_PREFERENCE_ANSWER_MODE,
     UI_PREFERENCE_INFORMATION_DEPTH,
     UI_PREFERENCE_PII_REDUCTION,
@@ -85,7 +86,7 @@ def test_preference_center_defaults_pii_reduction_on_when_missing(monkeypatch) -
 
 def test_pre_render_language_sync_reads_sidebar_widget(monkeypatch) -> None:
     fake_session_state = {
-        "sidebar.ui_language": "en",
+        UI_LANGUAGE_WIDGET_KEY_SIDEBAR: "en",
         SSKey.LANGUAGE.value: "de",
         SSKey.UI_PREFERENCES.value: {UI_PREFERENCE_UI_LANGUAGE: "de"},
         SSKey.ESCO_CONFIG.value: {"language": "de", "fallback_language": "en"},

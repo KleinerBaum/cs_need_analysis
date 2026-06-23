@@ -1,15 +1,33 @@
 from __future__ import annotations
 
-from constants import SSKey, UI_PREFERENCE_UI_LANGUAGE
+import json
+from pathlib import Path
+
+from constants import SSKey, UI_LANGUAGE_QUERY_PARAM, UI_PREFERENCE_UI_LANGUAGE
 from i18n import (
+    LANGUAGE_WIDGET_KEY_PAGE,
+    LANGUAGE_WIDGET_KEY_SIDEBAR,
     LAST_LANGUAGE_WIDGET_KEY,
     sync_language_from_known_widgets,
+    sync_language_state_from_request,
     sync_language_state,
     t,
+    tr,
 )
 import wizard_pages.base as wizard_base
 import i18n
 from wizard_pages.base import WizardPage
+
+
+def _locale_leaf_keys(payload: dict[str, object], prefix: str = "") -> set[str]:
+    keys: set[str] = set()
+    for key, value in payload.items():
+        dotted_key = f"{prefix}.{key}" if prefix else key
+        if isinstance(value, dict):
+            keys.update(_locale_leaf_keys(value, dotted_key))
+        else:
+            keys.add(dotted_key)
+    return keys
 
 
 def test_translation_uses_german_as_source_copy(monkeypatch) -> None:
@@ -39,6 +57,49 @@ def test_translation_uses_german_as_source_copy(monkeypatch) -> None:
     assert t('Nach dem Klick auf "Analyse starten"') == 'After clicking "Start analysis"'
     assert t("Text verstehen") == "Understand text"
     assert t("Was bedeutet RAG?") == "What does RAG mean?"
+    assert t("Datenschutzrichtlinie") == "Privacy policy"
+
+
+def test_tr_reads_locale_files(monkeypatch) -> None:
+    monkeypatch.setattr(i18n, "active_language", lambda: "en")
+
+    assert tr("common.language") == "Language"
+    assert tr("common.last_updated", date="14.04.2026") == "Last updated: 14.04.2026"
+    assert tr("public_pages.privacy.title") == "Privacy policy"
+    assert (
+        tr("public_pages.accessibility.enforcement.heading")
+        == "## Enforcement or mediation information"
+    )
+
+
+def test_locale_files_have_matching_key_shapes() -> None:
+    locales_dir = Path(__file__).resolve().parents[1] / "locales"
+    de_locale = json.loads((locales_dir / "de.json").read_text(encoding="utf-8"))
+    en_locale = json.loads((locales_dir / "en.json").read_text(encoding="utf-8"))
+
+    assert _locale_leaf_keys(de_locale) == _locale_leaf_keys(en_locale)
+
+
+def test_sync_language_state_from_request_uses_query_param(monkeypatch) -> None:
+    session_state = {
+        SSKey.LANGUAGE.value: "de",
+        SSKey.UI_PREFERENCES.value: {UI_PREFERENCE_UI_LANGUAGE: "de"},
+    }
+    fake_st = type(
+        "FakeStreamlit",
+        (),
+        {
+            "session_state": session_state,
+            "query_params": {UI_LANGUAGE_QUERY_PARAM: "en"},
+        },
+    )()
+    monkeypatch.setattr(i18n, "st", fake_st)
+
+    synced = sync_language_state_from_request(session_state=session_state)
+
+    assert synced == "en"
+    assert session_state[SSKey.LANGUAGE.value] == "en"
+    assert session_state[SSKey.UI_PREFERENCES.value][UI_PREFERENCE_UI_LANGUAGE] == "en"
 
 
 def test_sync_language_state_updates_preferences_without_esco_config() -> None:
@@ -57,7 +118,7 @@ def test_sync_language_state_updates_preferences_without_esco_config() -> None:
 
 def test_known_widget_sync_updates_language_before_render() -> None:
     session_state = {
-        "sidebar.ui_language": "en",
+        LANGUAGE_WIDGET_KEY_SIDEBAR: "en",
         SSKey.LANGUAGE.value: "de",
         SSKey.UI_PREFERENCES.value: {UI_PREFERENCE_UI_LANGUAGE: "de"},
         SSKey.ESCO_CONFIG.value: {"language": "de", "fallback_language": "en"},
@@ -73,9 +134,9 @@ def test_known_widget_sync_updates_language_before_render() -> None:
 
 
 def test_known_widget_sync_prefers_last_changed_language_widget() -> None:
-    page_widget_key = "page.ui_language"
+    page_widget_key = LANGUAGE_WIDGET_KEY_PAGE
     session_state = {
-        "sidebar.ui_language": "de",
+        LANGUAGE_WIDGET_KEY_SIDEBAR: "de",
         page_widget_key: "en",
         LAST_LANGUAGE_WIDGET_KEY: page_widget_key,
         SSKey.LANGUAGE.value: "en",

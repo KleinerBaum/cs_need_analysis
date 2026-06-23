@@ -1,9 +1,37 @@
-# pages/06_Kontakt.py
 from __future__ import annotations
 
 import streamlit as st
 
-from site_ui import PROFILE, inject_site_styles, render_cards, render_callout, render_cta, render_hero, render_meta_line
+from i18n import (
+    LANGUAGE_WIDGET_KEY_SIDEBAR,
+    bootstrap_public_page,
+    render_language_toggle,
+    tr,
+)
+from site_ui import (
+    PROFILE,
+    inject_site_styles,
+    localized_profile_value,
+    render_callout,
+    render_cards,
+    render_cta,
+    render_hero,
+    render_meta_line,
+)
+
+
+PREFIX = "public_pages.contact"
+POLICY_LABEL_KEYS = {
+    "Impressum": "policy_links.imprint",
+    "Datenschutzrichtlinie": "policy_links.privacy",
+    "Nutzungsbedingungen": "policy_links.terms",
+    "Cookie Policy Settings": "policy_links.cookies",
+    "Erklärung zur Barrierefreiheit": "policy_links.accessibility",
+}
+
+
+def _copy(key: str, **params: object) -> str:
+    return tr(f"{PREFIX}.{key}", **params)
 
 
 def _legal_policy_links() -> tuple[tuple[str, str], ...]:
@@ -16,42 +44,24 @@ def _legal_policy_links() -> tuple[tuple[str, str], ...]:
     )
 
 
-st.set_page_config(page_title="Kontakt", page_icon="✉️", layout="wide")
+bootstrap_public_page(page_title=_copy("title"), page_icon="✉️")
 inject_site_styles()
+render_language_toggle(location="sidebar", key=LANGUAGE_WIDGET_KEY_SIDEBAR)
 
 render_hero(
-    title="Kontakt",
-    lead=(
-        "Sie möchten Cognitive Staffing kennenlernen, eine Demo anfragen oder über einen konkreten Einsatzfall sprechen? "
-        "Dann freuen wir uns auf Ihre Nachricht."
-    ),
-    eyebrow="Kontakt & Demo",
+    title=_copy("title"),
+    lead=_copy("hero.lead"),
+    eyebrow=_copy("hero.eyebrow"),
 )
-render_meta_line("Für Unternehmen, HR, Recruiting, IT und Produktverantwortliche")
+render_meta_line(_copy("meta"))
 
 render_cards(
     [
         {
-            "title": "Unternehmen & Entscheider",
-            "body": (
-                "Sie möchten Ihren Vacancy Intake professionalisieren, Reibung im Recruiting reduzieren "
-                "und bessere Entscheidungen früher im Prozess ermöglichen."
-            ),
-        },
-        {
-            "title": "HR & Recruiting",
-            "body": (
-                "Sie interessieren sich für klarere Übergaben, bessere Suchprofile, "
-                "stärkere Interviewvorbereitung und wiederverwendbare Recruiting-Artefakte."
-            ),
-        },
-        {
-            "title": "IT & Produktverantwortliche",
-            "body": (
-                "Sie möchten mehr über Architektur, Sicherheit, Integrationsfähigkeit, "
-                "On-Prem-Optionen oder lokale LLM-Szenarien erfahren."
-            ),
-        },
+            "title": _copy(f"cards.{key}.title"),
+            "body": _copy(f"cards.{key}.body"),
+        }
+        for key in ("decision_makers", "hr", "it")
     ],
     columns=3,
 )
@@ -59,66 +69,67 @@ render_cards(
 col_left, col_right = st.columns([1.05, 1.15], gap="large")
 
 with col_left:
-    st.markdown("## So erreichen Sie uns")
+    st.markdown(_copy("reach.heading"))
     st.markdown(
-        f"""
-**E-Mail**  
-{PROFILE.email}
-
-**Telefon**  
-{PROFILE.phone}
-
-**Adresse**  
-{PROFILE.legal_entity}  
-{PROFILE.street}  
-{PROFILE.postal_code} {PROFILE.city}  
-{PROFILE.country}
-"""
+        _copy(
+            "reach.body",
+            email=PROFILE.email,
+            phone=PROFILE.phone,
+            legal_entity=PROFILE.legal_entity,
+            street=localized_profile_value(PROFILE.street),
+            postal_code=localized_profile_value(PROFILE.postal_code),
+            city=localized_profile_value(PROFILE.city),
+            country=localized_profile_value(PROFILE.country),
+        )
     )
 
     render_callout(
-        "Hinweis zum Datenschutz",
-        (
-            "Bitte senden Sie uns über das Kontaktformular oder per E-Mail keine besonders sensiblen personenbezogenen Daten, "
-            "sofern dies nicht erforderlich und abgestimmt ist."
-        ),
+        _copy("privacy_notice.title"),
+        _copy("privacy_notice.body"),
     )
 
 with col_right:
-    st.markdown("## Demo oder Rückruf anfragen")
+    st.markdown(_copy("form.heading"))
     with st.form("contact_form", clear_on_submit=False):
-        name = st.text_input("Name")
-        company = st.text_input("Unternehmen")
-        email = st.text_input("E-Mail")
+        name = st.text_input(_copy("form.name"))
+        company = st.text_input(_copy("form.company"))
+        email = st.text_input(_copy("form.email"))
         topic = st.selectbox(
-            "Anliegen",
+            _copy("form.topic"),
             options=[
-                "Demo anfragen",
-                "Produktinformationen",
-                "Technische Fragen",
-                "Partnerschaft / Zusammenarbeit",
-                "Sonstiges",
+                _copy("form.topic_options.demo"),
+                _copy("form.topic_options.product"),
+                _copy("form.topic_options.technical"),
+                _copy("form.topic_options.partnership"),
+                _copy("form.topic_options.other"),
             ],
         )
         message = st.text_area(
-            "Nachricht",
-            placeholder="Beschreiben Sie kurz Ihren Anwendungsfall oder Ihr Anliegen.",
+            _copy("form.message"),
+            placeholder=_copy("form.message_placeholder"),
             height=160,
         )
-        submitted = st.form_submit_button("Anfrage vorbereiten")
+        submitted = st.form_submit_button(_copy("form.submit"))
 
     if submitted:
-        st.success("Vielen Dank. Bitte binden Sie nun den gewünschten Versandweg an, z. B. E-Mail, CRM oder Helpdesk.")
+        st.success(_copy("form.success"))
         st.code(
-            f"Name: {name}\nUnternehmen: {company}\nE-Mail: {email}\nAnliegen: {topic}\n\nNachricht:\n{message}",
+            _copy(
+                "form.summary",
+                name=name,
+                company=company,
+                email=email,
+                topic=topic,
+                message=message,
+            ),
             language="text",
         )
 
 render_cta(
-    "Direkter Draht",
-    f"Für schnelle Rückfragen erreichen Sie uns direkt unter **{PROFILE.email}**.",
+    _copy("cta.title"),
+    _copy("cta.body", email=PROFILE.email),
 )
 
-st.markdown("## Rechtliches & Richtlinien")
+st.markdown(_copy("policy_links.heading"))
 for page_path, label in _legal_policy_links():
-    st.page_link(page_path, label=label)
+    st.page_link(page_path, label=_copy(POLICY_LABEL_KEYS[label]))

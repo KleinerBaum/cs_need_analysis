@@ -7,7 +7,7 @@ from components.iceberg_need_analysis import (
     build_iceberg_need_analysis_html,
 )
 from constants import STEP_KEY_INTRO, STEP_KEY_LANDING
-from i18n import t
+from i18n import LANGUAGE_WIDGET_KEY_PAGE, render_language_toggle, t
 from safe_html import escape_html_text, render_static_html
 from wizard_pages.base import (
     LANDING_STYLE_TOKENS,
@@ -132,6 +132,7 @@ def render(ctx: WizardContext) -> None:
     _render_intro_overrides()
 
     render_static_html('<div class="intro-page">', streamlit_module=st)
+    render_language_toggle(location="main", key=LANGUAGE_WIDGET_KEY_PAGE)
     render_static_html(
         '<section class="landing-section landing-hero">',
         streamlit_module=st,

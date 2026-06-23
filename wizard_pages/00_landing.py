@@ -5,7 +5,7 @@ from pathlib import Path
 import streamlit as st
 from content.start_page import START_PAGE_COPY
 from constants import APP_TITLE
-from i18n import t
+from i18n import LANGUAGE_WIDGET_KEY_PAGE, render_language_toggle, t
 from safe_html import escape_html_text, render_static_html
 from wizard_pages.jobad_intake import render_jobad_intake
 from wizard_pages.base import (
@@ -204,6 +204,7 @@ def _render_landing_hero() -> None:
         f'<span class="landing-app-title">{escape_html_text(APP_TITLE)}</span>',
         streamlit_module=st,
     )
+    render_language_toggle(location="main", key=LANGUAGE_WIDGET_KEY_PAGE)
     render_esco_language_toggle()
     render_static_html("</div>", streamlit_module=st)
 

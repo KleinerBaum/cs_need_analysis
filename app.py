@@ -25,7 +25,9 @@ from constants import (
 )
 from i18n import (
     patch_streamlit_text,
+    render_language_persistence_bridge,
     sync_language_from_known_widgets,
+    sync_language_state_from_request,
 )
 from llm_client import (
     TASK_EXTRACT_JOB_AD,
@@ -531,6 +533,7 @@ def _render_openai_debug_panel() -> None:
 def _sync_language_before_render() -> None:
     """Apply language widget changes before any routed page renders."""
 
+    sync_language_state_from_request(session_state=st.session_state)
     sync_language_from_known_widgets(session_state=st.session_state)
 
 
@@ -717,6 +720,7 @@ def main() -> None:
     init_session_state()
     patch_streamlit_text()
     _sync_language_before_render()
+    render_language_persistence_bridge()
     previous_step = st.session_state.get(SSKey.LAST_RENDERED_STEP.value)
 
     pages = load_pages()

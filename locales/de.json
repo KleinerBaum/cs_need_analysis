@@ -1,0 +1,476 @@
+{
+  "common": {
+    "language": "Sprache",
+    "german": "Deutsch",
+    "english": "Englisch",
+    "last_updated": "Stand: {date}",
+    "back_to_wizard": "Zurück zum Wizard",
+    "open_full_view": "Vollansicht öffnen",
+    "country_germany": "Deutschland",
+    "placeholder_missing": "Bitte ergänzen",
+    "placeholder_missing_optional": "Bitte ergänzen, falls vorhanden"
+  },
+  "iceberg": {
+    "aria_label": "Eisberg-Modell klassischer und AI-gestützter Need-Analysis",
+    "surface_label": "oberhalb der Wasserlinie: sichtbar in Jobspec & Briefing",
+    "deep_label": "unterhalb der Wasserlinie: entscheidend für Search, Matching & Interview"
+  },
+  "public_pages": {
+    "legal_placeholder_title": "🟧 **Platzhalter – Fachinput fehlt**",
+    "legal_template_notice": "Diese Seite ist eine Vorlage und wird erst nach rechtlicher Prüfung verbindlich.",
+    "competencies": {
+      "title": "Unsere Kompetenzen",
+      "hero": {
+        "eyebrow": "Vacancy Intake · ESCO · KI · Struktur",
+        "lead": "Wir professionalisieren den ersten Schritt jedes Recruiting-Prozesses: den Vacancy Intake. Aus unstrukturierten Eingangsinformationen entsteht ein klarer, belastbarer und weiterverwendbarer Datensatz, der Suche, Auswahl und interne Abstimmung von Beginn an verbessert."
+      },
+      "meta": "Fokus: strukturierter Intake, semantische Qualität, kontrollierte KI-Nutzung, Sicherheit und Weiterverarbeitung",
+      "top_cards": {
+        "structured_intake": {
+          "title": "Strukturierter Vacancy Intake",
+          "body": "Wir setzen nicht erst bei der Jobanzeige an, sondern bei der Bedarfsklärung. So werden Missverständnisse, spätere Korrekturschleifen und überladene Wunschprofile früh reduziert."
+        },
+        "dynamic_flow": {
+          "title": "Dynamischer Fragenfluss",
+          "body": "Die App arbeitet nicht mit einem starren Standardformular. Sie leitet aus Jobspec, Rolle, Kontext und bisherigen Antworten genau die Fragen ab, die wirklich relevant sind."
+        },
+        "esco_semantics": {
+          "title": "ESCO-gestützte Semantik",
+          "body": "Berufe und Skills werden nicht nur sprachlich erfasst, sondern semantisch verankert. Das verbessert Vergleichbarkeit, Klarheit und Anschlussfähigkeit in internationalen Recruiting-Kontexten."
+        },
+        "controlled_ai": {
+          "title": "Kontrollierte KI-Unterstützung",
+          "body": "KI wird dort eingesetzt, wo sie Struktur schafft und Inhalte verdichtet. Nicht als Selbstzweck, sondern innerhalb eines klaren, nachvollziehbaren Workflows."
+        },
+        "salary_estimation": {
+          "title": "Salary Estimation",
+          "body": "Eine indikative Gehaltsprognose macht sichtbar, wie einzelne Parameter die Vergütung beeinflussen. Dadurch werden Stellen realistischer und marktnäher formuliert."
+        },
+        "exports": {
+          "title": "Weiterverarbeitung & Exporte",
+          "body": "Aus derselben Datengrundlage lassen sich Recruiting Brief, Job Ad, Interview Sheets, Boolean Search Strings und weitere Artefakte direkt ableiten."
+        }
+      },
+      "how": {
+        "heading": "## Wie die App arbeitet",
+        "body": "Die App beginnt mit einer Jobspec, einem Upload oder Freitext. Diese Ausgangsbasis wird zuerst analysiert und in eine belastbare Struktur überführt.\n\nDarauf aufbauend entsteht ein rollenabhängiger Frageplan, der Nutzerinnen und Nutzer Schritt für Schritt durch die weitere Präzisierung führt.\n\nDas Ziel ist kein längerer Prozess, sondern ein besserer: weniger unnötige Fragen, weniger Interpretationsspielraum und eine deutlich höhere Wiederverwendbarkeit der Ergebnisse."
+      },
+      "expanders": {
+        "intake": {
+          "title": "1. Intake statt Rätselraten",
+          "body": "Zu Beginn werden vorhandene Stelleninformationen aufgenommen und strukturiert analysiert. Die App trennt dabei bewusst zwischen Quelle, Interpretation und Bestätigung.\n\nSo entsteht früh ein belastbarer Startpunkt für den weiteren Recruiting-Prozess.\n\n**Mehrwert**\n- weniger unklare Ausgangslagen,\n- weniger Rückfragen zwischen Fachbereich und Recruiting,\n- frühere Qualitätssicherung im Prozess."
+        },
+        "dynamic": {
+          "title": "2. Dynamischer Fragenfluss statt Formular-Overkill",
+          "body": "Auf Basis der bereits bekannten Informationen erzeugt die App einen **dynamischen Fragenfluss**.\n\nSichtbar werden zuerst die wichtigsten Themen; zusätzliche Tiefe wird nur dort geöffnet, wo Informationslücken bestehen oder Präzisierungen sinnvoll sind.\n\n**Das bedeutet konkret**\n- minimale Reibung für Fachbereiche,\n- höhere Eingabequalität,\n- bessere Akzeptanz im Alltag,\n- klare Trennung zwischen Kerninformationen und Details."
+        },
+        "sharpening": {
+          "title": "3. Schärfung statt eierlegender Wollmilchsau",
+          "body": "Aufgaben, Anforderungen, Skills, Benefits und Gehaltslogik werden nicht nur gesammelt, sondern gegeneinander kalibriert.\n\nDadurch sinkt das Risiko, unrealistische Stellenprofile zu formulieren, die am Markt kaum besetzbar sind.\n\n**Ergebnis**\n- realistischere Zielprofile,\n- sauberere Trennung von Must-have und Nice-to-have,\n- bessere Grundlage für spätere Suche und Interviews."
+        }
+      },
+      "esco": {
+        "heading": "## ESCO als semantischer Anker",
+        "body": "Mit ESCO integriert Cognitive Staffing eine europaweit etablierte, mehrsprachige Klassifikation für Skills, Competences, Qualifications und Occupations.\n\nESCO funktioniert dabei wie ein gemeinsames semantisches Vokabular, das Begriffe nicht nur beschreibt, sondern auch in ihren Beziehungen maschinenlesbar macht.",
+        "callout_title": "Warum ESCO in dieser App so wertvoll ist",
+        "callout_body": "Statt nur freie Rollen- und Skillbezeichnungen zu sammeln, kann die App Occupations und Skills semantisch verankern. Das erhöht Konsistenz, Vergleichbarkeit und die Qualität späterer Ableitungen.",
+        "column_a": "### Was ESCO mitbringt\n- standardisierte Occupations und Skills,\n- mehrsprachige Begriffe,\n- API-Zugriff für technische Einbindung,\n- Beziehungen zwischen Berufen, Skills und Wissensbereichen,\n- maschinenlesbare Konzepte statt bloßer Stichwörter.",
+        "column_b": "### Mehrwert für Cognitive Staffing\n- saubereres Occupation-Mapping,\n- normalisierte Skill-Vorschläge,\n- nachvollziehbare Herkunft von Empfehlungen,\n- bessere Anschlussfähigkeit für Suche, Matching und Reporting,\n- stabilere Begriffslogik über Teams und Standorte hinweg.",
+        "after": "Gerade weil ESCO Occupations und Skills nicht nur als Wörter, sondern als verknüpfte Konzepte beschreibt, eignet sich die Klassifikation sehr gut für ein strukturiertes Vacancy Intake."
+      },
+      "model": {
+        "heading": "## Verwendetes ChatGPT-Modell und KI-Architektur",
+        "body": "Die App nutzt die OpenAI API **aufgabenbezogen**. Das bedeutet: Nicht jede Funktion wird zwangsläufig mit demselben Modell ausgeführt.\n\nJe nach Task – etwa Extraktion, Frageplanung oder Artefaktgenerierung – kann unterschiedlich geroutet werden.\n\nWichtig ist deshalb nicht nur das Modell selbst, sondern die **kontrollierte Form der Ausgabe**:\n- strukturierte Ergebnisse statt bloßer Fließtexte,\n- klare Schemata statt freier Halluzinationsflächen,\n- bessere Weiterverarbeitung innerhalb des Wizards.",
+        "callout_title": "Wichtige Einordnung",
+        "callout_body": "Die produktive Konfiguration ist modellabhängig und deploymentabhängig. Damit bleibt die Architektur flexibel, ohne die Qualität des Workflows an ein einziges festes Modell zu ketten."
+      },
+      "dynamic_flow": {
+        "heading": "## Dynamischer Fragenfluss",
+        "body": "Der Fragenfluss passt sich an:\n- die eingebrachte Jobspec,\n- bereits identifizierte Informationen,\n- den gewählten Detailgrad,\n- frühere Antworten im Verlauf,\n- und die bestätigte semantische Einordnung der Stelle.\n\nSo entsteht ein Prozess, der **adaptiv** statt starr arbeitet.\n\nNutzerinnen und Nutzer sehen zuerst das Wesentliche – und nur dort mehr Tiefe, wo sie für die konkrete Vakanz tatsächlich Mehrwert schafft."
+      },
+      "downstream": {
+        "heading": "## Weiterverarbeitungsoptionen",
+        "cards": {
+          "brief": {
+            "title": "Recruiting Brief",
+            "body": "Die konsolidierte Entscheidungsgrundlage für Recruiting, Fachbereich und Management."
+          },
+          "job_ad": {
+            "title": "Job Ad Generation",
+            "body": "Aus der strukturierten Datensammlung entsteht eine konsistente, zielgruppengerechte Stellenanzeige."
+          },
+          "interview": {
+            "title": "Interview Sheets",
+            "body": "Vorbereitungen für HR und Fachbereich mit klaren Themen, Prüfpunkten und Leitfragen."
+          },
+          "boolean": {
+            "title": "Boolean Search Strings",
+            "body": "Ableitungen für LinkedIn, Xing oder Google, damit Suchstrategien präziser und reproduzierbarer werden."
+          },
+          "contract": {
+            "title": "Contract Draft",
+            "body": "Vorlagennahe Vertragsentwürfe auf Basis derselben strukturierten Rolle."
+          },
+          "exports": {
+            "title": "Exports",
+            "body": "Je nach Artefakt als JSON, Markdown, DOCX, PDF oder Mapping-Report weiterverwendbar."
+          }
+        }
+      },
+      "security": {
+        "heading": "## Sicherheit",
+        "body": "Im HR-Kontext ist Datensensibilität kein Randthema. Deshalb ist Sicherheit für uns Teil der Produktlogik – nicht bloß ein Nachgedanke.\n\nSchon in einem cloudbasierten Setup helfen strukturierte Verarbeitung, klare Exportpfade, kontrollierte Modellaufrufe und Datenminimierung dabei, sensible Inhalte bewusster zu behandeln.",
+        "local_llm": {
+          "title": "Lokales LLM als Sicherheitsoption",
+          "body": "Für besonders sensible HR-Themen kann ein **lokal laufendes LLM** oder ein streng isoliertes On-Prem-/VPC-Setup erhebliche Vorteile bringen:\n\n- Daten verbleiben in der eigenen Infrastruktur,\n- Zugriffe und Speicherorte sind enger kontrollierbar,\n- Drittlandtransfers und externe Abhängigkeiten können reduziert werden,\n- Sicherheitsregeln lassen sich unternehmensspezifisch erzwingen,\n- Akzeptanz für sensible HR-Prozesse steigt oft deutlich.\n\n**Wichtige Einordnung**\nEin lokales LLM ist nicht automatisch sicher. Es verschiebt Verantwortung vom externen Anbieter in die eigene Umgebung.\n\nRichtig umgesetzt bietet es jedoch bei sensiblen Recruiting- und HR-Themen oft mehr Kontrolle, mehr Transparenz und mehr Governance."
+        }
+      },
+      "cta": {
+        "title": "Sie möchten sehen, wie aus einem unklaren Stellenbedarf ein belastbarer Recruiting-Startpunkt wird?",
+        "body": "Testen Sie {brand} und erleben Sie, wie strukturierter Vacancy Intake Recruiting von Anfang an besser macht."
+      }
+    },
+    "about": {
+      "title": "Über Cognitive Staffing",
+      "hero": {
+        "eyebrow": "Über uns",
+        "lead": "Der Firmengründer, Gerrit Fabisch, entwickelt digitale Werkzeuge, die Arbeitgebern helfen, Prozesse klarer zu definieren und durch den Einsatz von KI zu optimieren."
+      },
+      "meta": "Präzision · Steuerbarkeit · Wiederverwendbarkeit",
+      "cards": {
+        "career": {
+          "title": "Mein Werdegang",
+          "body": "Ich bringe dafür ein Profil mit, das Business-Verständnis, Schnittstellenkompetenz und aktuelle KI-Praxis zusammenführt. Nach meinem BWL-Studium habe ich über viele Jahre in vertriebs- und recruitingnahen Rollen gearbeitet – mit Verantwortung für Kundenentwicklung, Verhandlungen, Projektstabilität, KPI-Steuerung und die Zusammenarbeit mit unterschiedlichen internen und externen Stakeholdern."
+        },
+        "offer": {
+          "title": "Was ich biete",
+          "body": "In meiner aktuellen Tätigkeit als Gründer und KI-Recruitment-Berater entwickle ich einen KI-gestützten Prototypen zur Optimierung von Recruiting-Aktivitäten auf Basis der OpenAI-API, ESCO-API und eines eigenen Vector Stores. Ergänzt wird dies durch meine Data-Science-Weiterbildung sowie LLM-spezifische Kurse zu strukturierten Outputs und Reasoning."
+        },
+        "goal": {
+          "title": "Was ich mir wünsche",
+          "body": "Ich sehe KI nicht als Selbstzweck, sondern als Hebel für bessere Entscheidungen, effizientere Prozesse und einen konkreten Mehrwert für Fachbereiche und Kunden. Diese Haltung möchte ich in ein Umfeld einbringen, das KI bereits strategisch und international verankert."
+        }
+      },
+      "why": {
+        "heading": "## Warum Cognitive Staffing",
+        "body": "Unsere Stärke liegt in der Verbindung aus Recruiting-Fachlogik, semantischer Strukturierung und moderner KI-Unterstützung.\n\nSo entstehen Lösungen, die nicht nur innovativ wirken, sondern im Alltag spürbar entlasten.\n\nWir denken vom Prozess her:\nnicht von einem einzelnen Text, nicht von einem einzelnen Formular, sondern von einem besseren Startpunkt für den gesamten Recruiting-Verlauf."
+      },
+      "cta": {
+        "title": "Unser Ziel",
+        "body": "Nicht nur schnellere Besetzungen. Unser Ziel ist, Arbeitgeber und Arbeitnehmer langfristig passender, erfolgreicher und nachhaltiger zusammenzubringen."
+      }
+    },
+    "imprint": {
+      "eyebrow": "Rechtliche Information",
+      "title": "Impressum",
+      "intro": {
+        "0": "Diese Seite bündelt die Anbieterkennzeichnung für Cognitive Staffing.",
+        "1": "Bitte ersetzen Sie alle Platzhalter durch die final geprüften Unternehmens- und Registerdaten, bevor die Seite produktiv genutzt wird."
+      },
+      "sections": {
+        "scope": {
+          "heading": "Anwendungsbereich",
+          "body": "Das Impressum gilt für diese Website, die App-Oberfläche und alle hier verlinkten öffentlichen Informationsseiten."
+        },
+        "required_info": {
+          "heading": "Pflichtangaben",
+          "body": "Die Anbieterkennzeichnung muss die rechtlich erforderlichen Angaben zur verantwortlichen Stelle enthalten, insbesondere Name/Firma, Anschrift, Kontaktwege, Vertretungsberechtigte und gegebenenfalls Register- oder Aufsichtsangaben."
+        },
+        "responsibilities": {
+          "heading": "Verantwortlichkeit für Inhalte",
+          "body": "Die Inhalte dieser Website wurden mit Sorgfalt erstellt. Für Vollständigkeit, Aktualität und Richtigkeit ist vor Veröffentlichung eine fachliche und rechtliche Prüfung erforderlich."
+        },
+        "contact_paths": {
+          "heading": "Kontaktwege",
+          "body": "Für allgemeine Anfragen, Datenschutzanliegen und Barrierefreiheitsfeedback sollten klar getrennte Kontaktwege angegeben werden, sofern diese organisatorisch vorgesehen sind."
+        },
+        "version_note": {
+          "heading": "Stand und Pflege",
+          "body": "Das Impressum sollte bei Änderungen an Unternehmensdaten, Rechtsform, Vertretungsberechtigten, Hosting-Konstellation oder Kontaktwegen zeitnah aktualisiert werden."
+        }
+      },
+      "placeholders": {
+        "legal_info": {
+          "heading": "Noch zu ergänzende Unternehmensdaten",
+          "items": {
+            "company_address": "vollständige Anbieteranschrift mit Rechtsform und Vertretungsberechtigung",
+            "registry": "Registergericht, Registernummer, Umsatzsteuer-ID oder Wirtschafts-ID, falls einschlägig"
+          }
+        }
+      },
+      "trust": {
+        "heading": "Hinweis",
+        "details": {
+          "0": "Diese Vorlage ersetzt keine Rechtsberatung und muss vor Veröffentlichung geprüft werden."
+        }
+      },
+      "footer_classification": "Rechtliche Seite · Template"
+    },
+    "privacy": {
+      "title": "Datenschutzrichtlinie",
+      "hero": {
+        "eyebrow": "Datenschutz",
+        "lead": "Der Schutz personenbezogener Daten ist uns wichtig. Auf dieser Seite informieren wir darüber, welche Daten bei der Nutzung unserer Website und App verarbeitet werden, zu welchen Zwecken dies geschieht und welche Rechte betroffene Personen haben."
+      },
+      "notice": {
+        "title": "Hinweis",
+        "body": "Bitte gleichen Sie diese Seite vor Veröffentlichung mit den tatsächlich eingesetzten Dienstleistern, Kontaktwegen, Speicherfristen und internen Prozessen ab."
+      },
+      "controller": {
+        "heading": "## 1. Verantwortlicher",
+        "body": "**{legal_entity}**  \n{street}  \n{postal_code} {city}  \n{country}\n\n**E-Mail:** {email}  \n**Telefon:** {phone}  \n**Website:** {website}"
+      },
+      "privacy_contact": {
+        "heading": "## 2. Datenschutzkontakt",
+        "body": "Fragen zum Datenschutz können an folgende Stelle gerichtet werden:\n\n**E-Mail:** {privacy_email}  \n**Datenschutzbeauftragte Person / Stelle:** {dpo_name}"
+      },
+      "processed_data": {
+        "heading": "## 3. Welche Daten wir verarbeiten",
+        "body": "Je nach Nutzung der Website und App können insbesondere folgende Daten verarbeitet werden:\n\n- technische Zugriffsdaten und Protokolldaten,\n- Kontakt- und Kommunikationsdaten,\n- Inhalte, die Nutzerinnen und Nutzer aktiv eingeben oder hochladen,\n- Nutzungs- und Einstellungsdaten,\n- Einwilligungs- und Präferenzdaten, soweit einschlägig,\n- organisationsbezogene Informationen im Rahmen der App-Nutzung."
+      },
+      "purposes": {
+        "heading": "## 4. Zwecke der Verarbeitung",
+        "body": "Wir verarbeiten Daten insbesondere zu folgenden Zwecken:\n\n- Bereitstellung und Betrieb der Website und App,\n- Bearbeitung von Anfragen,\n- strukturierte Aufbereitung von Recruiting- und Stelleninformationen,\n- Generierung von Folgeartefakten innerhalb der Anwendung,\n- Gewährleistung von IT-Sicherheit, Fehleranalyse und Missbrauchsprävention,\n- Nachweis- und Dokumentationspflichten."
+      },
+      "hr_content": {
+        "heading": "## 5. Besondere Hinweise zu HR-Inhalten",
+        "body": "Unsere Anwendung kann zur Verarbeitung von Stelleninformationen, Jobspecs und vergleichbaren Dokumenten genutzt werden.\n\nBitte laden Sie nur solche Inhalte hoch oder übermitteln Sie nur solche Informationen, deren Verarbeitung zulässig, erforderlich und intern freigegeben ist.\n\nBesonders sensible personenbezogene Daten sollten nur dann verarbeitet werden, wenn hierfür eine tragfähige rechtliche Grundlage und ein geeigneter organisatorischer Rahmen bestehen."
+      },
+      "legal_basis": {
+        "heading": "## 6. Rechtsgrundlagen",
+        "body": "Die Verarbeitung erfolgt – je nach Fallgestaltung – insbesondere auf Grundlage von:\n\n- Art. 6 Abs. 1 lit. a DSGVO,\n- Art. 6 Abs. 1 lit. b DSGVO,\n- Art. 6 Abs. 1 lit. c DSGVO,\n- Art. 6 Abs. 1 lit. f DSGVO.\n\nSoweit besondere Kategorien personenbezogener Daten betroffen sind, gelten zusätzlich die hierfür einschlägigen spezialgesetzlichen und datenschutzrechtlichen Anforderungen."
+      },
+      "recipients": {
+        "heading": "## 7. Empfänger und eingesetzte Dienstleister",
+        "providers": {
+          "hosting": "Hosting / Deployment: Bitte ergänzen",
+          "ai": "KI-Anbieter / LLM-Infrastruktur: Bitte ergänzen",
+          "email": "E-Mail / Support-Workflow: Bitte ergänzen",
+          "consent": "Consent- / Cookie-Management: Bitte ergänzen"
+        },
+        "body": "Sofern externe technische Dienstleister oder KI-Dienste eingebunden sind, erfolgt dies nur im Rahmen der jeweils vorgesehenen technischen, organisatorischen und vertraglichen Vorkehrungen."
+      },
+      "retention": {
+        "heading": "## 8. Speicherung und Löschung",
+        "body": "Wir speichern personenbezogene Daten nur so lange, wie dies für die jeweiligen Zwecke erforderlich ist oder gesetzliche Aufbewahrungspflichten dies verlangen.\n\nSoweit Inhalte innerhalb der Anwendung verarbeitet werden, sollte die Verarbeitung auf das erforderliche Maß begrenzt und organisatorisch kontrolliert werden. Exportierte Dokumente und Folgeartefakte unterliegen zusätzlich den Regeln der jeweiligen Nutzerorganisation."
+      },
+      "cookies": {
+        "heading": "## 9. Cookies und ähnliche Technologien",
+        "body": "Wir verwenden Cookies und vergleichbare Technologien nur im jeweils erforderlichen Umfang.\n\nSoweit nicht unbedingt erforderliche Technologien eingesetzt werden, erfolgt dies nur auf der Grundlage einer wirksamen Einwilligung oder einer sonst einschlägigen Rechtsgrundlage.\n\nWeitere Informationen finden Sie in unserer Cookie Policy."
+      },
+      "rights": {
+        "heading": "## 10. Ihre Rechte",
+        "body": "Betroffene Personen haben im Rahmen der gesetzlichen Voraussetzungen insbesondere das Recht auf:\n\n- Auskunft,\n- Berichtigung,\n- Löschung,\n- Einschränkung der Verarbeitung,\n- Datenübertragbarkeit,\n- Widerspruch,\n- Widerruf erteilter Einwilligungen mit Wirkung für die Zukunft,\n- Beschwerde bei einer zuständigen Aufsichtsbehörde."
+      },
+      "security": {
+        "heading": "## 11. Datensicherheit",
+        "body": "Wir treffen angemessene technische und organisatorische Maßnahmen, um personenbezogene Daten vor Verlust, Manipulation, unberechtigtem Zugriff und sonstigen Risiken zu schützen.\n\nDazu gehören insbesondere Maßnahmen zur Zugriffskontrolle, zur Begrenzung unnötiger Datenverarbeitung, zur sicheren Konfiguration der eingesetzten Systeme und zur nachvollziehbaren Steuerung sensibler Prozesse."
+      },
+      "cta": {
+        "title": "Fragen zum Datenschutz",
+        "body": "Für datenschutzbezogene Anliegen erreichen Sie uns unter **{privacy_email}**."
+      }
+    },
+    "terms": {
+      "title": "Nutzungsbedingungen",
+      "hero": {
+        "eyebrow": "Rechtliches",
+        "lead": "Diese Nutzungsbedingungen regeln die Nutzung unserer Website und der bereitgestellten App-Funktionen. Bitte lesen Sie die folgenden Hinweise sorgfältig."
+      },
+      "offer": {
+        "heading": "## 1. Gegenstand des Angebots",
+        "body": "Cognitive Staffing stellt digitale Funktionen zur strukturierten Erfassung, Aufbereitung und Weiterverarbeitung von Recruiting- und Stelleninformationen bereit.\n\nDas Angebot dient der Unterstützung von Recruiting-, HR- und Abstimmungsprozessen. Es handelt sich nicht um ein autonom entscheidendes System."
+      },
+      "no_advice": {
+        "heading": "## 2. Kein Ersatz für Rechts- oder Personalberatung",
+        "body": "Die innerhalb der Anwendung erzeugten Inhalte und Ergebnisse dienen der fachlichen Unterstützung.\n\nSie stellen weder Rechtsberatung noch eine verbindliche Personalentscheidung oder eine automatische Eignungsbewertung dar.\n\nAlle Ergebnisse sind vor der weiteren Verwendung eigenverantwortlich zu prüfen."
+      },
+      "permitted_use": {
+        "heading": "## 3. Zulässige Nutzung",
+        "body": "Die Nutzung ist nur im Einklang mit geltendem Recht und nur mit solchen Inhalten zulässig, zu deren Verarbeitung Sie berechtigt sind.\n\nUntersagt ist insbesondere die Nutzung für:\n- rechtswidrige oder diskriminierende Inhalte,\n- missbräuchliche oder sicherheitsgefährdende Zwecke,\n- die Verarbeitung unzulässiger oder unbefugt übermittelter Daten,\n- Versuche der Manipulation, Überlastung oder Umgehung technischer Schutzmechanismen."
+      },
+      "user_responsibility": {
+        "heading": "## 4. Verantwortung der Nutzerinnen und Nutzer",
+        "body": "Nutzerinnen und Nutzer sind insbesondere dafür verantwortlich,\n\n- nur rechtmäßig verarbeitbare Daten einzugeben,\n- erzeugte Ergebnisse fachlich zu prüfen,\n- interne Richtlinien und rechtliche Anforderungen einzuhalten,\n- geeignete Schutzmaßnahmen im eigenen organisatorischen Umfeld sicherzustellen."
+      },
+      "availability": {
+        "heading": "## 5. Verfügbarkeit",
+        "body": "Wir bemühen uns um eine möglichst stabile und unterbrechungsfreie Bereitstellung des Angebots.\n\nEin Anspruch auf permanente Verfügbarkeit besteht jedoch nicht. Wartungen, Weiterentwicklungen, technische Störungen oder externe Abhängigkeiten können zu Einschränkungen führen."
+      },
+      "changes": {
+        "heading": "## 6. Änderungen des Angebots",
+        "body": "Wir behalten uns vor, Inhalte, Funktionen und technische Ausgestaltungen anzupassen, weiterzuentwickeln, einzuschränken oder einzustellen, soweit hierfür ein sachlicher Grund besteht."
+      },
+      "ip": {
+        "heading": "## 7. Geistiges Eigentum",
+        "body": "Sämtliche Inhalte, Marken, Texte, Designs, Softwarebestandteile und sonstigen geschützten Elemente dieser Website und App bleiben – soweit nicht anders angegeben – unser Eigentum oder das Eigentum der jeweiligen Rechteinhaber."
+      },
+      "liability": {
+        "heading": "## 8. Haftung",
+        "body": "Wir haften nach Maßgabe der gesetzlichen Vorschriften.\n\nFür automatisch oder unterstützend erzeugte Inhalte übernehmen wir keine Gewähr für Vollständigkeit, rechtliche Zulässigkeit, wirtschaftliche Eignung oder Fehlerfreiheit im Einzelfall. Nutzerinnen und Nutzer bleiben zur eigenständigen Prüfung verpflichtet."
+      },
+      "callout": {
+        "title": "Wichtige Einordnung",
+        "body": "Cognitive Staffing unterstützt strukturierte Entscheidungen. Die Verantwortung für fachliche, rechtliche und organisatorische Freigaben verbleibt bei den nutzenden Personen bzw. Organisationen."
+      },
+      "final": {
+        "heading": "## 9. Schlussbestimmungen",
+        "body": "Es gilt das Recht der Bundesrepublik Deutschland, soweit dem keine zwingenden gesetzlichen Vorschriften entgegenstehen.\n\nSollten einzelne Bestimmungen dieser Nutzungsbedingungen ganz oder teilweise unwirksam sein oder werden, bleibt die Wirksamkeit der übrigen Bestimmungen unberührt."
+      },
+      "cta": {
+        "title": "Kontakt bei Rückfragen",
+        "body": "Bei Fragen zu diesen Nutzungsbedingungen erreichen Sie uns unter **{email}**."
+      }
+    },
+    "cookies": {
+      "page_title": "Cookie Policy/Settings",
+      "title": "Cookie Policy & Einstellungen",
+      "hero": {
+        "eyebrow": "Cookies & Präferenzen",
+        "lead": "Wir verwenden Cookies und vergleichbare Technologien nur im jeweils erforderlichen Umfang. Auf dieser Seite informieren wir darüber, welche Kategorien es gibt und wie Sie Ihre Einstellungen verwalten können."
+      },
+      "notice": {
+        "title": "Wichtiger Hinweis",
+        "body": "Diese Seite sollte vor Veröffentlichung an die tatsächlich eingesetzten Technologien, Consent-Mechanismen und Anbieter angepasst werden."
+      },
+      "choices": {
+        "heading": "## Ihre Wahlmöglichkeiten",
+        "body": "Sie können Ihre Einstellungen jederzeit anpassen. Nicht unbedingt erforderliche Technologien werden nur eingesetzt, wenn hierfür eine wirksame Einwilligung vorliegt.\n\nTechnisch notwendige Technologien können eingesetzt werden, soweit sie für die sichere und funktionsfähige Bereitstellung der Website oder App erforderlich sind."
+      },
+      "categories": {
+        "necessary": {
+          "title": "Technisch notwendig",
+          "body": "Erforderlich für den sicheren Betrieb, grundlegende Funktionen, Navigation, Sitzungssteuerung oder sicherheitsrelevante Schutzmechanismen."
+        },
+        "preferences": {
+          "title": "Präferenzen",
+          "body": "Dienen dazu, gewählte Einstellungen, Komfortoptionen oder nutzerseitige Präferenzen zu speichern und die Nutzung konsistenter zu gestalten."
+        },
+        "statistics": {
+          "title": "Statistik",
+          "body": "Helfen zu verstehen, wie Inhalte und Funktionen genutzt werden, um Nutzerführung, Verständlichkeit und Produktqualität zu verbessern."
+        },
+        "external": {
+          "title": "Externe Inhalte / Dienste",
+          "body": "Werden relevant, wenn Inhalte oder Funktionen von Drittanbietern eingebunden werden, etwa Medien, Karten, Analyse- oder Kommunikationsdienste."
+        }
+      },
+      "consent": {
+        "heading": "## Verwaltung Ihrer Einwilligung",
+        "body": "Ihre Auswahl kann jederzeit geändert oder widerrufen werden.\n\nDer Widerruf berührt nicht die Rechtmäßigkeit bereits erfolgter Verarbeitungen, wirkt aber für die Zukunft.\n\nSoweit ein Consent-Management-System eingesetzt wird, können Einstellungen dort direkt angepasst werden."
+      },
+      "transparency": {
+        "heading": "## Transparenz",
+        "body": "Welche Technologien konkret aktiv sind, hängt von der tatsächlichen Konfiguration dieser Website ab.\n\nDetaillierte Informationen zu Anbietern, Zwecken, Rechtsgrundlagen und Speicherfristen sollten in einem produktiven Setup technologiescharf dokumentiert sein."
+      },
+      "examples": {
+        "heading": "## Beispielhafte Angaben, die ergänzt werden sollten",
+        "body": "- Name des eingesetzten Consent-Tools,\n- konkrete technisch notwendige Cookies / Speichermechanismen,\n- Statistik- oder Analysetools,\n- externe Medien- oder Kommunikationsdienste,\n- jeweilige Speicherfristen,\n- jeweilige Anbieter und Empfänger."
+      },
+      "cta": {
+        "title": "Fragen zu Cookie-Einstellungen",
+        "body": "Bei Rückfragen zu eingesetzten Technologien oder Präferenzen erreichen Sie uns unter **{privacy_email}**."
+      }
+    },
+    "accessibility": {
+      "title": "Erklärung zur Barrierefreiheit",
+      "hero": {
+        "eyebrow": "Barrierefreiheit",
+        "lead": "Wir möchten unsere Website und digitalen Inhalte möglichst barrierearm und gut zugänglich gestalten. Dabei orientieren wir uns an anerkannten Standards der digitalen Barrierefreiheit und entwickeln die Nutzbarkeit fortlaufend weiter."
+      },
+      "notice": {
+        "title": "Rechtliche Einordnung",
+        "body": "Bitte prüfen Sie vor Veröffentlichung, in welchem Umfang BITV 2.0 oder BFSG auf Ihr konkretes Angebot unmittelbar anwendbar sind. Diese Seite ist bewusst als seriöse, freiwillig nutzbare Erklärung formuliert."
+      },
+      "status": {
+        "heading": "## Stand der Vereinbarkeit",
+        "body": "Diese Website ist derzeit **teilweise barrierefrei**.\n\nWir arbeiten fortlaufend daran, Nutzbarkeit, Verständlichkeit und technische Zugänglichkeit weiter zu verbessern."
+      },
+      "standard": {
+        "heading": "## Unser Anspruch",
+        "body": "Wir möchten, dass Inhalte möglichst verständlich, klar strukturiert und in unterschiedlichen Nutzungssituationen zugänglich sind.\n\nDazu orientieren wir uns insbesondere an:\n- klarer Informationsarchitektur,\n- guter Lesbarkeit,\n- kontrastbewusster Gestaltung,\n- konsistenter Navigation,\n- schrittweiser Verbesserung interaktiver Komponenten."
+      },
+      "implemented": {
+        "heading": "## Bereits umgesetzte Maßnahmen",
+        "body": "- klare Überschriften- und Abschnittslogik,\n- kompakte, möglichst verständliche Texte,\n- konsistente Navigationsmuster,\n- fortlaufende Überprüfung von Kontrasten und Darstellungslogik,\n- laufende Optimierung der Bedienbarkeit in dynamischen Oberflächen."
+      },
+      "barriers": {
+        "heading": "## Noch bestehende Barrieren",
+        "body": "Trotz unserer Bemühungen können derzeit noch Einschränkungen bestehen, insbesondere:\n- bei einzelnen interaktiven Komponenten,\n- bei Tastaturbedienung und Fokusführung,\n- bei dynamisch eingeblendeten oder generierten Inhalten,\n- bei Dokumenten oder exportierten Dateien,\n- bei komplexeren visuellen oder datengetriebenen Darstellungen."
+      },
+      "feedback": {
+        "heading": "## Feedback und Kontakt",
+        "body": "Wenn Sie Barrieren auf unserer Website feststellen oder Inhalte in einer besser zugänglichen Form benötigen, kontaktieren Sie uns bitte:\n\n**E-Mail:** {accessibility_email}  \n**Allgemeiner Kontakt:** {email}"
+      },
+      "enforcement": {
+        "heading": "## Durchsetzungs- oder Schlichtungshinweise",
+        "body": "Soweit gesetzlich erforderlich oder im konkreten Anwendungsfall vorgesehen, können ergänzende Hinweise auf zuständige Schlichtungs- oder Beschwerdestellen aufgenommen werden."
+      },
+      "cta": {
+        "title": "Barrieren melden",
+        "body": "Wir freuen uns über konkrete Hinweise, damit wir die Zugänglichkeit unserer Inhalte gezielt weiter verbessern können. Kontakt: **{accessibility_email}**"
+      }
+    },
+    "contact": {
+      "title": "Kontakt",
+      "hero": {
+        "eyebrow": "Kontakt & Demo",
+        "lead": "Sie möchten Cognitive Staffing kennenlernen, eine Demo anfragen oder über einen konkreten Einsatzfall sprechen? Dann freuen wir uns auf Ihre Nachricht."
+      },
+      "meta": "Für Unternehmen, HR, Recruiting, IT und Produktverantwortliche",
+      "cards": {
+        "decision_makers": {
+          "title": "Unternehmen & Entscheider",
+          "body": "Sie möchten Ihren Vacancy Intake professionalisieren, Reibung im Recruiting reduzieren und bessere Entscheidungen früher im Prozess ermöglichen."
+        },
+        "hr": {
+          "title": "HR & Recruiting",
+          "body": "Sie interessieren sich für klarere Übergaben, bessere Suchprofile, stärkere Interviewvorbereitung und wiederverwendbare Recruiting-Artefakte."
+        },
+        "it": {
+          "title": "IT & Produktverantwortliche",
+          "body": "Sie möchten mehr über Architektur, Sicherheit, Integrationsfähigkeit, On-Prem-Optionen oder lokale LLM-Szenarien erfahren."
+        }
+      },
+      "reach": {
+        "heading": "## So erreichen Sie uns",
+        "body": "**E-Mail**  \n{email}\n\n**Telefon**  \n{phone}\n\n**Adresse**  \n{legal_entity}  \n{street}  \n{postal_code} {city}  \n{country}"
+      },
+      "privacy_notice": {
+        "title": "Hinweis zum Datenschutz",
+        "body": "Bitte senden Sie uns über das Kontaktformular oder per E-Mail keine besonders sensiblen personenbezogenen Daten, sofern dies nicht erforderlich und abgestimmt ist."
+      },
+      "form": {
+        "heading": "## Demo oder Rückruf anfragen",
+        "name": "Name",
+        "company": "Unternehmen",
+        "email": "E-Mail",
+        "topic": "Anliegen",
+        "topic_options": {
+          "demo": "Demo anfragen",
+          "product": "Produktinformationen",
+          "technical": "Technische Fragen",
+          "partnership": "Partnerschaft / Zusammenarbeit",
+          "other": "Sonstiges"
+        },
+        "message": "Nachricht",
+        "message_placeholder": "Beschreiben Sie kurz Ihren Anwendungsfall oder Ihr Anliegen.",
+        "submit": "Anfrage vorbereiten",
+        "success": "Vielen Dank. Bitte binden Sie nun den gewünschten Versandweg an, z. B. E-Mail, CRM oder Helpdesk.",
+        "summary": "Name: {name}\nUnternehmen: {company}\nE-Mail: {email}\nAnliegen: {topic}\n\nNachricht:\n{message}"
+      },
+      "cta": {
+        "title": "Direkter Draht",
+        "body": "Für schnelle Rückfragen erreichen Sie uns direkt unter **{email}**."
+      },
+      "policy_links": {
+        "heading": "## Rechtliches & Richtlinien",
+        "imprint": "Impressum",
+        "privacy": "Datenschutzrichtlinie",
+        "terms": "Nutzungsbedingungen",
+        "cookies": "Cookie Policy Settings",
+        "accessibility": "Erklärung zur Barrierefreiheit"
+      }
+    }
+  }
+}

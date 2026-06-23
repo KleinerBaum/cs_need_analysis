@@ -2,20 +2,35 @@
 
 from __future__ import annotations
 
-from functools import wraps
-from typing import Any, Callable
+import base64
+import json
+from functools import lru_cache, wraps
+from pathlib import Path
+from typing import Any, Callable, Mapping
 
 import streamlit as st
 
-from constants import SSKey, UI_PREFERENCE_UI_LANGUAGE
-
-
-SUPPORTED_UI_LANGUAGES = ("de", "en")
-LANGUAGE_WIDGET_KEYS = (
-    "sidebar.ui_language",
-    "page.ui_language",
+from constants import (
+    DEFAULT_LANGUAGE,
+    SSKey,
+    UI_LANGUAGE_COOKIE_KEY,
+    UI_LANGUAGE_LAST_WIDGET_KEY,
+    UI_LANGUAGE_QUERY_PARAM,
+    UI_LANGUAGE_STORAGE_KEY,
+    UI_LANGUAGE_VALUES,
+    UI_LANGUAGE_WIDGET_KEY_PAGE,
+    UI_LANGUAGE_WIDGET_KEY_SIDEBAR,
+    UI_LANGUAGE_WIDGET_KEYS,
+    UI_PREFERENCE_UI_LANGUAGE,
 )
-LAST_LANGUAGE_WIDGET_KEY = "cs.language.last_widget_key"
+
+
+SUPPORTED_UI_LANGUAGES = UI_LANGUAGE_VALUES
+LANGUAGE_WIDGET_KEY_SIDEBAR = UI_LANGUAGE_WIDGET_KEY_SIDEBAR
+LANGUAGE_WIDGET_KEY_PAGE = UI_LANGUAGE_WIDGET_KEY_PAGE
+LANGUAGE_WIDGET_KEYS = UI_LANGUAGE_WIDGET_KEYS
+LAST_LANGUAGE_WIDGET_KEY = UI_LANGUAGE_LAST_WIDGET_KEY
+LOCALES_DIR = Path(__file__).resolve().parent / "locales"
 
 _TRANSLATIONS_EN: dict[str, str] = {
     "Einleitung": "Introduction",
@@ -46,6 +61,33 @@ _TRANSLATIONS_EN: dict[str, str] = {
     "Sprache": "Language",
     "Sprache für Vorschläge": "Language for suggestions",
     "Alternative Sprache": "Fallback language",
+    "Unsere Kompetenzen": "Our competencies",
+    "Über Cognitive Staffing": "About Cognitive Staffing",
+    "Über uns": "About us",
+    "Impressum": "Imprint",
+    "Impressum (Template)": "Imprint (template)",
+    "Datenschutzrichtlinie": "Privacy policy",
+    "Nutzungsbedingungen": "Terms of use",
+    "Cookie Policy/Settings": "Cookie policy/settings",
+    "Cookie Policy & Einstellungen": "Cookie policy & settings",
+    "Erklärung zur Barrierefreiheit": "Accessibility statement",
+    "Kontakt": "Contact",
+    "Kontakt & Demo": "Contact & demo",
+    "Rechtliches": "Legal",
+    "Rechtliche Information": "Legal information",
+    "Datenschutz": "Privacy",
+    "Barrierefreiheit": "Accessibility",
+    "Cookies & Präferenzen": "Cookies & preferences",
+    "Wichtiger Hinweis": "Important note",
+    "Hinweis": "Note",
+    "AI-gestützte Kompetenz- und Matching-Workflows": (
+        "AI-supported competency and matching workflows"
+    ),
+    "Rechtliche Seite · Template": "Legal page · template",
+    "Diese Seite ist eine Vorlage und wird erst nach rechtlicher Prüfung verbindlich.": (
+        "This page is a template and becomes binding only after legal review."
+    ),
+    "🟧 **Platzhalter – Fachinput fehlt**": "🟧 **Placeholder – subject-matter input missing**",
     "Wie weit möchten Sie ins Detail gehen?": "How much detail do you want?",
     "Detailgrad aktiv: **Schnell** (`quick`)": "Active detail level: **Quick** (`quick`)",
     "Detailgrad aktiv: **Ausführlich** (`standard`)": "Active detail level: **Standard** (`standard`)",
@@ -286,13 +328,67 @@ _PHRASE_TRANSLATIONS_EN: dict[str, str] = {
 _PATCHED = False
 
 
+def _supported_language(raw_language: object) -> str | None:
+    language = str(raw_language or "").strip().lower()
+    return language if language in SUPPORTED_UI_LANGUAGES else None
+
+
 def normalize_language(raw_language: object) -> str:
-    language = str(raw_language or "de").strip().lower()
-    return language if language in SUPPORTED_UI_LANGUAGES else "de"
+    return _supported_language(raw_language) or DEFAULT_LANGUAGE
+
+
+def _first_query_param_value(value: object) -> object:
+    if isinstance(value, list):
+        return value[0] if value else None
+    return value
+
+
+def _query_param_language() -> str | None:
+    try:
+        query_value = _first_query_param_value(
+            st.query_params.get(UI_LANGUAGE_QUERY_PARAM)
+        )
+    except Exception:
+        return None
+    return _supported_language(query_value)
+
+
+def _write_language_query_param(language: str) -> None:
+    try:
+        st.query_params[UI_LANGUAGE_QUERY_PARAM] = language
+    except Exception:
+        return
+
+
+def _deep_get(mapping: Mapping[str, Any], dotted_key: str) -> Any | None:
+    current: Any = mapping
+    for part in dotted_key.split("."):
+        if not isinstance(current, Mapping) or part not in current:
+            return None
+        current = current[part]
+    return current
+
+
+@lru_cache(maxsize=8)
+def _load_locale(language: str) -> dict[str, Any]:
+    locale_path = LOCALES_DIR / f"{normalize_language(language)}.json"
+    if not locale_path.is_file():
+        return {}
+    with locale_path.open("r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    if not isinstance(payload, dict):
+        raise ValueError(f"Locale file must contain a JSON object: {locale_path}")
+    return payload
 
 
 def active_language() -> str:
-    language = normalize_language(st.session_state.get(SSKey.LANGUAGE.value, "de"))
+    query_language = _query_param_language()
+    if query_language:
+        return query_language
+
+    language = normalize_language(
+        st.session_state.get(SSKey.LANGUAGE.value, DEFAULT_LANGUAGE)
+    )
     preferences = st.session_state.get(SSKey.UI_PREFERENCES.value, {})
     if isinstance(preferences, dict):
         language = normalize_language(
@@ -301,12 +397,26 @@ def active_language() -> str:
     return language
 
 
+def tr(key: str, /, **params: Any) -> str:
+    language = active_language()
+    value = _deep_get(_load_locale(language), key)
+    if value is None and language != DEFAULT_LANGUAGE:
+        value = _deep_get(_load_locale(DEFAULT_LANGUAGE), key)
+    if value is None:
+        value = key
+    text = str(value)
+    return text.format(**params) if params else text
+
+
 def t(text: object, *, language: str | None = None) -> object:
     if not isinstance(text, str):
         return text
     selected_language = normalize_language(language or active_language())
     if selected_language != "en":
         return text
+    key_value = _deep_get(_load_locale(selected_language), text)
+    if isinstance(key_value, str):
+        return key_value
     translated = _TRANSLATIONS_EN.get(text)
     if translated is not None:
         return translated
@@ -328,6 +438,11 @@ def sync_language_state(language: object, *, session_state: Any | None = None) -
     return normalized
 
 
+def sync_language_state_from_request(*, session_state: Any | None = None) -> str:
+    normalized = normalize_language(_query_param_language() or active_language())
+    return sync_language_state(normalized, session_state=session_state)
+
+
 def sync_language_from_widget_key(
     widget_key: str, *, session_state: Any | None = None
 ) -> str | None:
@@ -340,6 +455,7 @@ def sync_language_from_widget_key(
         return None
     synced_language = sync_language_state(normalized, session_state=state)
     state[LAST_LANGUAGE_WIDGET_KEY] = widget_key
+    _write_language_query_param(synced_language)
     return synced_language
 
 
@@ -363,6 +479,123 @@ def sync_language_from_known_widgets(*, session_state: Any | None = None) -> str
 
 def sync_streamlit_language_widget(widget_key: str) -> None:
     sync_language_from_widget_key(widget_key)
+
+
+def render_language_persistence_bridge(*, language: str | None = None) -> None:
+    current_language = normalize_language(language or active_language())
+    html_payload = f"""
+    <!doctype html>
+    <html>
+      <body>
+        <script>
+          (function() {{
+            const current = {json.dumps(current_language)};
+            const supported = new Set({json.dumps(list(SUPPORTED_UI_LANGUAGES))});
+            const paramName = {json.dumps(UI_LANGUAGE_QUERY_PARAM)};
+            const storageKey = {json.dumps(UI_LANGUAGE_STORAGE_KEY)};
+            const cookieKey = {json.dumps(UI_LANGUAGE_COOKIE_KEY)};
+
+            function readCookie(name) {{
+              const parts = document.cookie.split(";").map((value) => value.trim());
+              for (const entry of parts) {{
+                if (entry.startsWith(name + "=")) {{
+                  return decodeURIComponent(entry.slice(name.length + 1));
+                }}
+              }}
+              return null;
+            }}
+
+            function writeCookie(name, value) {{
+              document.cookie = name + "=" + encodeURIComponent(value)
+                + "; path=/; max-age=31536000; SameSite=Lax";
+            }}
+
+            function readStored() {{
+              try {{
+                const localValue = window.localStorage
+                  ? window.localStorage.getItem(storageKey)
+                  : null;
+                if (supported.has(localValue)) return localValue;
+              }} catch (error) {{}}
+              const cookieValue = readCookie(cookieKey);
+              return supported.has(cookieValue) ? cookieValue : null;
+            }}
+
+            function persist(value) {{
+              try {{
+                if (window.localStorage) {{
+                  window.localStorage.setItem(storageKey, value);
+                }}
+              }} catch (error) {{}}
+              writeCookie(cookieKey, value);
+            }}
+
+            const stored = readStored();
+            persist(current);
+
+            const url = new URL(window.parent.location.href);
+            const urlValue = url.searchParams.get(paramName);
+            if (!supported.has(urlValue) && stored && stored !== current) {{
+              url.searchParams.set(paramName, stored);
+              window.parent.location.replace(url.toString());
+              return;
+            }}
+
+            if (urlValue !== current) {{
+              url.searchParams.set(paramName, current);
+              window.parent.history.replaceState({{}}, "", url.toString());
+            }}
+          }})();
+        </script>
+      </body>
+    </html>
+    """
+    encoded_html = base64.b64encode(html_payload.encode("utf-8")).decode("ascii")
+    st.iframe(f"data:text/html;base64,{encoded_html}", height=1)
+
+
+def render_language_toggle(
+    *,
+    location: str = "sidebar",
+    key: str = LANGUAGE_WIDGET_KEY_SIDEBAR,
+    horizontal: bool = True,
+) -> str:
+    sync_language_state_from_request()
+    current = active_language()
+    options = list(SUPPORTED_UI_LANGUAGES)
+    container = st.sidebar if location == "sidebar" else st
+    selected = container.radio(
+        tr("common.language"),
+        options=options,
+        index=options.index(current),
+        key=key,
+        horizontal=horizontal,
+        format_func=lambda value: (
+            f"DE · {tr('common.german')}"
+            if value == "de"
+            else f"EN · {tr('common.english')}"
+        ),
+        on_change=sync_streamlit_language_widget,
+        args=(key,),
+    )
+    normalized = sync_language_state(selected)
+    _write_language_query_param(normalized)
+    render_language_persistence_bridge(language=normalized)
+    return normalized
+
+
+def bootstrap_public_page(
+    *, page_title: str, page_icon: str, layout: str = "wide"
+) -> str:
+    st.set_page_config(
+        page_title=str(t(page_title)),
+        page_icon=page_icon,
+        layout=layout,
+    )
+    sync_language_state_from_request()
+    patch_streamlit_text()
+    render_language_persistence_bridge()
+    return active_language()
 
 
 def _translate_first_string_arg(args: tuple[Any, ...]) -> tuple[Any, ...]:

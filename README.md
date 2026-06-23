@@ -73,6 +73,14 @@ To compare UI mode, ESCO, RAG, model-routing, and enrichment combinations, use t
 python scripts/evaluate_feature_combinations.py --json-only
 ```
 
+## UI language
+
+The UI language supports German (`de`) and English (`en`). German remains the
+default and fallback. The visible language selector on the intro, Start, and
+public pages syncs `SSKey.LANGUAGE` plus `UI_PREFERENCE_UI_LANGUAGE`; the
+browser choice is also mirrored through the `lang` query parameter and
+origin-local browser storage so it survives reloads and public-page navigation.
+
 ## Information acquisition model
 
 The intake process combines several evidence streams:

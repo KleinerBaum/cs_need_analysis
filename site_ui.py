@@ -6,6 +6,7 @@ from typing import Iterable
 
 import streamlit as st
 
+from i18n import t, tr
 from safe_html import escape_html_text, render_static_html
 
 
@@ -35,6 +36,20 @@ class SiteProfile:
 
 
 PROFILE = SiteProfile()
+
+
+def profile_last_updated_label() -> str:
+    return tr("common.last_updated", date=PROFILE.last_updated)
+
+
+def localized_profile_value(value: str) -> str:
+    if value == "Bitte ergänzen":
+        return tr("common.placeholder_missing")
+    if value == "Bitte ergänzen, falls vorhanden":
+        return tr("common.placeholder_missing_optional")
+    if value == "Deutschland":
+        return tr("common.country_germany")
+    return value
 
 
 def inject_site_styles() -> None:
@@ -165,9 +180,9 @@ def render_hero(title: str, lead: str, eyebrow: str = "Cognitive Staffing") -> N
     render_static_html(
         f"""
         <div class="cs-hero">
-            <div class="cs-eyebrow">{escape_html_text(eyebrow)}</div>
-            <div class="cs-title">{escape_html_text(title)}</div>
-            <p class="cs-lead">{escape_html_text(lead)}</p>
+            <div class="cs-eyebrow">{escape_html_text(t(eyebrow))}</div>
+            <div class="cs-title">{escape_html_text(t(title))}</div>
+            <p class="cs-lead">{escape_html_text(t(lead))}</p>
         </div>
         """,
         streamlit_module=st,
@@ -176,7 +191,7 @@ def render_hero(title: str, lead: str, eyebrow: str = "Cognitive Staffing") -> N
 
 def render_meta_line(text: str) -> None:
     render_static_html(
-        f'<div class="cs-meta">{escape_html_text(text)}</div>',
+        f'<div class="cs-meta">{escape_html_text(t(text))}</div>',
         streamlit_module=st,
     )
 
@@ -194,8 +209,8 @@ def render_cards(cards: Iterable[dict[str, str]], columns: int = 3) -> None:
                 render_static_html(
                     f"""
                     <div class="cs-card">
-                        <h4>{escape_html_text(card["title"])}</h4>
-                        <p>{escape_html_text(card["body"])}</p>
+                        <h4>{escape_html_text(t(card["title"]))}</h4>
+                        <p>{escape_html_text(t(card["body"]))}</p>
                     </div>
                     """,
                     streamlit_module=st,
@@ -212,8 +227,8 @@ def render_callout(title: str, body: str, tone: str = "info") -> None:
     render_static_html(
         f"""
         <div class="cs-callout{extra}">
-            <strong>{escape_html_text(title)}</strong><br>
-            {escape_html_text(body)}
+            <strong>{escape_html_text(t(title))}</strong><br>
+            {escape_html_text(t(body))}
         </div>
         """,
         streamlit_module=st,
@@ -224,8 +239,8 @@ def render_cta(title: str, body: str) -> None:
     render_static_html(
         f"""
         <div class="cs-cta">
-            <strong>{escape_html_text(title)}</strong><br><br>
-            {escape_html_text(body)}
+            <strong>{escape_html_text(t(title))}</strong><br><br>
+            {escape_html_text(t(body))}
         </div>
         """,
         streamlit_module=st,

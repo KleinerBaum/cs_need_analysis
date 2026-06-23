@@ -1,57 +1,44 @@
+from __future__ import annotations
+
 from components.layout import SectionBlock, render_standard_page
+from i18n import tr
+
+
+PREFIX = "public_pages.imprint"
+
+
+def _copy(key: str, **params: object) -> str:
+    return tr(f"{PREFIX}.{key}", **params)
+
 
 render_standard_page(
-    eyebrow="Rechtliche Information",
-    title="Impressum (Template)",
-    intro=[
-        "Diese Seite ist als rechtliche Vorlage vorbereitet.",
-        "Verbindliche Angaben werden erst nach juristischer Freigabe ergänzt.",
-    ],
+    eyebrow=_copy("eyebrow"),
+    title=_copy("title"),
+    intro=[_copy("intro.0"), _copy("intro.1")],
     sections=[
         SectionBlock(
-            "Anwendungsbereich",
-            [
-                "Gilt für die Nutzung dieser Anwendung und der zugehörigen Informationsseiten."
-            ],
-        ),
-        SectionBlock(
-            "Pflichtinformationen",
-            [
-                "Angaben zu Anbieter, Vertretung, Registerdaten und Kontakt werden nachgereicht."
-            ],
-        ),
-        SectionBlock(
-            "Rollen / Verantwortlichkeiten",
-            [
-                "Verantwortliche Stelle für Inhalt und Betrieb wird mit Freigabe namentlich benannt."
-            ],
-        ),
-        SectionBlock(
-            "Fristen, Rechte, Kontaktwege",
-            [
-                "Verbindliche Kontaktwege für rechtliche Anliegen werden nach Prüfung ergänzt."
-            ],
-        ),
-        SectionBlock(
-            "Update-/Versionshinweis",
-            [
-                "Versionierung erfolgt mit Datum und Änderungszusammenfassung nach jeder rechtlichen Aktualisierung."
-            ],
-        ),
+            _copy(f"sections.{key}.heading"),
+            [_copy(f"sections.{key}.body")],
+        )
+        for key in (
+            "scope",
+            "required_info",
+            "responsibilities",
+            "contact_paths",
+            "version_note",
+        )
     ],
     placeholders=[
         (
-            "Fehlende Rechtsangaben",
+            _copy("placeholders.legal_info.heading"),
             [
-                "Firmenname und ladungsfähige Anschrift",
-                "Handelsregister, USt-IdNr., vertretungsberechtigte Person(en)",
+                _copy("placeholders.legal_info.items.company_address"),
+                _copy("placeholders.legal_info.items.registry"),
             ],
         )
     ],
-    trust_heading="Rechtlicher Hinweis",
-    trust_details=[
-        "Bis zur Freigabe ist diese Seite nicht als abschließende Rechtsinformation zu verwenden."
-    ],
+    trust_heading=_copy("trust.heading"),
+    trust_details=[_copy("trust.details.0")],
     legal_template=True,
-    footer_classification="Rechtliche Seite · Template",
+    footer_classification=_copy("footer_classification"),
 )
