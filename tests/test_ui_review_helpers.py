@@ -13,6 +13,7 @@ import ui_requirement_board
 from constants import (
     FactKey,
     QUESTION_IMPACT_TARGET_EXPORT,
+    QUESTION_IMPACT_TARGET_INTERVIEW,
     QUESTION_IMPACT_TARGET_SKILLS,
     SSKey,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
@@ -762,6 +763,162 @@ def test_render_question_step_compact_context_hides_visible_provenance(
     assert captured_context_modes == ["compact"]
     assert not any(caption.startswith("Herkunft:") for caption in fake_st.captions)
     assert not any(("Warum:" in caption or "Für:" in caption) for caption in fake_st.captions)
+
+
+def _patch_question_step_render(
+    monkeypatch,
+    fake_st: Any,
+    *,
+    answers: dict[str, Any] | None = None,
+    answer_meta: dict[str, Any] | None = None,
+) -> None:
+    _patch_ui_modules(monkeypatch, fake_st)
+    monkeypatch.setattr(ui_inputs, "get_answers", lambda: answers or {})
+    monkeypatch.setattr(ui_inputs, "get_answer_meta", lambda: answer_meta or {})
+    monkeypatch.setattr(
+        ui_inputs,
+        "_render_questions_two_columns",
+        lambda _questions, _answers, **_kwargs: [],
+    )
+
+
+def test_render_question_step_shows_next_best_question_coach(monkeypatch) -> None:
+    fake_st = _FakeStreamlitRecorder()
+    fake_st.session_state = {
+        SSKey.UI_MODE.value: "standard",
+        SSKey.QUESTION_LIMITS.value: {},
+    }
+    _patch_question_step_render(monkeypatch, fake_st)
+    step = QuestionStep(
+        step_key="skills",
+        title_de="Skills",
+        questions=[
+            Question(
+                id="skill_depth",
+                label="Welche Skills sind Must-have?",
+                answer_type=AnswerType.SHORT_TEXT,
+                rationale="Clarifies the candidate matching criteria.",
+                impact_targets=[
+                    QUESTION_IMPACT_TARGET_SKILLS,
+                    QUESTION_IMPACT_TARGET_INTERVIEW,
+                ],
+                priority="core",
+                group_key="skills",
+            )
+        ],
+    )
+
+    ui_components.render_question_step(step)
+
+    rendered = " ".join(fake_st.markdowns)
+    assert "Als Nächstes sinnvoll" in rendered
+    assert "Welche Skills sind Must-have?" in rendered
+    assert "Clarifies the candidate matching criteria" in rendered
+    assert "Hilft besonders für Matching und Interview." in rendered
+
+
+def test_render_question_step_hides_next_best_question_when_complete(
+    monkeypatch,
+) -> None:
+    fake_st = _FakeStreamlitRecorder()
+    fake_st.session_state = {
+        SSKey.UI_MODE.value: "standard",
+        SSKey.QUESTION_LIMITS.value: {},
+    }
+    _patch_question_step_render(
+        monkeypatch,
+        fake_st,
+        answers={"skill_depth": "Python"},
+    )
+    step = QuestionStep(
+        step_key="skills",
+        title_de="Skills",
+        questions=[
+            Question(
+                id="skill_depth",
+                label="Welche Skills sind Must-have?",
+                answer_type=AnswerType.SHORT_TEXT,
+                impact_targets=[QUESTION_IMPACT_TARGET_SKILLS],
+                priority="core",
+                group_key="skills",
+            )
+        ],
+    )
+
+    ui_components.render_question_step(step)
+
+    rendered = " ".join(fake_st.markdowns)
+    assert "Als Nächstes sinnvoll" not in rendered
+    assert "cs-next-best-action" not in rendered
+
+
+def test_render_question_step_can_suppress_next_best_question_coach(
+    monkeypatch,
+) -> None:
+    fake_st = _FakeStreamlitRecorder()
+    fake_st.session_state = {
+        SSKey.UI_MODE.value: "standard",
+        SSKey.QUESTION_LIMITS.value: {},
+    }
+    _patch_question_step_render(monkeypatch, fake_st)
+    step = QuestionStep(
+        step_key="company",
+        title_de="Company",
+        questions=[
+            Question(
+                id="company_context",
+                label="Welche Unternehmensdaten fehlen?",
+                answer_type=AnswerType.SHORT_TEXT,
+                priority="core",
+                group_key="company",
+            )
+        ],
+    )
+
+    ui_components.render_question_step(
+        step,
+        show_next_best_question_coach=False,
+    )
+
+    rendered = " ".join(fake_st.markdowns)
+    assert "Als Nächstes sinnvoll" not in rendered
+    assert "cs-next-best-action" not in rendered
+
+
+def test_next_best_question_coach_redacts_sensitive_rationale(monkeypatch) -> None:
+    fake_st = _FakeStreamlitRecorder()
+    fake_st.session_state = {
+        SSKey.UI_MODE.value: "standard",
+        SSKey.QUESTION_LIMITS.value: {},
+    }
+    _patch_question_step_render(monkeypatch, fake_st)
+    step = QuestionStep(
+        step_key="skills",
+        title_de="Skills",
+        questions=[
+            Question(
+                id="skill_depth",
+                label="Skill-Anforderung klären",
+                answer_type=AnswerType.SHORT_TEXT,
+                rationale=(
+                    "Confirm uri:skill:python for recruiting@example.test with "
+                    "token=abc123 at https://example.test/private."
+                ),
+                impact_targets=[QUESTION_IMPACT_TARGET_SKILLS],
+                priority="core",
+                group_key="skills",
+            )
+        ],
+    )
+
+    ui_components.render_question_step(step)
+
+    rendered = " ".join(fake_st.markdowns)
+    assert "Als Nächstes sinnvoll" in rendered
+    assert "uri:skill:python" not in rendered
+    assert "recruiting@example.test" not in rendered
+    assert "token=abc123" not in rendered
+    assert "https://example.test/private" not in rendered
 
 
 def test_question_provenance_display_uses_safe_labels_and_canonical_impacts() -> None:

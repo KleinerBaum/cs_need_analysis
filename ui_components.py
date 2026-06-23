@@ -127,6 +127,7 @@ from ui_inputs import (
     _split_core_and_detail_questions,
     _strip_other_from_multiselect,
     inject_pills_grid_css,
+    render_next_best_question_coach,
     render_question_step,
 )
 from ui_job_extract import (

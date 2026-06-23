@@ -527,6 +527,49 @@ def select_visible_questions_for_step_scope_from_plan(
     ).visible_questions
 
 
+def resolve_next_best_question(
+    questions: list[Question],
+    *,
+    answered_lookup: Mapping[str, bool] | None = None,
+    answers: Mapping[str, Any] | None = None,
+    answer_meta: AnswerMetaMap | None = None,
+    job_extract: JobAdExtract | None = None,
+    intake_facts: Mapping[str, Any] | None = None,
+    intake_fact_evidence: Mapping[str, Any] | None = None,
+    confidence_threshold: float | None = None,
+) -> Question | None:
+    """Return the highest-ranked unanswered question from an already visible scope."""
+
+    if not questions:
+        return None
+
+    answers_dict = dict(answers or {})
+    answer_meta_dict = answer_meta or {}
+    scored_questions: list[tuple[int, int, Question]] = []
+    for index, question in enumerate(questions):
+        if answered_lookup is not None and question.id in answered_lookup:
+            covered = bool(answered_lookup[question.id])
+        else:
+            covered = _question_is_covered(
+                question,
+                answers=answers_dict,
+                answer_meta=answer_meta_dict,
+                job_extract=job_extract,
+                intake_facts=intake_facts,
+                intake_fact_evidence=intake_fact_evidence,
+                confidence_threshold=confidence_threshold,
+            )
+        if covered:
+            continue
+        scored_questions.append(
+            (_question_limit_score(question, covered=False), index, question)
+        )
+
+    if not scored_questions:
+        return None
+    return sorted(scored_questions, key=lambda item: (-item[0], item[1]))[0][2]
+
+
 def compute_adaptive_question_limits(
     *,
     plan: QuestionPlan,

@@ -53,6 +53,7 @@ from step_sections import (
 from ui_components import (
     has_meaningful_value,
     render_error_banner,
+    render_next_best_question_coach,
     render_question_step,
     ReviewRenderContext,
     resolve_standard_review_mode,
@@ -1053,6 +1054,7 @@ def _render_compact_open_questions(
         step,
         context_mode="compact",
         form_key_suffix=form_key_suffix,
+        show_next_best_question_coach=False,
     )
 
 
@@ -1111,6 +1113,7 @@ def render(ctx: WizardContext) -> None:
         st.caption(
             "Unternehmen, Team und offene Klärungen werden hier zusammen gepflegt."
         )
+        render_next_best_question_coach(open_question_step)
         st.markdown("##### Unternehmen")
         _render_company_context(job)
         _render_compact_open_questions(

@@ -21,10 +21,16 @@ from constants import (
     QUESTION_IMPACT_TARGET_SKILLS,
     QUESTION_GROUP_DISPLAY_LABELS_DE,
     SSKey,
+    STEP_KEY_BENEFITS,
+    STEP_KEY_COMPANY,
+    STEP_KEY_INTERVIEW,
+    STEP_KEY_ROLE_TASKS,
+    STEP_KEY_SKILLS,
     WIDGET_KEY_PREFIX,
 )
 from job_extract_review_helpers import has_meaningful_value
 from question_dependencies import should_show_question
+from question_limits import resolve_next_best_question
 from question_progress import compute_question_progress
 from schemas import (
     LanguageRequirement,
@@ -56,6 +62,20 @@ QUESTION_IMPACT_LABELS: dict[str, str] = {
     QUESTION_IMPACT_TARGET_SKILLS: "Skills",
     QUESTION_IMPACT_TARGET_INTERVIEW: "Interview",
     QUESTION_IMPACT_TARGET_EXPORT: "Export",
+}
+QUESTION_COACH_IMPACT_LABELS: dict[str, str] = {
+    QUESTION_IMPACT_TARGET_BRIEF: "Brief",
+    QUESTION_IMPACT_TARGET_SALARY: "Gehaltsprognose",
+    QUESTION_IMPACT_TARGET_SKILLS: "Matching",
+    QUESTION_IMPACT_TARGET_INTERVIEW: "Interview",
+    QUESTION_IMPACT_TARGET_EXPORT: "Export",
+}
+QUESTION_COACH_STEP_UNLOCK_LABELS: dict[str, list[str]] = {
+    STEP_KEY_COMPANY: ["Brief", "Matching"],
+    STEP_KEY_ROLE_TASKS: ["Brief", "Gehaltsprognose"],
+    STEP_KEY_SKILLS: ["Matching", "Interview"],
+    STEP_KEY_BENEFITS: ["Gehaltsprognose", "Angebot"],
+    STEP_KEY_INTERVIEW: ["Interview", "Export"],
 }
 QUESTION_ACQUISITION_COST_LABELS: dict[str, str] = {
     "low": "geringer Aufwand",
@@ -785,27 +805,146 @@ def _split_core_and_detail_questions(
     return core_questions, detail_questions
 
 
-def render_question_step(
-    step: QuestionStep,
-    *,
-    context_mode: Literal["default", "compact"] = "default",
-    form_key_suffix: str | None = None,
-) -> None:
+def _filter_open_question_step_for_render(step: QuestionStep) -> QuestionStep:
     filtered_step = filter_open_questions_for_step(
         step,
         intake_facts=load_intake_facts_from_state(st.session_state),
         intake_fact_evidence=load_intake_fact_evidence_from_state(st.session_state),
         confidence_threshold=read_confidence_threshold_from_state(st.session_state),
     )
-    if filtered_step is None:
-        step = QuestionStep(
-            step_key=step.step_key,
-            title_de=step.title_de,
-            description_de=step.description_de,
-            questions=[],
+    if filtered_step is not None:
+        return filtered_step
+    return QuestionStep(
+        step_key=step.step_key,
+        title_de=step.title_de,
+        description_de=step.description_de,
+        questions=[],
+    )
+
+
+def _build_question_step_payload(
+    step: QuestionStep,
+    *,
+    answers: Mapping[str, Any],
+    answer_meta: Mapping[str, Any],
+) -> dict[str, Any]:
+    all_questions = _sort_questions_for_progressive_disclosure(step.questions)
+    return build_step_payload_from_state(
+        step,
+        questions=all_questions,
+        session_state=st.session_state,
+        answers=answers,
+        answer_meta=answer_meta,
+        visibility_predicate=should_show_question,
+    )
+
+
+def _first_sentence_fragment(value: object, *, max_chars: int = 120) -> str:
+    text = _safe_question_provenance_text(value, max_chars=max_chars)
+    if not text:
+        return ""
+    first_sentence = re.split(r"(?<=[.!?])\s+", text, maxsplit=1)[0]
+    return first_sentence.rstrip(".!?").strip()
+
+
+def _next_best_question_fallback_reason(question: Question) -> str:
+    if question.required:
+        return "damit der Step belastbar und vollständig wird"
+    if question.fact_key:
+        return "damit die Antwort in nachgelagerte Unterlagen einfließt"
+    if question.group_key:
+        group_label = str(question.group_key).replace("_", " ").strip().lower()
+        if group_label:
+            return f"damit der Abschnitt {group_label} vollständig wird"
+    return "damit die Vakanz sauber weiterverarbeitet werden kann"
+
+
+def _next_best_question_body(question: Question) -> str:
+    label = _safe_question_provenance_text(question.label, max_chars=96)
+    reason = _first_sentence_fragment(question.rationale)
+    if not reason:
+        reason = _next_best_question_fallback_reason(question)
+    if not label:
+        return f"Beantworte die nächste offene Frage, {reason}."
+    return f"Beantworte „{label}“: {reason}."
+
+
+def _join_german_labels(labels: Sequence[str], *, max_items: int = 3) -> str:
+    cleaned = _dedupe_labels(labels)[:max_items]
+    if not cleaned:
+        return "den weiteren Workflow"
+    if len(cleaned) == 1:
+        return cleaned[0]
+    if len(cleaned) == 2:
+        return f"{cleaned[0]} und {cleaned[1]}"
+    return f"{', '.join(cleaned[:-1])} und {cleaned[-1]}"
+
+
+def _next_best_question_unlock_line(question: Question, *, step_key: str) -> str:
+    impact_labels = [
+        QUESTION_COACH_IMPACT_LABELS.get(str(target or "").strip().lower(), "")
+        for target in question.impact_targets
+    ]
+    cleaned = _dedupe_labels([label for label in impact_labels if label])
+    if not cleaned:
+        cleaned = QUESTION_COACH_STEP_UNLOCK_LABELS.get(step_key, [])
+    return f"Hilft besonders für {_join_german_labels(cleaned)}."
+
+
+def _render_next_best_question_coach_from_scope(
+    *,
+    step_key: str,
+    visible_questions: list[Question],
+    answered_lookup: Mapping[str, bool],
+) -> None:
+    question = resolve_next_best_question(
+        visible_questions,
+        answered_lookup=answered_lookup,
+    )
+    if question is None:
+        return
+
+    _render_html_block(
+        """
+        <section class="cs-next-best-action">
+            <h4 class="cs-next-title">{title}</h4>
+            <p class="cs-next-reason">{body}</p>
+            <div class="cs-next-cta">{unlock}</div>
+        </section>
+        """.format(
+            title=escape("Als Nächstes sinnvoll"),
+            body=escape(_next_best_question_body(question)),
+            unlock=escape(_next_best_question_unlock_line(question, step_key=step_key)),
         )
-    else:
-        step = filtered_step
+    )
+
+
+def render_next_best_question_coach(step: QuestionStep | None) -> None:
+    if step is None:
+        return
+    prepared_step = _filter_open_question_step_for_render(step)
+    answers = get_answers()
+    answer_meta = get_answer_meta()
+    step_payload = _build_question_step_payload(
+        prepared_step,
+        answers=answers,
+        answer_meta=answer_meta,
+    )
+    _render_next_best_question_coach_from_scope(
+        step_key=prepared_step.step_key,
+        visible_questions=step_payload["visible_questions"],
+        answered_lookup=step_payload["answered_lookup"],
+    )
+
+
+def render_question_step(
+    step: QuestionStep,
+    *,
+    context_mode: Literal["default", "compact"] = "default",
+    form_key_suffix: str | None = None,
+    show_next_best_question_coach: bool = True,
+) -> None:
+    step = _filter_open_question_step_for_render(step)
     answers = get_answers()
     answer_meta = get_answer_meta()
     ui_mode_raw = st.session_state.get(SSKey.UI_MODE.value, "standard")
@@ -817,14 +956,10 @@ def render_question_step(
     if step.description_de:
         st.caption(step.description_de)
 
-    all_questions = _sort_questions_for_progressive_disclosure(step.questions)
-    step_payload = build_step_payload_from_state(
+    step_payload = _build_question_step_payload(
         step,
-        questions=all_questions,
-        session_state=st.session_state,
         answers=answers,
         answer_meta=answer_meta,
-        visibility_predicate=should_show_question,
     )
     visible_questions = step_payload["visible_questions"]
     hidden_questions_count = step_payload["hidden_questions_count"]
@@ -846,6 +981,13 @@ def render_question_step(
 
     if hidden_scope_caption:
         st.caption(hidden_scope_caption)
+
+    if show_next_best_question_coach:
+        _render_next_best_question_coach_from_scope(
+            step_key=step.step_key,
+            visible_questions=visible_questions,
+            answered_lookup=answered_lookup,
+        )
 
     grouped_questions = _group_questions(step, visible_questions)
     flow_provenance = _load_question_flow_provenance_payload()

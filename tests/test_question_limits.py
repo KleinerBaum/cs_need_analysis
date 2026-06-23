@@ -11,6 +11,7 @@ from constants import (
 from question_limits import (
     build_step_question_scope,
     compute_adaptive_question_limits,
+    resolve_next_best_question,
     select_questions_for_adaptive_limit,
     select_questions_for_step_scope,
     select_visible_questions_for_step_scope,
@@ -670,6 +671,73 @@ def test_select_questions_for_limit_ranks_information_gain_metadata() -> None:
     )
 
     assert [question.id for question in selected] == ["high_gain"]
+
+
+def test_resolve_next_best_question_ranks_unanswered_visible_questions() -> None:
+    low_gain = Question(
+        id="low_gain",
+        label="Low gain",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="standard",
+        info_gain_score=0.1,
+        acquisition_cost="high",
+    )
+    high_gain = Question(
+        id="high_gain",
+        label="High gain",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="standard",
+        impact_targets=["brief", "salary", "interview"],
+        info_gain_score=0.9,
+        acquisition_cost="low",
+    )
+
+    selected = resolve_next_best_question(
+        [low_gain, high_gain],
+        answered_lookup={"low_gain": False, "high_gain": False},
+    )
+
+    assert selected == high_gain
+
+
+def test_resolve_next_best_question_ignores_answered_questions() -> None:
+    low_gain = Question(
+        id="low_gain",
+        label="Low gain",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="standard",
+    )
+    high_gain = Question(
+        id="high_gain",
+        label="High gain",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="core",
+        info_gain_score=1.0,
+        acquisition_cost="low",
+    )
+
+    selected = resolve_next_best_question(
+        [low_gain, high_gain],
+        answered_lookup={"low_gain": False, "high_gain": True},
+    )
+
+    assert selected == low_gain
+
+
+def test_resolve_next_best_question_returns_none_when_scope_complete() -> None:
+    question = Question(
+        id="done",
+        label="Done",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="core",
+    )
+
+    selected = resolve_next_best_question(
+        [question],
+        answered_lookup={"done": True},
+    )
+
+    assert selected is None
 
 
 def test_quick_mode_excludes_detail_questions_even_with_high_information_gain() -> None:
