@@ -73,7 +73,7 @@
       },
       "summary": {
         "headline": {
-          "default": "Recruiting brief for {role_title} in {location}: {readiness_score}% ready",
+          "default": "The recruiting brief for {role_title} is {readiness_score}% ready",
           "gap": "{critical_gaps_count} critical points still open",
           "ready": "Ready for recruiting, interviews, and active sourcing"
         },

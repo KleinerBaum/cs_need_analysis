@@ -26,9 +26,11 @@ from constants import (
     STEP_KEY_INTERVIEW,
     STEP_KEY_ROLE_TASKS,
     STEP_KEY_SKILLS,
+    STEP_KEY_SUMMARY,
     SUMMARY_LOGO_UPLOAD_ALLOWED_EXTENSIONS,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
 )
+from i18n import active_language
 from interview_process import (
     build_candidate_stage_values,
     build_interview_export_payload,
@@ -163,7 +165,7 @@ from ui_components import (
     render_interview_prep_hr,
     render_openai_error,
 )
-from ux_copy_contract import VacancyCopyContext, build_summary_copy
+from ux_copy_contract import VacancyCopyContext, build_step_copy
 from ui_badges import render_provenance_badge
 from usage_events import get_usage_events, record_artifact_generated
 from usage_utils import usage_has_cache_hit
@@ -1938,7 +1940,9 @@ def _render_readiness_tab(
     brief: VacancyBrief | None = None,
 ) -> None:
     _render_summary_dashboard_css()
-    summary_copy = build_summary_copy(
+    summary_copy = build_step_copy(
+        STEP_KEY_SUMMARY,
+        language=active_language(),
         context=VacancyCopyContext(
             role_title=vm.meta.role_label,
             company_name=vm.meta.company_label,

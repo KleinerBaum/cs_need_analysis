@@ -9,7 +9,7 @@ This glossary maps product terminology between German UI copy and English techni
 - Use English technical identifiers in code and schemas.
 - Preserve existing German UI copy unless a task explicitly changes wording.
 - Prefer canonical constants/enums and existing i18n entries over duplicating string literals.
-- Short Wizard headline, CTA, empty-state, and readiness copy should come from `ux_copy_contract.py` and `locales/*.json`.
+- Short Wizard headline and CTA copy should come from `ux_copy_contract.py`; retained `locales/*.json` UX-copy entries should stay aligned during migration work.
 - `canonical` means the term pair is already represented in code, Locale files, or `i18n.py`.
 - `proposed` means the English code/source term exists, but the German counterpart is glossary guidance until a future localization migration makes it canonical.
 

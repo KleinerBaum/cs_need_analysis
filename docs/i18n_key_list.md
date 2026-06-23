@@ -7,8 +7,9 @@ This document is an inventory of the current translation surface. It does not in
 ## Scope And Sources
 
 - `tr("dotted.key")` resolves entries from `locales/de.json` and `locales/en.json`.
-- `tr_safe("dotted.key")` uses the same Locale lookup with runtime-safe placeholder formatting for copy contracts.
-- `ux_copy.steps.*` keys are the runtime contract for short Wizard UX copy resolved by `ux_copy_contract.py`.
+- `tr_safe("dotted.key")` uses the same Locale lookup with runtime-safe placeholder formatting.
+- Short Wizard UX copy is resolved by the inline runtime contract in `ux_copy_contract.py`.
+- `ux_copy.steps.*` Locale keys are retained as inventory/parity entries for gradual migration work.
 - `t("German source copy")` resolves German-source UI copy through `_TRANSLATIONS_EN` in `i18n.py`.
 - `_PHRASE_TRANSLATIONS_EN` in `i18n.py` is a fallback replacement layer for partial strings and generated captions.
 - Public pages use dynamic prefixes such as `public_pages.competencies.*`; those keys are valid Locale keys even when a static `tr("...")` search cannot see the full dotted key.
@@ -17,7 +18,7 @@ This document is an inventory of the current translation surface. It does not in
 
 | Source | Count | Contract |
 |---|---:|---|
-| `locales/de.json` leaf keys | 297 | German source Locale values, including 55 `ux_copy` contract keys |
+| `locales/de.json` leaf keys | 297 | German source Locale values, including 55 retained `ux_copy` parity keys |
 | `locales/en.json` leaf keys | 297 | English Locale values; key shape must match DE |
 | `_TRANSLATIONS_EN` | 222 | German-source copy translated by `t()` |
 | `_PHRASE_TRANSLATIONS_EN` | 61 | fallback phrase replacements inside `t()` |
@@ -71,7 +72,7 @@ All Locale leaf keys below exist in both `locales/de.json` and `locales/en.json`
 | ux_copy | `ux_copy.steps.interview.secondary_cta` | - | Bewertungskriterien prüfen | Review scorecards |
 | ux_copy | `ux_copy.steps.interview.empty_state` | - | Noch kein Interviewprozess definiert. | No interview process defined yet. |
 | ux_copy | `ux_copy.steps.interview.readiness` | - | Bewertung strukturiert | Evaluation structured |
-| ux_copy | `ux_copy.steps.summary.headline.default` | location, readiness_score, role_title | Recruiting-Briefing für {role_title} in {location}: {readiness_score}% bereit | Recruiting brief for {role_title} in {location}: {readiness_score}% ready |
+| ux_copy | `ux_copy.steps.summary.headline.default` | readiness_score, role_title | Das Recruiting-Briefing für {role_title} ist zu {readiness_score}% bereit | The recruiting brief for {role_title} is {readiness_score}% ready |
 | ux_copy | `ux_copy.steps.summary.headline.gap` | critical_gaps_count | Noch {critical_gaps_count} kritische Punkte offen | {critical_gaps_count} critical points still open |
 | ux_copy | `ux_copy.steps.summary.headline.ready` | - | Bereit für Recruiting, Interviews und Active Sourcing | Ready for recruiting, interviews, and active sourcing |
 | ux_copy | `ux_copy.steps.summary.subheadline.default` | - | Prüfen Sie offene Lücken, übernehmen Sie finale Anpassungen und erstellen Sie die passenden Ergebnisse für Recruiting, HR und Active Sourcing. | Review remaining gaps, apply final adjustments, and generate the right outputs for recruiting, HR, and active sourcing. |

@@ -73,7 +73,7 @@
       },
       "summary": {
         "headline": {
-          "default": "Recruiting-Briefing für {role_title} in {location}: {readiness_score}% bereit",
+          "default": "Das Recruiting-Briefing für {role_title} ist zu {readiness_score}% bereit",
           "gap": "Noch {critical_gaps_count} kritische Punkte offen",
           "ready": "Bereit für Recruiting, Interviews und Active Sourcing"
         },

@@ -4,10 +4,10 @@ from pathlib import Path
 
 import streamlit as st
 from content.start_page import START_PAGE_COPY
-from constants import APP_TITLE
-from i18n import LANGUAGE_WIDGET_KEY_PAGE, render_language_toggle, t
+from constants import APP_TITLE, STEP_KEY_LANDING
+from i18n import LANGUAGE_WIDGET_KEY_PAGE, active_language, render_language_toggle, t
 from safe_html import escape_html_text, render_static_html
-from ux_copy_contract import StepCopy, build_landing_copy
+from ux_copy_contract import StepCopy, build_step_copy
 from wizard_pages.jobad_intake import render_jobad_intake
 from wizard_pages.base import (
     LANDING_SECTION_IDS,
@@ -298,7 +298,7 @@ def _render_landing_flow_cards() -> None:
 def render(ctx: WizardContext) -> None:
     render_landing_css(LANDING_STYLE_TOKENS)
     _render_landing_responsive_overrides()
-    landing_copy = build_landing_copy()
+    landing_copy = build_step_copy(STEP_KEY_LANDING, language=active_language())
     _render_landing_hero(landing_copy)
 
     render_static_html(
