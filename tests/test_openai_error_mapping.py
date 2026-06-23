@@ -12,14 +12,34 @@ from openai import (
 )
 from pydantic import BaseModel, ValidationError
 
+import llm_client
+import llm_error_mapping
+from constants import SSKey
 from llm_client import (
     OpenAIRuntimeConfig,
     _error_from_openai_exception,
     _error_from_structured_output_exception,
     _parse_with_structured_outputs,
 )
-from constants import SSKey
 from settings_openai import OpenAISettings
+
+
+def test_error_mapping_helpers_remain_available_from_llm_client_facade() -> None:
+    assert llm_client.OpenAICallError is llm_error_mapping.OpenAICallError
+    assert (
+        llm_client._error_from_openai_exception
+        is llm_error_mapping._error_from_openai_exception
+    )
+    assert (
+        llm_client._error_from_structured_output_exception
+        is llm_error_mapping._error_from_structured_output_exception
+    )
+    assert llm_client._error_from_openai_exception.__name__ == (
+        "_error_from_openai_exception"
+    )
+    assert llm_client._error_from_structured_output_exception.__name__ == (
+        "_error_from_structured_output_exception"
+    )
 
 
 def test_openai_timeout_maps_to_concise_ui_message() -> None:
