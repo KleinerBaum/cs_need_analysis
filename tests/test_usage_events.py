@@ -31,8 +31,12 @@ def test_append_usage_event_sanitizes_sensitive_metadata() -> None:
             "api_key": "sk-secret",
             "domain": "example.com",
             "hostname": "www.example.com",
+            "candidate_name": "Jane Doe",
+            "email": "jane@example.com",
             "source_url": "https://example.com/private",
             "prompt_text": "contains PII",
+            "uploaded_content": "uploaded job spec snippet",
+            "payload": {"raw": "job spec text"},
             "long_value": "x" * 140,
         },
         occurred_at="2026-06-10T00:00:00+00:00",
@@ -45,10 +49,60 @@ def test_append_usage_event_sanitizes_sensitive_metadata() -> None:
             "metadata": {
                 "artifact_id": "brief",
                 "cache_hit": False,
-                "long_value": f"{'x' * 119}…",
             },
         }
     ]
+
+
+def test_append_usage_event_buckets_sensitive_allowed_values() -> None:
+    session_state: dict[str, object] = {}
+
+    append_usage_event(
+        session_state,
+        UsageEventType.ENRICHMENT_TIMED,
+        metadata={
+            "stage": "https://example.com/private",
+            "path": "/tmp/uploaded/job-spec.pdf",
+            "duration_ms": "12",
+            "status": "jane@example.com",
+            "error_type": "api.example.com",
+            "cache_hit": False,
+            "result_count": 3,
+        },
+        occurred_at="2026-06-10T00:00:00+00:00",
+    )
+    append_usage_event(
+        session_state,
+        UsageEventType.FALLBACK_MODEL_USED,
+        metadata={
+            "task_kind": "generate_job_ad",
+            "requested_model": "ft:gpt-4o-mini:company-name:private:123",
+            "final_model": "gpt-4o-mini",
+            "fallback_kind": "fallback_model",
+            "endpoint": "api.openai.com",
+            "error_code": "candidate@example.com",
+        },
+        occurred_at="2026-06-10T00:00:01+00:00",
+    )
+
+    events = get_usage_events(session_state)
+    assert events[0]["metadata"] == {
+        "stage": "other",
+        "path": "other",
+        "duration_ms": 12,
+        "status": "other",
+        "error_type": "other",
+        "cache_hit": False,
+        "result_count": 3,
+    }
+    assert events[1]["metadata"] == {
+        "task_kind": "generate_job_ad",
+        "requested_model": "fine_tuned_model",
+        "final_model": "gpt-4o-mini",
+        "fallback_kind": "fallback_model",
+        "endpoint": "other",
+        "error_code": "other",
+    }
 
 
 def test_usage_events_are_bounded() -> None:
@@ -58,13 +112,13 @@ def test_usage_events_are_bounded() -> None:
         append_usage_event(
             session_state,
             "step_entered",
-            metadata={"step_key": f"step_{index}"},
+            metadata={"step_key": "company"},
             occurred_at=f"2026-06-10T00:00:{index:02d}+00:00",
         )
 
     events = get_usage_events(session_state)
     assert len(events) == MAX_USAGE_EVENTS
-    assert events[0]["metadata"]["step_key"] == "step_5"
+    assert events[0]["occurred_at"] == "2026-06-10T00:00:05+00:00"
 
 
 def test_record_helpers_write_expected_event_types() -> None:

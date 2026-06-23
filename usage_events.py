@@ -3,29 +3,86 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+import math
+import re
 from typing import Any, Mapping, MutableMapping
 
-from constants import SSKey, UsageEventType
+from constants import (
+    FactKey,
+    FactSourceType,
+    SSKey,
+    STEPS,
+    SUMMARY_ARTIFACT_IDS,
+    UsageEventType,
+)
 
 MAX_USAGE_EVENTS = 200
 _MAX_METADATA_VALUE_LENGTH = 120
-_SENSITIVE_METADATA_KEY_PARTS = (
-    "api_key",
-    "secret",
-    "token",
-    "password",
-    "credential",
-    "domain",
-    "email",
-    "host",
-    "phone",
-    "name",
-    "url",
-    "text",
-    "prompt",
-    "payload",
-    "content",
+_UNSAFE_VALUE_BUCKET = "other"
+_SAFE_STEP_KEYS = frozenset(step.key for step in STEPS)
+_SAFE_ARTIFACT_IDS = frozenset(SUMMARY_ARTIFACT_IDS)
+_SAFE_FACT_KEYS = frozenset(fact_key.value for fact_key in FactKey)
+_SAFE_SOURCE_TYPES = frozenset(source_type.value for source_type in FactSourceType)
+_SAFE_ENDPOINTS = frozenset({"responses.parse", "chat.completions.parse"})
+
+_ALLOWED_METADATA_KEYS_BY_EVENT: dict[UsageEventType, frozenset[str]] = {
+    UsageEventType.STEP_ENTERED: frozenset({"step_key"}),
+    UsageEventType.STEP_SUBMITTED: frozenset({"step_key", "action"}),
+    UsageEventType.FACT_CONFIRMED: frozenset({"fact_key", "source_type"}),
+    UsageEventType.FACT_CORRECTED: frozenset({"fact_key", "source_type"}),
+    UsageEventType.FACT_REJECTED: frozenset({"fact_key", "source_type"}),
+    UsageEventType.FALLBACK_MODEL_USED: frozenset(
+        {
+            "task_kind",
+            "requested_model",
+            "final_model",
+            "fallback_kind",
+            "endpoint",
+            "error_code",
+        }
+    ),
+    UsageEventType.HOMEPAGE_FETCH_FAILED: frozenset({"topic_key", "error_type"}),
+    UsageEventType.ENRICHMENT_TIMED: frozenset(
+        {
+            "stage",
+            "path",
+            "duration_ms",
+            "status",
+            "cache_hit",
+            "fragment_enabled",
+            "result_count",
+            "error_type",
+        }
+    ),
+    UsageEventType.ARTIFACT_GENERATED: frozenset(
+        {"artifact_id", "cache_hit", "mode"}
+    ),
+    UsageEventType.EVALUATION_RUN_COMPLETED: frozenset(
+        {
+            "run_id",
+            "scenario_count",
+            "combination_count",
+            "best_combination_id",
+            "best_score",
+            "passed_success_criteria",
+        }
+    ),
+}
+_BOOL_METADATA_KEYS = frozenset(
+    {"cache_hit", "fragment_enabled", "passed_success_criteria"}
 )
+_INT_METADATA_KEYS = frozenset(
+    {"duration_ms", "result_count", "scenario_count", "combination_count"}
+)
+_FLOAT_METADATA_KEYS = frozenset({"best_score"})
+_CANONICAL_VALUE_SETS: dict[str, frozenset[str]] = {
+    "artifact_id": _SAFE_ARTIFACT_IDS,
+    "fact_key": _SAFE_FACT_KEYS,
+    "source_type": _SAFE_SOURCE_TYPES,
+    "step_key": _SAFE_STEP_KEYS,
+}
+_MODEL_METADATA_KEYS = frozenset({"requested_model", "final_model"})
+_HOSTNAME_RE = re.compile(r"[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+")
 
 
 def get_usage_events(session_state: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -58,7 +115,7 @@ def append_usage_event(
         {
             "event_type": resolved_event_type.value,
             "occurred_at": occurred_at or datetime.now(UTC).isoformat(),
-            "metadata": _sanitize_metadata(metadata or {}),
+            "metadata": _sanitize_metadata(resolved_event_type, metadata or {}),
         }
     )
     session_state[SSKey.USAGE_EVENTS.value] = events[-MAX_USAGE_EVENTS:]
@@ -279,33 +336,125 @@ def _coerce_event_type(raw_event_type: UsageEventType | str) -> UsageEventType |
         return None
 
 
-def _sanitize_metadata(metadata: Mapping[str, Any]) -> dict[str, Any]:
+def _sanitize_metadata(
+    event_type: UsageEventType,
+    metadata: Mapping[str, Any],
+) -> dict[str, Any]:
     sanitized: dict[str, Any] = {}
+    allowed_keys = _ALLOWED_METADATA_KEYS_BY_EVENT.get(event_type, frozenset())
     for raw_key, raw_value in metadata.items():
         key = str(raw_key or "").strip()
-        if not key or _is_sensitive_metadata_key(key):
+        if key not in allowed_keys:
             continue
-        value = _sanitize_metadata_value(raw_value)
+        value = _sanitize_metadata_value(key, raw_value)
         if value is not None:
             sanitized[key] = value
     return sanitized
 
 
-def _is_sensitive_metadata_key(key: str) -> bool:
-    normalized = key.casefold()
-    return any(part in normalized for part in _SENSITIVE_METADATA_KEY_PARTS)
+def _sanitize_metadata_value(
+    key: str,
+    value: Any,
+) -> str | int | float | bool | None:
+    if key in _BOOL_METADATA_KEYS:
+        return value if isinstance(value, bool) else None
+    if key in _INT_METADATA_KEYS:
+        return _sanitize_metadata_int(value)
+    if key in _FLOAT_METADATA_KEYS:
+        return _sanitize_metadata_float(value)
+    if key == "endpoint":
+        return _sanitize_endpoint_value(value)
+    if key in _MODEL_METADATA_KEYS:
+        return _sanitize_model_value(value)
+    allowed_values = _CANONICAL_VALUE_SETS.get(key)
+    if allowed_values is not None:
+        return _sanitize_canonical_value(value, allowed_values)
+    return _sanitize_bucket_value(value)
 
 
-def _sanitize_metadata_value(value: Any) -> str | int | float | bool | None:
+def _sanitize_metadata_int(value: Any) -> int | None:
     if value is None or isinstance(value, bool):
-        return value
-    if isinstance(value, int | float):
-        return value
-    if isinstance(value, str):
-        cleaned = value.strip()
-        if not cleaned:
-            return None
-        if len(cleaned) > _MAX_METADATA_VALUE_LENGTH:
-            return f"{cleaned[: _MAX_METADATA_VALUE_LENGTH - 1].rstrip()}…"
+        return None
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _sanitize_metadata_float(value: Any) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(number):
+        return None
+    return round(number, 3)
+
+
+def _sanitize_endpoint_value(value: Any) -> str | None:
+    cleaned = _clean_metadata_string(value)
+    if cleaned is None:
+        return None
+    if cleaned in _SAFE_ENDPOINTS:
         return cleaned
-    return str(type(value).__name__)
+    return _UNSAFE_VALUE_BUCKET
+
+
+def _sanitize_model_value(value: Any) -> str | None:
+    cleaned = _clean_metadata_string(value)
+    if cleaned is None:
+        return None
+    if cleaned.startswith("ft:"):
+        return "fine_tuned_model"
+    if _is_safe_bucket_string(cleaned):
+        return cleaned
+    return _UNSAFE_VALUE_BUCKET
+
+
+def _sanitize_canonical_value(value: Any, allowed_values: frozenset[str]) -> str | None:
+    cleaned = _clean_metadata_string(value)
+    if cleaned is None:
+        return None
+    if cleaned in allowed_values:
+        return cleaned
+    return _UNSAFE_VALUE_BUCKET
+
+
+def _sanitize_bucket_value(value: Any) -> str | None:
+    cleaned = _clean_metadata_string(value)
+    if cleaned is None:
+        return None
+    if _is_safe_bucket_string(cleaned):
+        return cleaned
+    return _UNSAFE_VALUE_BUCKET
+
+
+def _clean_metadata_string(value: Any) -> str | None:
+    if value is None or isinstance(value, bool | int | float):
+        return None
+    if not isinstance(value, str):
+        return None
+    cleaned = value.strip()
+    return cleaned or None
+
+
+def _is_safe_bucket_string(value: str) -> bool:
+    if len(value) > _MAX_METADATA_VALUE_LENGTH:
+        return False
+    casefolded = value.casefold()
+    if casefolded.startswith(("http://", "https://", "www.", "sk-")):
+        return False
+    if any(part in value for part in ("@", "/", "\\")):
+        return False
+    if any(char.isspace() for char in value):
+        return False
+    return not _is_hostname_like(value)
+
+
+def _is_hostname_like(value: str) -> bool:
+    if "_" in value or not _HOSTNAME_RE.fullmatch(value):
+        return False
+    final_label = value.rsplit(".", 1)[-1]
+    return len(final_label) >= 2 and final_label.isalpha()
