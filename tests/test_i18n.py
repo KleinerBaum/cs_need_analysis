@@ -56,6 +56,15 @@ def test_translation_uses_german_as_source_copy(monkeypatch) -> None:
     )
     assert t("Anzeige hochladen oder einfügen") == "Upload or paste job ad"
     assert t('Nach dem Klick auf "Analyse starten"') == 'After clicking "Start analysis"'
+    assert (
+        t(
+            "Wir haben die ersten Informationen zu Data Engineer erkannt. Prüfen Sie "
+            "jetzt die Briefing-Basis, schließen Sie Lücken und bestätigen Sie den "
+            "Referenzberuf."
+        )
+        == "We detected the first information for Data Engineer. Review the briefing basis, "
+        "close gaps, and confirm the reference occupation."
+    )
     assert t("Text verstehen") == "Understand text"
     assert t("Was bedeutet RAG?") == "What does RAG mean?"
     assert t("Datenschutzrichtlinie") == "Privacy policy"

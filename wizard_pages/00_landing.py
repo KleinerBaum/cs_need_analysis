@@ -4,10 +4,10 @@ from pathlib import Path
 
 import streamlit as st
 from content.start_page import START_PAGE_COPY
-from constants import APP_TITLE, STEP_KEY_LANDING
+from constants import APP_TITLE, SSKey, STEP_KEY_LANDING
 from i18n import LANGUAGE_WIDGET_KEY_PAGE, active_language, render_language_toggle, t
 from safe_html import escape_html_text, render_static_html
-from ux_copy_contract import StepCopy, build_step_copy
+from ux_copy_contract import StepCopy, VacancyCopyContext, build_step_copy
 from wizard_pages.jobad_intake import render_jobad_intake
 from wizard_pages.base import (
     LANDING_SECTION_IDS,
@@ -91,7 +91,7 @@ def _render_landing_responsive_overrides() -> None:
             }
             .landing-process-track {
                 display: grid;
-                grid-template-columns: repeat(4, minmax(0, 1fr));
+                grid-template-columns: repeat(3, minmax(0, 1fr));
                 gap: 0.7rem;
                 max-width: 100%;
             }
@@ -172,6 +172,20 @@ def _render_landing_responsive_overrides() -> None:
             .landing-resource-links a {
                 overflow-wrap: anywhere;
             }
+            .landing-trust-note {
+                margin-top: 0.75rem;
+                border: 1px solid var(--cs-border);
+                background: var(--cs-surface-muted);
+                border-radius: 8px;
+                padding: 0.68rem 0.78rem;
+                color: var(--cs-text);
+                line-height: 1.45;
+            }
+            .landing-trust-note strong {
+                display: block;
+                margin-bottom: 0.22rem;
+                color: var(--cs-text);
+            }
             @media (max-width: 900px) {
                 .landing-process-track {
                     grid-template-columns: minmax(0, 1fr);
@@ -187,6 +201,20 @@ def _render_landing_responsive_overrides() -> None:
         """,
         streamlit_module=st,
     )
+
+
+def _landing_role_title() -> str:
+    job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
+    if not isinstance(job_dict, dict):
+        return ""
+    return str(job_dict.get("job_title") or "").strip()
+
+
+def _landing_copy_context() -> VacancyCopyContext | None:
+    role_title = _landing_role_title()
+    if not role_title:
+        return None
+    return VacancyCopyContext(role_title=role_title)
 
 
 def _render_landing_hero(copy: StepCopy) -> None:
@@ -228,54 +256,32 @@ def _render_landing_flow_cards() -> None:
         streamlit_module=st,
     )
     st.subheader(str(t(START_PAGE_COPY["flow_title"])))
-    flow_heading = t('Nach dem Klick auf "Analyse starten"')
-    flow_step_1_title = t("Text verstehen")
-    flow_step_1_body = t(
-        "Upload oder Freitext wird gelesen und in ein sauberes Rollenprofil überführt."
-    )
-    flow_step_2_title = t("Beruf verankern")
-    flow_step_2_body = t(
-        "Die App sucht den passenden ESCO-Beruf als gemeinsame Referenz."
-    )
-    flow_step_3_title = t("Fragen priorisieren")
-    flow_step_3_body = t(
-        "Nur fehlende oder unsichere Punkte werden für den Wizard vorbereitet."
-    )
-    flow_step_4_title = t("Weiterverarbeiten")
-    flow_step_4_body = t(
-        "Aufgaben, Skills, Benefits, Interview- und Summary-Artefakte bauen darauf auf."
+    flow_heading = t("Was nach dem Briefing-Start entsteht")
+    flow_steps = tuple(START_PAGE_COPY["flow_steps"])
+    flow_step_html = "\n".join(
+        f"""
+                <div class="landing-process-step">
+                    <span>{index}</span>
+                    <strong>{escape_html_text(t(str(step_title)))}</strong>
+                    <p>{escape_html_text(t(str(step_body)))}</p>
+                </div>
+        """
+        for index, (step_title, step_body) in enumerate(flow_steps, start=1)
     )
     flow_result = t(
-        "Ergebnis: weniger manuelle Sortierarbeit und eine bessere Grundlage für alle Recruiting-Aktivitäten."
+        "Eisberg-Prinzip: Sichtbare Jobspec-Daten bleiben mit verdeckten Entscheidungskriterien verbunden, damit Recruiting, Search und Interview dieselbe Briefing-Basis nutzen."
     )
-    flow_context_label = t("Mehr Kontext:")
+    flow_context_label = t("Technische Vertrauensbasis:")
     esco_link_label = t("Was ist ESCO?")
     rag_link_label = t("Was bedeutet RAG?")
+    security_title = t(START_PAGE_COPY["security_title"])
+    security_body = t(START_PAGE_COPY["security_body"])
     render_static_html(
         f"""
         <div class="landing-process-diagram">
             <h4>{escape_html_text(flow_heading)}</h4>
             <div class="landing-process-track">
-                <div class="landing-process-step">
-                    <span>1</span>
-                    <strong>{escape_html_text(flow_step_1_title)}</strong>
-                    <p>{escape_html_text(flow_step_1_body)}</p>
-                </div>
-                <div class="landing-process-step">
-                    <span>2</span>
-                    <strong>{escape_html_text(flow_step_2_title)}</strong>
-                    <p>{escape_html_text(flow_step_2_body)}</p>
-                </div>
-                <div class="landing-process-step">
-                    <span>3</span>
-                    <strong>{escape_html_text(flow_step_3_title)}</strong>
-                    <p>{escape_html_text(flow_step_3_body)}</p>
-                </div>
-                <div class="landing-process-step">
-                    <span>4</span>
-                    <strong>{escape_html_text(flow_step_4_title)}</strong>
-                    <p>{escape_html_text(flow_step_4_body)}</p>
-                </div>
+                {flow_step_html}
             </div>
             <div class="landing-process-result">
                 {escape_html_text(flow_result)}
@@ -288,6 +294,10 @@ def _render_landing_flow_cards() -> None:
                     <a href="https://developers.openai.com/api/docs" target="_blank" rel="noopener noreferrer">OpenAI API Docs</a>
                 </div>
             </div>
+            <div class="landing-trust-note">
+                <strong>{escape_html_text(security_title)}</strong>
+                {escape_html_text(security_body)}
+            </div>
         </div>
         """,
         streamlit_module=st,
@@ -298,7 +308,11 @@ def _render_landing_flow_cards() -> None:
 def render(ctx: WizardContext) -> None:
     render_landing_css(LANDING_STYLE_TOKENS)
     _render_landing_responsive_overrides()
-    landing_copy = build_step_copy(STEP_KEY_LANDING, language=active_language())
+    landing_copy = build_step_copy(
+        STEP_KEY_LANDING,
+        language=active_language(),
+        context=_landing_copy_context(),
+    )
     _render_landing_hero(landing_copy)
 
     render_static_html(
@@ -307,6 +321,7 @@ def render(ctx: WizardContext) -> None:
     )
     render_jobad_intake(ctx, title=landing_copy.primary_cta)
     render_static_html("</section>", streamlit_module=st)
+    _render_landing_flow_cards()
 
 
 PAGE = WizardPage(

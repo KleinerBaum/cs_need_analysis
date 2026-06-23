@@ -49,15 +49,28 @@ _COPY: dict[str, dict[str, dict[str, str]]] = {
         STEP_KEY_LANDING: {
             "headline": "Stellenanzeige hochladen. Recruiting-Briefing starten.",
             "subheadline": (
-                "Laden Sie eine Stellenanzeige, Jobspec oder Rollenbeschreibung hoch. "
-                "Die App erkennt vorhandene Informationen und zeigt, was für ein "
-                "belastbares Recruiting-Briefing noch fehlt."
+                "Für Recruiting, HR und Hiring Teams, die aus einer Jobspec schnell "
+                "ein belastbares Briefing machen müssen. Die App erkennt, was schon "
+                "klar ist, und zeigt, was für Search, Matching, Interview und Angebot "
+                "noch fehlt."
             ),
             "value_line": (
-                "Aus einer unklaren Jobspec wird ein klarer Startpunkt für Search, "
-                "Matching, Interview und Angebot."
+                "Am Ende steht eine geprüfte Briefing-Basis mit Rollenprofil, "
+                "priorisierten Anforderungen, offenen Fragen und verwertbaren Outputs."
             ),
-            "primary_cta": "Stellenanzeige analysieren",
+            "headline_after_analysis": (
+                "Wir haben die ersten Informationen zu {role_title} erkannt."
+            ),
+            "subheadline_after_analysis": (
+                "Jetzt wird aus der Quelle ein Recruiting-Briefing: Prüfen Sie "
+                "erkannte Angaben, schließen Sie Lücken und bestätigen Sie den "
+                "Referenzberuf."
+            ),
+            "value_line_after_analysis": (
+                "Nächster Fortschritt: eine gemeinsame Briefing-Basis für Recruiting, "
+                "Hiring-Team, Search und Interview."
+            ),
+            "primary_cta": "Briefing aus Stellenanzeige erstellen",
             "secondary_cta": "Beispiel ansehen",
         },
         STEP_KEY_COMPANY: {
@@ -135,14 +148,27 @@ _COPY: dict[str, dict[str, dict[str, str]]] = {
         STEP_KEY_LANDING: {
             "headline": "Upload a job ad. Start the recruiting brief.",
             "subheadline": (
-                "Upload a job ad, jobspec, or role description. The app detects what is "
-                "already clear and shows what is still needed for a reliable recruiting brief."
+                "For recruiting, HR, and hiring teams that need to turn a jobspec into "
+                "a reliable brief quickly. The app detects what is already clear and "
+                "shows what is still needed for search, matching, interviews, and offer "
+                "decisions."
             ),
             "value_line": (
-                "Turn a rough jobspec into a strong starting point for search, matching, "
-                "interview, and offer decisions."
+                "You get a reviewed briefing basis with a role profile, prioritized "
+                "requirements, open questions, and reusable outputs."
             ),
-            "primary_cta": "Analyze job ad",
+            "headline_after_analysis": (
+                "We detected the first information for {role_title}."
+            ),
+            "subheadline_after_analysis": (
+                "Now turn the source into a recruiting brief: review detected facts, "
+                "close gaps, and confirm the reference occupation."
+            ),
+            "value_line_after_analysis": (
+                "Next progress: a shared briefing basis for recruiting, the hiring team, "
+                "search, and interviews."
+            ),
+            "primary_cta": "Create brief from job ad",
             "secondary_cta": "See example",
         },
         STEP_KEY_COMPANY: {
@@ -291,6 +317,23 @@ def _resolve_summary_copy(
     )
 
 
+def _resolve_landing_copy(
+    templates: Mapping[str, str],
+    values: Mapping[str, Any],
+    context: VacancyCopyContext | None,
+) -> StepCopy:
+    has_role_title = bool(context and str(context.role_title or "").strip())
+    suffix = "_after_analysis" if has_role_title else ""
+
+    return StepCopy(
+        headline=_safe_format(templates[f"headline{suffix}"], values),
+        subheadline=_safe_format(templates[f"subheadline{suffix}"], values),
+        value_line=_safe_format(templates.get(f"value_line{suffix}", ""), values),
+        primary_cta=_safe_format(templates.get("primary_cta", ""), values),
+        secondary_cta=_safe_format(templates.get("secondary_cta", ""), values),
+    )
+
+
 def build_step_copy(
     step_key: str,
     *,
@@ -306,6 +349,8 @@ def build_step_copy(
 
     if step_key == STEP_KEY_SUMMARY:
         return _resolve_summary_copy(templates, values)
+    if step_key == STEP_KEY_LANDING:
+        return _resolve_landing_copy(templates, values, context)
 
     return StepCopy(
         headline=_safe_format(templates["headline"], values),

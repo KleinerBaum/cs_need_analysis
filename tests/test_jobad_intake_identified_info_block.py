@@ -213,16 +213,16 @@ def test_identified_info_next_is_enabled_without_esco_anchor(monkeypatch) -> Non
 
     assert "Analyse abgeschlossen" not in fake_st.successes
     assert (
-        "Die wichtigsten Angaben sind vorbereitet. Prüfen Sie unsichere und offene "
+        "Die Briefing-Basis ist vorbereitet. Prüfen Sie unsichere und offene "
         "Punkte direkt in der Tabelle und bestätigen Sie anschließend den passenden "
-        "Beruf für den Abgleich."
+        "Referenzberuf."
         in fake_st.captions
     )
     assert "Technische Details zur Analyse" not in fake_st.expanders
     assert "cs.jobspec.ident_info.next" not in fake_st.button_disabled
     assert (
-        "Optional: Im nächsten Abschnitt können Sie einen Referenzberuf für den "
-        "Berufsabgleich bestätigen."
+        "Optional: Im nächsten Abschnitt können Sie den Referenzberuf bestätigen, "
+        "damit Aufgaben, Skills und Folge-Outputs konsistent bleiben."
         in fake_st.captions
     )
     assert overview_calls

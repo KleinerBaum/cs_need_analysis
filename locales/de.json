@@ -19,9 +19,12 @@
     "steps": {
       "landing": {
         "headline": "Stellenanzeige hochladen. Recruiting-Briefing starten.",
-        "subheadline": "Laden Sie eine Stellenanzeige, Jobspec oder Rollenbeschreibung hoch. Die App erkennt vorhandene Informationen und zeigt, was für ein belastbares Recruiting-Briefing noch fehlt.",
-        "value_line": "Aus einer unklaren Jobspec wird ein klarer Startpunkt für Search, Matching, Interview und Angebot.",
-        "primary_cta": "Stellenanzeige analysieren",
+        "subheadline": "Für Recruiting, HR und Hiring Teams, die aus einer Jobspec schnell ein belastbares Briefing machen müssen. Die App erkennt, was schon klar ist, und zeigt, was für Search, Matching, Interview und Angebot noch fehlt.",
+        "value_line": "Am Ende steht eine geprüfte Briefing-Basis mit Rollenprofil, priorisierten Anforderungen, offenen Fragen und verwertbaren Outputs.",
+        "headline_after_analysis": "Wir haben die ersten Informationen zu {role_title} erkannt.",
+        "subheadline_after_analysis": "Jetzt wird aus der Quelle ein Recruiting-Briefing: Prüfen Sie erkannte Angaben, schließen Sie Lücken und bestätigen Sie den Referenzberuf.",
+        "value_line_after_analysis": "Nächster Fortschritt: eine gemeinsame Briefing-Basis für Recruiting, Hiring-Team, Search und Interview.",
+        "primary_cta": "Briefing aus Stellenanzeige erstellen",
         "secondary_cta": "Beispiel ansehen",
         "empty_state": "Noch keine Quelle geladen.",
         "readiness": "Bereit für den Intake"

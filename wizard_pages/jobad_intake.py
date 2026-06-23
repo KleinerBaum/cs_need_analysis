@@ -1049,8 +1049,8 @@ def _render_job_extract_hypothesis_form(job: JobAdExtract) -> None:
 
     st.markdown("#### Erkannte Angaben prüfen")
     st.caption(
-        "Prüfen Sie unsichere und offene Angaben vor dem Weiterarbeiten. "
-        "Die Spalten entsprechen den nächsten Wizard-Schritten; korrigieren Sie "
+        "Prüfen Sie unsichere und offene Angaben, bevor daraus das Briefing wächst. "
+        "Die Spalten entsprechen den nächsten Briefing-Schritten; korrigieren Sie "
         "Werte direkt in der passenden Spalte oder löschen Sie eine Zeile, wenn "
         "die Angabe nicht übernommen werden soll. Änderungen werden automatisch "
         "gespeichert."
@@ -1106,9 +1106,9 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
     selected_occupation_title = str(selected_occupation.get("title") or "").strip()
 
     st.caption(
-        "Die wichtigsten Angaben sind vorbereitet. Prüfen Sie unsichere und offene "
+        "Die Briefing-Basis ist vorbereitet. Prüfen Sie unsichere und offene "
         "Punkte direkt in der Tabelle und bestätigen Sie anschließend den passenden "
-        "Beruf für den Abgleich."
+        "Referenzberuf."
     )
     _render_input_quality_hint(job)
     _render_analysis_priority_summary(job)
@@ -1128,8 +1128,8 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
         _render_success_callout(f"Berufsabgleich bestätigt: {title}")
     else:
         st.caption(
-            "Optional: Im nächsten Abschnitt können Sie einen Referenzberuf für den "
-            "Berufsabgleich bestätigen."
+            "Optional: Im nächsten Abschnitt können Sie den Referenzberuf bestätigen, "
+            "damit Aufgaben, Skills und Folge-Outputs konsistent bleiben."
         )
 
 
@@ -1354,7 +1354,7 @@ def _render_source_upload_controls() -> None:
     ]
     max_upload_mb = SOURCE_UPLOAD_MAX_BYTES // (1024 * 1024)
     st.file_uploader(
-        "PDF, DOCX oder TXT hochladen",
+        "Stellenanzeige hochladen (PDF, DOCX oder TXT)",
         type=allowed_types,
         accept_multiple_files=False,
         help=f"Maximale Dateigröße: {max_upload_mb} MB.",
@@ -1416,9 +1416,9 @@ def _render_source_character_metric() -> None:
 
 def _render_phase_a_action_controls() -> bool:
     return st.button(
-        "Analyse starten",
+        "Recruiting-Briefing vorbereiten",
         width="stretch",
-        help="Es wird immer nur die aktuell aktive Quelle analysiert.",
+        help="Erstellt aus der aktuell aktiven Quelle eine prüfbare Briefing-Basis.",
     )
 
 
@@ -1441,7 +1441,7 @@ def _render_source_text_or_preview() -> None:
             _render_uploaded_document_preview(upload, upload_text)
         text_area_context = (
             st.expander(
-                "Extrahierter Text für die Analyse",
+                "Quelle für die Briefing-Analyse",
                 expanded=not bool(upload_text.strip()),
             )
             if hasattr(st, "expander")
@@ -1449,7 +1449,7 @@ def _render_source_text_or_preview() -> None:
         )
         with text_area_context:
             st.text_area(
-                "Extrahierter Text für die Analyse",
+                "Quelle für die Briefing-Analyse",
                 key=SOURCE_UPLOAD_TEXT_INPUT_KEY,
                 height=min(260, max(160, _manual_input_height_for_text(upload_text))),
                 on_change=_on_upload_text_change,
@@ -1458,7 +1458,7 @@ def _render_source_text_or_preview() -> None:
         return
 
     st.text_area(
-        "Stellenanzeige oder Jobspec",
+        "Stellenanzeige oder Jobspec einfügen",
         key=SOURCE_TEXT_INPUT_KEY,
         height=min(320, max(220, _manual_input_height_for_text(manual_text))),
         on_change=_on_manual_text_change,
@@ -1624,7 +1624,7 @@ def _render_extraction_result_section(ctx: WizardContext) -> None:
     )
     with container_ctx:
         if hasattr(st, "markdown"):
-            st.markdown("### Analyseergebnis")
+            st.markdown("### Erkannte Briefing-Basis")
         _render_phase_b_extraction_review(ctx)
 
 
@@ -1636,7 +1636,7 @@ def _render_esco_anchor_section(ctx: WizardContext) -> None:
     )
     with container_ctx:
         if hasattr(st, "markdown"):
-            st.markdown("### Berufsabgleich bestätigen")
+            st.markdown("### Referenzberuf für das Briefing bestätigen")
         _render_phase_c_esco_anchor(ctx)
 
 def _render_phase_b_extraction_review(ctx: WizardContext) -> None:
@@ -1674,17 +1674,39 @@ def _render_phase_c_esco_anchor(ctx: WizardContext) -> None:
             st.rerun()
 
 
+def _current_job_extract_title() -> str:
+    job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
+    if not isinstance(job_dict, dict):
+        return ""
+    return str(job_dict.get("job_title") or "").strip()
+
+
 def render_jobad_intake(
     ctx: WizardContext, *, title: str = "Jobspezifikation einlesen"
 ) -> None:
     analysis_complete = _has_completed_intake_analysis()
-    st.header(title)
-    subtitle = (
-        "Starten Sie mit Upload oder Freitext. Die App strukturiert die Quelle "
-        "und markiert nur prüfpflichtige Punkte."
-        if not analysis_complete
-        else "Analyse bereit. Prüfen Sie die unsicheren Angaben und bestätigen Sie den Referenzberuf."
-    )
+    role_title = _current_job_extract_title()
+    if analysis_complete and role_title:
+        st.header("Briefing-Basis prüfen")
+        subtitle = (
+            f"Wir haben die ersten Informationen zu {role_title} erkannt. Prüfen Sie "
+            "jetzt die Briefing-Basis, schließen Sie Lücken und bestätigen Sie den "
+            "Referenzberuf."
+        )
+    elif analysis_complete:
+        st.header("Briefing-Basis prüfen")
+        subtitle = (
+            "Wir haben die ersten Informationen zur Rolle erkannt. Prüfen Sie jetzt "
+            "die Briefing-Basis, schließen Sie Lücken und bestätigen Sie den "
+            "Referenzberuf."
+        )
+    else:
+        st.header(title)
+        subtitle = (
+            "Für Recruiting, HR und Hiring Teams: Quelle hochladen oder Text einfügen. "
+            "Ergebnis ist eine geprüfte Briefing-Basis mit Rollenprofil, priorisierten "
+            "Lücken und nächsten Fragen."
+        )
     st.caption(subtitle)
     render_error_banner()
 
@@ -1802,7 +1824,7 @@ def render_jobad_intake(
         )
 
         try:
-            with st.spinner("Analysiere Stellenanzeige…"):
+            with st.spinner("Bereite Rollenprofil vor…"):
                 extract_started_at = perf_counter()
                 job, usage1 = extract_job_ad(
                     submitted,
@@ -1811,7 +1833,7 @@ def render_jobad_intake(
                 )
                 extract_duration_ms = int((perf_counter() - extract_started_at) * 1000)
 
-            with st.spinner("Erzeuge dynamischen Fragebogen…"):
+            with st.spinner("Priorisiere offene Briefing-Fragen…"):
                 plan_started_at = perf_counter()
                 plan, usage2 = generate_question_plan(
                     job,
@@ -1857,7 +1879,7 @@ def render_jobad_intake(
             }
             _render_start_success_styles()
             _render_success_callout(
-                "Analyse abgeschlossen: Informationen extrahiert und Fragebogen erzeugt."
+                "Briefing-Basis vorbereitet: Informationen erkannt und nächste Fragen priorisiert."
             )
             if extract_cached or plan_cached:
                 st.info("Mindestens ein Ergebnis wurde aus dem Cache geladen.")

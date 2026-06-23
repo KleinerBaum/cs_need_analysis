@@ -1,33 +1,51 @@
 from __future__ import annotations
 
 START_PAGE_COPY: dict[str, object] = {
-    "secondary_cta_hint": "",
-    "next_step_line": "",
-    "before_start_title": "",
-    "before_start_bullets": (),
-    "cta_reassurance": "",
-    "cta_helper": "",
-    "cta_microcopy": "",
-    "value_cards": (),
-    "flow_title": "Nach dem Start",
-    "flow_steps": (
+    "secondary_cta_hint": "Optional: Beispiel ansehen, wenn noch keine Jobspec bereitliegt.",
+    "next_step_line": "Nächster Schritt: Quelle hochladen oder Text einfügen.",
+    "before_start_title": "Für wen dieser Start gedacht ist",
+    "before_start_bullets": (
+        "Recruiting, HR und Hiring Teams mit unvollständigen oder uneinheitlichen Jobspecs.",
+        "Fachbereiche, die Rollenprofil, Must-haves und Interviewfokus schneller klären wollen.",
+        "Teams, die aus einer Quelle direkt Briefing, Stellenanzeige und Interviewmaterial ableiten möchten.",
+    ),
+    "cta_reassurance": "Sie behalten Kontrolle: erkannte Angaben werden geprüft, nicht blind übernommen.",
+    "cta_helper": "Die erste Analyse erstellt eine Briefing-Basis, keine finale Entscheidung.",
+    "cta_microcopy": "Quelle einfügen, Briefing-Basis prüfen, dann gezielt weiterarbeiten.",
+    "value_cards": (
         (
-            "1. Beruf eindeutig verankern",
-            "Die Rolle wird auf einen klaren ESCO-Beruf gemappt, damit alle Folgeschritte denselben Kontext nutzen.",
+            "Für Recruiting und Hiring Teams",
+            "Startet dort, wo der Bedarf entsteht: bei der Jobspec, dem Upload oder dem Rohtext.",
         ),
         (
-            "2. Anforderungen strukturieren",
-            "Skills, Aufgaben und Muss-/Kann-Kriterien werden normalisiert und in einen nutzbaren Plan überführt.",
+            "Recruiting-Briefing als Ergebnis",
+            "Rollenprofil, Anforderungen, Lücken, Referenzberuf und Folgefragen werden zusammengeführt.",
         ),
         (
-            "3. Recruiting-Artefakte erzeugen",
-            "Die App erstellt belastbare Texte, Zusammenfassungen und Folge-Outputs für Recruiting und Hiring-Team.",
+            "Weniger Formulargefühl",
+            "Die App priorisiert nur Punkte, die für Search, Matching, Interview oder Angebot fehlen.",
         ),
     ),
-    "security_title": "Datenschutz und Kontrolle",
+    "flow_title": "Vom Upload zum Recruiting-Briefing",
+    "flow_steps": (
+        (
+            "1. Rollenprofil sichern",
+            "Titel, Aufgaben, Rahmenbedingungen und Annahmen werden zu einer prüfbaren Briefing-Basis.",
+        ),
+        (
+            "2. Lücken priorisieren",
+            "Die App zeigt nur Angaben, die für Search, Matching, Interview oder Angebot noch fehlen.",
+        ),
+        (
+            "3. Outputs vorbereiten",
+            "Briefing, Stellenanzeige, Interview-Sheets und Search-Unterlagen nutzen dieselbe Faktenbasis.",
+        ),
+    ),
+    "security_title": "Vertrauen, Datenschutz und Kontrolle",
     "security_body": (
         "Vor der Verarbeitung können sensible personenbezogene Angaben optional reduziert werden. "
-        "Ziel ist eine datensparsame, nachvollziehbare Nutzung im Vacancy Intake."
+        "Quelle, erkannte Angaben und spätere Bestätigung bleiben getrennt, damit die Briefing-Basis "
+        "datensparsam und nachvollziehbar entsteht."
     ),
     "consent_warning": (
         "Start ist gesperrt, bis die Einwilligung bestätigt wurde. "

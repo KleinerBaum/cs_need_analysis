@@ -19,9 +19,12 @@
     "steps": {
       "landing": {
         "headline": "Upload a job ad. Start the recruiting brief.",
-        "subheadline": "Upload a job ad, jobspec, or role description. The app detects what is already clear and shows what is still needed for a reliable recruiting brief.",
-        "value_line": "Turn a rough jobspec into a strong starting point for search, matching, interview, and offer decisions.",
-        "primary_cta": "Analyze job ad",
+        "subheadline": "For recruiting, HR, and hiring teams that need to turn a jobspec into a reliable brief quickly. The app detects what is already clear and shows what is still needed for search, matching, interviews, and offer decisions.",
+        "value_line": "You get a reviewed briefing basis with a role profile, prioritized requirements, open questions, and reusable outputs.",
+        "headline_after_analysis": "We detected the first information for {role_title}.",
+        "subheadline_after_analysis": "Now turn the source into a recruiting brief: review detected facts, close gaps, and confirm the reference occupation.",
+        "value_line_after_analysis": "Next progress: a shared briefing basis for recruiting, the hiring team, search, and interviews.",
+        "primary_cta": "Create brief from job ad",
         "secondary_cta": "See example",
         "empty_state": "No source loaded yet.",
         "readiness": "Ready for intake"
