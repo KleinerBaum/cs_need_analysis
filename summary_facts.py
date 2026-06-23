@@ -181,6 +181,12 @@ def format_summary_fact_value(value: Any) -> str:
 
 def _format_summary_collection_item(value: Any) -> str:
     if isinstance(value, Mapping):
+        criterion_label = _format_scorecard_criterion(value)
+        if criterion_label:
+            return criterion_label
+        evidence_label = _format_assessment_evidence(value)
+        if evidence_label:
+            return evidence_label
         label = _mapping_primary_label(value)
         if label:
             return label
@@ -209,17 +215,89 @@ def _mapping_primary_label(value: Mapping[str, Any]) -> str:
     return ""
 
 
+def _format_scorecard_criterion(value: Mapping[str, Any]) -> str:
+    title = value.get("title")
+    if is_missing_value(title):
+        return ""
+    parts = [str(title).strip()]
+    weight = value.get("weight_percent")
+    if not is_missing_value(weight) and str(weight).strip() != "0":
+        parts.append(f"{str(weight).strip()} %")
+    scale = value.get("scale")
+    if not is_missing_value(scale):
+        parts.append(f"Skala {str(scale).strip()}")
+    evidence = value.get("evidence_anchor")
+    if not is_missing_value(evidence):
+        parts.append(str(evidence).strip())
+    return " - ".join(part for part in parts if part)
+
+
+def _format_assessment_evidence(value: Mapping[str, Any]) -> str:
+    evidence = value.get("item")
+    if is_missing_value(evidence):
+        return ""
+    parts = [str(evidence).strip()]
+    stage = value.get("stage")
+    if not is_missing_value(stage):
+        parts.append(str(stage).strip())
+    success_signal = value.get("success_signal")
+    if not is_missing_value(success_signal):
+        parts.append(str(success_signal).strip())
+    return " - ".join(part for part in parts if part)
+
+
+_SUMMARY_MAPPING_LABELS: dict[str, str] = {
+    "stage": "Stufe",
+    "criteria": "Kriterien",
+    "title": "Kriterium",
+    "weight_percent": "Gewichtung",
+    "scale": "Skala",
+    "evidence_anchor": "Evidenz",
+    "recommendation_options": "Empfehlungen",
+    "notes": "Hinweise",
+    "item": "Evidenz",
+    "success_signal": "Erfolgssignal",
+    "owner": "Owner",
+    "decision_role": "Entscheidungsbeitrag",
+    "event": "Update-Moment",
+    "days": "Tage",
+    "eligible": "Variable Vergütung",
+    "ote_min": "OTE von",
+    "ote_max": "OTE bis",
+    "bonus_logic": "Bonuslogik",
+    "target_start": "Starttermin",
+    "flexibility": "Flexibilität",
+    "notice_period": "Kündigungsfrist",
+}
+
+
 def _format_summary_mapping(value: Mapping[str, Any]) -> str:
     preferred_order = (
         "min",
         "max",
         "currency",
         "period",
+        "stage",
+        "criteria",
+        "title",
+        "weight_percent",
+        "scale",
+        "evidence_anchor",
+        "recommendation_options",
         "notes",
         "eligible",
         "ote_min",
         "ote_max",
         "bonus_logic",
+        "target_start",
+        "flexibility",
+        "notice_period",
+        "item",
+        "success_signal",
+        "owner",
+        "decision_role",
+        "event",
+        "days",
     )
     ordered_keys = [
         key for key in preferred_order if key in value and not is_missing_value(value.get(key))
@@ -240,7 +318,8 @@ def _format_summary_mapping(value: Mapping[str, Any]) -> str:
             formatted = str(item).strip()
         if not formatted:
             continue
-        parts.append(f"{str(key).strip()}: {formatted}")
+        label = _SUMMARY_MAPPING_LABELS.get(str(key).strip(), str(key).strip())
+        parts.append(f"{label}: {formatted}")
     return " | ".join(parts)
 
 

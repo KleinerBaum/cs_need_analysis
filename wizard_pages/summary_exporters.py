@@ -424,6 +424,155 @@ def _build_esco_mapping_report_rows() -> list[dict[str, str]]:
     )
 
 
+def _compact_export_text(value: Any) -> str:
+    return " ".join(str(value or "").split()).strip()
+
+
+def _fact_list(
+    intake_facts: Mapping[str, Any],
+    fact_key: FactKey,
+) -> list[str]:
+    raw = intake_facts.get(fact_key.value)
+    if not isinstance(raw, list):
+        return []
+    return [_compact_export_text(item) for item in raw if _compact_export_text(item)]
+
+
+def _format_offer_money_range(value: Any) -> str:
+    if not isinstance(value, Mapping):
+        return ""
+    min_value = _compact_export_text(value.get("min"))
+    max_value = _compact_export_text(value.get("max"))
+    currency = _compact_export_text(value.get("currency"))
+    period = _compact_export_text(value.get("period"))
+    if min_value and max_value:
+        amount = f"{min_value} - {max_value}"
+    elif min_value:
+        amount = f"ab {min_value}"
+    elif max_value:
+        amount = f"bis {max_value}"
+    else:
+        return ""
+    return " ".join(part for part in (amount, currency, period) if part)
+
+
+def _build_offer_positioning_payload(
+    *,
+    selected_benefits: list[str],
+    intake_facts: Mapping[str, Any],
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    relevant_fact_keys = (
+        FactKey.BENEFITS_SALARY_RANGE,
+        FactKey.BENEFITS_VARIABLE_PAY,
+        FactKey.BENEFITS_OFFER_COMPONENTS,
+        FactKey.BENEFITS_COLLECTIVE_AGREEMENT_CONTEXT,
+        FactKey.TIMELINE_START_FLEXIBILITY,
+        FactKey.LEGAL_WORK_AUTHORIZATION_SUPPORT,
+    )
+    if not selected_benefits and not any(
+        intake_facts.get(fact_key.value) for fact_key in relevant_fact_keys
+    ):
+        return {}
+
+    candidate_value = list(selected_benefits[:8])
+    fixed_terms: list[str] = []
+    negotiable_terms: list[str] = []
+    early_candidate_info: list[str] = []
+
+    salary_value = intake_facts.get(FactKey.BENEFITS_SALARY_RANGE.value)
+    if not salary_value:
+        job_extract = payload.get("job_extract", {})
+        if isinstance(job_extract, Mapping):
+            salary_value = job_extract.get("salary_range")
+    salary_text = _format_offer_money_range(salary_value)
+    if salary_text:
+        fixed_terms.append(f"Gehaltsrahmen: {salary_text}")
+        candidate_value.append(f"Vergütung: {salary_text}")
+    else:
+        early_candidate_info.append("Gehaltsrahmen früh klären")
+
+    offer_components = _fact_list(intake_facts, FactKey.BENEFITS_OFFER_COMPONENTS)
+    if offer_components:
+        negotiable_terms.extend(offer_components)
+        candidate_value.extend(offer_components[:4])
+
+    collective_context = _fact_list(
+        intake_facts,
+        FactKey.BENEFITS_COLLECTIVE_AGREEMENT_CONTEXT,
+    )
+    if collective_context and "Keine bekannt" not in collective_context:
+        fixed_terms.append("Rahmenvorgaben: " + ", ".join(collective_context[:4]))
+
+    variable_pay_raw = intake_facts.get(FactKey.BENEFITS_VARIABLE_PAY.value)
+    variable_pay = variable_pay_raw if isinstance(variable_pay_raw, Mapping) else {}
+    if variable_pay.get("eligible") is True:
+        fixed_terms.append("Variable Vergütung vorgesehen")
+    elif variable_pay.get("eligible") is None:
+        early_candidate_info.append("Variable Vergütung bestätigen oder ausschließen")
+
+    start_raw = intake_facts.get(FactKey.TIMELINE_START_FLEXIBILITY.value)
+    start = start_raw if isinstance(start_raw, Mapping) else {}
+    target_start = _compact_export_text(start.get("target_start"))
+    flexibility = _compact_export_text(start.get("flexibility"))
+    if flexibility == "fixed" and target_start:
+        fixed_terms.append(f"Starttermin: {target_start}")
+    elif flexibility and flexibility != "unknown":
+        negotiable_terms.append(f"Startflexibilität: {flexibility}")
+    else:
+        early_candidate_info.append("Starttermin und Flexibilität früh klären")
+
+    work_auth = _compact_export_text(
+        intake_facts.get(FactKey.LEGAL_WORK_AUTHORIZATION_SUPPORT.value)
+    )
+    if work_auth == "yes":
+        fixed_terms.append("Arbeitserlaubnis-Support möglich")
+    elif work_auth == "no":
+        fixed_terms.append("Kein Arbeitserlaubnis-Support vorgesehen")
+    else:
+        early_candidate_info.append("Visa-/Arbeitserlaubnis-Support früh klären")
+
+    result = {
+        "candidate_value": _dedupe_preserve_order(candidate_value),
+        "fixed_terms": _dedupe_preserve_order(fixed_terms),
+        "negotiable_terms": _dedupe_preserve_order(negotiable_terms),
+        "early_candidate_info": _dedupe_preserve_order(early_candidate_info),
+        "artifact_impact": [
+            "job_ad",
+            "brief",
+            "employment_contract",
+            "salary_forecast",
+        ],
+    }
+    return {key: value for key, value in result.items() if value}
+
+
+def _build_interview_export_context(
+    intake_facts: Mapping[str, Any],
+) -> dict[str, Any]:
+    field_map = {
+        "decision_owners": FactKey.INTERVIEW_STAGE_OWNERS,
+        "assessment_evidence": FactKey.INTERVIEW_ASSESSMENT_EVIDENCE,
+        "scorecard_template": FactKey.INTERVIEW_SCORECARD_TEMPLATE,
+        "core_questions": FactKey.INTERVIEW_CORE_QUESTIONS,
+        "candidate_communication": FactKey.INTERVIEW_COMMUNICATION_SLA,
+        "fairness_notes": FactKey.INTERVIEW_COMPLIANCE_NOTES,
+    }
+    context = {
+        payload_key: intake_facts[fact_key.value]
+        for payload_key, fact_key in field_map.items()
+        if intake_facts.get(fact_key.value)
+    }
+    if context:
+        context["artifact_impact"] = [
+            "brief",
+            "interview_hr",
+            "interview_fach",
+            "structured_export",
+        ]
+    return context
+
+
 def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
     payload = dict(brief.structured_data.model_dump(mode="json", exclude_none=True))
     intake_facts = get_intake_fact_state(st.session_state)
@@ -459,7 +608,7 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
             export_plan = QuestionPlan.model_validate(plan_payload)
         except Exception:
             export_plan = None
-    payload["interview_process"] = build_interview_export_payload(
+    interview_process = build_interview_export_payload(
         job=export_job,
         answers=export_answers,
         plan=export_plan,
@@ -467,6 +616,10 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
             st.session_state.get(SSKey.INTERVIEW_INTERNAL_FLOW.value, {})
         ),
     )
+    interview_context = _build_interview_export_context(intake_facts)
+    if interview_context:
+        interview_process.update(interview_context)
+    payload["interview_process"] = interview_process
     occupation_profile_raw = st.session_state.get(SSKey.OCCUPATION_PROFILE.value)
     if isinstance(occupation_profile_raw, dict):
         try:
@@ -666,8 +819,26 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
                 payload["recommended_titles"] = recommended_titles
 
     selected_benefits = _read_saved_selection_labels(SSKey.BENEFITS_SELECTED)
+    if not selected_benefits:
+        selected_benefits_raw = payload.get("selected_benefits", [])
+        selected_benefits = (
+            [
+                _compact_export_text(item)
+                for item in selected_benefits_raw
+                if _compact_export_text(item)
+            ]
+            if isinstance(selected_benefits_raw, list)
+            else []
+        )
     if selected_benefits:
         payload["selected_benefits"] = selected_benefits
+    offer_positioning = _build_offer_positioning_payload(
+        selected_benefits=selected_benefits,
+        intake_facts=intake_facts,
+        payload=payload,
+    )
+    if offer_positioning:
+        payload["offer_positioning"] = offer_positioning
 
     salary_forecast = st.session_state.get(SSKey.SALARY_FORECAST_LAST_RESULT.value)
     if isinstance(salary_forecast, dict):
@@ -730,12 +901,30 @@ def _build_brief_structured_preview_payload(brief: VacancyBrief) -> dict[str, An
         "selected_role_tasks",
         "selected_skills",
         "selected_benefits",
+        "offer_positioning",
+        "interview_process",
     )
-    return {
+    preview_payload = {
         key: export_payload[key]
         for key in preview_keys
         if key in export_payload
     }
+    interview_process = preview_payload.get("interview_process")
+    if isinstance(interview_process, Mapping) and not any(
+        interview_process.get(key)
+        for key in (
+            "candidate_stages",
+            "selected_values",
+            "decision_owners",
+            "assessment_evidence",
+            "scorecard_template",
+            "core_questions",
+            "candidate_communication",
+            "fairness_notes",
+        )
+    ):
+        preview_payload.pop("interview_process", None)
+    return preview_payload
 
 
 def _read_saved_selection_labels(key: SSKey) -> list[str]:

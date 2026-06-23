@@ -17,6 +17,73 @@ from schemas import (
     VacancyBrief,
 )
 
+
+def _as_mapping_payload(payload: Any) -> dict[str, Any]:
+    if isinstance(payload, dict):
+        return payload
+    if hasattr(payload, "model_dump"):
+        try:
+            raw = payload.model_dump(mode="json")
+        except Exception:
+            return {}
+        return raw if isinstance(raw, dict) else {}
+    return {}
+
+
+def _as_text_list(value: Any, *, limit: int = 6) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    items = [str(item).strip() for item in value if str(item).strip()]
+    return items[:limit]
+
+
+def _render_compact_bullets(title: str, values: list[str], *, empty: str) -> None:
+    st.markdown(f"**{title}**")
+    if not values:
+        st.caption(empty)
+        return
+    for value in values:
+        st.write(f"- {value}")
+
+
+def _render_downstream_impact(payload: dict[str, Any]) -> None:
+    selected_benefits = _as_text_list(payload.get("selected_benefits"))
+    offer_positioning = _as_mapping_payload(payload.get("offer_positioning"))
+    interview_process = _as_mapping_payload(payload.get("interview_process"))
+
+    if not selected_benefits and not offer_positioning and not interview_process:
+        return
+
+    st.markdown("**Exportwirkung**")
+    col_offer, col_interview = st.columns(2)
+    with col_offer:
+        candidate_value = _as_text_list(
+            offer_positioning.get("candidate_value") or selected_benefits
+        )
+        _render_compact_bullets(
+            "Candidate Value",
+            candidate_value,
+            empty="Keine Benefit-Auswahl im Exportkontext.",
+        )
+    with col_interview:
+        hiring_plan = _as_text_list(interview_process.get("candidate_stages"))
+        if not hiring_plan:
+            selected_values = interview_process.get("selected_values")
+            if isinstance(selected_values, list):
+                hiring_plan = _as_text_list(
+                    [
+                        item.get("Wert", "")
+                        for item in selected_values
+                        if isinstance(item, dict)
+                    ]
+                )
+        _render_compact_bullets(
+            "Hiring-Plan",
+            hiring_plan,
+            empty="Keine Interviewwerte im Exportkontext.",
+        )
+
+
 def render_brief(
     brief: VacancyBrief,
     *,
@@ -31,6 +98,13 @@ def render_brief(
     st.write(brief.hiring_context)
     st.markdown("**Rollenzusammenfassung**")
     st.write(brief.role_summary)
+
+    payload_for_preview = _as_mapping_payload(
+        structured_data_payload
+        if structured_data_payload is not None
+        else brief.structured_data
+    )
+    _render_downstream_impact(payload_for_preview)
 
     st.markdown("**Wichtigste Aufgaben**")
     for x in brief.top_responsibilities:
@@ -48,11 +122,11 @@ def render_brief(
     for x in brief.dealbreakers:
         st.write(f"- {x}")
 
-    st.markdown("**Interviewplan**")
+    st.markdown("**Hiring-Plan**")
     for x in brief.interview_plan:
         st.write(f"- {x}")
 
-    st.markdown("**Bewertungsraster**")
+    st.markdown("**Scorecard / Evidenz**")
     for x in brief.evaluation_rubric:
         st.write(f"- {x}")
 
@@ -122,7 +196,10 @@ def render_interview_prep_hr(sheet: InterviewPrepSheetHR) -> None:
     else:
         st.info("Keine Knockout-Kriterien hinterlegt.")
 
-    st.markdown("**Bewertungsrubrik**")
+    st.markdown("**Scorecard / Bewertungsevidenz**")
+    st.caption(
+        "Kriterium, Gewichtung und beobachtbare Evidenz für konsistente Entscheidungen."
+    )
     if not sheet.evaluation_rubric:
         st.info("Keine Bewertungsrubrik vorhanden.")
     for rubric_criterion in sheet.evaluation_rubric:
@@ -133,7 +210,7 @@ def render_interview_prep_hr(sheet: InterviewPrepSheetHR) -> None:
         if rubric_criterion.score_scale:
             st.caption(f"Skala: {' | '.join(rubric_criterion.score_scale)}")
         if rubric_criterion.evidence_examples:
-            st.caption("Beobachtbare Evidenz:")
+            st.caption("Evidenz:")
             for evidence in rubric_criterion.evidence_examples:
                 st.write(f"  - {evidence}")
 
@@ -186,7 +263,10 @@ def render_interview_prep_fach(sheet: InterviewPrepSheetHiringManager) -> None:
     else:
         st.info("Kein Case-/Aufgabenbriefing hinterlegt.")
 
-    st.markdown("**Bewertungsrubrik**")
+    st.markdown("**Scorecard / Bewertungsevidenz**")
+    st.caption(
+        "Kriterium, Gewichtung und beobachtbare Evidenz für konsistente Entscheidungen."
+    )
     if not sheet.evaluation_rubric:
         st.info("Keine Bewertungsrubrik vorhanden.")
     for criterion in sheet.evaluation_rubric:
@@ -197,7 +277,7 @@ def render_interview_prep_fach(sheet: InterviewPrepSheetHiringManager) -> None:
         if criterion.score_scale:
             st.caption(f"Skala: {' | '.join(criterion.score_scale)}")
         if criterion.evidence_examples:
-            st.caption("Beobachtbare Evidenz:")
+            st.caption("Evidenz:")
             for evidence in criterion.evidence_examples:
                 st.write(f"  - {evidence}")
 

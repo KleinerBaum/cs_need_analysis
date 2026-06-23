@@ -60,6 +60,7 @@ from wizard_pages.fact_inputs import (
     persist_compact_object,
     render_multiselect_fact,
     render_select_fact,
+    section_container,
 )
 from wizard_pages.salary_forecast_panel import render_benefits_salary_forecast_panel
 
@@ -278,6 +279,29 @@ def _render_compact_value_block(
             st.caption(note)
         return
     st.caption(empty)
+
+
+def _as_compact_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [compact_text(item) for item in value if compact_text(item)]
+
+
+def _render_outcome_list(
+    *,
+    title: str,
+    items: list[str],
+    empty: str,
+) -> None:
+    with section_container(border=True):
+        st.markdown(f"**{title}**")
+        if not items:
+            st.caption(empty)
+            return
+        for item in items[:5]:
+            st.write(f"- {item}")
+        if len(items) > 5:
+            st.caption(f"+ {len(items) - 5} weitere")
 
 
 def _render_label_list(
@@ -526,9 +550,151 @@ def _render_start_flexibility_block(job: JobAdExtract) -> None:
     )
 
 
+def _offer_outcome_items(
+    *,
+    job: JobAdExtract,
+    selected_benefits: list[str],
+) -> tuple[list[str], list[str], list[str]]:
+    salary_text = _format_salary_range(job)
+    remote_text = compact_text(job.remote_policy)
+    variable_pay_raw = fact_value(FactKey.BENEFITS_VARIABLE_PAY, {})
+    variable_pay = variable_pay_raw if isinstance(variable_pay_raw, dict) else {}
+    shift_raw = fact_value(FactKey.BENEFITS_SHIFT_COMPENSATION, {})
+    shift = shift_raw if isinstance(shift_raw, dict) else {}
+    start_raw = fact_value(FactKey.TIMELINE_START_FLEXIBILITY, {})
+    start = start_raw if isinstance(start_raw, dict) else {}
+    collective = _as_compact_list(
+        fact_value(FactKey.BENEFITS_COLLECTIVE_AGREEMENT_CONTEXT, [])
+    )
+    offer_components = _as_compact_list(
+        fact_value(FactKey.BENEFITS_OFFER_COMPONENTS, [])
+    )
+    work_auth = compact_text(fact_value(FactKey.LEGAL_WORK_AUTHORIZATION_SUPPORT, ""))
+
+    candidate_value = list(selected_benefits[:4])
+    if salary_text:
+        candidate_value.append(f"Vergütung: {salary_text}")
+    if remote_text:
+        candidate_value.append(f"Arbeitsmodell: {remote_text}")
+    if offer_components:
+        candidate_value.append(
+            f"Zusätzliche Bausteine: {', '.join(offer_components[:3])}"
+        )
+
+    fixed_terms: list[str] = []
+    negotiable_or_early: list[str] = []
+    if salary_text:
+        fixed_terms.append(f"Gehaltsrahmen: {salary_text}")
+    else:
+        negotiable_or_early.append("Gehaltsrahmen früh klären")
+    if remote_text:
+        fixed_terms.append(f"Arbeitsmodell: {remote_text}")
+    else:
+        negotiable_or_early.append("Remote-/Hybrid-Regelung früh klären")
+    if collective and "Keine bekannt" not in collective:
+        fixed_terms.append(f"Rahmenvorgaben: {', '.join(collective[:3])}")
+
+    eligible = variable_pay.get("eligible")
+    if eligible is True:
+        ote_parts = [
+            compact_text(variable_pay.get("ote_min")),
+            compact_text(variable_pay.get("ote_max")),
+            compact_text(variable_pay.get("currency")),
+        ]
+        ote_text = " ".join(part for part in ote_parts if part)
+        fixed_terms.append(
+            f"Variable Vergütung vorgesehen{': ' + ote_text if ote_text else ''}"
+        )
+    elif eligible is None:
+        negotiable_or_early.append("Variable Vergütung bestätigen oder ausschließen")
+
+    start_flexibility = compact_text(start.get("flexibility"))
+    target_start = compact_text(start.get("target_start"))
+    if start_flexibility == "fixed" and target_start:
+        fixed_terms.append(f"Starttermin: {target_start}")
+    elif start_flexibility and start_flexibility != "unknown":
+        flexibility_label = _START_FLEXIBILITY_LABELS.get(
+            start_flexibility,
+            start_flexibility,
+        )
+        negotiable_or_early.append(
+            f"Startflexibilität: {flexibility_label}"
+        )
+    else:
+        negotiable_or_early.append("Starttermin und Flexibilität früh klären")
+
+    shift_compensation = compact_text(shift.get("compensation"))
+    if shift_compensation:
+        fixed_terms.append(f"Ausgleich/Zuschläge: {shift_compensation}")
+    if offer_components:
+        negotiable_or_early.append(
+            f"Verhandelbare Angebotsbausteine: {', '.join(offer_components[:4])}"
+        )
+    if work_auth in {"unknown", ""}:
+        negotiable_or_early.append("Visa-/Arbeitserlaubnis-Support früh klären")
+    elif work_auth == "yes":
+        fixed_terms.append("Arbeitserlaubnis-Support möglich")
+    elif work_auth == "no":
+        fixed_terms.append("Kein Arbeitserlaubnis-Support vorgesehen")
+
+    early_candidate_info = [
+        item
+        for item in negotiable_or_early
+        if "früh klären" in item or "bestätigen" in item
+    ]
+    if not early_candidate_info and negotiable_or_early:
+        early_candidate_info = negotiable_or_early[:3]
+    if not early_candidate_info and fixed_terms:
+        early_candidate_info = fixed_terms[:3]
+
+    return candidate_value, fixed_terms, negotiable_or_early + early_candidate_info
+
+
+def _render_offer_outcome_preview(
+    *,
+    job: JobAdExtract,
+    selected_benefits: list[str],
+) -> None:
+    candidate_value, fixed_terms, early_info = _offer_outcome_items(
+        job=job,
+        selected_benefits=selected_benefits,
+    )
+    st.markdown("#### Angebotswirkung")
+    st.caption(
+        "Macht sichtbar, warum die Rolle attraktiv ist, was fix ist und welche "
+        "Informationen Kandidat:innen früh brauchen."
+    )
+    col_value, col_fixed, col_early = responsive_three_columns(gap="large")
+    with col_value:
+        _render_outcome_list(
+            title="Warum attraktiv?",
+            items=candidate_value,
+            empty="Noch kein klares Nutzenargument ausgewählt.",
+        )
+    with col_fixed:
+        _render_outcome_list(
+            title="Fixe Zusagen",
+            items=fixed_terms,
+            empty="Noch keine verbindlichen Angebotsbestandteile markiert.",
+        )
+    with col_early:
+        _render_outcome_list(
+            title="Verhandelbar / früh klären",
+            items=_dedupe_benefit_terms(early_info),
+            empty="Keine Verhandlungs- oder frühen Klärpunkte erkannt.",
+        )
+    st.caption(
+        "Exportwirkung: Diese Auswahl steuert Stellenanzeige, Recruiting Brief, "
+        "Vertragsentwurf und die Benefit-Gewichtung der Gehaltsprognose."
+    )
+
+
 def _render_structured_offer_constraints(job: JobAdExtract) -> None:
     def _render_fields() -> None:
-        st.caption("Nur ausfüllen, wenn diese Punkte für das Angebot relevant sind.")
+        st.caption(
+            "Nur ausfüllen, wenn diese Punkte die Zusage, Verhandlung oder frühe "
+            "Candidate-Kommunikation beeinflussen."
+        )
         st.markdown("#### Variable Vergütung")
         _render_variable_pay_block()
         st.markdown("#### Arbeitszeit und Ausgleich")
@@ -665,10 +831,10 @@ def render(ctx: WizardContext) -> None:
         ]
         selected_labels = _read_selected_benefits()
 
-        st.markdown("### Angebot bearbeiten")
+        st.markdown("### Candidate-Angebot schärfen")
         st.caption(
-            "Wähle Benefits und Rahmenbedingungen, die später in Anzeige, Briefing "
-            "und Prognose verwendet werden."
+            "Wähle Nutzenargumente und Rahmenbedingungen, die später in Anzeige, "
+            "Briefing, Vertrag und Prognose verwendet werden."
         )
 
         semantic_context = get_esco_semantic_context()
@@ -798,11 +964,15 @@ def render(ctx: WizardContext) -> None:
         st.session_state[SSKey.BENEFITS_SELECTED_BULK_BUFFER.value] = (
             selection_result["selected_labels"]
         )
-        st.markdown("#### Ausgewählt")
+        st.markdown("#### Sichtbare Benefits")
         _render_label_list(selection_result["selected_labels"], limit=10)
 
         if _can_render_structured_offer_inputs():
             _render_structured_offer_constraints(job)
+        _render_offer_outcome_preview(
+            job=job,
+            selected_benefits=selection_result["selected_labels"],
+        )
 
     def _render_salary_forecast_slot() -> None:
         selected_benefits_for_forecast = _dedupe_benefit_terms(
@@ -848,7 +1018,8 @@ def render(ctx: WizardContext) -> None:
     def _render_open_questions_slot() -> None:
         st.markdown("#### Offene Klärungen")
         st.caption(
-            "Klärt, was für Angebot und Kommunikation noch fehlt."
+            "Klärt, was für Angebot, Verhandlung und frühe "
+            "Candidate-Kommunikation noch fehlt."
         )
         if step is None or not step.questions:
             st.info(
@@ -860,7 +1031,8 @@ def render(ctx: WizardContext) -> None:
     def _render_review_slot() -> None:
         st.markdown("#### Prüfung")
         st.caption(
-            "Prüft, ob Angebot, Auswahl und offene Punkte zusammenpassen."
+            "Prüft, ob Attraktivität, fixe Zusagen und offene "
+            "Verhandlungspunkte zusammenpassen."
         )
         render_standard_step_review(
             step,
@@ -887,12 +1059,12 @@ def render(ctx: WizardContext) -> None:
         step=step,
         lazy_section_configs={
             "source_comparison_slot": LazySectionConfig(
-                label="Angebot bearbeiten",
+                label="Candidate-Angebot",
                 caption=(
-                    "Öffnet Benefits aus Anzeige, Antworten und Vorschlägen sowie "
-                    "die strukturierten Angebotsfelder."
+                    "Öffnet Benefits, fixe Zusagen, Verhandlungspunkte und "
+                    "Exportwirkung."
                 ),
-                button_label="Angebot öffnen",
+                button_label="Angebot schärfen",
                 default_open=default_lazy_source_section_open(),
             ),
             "salary_forecast_slot": LazySectionConfig(

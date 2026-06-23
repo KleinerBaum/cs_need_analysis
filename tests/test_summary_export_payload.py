@@ -313,6 +313,21 @@ def test_build_brief_structured_preview_payload_uses_export_subset(monkeypatch) 
         "selected_role_tasks": ["Build ETL pipelines"],
         "selected_skills": ["Python", "SQL"],
         "selected_benefits": ["Mentoring"],
+        "offer_positioning": {
+            "candidate_value": ["Mentoring"],
+            "early_candidate_info": [
+                "Gehaltsrahmen früh klären",
+                "Variable Vergütung bestätigen oder ausschließen",
+                "Starttermin und Flexibilität früh klären",
+                "Visa-/Arbeitserlaubnis-Support früh klären",
+            ],
+            "artifact_impact": [
+                "job_ad",
+                "brief",
+                "employment_contract",
+                "salary_forecast",
+            ],
+        },
     }
     assert export_payload["selected_role_tasks"] == preview_payload["selected_role_tasks"]
     assert export_payload["selected_skills"] == preview_payload["selected_skills"]

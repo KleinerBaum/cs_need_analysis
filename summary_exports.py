@@ -134,6 +134,11 @@ def parse_vacancy_draft_json(raw_json: str | bytes) -> dict[str, Any]:
 
 def brief_to_markdown(brief: VacancyBrief) -> str:
     structured_data = brief.structured_data.model_dump(mode="json")
+    selected_benefits = [
+        str(item).strip()
+        for item in structured_data.get("selected_benefits", []) or []
+        if str(item).strip()
+    ]
     lines = []
     lines.append(
         f"# Recruiting Brief – {structured_data.get('job_extract', {}).get('job_title', '')}".strip()
@@ -156,6 +161,10 @@ def brief_to_markdown(brief: VacancyBrief) -> str:
     lines.append("## Nice-to-have")
     lines.extend([f"- {x}" for x in brief.nice_to_have])
     lines.append("")
+    if selected_benefits:
+        lines.append("## Candidate Value")
+        lines.extend([f"- {x}" for x in selected_benefits])
+        lines.append("")
     lines.append("## Dealbreakers")
     lines.extend([f"- {x}" for x in brief.dealbreakers])
     lines.append("")

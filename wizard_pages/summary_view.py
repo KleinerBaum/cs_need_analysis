@@ -1371,7 +1371,7 @@ def _render_interview_compact_controls(vm: SummaryViewModel) -> str:
         )
         depth = st.selectbox(
             "Bewertung",
-            options=["kompakt", "standard", "detailliert"],
+            options=["Überblick", "Standard", "Detailliert"],
             index=1,
             key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "interview.depth"),
         )

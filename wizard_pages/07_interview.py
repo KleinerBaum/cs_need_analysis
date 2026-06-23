@@ -129,6 +129,13 @@ def _display_value(value: Any) -> str:
     return compact_text(value)
 
 
+def _select_index(options: list[str], value: Any, *, default: int = 0) -> int:
+    compact = compact_text(value)
+    if compact in options:
+        return options.index(compact)
+    return default
+
+
 def _normalize_object_list(value: Any) -> list[dict[str, Any]]:
     if not isinstance(value, list):
         return []
@@ -271,10 +278,14 @@ def _render_export_selection(rows: list[dict[str, str]]) -> None:
         if row_id in label_by_id
     ] or default_ids
     selected_labels = st.multiselect(
-        "In Summary und Export übernehmen",
+        "Für Summary, Briefing und Interview-Sheets übernehmen",
         options=list(option_by_label),
         default=[label_by_id[row_id] for row_id in selected_ids],
         key="interview.internal.selected_value_labels",
+        help=(
+            "Nur ausgewählte Werte werden als Interview-Kontext in Exporten "
+            "priorisiert."
+        ),
     )
     st.session_state[SSKey.INTERVIEW_INTERNAL_FLOW.value] = {
         **internal_flow,
@@ -345,39 +356,40 @@ def _render_known_interview_overview(
     if compliance_notes:
         evaluation_items.append(f"Dokumentation: {compliance_notes}")
 
-    st.markdown("### Bereits bekannt")
+    st.markdown("### Hiring-Plan Vorschau")
     st.caption(
-        "Diese Angaben wurden aus Jobspec, bisherigen Antworten und diesem Schritt gesammelt."
+        "Diese Angaben erklären Ablauf, Entscheidungen, Evidenz und "
+        "Candidate-Kommunikation."
     )
     col_process, col_comm = responsive_two_columns(gap="large")
     with col_process:
         _render_known_summary_group(
-            "Prozess",
+            "Ablauf und Tests",
             _normalize_values(process_items),
             empty_text="Noch kein Ablauf erfasst.",
         )
     with col_comm:
         _render_known_summary_group(
-            "Kommunikation",
+            "Candidate Updates",
             _normalize_values(communication_items),
             empty_text="Noch keine Update-Regel erfasst.",
         )
     col_roles, col_eval = responsive_two_columns(gap="large")
     with col_roles:
         _render_known_summary_group(
-            "Zuständigkeiten",
+            "Entscheidungen",
             _normalize_values(role_items),
             empty_text="Noch keine internen Rollen erfasst.",
         )
     with col_eval:
         _render_known_summary_group(
-            "Bewertung",
+            "Evidenz und Fairness",
             _normalize_values(evaluation_items),
             empty_text="Noch keine Bewertungskriterien erfasst.",
         )
 
     if callable(getattr(st, "expander", None)):
-        with st.expander("Summary- und Exportauswahl", expanded=False):
+        with st.expander("Exportauswahl für Folgeunterlagen", expanded=False):
             _render_export_selection(rows)
     else:
         _render_export_selection(rows)
@@ -451,7 +463,9 @@ def _render_internal_process_container(
         ]
 
         if show_internal_roles:
-            st.caption("Lege fest, wer entscheidet, wer informiert und wer am Interview teilnimmt.")
+            st.caption(
+                "Lege fest, wer Budget, Fachbedarf und finale Entscheidung verantwortet."
+            )
             header_col1, header_col2, header_col3 = responsive_three_columns(gap="large")
             with header_col1:
                 earliest_start = st.date_input(
@@ -552,7 +566,7 @@ def _render_internal_process_container(
                     if role == "Money":
                         money_seed = contact_payload
         if show_info_loop:
-            st.write("**Updates an Kandidat:innen**")
+            st.write("**Candidate Updates**")
             info_loop_catalog = [
                 (
                     "Bewerbungseingang bestätigen",
@@ -707,10 +721,11 @@ def _render_interview_value_board(
         if row_id in label_by_id
     ] or default_ids
     selected_labels = st.multiselect(
-        "Für Summary/Export verwenden",
+        "Für Summary, Briefing und Interview-Sheets verwenden",
         options=list(option_by_label),
         default=[label_by_id[row_id] for row_id in selected_ids],
         key="interview.internal.selected_value_labels",
+        help="Diese Werte erscheinen priorisiert in strukturierten Exporten.",
     )
     st.session_state[SSKey.INTERVIEW_INTERNAL_FLOW.value] = {
         **internal_flow,
@@ -743,7 +758,7 @@ def _render_interview_consistency_checklist(
 
     checks = [
         (
-            "Interview-Stages sind klar beschrieben.",
+            "Ablauf und Testziel je Stufe sind klar.",
             bool(job.recruitment_steps)
             or has_answered_question_with_keywords(
                 questions=visible_questions,
@@ -752,7 +767,7 @@ def _render_interview_consistency_checklist(
             ),
         ),
         (
-            "Verantwortlichkeiten je Stage sind abgestimmt.",
+            "Entscheidungsrollen je Stufe sind abgestimmt.",
             _has_extract_for_keywords(
                 recruitment_steps=job.recruitment_steps,
                 keywords=(
@@ -777,7 +792,7 @@ def _render_interview_consistency_checklist(
             ),
         ),
         (
-            "Timeline und Candidate-Updates sind definiert.",
+            "Candidate Updates und Rückmeldefristen sind definiert.",
             _has_extract_for_keywords(
                 recruitment_steps=job.recruitment_steps,
                 keywords=(
@@ -796,16 +811,19 @@ def _render_interview_consistency_checklist(
             ),
         ),
         (
-            "Essenzielle Prozessfragen sind beantwortet.",
+            "Essenzielle Hiring-Plan-Fragen sind beantwortet.",
             step_status["essentials_total"] == 0
             or step_status["essentials_answered"] == step_status["essentials_total"],
         ),
     ]
 
     render_recruiting_consistency_checklist(
-        title="Recruiting-Konsistenzcheck",
+        title="Hiring-Plan Check",
         checks=checks,
-        caption="Kurzcheck: Ist der Interviewprozess intern belastbar und für Kandidat:innen klar erklärbar?",
+        caption=(
+            "Ist nachvollziehbar, wer entscheidet, was getestet wird und wie "
+            "Feedback fair dokumentiert wird?"
+        ),
     )
 
 
@@ -847,10 +865,13 @@ def _list_by_stage(raw_items: Any, key_name: str = "stage") -> dict[str, dict[st
 
 
 def _render_stage_rows(job: JobAdExtract) -> list[str]:
-    existing_steps = _list_by_stage(fact_value(FactKey.INTERVIEW_RECRUITMENT_STEPS, []), "name")
+    existing_steps = _list_by_stage(
+        fact_value(FactKey.INTERVIEW_RECRUITMENT_STEPS, []),
+        "name",
+    )
     stage_labels = _stage_seed_labels(job)
     rows: list[dict[str, Any]] = []
-    st.markdown("#### Ablauf")
+    st.markdown("#### Stufen und Testziel")
     for idx, stage in enumerate(stage_labels[:5]):
         current = existing_steps.get(stage, {})
         with section_container(border=True):
@@ -862,8 +883,9 @@ def _render_stage_rows(job: JobAdExtract) -> list[str]:
             col_goal, col_duration = responsive_two_columns(gap="large")
             with col_goal:
                 goal = st.text_input(
-                    "Ziel der Stufe",
+                    "Was wird hier getestet?",
                     value=compact_text(current.get("goal") or current.get("details")),
+                    placeholder="z. B. Motivation, Must-haves, Arbeitsprobe, Teamfit",
                     key=f"fact_input.{FactKey.INTERVIEW_RECRUITMENT_STEPS.value}.{idx}.goal",
                 )
             with col_duration:
@@ -890,7 +912,7 @@ def _render_stage_rows(job: JobAdExtract) -> list[str]:
 def _render_stage_owner_rows(stage_labels: list[str]) -> None:
     existing = _list_by_stage(fact_value(FactKey.INTERVIEW_STAGE_OWNERS, []))
     rows: list[dict[str, str]] = []
-    st.markdown("#### Verantwortung")
+    st.markdown("#### Wer entscheidet?")
     for idx, stage in enumerate(stage_labels[:5]):
         current = existing.get(stage, {})
         cols = responsive_three_columns(gap="large")
@@ -904,9 +926,9 @@ def _render_stage_owner_rows(stage_labels: list[str]) -> None:
             )
         with cols[2]:
             role = st.text_input(
-                "Rolle im Entscheidungsprozess",
+                "Entscheidungsbeitrag",
                 value=compact_text(current.get("decision_role")),
-                placeholder="z. B. Entscheider, Interviewer, Feedback",
+                placeholder="z. B. finale Entscheidung, Fachsignal, Budgetfreigabe",
                 key=f"fact_input.{FactKey.INTERVIEW_STAGE_OWNERS.value}.{idx}.role",
             )
         if owner or role:
@@ -921,16 +943,19 @@ def _render_stage_owner_rows(stage_labels: list[str]) -> None:
 
 
 def _render_candidate_sla_rows(stage_labels: list[str]) -> None:
-    existing = _list_by_stage(fact_value(FactKey.INTERVIEW_COMMUNICATION_SLA, []), "event")
+    existing = _list_by_stage(
+        fact_value(FactKey.INTERVIEW_COMMUNICATION_SLA, []),
+        "event",
+    )
     default_events = ["Bewerbungseingang", "Nach Interview", "Finale Entscheidung"]
     rows: list[dict[str, Any]] = []
-    st.markdown("#### Rückmeldefristen")
+    st.markdown("#### Candidate Updates")
     for idx, event in enumerate(default_events):
         current = existing.get(event, {})
         cols = responsive_three_columns(gap="large")
         with cols[0]:
             event_name = st.text_input(
-                "Moment",
+                "Update-Moment",
                 value=compact_text(current.get("event") or event),
                 key=f"fact_input.{FactKey.INTERVIEW_COMMUNICATION_SLA.value}.{idx}.event",
             )
@@ -942,7 +967,7 @@ def _render_candidate_sla_rows(stage_labels: list[str]) -> None:
             )
         with cols[2]:
             days = st.number_input(
-                "Update binnen Tagen",
+                "Rückmeldung binnen Tagen",
                 min_value=0,
                 max_value=30,
                 value=int(current.get("days") or 2),
@@ -955,7 +980,11 @@ def _render_candidate_sla_rows(stage_labels: list[str]) -> None:
                     "event": compact_text(event_name),
                     "owner": compact_text(owner),
                     "days": int(days),
-                    "stage_hint": stage_labels[min(idx, len(stage_labels) - 1)] if stage_labels else "",
+                    "stage_hint": (
+                        stage_labels[min(idx, len(stage_labels) - 1)]
+                        if stage_labels
+                        else ""
+                    ),
                 }
             )
     persist_fact(FactKey.INTERVIEW_COMMUNICATION_SLA, rows)
@@ -965,27 +994,38 @@ def _render_assessment_evidence(stage_labels: list[str]) -> None:
     existing = fact_value(FactKey.INTERVIEW_ASSESSMENT_EVIDENCE, [])
     existing_items = existing if isinstance(existing, list) else []
     rows: list[dict[str, str]] = []
-    st.markdown("#### Arbeitsproben und Nachweise")
+    st.markdown("#### Evidenz je Stufe")
     for idx in range(3):
-        current = existing_items[idx] if idx < len(existing_items) and isinstance(existing_items[idx], dict) else {}
+        current = (
+            existing_items[idx]
+            if idx < len(existing_items) and isinstance(existing_items[idx], dict)
+            else {}
+        )
         cols = responsive_three_columns(gap="large")
         with cols[0]:
             item = st.text_input(
-                "Was wird bewertet?",
+                "Welche Evidenz ist erforderlich?",
                 value=compact_text(current.get("item")),
+                placeholder=(
+                    "z. B. Case, Code Review, Portfolio, Referenz, Probeaufgabe"
+                ),
                 key=f"fact_input.{FactKey.INTERVIEW_ASSESSMENT_EVIDENCE.value}.{idx}.item",
             )
         with cols[1]:
             stage = st.selectbox(
                 "Interviewstufe",
                 options=stage_labels or ["Fachinterview"],
-                index=0,
+                index=_select_index(
+                    stage_labels or ["Fachinterview"],
+                    current.get("stage"),
+                ),
                 key=f"fact_input.{FactKey.INTERVIEW_ASSESSMENT_EVIDENCE.value}.{idx}.stage",
             )
         with cols[2]:
             signal = st.text_input(
-                "Woran erkennt man gute Ergebnisse?",
+                "Erfolgssignal",
                 value=compact_text(current.get("success_signal")),
+                placeholder="Konkretes, beobachtbares Signal für gute Leistung",
                 key=f"fact_input.{FactKey.INTERVIEW_ASSESSMENT_EVIDENCE.value}.{idx}.signal",
             )
         if item or signal:
@@ -1004,11 +1044,16 @@ def _render_scorecard(stage_labels: list[str]) -> None:
     current = current_raw if isinstance(current_raw, dict) else {}
     criteria_raw = current.get("criteria", [])
     criteria = criteria_raw if isinstance(criteria_raw, list) else []
-    st.markdown("#### Bewertung")
+    st.markdown("#### Scorecard")
+    st.caption(
+        "Definiere wenige beobachtbare Kriterien. Gute Scorecards prüfen Evidenz, "
+        "nicht Bauchgefühl."
+    )
+    stage_options = stage_labels or ["Fachinterview"]
     stage = st.selectbox(
-        "Interviewstufe für die Bewertung",
-        options=stage_labels or ["Fachinterview"],
-        index=0,
+        "Für welche Stufe gilt die Scorecard?",
+        options=stage_options,
+        index=_select_index(stage_options, current.get("stage")),
         key=f"fact_input.{FactKey.INTERVIEW_SCORECARD_TEMPLATE.value}.stage",
     )
     criteria_rows: list[dict[str, Any]] = []
@@ -1021,8 +1066,9 @@ def _render_scorecard(stage_labels: list[str]) -> None:
             cols = st.columns([2, 1, 1], gap="small")
             with cols[0]:
                 title = st.text_input(
-                    "Was wird bewertet?",
+                    "Kriterium",
                     value=compact_text(current_criterion.get("title")),
+                    placeholder="z. B. Problemlösung, Fachwissen, Kommunikation",
                     key=f"fact_input.{FactKey.INTERVIEW_SCORECARD_TEMPLATE.value}.criteria.{idx}.title",
                 )
             with cols[1]:
@@ -1041,8 +1087,9 @@ def _render_scorecard(stage_labels: list[str]) -> None:
                     key=f"fact_input.{FactKey.INTERVIEW_SCORECARD_TEMPLATE.value}.criteria.{idx}.scale",
                 )
             evidence_anchor = st.text_input(
-                "Woran erkennt man gute Antworten?",
+                "Beobachtbare Evidenz",
                 value=compact_text(current_criterion.get("evidence_anchor")),
+                placeholder="Woran erkennt das Interviewteam eine starke Antwort?",
                 key=f"fact_input.{FactKey.INTERVIEW_SCORECARD_TEMPLATE.value}.criteria.{idx}.evidence",
             )
         if title:
@@ -1055,17 +1102,30 @@ def _render_scorecard(stage_labels: list[str]) -> None:
                 }
             )
     recommendation_text = st.text_input(
-        "Empfehlungen",
+        "Empfehlungsoptionen",
         value=", ".join(
-            split_lines(current.get("recommendation_options") or ["Strong Yes", "Yes", "Hold", "No"])
+            split_lines(
+                current.get("recommendation_options")
+                or ["Einstellen", "Weiter prüfen", "Nicht einstellen"]
+            )
         ),
         key=f"fact_input.{FactKey.INTERVIEW_SCORECARD_TEMPLATE.value}.recommendations",
     )
     notes = st.text_area(
-        "Notizen zur Bewertung",
+        "Fairness- und Dokumentationshinweise",
         value=str(current.get("notes") or ""),
         height=80,
+        placeholder=(
+            "z. B. gleiche Kernfragen, unabhängige Notizen, Debrief erst nach "
+            "Einzelbewertung"
+        ),
         key=f"fact_input.{FactKey.INTERVIEW_SCORECARD_TEMPLATE.value}.notes",
+    )
+    _render_scorecard_preview(
+        stage=stage,
+        criteria_rows=criteria_rows,
+        recommendation_options=split_lines(recommendation_text),
+        notes=notes,
     )
     persist_compact_object(
         FactKey.INTERVIEW_SCORECARD_TEMPLATE,
@@ -1078,34 +1138,88 @@ def _render_scorecard(stage_labels: list[str]) -> None:
     )
 
 
+def _render_scorecard_preview(
+    *,
+    stage: str,
+    criteria_rows: list[dict[str, Any]],
+    recommendation_options: list[str],
+    notes: str,
+) -> None:
+    st.markdown("##### Vorschau für Interview-Sheets")
+    if not criteria_rows:
+        st.caption("Noch keine Scorecard-Kriterien erfasst.")
+        return
+
+    total_weight = sum(int(row.get("weight_percent") or 0) for row in criteria_rows)
+    if total_weight:
+        weight_note = (
+            "Gewichtung vollständig."
+            if total_weight == 100
+            else f"Gewichtung aktuell {total_weight} %. Zielwert: 100 %."
+        )
+        st.caption(weight_note)
+
+    preview_rows = [
+        {
+            "Stufe": stage,
+            "Kriterium": row.get("title", ""),
+            "Gewichtung": f"{row.get('weight_percent', 0)} %",
+            "Skala": row.get("scale", ""),
+            "Evidenz": row.get("evidence_anchor", ""),
+        }
+        for row in criteria_rows
+    ]
+    if callable(getattr(st, "dataframe", None)):
+        st.dataframe(preview_rows, width="stretch", hide_index=True)
+    else:
+        for row in preview_rows:
+            st.write(
+                f"- {row['Kriterium']} ({row['Gewichtung']}): {row['Evidenz']}"
+            )
+    if recommendation_options:
+        st.caption("Empfehlungen: " + ", ".join(recommendation_options[:4]))
+    if compact_text(notes):
+        st.caption("Fairness: " + compact_text(notes))
+    st.caption(
+        "Exportwirkung: Scorecard, Evidenzanker und Kernfragen steuern HR- und "
+        "Fachbereich-Sheets."
+    )
+
+
 def _render_evaluation_inputs(stage_labels: list[str]) -> None:
     _render_assessment_evidence(stage_labels)
     _render_scorecard(stage_labels)
+    st.markdown("#### Konsistenz für alle Kandidat:innen")
     core_questions = st.text_area(
-        "Welche Fragen sind für alle Kandidat:innen identisch?",
+        "Gleiche Kernfragen",
         value="\n".join(split_lines(fact_value(FactKey.INTERVIEW_CORE_QUESTIONS, []))),
         height=110,
+        placeholder=(
+            "Eine Frage pro Zeile, die in dieser Stufe allen Kandidat:innen "
+            "gestellt wird."
+        ),
         key=f"fact_input.{FactKey.INTERVIEW_CORE_QUESTIONS.value}",
     )
     persist_fact(FactKey.INTERVIEW_CORE_QUESTIONS, split_lines(core_questions))
     render_text_area_fact(
         FactKey.INTERVIEW_COMPLIANCE_NOTES,
-        "Datenschutz, Dokumentation oder Compliance",
+        "Fairness, Datenschutz und Dokumentation",
         height=90,
     )
 
 
 def _render_combined_interview_workspace(job: JobAdExtract) -> None:
     with section_container(border=True):
-        st.markdown("### Interviewprozess planen")
+        st.markdown("### Hiring-Plan bauen")
         st.caption(
-            "Ablauf, Kommunikation, Zuständigkeiten und Bewertung werden hier zusammen gepflegt."
+            "Lege fest, wer entscheidet, was wo getestet wird, welche Evidenz zählt "
+            "und wie konsistent bewertet wird."
         )
         tab_labels = [
-            "Ablauf",
-            "Kommunikation",
-            "Team & Entscheidungen",
-            "Bewertung",
+            "Stufen & Tests",
+            "Candidate Updates",
+            "Entscheidungen",
+            "Scorecard & Fairness",
         ]
         if callable(getattr(st, "tabs", None)):
             tab_flow, tab_comm, tab_team, tab_eval = st.tabs(tab_labels)
@@ -1145,8 +1259,8 @@ def render(ctx: WizardContext) -> None:
             "\n".join(
                 (
                     "- Halte den Ablauf so kurz und nachvollziehbar wie möglich.",
-                    "- Lege pro Stufe fest, wer entscheidet und wann Kandidat:innen ein Update erhalten.",
-                    "- Nutze die Bewertung nur für Signale, die im Interview wirklich beobachtbar sind.",
+                    "- Lege pro Stufe fest, wer entscheidet, was getestet wird und welche Evidenz reicht.",
+                    "- Nutze gleiche Kernfragen und beobachtbare Bewertungskriterien für alle Kandidat:innen.",
                 )
             )
         )
@@ -1164,7 +1278,7 @@ def render(ctx: WizardContext) -> None:
             _render_guidance_slot()
 
     def _render_open_questions_slot() -> None:
-        st.markdown("#### Offene Fragen")
+        st.markdown("#### Offene Hiring-Plan-Fragen")
         if step is None or not step.questions:
             st.info(
                 "Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen."
@@ -1173,7 +1287,7 @@ def render(ctx: WizardContext) -> None:
         render_question_step(step, context_mode="compact")
 
     def _render_review_slot() -> None:
-        st.markdown("#### Prüfung")
+        st.markdown("#### Hiring-Plan prüfen")
         render_standard_step_review(
             step,
             render_mode=resolve_standard_review_mode(context=ReviewRenderContext.STEP_FORM),
