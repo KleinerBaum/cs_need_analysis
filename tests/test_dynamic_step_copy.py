@@ -147,3 +147,26 @@ def test_dynamic_step_copy_covers_short_predictable_active_step_copy() -> None:
 
         assert len(copy.headline) <= 90
         assert len(copy.value_line) <= 90
+
+
+def test_active_step_header_copy_has_de_en_parity() -> None:
+    state = _session_state()
+
+    for step_key in ACTIVE_DYNAMIC_STEP_KEYS:
+        de_copy = resolve_dynamic_step_copy(
+            step_key,
+            language="de",
+            session_state=state,
+        )
+        en_copy = resolve_dynamic_step_copy(
+            step_key,
+            language="en",
+            session_state=state,
+        )
+
+        assert de_copy.headline
+        assert en_copy.headline
+        assert de_copy.primary_cta
+        assert en_copy.primary_cta
+        assert "Recruiting-Briefing" not in en_copy.headline
+        assert "Vakanzerfassung" not in en_copy.headline

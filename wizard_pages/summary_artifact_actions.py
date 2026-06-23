@@ -13,6 +13,7 @@ from typing import Any, Callable, Final, Mapping, Protocol, Sequence, TypedDict
 import streamlit as st
 import docx
 
+from i18n import active_language
 from constants import (
     INTAKE_FACTS,
     FactKey,
@@ -126,6 +127,7 @@ from summary_artifacts import (
     brief_pipeline_status_for_state,
     to_canonical_artifact_id as _to_canonical_artifact_id,
 )
+from ux_copy_contract import summary_ui_copy
 from summary_exports import (
     brief_to_markdown as _brief_to_markdown,
     build_summary_input_fingerprint as _build_summary_input_fingerprint,
@@ -319,20 +321,22 @@ def _artifact_has_result(artifact_id: str) -> bool:
 
 
 def _artifact_status_label(vm: SummaryViewModel, artifact_id: str) -> tuple[str, str]:
+    language = active_language()
     if not _artifact_has_result(artifact_id):
-        return "open", "Offen"
+        return "open", summary_ui_copy("artifact_status.open", language=language)
     fingerprints = _summary_nested_dict_state(SSKey.SUMMARY_ARTIFACT_FINGERPRINTS)
     stored = str(fingerprints.get(artifact_id) or "")
     if not stored and vm.artifacts.input_fingerprint:
-        return "stale", "Veraltet"
+        return "stale", summary_ui_copy("artifact_status.stale", language=language)
     if stored and stored != _artifact_current_fingerprint(vm, artifact_id):
-        return "stale", "Veraltet"
-    return "current", "Aktuell"
+        return "stale", summary_ui_copy("artifact_status.stale", language=language)
+    return "current", summary_ui_copy("artifact_status.current", language=language)
 
 
 def _build_artifact_status_rows(
     *, action_registry: list[SummaryAction]
 ) -> list[dict[str, str]]:
+    language = active_language()
     rows: list[dict[str, str]] = []
     for action in action_registry:
         has_result = bool(st.session_state.get(action["result_key"].value))
@@ -344,9 +348,14 @@ def _build_artifact_status_rows(
         rows.append(
             {
                 "Unterlage": action["title"],
-                "Status": "Aktuell" if has_result else "Offen",
+                "Status": summary_ui_copy(
+                    "artifact_status.current" if has_result else "artifact_status.open",
+                    language=language,
+                ),
                 "Voraussetzungen": (
-                    "Erfüllt" if (requirements_ok and requirement_ok) else "Offen"
+                    summary_ui_copy("artifact_status.met", language=language)
+                    if (requirements_ok and requirement_ok)
+                    else summary_ui_copy("artifact_status.open", language=language)
                 ),
             }
         )
@@ -420,34 +429,87 @@ def _resolve_next_best_action_recommendation(
     interview_group = {("Interview", "Interviewphasen")}
 
     if _is_group_missing(core_profile_group | company_basics_group):
-        return _recommend("brief", "Kernprofil, Standort oder Unternehmenskontext fehlen.", cta_label="Unternehmenskontext vervollständigen")
+        reason = (
+            "Core profile, location, or company context is missing."
+            if active_language() == "en"
+            else "Kernprofil, Standort oder Unternehmenskontext fehlen."
+        )
+        cta = (
+            "Complete company context"
+            if active_language() == "en"
+            else "Unternehmenskontext vervollständigen"
+        )
+        return _recommend("brief", reason, cta_label=cta)
     if _is_group_missing(role_profile_group):
-        return _recommend("brief", "Rollenprofil ist noch unvollständig.", cta_label="Rollenprofil vervollständigen")
+        return _recommend(
+            "brief",
+            "Role profile is still incomplete." if active_language() == "en" else "Rollenprofil ist noch unvollständig.",
+            cta_label="Complete role profile" if active_language() == "en" else "Rollenprofil vervollständigen",
+        )
     if _is_group_missing(skills_profile_group):
-        return _recommend("brief", "Skills und Anforderungen sind noch unvollständig.", cta_label="Skills und Anforderungen klären")
+        return _recommend(
+            "brief",
+            "Skills and requirements are still incomplete." if active_language() == "en" else "Skills und Anforderungen sind noch unvollständig.",
+            cta_label="Clarify skills and requirements" if active_language() == "en" else "Skills und Anforderungen klären",
+        )
     if _is_group_missing(benefits_group):
-        return _recommend("brief", "Benefits und Rahmenbedingungen fehlen.", cta_label="Benefits und Rahmenbedingungen ergänzen")
+        return _recommend(
+            "brief",
+            "Benefits and conditions are missing." if active_language() == "en" else "Benefits und Rahmenbedingungen fehlen.",
+            cta_label="Add benefits and conditions" if active_language() == "en" else "Benefits und Rahmenbedingungen ergänzen",
+        )
     if _is_group_missing(interview_group):
-        return _recommend("brief", "Interviewprozess ist noch nicht definiert.", cta_label="Interviewprozess definieren")
+        return _recommend(
+            "brief",
+            "Interview process is not defined yet." if active_language() == "en" else "Interviewprozess ist noch nicht definiert.",
+            cta_label="Define interview process" if active_language() == "en" else "Interviewprozess definieren",
+        )
 
     brief_action = action_by_id.get("brief")
     if brief_action is not None:
         brief_status = _resolve_canonical_brief_status(resolved_brief_model=resolved_brief_model)
         if not brief_status.ready_for_follow_ups:
-            return _recommend("brief", "Recruiting Brief fehlt oder ist noch nicht bereit.", cta_label="Recruiting Brief erstellen")
+            return _recommend(
+                "brief",
+                summary_ui_copy(
+                    "release_gate.brief_missing_or_not_ready",
+                    language=active_language(),
+                ),
+                cta_label=summary_ui_copy(
+                    "release_gate.brief_missing_or_not_ready_cta",
+                    language=active_language(),
+                ),
+            )
 
     sourcing_action = _first_available_action(("job_ad", "boolean_search"))
     if sourcing_action is not None:
-        reason = "Recruiting Brief ist verfügbar, nächster Schritt ist eine Sourcing-Unterlage."
+        reason = summary_ui_copy(
+            "release_gate.sourcing_ready_reason",
+            language=active_language(),
+        )
         return NextBestActionRecommendation(action=sourcing_action, reason=reason, cta_label=sourcing_action["cta_label"])
 
     fallback_action = _first_available_action(
         ("interview_hr", "interview_fach", "boolean_search")
     )
     if fallback_action is not None:
-        return NextBestActionRecommendation(action=fallback_action, reason="Nächster verfügbarer Schritt basierend auf dem aktuellen Status.", cta_label=fallback_action["cta_label"])
+        return NextBestActionRecommendation(
+            action=fallback_action,
+            reason=summary_ui_copy(
+                "release_gate.fallback_next_reason",
+                language=active_language(),
+            ),
+            cta_label=fallback_action["cta_label"],
+        )
     if brief_action is not None:
-        return NextBestActionRecommendation(action=brief_action, reason="Brief als sicherer Startpunkt.", cta_label=brief_action["cta_label"])
+        return NextBestActionRecommendation(
+            action=brief_action,
+            reason=summary_ui_copy(
+                "release_gate.safe_brief_reason",
+                language=active_language(),
+            ),
+            cta_label=brief_action["cta_label"],
+        )
     return None
 
 
@@ -467,16 +529,17 @@ def _resolve_next_best_action(
 def _artifact_pipeline_status(
     action: SummaryAction, *, resolved_brief_model: str
 ) -> tuple[str, str]:
+    language = active_language()
     if action["id"] == "brief":
         state, _, _ = _get_brief_status(
             primary_action=action,
             resolved_brief_model=resolved_brief_model,
         )
-        return brief_pipeline_status_for_state(state)
+        return brief_pipeline_status_for_state(state, language=language)
 
     has_result = bool(st.session_state.get(action["result_key"].value))
     if has_result:
-        return "current", "Aktuell"
+        return "current", summary_ui_copy("artifact_status.current", language=language)
 
     requirements_ok = _has_required_state(action["requires"])
     requirement_ok = True
@@ -484,10 +547,10 @@ def _artifact_pipeline_status(
     if requirement_check_fn is not None:
         requirement_ok, _ = requirement_check_fn()
     if requirements_ok and requirement_ok and action["generator_fn"] is not None:
-        return "ready", "Bereit"
+        return "ready", summary_ui_copy("artifact_status.ready", language=language)
     if not requirements_ok or not requirement_ok:
-        return "blocked", "Wartet"
-    return "open", "Offen"
+        return "blocked", summary_ui_copy("artifact_status.blocked", language=language)
+    return "open", summary_ui_copy("artifact_status.open", language=language)
 
 
 def _build_enrichment_timing_rows(session_state: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -527,33 +590,39 @@ def _build_action_registry(
     generate_interview_prep_fach: Callable[[], None],
     generate_boolean_search: Callable[[], None],
 ) -> list[SummaryAction]:
+    language = active_language()
+    c = lambda key, **params: summary_ui_copy(
+        f"action_registry.{key}",
+        language=language,
+        **params,
+    )
     return [
         {
             "id": "brief",
-            "title": "Recruiting Brief",
-            "benefit": "Verdichtet Jobspec und Wizard-Antworten zu einem sofort nutzbaren Recruiting Brief.",
-            "cta_label": "Recruiting Brief erstellen",
+            "title": _artifact_display_label("brief", language=language),
+            "benefit": c("brief_benefit"),
+            "cta_label": c("brief_cta"),
             "blocked_cta_label": None,
             "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
-            "requirement_text": "Jobspec und Wizard-Plan sind vorhanden",
+            "requirement_text": c("brief_requirement"),
             "requirement_check_fn": None,
             "generator_fn": generate_recruiting_brief,
             "result_key": SSKey.BRIEF,
             "input_hints": (
-                "Extrahierte Jobspec-Daten",
-                "Strukturierte Wizard-Antworten",
-                f"Entwurfsmodell: {resolved_brief_model}",
+                c("brief_hint_job"),
+                c("brief_hint_answers"),
+                c("draft_model", model=resolved_brief_model),
             ),
             "input_renderer": None,
         },
         {
             "id": "job_ad",
-            "title": "Stellenanzeige",
-            "benefit": "Erstellt eine zielgruppenorientierte Stellenanzeige mit nachvollziehbarer AGG-Checkliste.",
-            "cta_label": "Stellenanzeige erstellen",
+            "title": _artifact_display_label("job_ad", language=language),
+            "benefit": c("job_ad_benefit"),
+            "cta_label": c("job_ad_cta"),
             "blocked_cta_label": None,
             "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
-            "requirement_text": "Jobspec und Wizard-Plan sind vorhanden",
+            "requirement_text": c("brief_requirement"),
             "requirement_check_fn": None,
             "generator_fn": generate_job_ad,
             "result_key": SSKey.JOB_AD_DRAFT_CUSTOM,
@@ -562,55 +631,55 @@ def _build_action_registry(
         },
         {
             "id": "interview_hr",
-            "title": "HR-Sheet",
-            "benefit": "Liefert ein strukturiertes HR-Interviewblatt mit Leitfaden und Bewertungsrubrik.",
-            "cta_label": "HR-Sheet erstellen",
-            "blocked_cta_label": "Recruiting Brief erstellen und danach HR-Sheet erstellen",
+            "title": _artifact_display_label("interview_hr", language=language),
+            "benefit": c("hr_benefit"),
+            "cta_label": c("hr_cta"),
+            "blocked_cta_label": c("hr_blocked_cta"),
             "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
-            "requirement_text": "Aktueller Recruiting Brief ist erforderlich",
+            "requirement_text": c("brief_required"),
             "requirement_check_fn": follow_up_requirement_check,
             "generator_fn": generate_interview_prep_hr,
             "result_key": SSKey.INTERVIEW_PREP_HR,
             "input_hints": (
-                "Aktueller Recruiting Brief (kein automatischer Fallback)",
-                "Kritische Must-haves",
-                f"HR-Sheet-Modell: {resolved_hr_sheet_model}",
+                c("current_brief_hint"),
+                c("critical_must_haves"),
+                c("hr_model", model=resolved_hr_sheet_model),
             ),
             "input_renderer": None,
         },
         {
             "id": "interview_fach",
-            "title": "Fachbereich-Sheet",
-            "benefit": "Liefert ein fachliches Interviewblatt für Vertiefungen und konsistente Bewertung.",
-            "cta_label": "Fachbereich-Sheet erstellen",
-            "blocked_cta_label": "Recruiting Brief erstellen und danach Fachbereich-Sheet erstellen",
+            "title": _artifact_display_label("interview_fach", language=language),
+            "benefit": c("fach_benefit"),
+            "cta_label": c("fach_cta"),
+            "blocked_cta_label": c("fach_blocked_cta"),
             "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
-            "requirement_text": "Aktueller Recruiting Brief ist erforderlich",
+            "requirement_text": c("brief_required"),
             "requirement_check_fn": follow_up_requirement_check,
             "generator_fn": generate_interview_prep_fach,
             "result_key": SSKey.INTERVIEW_PREP_FACH,
             "input_hints": (
-                "Aktueller Recruiting Brief (kein automatischer Fallback)",
-                "Must-have-Skills und Top-Aufgaben",
-                f"Fachbereich-Sheet-Modell: {resolved_fach_sheet_model}",
+                c("current_brief_hint"),
+                c("must_haves_tasks"),
+                c("fach_model", model=resolved_fach_sheet_model),
             ),
             "input_renderer": None,
         },
         {
             "id": "boolean_search",
-            "title": "Suchstrings",
-            "benefit": "Erstellt kanal-spezifische Suchstrings für Google, LinkedIn und XING.",
-            "cta_label": "Suchstrings erstellen",
-            "blocked_cta_label": "Recruiting Brief erstellen und danach Suchstrings erstellen",
+            "title": _artifact_display_label("boolean_search", language=language),
+            "benefit": c("boolean_benefit"),
+            "cta_label": c("boolean_cta"),
+            "blocked_cta_label": c("boolean_blocked_cta"),
             "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
-            "requirement_text": "Aktueller Recruiting Brief ist erforderlich",
+            "requirement_text": c("brief_required"),
             "requirement_check_fn": follow_up_requirement_check,
             "generator_fn": generate_boolean_search,
             "result_key": SSKey.BOOLEAN_SEARCH_STRING,
             "input_hints": (
-                "Aktueller Recruiting Brief (kein automatischer Fallback)",
-                "Must-have- und Nice-to-have-Skills",
-                f"Suchstrings-Modell: {resolved_boolean_search_model}",
+                c("current_brief_hint"),
+                c("skills_hint"),
+                c("boolean_model", model=resolved_boolean_search_model),
             ),
             "input_renderer": None,
         },

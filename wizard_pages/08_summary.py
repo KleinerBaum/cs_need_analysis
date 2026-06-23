@@ -167,6 +167,7 @@ from usage_utils import usage_has_cache_hit
 from wizard_pages.base import (
     WizardContext,
     WizardPage,
+    active_language,
     get_current_ui_mode,
     nav_buttons,
     render_active_ui_mode_caption,
@@ -1441,6 +1442,7 @@ def render(ctx: WizardContext) -> None:
         key="summary",
         default_open=True,
         streamlit_module=st,
+        language=active_language(),
         preview_builder=lambda: build_live_artifact_preview_payload(
             job=vm.job,
             answers=vm.answers,
@@ -1456,6 +1458,7 @@ def render(ctx: WizardContext) -> None:
                     st.session_state.get(SSKey.INTERVIEW_INTERNAL_FLOW.value, {})
                 ),
             ),
+            language=active_language(),
         ),
     )
     _render_artifact_generation_recovery(generator_by_id)

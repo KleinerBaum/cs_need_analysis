@@ -1,11 +1,34 @@
 from __future__ import annotations
 
 from constants import (
+    SUMMARY_ACTIVE_ARTIFACT_IDS,
     STEP_KEY_COMPANY,
     STEP_KEY_LANDING,
     STEP_KEY_SUMMARY,
 )
-from ux_copy_contract import VacancyCopyContext, build_step_copy
+from ux_copy_contract import (
+    ARTIFACT_LABELS,
+    ESCO_UI_COPY,
+    SALARY_UI_COPY,
+    SUMMARY_EXPORT_COPY,
+    SUMMARY_PREVIEW_COPY,
+    SUMMARY_UI_COPY,
+    VacancyCopyContext,
+    artifact_label,
+    build_step_copy,
+    summary_ui_copy,
+)
+
+
+def _leaf_keys(payload: dict[str, object], prefix: str = "") -> set[str]:
+    keys: set[str] = set()
+    for key, value in payload.items():
+        dotted_key = f"{prefix}.{key}" if prefix else key
+        if isinstance(value, dict):
+            keys.update(_leaf_keys(value, dotted_key))
+        else:
+            keys.add(dotted_key)
+    return keys
 
 
 def test_landing_copy_defaults_to_clear_german_value_prop() -> None:
@@ -84,3 +107,33 @@ def test_missing_context_falls_back_to_safe_labels() -> None:
 
     assert copy.headline == "Position the company as the employer for this role"
     assert "why this role matters" in copy.subheadline
+
+
+def test_active_copy_contracts_have_de_en_shape_parity() -> None:
+    for contract in (
+        ARTIFACT_LABELS,
+        SUMMARY_UI_COPY,
+        SUMMARY_EXPORT_COPY,
+        SUMMARY_PREVIEW_COPY,
+        ESCO_UI_COPY,
+        SALARY_UI_COPY,
+    ):
+        assert _leaf_keys(contract["de"]) == _leaf_keys(contract["en"])
+
+
+def test_active_artifact_labels_exclude_archived_outputs() -> None:
+    assert set(ARTIFACT_LABELS["de"]) == set(SUMMARY_ACTIVE_ARTIFACT_IDS)
+    assert set(ARTIFACT_LABELS["en"]) == set(SUMMARY_ACTIVE_ARTIFACT_IDS)
+    assert "employment_contract" not in ARTIFACT_LABELS["de"]
+    assert artifact_label("job_ad", language="en") == "Job ad"
+
+
+def test_release_gate_and_draft_copy_has_english_parity() -> None:
+    assert (
+        summary_ui_copy("release_gate.brief_missing_or_not_ready", language="en")
+        == "Recruiting brief is missing or not ready yet."
+    )
+    assert summary_ui_copy("final_export.draft", language="en") == "Save draft"
+    assert summary_ui_copy("live_preview.panel_title", language="en") == (
+        "Live preview: recruiting outputs"
+    )

@@ -10,11 +10,13 @@ from typing import Any
 
 from constants import APP_NAME, FactKey, SSKey, VACANCY_DRAFT_SCHEMA_VERSION
 from schemas import BooleanSearchPack, JobAdExtract, VacancyBrief
+from ux_copy_contract import (
+    summary_export_copy,
+    summary_preview_copy,
+)
 
 VACANCY_DRAFT_SCHEMA_ID = "cs_need_analysis.vacancy_draft"
-LIVE_ARTIFACT_PREVIEW_NOTICE = (
-    "Live preview from current inputs. Not a final export and no artifact generation."
-)
+LIVE_ARTIFACT_PREVIEW_NOTICE = summary_preview_copy("notice", language="en")
 
 
 def build_summary_input_fingerprint(
@@ -200,7 +202,7 @@ def _preview_sequence_values(value: Any) -> list[Any]:
     return []
 
 
-def _preview_salary_text(job: JobAdExtract) -> str:
+def _preview_salary_text(job: JobAdExtract, *, language: str | None = None) -> str:
     salary_range = getattr(job, "salary_range", None)
     if salary_range is None:
         return ""
@@ -209,9 +211,17 @@ def _preview_salary_text(job: JobAdExtract) -> str:
     if salary_min and salary_max:
         amount = f"{salary_min} - {salary_max}"
     elif salary_min:
-        amount = f"ab {salary_min}"
+        amount = summary_preview_copy(
+            "salary_from",
+            language=language,
+            amount=salary_min,
+        )
     elif salary_max:
-        amount = f"bis {salary_max}"
+        amount = summary_preview_copy(
+            "salary_to",
+            language=language,
+            amount=salary_max,
+        )
     else:
         return ""
     suffix = " ".join(
@@ -266,30 +276,31 @@ def _safe_interview_preview_items(interview_process: Mapping[str, Any]) -> list[
     return _dedupe_preview_items(output, limit=3)
 
 
-def _preview_decision_scope_label(value: Any) -> str:
+def _preview_decision_scope_label(value: Any, *, language: str | None = None) -> str:
     normalized = _compact_preview_text(value)
-    return {
-        "keine_eigenen_entscheidungen": "keine eigenen Entscheidungen",
-        "fachliche_empfehlungen": "fachliche Empfehlungen",
-        "eigenstaendige_fachentscheidungen": "eigenständige Fachentscheidungen",
-        "budget_personal_oder_prioritaeten": "Budget, Personal oder Prioritäten",
-        "unklar": "",
-    }.get(normalized, normalized)
+    if normalized == "unklar":
+        return ""
+    localized = summary_preview_copy(
+        f"decision_scope.{normalized}",
+        language=language,
+    )
+    return normalized if localized == f"decision_scope.{normalized}" else localized
 
 
-def _preview_timeline_items(value: Any, *, limit: int = 3) -> list[str]:
+def _preview_timeline_items(
+    value: Any,
+    *,
+    limit: int = 3,
+    language: str | None = None,
+) -> list[str]:
     if not isinstance(value, Mapping):
         return []
-    labels = {
-        "30_days": "30 Tage",
-        "60_days": "60 Tage",
-        "90_days": "90 Tage",
-        "180_days": "180 Tage",
-    }
+    keys = ("30_days", "60_days", "90_days", "180_days")
     items: list[str] = []
-    for key, label in labels.items():
+    for key in keys:
         compact = _compact_preview_text(value.get(key))
         if compact:
+            label = summary_preview_copy(f"timeline.{key}", language=language)
             items.append(f"{label}: {compact}")
         if len(items) >= limit:
             break
@@ -327,16 +338,20 @@ def build_live_artifact_preview_payload(
     selected_benefits: Sequence[str] | None = None,
     intake_facts: Mapping[str, Any] | None = None,
     interview_process: Mapping[str, Any] | None = None,
+    language: str | None = None,
 ) -> dict[str, Any]:
     """Build concise deterministic artifact previews without generating artifacts."""
 
     _ = answers  # Reserved for future preview-only routing without changing callers.
     facts = intake_facts or {}
-    role_title = _compact_preview_text(job.job_title) or "Rolle"
+    role_title = _compact_preview_text(job.job_title) or summary_preview_copy(
+        "role_fallback",
+        language=language,
+    )
     company = _compact_preview_text(job.company_name)
     location = _compact_preview_text(job.location_city or job.location_country)
     remote_policy = _compact_preview_text(job.remote_policy)
-    salary_text = _preview_salary_text(job)
+    salary_text = _preview_salary_text(job, language=language)
     role_summary = _compact_preview_text(job.role_overview) or role_title
     role_outcome = (
         _compact_preview_text(
@@ -358,7 +373,8 @@ def build_live_artifact_preview_payload(
     first_success_signals = _dedupe_preview_items(
         [
             *_preview_timeline_items(
-                facts.get(FactKey.ROLE_SUCCESS_METRICS_TIMELINE.value, {})
+                facts.get(FactKey.ROLE_SUCCESS_METRICS_TIMELINE.value, {}),
+                language=language,
             ),
             *_dedupe_preview_items(
                 facts.get(FactKey.ROLE_YEAR1_SUCCESS_SIGNALS.value, []),
@@ -369,7 +385,8 @@ def build_live_artifact_preview_payload(
         limit=3,
     )
     decision_scope = _preview_decision_scope_label(
-        facts.get(FactKey.ROLE_DECISION_SCOPE.value)
+        facts.get(FactKey.ROLE_DECISION_SCOPE.value),
+        language=language,
     )
     must_responsibilities = _preview_prioritized_items(
         facts.get(FactKey.ROLE_RESPONSIBILITIES_PRIORITIZED.value, []),
@@ -445,32 +462,46 @@ def build_live_artifact_preview_payload(
         limit=2,
     )
 
-    one_liner = f"{role_title} bei {company}" if company else role_title
+    one_liner = (
+        summary_preview_copy(
+            "at_company",
+            language=language,
+            role_title=role_title,
+            company=company,
+        )
+        if company
+        else role_title
+    )
+    prefix = lambda key, value: summary_preview_copy(
+        f"prefix.{key}",
+        language=language,
+        value=value,
+    )
     job_ad_signals = _dedupe_preview_items(
         [
-            f"Rolle: {role_title}",
-            f"Wofür die Rolle da ist: {role_outcome}" if role_outcome else "",
-            f"Outputs: {', '.join(expected_outputs[:2])}" if expected_outputs else "",
-            f"Aufgaben: {', '.join(tasks[:2])}" if tasks else "",
-            f"Must-have: {', '.join(skills[:3])}" if skills else "",
-            f"Candidate Value: {', '.join(benefits[:3])}" if benefits else "",
+            prefix("role", role_title),
+            prefix("why_role", role_outcome) if role_outcome else "",
+            prefix("outputs", ", ".join(expected_outputs[:2])) if expected_outputs else "",
+            prefix("tasks", ", ".join(tasks[:2])) if tasks else "",
+            prefix("must_have", ", ".join(skills[:3])) if skills else "",
+            prefix("candidate_value", ", ".join(benefits[:3])) if benefits else "",
         ],
         limit=4,
     )
     boolean_terms = _dedupe_preview_items([role_title, *skills[:4]], limit=5)
     boolean_guidance = _dedupe_preview_items(
         [
-            f"Suchkern: {' + '.join(boolean_terms[:4])}" if boolean_terms else "",
-            f"Standortfilter: {location}" if location else "",
-            f"Remote-Signal: {remote_policy}" if remote_policy else "",
-            f"Nicht verhandelbar: {', '.join(non_negotiables)}"
+            prefix("search_core", " + ".join(boolean_terms[:4])) if boolean_terms else "",
+            prefix("location_filter", location) if location else "",
+            prefix("remote_signal", remote_policy) if remote_policy else "",
+            prefix("non_negotiable", ", ".join(non_negotiables))
             if non_negotiables
             else "",
-            f"Entscheidungsspielraum: {decision_scope}" if decision_scope else "",
-            f"Offen klären: {', '.join(open_clarifications)}"
+            prefix("decision_scope", decision_scope) if decision_scope else "",
+            prefix("open_clarify", ", ".join(open_clarifications))
             if open_clarifications
             else "",
-            "Skill-Auswahl schärfen, um Trefferrauschen zu senken."
+            summary_preview_copy("prefix.skill_missing", language=language)
             if not skills
             else "",
         ],
@@ -478,19 +509,19 @@ def build_live_artifact_preview_payload(
     )
     interview_guidance = _dedupe_preview_items(
         [
-            f"Erfolg erkennen: {', '.join(first_success_signals[:2])}"
+            prefix("success", ", ".join(first_success_signals[:2]))
             if first_success_signals
             else "",
-            f"Verantwortung validieren: {decision_scope}"
+            prefix("validate_responsibility", decision_scope)
             if decision_scope
             else "",
-            f"Validieren: {', '.join(skills[:3])}" if skills else "",
-            f"Arbeitsprobe/Evidenz: {', '.join(expected_outputs[:2] or tasks[:2])}"
+            prefix("validate", ", ".join(skills[:3])) if skills else "",
+            prefix("work_sample", ", ".join(expected_outputs[:2] or tasks[:2]))
             if expected_outputs or tasks
             else "",
-            f"Stufen: {', '.join(stages)}" if stages else "",
-            f"Scorecard: {', '.join(scorecard_items)}" if scorecard_items else "",
-            f"Kernfragen: {', '.join(core_questions)}" if core_questions else "",
+            prefix("stages", ", ".join(stages)) if stages else "",
+            prefix("scorecard", ", ".join(scorecard_items)) if scorecard_items else "",
+            prefix("core_questions", ", ".join(core_questions)) if core_questions else "",
             *selected_interview_values,
         ],
         limit=5,
@@ -498,45 +529,72 @@ def build_live_artifact_preview_payload(
 
     return {
         "is_preview": True,
-        "notice": LIVE_ARTIFACT_PREVIEW_NOTICE,
+        "notice": summary_preview_copy("notice", language=language),
         "fragments": {
             "brief": {
-                "title": "Recruiting Brief",
+                "title": summary_preview_copy(
+                    "fragments.brief.title",
+                    language=language,
+                ),
                 "summary": one_liner,
                 "bullets": _dedupe_preview_items(
                     [
                         role_outcome,
-                        f"Outputs: {', '.join(expected_outputs)}"
+                        prefix("outputs", ", ".join(expected_outputs))
                         if expected_outputs
                         else "",
-                        f"Erster Erfolgshorizont: {', '.join(first_success_signals[:2])}"
+                        prefix("first_success", ", ".join(first_success_signals[:2]))
                         if first_success_signals
                         else "",
-                        f"Top-Aufgaben: {', '.join(tasks[:3])}" if tasks else "",
-                        f"Must-have: {', '.join(skills[:3])}" if skills else "",
-                        f"Angebot: {', '.join(benefits[:3])}" if benefits else "",
+                        prefix("top_tasks", ", ".join(tasks[:3])) if tasks else "",
+                        prefix("must_have", ", ".join(skills[:3])) if skills else "",
+                        prefix("offer", ", ".join(benefits[:3])) if benefits else "",
                     ],
                     limit=4,
                 ),
             },
             "job_ad": {
-                "title": "Job-Ad-Richtung",
-                "summary": "Welche Signale später die Anzeige prägen.",
+                "title": summary_preview_copy(
+                    "fragments.job_ad.title",
+                    language=language,
+                ),
+                "summary": summary_preview_copy(
+                    "fragments.job_ad.summary",
+                    language=language,
+                ),
                 "bullets": job_ad_signals,
             },
             "boolean_search": {
-                "title": "Boolean-Relevanz",
-                "summary": "Welche Eingaben den Suchstring scharf oder breit machen.",
+                "title": summary_preview_copy(
+                    "fragments.boolean_search.title",
+                    language=language,
+                ),
+                "summary": summary_preview_copy(
+                    "fragments.boolean_search.summary",
+                    language=language,
+                ),
                 "bullets": boolean_guidance,
             },
             "interview_hr": {
-                "title": "HR-Sheet-Folgen",
-                "summary": "Welche Antworten später HR-Fragen, Prozess und Evidenz lenken.",
+                "title": summary_preview_copy(
+                    "fragments.interview_hr.title",
+                    language=language,
+                ),
+                "summary": summary_preview_copy(
+                    "fragments.interview_hr.summary",
+                    language=language,
+                ),
                 "bullets": interview_guidance,
             },
             "interview_fach": {
-                "title": "Fachbereich-Sheet-Folgen",
-                "summary": "Welche Antworten später fachliche Fragen, Scorecard und Evidenz lenken.",
+                "title": summary_preview_copy(
+                    "fragments.interview_fach.title",
+                    language=language,
+                ),
+                "summary": summary_preview_copy(
+                    "fragments.interview_fach.summary",
+                    language=language,
+                ),
                 "bullets": interview_guidance,
             },
         },
@@ -554,7 +612,7 @@ def build_live_artifact_preview_payload(
     }
 
 
-def brief_to_markdown(brief: VacancyBrief) -> str:
+def brief_to_markdown(brief: VacancyBrief, *, language: str | None = None) -> str:
     structured_data = brief.structured_data.model_dump(mode="json")
     selected_benefits = [
         str(item).strip()
@@ -562,72 +620,82 @@ def brief_to_markdown(brief: VacancyBrief) -> str:
         if str(item).strip()
     ]
     lines = []
+    role_title = str(structured_data.get("job_extract", {}).get("job_title", "")).strip()
     lines.append(
-        f"# Recruiting Brief – {structured_data.get('job_extract', {}).get('job_title', '')}".strip()
+        "# "
+        + summary_export_copy(
+            "brief_title",
+            language=language,
+            role_title=role_title,
+        ).strip()
     )
     lines.append("")
-    lines.append(f"**One-liner:** {brief.one_liner}")
+    lines.append(f"**{summary_export_copy('one_liner', language=language)}:** {brief.one_liner}")
     lines.append("")
-    lines.append("## Hiring Context")
+    lines.append(f"## {summary_export_copy('hiring_context', language=language)}")
     lines.append(brief.hiring_context)
     lines.append("")
-    lines.append("## Role Summary")
+    lines.append(f"## {summary_export_copy('role_summary', language=language)}")
     lines.append(brief.role_summary)
     lines.append("")
-    lines.append("## Top Responsibilities")
+    lines.append(f"## {summary_export_copy('top_responsibilities', language=language)}")
     lines.extend([f"- {x}" for x in brief.top_responsibilities])
     lines.append("")
-    lines.append("## Must-have")
+    lines.append(f"## {summary_export_copy('must_have', language=language)}")
     lines.extend([f"- {x}" for x in brief.must_have])
     lines.append("")
-    lines.append("## Nice-to-have")
+    lines.append(f"## {summary_export_copy('nice_to_have', language=language)}")
     lines.extend([f"- {x}" for x in brief.nice_to_have])
     lines.append("")
     if selected_benefits:
-        lines.append("## Candidate Value")
+        lines.append(f"## {summary_export_copy('candidate_value', language=language)}")
         lines.extend([f"- {x}" for x in selected_benefits])
         lines.append("")
-    lines.append("## Dealbreakers")
+    lines.append(f"## {summary_export_copy('dealbreakers', language=language)}")
     lines.extend([f"- {x}" for x in brief.dealbreakers])
     lines.append("")
-    lines.append("## Interview Plan")
+    lines.append(f"## {summary_export_copy('interview_plan', language=language)}")
     lines.extend([f"- {x}" for x in brief.interview_plan])
     lines.append("")
-    lines.append("## Evaluation Rubric")
+    lines.append(f"## {summary_export_copy('evaluation_rubric', language=language)}")
     lines.extend([f"- {x}" for x in brief.evaluation_rubric])
     lines.append("")
-    lines.append("## Risks / Open Questions")
+    lines.append(f"## {summary_export_copy('risks_open_questions', language=language)}")
     lines.extend([f"- {x}" for x in brief.risks_open_questions])
     lines.append("")
-    lines.append("## Stellenanzeigenentwurf (DE)")
+    lines.append(f"## {summary_export_copy('job_ad_draft', language=language)}")
     lines.append(brief.job_ad_draft)
     lines.append("")
     return "\n".join(lines)
 
 
-def boolean_search_pack_to_markdown(pack: BooleanSearchPack) -> str:
+def boolean_search_pack_to_markdown(
+    pack: BooleanSearchPack,
+    *,
+    language: str | None = None,
+) -> str:
     def _as_bullets(values: list[str], *, code: bool = False) -> list[str]:
         if not values:
-            return ["- —"]
+            return [f"- {summary_export_copy('empty', language=language)}"]
         if code:
             return [f"- `{value}`" for value in values]
         return [f"- {value}" for value in values]
 
     lines = [
-        "# Suchstrings",
+        f"# {summary_export_copy('boolean_title', language=language)}",
         "",
-        f"**Role Title:** {pack.role_title}",
+        f"**{summary_export_copy('role_title', language=language)}:** {pack.role_title}",
         "",
-        "## Must-have Terms",
+        f"## {summary_export_copy('must_have_terms', language=language)}",
         *_as_bullets(pack.must_have_terms),
         "",
-        "## Seniority Terms",
+        f"## {summary_export_copy('seniority_terms', language=language)}",
         *_as_bullets(pack.seniority_terms),
         "",
-        "## Exclusion Terms",
+        f"## {summary_export_copy('exclusion_terms', language=language)}",
         *_as_bullets(pack.exclusion_terms),
         "",
-        "## Target Locations",
+        f"## {summary_export_copy('target_locations', language=language)}",
         *_as_bullets(pack.target_locations),
         "",
     ]
@@ -640,23 +708,23 @@ def boolean_search_pack_to_markdown(pack: BooleanSearchPack) -> str:
             [
                 f"## {channel_label}",
                 "",
-                "### Broad",
+                f"### {summary_export_copy('broad', language=language)}",
                 *_as_bullets(channel.broad, code=True),
                 "",
-                "### Focused",
+                f"### {summary_export_copy('focused', language=language)}",
                 *_as_bullets(channel.focused, code=True),
                 "",
-                "### Fallback",
+                f"### {summary_export_copy('fallback', language=language)}",
                 *_as_bullets(channel.fallback, code=True),
                 "",
             ]
         )
     lines.extend(
         [
-            "## Channel Limitations",
+            f"## {summary_export_copy('channel_limitations', language=language)}",
             *_as_bullets(pack.channel_limitations),
             "",
-            "## Usage Notes",
+            f"## {summary_export_copy('usage_notes', language=language)}",
             *_as_bullets(pack.usage_notes),
             "",
         ]

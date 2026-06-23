@@ -161,7 +161,7 @@ def test_resolve_active_artifact_falls_back_when_selected_artifact_is_missing(
 def test_active_artifact_renderer_uses_expected_payload(monkeypatch) -> None:
     calls: dict[str, Any] = {}
 
-    def _capture(payload: Any) -> None:
+    def _capture(payload: Any, **_: Any) -> None:
         calls["payload"] = payload
 
     fake_st = _FakeStreamlit(
@@ -222,7 +222,7 @@ def test_secondary_artifact_switching_updates_active_artifact(monkeypatch) -> No
 def test_render_active_artifact_job_ad_calls_helper(monkeypatch) -> None:
     helper_calls: list[dict[str, Any]] = []
 
-    def _capture(payload: dict[str, Any]) -> None:
+    def _capture(payload: dict[str, Any], **_: Any) -> None:
         helper_calls.append(payload)
 
     fake_st = _FakeStreamlit(

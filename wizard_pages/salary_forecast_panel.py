@@ -31,8 +31,14 @@ from salary.types import SalaryEscoContext, SalaryScenarioInputs, SalaryScenario
 from safe_html import escape_html_text, render_static_html
 from schemas import JobAdExtract
 from ui_layout import render_fragment_pilot_panel
+from i18n import active_language
+from ux_copy_contract import salary_ui_copy
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _salary_copy(key: str, *, language: str | None = None, **params: Any) -> str:
+    return salary_ui_copy(key, language=language or active_language(), **params)
 
 
 def _safe_int(value: Any) -> int:
@@ -534,7 +540,7 @@ def _apply_salary_scenario_inputs(job: JobAdExtract) -> tuple[JobAdExtract, list
 
 def render_salary_forecast_panel(job: JobAdExtract, answers: dict[str, Any]) -> None:
     _apply_pending_salary_scenario_update()
-    st.subheader("Gehaltsprognose (indikativ)")
+    st.subheader(_salary_copy("forecast_heading"))
     controls_col, result_col = st.columns((1, 2))
 
     with controls_col:
@@ -600,9 +606,9 @@ def render_salary_forecast_panel(job: JobAdExtract, answers: dict[str, Any]) -> 
             f"{int(forecast.forecast.p90):,} {forecast.currency}".replace(",", "."),
         )
         quality_percent = int(round(float(forecast.quality.value) * 100, 0))
-        st.caption("Bandbreite und p50 sind indikative Richtwerte (kein Garantiewert).")
+        st.caption(_salary_copy("main_caveat"))
         st.caption(
-            f"Datenqualität: {quality_percent}% – signalisiert Datenabdeckung und Mapping-Treffer, nicht Prognosegenauigkeit."
+            _salary_copy("quality_caveat", quality=quality_percent)
         )
         show_debug = str(
             st.session_state.get(SSKey.UI_MODE.value, "standard")
@@ -858,6 +864,7 @@ def render_salary_forecast_result_card(
     empty_message: str,
     headline: str = "Gehaltsprognose (Jahr)",
     use_main_card_layout: bool = False,
+    language: str | None = None,
 ) -> None:
     payload = salary_result if isinstance(salary_result, dict) else {}
     forecast_payload = payload.get("forecast", {}) if isinstance(payload, dict) else {}
@@ -936,9 +943,9 @@ def render_salary_forecast_result_card(
                 st.metric("p10 (niedrig)", _format_eur(p10) if p10 > 0 else "nicht verfügbar")
             with metric_col_high:
                 st.metric("p90 (hoch)", _format_eur(p90) if p90 > 0 else "nicht verfügbar")
-        st.info("Kontext: indikative Prognose basierend auf den gewählten Angaben.\n\nFehlende Inputs können die Prognosequalität reduzieren.")
+        st.info(_salary_copy("context_caveat", language=language))
         st.caption(
-            f"Datenqualität: {quality_label}. Sie beschreibt Datenabdeckung und Mapping-Treffer, nicht Prognosegenauigkeit."
+            _salary_copy("quality_caveat", language=language, quality=quality_label)
         )
         if answers_count > 0:
             st.caption(f"Berücksichtigte Antworten: {answers_count}.")
@@ -1046,8 +1053,9 @@ def render_role_tasks_salary_forecast_panel(
             salary_result=st.session_state.get(
                 SSKey.SALARY_FORECAST_LAST_RESULT.value, {}
             ),
-            empty_message="Noch keine Gehaltsprognose vorhanden.",
-            headline="Gehaltsprognose (Jahr)",
+            empty_message=_salary_copy("empty", language=language),
+            headline=_salary_copy("forecast_year", language=language),
+            language=language,
         )
 
     render_fragment_pilot_panel(
@@ -1132,7 +1140,7 @@ def render_benefits_salary_forecast_panel(
                     exc,
                 )
                 st.warning(
-                    "Die Gehaltsprognose ist vorübergehend nicht verfügbar. Bitte versuche es in Kürze erneut."
+                    _salary_copy("unavailable", language=language)
                 )
         else:
             st.caption("Prognose ist für die aktuellen Eingaben aktuell.")
@@ -1142,9 +1150,10 @@ def render_benefits_salary_forecast_panel(
             salary_result=st.session_state.get(
                 SSKey.SALARY_FORECAST_LAST_RESULT.value, {}
             ),
-            empty_message="Noch keine Gehaltsprognose vorhanden.",
-            headline="Gehaltsprognose (Jahr)",
+            empty_message=_salary_copy("empty", language=language),
+            headline=_salary_copy("forecast_year", language=language),
             use_main_card_layout=True,
+            language=language,
         )
 
     render_fragment_pilot_panel(
@@ -1286,8 +1295,9 @@ def render_skills_salary_forecast_panel(
             salary_result=st.session_state.get(
                 SSKey.SALARY_FORECAST_LAST_RESULT.value, {}
             ),
-            empty_message="Noch keine Gehaltsprognose vorhanden.",
-            headline="Gehaltsprognose (Jahr)",
+            empty_message=_salary_copy("empty", language=language),
+            headline=_salary_copy("forecast_year", language=language),
+            language=language,
         )
 
     render_fragment_pilot_panel(

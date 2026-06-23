@@ -143,6 +143,29 @@ def test_render_esco_picker_card_anchor_card_uses_compact_occupation_copy(
     ) in fake_st.captions
 
 
+def test_render_esco_picker_card_anchor_card_uses_english_copy(
+    monkeypatch,
+) -> None:
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(ui_esco_picker, "st", fake_st)
+    monkeypatch.setattr(ui_esco_picker, "active_language", lambda: "en")
+
+    ui_components.render_esco_picker_card(
+        concept_type="occupation",
+        target_state_key="esco.occupation",
+        layout_variant="anchor_card",
+        enable_preview=True,
+    )
+
+    assert fake_st.text_input_labels == ["Search term for occupation matching"]
+    assert fake_st.selectbox_labels == ["Select reference occupation"]
+    assert (
+        "The term controls only occupation matching; your role description and later "
+        "answers remain unchanged."
+    ) in fake_st.captions
+    assert fake_st.expander_labels == ["Preview before apply"]
+
+
 def test_render_esco_picker_card_anchor_card_bundles_confirmed_summary_and_breadcrumb(
     monkeypatch,
 ) -> None:

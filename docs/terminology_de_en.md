@@ -7,6 +7,10 @@ This glossary maps product terminology between German UI copy and English techni
 ## Usage Rules
 
 - Use English technical identifiers in code and schemas.
+- Preferred German visible product/process wording is `Recruiting-Briefing`.
+- Preferred English visible product/process wording is `recruiting brief`.
+- Use `Recruiting-Unterlagen` / `recruiting outputs` as the active output umbrella.
+- Avoid visible legacy/product-unclear labels: `Vacancy Intake Wizard`, `Need Analysis`, `Vakanzerfassung`.
 - Preserve existing German UI copy unless a task explicitly changes wording.
 - Prefer canonical constants/enums and existing i18n entries over duplicating string literals.
 - Short Wizard headline and CTA copy should come from `ux_copy_contract.py`; retained `locales/*.json` UX-copy entries should stay aligned during migration work.
@@ -18,14 +22,14 @@ This glossary maps product terminology between German UI copy and English techni
 | Category | DE term | EN term | Status | Canonical source | Usage note |
 |---|---|---|---|---|---|
 | product | Cognitive Staffing | Cognitive Staffing | canonical | `SiteProfile.brand_name` | Brand name is not translated. |
-| product | Recruiting-Briefing | Recruiting-Briefing | canonical | `constants.APP_TITLE / components/layout.py` | Canonical visible product/process label. |
+| product | Recruiting-Briefing | recruiting brief | canonical | `constants.APP_TITLE / components/layout.py` | Canonical visible product/process promise; German keeps the compound process label, English uses natural product language. |
 | product | Vakanz | vacancy | canonical | `i18n.py` | Use for the concrete open role to be filled. |
-| product | Recruiting-Briefing | Recruiting-Briefing | canonical | `ux_copy.steps.* / locales` | Canonical user-facing process label. Avoid old product descriptors in visible copy. |
-| product | Bedarfsanalyse | need clarification | proposed | repo/path legacy concept | Domain synonym; prefer `Recruiting-Briefing` in visible product copy. |
+| product | Recruiting-Briefing | recruiting brief | canonical | `ux_copy.steps.* / locales` | Canonical user-facing process label. Avoid old product descriptors in visible copy. |
+| product | Bedarfsanalyse | need clarification | proposed | repo/path legacy concept | Domain synonym; prefer `Recruiting-Briefing` / `recruiting brief` in visible product copy. |
 | product | Stellenanzeige | job ad | canonical | `summary_artifacts.py / i18n.py` | Use `job ad`, not `job advertisement`, for UI brevity. |
 | product | Jobspec | job spec | canonical | `AGENTS.md / i18n.py` | Use for source vacancy description/specification. |
 | product | Recruiting Brief | recruiting brief | canonical | `summary_artifacts.py` | Artifact label keeps the English term in German UI. |
-| product | Recruiting-Unterlagen | recruiting outputs | canonical | `ux_copy.steps.* / summary_view.py` | Canonical user-facing umbrella for generated downstream materials; avoid `Artefakte` and German-side `Outputs`. |
+| product | Recruiting-Unterlagen | recruiting outputs | canonical | `ux_copy.steps.* / ux_copy_contract.py` | Canonical active output umbrella for generated downstream materials; avoid `Artefakte`, German-side `Outputs`, and `vacancy intake` as the promise. |
 | product | Hiring-Team | hiring team | canonical | `i18n.py` | Use for stakeholders involved in hiring. |
 | product | Fachbereich | hiring manager / business team | proposed | `summary_artifacts.py` | In artifact naming, use `Hiring manager sheet` as the English label for `Fachbereich-Sheet`. |
 | wizard.step | Einleitung | Introduction | canonical | `constants.PRE_WIZARD_STEP_KEYS / i18n.py` | Pre-start route label; excluded from sidebar/progress/readiness. |

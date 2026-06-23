@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import base64
 
 from constants import FactKey, SSKey, VACANCY_DRAFT_SCHEMA_VERSION
@@ -78,9 +79,15 @@ def test_brief_to_markdown_exports_primary_sections() -> None:
 
     markdown = brief_to_markdown(brief)
 
-    assert markdown.startswith("# Recruiting Brief – Data Engineer")
-    assert "## Top Responsibilities\n- Build pipelines" in markdown
+    assert markdown.startswith("# Recruiting Brief - Data Engineer")
+    assert "## Wichtigste Aufgaben\n- Build pipelines" in markdown
     assert "## Stellenanzeigenentwurf (DE)\nDraft text" in markdown
+
+    english_markdown = brief_to_markdown(brief, language="en")
+
+    assert english_markdown.startswith("# Recruiting brief - Data Engineer")
+    assert "## Top responsibilities\n- Build pipelines" in english_markdown
+    assert "## Job ad draft\nDraft text" in english_markdown
 
 
 def test_boolean_search_pack_to_markdown_formats_channel_queries() -> None:
@@ -105,10 +112,17 @@ def test_boolean_search_pack_to_markdown_formats_channel_queries() -> None:
     markdown = boolean_search_pack_to_markdown(pack)
 
     assert markdown.startswith("# Suchstrings")
-    assert "**Role Title:** Data Engineer" in markdown
+    assert "**Rolle:** Data Engineer" in markdown
     assert "- `site:linkedin.com/in Python`" in markdown
-    assert "### Focused\n- —" in markdown
-    assert "## Usage Notes\n- Start broad, then tighten" in markdown
+    assert "### Fokussiert\n- —" in markdown
+    assert "## Nutzungshinweise\n- Start broad, then tighten" in markdown
+
+    english_markdown = boolean_search_pack_to_markdown(pack, language="en")
+
+    assert english_markdown.startswith("# Boolean search")
+    assert "**Role title:** Data Engineer" in english_markdown
+    assert "### Focused\n- —" in english_markdown
+    assert "## Usage notes\n- Start broad, then tighten" in english_markdown
 
 
 def test_live_artifact_preview_payload_uses_current_inputs_without_contact_details() -> None:
@@ -157,6 +171,34 @@ def test_live_artifact_preview_payload_uses_current_inputs_without_contact_detai
     assert "Technical interview" in fach_bullets
     assert "person@example.com" not in interview_bullets
     assert "person@example.com" not in fach_bullets
+
+
+def test_live_artifact_preview_payload_uses_english_copy() -> None:
+    payload = build_live_artifact_preview_payload(
+        job=JobAdExtract(
+            job_title="Data Engineer",
+            company_name="ACME GmbH",
+            responsibilities=["Build data products"],
+            must_have_skills=["Python"],
+            benefits=["Hybrid work"],
+            location_city="Berlin",
+            salary_range={"min": 70000, "max": 90000, "currency": "EUR"},
+        ),
+        answers={},
+        selected_role_tasks=["Own data pipelines"],
+        selected_skills=["SQL"],
+        selected_benefits=["Mentoring"],
+        intake_facts={},
+        interview_process={"candidate_stages": ["HR Screen"]},
+        language="en",
+    )
+
+    assert payload["notice"].startswith("Live preview from current inputs")
+    assert payload["fragments"]["brief"]["title"] == "Recruiting brief"
+    assert payload["fragments"]["brief"]["summary"] == "Data Engineer at ACME GmbH"
+    assert payload["context"]["salary"] == "70000.0 - 90000.0 EUR"
+    assert "Offer: Mentoring, Hybrid work" in payload["fragments"]["brief"]["bullets"]
+    assert "Recruiting-Unterlagen" not in json.dumps(payload, ensure_ascii=False)
 
 
 def test_live_artifact_preview_payload_uses_role_outcome_facts() -> None:

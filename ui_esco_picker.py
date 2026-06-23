@@ -13,8 +13,14 @@ import streamlit as st
 from constants import SSKey
 from esco_client import EscoClient, EscoClientError
 from esco_semantics import sync_esco_semantic_state
+from i18n import active_language
 from schemas import EscoBreadcrumbNode, EscoConceptRef
 from ui_inputs import _inject_esco_single_select_pills_css, _set_session_flag_true
+from ux_copy_contract import esco_ui_copy
+
+
+def _esco_copy(key: str, **params: Any) -> str:
+    return esco_ui_copy(key, language=active_language(), **params)
 
 def _normalize_target_state_key(target_state_key: SSKey | str) -> str:
     if isinstance(target_state_key, SSKey):
@@ -202,11 +208,12 @@ def _render_esco_taxonomy_breadcrumb(
     concept_id: str,
     auto_load: bool = False,
     in_expander: bool = True,
-    title: str = "Taxonomie/Breadcrumb",
+    title: str | None = None,
     show_title: bool = True,
 ) -> None:
     concept_uri = str(concept.get("uri") or "").strip()
     concept_title = str(concept.get("title") or "—").strip()
+    resolved_title = title or _esco_copy("taxonomy_title")
 
     expander_key = f"{session_key}.esco_picker.taxonomy.open.{concept_id}"
     fetch_key = f"{session_key}.esco_picker.taxonomy.fetch.{concept_id}"
@@ -217,7 +224,7 @@ def _render_esco_taxonomy_breadcrumb(
 
     def _load_taxonomy() -> None:
         if not concept_uri:
-            st.session_state[error_key] = "ESCO-URI fehlt für dieses Konzept."
+            st.session_state[error_key] = _esco_copy("taxonomy_missing_uri")
             st.session_state[loaded_key] = False
             st.session_state.pop(cache_key, None)
             return
@@ -246,9 +253,9 @@ def _render_esco_taxonomy_breadcrumb(
 
         if auto_load and not bool(st.session_state.get(loaded_key, False)):
             _load_taxonomy()
-        elif not auto_load and st.button("Taxonomie laden", key=fetch_key):
+        elif not auto_load and st.button(_esco_copy("load_taxonomy"), key=fetch_key):
             if not concept_uri:
-                st.session_state[error_key] = "ESCO-URI fehlt für dieses Konzept."
+                st.session_state[error_key] = _esco_copy("taxonomy_missing_uri")
                 st.session_state[loaded_key] = False
                 st.session_state.pop(cache_key, None)
                 return
@@ -265,18 +272,14 @@ def _render_esco_taxonomy_breadcrumb(
 
         fetch_error = st.session_state.get(error_key)
         if isinstance(fetch_error, str) and fetch_error.strip():
-            st.warning(f"Taxonomie konnte nicht geladen werden: {fetch_error}")
+            st.warning(_esco_copy("taxonomy_load_failed", error=fetch_error))
             return
 
         if not cached_nodes:
             if bool(st.session_state.get(loaded_key, False)):
-                st.caption(
-                    "Keine übergeordnete Relation (`hasBroaderTransitive`) für dieses ESCO-Konzept gefunden."
-                )
+                st.caption(_esco_copy("no_broader_relation"))
                 return
-            st.caption(
-                "Taxonomie ist noch nicht geladen."
-            )
+            st.caption(_esco_copy("taxonomy_not_loaded"))
             return
 
         breadcrumb_nodes = list(reversed(cached_nodes))
@@ -291,22 +294,20 @@ def _render_esco_taxonomy_breadcrumb(
         )
         titles = [node.title for node in breadcrumb_nodes if node.title.strip()]
         if not titles:
-            st.caption(
-                "Keine übergeordnete Taxonomie für dieses ESCO-Konzept verfügbar."
-            )
+            st.caption(_esco_copy("no_taxonomy"))
             return
 
         st.write(" → ".join(titles))
 
     if in_expander and show_title:
         with st.expander(
-            title, expanded=bool(st.session_state.get(expander_key, False))
+            resolved_title, expanded=bool(st.session_state.get(expander_key, False))
         ):
             st.session_state[expander_key] = True
             _render_content()
     else:
         if show_title:
-            st.markdown(f"**{title}**")
+            st.markdown(f"**{resolved_title}**")
         _render_content()
 
 
@@ -327,18 +328,18 @@ def render_esco_picker_card(
     show_results_overview: bool = True,
     auto_apply_single_select: bool = False,
     show_apply_button: bool = True,
-    query_label: str = "ESCO Suche",
-    query_placeholder: str = "Begriff eingeben (z. B. Data Engineer)",
-    confirmed_summary_label: str = "Bestätigte ESCO-Auswahl",
+    query_label: str | None = None,
+    query_placeholder: str | None = None,
+    confirmed_summary_label: str | None = None,
     show_confirmed_summary: bool = True,
     taxonomy_auto_load: bool = False,
     taxonomy_in_expander: bool = True,
-    taxonomy_title: str = "Taxonomie/Breadcrumb",
+    taxonomy_title: str | None = None,
     layout_variant: Literal["default", "anchor_card", "secondary_anchor"] = "default",
 ) -> None:
     session_key = _normalize_target_state_key(target_state_key)
     if not session_key:
-        st.error("ESCO-Picker-Konfiguration ist ungültig (fehlender target_state_key).")
+        st.error(_esco_copy("config_invalid"))
         return
 
     base_key = f"{session_key}.esco_picker"
@@ -366,26 +367,23 @@ def render_esco_picker_card(
         and not allow_multi
     )
     resolved_query_label = (
-        "Suchbegriff für Berufsabgleich"
+        _esco_copy("anchor_query")
         if use_anchor_card
         else (
-            "Suchbegriff für Kontextrolle"
+            _esco_copy("context_query")
             if use_secondary_anchor_card
-            else query_label
+            else (query_label or _esco_copy("default_query"))
         )
     )
     query_text = st.text_input(
         resolved_query_label,
         key=query_key,
-        placeholder=query_placeholder,
+        placeholder=query_placeholder or _esco_copy("query_placeholder"),
         on_change=_set_session_flag_true,
         args=(submit_flag_key,),
     ).strip()
     if use_anchor_card:
-        st.caption(
-            "Der Begriff steuert nur den Berufsabgleich; deine Rollenbeschreibung "
-            "und spätere Antworten bleiben unverändert."
-        )
+        st.caption(_esco_copy("anchor_helper"))
 
     suggestions: list[dict[str, str]] = []
     used_fallback_path = False
@@ -424,27 +422,30 @@ def render_esco_picker_card(
                         source="manual",
                     )
         except EscoClientError as exc:
-            st.warning(f"ESCO-Suche aktuell nicht verfügbar: {exc}")
+            st.warning(_esco_copy("search_unavailable", error=exc))
 
     st.session_state[options_state_key] = suggestions
     options = st.session_state.get(options_state_key, [])
     options = options if isinstance(options, list) else []
     if len(query_text) >= 2 and not options:
-        st.info(
-            "Der Begriff wurde gesucht, aber es wurde kein passender Beruf gefunden. "
-            "Bitte Sprache umschalten (DE/EN), einen kürzeren Suchbegriff ohne "
-            "Klammer-Kontext testen oder die Einstellungen prüfen."
-        )
+        st.info(_esco_copy("no_match"))
         if ui_mode == "expert":
             esco_config = st.session_state.get(SSKey.ESCO_CONFIG.value, {})
             resolved_config = esco_config if isinstance(esco_config, dict) else {}
             language = str(resolved_config.get("language") or "de")
             selected_version = str(resolved_config.get("selected_version") or "latest")
             st.caption(
-                "Diagnose: "
-                f"language={language} · selected_version={selected_version} · "
-                f"fallback_used={'ja' if used_fallback_path else 'nein'} · "
-                f"cleaned_query_fallback_used={'ja' if used_cleaned_query_fallback else 'nein'}"
+                _esco_copy(
+                    "diagnostics",
+                    language=language,
+                    selected_version=selected_version,
+                    fallback_used=_esco_copy("yes") if used_fallback_path else _esco_copy("no"),
+                    cleaned_query_fallback_used=(
+                        _esco_copy("yes")
+                        if used_cleaned_query_fallback
+                        else _esco_copy("no")
+                    ),
+                )
             )
 
     def _label_for_option(item: dict[str, str]) -> str:
@@ -457,7 +458,7 @@ def render_esco_picker_card(
     def _render_selection_controls() -> None:
         nonlocal selected_payload, selected_index
         if allow_multi:
-            resolved_selection_label = selection_label or "Vorschläge"
+            resolved_selection_label = selection_label or _esco_copy("suggestions")
             selected_indices = st.multiselect(
                 resolved_selection_label,
                 options=list(range(len(options))),
@@ -470,12 +471,12 @@ def render_esco_picker_card(
             return
 
         resolved_selection_label = selection_label or (
-            "Referenzberuf auswählen"
+            _esco_copy("select_reference")
             if use_anchor_card
             else (
-                "Kontextrolle auswählen"
+                _esco_copy("select_context")
                 if use_secondary_anchor_card
-                else "Top-Vorschlag auswählen"
+                else _esco_copy("select_top")
             )
         )
         if hasattr(st, "pills"):
@@ -495,7 +496,7 @@ def render_esco_picker_card(
                 format_func=lambda idx: option_labels[idx],
                 index=0 if options else None,
                 key=selected_key,
-                placeholder="Keine Vorschläge verfügbar",
+                placeholder=_esco_copy("no_suggestions"),
             )
             if options and show_results_overview:
                 overview_columns = st.columns(3, gap="small")
@@ -505,7 +506,9 @@ def render_esco_picker_card(
                             str(concept.get("title") or "—").strip() or "—"
                         )
                         status_label = (
-                            "Ausgewählt" if idx == selected_index else "Alternative"
+                            _esco_copy("selected")
+                            if idx == selected_index
+                            else _esco_copy("alternative")
                         )
                         with st.container(border=True):
                             st.markdown(f"**{idx + 1}. {concept_title}**")
@@ -524,25 +527,24 @@ def render_esco_picker_card(
         st.session_state[submit_flag_key] = False
         if options:
             selected_payload = [options[0]] if not allow_multi else selected_payload
-            st.info("Top-Treffer wurde per Enter übernommen.")
+            st.info(_esco_copy("top_match_enter"))
 
     if enable_preview:
-        resolved_preview_label = preview_label or "Preview vor Apply"
+        resolved_preview_label = preview_label or _esco_copy("preview_before_apply")
         with st.expander(
             resolved_preview_label,
             expanded=bool(st.session_state.get(preview_key, False)),
         ):
             st.session_state[preview_key] = True
             if not selected_payload:
-                st.caption("Noch keine Vorschläge ausgewählt.")
+                st.caption(_esco_copy("no_preview_selection"))
             else:
-                st.markdown(
-                    "**Vorschau der Auswahl (noch nicht bestätigt):**"
-                )
+                st.markdown(_esco_copy("preview_selection"))
                 for concept in selected_payload:
                     if ui_mode == "expert":
                         st.caption(
-                            f"{concept.get('title', '—')} · URI: {concept.get('uri', '—')} · Quelle: {concept.get('source', 'auto')}"
+                            f"{concept.get('title', '—')} · URI: {concept.get('uri', '—')} · "
+                            f"{_esco_copy('source')}: {concept.get('source', 'auto')}"
                         )
                     else:
                         st.write(f"- {concept.get('title', '—')}")
@@ -550,7 +552,7 @@ def render_esco_picker_card(
     if confirmation_helper_text:
         st.caption(confirmation_helper_text)
 
-    resolved_apply_label = apply_label or "Apply"
+    resolved_apply_label = apply_label or _esco_copy("apply")
     secondary_clicked = False
     apply_clicked = False
     if auto_apply_single_select and not allow_multi:
@@ -590,7 +592,7 @@ def render_esco_picker_card(
                 for item in selected_payload
             ]
         except Exception:
-            st.warning("Auswahl konnte nicht validiert werden. Bitte erneut auswählen.")
+            st.warning(_esco_copy("validate_failed"))
             return
 
         if allow_multi:
@@ -665,13 +667,14 @@ def render_esco_picker_card(
         for idx, concept in enumerate(current_entries):
             concept_id = _build_esco_concept_id(concept, idx)
             with st.container(border=True):
-                st.markdown("**Bestätigter Referenzberuf**")
+                st.markdown(_esco_copy("confirmed_reference"))
                 st.markdown(f"### {concept['title']}")
                 if ui_mode == "expert":
                     st.caption(
-                        f"URI: {concept['uri']} · Version: {version} · Quelle: {source}"
+                        f"URI: {concept['uri']} · Version: {version} · "
+                        f"{_esco_copy('source')}: {source}"
                     )
-                st.markdown("**Position im Berufsverzeichnis**")
+                st.markdown(_esco_copy("catalog_position"))
                 _render_esco_taxonomy_breadcrumb(
                     session_key=session_key,
                     concept=concept,
@@ -683,12 +686,13 @@ def render_esco_picker_card(
                 )
         return
 
-    st.markdown(f"**{confirmed_summary_label}**")
+    st.markdown(f"**{confirmed_summary_label or _esco_copy('confirmed_selection')}**")
     for idx, concept in enumerate(current_entries):
         concept_id = _build_esco_concept_id(concept, idx)
         if ui_mode == "expert":
             st.caption(
-                f"{concept['title']} · URI: {concept['uri']} · Version: {version} · Quelle: {source}"
+                f"{concept['title']} · URI: {concept['uri']} · Version: {version} · "
+                f"{_esco_copy('source')}: {source}"
             )
         else:
             st.write(f"- {concept['title']}")

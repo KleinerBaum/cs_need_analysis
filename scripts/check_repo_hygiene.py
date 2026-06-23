@@ -30,8 +30,17 @@ from constants import (  # noqa: E402
     STEP_KEY_ROLE_TASKS,
     STEP_KEY_SKILLS,
     STEP_KEY_SUMMARY,
+    SUMMARY_ACTIVE_ARTIFACT_IDS,
 )
-from ux_copy_contract import _COPY as WIZARD_COPY_CONTRACT  # noqa: E402
+from ux_copy_contract import (  # noqa: E402
+    ARTIFACT_LABELS,
+    ESCO_UI_COPY,
+    SALARY_UI_COPY,
+    SUMMARY_EXPORT_COPY,
+    SUMMARY_PREVIEW_COPY,
+    SUMMARY_UI_COPY,
+    _COPY as WIZARD_COPY_CONTRACT,
+)
 
 ALLOWED_TRACKED_REPORTS = {
     "reports/Aktualisierter Implementierungsreport f\u00fcr den dynamischen Intake-Wizard.md",
@@ -194,6 +203,31 @@ INLINE_SUMMARY_COPY_FIELDS = (
     "value_line",
     "primary_cta",
     "secondary_cta",
+)
+ACTIVE_COPY_CONTRACTS: Mapping[str, Mapping[str, object]] = {
+    "artifact_labels": ARTIFACT_LABELS,
+    "summary_ui": SUMMARY_UI_COPY,
+    "summary_export": SUMMARY_EXPORT_COPY,
+    "summary_preview": SUMMARY_PREVIEW_COPY,
+    "esco_ui": ESCO_UI_COPY,
+    "salary_ui": SALARY_UI_COPY,
+}
+
+ACTIVE_WIZARD_RAW_UI_PATHS = frozenset(
+    {
+        "wizard_pages/00_landing.py",
+        "wizard_pages/02_company.py",
+        "wizard_pages/04_role_tasks.py",
+        "wizard_pages/05_skills.py",
+        "wizard_pages/06_benefits.py",
+        "wizard_pages/07_interview.py",
+        "wizard_pages/08_summary.py",
+        "wizard_pages/jobad_intake.py",
+        "wizard_pages/salary_forecast_panel.py",
+        "wizard_pages/summary_artifact_actions.py",
+        "wizard_pages/summary_readiness.py",
+        "wizard_pages/summary_view.py",
+    }
 )
 
 RAW_UI_ALLOW_COMMENT = "i18n: allow-raw-ui"
@@ -516,6 +550,104 @@ def _check_inline_copy_contract() -> list[ContractFinding]:
     return findings
 
 
+def _check_active_copy_contract_shapes() -> list[ContractFinding]:
+    findings: list[ContractFinding] = []
+    for contract_name, payload in ACTIVE_COPY_CONTRACTS.items():
+        missing_languages = set(COPY_LANGUAGES) - set(payload)
+        if missing_languages:
+            findings.append(
+                ContractFinding(
+                    rule="i18n-active-copy-contract",
+                    detail=(
+                        f"{contract_name}: missing languages "
+                        f"{_format_set(missing_languages)}"
+                    ),
+                )
+            )
+            continue
+
+        language_leaf_values: dict[str, dict[str, object]] = {}
+        for language in COPY_LANGUAGES:
+            language_payload = payload.get(language, {})
+            if not isinstance(language_payload, Mapping):
+                findings.append(
+                    ContractFinding(
+                        rule="i18n-active-copy-contract",
+                        detail=f"{contract_name}.{language}: must be an object",
+                    )
+                )
+                continue
+            language_leaf_values[language] = _locale_leaf_values(language_payload)
+
+        de_leaf_values = language_leaf_values.get("de", {})
+        en_leaf_values = language_leaf_values.get("en", {})
+        de_keys = set(de_leaf_values)
+        en_keys = set(en_leaf_values)
+        if de_keys != en_keys:
+            findings.append(
+                ContractFinding(
+                    rule="i18n-active-copy-contract",
+                    detail=(
+                        f"{contract_name}: DE/EN shape mismatch "
+                        f"(de-only: {_format_set(de_keys - en_keys)}; "
+                        f"en-only: {_format_set(en_keys - de_keys)})"
+                    ),
+                )
+            )
+
+        for key in sorted(de_keys & en_keys):
+            de_placeholders = _placeholder_names(de_leaf_values[key])
+            en_placeholders = _placeholder_names(en_leaf_values[key])
+            if de_placeholders != en_placeholders:
+                findings.append(
+                    ContractFinding(
+                        rule="i18n-active-copy-placeholders",
+                        detail=(
+                            f"{contract_name}.{key}: placeholder mismatch "
+                            f"(de: {_format_set(de_placeholders)}; "
+                            f"en: {_format_set(en_placeholders)})"
+                        ),
+                    )
+                )
+
+    return findings
+
+
+def _check_active_artifact_label_contract() -> list[ContractFinding]:
+    findings: list[ContractFinding] = []
+    active_ids = set(SUMMARY_ACTIVE_ARTIFACT_IDS)
+    for language in COPY_LANGUAGES:
+        labels = ARTIFACT_LABELS.get(language, {})
+        if not isinstance(labels, Mapping):
+            findings.append(
+                ContractFinding(
+                    rule="i18n-active-artifact-labels",
+                    detail=f"{language}: artifact labels must be an object",
+                )
+            )
+            continue
+        label_ids = set(labels)
+        if label_ids != active_ids:
+            findings.append(
+                ContractFinding(
+                    rule="i18n-active-artifact-labels",
+                    detail=(
+                        f"{language}: active artifact labels mismatch "
+                        f"(missing: {_format_set(active_ids - label_ids)}; "
+                        f"extra: {_format_set(label_ids - active_ids)})"
+                    ),
+                )
+            )
+        if "employment_contract" in label_ids:
+            findings.append(
+                ContractFinding(
+                    rule="i18n-active-artifact-labels",
+                    detail=f"{language}: archived employment_contract label is active",
+                )
+            )
+    return findings
+
+
 def find_i18n_contract_findings() -> list[ContractFinding]:
     locales_dir = ROOT / "locales"
     de_locale = _load_json(locales_dir / "de.json")
@@ -563,6 +695,8 @@ def find_i18n_contract_findings() -> list[ContractFinding]:
     findings.extend(_check_locale_ux_copy_contract(de_locale, language="de"))
     findings.extend(_check_locale_ux_copy_contract(en_locale, language="en"))
     findings.extend(_check_inline_copy_contract())
+    findings.extend(_check_active_copy_contract_shapes())
+    findings.extend(_check_active_artifact_label_contract())
     return sorted(findings, key=lambda finding: (finding.rule, finding.detail))
 
 
@@ -752,9 +886,7 @@ def _parse_changed_lines(diff_text: str) -> dict[str, set[int]]:
 
         if current_path is None or new_line is None:
             continue
-        if not current_path.startswith("wizard_pages/") or not current_path.endswith(
-            ".py"
-        ):
+        if current_path not in ACTIVE_WIZARD_RAW_UI_PATHS:
             continue
 
         if line.startswith("+") and not line.startswith("+++"):

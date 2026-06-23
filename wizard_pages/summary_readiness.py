@@ -13,6 +13,7 @@ from typing import Any, Callable, Final, Mapping, Protocol, Sequence, TypedDict
 import streamlit as st
 import docx
 
+from i18n import active_language
 from constants import (
     INTAKE_FACTS,
     FactKey,
@@ -133,6 +134,7 @@ from summary_exports import (
     brief_to_markdown as _brief_to_markdown,
     build_summary_input_fingerprint as _build_summary_input_fingerprint,
 )
+from ux_copy_contract import summary_ui_copy
 from summary_esco import (
     build_esco_coverage_chart_spec as _build_esco_coverage_chart_spec,
     build_esco_coverage_kpis as _build_esco_coverage_kpis,
@@ -389,20 +391,25 @@ def can_export_final(
     )
 
 
-def summarize_artifact_release_state(gate: SummaryArtifactGate) -> str:
+def summarize_artifact_release_state(
+    gate: SummaryArtifactGate,
+    *,
+    language: str | None = None,
+) -> str:
+    selected_language = language or active_language()
     if gate.final_export_ready:
-        return "Finalexport bereit."
+        return summary_ui_copy("final_export.summary_ready", language=selected_language)
     if gate.stale_regeneration_required:
-        return "Finalexport pausiert: Ergebnis zuerst neu erstellen."
+        return summary_ui_copy("final_export.summary_stale", language=selected_language)
     if gate.final_export_blocked:
         if gate.override_allowed:
-            return "Finalexport pausiert: Warnungen prüfen; Expert Override möglich."
-        return "Finalexport pausiert: Blocker zuerst beheben."
+            return summary_ui_copy("final_export.summary_warning", language=selected_language)
+        return summary_ui_copy("final_export.summary_blocked", language=selected_language)
     if gate.draft_available:
-        return "Entwurf kann erstellt werden; Finalexport folgt nach Freigabe."
+        return summary_ui_copy("final_export.summary_draft", language=selected_language)
     if gate.preview_available:
-        return "Vorschau bleibt verfügbar; Entwurf braucht mehr Basiskontext."
-    return "Status offen."
+        return summary_ui_copy("final_export.summary_preview", language=selected_language)
+    return summary_ui_copy("final_export.summary_open", language=selected_language)
 
 
 @dataclass(frozen=True)
@@ -424,14 +431,12 @@ def _resolve_canonical_brief_status(
     last_brief_fingerprint: str | None = None,
     is_dirty: bool | None = None,
 ) -> CanonicalBriefStatus:
+    language = active_language()
     if not has_brief_prerequisites:
         return CanonicalBriefStatus(
             state="blocked",
-            message=(
-                "Jobspec oder Wizard-Plan fehlt. Der Recruiting Brief kann noch "
-                "nicht erstellt werden."
-            ),
-            cta_label="Recruiting Brief vorbereiten",
+            message=summary_ui_copy("brief_status.blocked_message", language=language),
+            cta_label=summary_ui_copy("brief_status.blocked_cta", language=language),
             ready_for_follow_ups=False,
         )
 
@@ -439,11 +444,8 @@ def _resolve_canonical_brief_status(
     if not isinstance(brief_payload, dict):
         return CanonicalBriefStatus(
             state="missing",
-            message=(
-                "Recruiting Brief fehlt. Erstellen Sie ihn, bevor Sie Folgeunterlagen "
-                "oder Exporte freigeben."
-            ),
-            cta_label="Recruiting Brief erstellen",
+            message=summary_ui_copy("brief_status.missing_message", language=language),
+            cta_label=summary_ui_copy("brief_status.missing_cta", language=language),
             ready_for_follow_ups=False,
         )
     try:
@@ -451,11 +453,8 @@ def _resolve_canonical_brief_status(
     except Exception:
         return CanonicalBriefStatus(
             state="invalid",
-            message=(
-                "Recruiting Brief ist ungültig. Erstellen Sie ihn neu, bevor Sie "
-                "exportieren."
-            ),
-            cta_label="Recruiting Brief neu erstellen",
+            message=summary_ui_copy("brief_status.invalid_message", language=language),
+            cta_label=summary_ui_copy("brief_status.invalid_cta", language=language),
             ready_for_follow_ups=False,
         )
 
@@ -464,11 +463,8 @@ def _resolve_canonical_brief_status(
     if dirty:
         return CanonicalBriefStatus(
             state="stale",
-            message=(
-                "Recruiting Brief ist veraltet. Aktualisieren Sie ihn vor Export "
-                "oder Folgeunterlagen."
-            ),
-            cta_label="Recruiting Brief aktualisieren",
+            message=summary_ui_copy("brief_status.dirty_message", language=language),
+            cta_label=summary_ui_copy("brief_status.stale_cta", language=language),
             ready_for_follow_ups=False,
         )
 
@@ -477,11 +473,11 @@ def _resolve_canonical_brief_status(
     if resolved_brief_model and last_models.get("draft_model") != resolved_brief_model:
         return CanonicalBriefStatus(
             state="stale",
-            message=(
-                "Recruiting Brief wurde mit einem anderen Modell erstellt. "
-                "Aktualisieren Sie ihn vor Export oder Folgeunterlagen."
+            message=summary_ui_copy(
+                "brief_status.stale_model_message",
+                language=language,
             ),
-            cta_label="Recruiting Brief aktualisieren",
+            cta_label=summary_ui_copy("brief_status.stale_cta", language=language),
             ready_for_follow_ups=False,
         )
 
@@ -498,11 +494,11 @@ def _resolve_canonical_brief_status(
     if current_input_fingerprint and not resolved_last_brief_fingerprint:
         return CanonicalBriefStatus(
             state="stale",
-            message=(
-                "Recruiting Brief hat keinen aktuellen Eingabe-Snapshot. "
-                "Aktualisieren Sie ihn vor Export oder Folgeunterlagen."
+            message=summary_ui_copy(
+                "brief_status.missing_snapshot_message",
+                language=language,
             ),
-            cta_label="Recruiting Brief aktualisieren",
+            cta_label=summary_ui_copy("brief_status.stale_cta", language=language),
             ready_for_follow_ups=False,
         )
     if (
@@ -512,32 +508,32 @@ def _resolve_canonical_brief_status(
     ):
         return CanonicalBriefStatus(
             state="stale",
-            message=(
-                "Recruiting Brief passt nicht mehr zu den aktuellen Eingaben. "
-                "Aktualisieren Sie ihn vor Export oder Folgeunterlagen."
+            message=summary_ui_copy(
+                "brief_status.stale_input_message",
+                language=language,
             ),
-            cta_label="Recruiting Brief aktualisieren",
+            cta_label=summary_ui_copy("brief_status.stale_cta", language=language),
             ready_for_follow_ups=False,
         )
 
     return CanonicalBriefStatus(
         state="current",
-        message="Recruiting Brief ist aktuell und als Grundlage verwendbar.",
-        cta_label="Brief aktualisieren",
+        message=summary_ui_copy("brief_status.current_message", language=language),
+        cta_label=summary_ui_copy("brief_status.current_cta", language=language),
         ready_for_follow_ups=True,
     )
 
 
-def _release_state_label(state: str) -> str:
-    return {
-        "current": "Aktuell und exportierbar",
-        "ready": "Bereit zur Erstellung",
-        "stale": "Veraltet - vor Export aktualisieren",
-        "missing": "Fehlt - zuerst erstellen",
-        "invalid": "Ungültig - neu erstellen",
-        "blocked": "Blockiert - Grundlagen klären",
-        "open": "Offen",
-    }.get(str(state or "").strip(), "Status offen")
+def _release_state_label(state: str, *, language: str | None = None) -> str:
+    normalized_state = str(state or "").strip()
+    key = normalized_state if normalized_state else "fallback"
+    value = summary_ui_copy(
+        f"release_state.{key}",
+        language=language or active_language(),
+    )
+    if value == f"release_state.{key}":
+        return summary_ui_copy("release_state.fallback", language=language or active_language())
+    return value
 
 
 def _release_gate_headline(*, readiness_percent: int, blocker_count: int) -> str:
