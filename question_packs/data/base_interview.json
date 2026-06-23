@@ -1,0 +1,157 @@
+{
+  "pack_key": "base.interview",
+  "description": "Baseline interview evidence collection.",
+  "entries": [
+    {
+      "step_key": "interview",
+      "question": {
+        "id": "ctx_interview_evidence",
+        "label": "Welche Nachweise oder Arbeitsproben sollen im Interview bewertet werden?",
+        "answer_type": "long_text",
+        "target_path": "recruitment_steps",
+        "fact_key": "interview.recruitment_steps",
+        "rationale": "Defines evidence expectations for structured interview evaluation.",
+        "priority": "core",
+        "group_key": "assessment",
+        "impact_targets": [
+          "skills",
+          "interview",
+          "export"
+        ],
+        "acquisition_cost": "medium",
+        "info_gain_score": 0.82
+      }
+    },
+    {
+      "step_key": "interview",
+      "question": {
+        "id": "ctx_interview_stages",
+        "label": "Welche Interviewstufen gibt es und welches Ziel hat jede Stufe?",
+        "answer_type": "long_text",
+        "required": true,
+        "target_path": "interview.recruitment_steps",
+        "fact_key": "interview.recruitment_steps",
+        "rationale": "Structures the interview flow and stage objectives for candidate communication.",
+        "priority": "core",
+        "group_key": "stage_evaluation",
+        "impact_targets": [
+          "brief",
+          "interview",
+          "export"
+        ],
+        "acquisition_cost": "medium",
+        "info_gain_score": 0.86
+      }
+    },
+    {
+      "step_key": "interview",
+      "question": {
+        "id": "ctx_interview_stage_owners",
+        "label": "Wer ist Owner und Entscheider pro Interviewstufe?",
+        "answer_type": "long_text",
+        "required": true,
+        "target_path": "interview.stage_owners",
+        "fact_key": "interview.stage_owners",
+        "rationale": "Assigns process ownership and decision accountability per interview stage.",
+        "priority": "core",
+        "group_key": "stage_evaluation",
+        "impact_targets": [
+          "interview",
+          "export"
+        ],
+        "acquisition_cost": "low",
+        "info_gain_score": 0.78
+      }
+    },
+    {
+      "step_key": "interview",
+      "question": {
+        "id": "ctx_interview_scorecard_template",
+        "label": "Welche Scorecard oder Bewertungsskala nutzen wir je Stufe?",
+        "answer_type": "long_text",
+        "required": true,
+        "target_path": "interview.scorecard_template",
+        "fact_key": "interview.scorecard_template",
+        "rationale": "Locks the evaluation rubric used for fair and comparable candidate assessment.",
+        "priority": "core",
+        "group_key": "stage_evaluation",
+        "impact_targets": [
+          "skills",
+          "interview",
+          "export"
+        ],
+        "acquisition_cost": "medium",
+        "info_gain_score": 0.86
+      }
+    },
+    {
+      "step_key": "interview",
+      "question": {
+        "id": "ctx_interview_core_questions",
+        "label": "Welche Fragen sind für alle Kandidat:innen identisch?",
+        "answer_type": "multi_select",
+        "required": true,
+        "options": [
+          "Motivation und Wechselgrund",
+          "relevante Praxiserfahrung",
+          "kritische Situation",
+          "Zusammenarbeit",
+          "fachlicher Deep Dive",
+          "Arbeitsprobe",
+          "Sonstiges"
+        ],
+        "target_path": "interview.core_questions",
+        "fact_key": "interview.core_questions",
+        "rationale": "Keeps core interview evidence comparable across candidates.",
+        "priority": "core",
+        "group_key": "stage_evaluation",
+        "impact_targets": [
+          "skills",
+          "interview",
+          "export"
+        ],
+        "acquisition_cost": "medium",
+        "info_gain_score": 0.82
+      }
+    },
+    {
+      "step_key": "interview",
+      "question": {
+        "id": "ctx_interview_communication_sla",
+        "label": "Welches Update-SLA gilt für Kandidat:innen nach jeder Stufe?",
+        "answer_type": "long_text",
+        "required": true,
+        "target_path": "interview.communication_sla",
+        "fact_key": "interview.communication_sla",
+        "rationale": "Defines candidate communication timing for process quality and exports.",
+        "priority": "core",
+        "group_key": "candidate_communication",
+        "impact_targets": [
+          "brief",
+          "interview",
+          "export"
+        ],
+        "acquisition_cost": "low",
+        "info_gain_score": 0.8
+      }
+    },
+    {
+      "step_key": "interview",
+      "question": {
+        "id": "ctx_interview_compliance_notes",
+        "label": "Welche Datenschutz- oder Dokumentationspflichten gelten im Auswahlprozess?",
+        "answer_type": "long_text",
+        "target_path": "interview.compliance_notes",
+        "fact_key": "interview.compliance_notes",
+        "rationale": "Captures process compliance notes without making them a default depth blocker.",
+        "priority": "detail",
+        "group_key": "process_compliance",
+        "impact_targets": [
+          "interview",
+          "export"
+        ],
+        "acquisition_cost": "high"
+      }
+    }
+  ]
+}

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
 import warnings
 from enum import Enum
+from pathlib import Path
 
+import pytest
 from constants import (
     AnswerType,
     ESCO_QUESTION_SKILL_GROUP_DIGITAL_DATA_AI,
@@ -16,6 +19,7 @@ from constants import (
     QUESTION_IMPACT_TARGET_SKILLS,
     QUESTION_IMPACT_TARGETS,
     STEP_KEY_COMPANY,
+    STEP_KEY_INTERVIEW,
     STEP_KEY_ROLE_TASKS,
     STEP_KEY_SKILLS,
 )
@@ -26,8 +30,13 @@ from question_limits import (
 )
 from question_plan_compiler import _clone_question, compile_question_plan
 from question_packs import QUESTION_PACK_REGISTRY
+from question_packs.types import (
+    QuestionPackDataError,
+    load_question_pack_from_json,
+)
 from schemas import (
     JobAdExtract,
+    OccupationContextProfile,
     OccupationQuestionConcept,
     OccupationQuestionContext,
     Question,
@@ -192,6 +201,134 @@ _EXPECTED_ROLE_WORK_CONTEXT_METADATA = {
     ),
 }
 
+_EXPECTED_INTERVIEW_JSON_PACK_FIELDS = {
+    "ctx_interview_evidence": {
+        "label": (
+            "Welche Nachweise oder Arbeitsproben sollen im Interview bewertet werden?"
+        ),
+        "answer_type": AnswerType.LONG_TEXT,
+        "required": False,
+        "target_path": "recruitment_steps",
+        "fact_key": FactKey.INTERVIEW_RECRUITMENT_STEPS.value,
+        "priority": "core",
+        "group_key": "assessment",
+        "impact_targets": [
+            QUESTION_IMPACT_TARGET_SKILLS,
+            QUESTION_IMPACT_TARGET_INTERVIEW,
+            QUESTION_IMPACT_TARGET_EXPORT,
+        ],
+        "acquisition_cost": "medium",
+        "info_gain_score": 0.82,
+    },
+    "ctx_interview_stages": {
+        "label": "Welche Interviewstufen gibt es und welches Ziel hat jede Stufe?",
+        "answer_type": AnswerType.LONG_TEXT,
+        "required": True,
+        "target_path": FactKey.INTERVIEW_RECRUITMENT_STEPS.value,
+        "fact_key": FactKey.INTERVIEW_RECRUITMENT_STEPS.value,
+        "priority": "core",
+        "group_key": "stage_evaluation",
+        "impact_targets": [
+            QUESTION_IMPACT_TARGET_BRIEF,
+            QUESTION_IMPACT_TARGET_INTERVIEW,
+            QUESTION_IMPACT_TARGET_EXPORT,
+        ],
+        "acquisition_cost": "medium",
+        "info_gain_score": 0.86,
+    },
+    "ctx_interview_stage_owners": {
+        "label": "Wer ist Owner und Entscheider pro Interviewstufe?",
+        "answer_type": AnswerType.LONG_TEXT,
+        "required": True,
+        "target_path": FactKey.INTERVIEW_STAGE_OWNERS.value,
+        "fact_key": FactKey.INTERVIEW_STAGE_OWNERS.value,
+        "priority": "core",
+        "group_key": "stage_evaluation",
+        "impact_targets": [
+            QUESTION_IMPACT_TARGET_INTERVIEW,
+            QUESTION_IMPACT_TARGET_EXPORT,
+        ],
+        "acquisition_cost": "low",
+        "info_gain_score": 0.78,
+    },
+    "ctx_interview_scorecard_template": {
+        "label": "Welche Scorecard oder Bewertungsskala nutzen wir je Stufe?",
+        "answer_type": AnswerType.LONG_TEXT,
+        "required": True,
+        "target_path": FactKey.INTERVIEW_SCORECARD_TEMPLATE.value,
+        "fact_key": FactKey.INTERVIEW_SCORECARD_TEMPLATE.value,
+        "priority": "core",
+        "group_key": "stage_evaluation",
+        "impact_targets": [
+            QUESTION_IMPACT_TARGET_SKILLS,
+            QUESTION_IMPACT_TARGET_INTERVIEW,
+            QUESTION_IMPACT_TARGET_EXPORT,
+        ],
+        "acquisition_cost": "medium",
+        "info_gain_score": 0.86,
+    },
+    "ctx_interview_core_questions": {
+        "label": "Welche Fragen sind für alle Kandidat:innen identisch?",
+        "answer_type": AnswerType.MULTI_SELECT,
+        "required": True,
+        "target_path": FactKey.INTERVIEW_CORE_QUESTIONS.value,
+        "fact_key": FactKey.INTERVIEW_CORE_QUESTIONS.value,
+        "priority": "core",
+        "group_key": "stage_evaluation",
+        "impact_targets": [
+            QUESTION_IMPACT_TARGET_SKILLS,
+            QUESTION_IMPACT_TARGET_INTERVIEW,
+            QUESTION_IMPACT_TARGET_EXPORT,
+        ],
+        "acquisition_cost": "medium",
+        "info_gain_score": 0.82,
+        "options": [
+            "Motivation und Wechselgrund",
+            "relevante Praxiserfahrung",
+            "kritische Situation",
+            "Zusammenarbeit",
+            "fachlicher Deep Dive",
+            "Arbeitsprobe",
+            "Sonstiges",
+        ],
+    },
+    "ctx_interview_communication_sla": {
+        "label": "Welches Update-SLA gilt für Kandidat:innen nach jeder Stufe?",
+        "answer_type": AnswerType.LONG_TEXT,
+        "required": True,
+        "target_path": FactKey.INTERVIEW_COMMUNICATION_SLA.value,
+        "fact_key": FactKey.INTERVIEW_COMMUNICATION_SLA.value,
+        "priority": "core",
+        "group_key": "candidate_communication",
+        "impact_targets": [
+            QUESTION_IMPACT_TARGET_BRIEF,
+            QUESTION_IMPACT_TARGET_INTERVIEW,
+            QUESTION_IMPACT_TARGET_EXPORT,
+        ],
+        "acquisition_cost": "low",
+        "info_gain_score": 0.80,
+    },
+    "ctx_interview_compliance_notes": {
+        "label": (
+            "Welche Datenschutz- oder Dokumentationspflichten gelten im Auswahlprozess?"
+        ),
+        "answer_type": AnswerType.LONG_TEXT,
+        "required": False,
+        "target_path": FactKey.INTERVIEW_COMPLIANCE_NOTES.value,
+        "fact_key": FactKey.INTERVIEW_COMPLIANCE_NOTES.value,
+        "priority": "detail",
+        "group_key": "process_compliance",
+        "impact_targets": [
+            QUESTION_IMPACT_TARGET_INTERVIEW,
+            QUESTION_IMPACT_TARGET_EXPORT,
+        ],
+        "acquisition_cost": "high",
+        "info_gain_score": None,
+    },
+}
+
+_EXPECTED_INTERVIEW_PACK_ENTRY_ORDER = tuple(_EXPECTED_INTERVIEW_JSON_PACK_FIELDS)
+
 
 def test_clone_question_normalizes_stale_answer_type_enum_without_warning() -> None:
     class ReloadedAnswerType(str, Enum):
@@ -236,6 +373,166 @@ def _registry_questions_for_step(step_key: str) -> dict[str, Question]:
             assert entry.question.id not in questions
             questions[entry.question.id] = entry.question
     return questions
+
+
+def _synthetic_question_pack_payload() -> dict[str, object]:
+    return {
+        "pack_key": "test.synthetic",
+        "description": "Synthetic question pack for loader validation.",
+        "entries": [
+            {
+                "step_key": STEP_KEY_COMPANY,
+                "question": {
+                    "id": "ctx_loader_first",
+                    "label": "Welche synthetische Information fehlt?",
+                    "answer_type": AnswerType.SHORT_TEXT.value,
+                    "target_path": FactKey.COMPANY_EMPLOYER_PITCH.value,
+                    "fact_key": FactKey.COMPANY_EMPLOYER_PITCH.value,
+                    "rationale": "Validates JSON question pack loading.",
+                    "priority": "standard",
+                    "group_key": "company_profile",
+                    "impact_targets": [QUESTION_IMPACT_TARGET_BRIEF],
+                    "acquisition_cost": "low",
+                },
+            },
+            {
+                "step_key": STEP_KEY_COMPANY,
+                "question": {
+                    "id": "ctx_loader_second",
+                    "label": "Welche zweite synthetische Information fehlt?",
+                    "answer_type": AnswerType.LONG_TEXT.value,
+                    "target_path": FactKey.COMPANY_GROWTH_CONTEXT.value,
+                    "fact_key": FactKey.COMPANY_GROWTH_CONTEXT.value,
+                    "rationale": "Validates deterministic JSON entry ordering.",
+                    "priority": "detail",
+                    "group_key": "business_context",
+                    "impact_targets": [QUESTION_IMPACT_TARGET_EXPORT],
+                    "acquisition_cost": "medium",
+                },
+            },
+        ],
+    }
+
+
+def _write_question_pack_json(tmp_path: Path, payload: object) -> Path:
+    path = tmp_path / "pack.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+
+def test_json_loaded_interview_pack_preserves_legacy_fields() -> None:
+    pack = QUESTION_PACK_REGISTRY["base.interview"]
+
+    assert pack.pack_key == "base.interview"
+    assert pack.description == "Baseline interview evidence collection."
+    assert tuple(entry.question.id for entry in pack.entries) == (
+        _EXPECTED_INTERVIEW_PACK_ENTRY_ORDER
+    )
+
+    for entry in pack.entries:
+        assert entry.step_key == STEP_KEY_INTERVIEW
+        question = entry.question
+        expected = _EXPECTED_INTERVIEW_JSON_PACK_FIELDS[question.id]
+
+        for field_name, expected_value in expected.items():
+            assert getattr(question, field_name) == expected_value
+        assert question.rationale and question.rationale.strip()
+
+
+def test_json_loaded_interview_pack_compiles_like_legacy_pack() -> None:
+    compiled = compile_question_plan(
+        base_plan=QuestionPlan(steps=[]),
+        profile=OccupationContextProfile(
+            pack_keys=["base.interview"],
+            confidence=0.0,
+        ),
+    )
+    interview_step = next(
+        step for step in compiled.plan.steps if step.step_key == STEP_KEY_INTERVIEW
+    )
+    questions = {question.id: question for question in interview_step.questions}
+
+    assert compiled.provenance.selected_pack_keys == ["base.interview"]
+    assert tuple(compiled.provenance.injected_question_ids) == (
+        _EXPECTED_INTERVIEW_PACK_ENTRY_ORDER
+    )
+    assert [question.id for question in interview_step.questions] == [
+        "ctx_interview_evidence",
+        "ctx_interview_communication_sla",
+        "ctx_interview_core_questions",
+        "ctx_interview_scorecard_template",
+        "ctx_interview_stage_owners",
+        "ctx_interview_stages",
+        "ctx_interview_compliance_notes",
+    ]
+    assert questions["ctx_interview_stage_owners"].answer_type is AnswerType.NUMBER
+    assert questions["ctx_interview_stage_owners"].min_value == 0.0
+    assert questions["ctx_interview_stage_owners"].max_value == 7.0
+    assert questions["ctx_interview_stages"].answer_type is AnswerType.NUMBER
+    assert questions["ctx_interview_core_questions"].options == [
+        "Motivation und Wechselgrund",
+        "relevante Praxiserfahrung",
+        "kritische Situation",
+        "Zusammenarbeit",
+        "fachlicher Deep Dive",
+        "Arbeitsprobe",
+        "Sonstiges",
+    ]
+
+
+def test_question_pack_json_loader_preserves_entry_order(tmp_path: Path) -> None:
+    path = _write_question_pack_json(tmp_path, _synthetic_question_pack_payload())
+
+    pack = load_question_pack_from_json(
+        path,
+        expected_pack_key="test.synthetic",
+    )
+
+    assert tuple(entry.question.id for entry in pack.entries) == (
+        "ctx_loader_first",
+        "ctx_loader_second",
+    )
+
+
+def test_question_pack_json_loader_rejects_missing_required_fields(
+    tmp_path: Path,
+) -> None:
+    path = _write_question_pack_json(tmp_path, {"description": "Incomplete pack."})
+
+    with pytest.raises(QuestionPackDataError, match="pack_key"):
+        load_question_pack_from_json(path)
+
+
+def test_question_pack_json_loader_rejects_duplicate_question_ids(
+    tmp_path: Path,
+) -> None:
+    payload = _synthetic_question_pack_payload()
+    entries = payload["entries"]
+    assert isinstance(entries, list)
+    assert isinstance(entries[1], dict)
+    question = entries[1]["question"]
+    assert isinstance(question, dict)
+    question["id"] = "ctx_loader_first"
+    path = _write_question_pack_json(tmp_path, payload)
+
+    with pytest.raises(QuestionPackDataError, match="duplicates 'ctx_loader_first'"):
+        load_question_pack_from_json(path)
+
+
+def test_question_pack_json_loader_rejects_noncanonical_metadata(
+    tmp_path: Path,
+) -> None:
+    payload = _synthetic_question_pack_payload()
+    entries = payload["entries"]
+    assert isinstance(entries, list)
+    assert isinstance(entries[0], dict)
+    question = entries[0]["question"]
+    assert isinstance(question, dict)
+    question["fact_key"] = "company.not_canonical"
+    path = _write_question_pack_json(tmp_path, payload)
+
+    with pytest.raises(QuestionPackDataError, match="fact_key is not canonical"):
+        load_question_pack_from_json(path)
 
 
 def test_company_pack_entries_have_adaptive_metadata() -> None:

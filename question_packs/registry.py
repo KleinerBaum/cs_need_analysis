@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from constants import (
     AnswerType,
     ESCO_QUESTION_SKILL_GROUP_CUSTOMER_CLIENT_INTERACTION,
@@ -28,7 +30,14 @@ from constants import (
 )
 from schemas import Question, QuestionOption
 
-from question_packs.types import QuestionPack, QuestionPackEntry
+from question_packs.types import (
+    QuestionPack,
+    QuestionPackEntry,
+    load_question_pack_from_json,
+)
+
+
+_DATA_DIR = Path(__file__).with_name("data")
 
 
 def _pack_entry(
@@ -795,148 +804,9 @@ BASE_CORE_PACK = QuestionPack(
     ),
 )
 
-BASE_INTERVIEW_PACK = QuestionPack(
-    pack_key="base.interview",
-    description="Baseline interview evidence collection.",
-    entries=(
-        _pack_entry(
-            step_key=STEP_KEY_INTERVIEW,
-            question_id="ctx_interview_evidence",
-            label="Welche Nachweise oder Arbeitsproben sollen im Interview bewertet werden?",
-            answer_type=AnswerType.LONG_TEXT,
-            group_key="assessment",
-            priority="core",
-            target_path="recruitment_steps",
-            fact_key=FactKey.INTERVIEW_RECRUITMENT_STEPS,
-            rationale="Defines evidence expectations for structured interview evaluation.",
-            impact_targets=[
-                QUESTION_IMPACT_TARGET_SKILLS,
-                QUESTION_IMPACT_TARGET_INTERVIEW,
-                QUESTION_IMPACT_TARGET_EXPORT,
-            ],
-            acquisition_cost="medium",
-            info_gain_score=0.82,
-        ),
-        _pack_entry(
-            step_key=STEP_KEY_INTERVIEW,
-            question_id="ctx_interview_stages",
-            label="Welche Interviewstufen gibt es und welches Ziel hat jede Stufe?",
-            answer_type=AnswerType.LONG_TEXT,
-            group_key="stage_evaluation",
-            priority="core",
-            target_path=FactKey.INTERVIEW_RECRUITMENT_STEPS.value,
-            fact_key=FactKey.INTERVIEW_RECRUITMENT_STEPS,
-            required=True,
-            rationale="Structures the interview flow and stage objectives for candidate communication.",
-            impact_targets=[
-                QUESTION_IMPACT_TARGET_BRIEF,
-                QUESTION_IMPACT_TARGET_INTERVIEW,
-                QUESTION_IMPACT_TARGET_EXPORT,
-            ],
-            acquisition_cost="medium",
-            info_gain_score=0.86,
-        ),
-        _pack_entry(
-            step_key=STEP_KEY_INTERVIEW,
-            question_id="ctx_interview_stage_owners",
-            label="Wer ist Owner und Entscheider pro Interviewstufe?",
-            answer_type=AnswerType.LONG_TEXT,
-            group_key="stage_evaluation",
-            priority="core",
-            target_path=FactKey.INTERVIEW_STAGE_OWNERS.value,
-            fact_key=FactKey.INTERVIEW_STAGE_OWNERS,
-            required=True,
-            rationale="Assigns process ownership and decision accountability per interview stage.",
-            impact_targets=[
-                QUESTION_IMPACT_TARGET_INTERVIEW,
-                QUESTION_IMPACT_TARGET_EXPORT,
-            ],
-            acquisition_cost="low",
-            info_gain_score=0.78,
-        ),
-        _pack_entry(
-            step_key=STEP_KEY_INTERVIEW,
-            question_id="ctx_interview_scorecard_template",
-            label="Welche Scorecard oder Bewertungsskala nutzen wir je Stufe?",
-            answer_type=AnswerType.LONG_TEXT,
-            group_key="stage_evaluation",
-            priority="core",
-            target_path=FactKey.INTERVIEW_SCORECARD_TEMPLATE.value,
-            fact_key=FactKey.INTERVIEW_SCORECARD_TEMPLATE,
-            required=True,
-            rationale="Locks the evaluation rubric used for fair and comparable candidate assessment.",
-            impact_targets=[
-                QUESTION_IMPACT_TARGET_SKILLS,
-                QUESTION_IMPACT_TARGET_INTERVIEW,
-                QUESTION_IMPACT_TARGET_EXPORT,
-            ],
-            acquisition_cost="medium",
-            info_gain_score=0.86,
-        ),
-        _pack_entry(
-            step_key=STEP_KEY_INTERVIEW,
-            question_id="ctx_interview_core_questions",
-            label="Welche Fragen sind für alle Kandidat:innen identisch?",
-            answer_type=AnswerType.MULTI_SELECT,
-            group_key="stage_evaluation",
-            priority="core",
-            target_path=FactKey.INTERVIEW_CORE_QUESTIONS.value,
-            fact_key=FactKey.INTERVIEW_CORE_QUESTIONS,
-            required=True,
-            rationale="Keeps core interview evidence comparable across candidates.",
-            impact_targets=[
-                QUESTION_IMPACT_TARGET_SKILLS,
-                QUESTION_IMPACT_TARGET_INTERVIEW,
-                QUESTION_IMPACT_TARGET_EXPORT,
-            ],
-            acquisition_cost="medium",
-            info_gain_score=0.82,
-            options=[
-                "Motivation und Wechselgrund",
-                "relevante Praxiserfahrung",
-                "kritische Situation",
-                "Zusammenarbeit",
-                "fachlicher Deep Dive",
-                "Arbeitsprobe",
-                "Sonstiges",
-            ],
-        ),
-        _pack_entry(
-            step_key=STEP_KEY_INTERVIEW,
-            question_id="ctx_interview_communication_sla",
-            label="Welches Update-SLA gilt für Kandidat:innen nach jeder Stufe?",
-            answer_type=AnswerType.LONG_TEXT,
-            group_key="candidate_communication",
-            priority="core",
-            target_path=FactKey.INTERVIEW_COMMUNICATION_SLA.value,
-            fact_key=FactKey.INTERVIEW_COMMUNICATION_SLA,
-            required=True,
-            rationale="Defines candidate communication timing for process quality and exports.",
-            impact_targets=[
-                QUESTION_IMPACT_TARGET_BRIEF,
-                QUESTION_IMPACT_TARGET_INTERVIEW,
-                QUESTION_IMPACT_TARGET_EXPORT,
-            ],
-            acquisition_cost="low",
-            info_gain_score=0.80,
-        ),
-        _pack_entry(
-            step_key=STEP_KEY_INTERVIEW,
-            question_id="ctx_interview_compliance_notes",
-            label="Welche Datenschutz- oder Dokumentationspflichten gelten im Auswahlprozess?",
-            answer_type=AnswerType.LONG_TEXT,
-            group_key="process_compliance",
-            priority="detail",
-            target_path=FactKey.INTERVIEW_COMPLIANCE_NOTES.value,
-            fact_key=FactKey.INTERVIEW_COMPLIANCE_NOTES,
-            rationale="Captures process compliance notes without making them a default depth blocker.",
-            impact_targets=[
-                QUESTION_IMPACT_TARGET_INTERVIEW,
-                QUESTION_IMPACT_TARGET_EXPORT,
-            ],
-            acquisition_cost="high",
-        ),
-    ),
+BASE_INTERVIEW_PACK = load_question_pack_from_json(
+    _DATA_DIR / "base_interview.json",
+    expected_pack_key="base.interview",
 )
 
 DIGITAL_PRODUCT_PACK = QuestionPack(
