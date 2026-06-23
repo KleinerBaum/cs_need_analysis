@@ -3,6 +3,8 @@ from __future__ import annotations
 import io
 from zipfile import ZipFile
 
+import exporters.job_ad as job_ad_exporter
+import summary_job_ad
 from document_preview import markdown_article_preview_html
 from llm_client import JobAdGenerationResult
 from summary_job_ad import (
@@ -14,6 +16,16 @@ from summary_job_ad import (
     normalize_list_item,
     sanitize_generated_job_ad,
 )
+
+
+def test_summary_job_ad_facade_reexports_job_ad_exporter_helpers() -> None:
+    assert summary_job_ad.job_ad_to_docx_bytes is job_ad_exporter.job_ad_to_docx_bytes
+    assert summary_job_ad.job_ad_to_pdf_bytes is job_ad_exporter.job_ad_to_pdf_bytes
+    assert summary_job_ad.job_ad_preview_html is job_ad_exporter.job_ad_preview_html
+    assert (
+        summary_job_ad.build_publishable_job_ad_plain_text
+        is job_ad_exporter.build_publishable_job_ad_plain_text
+    )
 
 
 def test_normalize_list_item_removes_common_bullet_prefixes() -> None:
