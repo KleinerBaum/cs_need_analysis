@@ -81,6 +81,20 @@ public pages syncs `SSKey.LANGUAGE` plus `UI_PREFERENCE_UI_LANGUAGE`; the
 browser choice is also mirrored through the `lang` query parameter and
 origin-local browser storage so it survives reloads and public-page navigation.
 
+## Draft save and resume
+
+The app works without a backend-specific user store. Users can intentionally
+save progress from the sidebar via `Entwurf speichern`, which downloads a
+schema-versioned JSON draft. The matching `Entwurf laden` action restores only
+allowlisted, canonical `SSKey` vacancy domains and then shows a resume banner
+with the restored wizard step.
+
+Draft JSON excludes OpenAI settings, secrets, caches, usage events, debug/error
+state, uploaded file metadata/signatures, and logo binary payloads. It does
+include the vacancy content required to continue later, such as source text,
+reviewed facts, answers, ESCO anchors, selected role/tasks/skills/benefits,
+salary scenario state, interview process data, and generated summary artifacts.
+
 ## Information acquisition model
 
 The intake process combines several evidence streams:

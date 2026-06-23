@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 from constants import FactKey, FactSourceType, SSKey, STEP_KEY_INTRO
@@ -283,6 +284,83 @@ def test_state_store_summary_freshness_writes_only_canonical_session_keys() -> N
     assert session_state[SSKey.SUMMARY_INPUT_FINGERPRINT.value] == "current"
     assert session_state[SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value] == "current"
     assert session_state[SSKey.SUMMARY_DIRTY.value] is False
+
+
+def test_vacancy_draft_json_round_trips_allowlisted_state_only(monkeypatch) -> None:
+    source_state: dict[str, object] = {
+        SSKey.CURRENT_STEP.value: "summary",
+        SSKey.NAV_SELECTED.value: "summary",
+        SSKey.SOURCE_TEXT.value: "Synthetic jobspec",
+        SSKey.SOURCE_ACTIVE.value: "manual",
+        SSKey.SOURCE_ACTIVE_FINGERPRINT.value: "source-fingerprint",
+        SSKey.JOB_EXTRACT.value: JobAdExtract(job_title="Data Engineer"),
+        SSKey.ANSWERS.value: {"company_name": "Example GmbH"},
+        SSKey.ANSWER_META.value: {"company_name": {"touched": True}},
+        SSKey.INTAKE_FACTS.value: {FactKey.COMPANY_COMPANY_NAME.value: "Example GmbH"},
+        SSKey.ROLE_TASKS_SELECTED.value: ["Build data pipelines"],
+        SSKey.SKILLS_SELECTED.value: ["Python"],
+        SSKey.BENEFITS_SELECTED.value: ["Remote work"],
+        SSKey.BRIEF.value: {"one_liner": "Hire a data engineer"},
+        SSKey.JOB_AD_DRAFT_CUSTOM.value: "Publishable draft",
+        SSKey.MODEL.value: "runtime-model",
+        SSKey.USAGE_EVENTS.value: [{"event_type": "artifact_generated"}],
+        SSKey.LLM_RESPONSE_CACHE.value: {"cache": "ignored"},
+        SSKey.OPENAI_LAST_STRUCTURED_OUTPUT_PATH.value: {"path": "ignored"},
+        SSKey.LAST_ERROR.value: "ignored error",
+        SSKey.SUMMARY_LOGO.value: {"bytes": b"not exported"},
+        SSKey.CONTENT_SHARING_CONSENT.value: True,
+    }
+
+    raw_json = state.build_vacancy_draft_json(source_state)
+    exported_state = json.loads(raw_json)["state"]
+
+    assert exported_state[SSKey.SOURCE_TEXT.value] == "Synthetic jobspec"
+    assert exported_state[SSKey.JOB_EXTRACT.value]["job_title"] == "Data Engineer"
+    assert SSKey.SOURCE_ACTIVE_FINGERPRINT.value not in exported_state
+    assert SSKey.SOURCE_FILE_META.value not in exported_state
+    assert SSKey.SOURCE_UPLOAD_SIGNATURE.value not in exported_state
+    assert SSKey.MODEL.value not in exported_state
+    assert SSKey.USAGE_EVENTS.value not in exported_state
+    assert SSKey.LLM_RESPONSE_CACHE.value not in exported_state
+    assert SSKey.OPENAI_LAST_STRUCTURED_OUTPUT_PATH.value not in exported_state
+    assert SSKey.LAST_ERROR.value not in exported_state
+    assert SSKey.SUMMARY_LOGO.value not in exported_state
+    assert SSKey.CONTENT_SHARING_CONSENT.value not in exported_state
+
+    target_state: dict[str, object] = {
+        SSKey.MODEL.value: "runtime-model",
+        SSKey.SOURCE_TEXT.value: "stale jobspec",
+        SSKey.ANSWERS.value: {"stale": "value"},
+        SSKey.USAGE_EVENTS.value: [{"event_type": "old"}],
+        SSKey.LAST_ERROR.value: "old error",
+        SSKey.CONTENT_SHARING_CONSENT.value: False,
+    }
+    monkeypatch.setattr(
+        state,
+        "st",
+        SimpleNamespace(session_state=target_state),
+    )
+
+    result = state.load_vacancy_draft_json(raw_json)
+
+    assert result.success is True
+    assert target_state[SSKey.MODEL.value] == "runtime-model"
+    assert target_state[SSKey.SOURCE_TEXT.value] == "Synthetic jobspec"
+    assert target_state[SSKey.JOB_EXTRACT.value]["job_title"] == "Data Engineer"
+    assert target_state[SSKey.ANSWERS.value] == {"company_name": "Example GmbH"}
+    assert target_state[SSKey.ROLE_TASKS_SELECTED.value] == ["Build data pipelines"]
+    assert target_state[SSKey.SKILLS_SELECTED.value] == ["Python"]
+    assert target_state[SSKey.BENEFITS_SELECTED.value] == ["Remote work"]
+    assert target_state[SSKey.CURRENT_STEP.value] == "summary"
+    assert target_state[SSKey.NAV_SELECTED.value] == "summary"
+    assert target_state[SSKey.USAGE_EVENTS.value] == []
+    assert target_state[SSKey.LAST_ERROR.value] is None
+    assert target_state[SSKey.CONTENT_SHARING_CONSENT.value] is False
+    assert isinstance(target_state[SSKey.DRAFT_RESUME_NOTICE.value], dict)
+    assert (
+        target_state[SSKey.DRAFT_RESUME_NOTICE.value]["restored_step"]
+        == "summary"
+    )
 
 
 def test_reset_vacancy_clears_progressive_disclosure_state(

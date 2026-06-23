@@ -11,7 +11,8 @@ import hashlib
 import json
 import os
 from collections.abc import Mapping, MutableMapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import datetime, timezone
 from typing import Any, Dict, cast
 
 import streamlit as st
@@ -34,6 +35,7 @@ from constants import (
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
     UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT,
     UI_MODE_DEFAULT,
+    UI_MODE_VALUES,
     UI_PREFERENCE_ESCO_MATCHING_STRICTNESS,
     UI_PREFERENCE_INFORMATION_DEPTH,
     UI_PREFERENCE_PII_REDUCTION,
@@ -44,6 +46,7 @@ from constants import (
     STALE_REDESIGN_SESSION_KEY_PREFIXES,
     STEPS,
     SUMMARY_SESSION_KEY_LEGACY_ALIASES,
+    VACANCY_DRAFT_SCHEMA_VERSION,
 )
 from esco_semantics import (
     normalize_release_lane,
@@ -66,9 +69,148 @@ from schemas import (
 )
 from settings_openai import load_openai_settings
 from state_store import StateStore, SummaryDirtyState
+from summary_exports import (
+    VACANCY_DRAFT_SCHEMA_ID,
+    parse_vacancy_draft_json,
+    vacancy_draft_to_json,
+)
 from usage_events import reset_usage_events
 
 DEFAULT_ESCO_API_BASE_URL = "https://ec.europa.eu/esco/api/"
+
+VACANCY_DRAFT_SESSION_KEYS: tuple[SSKey, ...] = (
+    SSKey.CURRENT_STEP,
+    SSKey.NAV_SELECTED,
+    SSKey.LANGUAGE,
+    SSKey.UI_MODE,
+    SSKey.UI_PREFERENCES,
+    SSKey.OPEN_GROUPS,
+    SSKey.SOURCE_TEXT,
+    SSKey.SOURCE_REDACT_PII,
+    SSKey.SOURCE_ACTIVE,
+    SSKey.SOURCE_MANUAL_TEXT,
+    SSKey.SOURCE_UPLOADED_TEXT,
+    SSKey.SOURCE_UPLOAD_TEXT_INPUT,
+    SSKey.JOB_EXTRACT,
+    SSKey.INTAKE_FACTS,
+    SSKey.INTAKE_FACT_EVIDENCE,
+    SSKey.QUESTION_PLAN_BASE,
+    SSKey.QUESTION_PLAN,
+    SSKey.QUESTION_LIMITS,
+    SSKey.OCCUPATION_PROFILE,
+    SSKey.OCCUPATION_QUESTION_CONTEXT,
+    SSKey.OCCUPATION_CLASSIFICATION_TRACE,
+    SSKey.OCCUPATION_PACK_KEYS,
+    SSKey.QUESTION_FLOW_PROVENANCE,
+    SSKey.QUESTION_FLOW_FINGERPRINT,
+    SSKey.ANSWERS,
+    SSKey.ANSWER_META,
+    SSKey.BRIEF,
+    SSKey.SUMMARY_DIRTY,
+    SSKey.SUMMARY_INPUT_FINGERPRINT,
+    SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT,
+    SSKey.SUMMARY_ACTIVE_ARTIFACT,
+    SSKey.SUMMARY_SHOW_JOB_AD_CONFIG,
+    SSKey.SUMMARY_SELECTIONS,
+    SSKey.SUMMARY_STYLEGUIDE_BLOCKS,
+    SSKey.SUMMARY_CHANGE_REQUEST_BLOCKS,
+    SSKey.SUMMARY_STYLEGUIDE_TEXT,
+    SSKey.SUMMARY_CHANGE_REQUEST_TEXT,
+    SSKey.SUMMARY_ARTIFACT_OPTIONS,
+    SSKey.SUMMARY_ARTIFACT_CHANGE_REQUESTS,
+    SSKey.SUMMARY_ARTIFACT_FINGERPRINTS,
+    SSKey.JOB_AD_DRAFT_CUSTOM,
+    SSKey.INTERVIEW_PREP_HR,
+    SSKey.INTERVIEW_PREP_FACH,
+    SSKey.BOOLEAN_SEARCH_STRING,
+    SSKey.EMPLOYMENT_CONTRACT_DRAFT,
+    SSKey.ESCO_RELEASE_LANE,
+    SSKey.ESCO_ANCHOR_STATE,
+    SSKey.ESCO_PRIMARY_ANCHOR,
+    SSKey.ESCO_SECONDARY_ANCHORS,
+    SSKey.ESCO_SEMANTIC_EXPORT_MODE,
+    SSKey.ESCO_OCCUPATION_SELECTED,
+    SSKey.ESCO_SELECTED_OCCUPATION_URI,
+    SSKey.ESCO_OCCUPATION_PAYLOAD,
+    SSKey.ESCO_OCCUPATION_RELATED_COUNTS,
+    SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE,
+    SSKey.ESCO_OCCUPATION_CANDIDATES,
+    SSKey.ESCO_MATCH_REASON,
+    SSKey.ESCO_MATCH_CONFIDENCE,
+    SSKey.ESCO_MATCH_PROVENANCE,
+    SSKey.ESCO_SKILLS_SELECTED_MUST,
+    SSKey.ESCO_SKILLS_SELECTED_NICE,
+    SSKey.ESCO_SKILLS_REMOVED,
+    SSKey.ESCO_CONFIRMED_ESSENTIAL_SKILLS,
+    SSKey.ESCO_CONFIRMED_OPTIONAL_SKILLS,
+    SSKey.ESCO_UNMAPPED_REQUIREMENT_TERMS,
+    SSKey.ESCO_UNMAPPED_ROLE_TERMS,
+    SSKey.ESCO_UNMAPPED_TERM_ACTIONS,
+    SSKey.ESCO_UNRESOLVED_TERM_DECISIONS,
+    SSKey.ESCO_SKILLS_MAPPING_REPORT,
+    SSKey.ESCO_MATRIX_METADATA,
+    SSKey.ESCO_MATRIX_LOADED,
+    SSKey.ESCO_MATRIX_COVERAGE_ROWS,
+    SSKey.ESCO_MATRIX_COVERAGE_CONTEXT,
+    SSKey.COMPANY_WEBSITE_RESEARCH,
+    SSKey.COMPANY_WEBSITE_SELECTED_MATCHES,
+    SSKey.COMPANY_WEBSITE_FACT_REVIEW,
+    SSKey.COMPANY_WEBSITE_MANUAL_URL,
+    SSKey.ROLE_TASKS_JOBSPEC_SUGGESTED,
+    SSKey.ROLE_TASKS_ESCO_SUGGESTED,
+    SSKey.ROLE_TASKS_LLM_SUGGESTED,
+    SSKey.ROLE_TASKS_SELECTED,
+    SSKey.ROLE_TASKS_SUGGEST_COUNT,
+    SSKey.ROLE_TASKS_JOBSPEC_PILLS,
+    SSKey.ROLE_TASKS_ESCO_PILLS,
+    SSKey.ROLE_TASKS_AI_PILLS,
+    SSKey.INTERVIEW_INTERNAL_FLOW,
+    SSKey.SKILLS_JOBSPEC_SUGGESTED,
+    SSKey.SKILLS_LLM_SUGGESTED,
+    SSKey.SKILLS_AI_INITIAL_GENERATED,
+    SSKey.SKILLS_SELECTED,
+    SSKey.SKILLS_SELECTED_STATUS,
+    SSKey.SKILLS_SUGGEST_COUNT,
+    SSKey.SKILLS_JOBSPEC_PILLS,
+    SSKey.SKILLS_ESCO_PILLS,
+    SSKey.SKILLS_AI_PILLS,
+    SSKey.SKILLS_ESCO_LOAD_CLICKED,
+    SSKey.SKILLS_ESCO_SEARCH,
+    SSKey.SKILLS_ESCO_SORT,
+    SSKey.BENEFITS_JOBSPEC_SUGGESTED,
+    SSKey.BENEFITS_LLM_SUGGESTED,
+    SSKey.BENEFITS_SELECTED,
+    SSKey.BENEFITS_JOBSPEC_PILLS,
+    SSKey.BENEFITS_CONTEXT_PILLS,
+    SSKey.BENEFITS_AI_PILLS,
+    SSKey.BENEFITS_SUGGEST_COUNT,
+    SSKey.BENEFITS_AI_INITIAL_GENERATED,
+    SSKey.BENEFITS_REGION_CONTEXT,
+    SSKey.SALARY_SCENARIO_SKILLS_ADD,
+    SSKey.SALARY_SCENARIO_SKILLS_REMOVE,
+    SSKey.SALARY_SCENARIO_LOCATION_OVERRIDE,
+    SSKey.SALARY_SCENARIO_LOCATION_CITY_OVERRIDE,
+    SSKey.SALARY_SCENARIO_LOCATION_COUNTRY_OVERRIDE,
+    SSKey.SALARY_SCENARIO_RADIUS_KM,
+    SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT,
+    SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE,
+    SSKey.SALARY_SCENARIO_LAB_ROWS,
+    SSKey.SALARY_SCENARIO_SELECTED_ROW_ID,
+    SSKey.SALARY_FORECAST_SELECTED_SCENARIO,
+    SSKey.SALARY_FORECAST_LAST_RESULT,
+    SSKey.SALARY_FORECAST_INPUT_FINGERPRINT,
+    SSKey.SALARY_FORECAST_INPUT_SELECTIONS,
+)
+
+
+@dataclass(frozen=True)
+class VacancyDraftLoadResult:
+    success: bool
+    message: str
+    saved_at: str = ""
+    restored_step: str = ""
+    restored_key_count: int = 0
+    schema_version: str = ""
 
 
 def _normalize_jobspec_source(source: str) -> str:
@@ -612,6 +754,7 @@ def init_session_state() -> None:
         SSKey.LANGUAGE.value: configured_language,
         SSKey.MODEL.value: load_openai_settings().openai_model,
         SSKey.STORE_API_OUTPUT.value: False,
+        SSKey.DRAFT_RESUME_NOTICE.value: None,
         SSKey.SOURCE_TEXT.value: "",
         SSKey.SOURCE_FILE_META.value: {},
         SSKey.SOURCE_REDACT_PII.value: True,
@@ -836,8 +979,137 @@ def init_session_state() -> None:
     _sync_source_redaction_from_preferences()
 
 
+def build_vacancy_draft_json(
+    session_state: Mapping[str, Any] | None = None,
+) -> str:
+    """Return an explicit, allowlisted JSON draft for the current vacancy."""
+
+    target_state = session_state if session_state is not None else st.session_state
+    return vacancy_draft_to_json(
+        target_state,
+        allowed_keys=VACANCY_DRAFT_SESSION_KEYS,
+    )
+
+
+def _extract_vacancy_draft_state(
+    payload: Mapping[str, Any],
+) -> tuple[dict[str, Any], str, str]:
+    schema = str(payload.get("schema") or "").strip()
+    if schema != VACANCY_DRAFT_SCHEMA_ID:
+        raise ValueError("unsupported_schema")
+    schema_version = str(payload.get("schema_version") or "").strip()
+    if not schema_version:
+        raise ValueError("missing_schema_version")
+    raw_state = payload.get("state")
+    if not isinstance(raw_state, Mapping):
+        raise ValueError("missing_state")
+
+    allowed_key_names = {key.value for key in VACANCY_DRAFT_SESSION_KEYS}
+    restored_state = {
+        str(key): value
+        for key, value in raw_state.items()
+        if str(key) in allowed_key_names
+    }
+    if not restored_state:
+        raise ValueError("empty_state")
+    saved_at = str(payload.get("saved_at") or "").strip()
+    return restored_state, schema_version, saved_at
+
+
+def _normalize_loaded_vacancy_draft_state(
+    session_state: MutableMapping[str, Any],
+) -> str:
+    store = StateStore(session_state)
+    jobspec_source = store.jobspec_source()
+    source_fingerprint = ""
+    if jobspec_source.source_text.strip():
+        source_fingerprint = build_jobspec_source_fingerprint(
+            jobspec_source.active,
+            jobspec_source.source_text,
+        )
+    store.set_jobspec_source(
+        replace(jobspec_source, active_fingerprint=source_fingerprint)
+    )
+    store.set_job_extract(store.job_extract())
+    store.set_esco(store.esco())
+    store.set_question_answers(store.answers(), store.answer_meta())
+    store.set_intake_facts(store.intake_facts())
+    store.set_intake_fact_evidence(store.intake_fact_evidence())
+    store.set_summary_dirty_state(store.summary_dirty())
+
+    language = str(session_state.get(SSKey.LANGUAGE.value, DEFAULT_LANGUAGE)).strip()
+    if language not in {"de", "en"}:
+        language = DEFAULT_LANGUAGE
+    session_state[SSKey.LANGUAGE.value] = language
+
+    ui_mode = str(session_state.get(SSKey.UI_MODE.value) or UI_MODE_DEFAULT).strip()
+    session_state[SSKey.UI_MODE.value] = (
+        ui_mode if ui_mode in UI_MODE_VALUES else UI_MODE_DEFAULT
+    )
+    session_state[SSKey.UI_PREFERENCES.value] = normalize_ui_preferences(
+        session_state.get(SSKey.UI_PREFERENCES.value)
+    )
+    _sync_source_redaction_from_preferences()
+
+    valid_step_keys = {step.key for step in STEPS}
+    restored_step = str(session_state.get(SSKey.CURRENT_STEP.value) or "").strip()
+    if restored_step not in valid_step_keys:
+        restored_step = STEPS[0].key
+    session_state[SSKey.CURRENT_STEP.value] = restored_step
+    session_state[SSKey.NAV_SELECTED.value] = restored_step
+    session_state[SSKey.NAV_SYNC_PENDING.value] = False
+    session_state[SSKey.LAST_RENDERED_STEP.value] = None
+    session_state[SSKey.NAV_DEEP_LINK_TARGET.value] = {}
+
+    sync_esco_semantic_state(session_state)
+    _clear_stale_redesign_state()
+    return restored_step
+
+
+def load_vacancy_draft_json(raw_json: str | bytes) -> VacancyDraftLoadResult:
+    """Reset the current vacancy and restore a schema-versioned JSON draft."""
+
+    try:
+        payload = parse_vacancy_draft_json(raw_json)
+        restored_state, schema_version, saved_at = _extract_vacancy_draft_state(payload)
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+        return VacancyDraftLoadResult(
+            success=False,
+            message=(
+                "Entwurf konnte nicht geladen werden. Bitte eine gültige "
+                "Cognitive Staffing Entwurf-JSON-Datei verwenden."
+            ),
+        )
+
+    reset_vacancy()
+    st.session_state.update(restored_state)
+    restored_step = _normalize_loaded_vacancy_draft_state(st.session_state)
+    restored_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    st.session_state[SSKey.DRAFT_RESUME_NOTICE.value] = {
+        "saved_at": saved_at,
+        "restored_at": restored_at,
+        "restored_step": restored_step,
+        "restored_key_count": len(restored_state),
+        "schema_version": schema_version,
+    }
+    version_note = (
+        ""
+        if schema_version == VACANCY_DRAFT_SCHEMA_VERSION
+        else f" Schema-Version importiert: {schema_version}."
+    )
+    return VacancyDraftLoadResult(
+        success=True,
+        message=f"Entwurf wurde geladen.{version_note}",
+        saved_at=saved_at,
+        restored_step=restored_step,
+        restored_key_count=len(restored_state),
+        schema_version=schema_version,
+    )
+
+
 def reset_vacancy() -> None:
     """Reset only vacancy-related state, not preferences."""
+    st.session_state[SSKey.DRAFT_RESUME_NOTICE.value] = None
     st.session_state[SSKey.SOURCE_TEXT.value] = ""
     st.session_state[SSKey.SOURCE_FILE_META.value] = {}
     st.session_state[SSKey.SOURCE_ACTIVE.value] = JOBSPEC_SOURCE_MANUAL

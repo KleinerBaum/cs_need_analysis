@@ -15,6 +15,11 @@ class SSKey(str, Enum):
     LANGUAGE = "cs.language"
     MODEL = "cs.model"
     STORE_API_OUTPUT = "cs.store_api_output"
+    DRAFT_RESUME_NOTICE = "cs.draft.resume_notice"
+    DRAFT_SAVE_DOWNLOAD_WIDGET = "cs.draft.save_download"
+    DRAFT_LOAD_UPLOAD_WIDGET = "cs.draft.load_upload"
+    DRAFT_LOAD_BUTTON_WIDGET = "cs.draft.load_button"
+    DRAFT_RESUME_DISMISS_WIDGET = "cs.draft.resume_dismiss"
 
     SOURCE_TEXT = "cs.source_text"
     SOURCE_FILE_META = "cs.source_file_meta"

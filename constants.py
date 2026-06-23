@@ -215,6 +215,7 @@ VACANCY_SCHEMA_VERSION: Final[str] = "2026-04-14"
 JOB_AD_SCHEMA_VERSION: Final[str] = "2026-06-10"
 OCCUPATION_CONTEXT_SCHEMA_VERSION: Final[str] = "2026-06-03"
 OCCUPATION_QUESTION_CONTEXT_SCHEMA_VERSION: Final[str] = "2026-06-11"
+VACANCY_DRAFT_SCHEMA_VERSION: Final[str] = "2026-06-23"
 
 # ---- Company website research canonical keys ----
 WEBSITE_TOPIC_ABOUT: Final[str] = "about"

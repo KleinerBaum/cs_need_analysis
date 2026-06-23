@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import base64
+from collections.abc import Mapping
+from datetime import datetime, timezone
 from pathlib import Path
 
 import streamlit as st
@@ -37,7 +39,13 @@ from llm_client import (
 )
 from safe_html import render_static_html
 from settings_openai import load_openai_settings
-from state import init_session_state, normalize_ui_preferences, reset_vacancy
+from state import (
+    build_vacancy_draft_json,
+    init_session_state,
+    load_vacancy_draft_json,
+    normalize_ui_preferences,
+    reset_vacancy,
+)
 from ui_layout import render_intake_process_progress
 from wizard_pages import load_pages
 from wizard_pages.base import (
@@ -638,6 +646,80 @@ def _render_sidebar_primary_links() -> None:
         )
 
 
+def _vacancy_draft_filename() -> str:
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return f"cognitive-staffing-entwurf-{timestamp}.json"
+
+
+def _render_draft_controls() -> None:
+    with st.sidebar.expander("Entwurf", expanded=False):
+        st.caption(
+            "Speichert die aktuelle Vacancy als JSON. Enthalten sind nur "
+            "notwendige Wizard-Daten; Secrets, Caches, Logs, Debug-Daten und "
+            "Logo-Dateien werden nicht exportiert."
+        )
+        st.download_button(
+            "Entwurf speichern",
+            data=build_vacancy_draft_json(),
+            file_name=_vacancy_draft_filename(),
+            mime="application/json",
+            key=SSKey.DRAFT_SAVE_DOWNLOAD_WIDGET.value,
+        )
+        uploaded_draft = st.file_uploader(
+            "Entwurf-JSON auswählen",
+            type=["json"],
+            key=SSKey.DRAFT_LOAD_UPLOAD_WIDGET.value,
+        )
+        load_clicked = st.button(
+            "Entwurf laden",
+            disabled=uploaded_draft is None,
+            key=SSKey.DRAFT_LOAD_BUTTON_WIDGET.value,
+        )
+        if load_clicked:
+            if uploaded_draft is None:
+                st.error("Bitte zuerst eine Entwurf-JSON-Datei auswählen.")
+                return
+            result = load_vacancy_draft_json(uploaded_draft.getvalue())
+            if not result.success:
+                st.error(result.message)
+                return
+            st.query_params.clear()
+            st.rerun()
+
+
+def _dismiss_resume_notice() -> None:
+    st.session_state[SSKey.DRAFT_RESUME_NOTICE.value] = None
+
+
+def _render_resume_banner(ctx: WizardContext) -> None:
+    notice = st.session_state.get(SSKey.DRAFT_RESUME_NOTICE.value)
+    if not isinstance(notice, Mapping):
+        return
+    restored_step = str(notice.get("restored_step") or "").strip()
+    step_label_by_key = {page.key: page.title_de for page in ctx.pages}
+    step_label = step_label_by_key.get(restored_step, restored_step or "Wizard")
+    saved_at = str(notice.get("saved_at") or "").strip()
+    schema_version = str(notice.get("schema_version") or "").strip()
+    restored_key_count = notice.get("restored_key_count")
+
+    with st.container(border=True):
+        st.success(f"Entwurf geladen. Fortsetzung bei „{step_label}“.")
+        details = []
+        if saved_at:
+            details.append(f"gespeichert: {saved_at}")
+        if schema_version:
+            details.append(f"Schema: {schema_version}")
+        if isinstance(restored_key_count, int):
+            details.append(f"{restored_key_count} State-Felder wiederhergestellt")
+        if details:
+            st.caption(" · ".join(details))
+        st.button(
+            "Banner ausblenden",
+            key=SSKey.DRAFT_RESUME_DISMISS_WIDGET.value,
+            on_click=_dismiss_resume_notice,
+        )
+
+
 def _render_sidebar_footer_links() -> None:
     """Render non-wizard legal sidebar links below contextual controls."""
     with st.sidebar:
@@ -731,6 +813,7 @@ def main() -> None:
         page_param = page_param[0] if page_param else None
     if page_param == PREFERENCE_CENTER_QUERY_VALUE:
         _render_sidebar_primary_links()
+        _render_draft_controls()
         sidebar_navigation(ctx)
         _render_preferences_page()
         _render_sidebar_footer_links()
@@ -739,12 +822,14 @@ def main() -> None:
 
     _consume_wizard_step_query_param(ctx)
     _render_sidebar_primary_links()
+    _render_draft_controls()
     current = sidebar_navigation(ctx)
     step_changed = bool(previous_step and previous_step != current.key)
 
     if step_changed:
         _reset_scroll_on_step_change()
     render_intake_process_progress(current.key)
+    _render_resume_banner(ctx)
     current.render(ctx)
     _render_sidebar_footer_links()
     st.session_state[SSKey.LAST_RENDERED_STEP.value] = current.key

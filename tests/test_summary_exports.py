@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 
+from constants import SSKey, VACANCY_DRAFT_SCHEMA_VERSION
 from document_preview import (
     article_preview_html,
     document_preview_shell,
@@ -19,6 +20,9 @@ from summary_exports import (
     boolean_search_pack_to_markdown,
     brief_to_markdown,
     build_summary_input_fingerprint,
+    build_vacancy_draft_payload,
+    parse_vacancy_draft_json,
+    vacancy_draft_payload_to_json,
 )
 
 
@@ -104,6 +108,30 @@ def test_boolean_search_pack_to_markdown_formats_channel_queries() -> None:
     assert "- `site:linkedin.com/in Python`" in markdown
     assert "### Focused\n- —" in markdown
     assert "## Usage Notes\n- Start broad, then tighten" in markdown
+
+
+def test_vacancy_draft_payload_exports_schema_and_allowed_state_only() -> None:
+    payload = build_vacancy_draft_payload(
+        {
+            SSKey.SOURCE_TEXT.value: "Synthetic jobspec",
+            SSKey.ANSWERS.value: {"company_name": "Example GmbH"},
+            SSKey.MODEL.value: "runtime-model",
+            SSKey.USAGE_EVENTS.value: [{"event_type": "artifact_generated"}],
+            "unknown": "ignored",
+        },
+        allowed_keys=(SSKey.SOURCE_TEXT, SSKey.ANSWERS),
+    )
+
+    assert payload["schema"] == "cs_need_analysis.vacancy_draft"
+    assert payload["schema_version"] == VACANCY_DRAFT_SCHEMA_VERSION
+    assert payload["state"] == {
+        SSKey.SOURCE_TEXT.value: "Synthetic jobspec",
+        SSKey.ANSWERS.value: {"company_name": "Example GmbH"},
+    }
+
+    parsed = parse_vacancy_draft_json(vacancy_draft_payload_to_json(payload))
+
+    assert parsed == payload
 
 
 def test_markdown_article_preview_html_escapes_hostile_markdown() -> None:

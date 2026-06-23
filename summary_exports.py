@@ -4,9 +4,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping, Sequence
+from datetime import datetime, timezone
 from typing import Any
 
+from constants import APP_NAME, SSKey, VACANCY_DRAFT_SCHEMA_VERSION
 from schemas import BooleanSearchPack, JobAdExtract, VacancyBrief
+
+VACANCY_DRAFT_SCHEMA_ID = "cs_need_analysis.vacancy_draft"
 
 
 def build_summary_input_fingerprint(
@@ -46,6 +51,85 @@ def build_summary_input_fingerprint(
         default=str,
     )
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _json_safe_draft_value(value: Any) -> Any:
+    if value is None or isinstance(value, str | int | float | bool):
+        return value
+    if isinstance(value, datetime):
+        return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    if isinstance(value, bytes | bytearray | memoryview):
+        return None
+    if hasattr(value, "model_dump"):
+        try:
+            return _json_safe_draft_value(value.model_dump(mode="json"))
+        except Exception:
+            return str(value)
+    if isinstance(value, Mapping):
+        return {str(key): _json_safe_draft_value(item) for key, item in value.items()}
+    if isinstance(value, Sequence) and not isinstance(value, str):
+        return [_json_safe_draft_value(item) for item in value]
+    if isinstance(value, set):
+        return [_json_safe_draft_value(item) for item in value]
+    return str(value)
+
+
+def build_vacancy_draft_payload(
+    session_state: Mapping[str, Any],
+    *,
+    allowed_keys: Sequence[SSKey],
+    saved_at: datetime | None = None,
+) -> dict[str, Any]:
+    """Build a schema-versioned JSON-safe draft from allowlisted session keys."""
+
+    saved_at_utc = (saved_at or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    state_payload: dict[str, Any] = {}
+    for key in allowed_keys:
+        if key.value not in session_state:
+            continue
+        state_payload[key.value] = _json_safe_draft_value(session_state[key.value])
+
+    return {
+        "schema": VACANCY_DRAFT_SCHEMA_ID,
+        "schema_version": VACANCY_DRAFT_SCHEMA_VERSION,
+        "application": APP_NAME,
+        "saved_at": saved_at_utc.isoformat().replace("+00:00", "Z"),
+        "state": state_payload,
+    }
+
+
+def vacancy_draft_payload_to_json(payload: Mapping[str, Any]) -> str:
+    return json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        indent=2,
+        default=str,
+    )
+
+
+def vacancy_draft_to_json(
+    session_state: Mapping[str, Any],
+    *,
+    allowed_keys: Sequence[SSKey],
+    saved_at: datetime | None = None,
+) -> str:
+    return vacancy_draft_payload_to_json(
+        build_vacancy_draft_payload(
+            session_state,
+            allowed_keys=allowed_keys,
+            saved_at=saved_at,
+        )
+    )
+
+
+def parse_vacancy_draft_json(raw_json: str | bytes) -> dict[str, Any]:
+    if isinstance(raw_json, bytes):
+        raw_json = raw_json.decode("utf-8")
+    payload = json.loads(raw_json)
+    if not isinstance(payload, dict):
+        raise ValueError("Draft JSON must contain an object payload.")
+    return payload
 
 
 def brief_to_markdown(brief: VacancyBrief) -> str:
