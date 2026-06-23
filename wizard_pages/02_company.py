@@ -363,7 +363,7 @@ def _run_website_research(
         )
     except _HomepageResearchInvalidUrlError:
         st.session_state[SSKey.COMPANY_WEBSITE_LAST_ERROR.value] = (
-            "Keine valide Homepage-URL gefunden."
+            "Keine valide Homepage-URL gefunden. Prüfe das Feld Unternehmenswebsite und starte den Check erneut."
         )
         record_enrichment_timed(
             st.session_state,
@@ -394,7 +394,7 @@ def _run_website_research(
             error_type=error_type,
         )
         st.session_state[SSKey.COMPANY_WEBSITE_LAST_ERROR.value] = (
-            f"Homepage konnte nicht verarbeitet werden: {error_type}"
+            "Homepage konnte nicht verarbeitet werden. Prüfe die URL oder erfasse die Angaben unten manuell."
         )
         return
 
@@ -426,9 +426,26 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
         st.session_state.get(SSKey.COMPANY_WEBSITE_MANUAL_URL.value, "")
     ).strip()
     manual_homepage = _normalize_url(manual_homepage_raw)
-    homepage = extracted_homepage or manual_homepage
+    homepage = manual_homepage or extracted_homepage
     if extracted_homepage:
         st.caption(f"Website aus der Anzeige: {extracted_homepage}")
+        with st.expander(
+            "Andere Website verwenden",
+            expanded=bool(
+                str(
+                    st.session_state.get(SSKey.COMPANY_WEBSITE_LAST_ERROR.value, "")
+                    or ""
+                ).strip()
+            ),
+        ):
+            st.text_input(
+                "Alternative Unternehmenswebsite",
+                key=SSKey.COMPANY_WEBSITE_MANUAL_URL.value,
+                placeholder="https://www.beispiel.de",
+                help="Manuelle URL überschreibt die Website aus der Anzeige.",
+            )
+            if manual_homepage:
+                st.caption("Manuelle URL wird für die Analyse verwendet.")
     else:
         st.text_input(
             "Unternehmenswebsite",
@@ -459,13 +476,18 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
     error_text = st.session_state.get(SSKey.COMPANY_WEBSITE_LAST_ERROR.value)
     if isinstance(error_text, str) and error_text.strip():
         st.warning(error_text)
+        st.caption(
+            "Manueller Pfad: Arbeitgeberprofil und Business-Kontext unten direkt ausfüllen."
+        )
 
     research_raw = st.session_state.get(SSKey.COMPANY_WEBSITE_RESEARCH.value, {})
     research = research_raw if isinstance(research_raw, dict) else {}
     sections = research.get(WEBSITE_RESEARCH_SECTIONS, {})
     section_payload = sections if isinstance(sections, dict) else {}
     if not section_payload:
-        st.caption("Noch keine Website-Analyse durchgeführt.")
+        st.caption(
+            "Noch keine Website-Analyse durchgeführt. Optional URL eintragen und Check starten; sonst unten manuell ausfüllen."
+        )
         return
 
     result_cols = responsive_three_columns(gap="small")
@@ -643,7 +665,7 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
                         ),
                     )
                 if parse_error:
-                    st.caption(parse_error)
+                    st.error(parse_error)
                 selected = st.checkbox(
                     "Als Beleg/Wert übernehmen",
                     value=default_selected,
@@ -712,7 +734,9 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
             f"{conflict_count} Website-Konflikte wurden als zusätzlicher Beleg gespeichert."
         )
     if skipped_count:
-        st.warning(f"{skipped_count} ausgewählte Kontextwerte wurden nicht gespeichert.")
+        st.warning(
+            f"{skipped_count} ausgewählte Kontextwerte wurden nicht gespeichert. Korrigiere den Wert oder entferne die Auswahl."
+        )
 
 
 def _render_website_candidate_value_input(
@@ -892,11 +916,11 @@ def _parse_jsonish_value(
     try:
         parsed = json.loads(text)
     except json.JSONDecodeError:
-        return None, "JSON prüfen: Wert wurde nicht gespeichert."
+        return None, "JSON prüfen: gültiges JSON eingeben oder Auswahl deaktivieren."
     if value_type == FactValueType.OBJECT_LIST and not isinstance(parsed, list):
-        return None, "JSON-Liste erwartet."
+        return None, "JSON-Liste erwartet: mit [...] eingeben oder Auswahl deaktivieren."
     if value_type != FactValueType.OBJECT_LIST and not isinstance(parsed, dict):
-        return None, "JSON-Objekt erwartet."
+        return None, "JSON-Objekt erwartet: mit {...} eingeben oder Auswahl deaktivieren."
     return parsed, None
 
 

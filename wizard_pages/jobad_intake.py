@@ -24,6 +24,7 @@ from constants import (
     SSKey,
     SOURCE_UPLOAD_ALLOWED_EXTENSIONS,
     SOURCE_UPLOAD_MAX_BYTES,
+    STEPS,
     UI_MODE_DEFAULT,
 )
 from job_extract_evidence import (
@@ -66,7 +67,7 @@ from question_progress import (
 )
 from question_plan_compiler import compile_question_plan
 from safe_html import render_static_html
-from schemas import JobAdExtract, Question, QuestionPlan
+from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
 from settings_openai import load_openai_settings
 from state import (
     clear_error,
@@ -1150,6 +1151,61 @@ def _set_active_source(
     )
 
 
+def _current_editable_source_text() -> str:
+    for key in (
+        SSKey.SOURCE_TEXT.value,
+        SOURCE_UPLOAD_TEXT_INPUT_KEY,
+        SOURCE_UPLOAD_TEXT_KEY,
+        SOURCE_TEXT_INPUT_KEY,
+    ):
+        value = str(st.session_state.get(key, "") or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _build_manual_fallback_question_plan() -> QuestionPlan:
+    return QuestionPlan(
+        language=str(st.session_state.get(SSKey.LANGUAGE.value, "de") or "de"),
+        steps=[
+            QuestionStep(
+                step_key=step.key,
+                title_de=step.title_de,
+                description_de=None,
+                questions=[],
+            )
+            for step in STEPS
+        ],
+    )
+
+
+def _activate_manual_intake_fallback(source_text: str) -> None:
+    text = source_text.strip()
+    active_source = str(st.session_state.get(SOURCE_ACTIVE_KEY) or "").strip()
+    if active_source == JOBSPEC_SOURCE_UPLOAD:
+        _set_active_source(
+            JOBSPEC_SOURCE_UPLOAD,
+            text,
+            file_meta=_current_upload_file_meta(),
+            upload_signature=_current_upload_signature(),
+        )
+    else:
+        st.session_state[SOURCE_TEXT_INPUT_KEY] = text
+        _set_active_source(JOBSPEC_SOURCE_MANUAL, text)
+
+    job = JobAdExtract(
+        language_guess=str(st.session_state.get(SSKey.LANGUAGE.value, "de") or "de"),
+        gaps=[
+            "Automatische Extraktion übersprungen. Erfasse fehlende Angaben manuell in den nächsten Schritten."
+        ],
+    )
+    plan = _build_manual_fallback_question_plan()
+    st.session_state[SSKey.JOB_EXTRACT.value] = _model_dump_json_compatible(job)
+    st.session_state[SSKey.QUESTION_PLAN_BASE.value] = _model_dump_json_compatible(plan)
+    st.session_state[SSKey.QUESTION_PLAN.value] = _model_dump_json_compatible(plan)
+    clear_error()
+
+
 def _routing_answer(fact_key: FactKey, default: Any) -> Any:
     answers_raw = st.session_state.get(SSKey.ANSWERS.value, {})
     answers = answers_raw if isinstance(answers_raw, dict) else {}
@@ -1383,6 +1439,9 @@ def _render_source_upload_status() -> None:
 
     if upload is not None and not uploaded_text and last_error:
         st.error(f"Extraktion fehlgeschlagen: {last_error}")
+        st.caption(
+            "Nächster Schritt: Text im Feld „Quelle für die Briefing-Analyse“ manuell einfügen oder andere Datei hochladen."
+        )
 
 
 def _render_phase_a_configuration_controls() -> None:
@@ -1403,15 +1462,36 @@ def _render_source_character_metric() -> None:
     char_count = len(active_source_text.strip()) if active_source_text else 0
     st.metric("Zeichen", f"{char_count:,}".replace(",", "."))
     if 0 < char_count < 250:
-        st.warning("Die Quelle ist sehr kurz. Die Extraktion kann unvollstaendig sein.")
+        st.warning(
+            "Die Quelle ist sehr kurz. Ergänze mehr Text oder prüfe die erkannten Angaben in Phase B genau."
+        )
 
 
 def _render_phase_a_action_controls() -> bool:
-    return st.button(
+    do_extract = st.button(
         "Recruiting-Briefing vorbereiten",
         width="stretch",
         help="Erstellt aus der aktuell aktiven Quelle eine prüfbare Briefing-Basis.",
     )
+    last_error = str(st.session_state.get(SSKey.LAST_ERROR.value, "") or "").strip()
+    if not last_error or _has_completed_intake_analysis():
+        return do_extract
+
+    fallback_text = _current_editable_source_text()
+    st.info(
+        "Manueller Fallback: Text behalten, automatische Extraktion überspringen und die nächsten Schritte selbst ausfüllen."
+    )
+    if not fallback_text:
+        st.caption("Nächster Schritt: Füge rechts Text ein oder lade eine lesbare Datei hoch.")
+    if st.button(
+        "Manuell ohne Extraktion fortsetzen",
+        key="cs.start.manual_fallback",
+        width="stretch",
+        disabled=not bool(fallback_text),
+    ):
+        _activate_manual_intake_fallback(fallback_text)
+        st.rerun()
+    return do_extract
 
 
 def _render_source_text_or_preview() -> None:
@@ -1447,6 +1527,11 @@ def _render_source_text_or_preview() -> None:
                 on_change=_on_upload_text_change,
                 placeholder="Füge hier den vollständigen Ausschreibungstext ein …",
             )
+            last_error = str(st.session_state.get(SSKey.LAST_ERROR.value, "") or "")
+            if last_error and not upload_text.strip():
+                st.error(
+                    "Bitte füge hier den Text manuell ein oder lade eine lesbare PDF-, DOCX- oder TXT-Datei hoch."
+                )
         return
 
     st.text_area(
@@ -1456,6 +1541,9 @@ def _render_source_text_or_preview() -> None:
         on_change=_on_manual_text_change,
         placeholder="Füge hier den vollständigen Ausschreibungstext ein …",
     )
+    last_error = str(st.session_state.get(SSKey.LAST_ERROR.value, "") or "")
+    if "füge Text ein" in last_error and not manual_text.strip():
+        st.error("Bitte füge hier Text ein oder lade links eine Datei hoch.")
 
 
 def _render_phase_a_source_and_privacy_controls() -> bool:

@@ -139,7 +139,7 @@ def _render_requirement_selection_table(
     if default_only_new_key not in st.session_state:
         st.session_state[default_only_new_key] = True
     search_term = st.text_input(
-        "Suche",
+        f"Suche in {title}",
         value="",
         key=f"{filter_key_prefix}.search",
         placeholder="Begriff eingeben…",
@@ -242,7 +242,13 @@ def render_compact_requirement_board(
     ]
     board_items = [item for item in board_items_all if item[1]]
     if not board_items:
-        st.caption("Keine Vorschläge.")
+        if empty_messages:
+            for source_key in ("Jobspec", "ESCO", "AI"):
+                message = empty_messages.get(source_key)
+                if message:
+                    st.caption(message)
+        else:
+            st.caption("Keine Vorschläge.")
         st.session_state[selection_state_key] = []
         return []
 

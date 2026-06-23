@@ -489,6 +489,10 @@ def _render_internal_process_container(
                 )
             with header_col3:
                 st.caption("Eine Person kann mehrere Rollen übernehmen.")
+            if latest_start < earliest_start:
+                st.error(
+                    "Startfenster prüfen: Spätester Start darf nicht vor frühestem Start liegen."
+                )
 
         if show_internal_roles:
             if merged_names:
@@ -533,6 +537,15 @@ def _render_internal_process_container(
                         value=email_default,
                         key=f"interview.internal.email.{idx}",
                     )
+                    email_text = email.strip()
+                    if email_text and (
+                        "@" not in email_text
+                        or email_text.startswith("@")
+                        or email_text.endswith("@")
+                    ):
+                        st.error(
+                            "E-Mail-Adresse prüfen: Format name@example.com verwenden oder Feld leer lassen."
+                        )
                     takes_part = st.checkbox(
                         "Bei Interviews dabei",
                         value=bool(existing_contact.get("participates_in_interview", True)),
@@ -1165,7 +1178,10 @@ def _render_scorecard_preview(
             if total_weight == 100
             else f"Gewichtung aktuell {total_weight} %. Zielwert: 100 %."
         )
-        st.caption(weight_note)
+        if total_weight == 100:
+            st.caption(weight_note)
+        else:
+            st.warning(f"{weight_note} Bitte Gewichtungen anpassen.")
 
     preview_rows = [
         {

@@ -653,7 +653,9 @@ def render(ctx: WizardContext) -> None:
     # SUMMARY_ZONE: GUARD_INIT
     vm = _build_summary_view_model()
     if vm is None:
-        st.warning("Bitte zuerst im Start-Schritt eine Analyse durchführen.")
+        st.warning(
+            "Bitte zuerst im Start-Schritt eine Analyse durchführen oder manuell ohne Extraktion fortsetzen."
+        )
         st.button("Zur Startseite", on_click=lambda: ctx.goto("landing"))
         nav_buttons(ctx, disable_next=True)
         return
@@ -697,6 +699,11 @@ def render(ctx: WizardContext) -> None:
         settings=settings,
     )
 
+    def _render_generation_recovery(artifact_label: str) -> None:
+        st.warning(
+            f"{artifact_label} konnte nicht erstellt werden. Prüfe die Eingaben, passe den Änderungswunsch an oder nutze den Export mit vorhandenen Fakten."
+        )
+
     def _run_generate_recruiting_brief(
         *,
         mode: str = "standard_draft",
@@ -727,7 +734,7 @@ def render(ctx: WizardContext) -> None:
                 if show_errors:
                     st.error(
                         "Die Firmen-Website-Research-Daten sind ungültig. "
-                        "Bitte prüfe die Angaben im Unternehmensschritt und versuche es erneut."
+                        "Bitte prüfe die Angaben im Unternehmensschritt oder fülle Unternehmensdaten manuell aus."
                     )
                 return False
 
@@ -765,6 +772,8 @@ def render(ctx: WizardContext) -> None:
         except OpenAICallError as e:
             if show_errors:
                 render_openai_error(e)
+                st.error(e.ui_message)
+                _render_generation_recovery("Recruiting Brief")
             return False
         except Exception as exc:
             error_type = type(exc).__name__
@@ -774,6 +783,8 @@ def render(ctx: WizardContext) -> None:
                 error_type=error_type,
                 error_code="SUMMARY_BRIEF_GENERATION_UNEXPECTED",
             )
+            if show_errors:
+                _render_generation_recovery("Recruiting Brief")
             return False
 
     def _generate_recruiting_brief() -> None:
@@ -820,6 +831,8 @@ def render(ctx: WizardContext) -> None:
             )
         except OpenAICallError as e:
             render_openai_error(e)
+            st.error(e.ui_message)
+            _render_generation_recovery("Stellenanzeige")
         except Exception as exc:
             handle_unexpected_exception(
                 step="summary.job_ad_generation",
@@ -827,6 +840,7 @@ def render(ctx: WizardContext) -> None:
                 error_type=type(exc).__name__,
                 error_code="SUMMARY_JOB_AD_GENERATION_UNEXPECTED",
             )
+            _render_generation_recovery("Stellenanzeige")
 
     def _get_brief_status() -> tuple[str, VacancyBrief | None]:
         canonical_status = _resolve_canonical_brief_status(
@@ -893,6 +907,8 @@ def render(ctx: WizardContext) -> None:
             )
         except OpenAICallError as e:
             render_openai_error(e)
+            st.error(e.ui_message)
+            _render_generation_recovery("Interview-Sheet HR")
         except Exception as exc:
             handle_unexpected_exception(
                 step="summary.interview_prep_hr_generation",
@@ -900,6 +916,7 @@ def render(ctx: WizardContext) -> None:
                 error_type=type(exc).__name__,
                 error_code="SUMMARY_INTERVIEW_PREP_HR_GENERATION_UNEXPECTED",
             )
+            _render_generation_recovery("Interview-Sheet HR")
 
     def _generate_interview_prep_fach() -> None:
         clear_error()
@@ -935,6 +952,8 @@ def render(ctx: WizardContext) -> None:
             )
         except OpenAICallError as e:
             render_openai_error(e)
+            st.error(e.ui_message)
+            _render_generation_recovery("Interview-Sheet Fachbereich")
         except Exception as exc:
             handle_unexpected_exception(
                 step="summary.interview_prep_fach_generation",
@@ -942,6 +961,7 @@ def render(ctx: WizardContext) -> None:
                 error_type=type(exc).__name__,
                 error_code="SUMMARY_INTERVIEW_PREP_FACH_GENERATION_UNEXPECTED",
             )
+            _render_generation_recovery("Interview-Sheet Fachbereich")
 
     def _generate_boolean_search_pack() -> None:
         clear_error()
@@ -977,6 +997,8 @@ def render(ctx: WizardContext) -> None:
             )
         except OpenAICallError as e:
             render_openai_error(e)
+            st.error(e.ui_message)
+            _render_generation_recovery("Boolean Search")
         except Exception as exc:
             handle_unexpected_exception(
                 step="summary.boolean_search_generation",
@@ -984,6 +1006,7 @@ def render(ctx: WizardContext) -> None:
                 error_type=type(exc).__name__,
                 error_code="SUMMARY_BOOLEAN_SEARCH_GENERATION_UNEXPECTED",
             )
+            _render_generation_recovery("Boolean Search")
 
     def _generate_employment_contract() -> None:
         clear_error()
@@ -1019,6 +1042,8 @@ def render(ctx: WizardContext) -> None:
             )
         except OpenAICallError as e:
             render_openai_error(e)
+            st.error(e.ui_message)
+            _render_generation_recovery("Arbeitsvertragsvorlage")
         except Exception as exc:
             handle_unexpected_exception(
                 step="summary.employment_contract_generation",
@@ -1026,6 +1051,7 @@ def render(ctx: WizardContext) -> None:
                 error_type=type(exc).__name__,
                 error_code="SUMMARY_EMPLOYMENT_CONTRACT_GENERATION_UNEXPECTED",
             )
+            _render_generation_recovery("Arbeitsvertragsvorlage")
 
     def _render_job_ad_action_hub_inputs() -> None:
         rows = _build_selection_rows(vm.job, vm.answers)

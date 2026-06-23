@@ -64,7 +64,8 @@ def _render_landing_responsive_overrides() -> None:
             .landing-resource-links a:focus-visible {
                 border-color: color-mix(in srgb, var(--cs-success) 88%, #000000);
                 background: color-mix(in srgb, var(--cs-success) 88%, #000000);
-                outline: none;
+                outline: 3px solid var(--cs-focus-ring);
+                outline-offset: 2px;
             }
             .landing-start-logo {
                 display: flex;

@@ -797,6 +797,17 @@ def render_ui_styles() -> None:
             line-height: 1.45;
             overflow-wrap: anywhere;
         }
+        .cs-sr-only {
+            position: absolute !important;
+            width: 1px !important;
+            height: 1px !important;
+            padding: 0 !important;
+            margin: -1px !important;
+            overflow: hidden !important;
+            clip: rect(0, 0, 0, 0) !important;
+            white-space: nowrap !important;
+            border: 0 !important;
+        }
         .cs-process-progress {
             display: flex;
             justify-content: flex-start;
@@ -1207,6 +1218,13 @@ def _build_process_progress_html(
         else:
             marker_label = step_index or "•"
             marker_title = "Schritt"
+        status_detail_parts = [status_label]
+        if secondary_text:
+            status_detail_parts.append(secondary_text)
+        status_detail = ", ".join(status_detail_parts)
+        aria_label_text = f"{marker_title}: {label}. Status: {status_detail}."
+        if current == "true":
+            aria_label_text += " Aktueller Schritt."
         icon_html = (
             f'<span class="cs-process-progress-icon" aria-hidden="true">{escape(icon)}</span>'
             if icon
@@ -1227,6 +1245,7 @@ def _build_process_progress_html(
                     <span class="cs-process-progress-meta">
                         <span class="cs-process-progress-status">{status_label}</span>{count_html}
                     </span>
+                    <span class="cs-sr-only">{aria_label_text}</span>
                 </span>
         """.format(
             marker_title=escape(marker_title),
@@ -1235,23 +1254,26 @@ def _build_process_progress_html(
             label=escape(label),
             status_label=escape(status_label),
             count_html=count_html,
+            aria_label_text=escape(aria_label_text),
         )
         if href:
             tile_html = (
-                '<a class="cs-process-progress-link" href="{href}" title="{title}"{aria_current}>'
+                '<a class="cs-process-progress-link" href="{href}" title="{title}" aria-label="{aria_label_text}"{aria_current}>'
                 "{tile_body}</a>"
             ).format(
                 href=escape(href, quote=True),
                 title=escape(title, quote=True),
+                aria_label_text=escape(aria_label_text, quote=True),
                 aria_current=aria_current,
                 tile_body=tile_body,
             )
         else:
             tile_html = (
-                '<div class="cs-process-progress-link" title="{title}"{aria_current}>'
+                '<div class="cs-process-progress-link" role="group" title="{title}" aria-label="{aria_label_text}"{aria_current}>'
                 "{tile_body}</div>"
             ).format(
                 title=escape(title, quote=True),
+                aria_label_text=escape(aria_label_text, quote=True),
                 aria_current=aria_current,
                 tile_body=tile_body,
             )

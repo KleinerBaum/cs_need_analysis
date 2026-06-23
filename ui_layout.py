@@ -255,16 +255,16 @@ def _truncate_missing_essentials(
 
 def _render_step_status(status: StepStatusPayload | None) -> None:
     if status is None:
-        st.caption("⬜ Offen")
-        st.caption("0/0 beantwortet")
+        st.caption("Status: Offen")
+        st.caption("Fortschritt: 0/0 beantwortet")
         return
 
     badge_text = _status_badge_text(status["completion_state"])
-    st.caption(badge_text)
-    st.caption(f"{status['answered']}/{status['total']} beantwortet")
+    st.caption(f"Status: {badge_text}")
+    st.caption(f"Fortschritt: {status['answered']}/{status['total']} beantwortet")
     missing_summary = _truncate_missing_essentials(status["missing_essentials"])
     if missing_summary:
-        st.caption(f"Fehlt (essentiell): {missing_summary}")
+        st.caption(f"Nächster Schritt: Essentielle Angaben ergänzen: {missing_summary}")
 
 
 def _render_step_section_heading(label: str) -> None:

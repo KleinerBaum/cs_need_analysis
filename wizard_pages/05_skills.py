@@ -1344,7 +1344,7 @@ def _render_selected_skill_details(
                     uri=uri, cache=detail_cache
                 )
                 if error:
-                    st.warning(error)
+                    st.warning(f"{error} Du kannst den Skill ohne Details weiterverwenden.")
                 elif loaded_detail is not None:
                     st.success("Details geladen.")
 
@@ -1839,7 +1839,9 @@ def _generate_ai_skill_suggestions(
             model=get_active_model(),
         )
     except Exception:
-        st.warning("AI-Vorschläge konnten nicht erzeugt werden.")
+        st.warning(
+            "AI-Vorschläge konnten nicht erzeugt werden. Wähle Skills aus Jobspec/ESCO oder erfasse sie unten manuell."
+        )
         return None
 
     llm_skill_payload = [
@@ -2339,14 +2341,15 @@ def _maybe_autoload_esco_skill_suggestions(
         if load_error.from_negative_cache:
             st.caption(
                 "ESCO-Anfragen kurzzeitig gedrosselt (wiederholter 4xx-Fehler). "
-                f"Unterdrückte Wiederholungen: {load_error.suppressed_repeat_count}."
+                f"Unterdrückte Wiederholungen: {load_error.suppressed_repeat_count}. "
+                "Nutze vorhandene Jobspec- oder manuelle Skills."
             )
         elif load_error.endpoint == "resource/related" and load_error.status_code is None:
-            st.info(load_error.message)
+            st.info(f"{load_error.message} Nutze vorhandene Jobspec- oder manuelle Skills.")
         else:
             st.warning(
                 "ESCO-Vorschläge sind aktuell nicht verfügbar. "
-                "Du kannst mit manueller Auswahl weiterarbeiten oder später erneut versuchen."
+                "Wähle Jobspec-Skills oder erfasse Skills unten manuell."
             )
         return matrix_expected_must, matrix_expected_nice, recommended_must, recommended_nice
 
@@ -2619,9 +2622,9 @@ def _render_skills_source_comparison_block(
         selection_state_key=SSKey.SKILLS_SELECTED_BULK_BUFFER.value,
         key_prefix="skills.board",
         empty_messages={
-            "Jobspec": "Keine Jobspec-Skills erkannt.",
+            "Jobspec": "Keine Jobspec-Skills erkannt. Erfasse Skills unten manuell.",
             "ESCO": "ESCO-Vorschläge erscheinen nach bestätigtem Referenzberuf.",
-            "AI": "Noch keine AI-Vorschläge vorhanden.",
+            "AI": "Noch keine AI-Vorschläge vorhanden. Nutze den Button AI-Vorschläge generieren oder erfasse Skills manuell.",
         },
     )
     _apply_board_selection(

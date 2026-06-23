@@ -400,7 +400,9 @@ def _generate_ai_benefit_suggestions(
         )
     except Exception:
         LOGGER.exception("Benefit suggestions could not be generated.")
-        st.warning("Vorschläge konnten nicht erzeugt werden.")
+        st.warning(
+            "Vorschläge konnten nicht erzeugt werden. Wähle Benefits aus Anzeige/Antworten oder erfasse Angebotsbestandteile unten manuell."
+        )
         return None
 
     blocked = {_normalize_benefit_term(label) for label in existing_benefits}
@@ -452,6 +454,8 @@ def _render_variable_pay_block() -> None:
             step=1000.0,
             key=f"fact_input.{FactKey.BENEFITS_VARIABLE_PAY.value}.ote_max",
         )
+    if ote_min and ote_max and ote_min > ote_max:
+        st.error("OTE von darf nicht höher als OTE bis sein. Bitte Betrag korrigieren.")
     col_currency, col_period = responsive_two_columns(gap="large")
     with col_currency:
         currency = st.text_input(
@@ -949,6 +953,7 @@ def render(ctx: WizardContext) -> None:
                     "options": jobspec_benefit_terms,
                     "state_key": SSKey.BENEFITS_JOBSPEC_PILLS.value,
                     "show_provenance": False,
+                    "empty_caption": "Keine Benefits aus der Anzeige erkannt. Erfasse Angebotsbestandteile unten manuell.",
                 },
                 {
                     "title": "Antworten",
@@ -956,6 +961,7 @@ def render(ctx: WizardContext) -> None:
                     "options": _benefit_labels_from_suggestions(contextual_suggested),
                     "state_key": SSKey.BENEFITS_CONTEXT_PILLS.value,
                     "show_provenance": False,
+                    "empty_caption": "Noch keine passenden Antworten. Kläre Benefits in den offenen Fragen oder unten manuell.",
                 },
                 {
                     "title": "Vorschläge",
@@ -964,6 +970,7 @@ def render(ctx: WizardContext) -> None:
                     "state_key": SSKey.BENEFITS_AI_PILLS.value,
                     "footer": _render_ai_controls,
                     "show_provenance": False,
+                    "empty_caption": "Noch keine AI-Vorschläge. Nutze Weitere Vorschläge oder erfasse Benefits manuell.",
                 },
             ],
             selected_labels=selected_labels,
@@ -1035,7 +1042,7 @@ def render(ctx: WizardContext) -> None:
                 exc,
             )
             st.warning(
-                "Die Gehaltsprognose ist vorübergehend nicht verfügbar. Bitte versuche es in Kürze erneut."
+                "Die Gehaltsprognose ist vorübergehend nicht verfügbar. Fülle Benefits weiter aus; du kannst ohne Prognose fortfahren."
             )
 
     def _render_open_questions_slot() -> None:

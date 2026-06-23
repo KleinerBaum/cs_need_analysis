@@ -52,6 +52,7 @@ class SourcePillColumn(TypedDict):
 class SourcePillColumnFooter(TypedDict, total=False):
     footer: Callable[[], None]
     show_provenance: bool
+    empty_caption: str
 
 
 class SourcePillColumnWithFooter(SourcePillColumn, SourcePillColumnFooter):
@@ -169,14 +170,14 @@ def render_source_pill_selection(
                 st.caption(provenance_caption)
             if options:
                 picked = render_multi_select_pills(
-                    " ",
+                    f"{title} auswählen",
                     options=options,
                     default=default,
                     key=state_key,
                 )
             else:
                 st.session_state[state_key] = []
-                st.caption(empty_caption)
+                st.caption(str(source_column.get("empty_caption") or empty_caption))
                 picked = []
             footer = source_column.get("footer")
             if footer is not None:

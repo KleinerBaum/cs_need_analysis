@@ -677,7 +677,9 @@ def _render_draft_controls() -> None:
         )
         if load_clicked:
             if uploaded_draft is None:
-                st.error("Bitte zuerst eine Entwurf-JSON-Datei auswählen.")
+                st.error(
+                    "Bitte im Feld „Entwurf-JSON auswählen“ eine JSON-Datei auswählen."
+                )
                 return
             result = load_vacancy_draft_json(uploaded_draft.getvalue())
             if not result.success:
