@@ -28,6 +28,9 @@ jobs:
           python-version: "3.11"
           cache: pip
 
+      - name: Repository hygiene guard
+        run: python scripts/check_repo_hygiene.py
+
       - name: Install QA dependencies
         run: |
           python -m pip install --upgrade pip

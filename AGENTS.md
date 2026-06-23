@@ -313,6 +313,7 @@ streamlit run app.py
 
 ```bash
 pip check
+python scripts/check_repo_hygiene.py
 python -m compileall app.py homepage_research.py job_extract_evidence.py job_extract_review_helpers.py summary_artifacts.py summary_esco.py summary_exports.py summary_facts.py summary_job_ad.py usage_events.py components config pages salary scripts tests wizard_pages
 python -m pytest -q tests/test_repo_contract_drift.py tests/test_wizard_contract.py tests/test_quality_gate_config.py tests/test_public_page_links.py tests/test_constants_import_contract.py tests/test_schema_contracts.py --junitxml=reports/junit/contract.xml
 python -m pytest -q tests --ignore=tests/e2e --ignore=tests/apptest --junitxml=reports/junit/unit.xml

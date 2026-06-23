@@ -430,6 +430,7 @@ pip install -r requirements-dev.txt -c constraints.txt
 
 ```bash
 pip check
+python scripts/check_repo_hygiene.py
 python -m compileall app.py homepage_research.py job_extract_evidence.py job_extract_review_helpers.py summary_artifacts.py summary_esco.py summary_exports.py summary_facts.py summary_job_ad.py usage_events.py components config pages salary scripts tests wizard_pages
 python -m pytest -q tests/test_repo_contract_drift.py tests/test_wizard_contract.py tests/test_quality_gate_config.py tests/test_public_page_links.py tests/test_constants_import_contract.py tests/test_schema_contracts.py --junitxml=reports/junit/contract.xml
 python -m pytest -q tests --ignore=tests/e2e --ignore=tests/apptest --junitxml=reports/junit/unit.xml
@@ -489,13 +490,16 @@ The first local quality gate is intentionally low-noise. Ruff runs critical
 syntax/name checks only with an explicit baseline for existing Summary-page
 noise, Black checks a small allowlist of stable helper modules, mypy checks
 selected pure helper modules in permissive baseline mode, Pyright checks the
-same selected helper-module allowlist in basic mode, and Bandit starts as an
-advisory security scan. Secret scanning and tracked-artifact drift scanning
-also start advisory in CI so existing baselines can be triaged without blocking
-the fast local/unit path. Tool configuration lives in `pyproject.toml`; the
-development dependency surface lives in `requirements-dev.txt`.
+same selected helper-module allowlist in basic mode, and the path-only repo
+hygiene guard blocks committed local secrets, credentials, caches, and generated
+exports without reading file contents. Bandit, Gitleaks content scanning, and
+tracked-artifact drift scanning remain advisory in CI so existing baselines can
+be triaged without blocking the fast local/unit path. Tool configuration lives
+in `pyproject.toml`; the development dependency surface lives in
+`requirements-dev.txt`.
 
 ```bash
+python scripts/check_repo_hygiene.py
 python -m ruff check .
 python -m black --check .
 python -m mypy
@@ -505,9 +509,10 @@ gitleaks git --redact .
 python scripts/check_tracked_artifacts.py
 ```
 
-Gitleaks is installed separately for local use; CI uses the official Gitleaks
-Action. Gitleaks, Bandit, and the artifact drift scan are non-blocking in CI
-and may report existing findings until the security/artifact baselines are
+The repo hygiene guard scans tracked file paths only and reports only paths and
+rule names. Gitleaks is installed separately for local use; CI uses the official
+Gitleaks Action. Gitleaks, Bandit, and the artifact drift scan are non-blocking
+in CI and may report existing findings until the security/artifact baselines are
 triaged. The artifact drift scan reports only paths and reasons, not file
 contents.
 
@@ -541,7 +546,7 @@ Useful environment overrides:
 Current job IDs are `qa`, `contract`, `unit`, `apptest`, `browser_smoke`, and
 `security`.
 
-1. `qa`: blocking Ruff, scoped Black, scoped mypy, and scoped Pyright gates with `requirements-dev.txt`
+1. `qa`: blocking repo hygiene, Ruff, scoped Black, scoped mypy, and scoped Pyright gates with `requirements-dev.txt`
 2. `contract`: blocking fast repo/wizard/config contract tests with JUnit upload
 3. `unit`: blocking Python unit suite excluding AppTest and E2E tests, plus `pip check`, `compileall`, and OpenAI smoke dry-run report upload
 4. `apptest`: blocking Streamlit AppTest smoke tests through `streamlit.testing.v1`

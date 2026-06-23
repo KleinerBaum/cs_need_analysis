@@ -4,6 +4,8 @@ import re
 import tomllib
 from pathlib import Path
 
+from scripts import check_repo_hygiene
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -122,8 +124,10 @@ def test_pytest_registers_app_and_e2e_markers() -> None:
 
 def test_ci_contains_blocking_qa_and_advisory_security_jobs() -> None:
     workflow = _read(".github/workflows/ci.yml")
+    qa_job = workflow.split("  qa:", 1)[1].split("  contract:", 1)[0]
 
     assert "qa:" in workflow
+    assert "python scripts/check_repo_hygiene.py" in qa_job
     assert "python -m ruff check ." in workflow
     assert "python -m black --check ." in workflow
     assert "python -m mypy" in workflow
@@ -170,6 +174,60 @@ def test_gitignore_excludes_local_scan_and_generated_report_outputs() -> None:
     assert "gitleaks-report.*" in gitignore
     assert "artifact-scan-report.*" in gitignore
     assert "*:Zone.*" in gitignore
+    assert ".env.*" in gitignore
+    assert "!.env.example" in gitignore
+    assert "*.pem" in gitignore
+    assert "*.key" in gitignore
+    assert "*credential*.json" in gitignore
+    assert "*secret*.toml" in gitignore
+    assert "*token*.txt" in gitignore
+    assert "exports/" in gitignore
+    assert "*.docx" in gitignore
+    assert "*.pdf" in gitignore
+
+
+def test_repo_hygiene_guard_flags_forbidden_paths_without_static_asset_noise() -> None:
+    findings = check_repo_hygiene.find_hygiene_findings(
+        [
+            ".env",
+            ".env.example",
+            ".streamlit/secrets.toml",
+            "app/__pycache__/module.cpython-311.pyc",
+            "client_secret.json",
+            "exports/vacancy_brief.docx",
+            "images/base_logo_white_background.png",
+            "data/salary_benchmarks/demo_de.csv",
+            "reports/Key-Analyse-report.md",
+            "reports/new-export.md",
+            "service/private.pem",
+        ]
+    )
+
+    by_path = {finding.path: finding.rule for finding in findings}
+
+    assert by_path == {
+        ".env": "secret-env-file",
+        ".streamlit/secrets.toml": "secret-env-file",
+        "app/__pycache__/module.cpython-311.pyc": "generated-python-cache",
+        "client_secret.json": "secret-credential-file",
+        "exports/vacancy_brief.docx": "generated-export-artifact",
+        "reports/new-export.md": "generated-local-report",
+        "service/private.pem": "secret-key-material",
+    }
+
+
+def test_repo_hygiene_guard_output_reports_only_paths_and_rules(
+    capsys, monkeypatch
+) -> None:
+    monkeypatch.setattr(check_repo_hygiene, "_tracked_paths", lambda: [".env"])
+
+    exit_code = check_repo_hygiene.main()
+    output = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert "- .env [secret-env-file]" in output
+    assert "OPENAI_API_KEY" not in output
+    assert "sk-" not in output
 
 
 def test_ci_wires_advisory_browser_smoke_job() -> None:

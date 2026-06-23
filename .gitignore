@@ -142,6 +142,9 @@ celerybeat.pid
 
 # Environments
 .env
+.env.*
+!.env.example
+!.env.sample
 .envrc
 .venv
 env/
@@ -149,6 +152,39 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Local secrets and credential material
+*.key
+*.keystore
+*.p12
+*.pfx
+*.pem
+*credential*.json
+*credential*.toml
+*credential*.txt
+*credential*.yaml
+*credential*.yml
+*secret*.json
+*secret*.toml
+*secret*.txt
+*secret*.yaml
+*secret*.yml
+*token*.json
+*token*.toml
+*token*.txt
+*token*.yaml
+*token*.yml
+
+# Local export outputs
+export/
+exports/
+generated_exports/
+local_exports/
+*.docx
+*.pdf
+*.pptx
+*.xlsx
+*.zip
 
 # Spyder project settings
 .spyderproject
