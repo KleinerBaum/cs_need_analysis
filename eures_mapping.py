@@ -56,10 +56,11 @@ def load_national_code_lookup_from_bytes(raw_csv: bytes) -> dict[str, str]:
 def load_national_code_lookup_from_file(path: str | Path | BinaryIO) -> dict[str, str]:
     """Load mapping lookup from a path-like or binary file handle."""
 
-    if hasattr(path, "read"):
-        raw_csv = path.read()
-        if not isinstance(raw_csv, (bytes, bytearray)):
-            raise ValueError("CSV stream must return bytes.")
-        return load_national_code_lookup_from_bytes(bytes(raw_csv))
-    raw_csv = Path(path).read_bytes()
-    return load_national_code_lookup_from_bytes(raw_csv)
+    if isinstance(path, (str, Path)):
+        raw_csv = Path(path).read_bytes()
+        return load_national_code_lookup_from_bytes(raw_csv)
+
+    raw_csv = path.read()
+    if not isinstance(raw_csv, (bytes, bytearray)):
+        raise ValueError("CSV stream must return bytes.")
+    return load_national_code_lookup_from_bytes(bytes(raw_csv))

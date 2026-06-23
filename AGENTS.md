@@ -412,7 +412,7 @@ python -m pytest -q \
 
 ## Linting policy
 
-Repo-local QA config is intentionally scoped in `pyproject.toml`: Ruff, Black, mypy, and Bandit run through `requirements-dev.txt`; Pyright is not configured.
+Repo-local QA config is intentionally scoped in `pyproject.toml`: Ruff, Black, mypy, Pyright, and Bandit run through `requirements-dev.txt`.
 
 - Do not silently broaden or replace the existing lint/type toolchain in routine implementation tasks.
 - For this repo, the practical quality gate is targeted pytest, syntax compilation, scoped QA checks, and smoke tests where relevant.

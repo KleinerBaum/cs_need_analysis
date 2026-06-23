@@ -63,6 +63,22 @@ def test_mypy_uses_permissive_selected_module_baseline() -> None:
     assert mypy["disallow_untyped_defs"] is False
 
 
+def test_pyright_uses_staged_selected_module_baseline() -> None:
+    config = _load_pyproject()
+    pyright = config["tool"]["pyright"]
+
+    assert pyright["include"] == [
+        "model_capabilities.py",
+        "usage_utils.py",
+        "summary_artifacts.py",
+        "eures_mapping.py",
+    ]
+    assert pyright["pythonVersion"] == "3.11"
+    assert pyright["typeCheckingMode"] == "basic"
+    assert pyright["reportMissingImports"] == "none"
+    assert "reports" in pyright["exclude"]
+
+
 def test_bandit_excludes_non_source_and_test_paths() -> None:
     config = _load_pyproject()
     excluded_dirs = set(config["tool"]["bandit"]["exclude_dirs"])
@@ -76,15 +92,20 @@ def test_runtime_requirements_exclude_dev_and_test_tools() -> None:
     runtime_names = _requirement_names("requirements.txt")
 
     assert "pytest" not in runtime_names
-    assert {"ruff", "black", "mypy", "bandit", "playwright"}.isdisjoint(
+    assert {"ruff", "black", "mypy", "pyright", "bandit", "playwright"}.isdisjoint(
         runtime_names
     )
 
 
 def test_dev_requirements_cover_configured_qa_and_test_tools() -> None:
-    assert {"pytest", "ruff", "black", "mypy", "bandit"} <= _requirement_names(
-        "requirements-dev.txt"
-    )
+    assert {
+        "pytest",
+        "ruff",
+        "black",
+        "mypy",
+        "pyright",
+        "bandit",
+    } <= _requirement_names("requirements-dev.txt")
 
 
 def test_e2e_requirements_cover_optional_browser_smoke_tests() -> None:
@@ -106,6 +127,7 @@ def test_ci_contains_blocking_qa_and_advisory_security_jobs() -> None:
     assert "python -m ruff check ." in workflow
     assert "python -m black --check ." in workflow
     assert "python -m mypy" in workflow
+    assert "python -m pyright" in workflow
     assert "security:" in workflow
     assert "continue-on-error: true" in workflow
     assert "fetch-depth: 0" in workflow

@@ -25,7 +25,7 @@ Known partials / explicit non-goals in this snapshot:
 
 - Full official ESCO bulk-dataset ingestion is not implemented; the offline index path is lookup-focused.
 - ESCO matrix priors are optional and do not include ISCO distribution benchmarking or advanced coherence metrics.
-- Repo-local QA config is intentionally scoped in `pyproject.toml`: Ruff, Black, mypy, and Bandit run through `requirements-dev.txt`; Pyright is not configured.
+- Repo-local QA config is intentionally scoped in `pyproject.toml`: Ruff, Black, mypy, Pyright, and Bandit run through `requirements-dev.txt`.
 - `wizard_pages/01a_jobspec_review.py` and `wizard_pages/03_team.py` are legacy/non-routable modules.
 
 ## Wizard flow
@@ -488,8 +488,9 @@ python scripts/esco_smoke_test.py --mode all --ci-dry-run-if-unavailable --json-
 The first local quality gate is intentionally low-noise. Ruff runs critical
 syntax/name checks only with an explicit baseline for existing Summary-page
 noise, Black checks a small allowlist of stable helper modules, mypy checks
-selected pure helper modules in permissive baseline mode, and Bandit starts as
-an advisory security scan. Secret scanning and tracked-artifact drift scanning
+selected pure helper modules in permissive baseline mode, Pyright checks the
+same selected helper-module allowlist in basic mode, and Bandit starts as an
+advisory security scan. Secret scanning and tracked-artifact drift scanning
 also start advisory in CI so existing baselines can be triaged without blocking
 the fast local/unit path. Tool configuration lives in `pyproject.toml`; the
 development dependency surface lives in `requirements-dev.txt`.
@@ -498,6 +499,7 @@ development dependency surface lives in `requirements-dev.txt`.
 python -m ruff check .
 python -m black --check .
 python -m mypy
+python -m pyright
 python -m bandit -c pyproject.toml -r .
 gitleaks git --redact .
 python scripts/check_tracked_artifacts.py
@@ -511,7 +513,8 @@ contents.
 
 Follow-up hardening should expand Ruff rules, expand Black coverage after an
 approved formatting-only change, grow the mypy module allowlist, then make
-Bandit blocking or add Semgrep once findings are triaged.
+the Pyright and mypy module allowlists together, then make Bandit blocking or
+add Semgrep once findings are triaged.
 
 ### Optional Playwright smoke tests
 
@@ -538,7 +541,7 @@ Useful environment overrides:
 Current job IDs are `qa`, `contract`, `unit`, `apptest`, `browser_smoke`, and
 `security`.
 
-1. `qa`: blocking Ruff, scoped Black, and scoped mypy gates with `requirements-dev.txt`
+1. `qa`: blocking Ruff, scoped Black, scoped mypy, and scoped Pyright gates with `requirements-dev.txt`
 2. `contract`: blocking fast repo/wizard/config contract tests with JUnit upload
 3. `unit`: blocking Python unit suite excluding AppTest and E2E tests, plus `pip check`, `compileall`, and OpenAI smoke dry-run report upload
 4. `apptest`: blocking Streamlit AppTest smoke tests through `streamlit.testing.v1`

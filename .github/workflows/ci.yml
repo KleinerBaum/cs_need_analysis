@@ -42,6 +42,9 @@ jobs:
       - name: Mypy scoped baseline
         run: python -m mypy
 
+      - name: Pyright scoped baseline
+        run: python -m pyright
+
   contract:
     name: Fast contract tests
     runs-on: ubuntu-latest

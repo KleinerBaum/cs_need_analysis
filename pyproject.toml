@@ -58,6 +58,29 @@ check_untyped_defs = false
 disallow_untyped_defs = false
 warn_unused_ignores = false
 
+[tool.pyright]
+pythonVersion = "3.11"
+include = [
+    "model_capabilities.py",
+    "usage_utils.py",
+    "summary_artifacts.py",
+    "eures_mapping.py",
+]
+exclude = [
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "data",
+    "images",
+    "reports",
+]
+typeCheckingMode = "basic"
+reportMissingImports = "none"
+reportMissingTypeStubs = "none"
+
 [tool.bandit]
 exclude_dirs = [
     ".git",
