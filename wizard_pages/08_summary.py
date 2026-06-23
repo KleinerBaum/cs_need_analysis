@@ -97,6 +97,7 @@ from state import (
     handle_unexpected_exception,
     set_answer,
 )
+from state_store import StateStore
 from question_dependencies import should_show_question
 from question_limits import select_visible_questions_for_step_scope
 from step_status import build_step_status_payload
@@ -626,10 +627,10 @@ def render(ctx: WizardContext) -> None:
         return
 
     current_summary_fingerprint = vm.artifacts.input_fingerprint
-    st.session_state[SSKey.SUMMARY_INPUT_FINGERPRINT.value] = (
-        current_summary_fingerprint
+    StateStore(st.session_state).set_summary_freshness(
+        input_fingerprint=current_summary_fingerprint,
+        is_dirty=vm.artifacts.is_dirty,
     )
-    st.session_state[SSKey.SUMMARY_DIRTY.value] = vm.artifacts.is_dirty
 
     settings = load_openai_settings()
     session_override = get_model_override()
@@ -713,10 +714,9 @@ def render(ctx: WizardContext) -> None:
             st.session_state[SSKey.BRIEF.value] = brief.model_dump()
             brief_cached = usage_has_cache_hit(usage)
             st.session_state[SSKey.SUMMARY_CACHE_HIT.value] = brief_cached
-            st.session_state[SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value] = (
+            StateStore(st.session_state).mark_summary_brief_current(
                 current_summary_fingerprint
             )
-            st.session_state[SSKey.SUMMARY_DIRTY.value] = False
             st.session_state[SSKey.SUMMARY_LAST_MODE.value] = mode
             st.session_state[SSKey.SUMMARY_LAST_MODELS.value] = {
                 "draft_model": resolved_brief_model

@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from constants import FactKey, FactResolutionStatus, FactSourceType, SSKey
-from schemas import JobAdExtract
+from schemas import JobAdExtract, VacancyBrief
 
 
 SUMMARY_PATH = Path(__file__).resolve().parents[1] / "wizard_pages" / "08_summary.py"
@@ -14,6 +14,15 @@ if SPEC is None or SPEC.loader is None:
     raise RuntimeError("Could not load summary page module")
 SUMMARY_MODULE = module_from_spec(SPEC)
 SPEC.loader.exec_module(SUMMARY_MODULE)  # type: ignore[attr-defined]
+
+
+def _valid_brief_payload() -> dict[str, object]:
+    return VacancyBrief(
+        one_liner="Kurzpitch",
+        hiring_context="Kontext",
+        role_summary="Rollenbild",
+        job_ad_draft="Draft",
+    ).model_dump(mode="json")
 
 
 def _fingerprint(
@@ -149,6 +158,30 @@ def test_summary_dirty_false_after_explicit_brief_regeneration(monkeypatch) -> N
     )
 
     assert artifacts.is_dirty is False
+
+
+def test_summary_dirty_false_string_is_normalized_for_brief_status(
+    monkeypatch,
+) -> None:
+    fake_st = SimpleNamespace(
+        session_state={
+            SSKey.BRIEF.value: _valid_brief_payload(),
+            SSKey.SUMMARY_DIRTY.value: "false",
+            SSKey.SUMMARY_INPUT_FINGERPRINT.value: "current",
+            SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value: "current",
+            SSKey.SUMMARY_LAST_MODELS.value: {"draft_model": "gpt-5-mini"},
+        }
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
+    keys_before = set(fake_st.session_state)
+
+    status = SUMMARY_MODULE._resolve_canonical_brief_status(
+        resolved_brief_model="gpt-5-mini"
+    )
+
+    assert status.state == "current"
+    assert status.ready_for_follow_ups is True
+    assert set(fake_st.session_state) == keys_before
 
 
 def test_artifact_with_result_but_missing_fingerprint_is_stale(monkeypatch) -> None:

@@ -97,6 +97,20 @@ def _string(raw: Any) -> str:
     return str(raw or "").strip()
 
 
+def _bool(raw: Any, *, default: bool = False) -> bool:
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, int | float) and raw in (0, 1):
+        return bool(raw)
+    if isinstance(raw, str):
+        normalized = raw.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"", "0", "false", "no", "off"}:
+            return False
+    return default
+
+
 class StateStore:
     """Thin typed facade over the canonical Streamlit session-state keys."""
 
@@ -265,7 +279,7 @@ class StateStore:
 
     def summary_dirty(self) -> SummaryDirtyState:
         return SummaryDirtyState(
-            is_dirty=bool(self._state.get(SSKey.SUMMARY_DIRTY.value, False)),
+            is_dirty=_bool(self._state.get(SSKey.SUMMARY_DIRTY.value, False)),
             input_fingerprint=_string(
                 self._state.get(SSKey.SUMMARY_INPUT_FINGERPRINT.value)
             ),
@@ -288,3 +302,26 @@ class StateStore:
 
     def set_summary_dirty(self, value: bool = True) -> None:
         self._state[SSKey.SUMMARY_DIRTY.value] = bool(value)
+
+    def set_summary_freshness(
+        self,
+        *,
+        input_fingerprint: str | None = None,
+        last_brief_fingerprint: str | None = None,
+        is_dirty: bool | None = None,
+    ) -> None:
+        if input_fingerprint is not None:
+            self._state[SSKey.SUMMARY_INPUT_FINGERPRINT.value] = _string(
+                input_fingerprint
+            )
+        if last_brief_fingerprint is not None:
+            self._state[SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value] = _string(
+                last_brief_fingerprint
+            )
+        if is_dirty is not None:
+            self._state[SSKey.SUMMARY_DIRTY.value] = bool(is_dirty)
+
+    def mark_summary_brief_current(self, input_fingerprint: str) -> None:
+        current_fingerprint = _string(input_fingerprint)
+        self._state[SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value] = current_fingerprint
+        self._state[SSKey.SUMMARY_DIRTY.value] = False

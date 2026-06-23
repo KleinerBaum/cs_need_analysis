@@ -65,7 +65,7 @@ from schemas import (
     EscoSuggestionItem,
 )
 from settings_openai import load_openai_settings
-from state_store import StateStore
+from state_store import StateStore, SummaryDirtyState
 from usage_events import reset_usage_events
 
 DEFAULT_ESCO_API_BASE_URL = "https://ec.europa.eu/esco/api/"
@@ -874,10 +874,7 @@ def reset_vacancy() -> None:
     reset_usage_events(st.session_state)
     st.session_state[SSKey.JOBAD_CACHE_HIT.value] = {}
     st.session_state[SSKey.SUMMARY_CACHE_HIT.value] = False
-    st.session_state[SSKey.SUMMARY_DIRTY.value] = False
-    st.session_state[SSKey.SUMMARY_INPUT_FINGERPRINT.value] = ""
-    st.session_state[SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value] = ""
-    st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = "brief"
+    StateStore(st.session_state).set_summary_dirty_state(SummaryDirtyState())
     st.session_state[SSKey.SUMMARY_SHOW_JOB_AD_CONFIG.value] = False
     st.session_state[SSKey.SUMMARY_LAST_MODE.value] = None
     st.session_state[SSKey.SUMMARY_LAST_MODELS.value] = {}

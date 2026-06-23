@@ -98,6 +98,7 @@ from state import (
     handle_unexpected_exception,
     set_answer,
 )
+from state_store import StateStore
 from question_dependencies import should_show_question
 from question_limits import select_visible_questions_for_step_scope
 from step_sections import get_step_fact_keys, get_step_section_for_fact
@@ -326,11 +327,8 @@ def _resolve_canonical_brief_status(
             ready_for_follow_ups=False,
         )
 
-    dirty = (
-        bool(st.session_state.get(SSKey.SUMMARY_DIRTY.value))
-        if is_dirty is None
-        else is_dirty
-    )
+    summary_freshness = StateStore(st.session_state).summary_dirty()
+    dirty = summary_freshness.is_dirty if is_dirty is None else is_dirty
     if dirty:
         return CanonicalBriefStatus(
             state="stale",
@@ -352,12 +350,12 @@ def _resolve_canonical_brief_status(
     current_input_fingerprint = str(
         input_fingerprint
         if input_fingerprint is not None
-        else st.session_state.get(SSKey.SUMMARY_INPUT_FINGERPRINT.value, "") or ""
+        else summary_freshness.input_fingerprint
     )
     resolved_last_brief_fingerprint = str(
         last_brief_fingerprint
         if last_brief_fingerprint is not None
-        else st.session_state.get(SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value, "") or ""
+        else summary_freshness.last_brief_fingerprint
     )
     if current_input_fingerprint and not resolved_last_brief_fingerprint:
         return CanonicalBriefStatus(
@@ -875,8 +873,8 @@ def _build_summary_artifact_state(
             brief_for_snapshot = VacancyBrief.model_validate(brief_dict)
         except Exception:
             brief_for_snapshot = None
-    last_brief_fingerprint = str(
-        st.session_state.get(SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value, "") or ""
+    last_brief_fingerprint = (
+        StateStore(st.session_state).summary_dirty().last_brief_fingerprint
     )
     is_dirty = bool(
         last_brief_fingerprint and last_brief_fingerprint != input_fingerprint
@@ -1467,7 +1465,7 @@ def _apply_summary_fact_edits(
             continue
         changed = True
     if changed:
-        st.session_state[SSKey.SUMMARY_DIRTY.value] = True
+        StateStore(st.session_state).set_summary_dirty(True)
     return changed
 
 

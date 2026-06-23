@@ -205,6 +205,25 @@ def test_state_store_read_defaults_do_not_create_missing_keys() -> None:
     assert session_state == {}
 
 
+def test_state_store_normalizes_invalid_summary_dirty_state_without_writes() -> None:
+    session_state: dict[str, object] = {
+        SSKey.SUMMARY_DIRTY.value: "false",
+        SSKey.SUMMARY_INPUT_FINGERPRINT.value: " current ",
+        SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value: None,
+        SSKey.SUMMARY_ACTIVE_ARTIFACT.value: "",
+    }
+    keys_before = set(session_state)
+    store = StateStore(session_state)
+
+    summary_state = store.summary_dirty()
+
+    assert summary_state.is_dirty is False
+    assert summary_state.input_fingerprint == "current"
+    assert summary_state.last_brief_fingerprint == ""
+    assert summary_state.active_artifact == "brief"
+    assert set(session_state) == keys_before
+
+
 def test_state_store_setters_write_only_canonical_session_keys() -> None:
     session_state: dict[str, object] = {}
     store = StateStore(session_state)
@@ -247,6 +266,23 @@ def test_state_store_setters_write_only_canonical_session_keys() -> None:
     assert session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] == "esco:occupation:1"
     assert session_state[SSKey.ANSWERS.value] == {"role_title": "Data Engineer"}
     assert session_state[SSKey.SUMMARY_DIRTY.value] is True
+
+
+def test_state_store_summary_freshness_writes_only_canonical_session_keys() -> None:
+    session_state: dict[str, object] = {}
+    store = StateStore(session_state)
+
+    store.set_summary_freshness(
+        input_fingerprint=" current ",
+        last_brief_fingerprint=" previous ",
+        is_dirty=True,
+    )
+    store.mark_summary_brief_current(" current ")
+
+    assert set(session_state).issubset({key.value for key in SSKey})
+    assert session_state[SSKey.SUMMARY_INPUT_FINGERPRINT.value] == "current"
+    assert session_state[SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value] == "current"
+    assert session_state[SSKey.SUMMARY_DIRTY.value] is False
 
 
 def test_reset_vacancy_clears_progressive_disclosure_state(
