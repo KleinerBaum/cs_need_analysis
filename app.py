@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import json
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
@@ -40,6 +41,7 @@ from llm_client import (
 from safe_html import render_static_html
 from settings_openai import load_openai_settings
 from state import (
+    build_vacancy_draft_fingerprint,
     build_vacancy_draft_json,
     init_session_state,
     load_vacancy_draft_json,
@@ -70,6 +72,7 @@ SIDEBAR_FOOTER_PAGE_LINKS: tuple[tuple[str, str], ...] = (
 ROOT_DIR = Path(__file__).resolve().parent
 WIZARD_DARK_BACKGROUND_PATH = ROOT_DIR / "images" / "dark2.png"
 WIZARD_LIGHT_BACKGROUND_PATH = ROOT_DIR / "images" / "light.png"
+DRAFT_BROWSER_RECOVERY_STORAGE_KEY = "cs.vacancyDraft.safeRecovery.v1"
 
 
 def _first_query_param_value(value: object) -> str | None:
@@ -651,19 +654,101 @@ def _vacancy_draft_filename() -> str:
     return f"cognitive-staffing-entwurf-{timestamp}.json"
 
 
+def _draft_has_meaningful_progress(session_state: Mapping[str, object]) -> bool:
+    if str(session_state.get(SSKey.SOURCE_TEXT.value) or "").strip():
+        return True
+    if str(session_state.get(SSKey.SOURCE_MANUAL_TEXT.value) or "").strip():
+        return True
+    if str(session_state.get(SSKey.SOURCE_UPLOADED_TEXT.value) or "").strip():
+        return True
+    if session_state.get(SSKey.JOB_EXTRACT.value):
+        return True
+    for key in (
+        SSKey.ANSWERS,
+        SSKey.INTAKE_FACTS,
+        SSKey.COMPANY_WEBSITE_RESEARCH,
+        SSKey.ROLE_TASKS_SELECTED,
+        SSKey.SKILLS_SELECTED,
+        SSKey.BENEFITS_SELECTED,
+    ):
+        if bool(session_state.get(key.value)):
+            return True
+    for key in (
+        SSKey.BRIEF,
+        SSKey.JOB_AD_DRAFT_CUSTOM,
+        SSKey.INTERVIEW_PREP_HR,
+        SSKey.INTERVIEW_PREP_FACH,
+        SSKey.BOOLEAN_SEARCH_STRING,
+        SSKey.EMPLOYMENT_CONTRACT_DRAFT,
+    ):
+        if session_state.get(key.value) is not None:
+            return True
+    return False
+
+
+def _generated_draft_artifact_count(session_state: Mapping[str, object]) -> int:
+    return sum(
+        1
+        for key in (
+            SSKey.BRIEF,
+            SSKey.JOB_AD_DRAFT_CUSTOM,
+            SSKey.INTERVIEW_PREP_HR,
+            SSKey.INTERVIEW_PREP_FACH,
+            SSKey.BOOLEAN_SEARCH_STRING,
+            SSKey.EMPLOYMENT_CONTRACT_DRAFT,
+        )
+        if session_state.get(key.value) is not None
+    )
+
+
+def _answer_count(session_state: Mapping[str, object]) -> int:
+    answers = session_state.get(SSKey.ANSWERS.value)
+    return len(answers) if isinstance(answers, Mapping) else 0
+
+
+def _mark_current_draft_saved(fingerprint: str) -> None:
+    st.session_state[SSKey.DRAFT_LAST_SAVED_FINGERPRINT.value] = str(fingerprint or "")
+
+
 def _render_draft_controls() -> None:
+    current_fingerprint = build_vacancy_draft_fingerprint()
+    last_saved_fingerprint = str(
+        st.session_state.get(SSKey.DRAFT_LAST_SAVED_FINGERPRINT.value) or ""
+    )
+    has_progress = _draft_has_meaningful_progress(st.session_state)
+    is_saved_current = bool(
+        has_progress
+        and last_saved_fingerprint
+        and last_saved_fingerprint == current_fingerprint
+    )
+    draft_json = build_vacancy_draft_json()
+
     with st.sidebar.expander("Entwurf", expanded=False):
         st.caption(
             "Speichert die aktuelle Vacancy als JSON. Enthalten sind nur "
             "notwendige Wizard-Daten; Secrets, Caches, Logs, Debug-Daten und "
             "Logo-Dateien werden nicht exportiert."
         )
+        if has_progress and is_saved_current:
+            st.success(
+                "Der zuletzt gespeicherte Entwurf passt zum aktuellen Stand. "
+                "Nach weiteren Änderungen erneut als JSON speichern."
+            )
+        elif has_progress:
+            st.warning(
+                "Aktive Änderungen erkannt. `session_state` ist nur Laufzeitstatus; "
+                "speichere ein Entwurf-JSON, wenn du nach Unterbrechungen fortsetzen willst."
+            )
+        else:
+            st.caption("Noch kein speicherbarer Vacancy-Stand erkannt.")
         st.download_button(
             "Entwurf speichern",
-            data=build_vacancy_draft_json(),
+            data=draft_json,
             file_name=_vacancy_draft_filename(),
             mime="application/json",
             key=SSKey.DRAFT_SAVE_DOWNLOAD_WIDGET.value,
+            on_click=_mark_current_draft_saved,
+            args=(current_fingerprint,),
         )
         uploaded_draft = st.file_uploader(
             "Entwurf-JSON auswählen",
@@ -687,6 +772,64 @@ def _render_draft_controls() -> None:
                 return
             st.query_params.clear()
             st.rerun()
+
+
+def _build_draft_recovery_bridge_html(metadata: Mapping[str, object]) -> str:
+    encoded_metadata = base64.b64encode(
+        json.dumps(metadata, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    ).decode("ascii")
+    return f"""
+        <script>
+        (() => {{
+            const STORAGE_KEY = "{DRAFT_BROWSER_RECOVERY_STORAGE_KEY}";
+            const metadata = JSON.parse(atob("{encoded_metadata}"));
+            const targetWindow = window.parent || window;
+            try {{
+                if (metadata.hasProgress) {{
+                    targetWindow.localStorage.setItem(
+                        STORAGE_KEY,
+                        JSON.stringify({{
+                            schema: "safe-recovery-metadata-v1",
+                            storedAt: new Date().toISOString(),
+                            ...metadata
+                        }})
+                    );
+                }} else {{
+                    targetWindow.localStorage.removeItem(STORAGE_KEY);
+                }}
+                if (metadata.hasProgress && !metadata.saved) {{
+                    targetWindow.addEventListener("beforeunload", (event) => {{
+                        event.preventDefault();
+                        event.returnValue = "Entwurf zuerst als JSON speichern.";
+                        return event.returnValue;
+                    }});
+                }}
+            }} catch (error) {{
+                return;
+            }}
+        }})();
+        </script>
+    """
+
+
+def _inject_draft_recovery_bridge(ctx: WizardContext) -> None:
+    step_key = str(st.session_state.get(SSKey.CURRENT_STEP.value) or "")
+    step_label_by_key = {page.key: page.title_de for page in ctx.pages}
+    has_progress = _draft_has_meaningful_progress(st.session_state)
+    current_fingerprint = build_vacancy_draft_fingerprint()
+    saved_fingerprint = str(
+        st.session_state.get(SSKey.DRAFT_LAST_SAVED_FINGERPRINT.value) or ""
+    )
+    metadata = {
+        "hasProgress": has_progress,
+        "saved": bool(has_progress and saved_fingerprint == current_fingerprint),
+        "stepKey": step_key,
+        "stepLabel": step_label_by_key.get(step_key, ""),
+        "hasAnalysis": bool(st.session_state.get(SSKey.JOB_EXTRACT.value)),
+        "answerCount": _answer_count(st.session_state),
+        "artifactCount": _generated_draft_artifact_count(st.session_state),
+    }
+    st.iframe(_build_draft_recovery_bridge_html(metadata), height=1)
 
 
 def _dismiss_resume_notice() -> None:
@@ -826,6 +969,7 @@ def main() -> None:
     _render_sidebar_primary_links()
     _render_draft_controls()
     current = sidebar_navigation(ctx)
+    _inject_draft_recovery_bridge(ctx)
     step_changed = bool(previous_step and previous_step != current.key)
 
     if step_changed:

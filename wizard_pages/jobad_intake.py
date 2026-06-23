@@ -1229,6 +1229,7 @@ def _extract_upload_to_state(
         file_meta=source_meta,
         upload_signature=upload_signature,
     )
+    clear_error()
     return uploaded_text
 
 
@@ -1381,31 +1382,51 @@ def _render_phase_a_action_controls() -> bool:
         return do_extract
 
     fallback_text = _current_editable_source_text()
-    st.info(
-        str(
-            t(
-                "Manueller Fallback: Text behalten, automatische Extraktion "
-                "überspringen und den Briefing-Stand selbst starten."
-            )
-        )
-    )
-    if not fallback_text:
-        st.caption(
+    with st.container(border=True):
+        st.warning(
             str(
                 t(
-                    "Nächste Aktion: rechts Text einfügen oder eine lesbare Datei "
-                    "hochladen."
+                    "Automatische Extraktion fehlgeschlagen. Die aktuelle Quelle "
+                    "kann erneut analysiert oder als manueller Briefing-Start "
+                    "weiterverwendet werden."
                 )
             )
         )
-    if st.button(
-        str(t("Briefing manuell starten")),
-        key="cs.start.manual_fallback",
-        width="stretch",
-        disabled=not bool(fallback_text),
-    ):
-        _activate_manual_intake_fallback(fallback_text)
-        st.rerun()
+        st.caption(
+            str(
+                t(
+                    "Bei Unterbrechungen ist der Laufzeitstatus nicht dauerhaft. "
+                    "Speichere bei Bedarf vorher links im Bereich „Entwurf“ ein JSON."
+                )
+            )
+        )
+        if not fallback_text:
+            st.caption(
+                str(
+                    t(
+                        "Nächste Aktion: rechts Text einfügen oder eine lesbare Datei "
+                        "hochladen."
+                    )
+                )
+            )
+        recovery_cols = st.columns(2)
+        with recovery_cols[0]:
+            if st.button(
+                str(t("Briefing manuell starten")),
+                key="cs.start.manual_fallback",
+                width="stretch",
+                disabled=not bool(fallback_text),
+            ):
+                _activate_manual_intake_fallback(fallback_text)
+                st.rerun()
+        with recovery_cols[1]:
+            if st.button(
+                str(t("Fehlerhinweis ausblenden")),
+                key="cs.start.dismiss_extraction_error",
+                width="stretch",
+            ):
+                clear_error()
+                st.rerun()
     return do_extract
 
 

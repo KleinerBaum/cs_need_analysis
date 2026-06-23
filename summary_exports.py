@@ -101,6 +101,28 @@ def build_vacancy_draft_payload(
     }
 
 
+def vacancy_draft_state_fingerprint(
+    session_state: Mapping[str, Any],
+    *,
+    allowed_keys: Sequence[SSKey],
+) -> str:
+    """Return a stable fingerprint for the allowlisted draft state only."""
+
+    state_payload: dict[str, Any] = {}
+    for key in allowed_keys:
+        if key.value not in session_state:
+            continue
+        state_payload[key.value] = _json_safe_draft_value(session_state[key.value])
+    serialized = json.dumps(
+        state_payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
 def vacancy_draft_payload_to_json(payload: Mapping[str, Any]) -> str:
     return json.dumps(
         payload,

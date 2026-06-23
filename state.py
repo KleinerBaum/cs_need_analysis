@@ -72,6 +72,7 @@ from state_store import StateStore, SummaryDirtyState
 from summary_exports import (
     VACANCY_DRAFT_SCHEMA_ID,
     parse_vacancy_draft_json,
+    vacancy_draft_state_fingerprint,
     vacancy_draft_to_json,
 )
 from usage_events import reset_usage_events
@@ -755,6 +756,7 @@ def init_session_state() -> None:
         SSKey.MODEL.value: load_openai_settings().openai_model,
         SSKey.STORE_API_OUTPUT.value: False,
         SSKey.DRAFT_RESUME_NOTICE.value: None,
+        SSKey.DRAFT_LAST_SAVED_FINGERPRINT.value: "",
         SSKey.SOURCE_TEXT.value: "",
         SSKey.SOURCE_FILE_META.value: {},
         SSKey.SOURCE_REDACT_PII.value: True,
@@ -810,6 +812,7 @@ def init_session_state() -> None:
         SSKey.SUMMARY_ARTIFACT_OPTIONS.value: {},
         SSKey.SUMMARY_ARTIFACT_CHANGE_REQUESTS.value: {},
         SSKey.SUMMARY_ARTIFACT_FINGERPRINTS.value: {},
+        SSKey.SUMMARY_ARTIFACT_LAST_ERROR.value: {},
         SSKey.SUMMARY_LOGO.value: None,
         SSKey.JOB_AD_DRAFT_CUSTOM.value: None,
         SSKey.JOB_AD_LAST_USAGE.value: {},
@@ -991,6 +994,18 @@ def build_vacancy_draft_json(
     )
 
 
+def build_vacancy_draft_fingerprint(
+    session_state: Mapping[str, Any] | None = None,
+) -> str:
+    """Return a stable fingerprint for the current explicit draft payload."""
+
+    target_state = session_state if session_state is not None else st.session_state
+    return vacancy_draft_state_fingerprint(
+        target_state,
+        allowed_keys=VACANCY_DRAFT_SESSION_KEYS,
+    )
+
+
 def _extract_vacancy_draft_state(
     payload: Mapping[str, Any],
 ) -> tuple[dict[str, Any], str, str]:
@@ -1084,6 +1099,9 @@ def load_vacancy_draft_json(raw_json: str | bytes) -> VacancyDraftLoadResult:
     reset_vacancy()
     st.session_state.update(restored_state)
     restored_step = _normalize_loaded_vacancy_draft_state(st.session_state)
+    st.session_state[SSKey.DRAFT_LAST_SAVED_FINGERPRINT.value] = (
+        build_vacancy_draft_fingerprint(st.session_state)
+    )
     restored_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     st.session_state[SSKey.DRAFT_RESUME_NOTICE.value] = {
         "saved_at": saved_at,
@@ -1110,6 +1128,7 @@ def load_vacancy_draft_json(raw_json: str | bytes) -> VacancyDraftLoadResult:
 def reset_vacancy() -> None:
     """Reset only vacancy-related state, not preferences."""
     st.session_state[SSKey.DRAFT_RESUME_NOTICE.value] = None
+    st.session_state[SSKey.DRAFT_LAST_SAVED_FINGERPRINT.value] = ""
     st.session_state[SSKey.SOURCE_TEXT.value] = ""
     st.session_state[SSKey.SOURCE_FILE_META.value] = {}
     st.session_state[SSKey.SOURCE_ACTIVE.value] = JOBSPEC_SOURCE_MANUAL
@@ -1160,6 +1179,7 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.SUMMARY_ARTIFACT_OPTIONS.value] = {}
     st.session_state[SSKey.SUMMARY_ARTIFACT_CHANGE_REQUESTS.value] = {}
     st.session_state[SSKey.SUMMARY_ARTIFACT_FINGERPRINTS.value] = {}
+    st.session_state[SSKey.SUMMARY_ARTIFACT_LAST_ERROR.value] = {}
     st.session_state[SSKey.SUMMARY_LOGO.value] = None
     st.session_state[SSKey.JOB_AD_DRAFT_CUSTOM.value] = None
     st.session_state[SSKey.JOB_AD_LAST_USAGE.value] = {}
@@ -1294,6 +1314,7 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value] = {}
     st.session_state[SSKey.SALARY_FORECAST_INPUT_SELECTIONS.value] = {}
     st.session_state[SSKey.LAST_ERROR.value] = None
+    st.session_state[SSKey.LAST_ERROR_DEBUG.value] = None
     st.session_state[SSKey.OPENAI_LAST_STRUCTURED_OUTPUT_PATH.value] = None
     st.session_state[SSKey.CURRENT_STEP.value] = STEPS[0].key
     st.session_state[SSKey.LAST_RENDERED_STEP.value] = STEPS[0].key

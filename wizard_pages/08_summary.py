@@ -6,6 +6,7 @@ import json
 from contextlib import nullcontext
 from dataclasses import dataclass, replace
 from collections import defaultdict
+from datetime import datetime, timezone
 from html import escape
 from typing import Any, Callable, Final, Mapping, Protocol, Sequence, TypedDict
 
@@ -644,6 +645,115 @@ for _summary_helper_name, _summary_helper_module in {
 del _summary_helper_name, _summary_helper_module
 
 
+def _artifact_generation_error_payload() -> dict[str, Any]:
+    raw = st.session_state.get(SSKey.SUMMARY_ARTIFACT_LAST_ERROR.value, {})
+    return dict(raw) if isinstance(raw, Mapping) else {}
+
+
+def _clear_artifact_generation_error(artifact_id: str | None = None) -> None:
+    if artifact_id is None:
+        st.session_state[SSKey.SUMMARY_ARTIFACT_LAST_ERROR.value] = {}
+        return
+    current = _artifact_generation_error_payload()
+    if current.get("artifact_id") == artifact_id:
+        st.session_state[SSKey.SUMMARY_ARTIFACT_LAST_ERROR.value] = {}
+
+
+def _remember_artifact_generation_error(
+    *,
+    artifact_id: str,
+    artifact_label: str,
+    message: str = "",
+) -> None:
+    payload: dict[str, Any] = {
+        "artifact_id": artifact_id,
+        "artifact_label": artifact_label,
+        "message": str(message or "").strip()
+        or f"{artifact_label} konnte nicht erstellt werden.",
+        "failed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    }
+    debug_error = st.session_state.get(SSKey.LAST_ERROR_DEBUG.value)
+    if debug_error and bool(st.session_state.get(SSKey.OPENAI_DEBUG_ERRORS.value, False)):
+        payload["debug"] = str(debug_error)
+    st.session_state[SSKey.SUMMARY_ARTIFACT_LAST_ERROR.value] = payload
+
+
+def _remember_last_artifact_generation_error(
+    artifact_id: str, artifact_label: str
+) -> None:
+    _remember_artifact_generation_error(
+        artifact_id=artifact_id,
+        artifact_label=artifact_label,
+        message=str(st.session_state.get(SSKey.LAST_ERROR.value) or ""),
+    )
+
+
+def _dismiss_artifact_generation_error() -> None:
+    _clear_artifact_generation_error()
+
+
+def _render_artifact_generation_recovery(
+    generator_by_id: Mapping[str, Callable[[], None]]
+) -> None:
+    error_payload = _artifact_generation_error_payload()
+    artifact_id = str(error_payload.get("artifact_id") or "").strip()
+    if not artifact_id:
+        return
+    artifact_label = str(error_payload.get("artifact_label") or "").strip()
+    if not artifact_label:
+        artifact_label = _artifact_display_label(artifact_id)
+    message = str(error_payload.get("message") or "").strip()
+    failed_at = str(error_payload.get("failed_at") or "").strip()
+
+    with st.container(border=True):
+        st.warning(f"{artifact_label} konnte nicht erstellt werden.")
+        if message:
+            st.caption(message)
+        recovery_parts = [
+            "Recovery: Eingaben oder Änderungswunsch prüfen und erneut generieren.",
+            "Vor längeren Unterbrechungen links im Bereich „Entwurf“ ein JSON speichern.",
+        ]
+        if artifact_id != "brief":
+            recovery_parts.append(
+                "Wenn der Recruiting Brief veraltet ist, zuerst den Brief aktualisieren."
+            )
+        st.caption(" ".join(recovery_parts))
+        if failed_at:
+            st.caption(f"Fehlerzeitpunkt: {failed_at}")
+        debug_error = error_payload.get("debug")
+        if debug_error and bool(st.session_state.get(SSKey.OPENAI_DEBUG_ERRORS.value, False)):
+            with st.expander("Debug (non-sensitive)", expanded=False):
+                st.caption("Nur technische Metadaten, keine Inhalte (kein Prompt/PII).")
+                st.code(str(debug_error))
+
+        retry_col, dismiss_col = st.columns(2)
+        with retry_col:
+            retry_disabled = artifact_id not in generator_by_id
+            if st.button(
+                "Erneut generieren",
+                key=_widget_key(
+                    SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
+                    f"recovery.retry.{artifact_id}",
+                ),
+                width="stretch",
+                disabled=retry_disabled,
+            ):
+                _clear_artifact_generation_error(artifact_id)
+                st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = artifact_id
+                generator_by_id[artifact_id]()
+                st.rerun()
+        with dismiss_col:
+            st.button(
+                "Hinweis ausblenden",
+                key=_widget_key(
+                    SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
+                    f"recovery.dismiss.{artifact_id}",
+                ),
+                on_click=_dismiss_artifact_generation_error,
+                width="stretch",
+            )
+
+
 
 def render(ctx: WizardContext) -> None:
     render_error_banner()
@@ -731,11 +841,19 @@ def render(ctx: WizardContext) -> None:
                     company_website_research.model_dump(mode="json")
                 )
             except ValueError:
+                error_message = (
+                    "Die Firmen-Website-Research-Daten sind ungültig. "
+                    "Bitte prüfe die Angaben im Unternehmensschritt oder fülle "
+                    "Unternehmensdaten manuell aus."
+                )
                 if show_errors:
-                    st.error(
-                        "Die Firmen-Website-Research-Daten sind ungültig. "
-                        "Bitte prüfe die Angaben im Unternehmensschritt oder fülle Unternehmensdaten manuell aus."
+                    _remember_artifact_generation_error(
+                        artifact_id="brief",
+                        artifact_label="Recruiting Brief",
+                        message=error_message,
                     )
+                if show_errors:
+                    st.error(error_message)
                 return False
 
         try:
@@ -768,11 +886,17 @@ def render(ctx: WizardContext) -> None:
             )
             if brief_cached:
                 st.info("Recruiting Brief aus dem Cache geladen.")
+            _clear_artifact_generation_error("brief")
             return True
         except OpenAICallError as e:
             if show_errors:
                 render_openai_error(e)
                 st.error(e.ui_message)
+                _remember_artifact_generation_error(
+                    artifact_id="brief",
+                    artifact_label="Recruiting Brief",
+                    message=e.ui_message,
+                )
                 _render_generation_recovery("Recruiting Brief")
             return False
         except Exception as exc:
@@ -784,6 +908,7 @@ def render(ctx: WizardContext) -> None:
                 error_code="SUMMARY_BRIEF_GENERATION_UNEXPECTED",
             )
             if show_errors:
+                _remember_last_artifact_generation_error("brief", "Recruiting Brief")
                 _render_generation_recovery("Recruiting Brief")
             return False
 
@@ -829,9 +954,15 @@ def render(ctx: WizardContext) -> None:
                 artifact_id="job_ad",
                 cache_hit=usage_has_cache_hit(usage),
             )
+            _clear_artifact_generation_error("job_ad")
         except OpenAICallError as e:
             render_openai_error(e)
             st.error(e.ui_message)
+            _remember_artifact_generation_error(
+                artifact_id="job_ad",
+                artifact_label="Stellenanzeige",
+                message=e.ui_message,
+            )
             _render_generation_recovery("Stellenanzeige")
         except Exception as exc:
             handle_unexpected_exception(
@@ -840,6 +971,7 @@ def render(ctx: WizardContext) -> None:
                 error_type=type(exc).__name__,
                 error_code="SUMMARY_JOB_AD_GENERATION_UNEXPECTED",
             )
+            _remember_last_artifact_generation_error("job_ad", "Stellenanzeige")
             _render_generation_recovery("Stellenanzeige")
 
     def _get_brief_status() -> tuple[str, VacancyBrief | None]:
@@ -905,9 +1037,15 @@ def render(ctx: WizardContext) -> None:
                 cache_hit=usage_has_cache_hit(usage),
                 mode="from_brief",
             )
+            _clear_artifact_generation_error("interview_hr")
         except OpenAICallError as e:
             render_openai_error(e)
             st.error(e.ui_message)
+            _remember_artifact_generation_error(
+                artifact_id="interview_hr",
+                artifact_label="Interview-Sheet HR",
+                message=e.ui_message,
+            )
             _render_generation_recovery("Interview-Sheet HR")
         except Exception as exc:
             handle_unexpected_exception(
@@ -915,6 +1053,9 @@ def render(ctx: WizardContext) -> None:
                 exc=exc,
                 error_type=type(exc).__name__,
                 error_code="SUMMARY_INTERVIEW_PREP_HR_GENERATION_UNEXPECTED",
+            )
+            _remember_last_artifact_generation_error(
+                "interview_hr", "Interview-Sheet HR"
             )
             _render_generation_recovery("Interview-Sheet HR")
 
@@ -950,9 +1091,15 @@ def render(ctx: WizardContext) -> None:
                 cache_hit=usage_has_cache_hit(usage),
                 mode="from_brief",
             )
+            _clear_artifact_generation_error("interview_fach")
         except OpenAICallError as e:
             render_openai_error(e)
             st.error(e.ui_message)
+            _remember_artifact_generation_error(
+                artifact_id="interview_fach",
+                artifact_label="Interview-Sheet Fachbereich",
+                message=e.ui_message,
+            )
             _render_generation_recovery("Interview-Sheet Fachbereich")
         except Exception as exc:
             handle_unexpected_exception(
@@ -960,6 +1107,9 @@ def render(ctx: WizardContext) -> None:
                 exc=exc,
                 error_type=type(exc).__name__,
                 error_code="SUMMARY_INTERVIEW_PREP_FACH_GENERATION_UNEXPECTED",
+            )
+            _remember_last_artifact_generation_error(
+                "interview_fach", "Interview-Sheet Fachbereich"
             )
             _render_generation_recovery("Interview-Sheet Fachbereich")
 
@@ -995,9 +1145,15 @@ def render(ctx: WizardContext) -> None:
                 cache_hit=usage_has_cache_hit(usage),
                 mode="from_brief",
             )
+            _clear_artifact_generation_error("boolean_search")
         except OpenAICallError as e:
             render_openai_error(e)
             st.error(e.ui_message)
+            _remember_artifact_generation_error(
+                artifact_id="boolean_search",
+                artifact_label="Boolean Search",
+                message=e.ui_message,
+            )
             _render_generation_recovery("Boolean Search")
         except Exception as exc:
             handle_unexpected_exception(
@@ -1005,6 +1161,9 @@ def render(ctx: WizardContext) -> None:
                 exc=exc,
                 error_type=type(exc).__name__,
                 error_code="SUMMARY_BOOLEAN_SEARCH_GENERATION_UNEXPECTED",
+            )
+            _remember_last_artifact_generation_error(
+                "boolean_search", "Boolean Search"
             )
             _render_generation_recovery("Boolean Search")
 
@@ -1040,9 +1199,15 @@ def render(ctx: WizardContext) -> None:
                 cache_hit=usage_has_cache_hit(usage),
                 mode="from_brief",
             )
+            _clear_artifact_generation_error("employment_contract")
         except OpenAICallError as e:
             render_openai_error(e)
             st.error(e.ui_message)
+            _remember_artifact_generation_error(
+                artifact_id="employment_contract",
+                artifact_label="Arbeitsvertragsvorlage",
+                message=e.ui_message,
+            )
             _render_generation_recovery("Arbeitsvertragsvorlage")
         except Exception as exc:
             handle_unexpected_exception(
@@ -1050,6 +1215,9 @@ def render(ctx: WizardContext) -> None:
                 exc=exc,
                 error_type=type(exc).__name__,
                 error_code="SUMMARY_EMPLOYMENT_CONTRACT_GENERATION_UNEXPECTED",
+            )
+            _remember_last_artifact_generation_error(
+                "employment_contract", "Arbeitsvertragsvorlage"
             )
             _render_generation_recovery("Arbeitsvertragsvorlage")
 
@@ -1289,6 +1457,7 @@ def render(ctx: WizardContext) -> None:
 
     internal_brief = brief or _build_internal_fallback_brief(vm)
     generator_by_id: dict[str, Callable[[], None]] = {
+        "brief": _generate_recruiting_brief,
         "job_ad": _generate_job_ad,
         "interview_hr": _generate_interview_prep_hr,
         "interview_fach": _generate_interview_prep_fach,
@@ -1339,6 +1508,7 @@ def render(ctx: WizardContext) -> None:
             ),
         ),
     )
+    _render_artifact_generation_recovery(generator_by_id)
     _render_summary_artifact_grid(
         vm=vm,
         generator_by_id=generator_by_id,

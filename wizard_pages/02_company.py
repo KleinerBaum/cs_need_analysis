@@ -410,6 +410,10 @@ def _run_website_research(
     )
 
 
+def _dismiss_website_recovery_message() -> None:
+    st.session_state[SSKey.COMPANY_WEBSITE_LAST_ERROR.value] = None
+
+
 def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
     st.caption(
         "Starte gezielte Website-Checks und übernimm Funde erst nach kurzer Prüfung."
@@ -476,10 +480,21 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
 
     error_text = st.session_state.get(SSKey.COMPANY_WEBSITE_LAST_ERROR.value)
     if isinstance(error_text, str) and error_text.strip():
-        st.warning(error_text)
-        st.caption(
-            "Manueller Pfad: Arbeitgeberprofil und Business-Kontext unten direkt ausfüllen."
-        )
+        with st.container(border=True):
+            st.warning(error_text)
+            st.caption(
+                "Recovery: URL oben korrigieren und den Check erneut starten oder "
+                "Arbeitgeberprofil und Business-Kontext unten direkt manuell ausfüllen."
+            )
+            st.caption(
+                "Website-Funde werden erst nach deiner Prüfung übernommen; "
+                "Laufzeitstatus ist keine dauerhafte Sicherung."
+            )
+            st.button(
+                "Fehlerhinweis ausblenden",
+                key="company.website.recovery.dismiss",
+                on_click=_dismiss_website_recovery_message,
+            )
 
     research_raw = st.session_state.get(SSKey.COMPANY_WEBSITE_RESEARCH.value, {})
     research = research_raw if isinstance(research_raw, dict) else {}
