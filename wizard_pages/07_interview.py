@@ -39,7 +39,13 @@ from ui_components import (
     render_standard_step_review,
 )
 from job_extract_evidence import format_provenance_label
-from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
+from wizard_pages.base import (
+    WizardContext,
+    WizardPage,
+    guard_job_and_plan,
+    nav_buttons,
+    resolve_dynamic_step_copy,
+)
 from wizard_pages.fact_inputs import (
     compact_text,
     fact_value,
@@ -1184,9 +1190,11 @@ def render(ctx: WizardContext) -> None:
         },
     )
 
+    step_copy = resolve_dynamic_step_copy(STEP_KEY_INTERVIEW, job=job)
     render_step_shell(
-        title="Interviewprozess klar und fair gestalten",
-        subtitle="Klarer Ablauf, verbindliche Updates und faire Bewertung.",
+        title=step_copy.headline,
+        subtitle=step_copy.subheadline,
+        outcome_text=step_copy.value_line,
         step=step,
         **section_kwargs,
         footer_slot=lambda: nav_buttons(ctx),

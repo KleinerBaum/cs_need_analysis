@@ -75,6 +75,7 @@ from wizard_pages.base import (
     get_current_ui_mode,
     guard_job_and_plan,
     nav_buttons,
+    resolve_dynamic_step_copy,
 )
 from wizard_pages.fact_inputs import compact_text, fact_value, persist_fact, split_lines
 from wizard_pages.salary_forecast_panel import render_skills_salary_forecast_panel
@@ -2753,16 +2754,11 @@ def render(ctx: WizardContext) -> None:
         },
     )
 
+    step_copy = resolve_dynamic_step_copy(STEP_KEY_SKILLS, job=job)
     render_step_shell(
-        title="Skills präzisieren und priorisieren",
-        subtitle=(
-            "Hier trennst du echte Must-haves von Nice-to-haves. Die bestätigte "
-            "Skill-Liste wirkt direkt auf Matching, Interviewfragen und die Qualität "
-            "des Recruiting Briefs."
-        ),
-        outcome_text=(
-            "Eine prüfbare Skill-Liste für Recruiting Brief, Matching und Interviewfragen."
-        ),
+        title=step_copy.headline,
+        subtitle=step_copy.subheadline,
+        outcome_text=step_copy.value_line,
         step=step,
         lazy_section_configs={
             "source_comparison_slot": LazySectionConfig(

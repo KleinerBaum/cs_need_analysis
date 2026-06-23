@@ -60,7 +60,13 @@ from ui_components import (
 )
 from ui_layout import render_step_shell, responsive_three_columns, responsive_two_columns
 from usage_events import record_enrichment_timed, record_homepage_fetch_failed
-from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
+from wizard_pages.base import (
+    WizardContext,
+    WizardPage,
+    guard_job_and_plan,
+    nav_buttons,
+    resolve_dynamic_step_copy,
+)
 from wizard_pages.fact_inputs import (
     compact_text,
     fact_value,
@@ -1140,13 +1146,11 @@ def render(ctx: WizardContext) -> None:
         },
     )
 
+    step_copy = resolve_dynamic_step_copy(STEP_KEY_COMPANY, job=job)
     render_step_shell(
-        title=_format_company_header(job),
-        subtitle=_format_company_subheader(job)
-        or (
-            "Hier schärfst du das Bild hinter der Vakanz: Unternehmen, Markt, "
-            "Positionierung und Teamkontext."
-        ),
+        title=step_copy.headline,
+        subtitle=step_copy.subheadline,
+        outcome_text=step_copy.value_line,
         step=step_company,
         **section_kwargs,
         footer_slot=lambda: nav_buttons(ctx),

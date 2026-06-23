@@ -47,7 +47,13 @@ from ui_components import (
     resolve_standard_review_mode,
     render_standard_step_review,
 )
-from wizard_pages.base import WizardContext, WizardPage, guard_job_and_plan, nav_buttons
+from wizard_pages.base import (
+    WizardContext,
+    WizardPage,
+    guard_job_and_plan,
+    nav_buttons,
+    resolve_dynamic_step_copy,
+)
 from wizard_pages.fact_inputs import (
     compact_text,
     fact_value,
@@ -873,15 +879,11 @@ def render(ctx: WizardContext) -> None:
         },
     )
 
+    step_copy = resolve_dynamic_step_copy(STEP_KEY_BENEFITS, job=job)
     render_step_shell(
-        title="Angebot kompakt machen",
-        subtitle=(
-            "Lege fest, welche Punkte im Angebot wirklich zählen: Gehalt, Arbeitsmodell, "
-            "Benefits und wenige zusätzliche Rahmenbedingungen."
-        ),
-        outcome_text=(
-            "Ein klares Angebot mit Gehalt, Arbeitsmodell und ausgewählten Benefits."
-        ),
+        title=step_copy.headline,
+        subtitle=step_copy.subheadline,
+        outcome_text=step_copy.value_line,
         step=step,
         lazy_section_configs={
             "source_comparison_slot": LazySectionConfig(

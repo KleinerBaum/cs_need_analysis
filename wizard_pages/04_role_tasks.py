@@ -56,6 +56,7 @@ from wizard_pages.base import (
     get_current_ui_mode,
     guard_job_and_plan,
     nav_buttons,
+    resolve_dynamic_step_copy,
 )
 from wizard_pages.fact_inputs import (
     compact_text,
@@ -979,15 +980,11 @@ def render(ctx: WizardContext) -> None:
         },
     )
 
+    step_copy = resolve_dynamic_step_copy(STEP_KEY_ROLE_TASKS, job=job)
     render_step_shell(
-        title="Rolle und Aufgaben klären",
-        subtitle=(
-            "Wähle die passenden Aufgaben aus, trenne Startumfang von späteren Themen "
-            "und halte Erfolg sowie Verantwortung knapp fest."
-        ),
-        outcome_text=(
-            "Klares Aufgabenprofil mit Erfolgskriterien und offenen Punkten."
-        ),
+        title=step_copy.headline,
+        subtitle=step_copy.subheadline,
+        outcome_text=step_copy.value_line,
         step=step,
         extracted_from_jobspec_use_expander=False,
         lazy_section_configs={

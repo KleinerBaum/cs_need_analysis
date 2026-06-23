@@ -29,7 +29,6 @@ from constants import (
     SUMMARY_LOGO_UPLOAD_ALLOWED_EXTENSIONS,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
 )
-from i18n import active_language
 from interview_process import (
     build_candidate_stage_values,
     build_interview_export_payload,
@@ -164,7 +163,6 @@ from ui_components import (
     render_interview_prep_hr,
     render_openai_error,
 )
-from ux_copy_contract import VacancyCopyContext, build_step_copy
 from usage_events import get_usage_events, record_artifact_generated
 from usage_utils import usage_has_cache_hit
 from wizard_pages.base import (
@@ -173,6 +171,7 @@ from wizard_pages.base import (
     get_current_ui_mode,
     nav_buttons,
     render_active_ui_mode_caption,
+    resolve_dynamic_step_copy,
 )
 
 
@@ -1241,18 +1240,19 @@ def render(ctx: WizardContext) -> None:
         "employment_contract": _generate_employment_contract,
     }
 
-    summary_copy = build_step_copy(
+    summary_copy = resolve_dynamic_step_copy(
         STEP_KEY_SUMMARY,
-        language=active_language(),
-        context=VacancyCopyContext(
-            role_title=vm.meta.role_label,
-            company_name=vm.meta.company_label,
-            location=vm.meta.country_label,
-            readiness_score=vm.status.readiness_percent,
-            critical_gaps_count=len(_build_missing_critical_items(vm)),
-        )
+        job=vm.job,
+        readiness_score=vm.status.readiness_percent,
+        critical_gaps_count=len(_build_missing_critical_items(vm)),
     )
-    render_output_header(summary_copy.headline, summary_copy.subheadline)
+    render_output_header(
+        summary_copy.headline,
+        summary_copy.subheadline,
+        meta_items=[("💡", "", summary_copy.value_line)]
+        if summary_copy.value_line
+        else (),
+    )
     _render_readiness_dashboard_header(vm)
     _render_esco_coverage_kpis()
     _render_summary_critical_gaps_table(vm, ctx=ctx)

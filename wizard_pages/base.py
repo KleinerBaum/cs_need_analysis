@@ -27,6 +27,7 @@ from constants import (
     DEFAULT_ESCO_DATA_SOURCE_MODE,
     DEFAULT_ESCO_RELEASE_LANE,
     DEFAULT_ESCO_SELECTED_VERSION,
+    DEFAULT_LANGUAGE,
     ESCO_API_MODES,
     ESCO_DATA_SOURCE_MODES,
     ESCO_RELEASE_LANE_PREVIEW,
@@ -51,7 +52,7 @@ from esco_semantics import (
     sync_esco_semantic_state,
 )
 from intake_facts import collect_legacy_facts
-from i18n import sync_language_state, sync_streamlit_language_widget, t
+from i18n import active_language, sync_language_state, sync_streamlit_language_widget, t
 from question_dependencies import should_show_question
 from question_limits import (
     StepQuestionScope,
@@ -69,7 +70,9 @@ from safe_html import escape_html_text, render_static_html
 from step_sections import build_section_status_payloads, section_status_summary
 from step_status import StepStatusPayload, build_step_status_payload
 from state import normalize_ui_preferences
+from state_store import StateStore
 from usage_events import record_step_entered, record_step_submitted
+from ux_copy_contract import StepCopy, VacancyCopyContext, build_step_copy
 from wizard_pages.salary_forecast import render_sidebar_salary_forecast
 
 if TYPE_CHECKING:
@@ -1752,6 +1755,151 @@ def guard_job_and_plan(
     job = JobAdExtract.model_validate(job_dict)
     plan = QuestionPlan.model_validate(plan_dict)
     return job, plan
+
+
+def _copy_context_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return " ".join(value.split()).strip()
+    if isinstance(value, Mapping):
+        for key in ("name", "title", "label", "value"):
+            text = _copy_context_text(value.get(key))
+            if text:
+                return text
+        return ""
+    if isinstance(value, Sequence) and not isinstance(value, (bytes, bytearray)):
+        for item in value:
+            text = _copy_context_text(item)
+            if text:
+                return text
+        return ""
+    return " ".join(str(value).split()).strip()
+
+
+def _copy_context_fact_value(
+    *,
+    fact_keys: Sequence[FactKey],
+    job_attrs: Sequence[str],
+    answers: Mapping[str, Any],
+    intake_facts: Mapping[str, Any],
+    job: JobAdExtract | None,
+) -> str:
+    for fact_key in fact_keys:
+        text = _copy_context_text(answers.get(fact_key.value))
+        if text:
+            return text
+    for fact_key in fact_keys:
+        text = _copy_context_text(intake_facts.get(fact_key.value))
+        if text:
+            return text
+    if job is None:
+        return ""
+    for attr in job_attrs:
+        text = _copy_context_text(getattr(job, attr, None))
+        if text:
+            return text
+    return ""
+
+
+def _resolve_copy_context_job(
+    *, session_state: Mapping[str, Any], job: JobAdExtract | None
+) -> JobAdExtract | None:
+    if job is not None:
+        return job
+    return StateStore(cast(Any, session_state)).job_extract()
+
+
+def resolve_dynamic_step_copy(
+    step_key: str,
+    *,
+    job: JobAdExtract | None = None,
+    language: str | None = None,
+    readiness_score: int | None = None,
+    open_questions_count: int | None = None,
+    critical_gaps_count: int | None = None,
+    session_state: Mapping[str, Any] | None = None,
+) -> StepCopy:
+    """Resolve dynamic wizard step copy from current vacancy context."""
+
+    state = session_state if session_state is not None else st.session_state
+    state_store = StateStore(cast(Any, state))
+    answers = state_store.answers()
+    intake_facts = state_store.intake_facts()
+    resolved_job = _resolve_copy_context_job(session_state=state, job=job)
+
+    role_title = _copy_context_fact_value(
+        fact_keys=(FactKey.ROLE_JOB_TITLE,),
+        job_attrs=("job_title", "title"),
+        answers=answers,
+        intake_facts=intake_facts,
+        job=resolved_job,
+    )
+    company_name = _copy_context_fact_value(
+        fact_keys=(FactKey.COMPANY_COMPANY_NAME, FactKey.COMPANY_BRAND_NAME),
+        job_attrs=("company_name", "brand_name"),
+        answers=answers,
+        intake_facts=intake_facts,
+        job=resolved_job,
+    )
+    location_city = _copy_context_fact_value(
+        fact_keys=(FactKey.COMPANY_LOCATION_CITY,),
+        job_attrs=("location_city",),
+        answers=answers,
+        intake_facts=intake_facts,
+        job=resolved_job,
+    )
+    location_country = _copy_context_fact_value(
+        fact_keys=(FactKey.COMPANY_LOCATION_COUNTRY,),
+        job_attrs=("location_country",),
+        answers=answers,
+        intake_facts=intake_facts,
+        job=resolved_job,
+    )
+    work_model = _copy_context_fact_value(
+        fact_keys=(FactKey.COMPANY_REMOTE_POLICY, FactKey.COMPANY_WORK_ARRANGEMENT),
+        job_attrs=("remote_policy", "work_arrangement"),
+        answers=answers,
+        intake_facts=intake_facts,
+        job=resolved_job,
+    )
+    department = _copy_context_fact_value(
+        fact_keys=(FactKey.COMPANY_DEPARTMENT_NAME,),
+        job_attrs=("department_name",),
+        answers=answers,
+        intake_facts=intake_facts,
+        job=resolved_job,
+    )
+    seniority_level = _copy_context_fact_value(
+        fact_keys=(FactKey.ROLE_SENIORITY_LEVEL,),
+        job_attrs=("seniority_level",),
+        answers=answers,
+        intake_facts=intake_facts,
+        job=resolved_job,
+    )
+
+    try:
+        resolved_language = language or active_language()
+    except Exception:
+        resolved_language = DEFAULT_LANGUAGE
+
+    return build_step_copy(
+        step_key,
+        language=resolved_language,
+        context=VacancyCopyContext(
+            role_title=role_title,
+            company_name=company_name,
+            location=" · ".join(
+                part for part in (location_city, location_country) if part
+            ),
+            department=department,
+            work_model=work_model,
+            seniority_level=seniority_level,
+            readiness_score=readiness_score,
+            open_questions_count=open_questions_count,
+            critical_gaps_count=critical_gaps_count,
+        ),
+    )
 
 
 LANDING_STYLE_TOKENS: dict[str, str] = {

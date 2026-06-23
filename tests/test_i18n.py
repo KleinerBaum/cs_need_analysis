@@ -3,7 +3,17 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from constants import SSKey, UI_LANGUAGE_QUERY_PARAM, UI_PREFERENCE_UI_LANGUAGE
+from constants import (
+    SSKey,
+    STEP_KEY_BENEFITS,
+    STEP_KEY_COMPANY,
+    STEP_KEY_INTERVIEW,
+    STEP_KEY_ROLE_TASKS,
+    STEP_KEY_SKILLS,
+    STEP_KEY_SUMMARY,
+    UI_LANGUAGE_QUERY_PARAM,
+    UI_PREFERENCE_UI_LANGUAGE,
+)
 from i18n import (
     LANGUAGE_WIDGET_KEY_PAGE,
     LANGUAGE_WIDGET_KEY_SIDEBAR,
@@ -97,6 +107,40 @@ def test_locale_files_have_matching_key_shapes() -> None:
     en_locale = json.loads((locales_dir / "en.json").read_text(encoding="utf-8"))
 
     assert _locale_leaf_keys(de_locale) == _locale_leaf_keys(en_locale)
+
+
+def test_active_step_copy_locale_contract_has_de_en_parity() -> None:
+    locales_dir = Path(__file__).resolve().parents[1] / "locales"
+    de_steps = json.loads((locales_dir / "de.json").read_text(encoding="utf-8"))[
+        "ux_copy"
+    ]["steps"]
+    en_steps = json.loads((locales_dir / "en.json").read_text(encoding="utf-8"))[
+        "ux_copy"
+    ]["steps"]
+
+    for step_key in (
+        STEP_KEY_COMPANY,
+        STEP_KEY_ROLE_TASKS,
+        STEP_KEY_SKILLS,
+        STEP_KEY_BENEFITS,
+        STEP_KEY_INTERVIEW,
+    ):
+        assert set(de_steps[step_key]) == set(en_steps[step_key])
+        assert de_steps[step_key]["headline"]
+        assert de_steps[step_key]["subheadline"]
+        assert de_steps[step_key]["value_line"]
+        assert en_steps[step_key]["headline"]
+        assert en_steps[step_key]["subheadline"]
+        assert en_steps[step_key]["value_line"]
+
+    assert set(de_steps[STEP_KEY_SUMMARY]["headline"]) == set(
+        en_steps[STEP_KEY_SUMMARY]["headline"]
+    )
+    assert set(de_steps[STEP_KEY_SUMMARY]["subheadline"]) == set(
+        en_steps[STEP_KEY_SUMMARY]["subheadline"]
+    )
+    assert de_steps[STEP_KEY_SUMMARY]["value_line"]
+    assert en_steps[STEP_KEY_SUMMARY]["value_line"]
 
 
 def test_sync_language_state_from_request_uses_query_param(monkeypatch) -> None:
