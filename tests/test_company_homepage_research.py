@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 import homepage_research
+import services.homepage as homepage_service
 import state as state_module
 from constants import (
     FactKey,
@@ -121,6 +122,25 @@ def _patch_dns(
         ]
 
     monkeypatch.setattr(homepage_research.socket, "getaddrinfo", fake_getaddrinfo)
+
+
+def test_homepage_service_facade_preserves_legacy_imports() -> None:
+    assert homepage_service.HomepageFetchError is homepage_research.HomepageFetchError
+    assert homepage_service.HomepageFetchResult is homepage_research.HomepageFetchResult
+    assert homepage_service.normalize_url is homepage_research.normalize_url
+    assert homepage_service.fetch_url_text is homepage_research.fetch_url_text
+    assert (
+        homepage_service.build_company_website_research
+        is homepage_research.build_company_website_research
+    )
+
+
+def test_company_page_uses_homepage_service_facade() -> None:
+    assert COMPANY_MODULE._fetch_url_text is homepage_service.fetch_url_text
+    assert (
+        COMPANY_MODULE._build_company_website_research
+        is homepage_service.build_company_website_research
+    )
 
 
 def test_strip_html_removes_script_payload_noise() -> None:

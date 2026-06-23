@@ -28,7 +28,7 @@ from constants import (
     WEBSITE_TOPIC_IMPRINT,
     WEBSITE_TOPIC_VISION_MISSION,
 )
-from homepage_research import (
+from services.homepage import (
     WEBSITE_TOPIC_LABELS as _TOPIC_LABELS,
     HomepageResearchInvalidUrlError as _HomepageResearchInvalidUrlError,
     build_company_website_research as _build_company_website_research,
