@@ -86,6 +86,7 @@ from wizard_pages.company_work_context import (
     render_non_negotiables_compliance_section,
     render_working_model_location_section,
 )
+from job_extract_evidence import format_provenance_label
 from intake_facts import append_intake_fact_secondary_evidence, write_intake_fact
 from state import mark_answer_touched
 from ui_badges import render_source_evidence_popover
@@ -634,14 +635,17 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
                 if not _is_empty_fact_value(current_value) and _fact_values_equal(
                     current_value, parsed_value
                 ):
-                    candidate_resolution = "Stützt bestehenden Wert · Website"
                     candidate_status = FactResolutionStatus.CONFIRMED.value
                 elif has_confirmed_conflict:
-                    candidate_resolution = "Abweichender Website-Beleg · prüfen"
                     candidate_status = FactResolutionStatus.CONFLICTED.value
                 else:
-                    candidate_resolution = "Neuer Website-Hinweis · prüfen"
                     candidate_status = FactResolutionStatus.INFERRED.value
+                candidate_resolution = format_provenance_label(
+                    source_type=FactSourceType.HOMEPAGE.value,
+                    source_label=source_label,
+                    resolution_status=candidate_status,
+                    confirmed=candidate_status == FactResolutionStatus.CONFIRMED.value,
+                )
                 st.caption(candidate_resolution)
                 render_source_evidence_popover(
                     {

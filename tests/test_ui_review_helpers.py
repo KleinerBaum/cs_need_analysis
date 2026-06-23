@@ -288,7 +288,7 @@ def test_render_step_review_card_marks_open_low_confidence_fact_without_snippet(
 
     joined_captions = " ".join(fake_st.captions)
     assert (
-        "Zu prüfen: Wie heißt das Unternehmen?: Konflikt · 40% · prüfen"
+        "Zu prüfen: Wie heißt das Unternehmen?: Konflikt · klären · 40%"
         in joined_captions
     )
     assert "Do not leak" not in joined_captions
@@ -1364,5 +1364,5 @@ def test_interview_value_board_includes_compact_provenance_column(monkeypatch) -
     INTERVIEW_MODULE._render_interview_value_board(job=JobAdExtract(), plan=None)
 
     assert "Provenienz" in fake_st.column_order
-    assert fake_st.dataframe_rows[0]["Provenienz"] == "Erkannt · Jobspec"
-    assert fake_st.dataframe_rows[1]["Provenienz"] == "Bestätigt · Eingabe"
+    assert fake_st.dataframe_rows[0]["Provenienz"] == "Erkannt · prüfen · Jobspec"
+    assert fake_st.dataframe_rows[1]["Provenienz"] == "Bestätigt · nutzen · Eingabe"

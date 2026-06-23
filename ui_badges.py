@@ -16,6 +16,8 @@ from job_extract_evidence import (
     canonical_source_label,
     format_field_evidence_snippet,
     format_provenance_label,
+    format_trust_copy,
+    resolve_trust_copy,
 )
 from safe_html import render_static_html
 
@@ -58,6 +60,17 @@ def _coerce_confidence(value: Any) -> float | None:
         return None
 
 
+def _active_trust_language(language: str | None = None) -> str:
+    if language:
+        return language
+    try:
+        from i18n import active_language
+
+        return active_language()
+    except Exception:
+        return "de"
+
+
 def _resolved_evidence_value(
     evidence: Mapping[str, Any],
     key: str,
@@ -84,6 +97,7 @@ def trust_status_label(
     confidence: Any = None,
     needs_confirmation: bool = False,
     confidence_threshold: float | None = None,
+    language: str | None = None,
 ) -> str:
     """Return compact trust text without exposing raw evidence."""
 
@@ -96,6 +110,7 @@ def trust_status_label(
         confidence=confidence,
         needs_confirmation=needs_confirmation,
         confidence_threshold=confidence_threshold,
+        language=language,
     )
 
 
@@ -134,13 +149,27 @@ def _provenance_badge_tone(
     )
     if (
         resolved_status
-        in {FactResolutionStatus.CONFLICTED.value, FactResolutionStatus.MISSING.value}
+        in {
+            FactResolutionStatus.ASSUMED.value,
+            FactResolutionStatus.CONFLICTED.value,
+            FactResolutionStatus.MISSING.value,
+        }
         or resolved_needs_confirmation
         or is_low_confidence
         or any(
             token in normalized_label
-            for token in ("konflikt", "fehlt", "ergänzen", "offen", "prüfen")
+            for token in (
+                "konflikt",
+                "conflict",
+                "fehlt",
+                "missing",
+                "ergänzen",
+                "resolve",
+                "klären",
+                "offen",
+            )
         )
+        or normalized_label.startswith(("prüfen", "review"))
     ):
         return "warning"
     if (
@@ -171,6 +200,7 @@ def build_provenance_badge(
     confidence: Any = None,
     needs_confirmation: bool = False,
     confidence_threshold: float | None = None,
+    language: str | None = None,
 ) -> ProvenanceBadge:
     evidence_map = evidence if isinstance(evidence, Mapping) else {}
     resolved_label = str(label or "").strip() or format_provenance_label(
@@ -182,6 +212,7 @@ def build_provenance_badge(
         confidence=confidence,
         needs_confirmation=needs_confirmation,
         confidence_threshold=confidence_threshold,
+        language=language,
     )
     if not resolved_label:
         return ProvenanceBadge(label="", tone="neutral")
@@ -211,8 +242,10 @@ def render_provenance_badge(
     confidence: Any = None,
     needs_confirmation: bool = False,
     confidence_threshold: float | None = None,
+    language: str | None = None,
     streamlit_module: Any | None = None,
 ) -> None:
+    resolved_language = _active_trust_language(language)
     badge = build_provenance_badge(
         evidence,
         label=label,
@@ -223,6 +256,7 @@ def render_provenance_badge(
         confidence=confidence,
         needs_confirmation=needs_confirmation,
         confidence_threshold=confidence_threshold,
+        language=resolved_language,
     )
     if not badge.label:
         return
@@ -246,15 +280,21 @@ def render_source_evidence_popover(
     evidence_snippet: str = "",
     trigger_label: str = "Quelle & Beleg",
     confidence_threshold: float | None = None,
+    language: str | None = None,
     streamlit_module: Any | None = None,
 ) -> None:
     """Render a compact, consistent source/evidence disclosure."""
 
     st_module = streamlit_module or st
+    resolved_language = _active_trust_language(language)
     evidence_map = evidence if isinstance(evidence, Mapping) else {}
     resolved_source_type = str(evidence_map.get("source_type") or source_type).strip()
     raw_source_label = str(evidence_map.get("source_label") or source_label).strip()
-    display_source = trust_source_label(resolved_source_type, raw_source_label)
+    display_source = canonical_source_label(
+        resolved_source_type,
+        raw_source_label,
+        language=resolved_language,
+    )
     if not display_source and raw_source_label:
         display_source = raw_source_label
 
@@ -270,9 +310,23 @@ def render_source_evidence_popover(
         source_type=resolved_source_type,
         source_label=raw_source_label,
         confidence_threshold=confidence_threshold,
+        language=resolved_language,
     )
     if not any((display_source, snippet, badge.label)):
         return
+    if trigger_label == "Quelle & Beleg":
+        trigger_label = format_trust_copy(
+            resolve_trust_copy(
+                copy_key=(
+                    "source_evidence"
+                    if display_source and snippet
+                    else "evidence"
+                    if snippet
+                    else "source"
+                ),
+                language=resolved_language,
+            )
+        )
 
     popover = getattr(st_module, "popover", None)
     expander = getattr(st_module, "expander", None)
@@ -291,6 +345,7 @@ def render_source_evidence_popover(
                 source_type=resolved_source_type,
                 source_label=raw_source_label,
                 confidence_threshold=confidence_threshold,
+                language=resolved_language,
                 streamlit_module=st_module,
             )
         if display_source:

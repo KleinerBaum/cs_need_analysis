@@ -324,9 +324,20 @@ _TRANSLATIONS_EN: dict[str, str] = {
     "Annahme": "Assumption",
     "Konflikt": "Conflict",
     "Fehlt": "Missing",
+    "Bestätigt · nutzen": "Confirmed · use",
+    "Erkannt · prüfen": "Detected · review",
+    "Vorschlag · auswählen": "Suggested · select",
+    "Annahme · prüfen": "Assumption · review",
+    "Konflikt · klären": "Conflict · resolve",
+    "Fehlt · ergänzen": "Missing · add",
+    "Quelle · ansehen": "Source · view",
+    "Beleg · ansehen": "Evidence · view",
+    "Quelle & Beleg · ansehen": "Source & evidence · view",
+    "Cache · genutzt": "Cache · reused",
     "Quelle & Beleg": "Source & evidence",
     "Quelle & Beleg anzeigen": "Show source & evidence",
     "Beleg verfügbar": "Evidence available",
+    "Cache · genutzt: Ergebnis wiederverwendet.": "Cache · reused: result reused.",
     "Aus Cache: Ergebnis wurde wiederverwendet.": "From cache: result was reused.",
     "Ein paar Informationen vorab": "A few details first",
     "Unternehmenswebsite": "Company website",
@@ -435,6 +446,12 @@ _PHRASE_TRANSLATIONS_EN: dict[str, str] = {
     "Annahme": "Assumption",
     "Konflikt": "Conflict",
     "Fehlt": "Missing",
+    "Eingabe": "Input",
+    "nutzen": "use",
+    "auswählen": "select",
+    "klären": "resolve",
+    "genutzt": "reused",
+    "ansehen": "view",
     "ergänzen": "add",
     "prüfen": "review",
     "Aus Cache": "From cache",
@@ -524,6 +541,19 @@ def _write_language_query_param(language: str) -> None:
         return
 
 
+def _real_streamlit_without_script_context() -> bool:
+    if getattr(st, "__name__", "") != "streamlit":
+        return False
+    try:
+        from streamlit.runtime.scriptrunner_utils.script_run_context import (
+            get_script_run_ctx,
+        )
+
+        return get_script_run_ctx() is None
+    except Exception:
+        return False
+
+
 def _deep_get(mapping: Mapping[str, Any], dotted_key: str) -> Any | None:
     current: Any = mapping
     for part in dotted_key.split("."):
@@ -546,6 +576,9 @@ def _load_locale(language: str) -> dict[str, Any]:
 
 
 def active_language() -> str:
+    if _real_streamlit_without_script_context():
+        return DEFAULT_LANGUAGE
+
     query_language = _query_param_language()
     if query_language:
         return query_language

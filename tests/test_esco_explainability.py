@@ -119,7 +119,7 @@ def test_build_provenance_badge_maps_sources_and_confidence() -> None:
                 "resolution_status": FactResolutionStatus.CONFIRMED.value,
                 "confirmed": True,
             },
-            "Bestätigt · Eingabe",
+            "Bestätigt · nutzen · Eingabe",
             "success",
         ),
         (
@@ -128,7 +128,7 @@ def test_build_provenance_badge_maps_sources_and_confidence() -> None:
                 "resolution_status": FactResolutionStatus.INFERRED.value,
                 "confidence": 0.9,
             },
-            "Erkannt · Jobspec · 90%",
+            "Erkannt · prüfen · Jobspec · 90%",
             "primary",
         ),
         (
@@ -136,7 +136,7 @@ def test_build_provenance_badge_maps_sources_and_confidence() -> None:
                 "source_type": FactSourceType.HOMEPAGE.value,
                 "resolution_status": FactResolutionStatus.INFERRED.value,
             },
-            "Erkannt · Website",
+            "Erkannt · prüfen · Website",
             "primary",
         ),
         (
@@ -144,7 +144,7 @@ def test_build_provenance_badge_maps_sources_and_confidence() -> None:
                 "source_type": FactSourceType.ESCO.value,
                 "resolution_status": FactResolutionStatus.INFERRED.value,
             },
-            "Vorschlag · ESCO",
+            "Vorschlag · auswählen · ESCO",
             "primary",
         ),
         (
@@ -152,7 +152,7 @@ def test_build_provenance_badge_maps_sources_and_confidence() -> None:
                 "source_type": FactSourceType.LLM.value,
                 "resolution_status": FactResolutionStatus.INFERRED.value,
             },
-            "Vorschlag · AI",
+            "Vorschlag · auswählen · AI",
             "primary",
         ),
         (
@@ -161,7 +161,7 @@ def test_build_provenance_badge_maps_sources_and_confidence() -> None:
                 "resolution_status": FactResolutionStatus.INFERRED.value,
                 "confidence": 0.4,
             },
-            "Erkannt · Jobspec · 40% · prüfen",
+            "Erkannt · prüfen · Jobspec · 40%",
             "warning",
         ),
         (
@@ -169,7 +169,7 @@ def test_build_provenance_badge_maps_sources_and_confidence() -> None:
                 "source_type": FactSourceType.HOMEPAGE.value,
                 "resolution_status": FactResolutionStatus.CONFLICTED.value,
             },
-            "Konflikt · prüfen",
+            "Konflikt · klären",
             "warning",
         ),
     ]

@@ -3,18 +3,58 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any, Final
 
 from constants import FactResolutionStatus, FactSourceType
 from parsing import redact_pii
 from schemas import JobAdExtract
 
-_SOURCE_LABELS: Final[dict[str, str]] = {
-    FactSourceType.MANUAL.value: "Eingabe",
-    FactSourceType.JOBSPEC.value: "Jobspec",
-    FactSourceType.HOMEPAGE.value: "Website",
-    FactSourceType.ESCO.value: "ESCO",
-    FactSourceType.LLM.value: "AI",
+_DEFAULT_TRUST_LANGUAGE: Final[str] = "de"
+_SUPPORTED_TRUST_LANGUAGES: Final[frozenset[str]] = frozenset({"de", "en"})
+_SOURCE_LABELS: Final[dict[str, dict[str, str]]] = {
+    "de": {
+        FactSourceType.MANUAL.value: "Eingabe",
+        FactSourceType.JOBSPEC.value: "Jobspec",
+        FactSourceType.HOMEPAGE.value: "Website",
+        FactSourceType.ESCO.value: "ESCO",
+        FactSourceType.LLM.value: "AI",
+    },
+    "en": {
+        FactSourceType.MANUAL.value: "Input",
+        FactSourceType.JOBSPEC.value: "Jobspec",
+        FactSourceType.HOMEPAGE.value: "Website",
+        FactSourceType.ESCO.value: "ESCO",
+        FactSourceType.LLM.value: "AI",
+    },
+}
+_TRUST_COPY: Final[dict[str, dict[str, tuple[str, str]]]] = {
+    "de": {
+        "confirmed": ("Bestätigt", "nutzen"),
+        "detected": ("Erkannt", "prüfen"),
+        "suggested": ("Vorschlag", "auswählen"),
+        "assumed": ("Annahme", "prüfen"),
+        "conflicted": ("Konflikt", "klären"),
+        "missing": ("Fehlt", "ergänzen"),
+        "cached": ("Cache", "genutzt"),
+        "source": ("Quelle", "ansehen"),
+        "evidence": ("Beleg", "ansehen"),
+        "source_evidence": ("Quelle & Beleg", "ansehen"),
+        "review": ("Prüfen", ""),
+    },
+    "en": {
+        "confirmed": ("Confirmed", "use"),
+        "detected": ("Detected", "review"),
+        "suggested": ("Suggested", "select"),
+        "assumed": ("Assumed", "review"),
+        "conflicted": ("Conflict", "resolve"),
+        "missing": ("Missing", "add"),
+        "cached": ("Cache", "reused"),
+        "source": ("Source", "view"),
+        "evidence": ("Evidence", "view"),
+        "source_evidence": ("Source & evidence", "view"),
+        "review": ("Review", ""),
+    },
 }
 _DETECTED_SOURCE_TYPES: Final[frozenset[str]] = frozenset(
     {FactSourceType.JOBSPEC.value, FactSourceType.HOMEPAGE.value}
@@ -22,6 +62,40 @@ _DETECTED_SOURCE_TYPES: Final[frozenset[str]] = frozenset(
 _SUGGESTED_SOURCE_TYPES: Final[frozenset[str]] = frozenset(
     {FactSourceType.ESCO.value, FactSourceType.LLM.value}
 )
+
+
+@dataclass(frozen=True)
+class TrustCopy:
+    """Resolved short trust copy derived from existing fact/source semantics."""
+
+    key: str
+    label: str
+    action: str
+    source_label: str = ""
+    has_source: bool = False
+    has_evidence: bool = False
+    cached: bool = False
+
+    @property
+    def compact(self) -> str:
+        return format_trust_copy(self)
+
+
+def _trust_language(language: str | None) -> str:
+    normalized = str(language or _DEFAULT_TRUST_LANGUAGE).strip().lower()
+    return normalized if normalized in _SUPPORTED_TRUST_LANGUAGES else _DEFAULT_TRUST_LANGUAGE
+
+
+def _trust_copy_for_key(key: str, *, language: str | None = None) -> tuple[str, str]:
+    trust_language = _trust_language(language)
+    return _TRUST_COPY[trust_language].get(key, ("", ""))
+
+
+def format_trust_copy(copy: TrustCopy) -> str:
+    """Return a compact label/action pair, e.g. ``Erkannt · prüfen``."""
+
+    parts = [copy.label, copy.action]
+    return " · ".join(part for part in parts if part)
 
 
 def job_extract_field_evidence_by_name(job: JobAdExtract) -> dict[str, Any]:
@@ -55,31 +129,38 @@ def _coerce_confidence(value: Any) -> float | None:
         return None
 
 
-def canonical_source_label(source_type: str = "", source_label: str = "") -> str:
+def canonical_source_label(
+    source_type: str = "",
+    source_label: str = "",
+    *,
+    language: str | None = None,
+) -> str:
     """Return the short source label used in user-facing trust copy."""
 
+    source_labels = _SOURCE_LABELS[_trust_language(language)]
     normalized_type = str(source_type or "").strip()
-    if normalized_type in _SOURCE_LABELS:
-        return _SOURCE_LABELS[normalized_type]
+    if normalized_type in source_labels:
+        return source_labels[normalized_type]
     normalized_label = str(source_label or "").strip().casefold()
     if "jobspec" in normalized_label:
-        return _SOURCE_LABELS[FactSourceType.JOBSPEC.value]
+        return source_labels[FactSourceType.JOBSPEC.value]
     if "website" in normalized_label or "homepage" in normalized_label:
-        return _SOURCE_LABELS[FactSourceType.HOMEPAGE.value]
+        return source_labels[FactSourceType.HOMEPAGE.value]
     if "esco" in normalized_label:
-        return _SOURCE_LABELS[FactSourceType.ESCO.value]
+        return source_labels[FactSourceType.ESCO.value]
     if normalized_label == "ai" or "ai-" in normalized_label or "llm" in normalized_label:
-        return _SOURCE_LABELS[FactSourceType.LLM.value]
+        return source_labels[FactSourceType.LLM.value]
     if (
         "manual" in normalized_label
+        or "input" in normalized_label
         or "antwort" in normalized_label
         or "eingabe" in normalized_label
     ):
-        return _SOURCE_LABELS[FactSourceType.MANUAL.value]
+        return source_labels[FactSourceType.MANUAL.value]
     return ""
 
 
-def _provenance_trust_label(
+def _provenance_trust_key(
     *,
     source_type: str = "",
     source_label: str = "",
@@ -88,35 +169,112 @@ def _provenance_trust_label(
     needs_confirmation: bool = False,
 ) -> str:
     if resolution_status == FactResolutionStatus.CONFLICTED.value:
-        return "Konflikt"
+        return "conflicted"
     if resolution_status == FactResolutionStatus.MISSING.value:
-        return "Fehlt"
+        return "missing"
     if resolution_status == FactResolutionStatus.ASSUMED.value:
-        return "Annahme"
+        return "assumed"
     if confirmed is True or resolution_status == FactResolutionStatus.CONFIRMED.value:
-        return "Bestätigt"
+        return "confirmed"
     if source_type == FactSourceType.MANUAL.value:
-        return "Bestätigt"
+        return "confirmed"
     if resolution_status == FactResolutionStatus.INFERRED.value:
         if source_type in _SUGGESTED_SOURCE_TYPES:
-            return "Vorschlag"
-        return "Erkannt"
+            return "suggested"
+        return "detected"
     if source_type in _DETECTED_SOURCE_TYPES:
-        return "Erkannt"
+        return "detected"
     if source_type in _SUGGESTED_SOURCE_TYPES:
-        return "Vorschlag"
+        return "suggested"
     if needs_confirmation:
-        return "Prüfen"
+        return "review"
     if source_label:
         source = canonical_source_label(source_type, source_label)
-        if source == _SOURCE_LABELS[FactSourceType.LLM.value]:
-            return "Vorschlag"
+        default_source_labels = _SOURCE_LABELS[_DEFAULT_TRUST_LANGUAGE]
+        if source == default_source_labels[FactSourceType.LLM.value]:
+            return "suggested"
         if source in {
-            _SOURCE_LABELS[FactSourceType.JOBSPEC.value],
-            _SOURCE_LABELS[FactSourceType.HOMEPAGE.value],
+            default_source_labels[FactSourceType.JOBSPEC.value],
+            default_source_labels[FactSourceType.HOMEPAGE.value],
         }:
-            return "Erkannt"
+            return "detected"
     return ""
+
+
+def resolve_trust_copy(
+    evidence: Any = None,
+    *,
+    copy_key: str = "",
+    source_type: str = "",
+    source_label: str = "",
+    resolution_status: str = "",
+    confirmed: bool | None = None,
+    needs_confirmation: bool = False,
+    cached: bool = False,
+    has_source: bool | None = None,
+    has_evidence: bool | None = None,
+    language: str | None = None,
+) -> TrustCopy:
+    """Resolve short trust copy from current fact/source semantics."""
+
+    evidence_map = evidence if isinstance(evidence, Mapping) else {}
+    resolved_source_type = str(evidence_map.get("source_type") or source_type).strip()
+    resolved_source_label = str(evidence_map.get("source_label") or source_label).strip()
+    resolved_status = str(
+        evidence_map.get("resolution_status") or resolution_status
+    ).strip()
+    resolved_confirmed = (
+        bool(evidence_map.get("confirmed"))
+        if "confirmed" in evidence_map
+        else confirmed
+    )
+    resolved_needs_confirmation = bool(
+        evidence_map.get("needs_confirmation", needs_confirmation)
+    )
+    source_label_display = canonical_source_label(
+        resolved_source_type,
+        resolved_source_label,
+        language=language,
+    )
+    resolved_has_source = (
+        bool(has_source)
+        if has_source is not None
+        else bool(source_label_display or resolved_source_label or resolved_source_type)
+    )
+    resolved_has_evidence = (
+        bool(has_evidence)
+        if has_evidence is not None
+        else bool(str(evidence_map.get("evidence_snippet") or "").strip())
+    )
+
+    trust_key = str(copy_key or "").strip()
+    if not trust_key:
+        trust_key = _provenance_trust_key(
+            source_type=resolved_source_type,
+            source_label=resolved_source_label,
+            resolution_status=resolved_status,
+            confirmed=resolved_confirmed,
+            needs_confirmation=resolved_needs_confirmation,
+        )
+    if not trust_key and cached:
+        trust_key = "cached"
+    if not trust_key and resolved_has_source and resolved_has_evidence:
+        trust_key = "source_evidence"
+    elif not trust_key and resolved_has_evidence:
+        trust_key = "evidence"
+    elif not trust_key and resolved_has_source:
+        trust_key = "source"
+
+    label, action = _trust_copy_for_key(trust_key, language=language)
+    return TrustCopy(
+        key=trust_key,
+        label=label,
+        action=action,
+        source_label=source_label_display,
+        has_source=resolved_has_source,
+        has_evidence=resolved_has_evidence,
+        cached=cached,
+    )
 
 
 def format_provenance_label(
@@ -129,6 +287,7 @@ def format_provenance_label(
     confidence: Any = None,
     needs_confirmation: bool = False,
     confidence_threshold: float | None = None,
+    language: str | None = None,
 ) -> str:
     """Return compact, non-sensitive provenance text for UI captions/tables."""
 
@@ -146,20 +305,31 @@ def format_provenance_label(
     resolved_needs_confirmation = bool(
         evidence_map.get("needs_confirmation", needs_confirmation)
     )
-    status_label = _provenance_trust_label(
+    resolved_confidence = _coerce_confidence(
+        evidence_map.get("confidence") if "confidence" in evidence_map else confidence
+    )
+    threshold = _coerce_confidence(confidence_threshold)
+    has_low_confidence = (
+        threshold is not None
+        and resolved_confidence is not None
+        and resolved_confidence < threshold
+    )
+    trust_copy = resolve_trust_copy(
+        evidence_map,
         source_type=resolved_source_type,
         source_label=resolved_source_label,
         resolution_status=resolved_status,
         confirmed=resolved_confirmed,
         needs_confirmation=resolved_needs_confirmation,
+        language=language,
     )
+    if not trust_copy.key and has_low_confidence:
+        trust_copy = resolve_trust_copy(copy_key="review", language=language)
+    status_label = format_trust_copy(trust_copy)
     source_label_display = canonical_source_label(
         resolved_source_type,
         resolved_source_label,
-    )
-
-    resolved_confidence = _coerce_confidence(
-        evidence_map.get("confidence") if "confidence" in evidence_map else confidence
+        language=language,
     )
     parts = [status_label] if status_label else []
     if (
@@ -175,24 +345,6 @@ def format_provenance_label(
         parts.append(source_label_display)
     if resolved_confidence is not None:
         parts.append(f"{resolved_confidence:.0%}")
-    threshold = _coerce_confidence(confidence_threshold)
-    needs_review = (
-        resolved_status
-        in {
-            FactResolutionStatus.CONFLICTED.value,
-            FactResolutionStatus.ASSUMED.value,
-        }
-        or resolved_needs_confirmation
-        or (
-            threshold is not None
-            and resolved_confidence is not None
-            and resolved_confidence < threshold
-        )
-    )
-    if resolved_status == FactResolutionStatus.MISSING.value and "ergänzen" not in parts:
-        parts.append("ergänzen")
-    elif needs_review and "prüfen" not in parts:
-        parts.append("prüfen")
     return " · ".join(part for part in parts if part)
 
 
@@ -228,19 +380,31 @@ def add_field_evidence_columns(
 def field_evidence_caption_text(
     field_name: str,
     evidence_by_field: Mapping[str, Any],
+    *,
+    language: str | None = None,
 ) -> str:
     evidence = evidence_by_field.get(field_name)
     provenance = format_provenance_label(
         evidence,
         source_type=FactSourceType.JOBSPEC.value,
         resolution_status=FactResolutionStatus.INFERRED.value,
+        language=language,
     )
     confidence = provenance or format_field_evidence_confidence(evidence)
     snippet = format_field_evidence_snippet(evidence)
     if confidence and snippet:
-        return f"Quelle & Beleg: {confidence} · {snippet}"
+        source_evidence_label = format_trust_copy(
+            resolve_trust_copy(copy_key="source_evidence", language=language)
+        )
+        return f"{source_evidence_label}: {confidence} · {snippet}"
     if confidence:
-        return f"Quelle: {confidence}"
+        source_label = format_trust_copy(
+            resolve_trust_copy(copy_key="source", language=language)
+        )
+        return f"{source_label}: {confidence}"
     if snippet:
-        return f"Beleg verfügbar: {snippet}"
+        evidence_label = format_trust_copy(
+            resolve_trust_copy(copy_key="evidence", language=language)
+        )
+        return f"{evidence_label}: {snippet}"
     return ""

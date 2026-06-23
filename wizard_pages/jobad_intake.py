@@ -27,9 +27,11 @@ from constants import (
     UI_MODE_DEFAULT,
 )
 from job_extract_evidence import (
+    format_trust_copy,
     format_field_evidence_confidence,
     format_field_evidence_snippet,
     job_extract_field_evidence_by_name,
+    resolve_trust_copy,
 )
 from job_extract_review_helpers import (
     JOB_EXTRACT_TAB_FIELDS,
@@ -705,14 +707,16 @@ def _render_hypothesis_evidence_controls(
     if not evidence_rows:
         return
 
-    st.caption("Quelle & Beleg sind bei Bedarf direkt je Angabe einsehbar.")
+    source_evidence_label = format_trust_copy(
+        resolve_trust_copy(copy_key="source_evidence")
+    )
+    st.caption(f"{source_evidence_label}: je Angabe verfügbar.")
     for field_name, label, evidence in evidence_rows:
         cols = st.columns([0.22, 0.78], gap="small")
         with cols[0]:
             render_source_evidence_popover(
                 evidence,
                 source_type=FactSourceType.JOBSPEC.value,
-                trigger_label="Quelle & Beleg",
                 streamlit_module=st,
             )
         with cols[1]:
@@ -1911,7 +1915,7 @@ def render_jobad_intake(
                 )
             )
             if extract_cached or plan_cached:
-                st.info(str(t("Aus Cache: Ergebnis wurde wiederverwendet.")))
+                st.info(str(t("Cache · genutzt: Ergebnis wiederverwendet.")))
         except OpenAICallError as e:
             render_openai_error(e)
         except Exception as exc:

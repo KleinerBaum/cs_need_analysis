@@ -7,7 +7,11 @@ from typing import Any
 
 import streamlit as st
 
-from job_extract_evidence import job_extract_field_evidence_by_name
+from job_extract_evidence import (
+    format_trust_copy,
+    job_extract_field_evidence_by_name,
+    resolve_trust_copy,
+)
 from job_extract_review_helpers import JOB_EXTRACT_DISPLAY_LABELS
 from schemas import JobAdExtract
 
@@ -41,6 +45,10 @@ def render_source_bucket(
         streamlit_module.markdown(f"**{title}**")
         streamlit_module.write(source_bucket_preview(items))
         streamlit_module.caption(caption)
+
+
+def _trust_label(copy_key: str) -> str:
+    return format_trust_copy(resolve_trust_copy(copy_key=copy_key))
 
 
 def confidence_values(job: JobAdExtract) -> list[float]:
@@ -147,8 +155,12 @@ def render_job_extract_provenance_block(
 
     streamlit_module.markdown("#### Quelle & Beleg")
     focus_specs = (
-        ("Erkannt · prüfen", uncertain, "Niedrige Sicherheit oder als prüfpflichtig markiert."),
-        ("Fehlt · ergänzen", gaps, "Nicht gefundene oder unklare Angaben."),
+        (
+            _trust_label("detected"),
+            uncertain,
+            "Niedrige Sicherheit oder als prüfpflichtig markiert.",
+        ),
+        (_trust_label("missing"), gaps, "Nicht gefundene oder unklare Angaben."),
     )
     focus_columns = streamlit_module.columns(2, gap="small")
     for column, (title, items, caption) in zip(focus_columns, focus_specs):
@@ -173,11 +185,15 @@ def render_job_extract_provenance_block(
         columns = streamlit_module.columns(2, gap="small")
         bucket_specs = (
             (
-                "Beleg verfügbar",
+                _trust_label("evidence"),
                 upload_backed,
                 "Felder mit kurzer Fundstelle aus dem hochgeladenen Text.",
             ),
-            ("Annahme · prüfen", assumptions, "Dokumentierte Ableitungen vor Übernahme prüfen."),
+            (
+                _trust_label("assumed"),
+                assumptions,
+                "Dokumentierte Ableitungen vor Übernahme prüfen.",
+            ),
         )
         for column, (title, items, caption) in zip(columns, bucket_specs):
             with column:

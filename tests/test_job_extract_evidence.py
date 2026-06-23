@@ -7,7 +7,9 @@ from job_extract_evidence import (
     format_field_evidence_confidence,
     format_field_evidence_snippet,
     format_provenance_label,
+    format_trust_copy,
     job_extract_field_evidence_by_name,
+    resolve_trust_copy,
 )
 from schemas import JobAdExtract, JobAdFieldEvidence
 
@@ -93,7 +95,18 @@ def test_field_evidence_caption_text_combines_confidence_and_snippet() -> None:
                 "needs_confirmation": True,
             }
         },
-    ) == "Quelle & Beleg: Erkannt · Jobspec · 82% · prüfen · Senior Data Engineer gesucht."
+    ) == "Quelle & Beleg · ansehen: Erkannt · prüfen · Jobspec · 82% · Senior Data Engineer gesucht."
+
+
+def test_resolve_trust_copy_supports_de_and_en_actions() -> None:
+    assert (
+        format_trust_copy(resolve_trust_copy(copy_key="suggested"))
+        == "Vorschlag · auswählen"
+    )
+    assert (
+        format_trust_copy(resolve_trust_copy(copy_key="source_evidence", language="en"))
+        == "Source & evidence · view"
+    )
 
 
 def test_format_provenance_label_maps_resolution_states() -> None:
@@ -103,7 +116,7 @@ def test_format_provenance_label_maps_resolution_states() -> None:
             resolution_status=FactResolutionStatus.CONFIRMED.value,
             confirmed=True,
         )
-        == "Bestätigt · Eingabe"
+        == "Bestätigt · nutzen · Eingabe"
     )
     assert (
         format_provenance_label(
@@ -111,14 +124,14 @@ def test_format_provenance_label_maps_resolution_states() -> None:
             resolution_status=FactResolutionStatus.INFERRED.value,
             confidence=0.82,
         )
-        == "Erkannt · Jobspec · 82%"
+        == "Erkannt · prüfen · Jobspec · 82%"
     )
     assert (
         format_provenance_label(
             source_type=FactSourceType.LLM.value,
             resolution_status=FactResolutionStatus.INFERRED.value,
         )
-        == "Vorschlag · AI"
+        == "Vorschlag · auswählen · AI"
     )
     assert (
         format_provenance_label(
@@ -131,7 +144,7 @@ def test_format_provenance_label_maps_resolution_states() -> None:
             resolution_status=FactResolutionStatus.CONFLICTED.value,
             confidence=0.9,
         )
-        == "Konflikt · 90% · prüfen"
+        == "Konflikt · klären · 90%"
     )
     assert (
         format_provenance_label(
@@ -144,5 +157,5 @@ def test_format_provenance_label_maps_resolution_states() -> None:
             confidence=0.4,
             confidence_threshold=0.6,
         )
-        == "40% · prüfen"
+        == "Prüfen · 40%"
     )
