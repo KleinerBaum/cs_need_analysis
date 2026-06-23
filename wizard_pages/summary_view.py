@@ -54,7 +54,6 @@ from esco_client import EscoClient, EscoClientError
 from esco_semantics import normalize_anchor_ref, sync_esco_semantic_state
 from llm_client import (
     TASK_GENERATE_EMPLOYMENT_CONTRACT,
-    JobAdGenerationResult,
     OpenAICallError,
     TASK_GENERATE_BOOLEAN_SEARCH,
     TASK_GENERATE_INTERVIEW_SHEET_HM,
@@ -111,7 +110,7 @@ from components.design_system import (
     render_output_header,
     render_pill,
 )
-from document_preview import document_preview_shell, markdown_article_preview_html
+from document_preview import markdown_article_preview_html
 from summary_facts import (
     SummaryFactsRow,
     display_requirement_stage as _display_requirement_stage,
@@ -146,9 +145,7 @@ from summary_esco import (
     to_esco_export_concepts as _to_esco_export_concepts,
 )
 from summary_job_ad import (
-    build_publishable_job_ad_markdown as _build_publishable_job_ad_markdown,
     build_publishable_job_ad_plain_text as _build_publishable_job_ad_plain_text,
-    dedupe_preserve_order as _dedupe_preserve_order,
     estimate_text_area_height as _estimate_text_area_height,
     sanitize_generated_job_ad as _sanitize_generated_job_ad,
 )
@@ -186,15 +183,18 @@ from wizard_pages.summary_exporters import (
     _interview_prep_fach_to_docx_bytes,
     _interview_prep_fach_to_pdf_bytes,
     _interview_prep_hr_to_docx_bytes,
-    _job_ad_logo_payload,
-    _job_ad_preview_html,
-    _job_ad_preview_shell_options,
     _job_ad_to_docx_bytes,
     _job_ad_to_pdf_bytes,
     _normalize_logo_payload,
     _read_esco_shared_fields,
     _read_logo_payload,
     _read_saved_selection_labels,
+)
+
+from wizard_pages.summary_artifact_preview import (
+    is_warning_checklist_item as _is_warning_checklist_item_impl,
+    render_agg_checklist_review as _render_agg_checklist_review_impl,
+    render_job_ad_artifact as _render_job_ad_artifact_impl,
 )
 
 from wizard_pages.summary_readiness import (
@@ -2668,121 +2668,26 @@ def _render_summary_processing_hub(
 
 
 def _is_warning_checklist_item(item: str) -> bool:
-    normalized = item.strip().lower()
-    if not normalized:
-        return False
-    warning_tokens = ("fehlt", "nicht", "missing", "kritisch")
-    return any(token in normalized for token in warning_tokens)
+    return _is_warning_checklist_item_impl(item)
 
 
 def _render_agg_checklist_review(items: Sequence[str]) -> None:
-    if not items:
-        st.caption("Keine AGG-Checkliste hinterlegt.")
-        return
-    for raw_item in items:
-        item = str(raw_item).strip()
-        if not item:
-            continue
-        if _is_warning_checklist_item(item):
-            render_pill(item, tone="warning")
-        else:
-            render_pill(item, tone="neutral")
+    _render_agg_checklist_review_impl(
+        items,
+        streamlit_module=st,
+        render_pill_fn=render_pill,
+    )
 
 
 def _render_job_ad_artifact(custom_job_ad_raw: dict[str, Any]) -> None:
-    custom_job_ad = JobAdGenerationResult.model_validate(
-        {
-            "headline": custom_job_ad_raw.get("headline", ""),
-            "target_group": custom_job_ad_raw.get("target_group", []),
-            "agg_checklist": custom_job_ad_raw.get("agg_checklist", []),
-            "job_ad_text": custom_job_ad_raw.get("job_ad_text", ""),
-            "intro": custom_job_ad_raw.get("intro", ""),
-            "responsibilities": custom_job_ad_raw.get("responsibilities", []),
-            "profile": custom_job_ad_raw.get("profile", []),
-            "offer": custom_job_ad_raw.get("offer", []),
-            "cta": custom_job_ad_raw.get("cta", ""),
-            "equal_opportunity_note": custom_job_ad_raw.get(
-                "equal_opportunity_note", ""
-            ),
-        }
-    )
-    publishable_markdown = _build_publishable_job_ad_markdown(custom_job_ad)
-    logo_payload = _job_ad_logo_payload(custom_job_ad_raw)
-    preview_options_raw = custom_job_ad_raw.get("preview_options")
-    preview_options = (
-        preview_options_raw if isinstance(preview_options_raw, Mapping) else {}
-    )
-    shell_options = _job_ad_preview_shell_options(preview_options)
-    render_output_header(
-        custom_job_ad.headline or "Stellenanzeige",
-        "Generierte Stellenanzeige mit Zielgruppen- und AGG-Hinweisen.",
-    )
-    render_card_start("cs-card cs-result-card")
-    st.markdown("### Ergebnis")
-    render_static_html(
-        document_preview_shell(
-            _job_ad_preview_html(custom_job_ad, logo_payload=logo_payload),
-            title="Stellenanzeige",
-            fit_pages=True,
-            **shell_options,
-        ),
+    _render_job_ad_artifact_impl(
+        custom_job_ad_raw,
         streamlit_module=st,
+        render_output_header_fn=render_output_header,
+        render_card_start_fn=render_card_start,
+        job_ad_to_docx_bytes_fn=_job_ad_to_docx_bytes,
+        job_ad_to_pdf_bytes_fn=_job_ad_to_pdf_bytes,
     )
-    render_static_html("</section>", streamlit_module=st)
-
-    render_card_start("cs-card cs-result-card")
-    st.markdown("### Prüfung")
-    st.markdown("**Zielgruppe**")
-    if custom_job_ad.target_group:
-        for index, group in enumerate(custom_job_ad.target_group):
-            render_pill(group, tone="primary" if index == 0 else "neutral")
-    else:
-        st.caption("Keine Zielgruppe hinterlegt.")
-    st.markdown("**AGG-Checkliste**")
-    _render_agg_checklist_review(custom_job_ad.agg_checklist)
-    critical_gaps_raw = custom_job_ad_raw.get("critical_gaps")
-    critical_gaps: list[str] = []
-    if isinstance(critical_gaps_raw, list):
-        critical_gaps.extend(str(note).strip() for note in critical_gaps_raw if str(note).strip())
-    generation_notes = custom_job_ad_raw.get("generation_notes", [])
-    if isinstance(generation_notes, list):
-        critical_gaps.extend(str(note).strip() for note in generation_notes if str(note).strip())
-    critical_gaps = _dedupe_preserve_order(critical_gaps)
-    if critical_gaps:
-        render_critical_gaps(critical_gaps, title="Kritische Lücken")
-    render_static_html("</section>", streamlit_module=st)
-
-    render_card_start("cs-card cs-result-card")
-    st.markdown("### Export")
-    custom_docx = _job_ad_to_docx_bytes(custom_job_ad, logo_payload=logo_payload)
-    custom_pdf = _job_ad_to_pdf_bytes(custom_job_ad, logo_payload=logo_payload)
-    custom_md = publishable_markdown.encode("utf-8")
-    export_columns = st.columns(2)
-    with export_columns[0]:
-        st.download_button(
-            "Stellenanzeige herunterladen (DOCX)",
-            data=custom_docx,
-            file_name="stellenanzeige.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        )
-    with export_columns[1]:
-        if custom_pdf is None:
-            st.caption("PDF-Export benötigt reportlab (nicht verfügbar).")
-        else:
-            st.download_button(
-                "Stellenanzeige herunterladen (PDF)",
-                data=custom_pdf,
-                file_name="stellenanzeige.pdf",
-                mime="application/pdf",
-            )
-    with export_columns[0]:
-        st.download_button(
-            "Stellenanzeige herunterladen (Markdown)",
-            data=custom_md,
-            file_name="stellenanzeige.md",
-            mime="text/markdown",
-        )
-    render_static_html("</section>", streamlit_module=st)
 
 
 def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:

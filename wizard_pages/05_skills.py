@@ -88,6 +88,16 @@ from wizard_pages.skills_selection import (
     _merge_suggested_skills_by_uri,
     _normalize_term,
 )
+from wizard_pages.skills_selection_board import (
+    build_llm_skill_groups as _build_llm_skill_groups_impl,
+    count_selected_sources as _count_selected_sources_impl,
+    esco_board_items as _esco_board_items_impl,
+    jobspec_board_items as _jobspec_board_items_impl,
+    label_lookup as _label_lookup_impl,
+    llm_board_items as _llm_board_items_impl,
+    llm_skill_label as _llm_skill_label_impl,
+    status_from_candidate as _status_from_candidate_impl,
+)
 
 _SKILL_STATUS_LABELS = {
     "must": "Must-have",
@@ -883,7 +893,7 @@ def _build_skills_source_view_data(
 
 
 def _llm_skill_label(item: dict[str, Any]) -> str:
-    return str(item.get("label") or item.get("title") or "").strip()
+    return _llm_skill_label_impl(item)
 
 
 def _build_llm_skill_groups(
@@ -892,26 +902,13 @@ def _build_llm_skill_groups(
     tech_stack_terms: list[str],
     blocked_labels: set[str],
 ) -> dict[str, list[str]]:
-    tech_stack_normalized = {_normalize_term(term) for term in tech_stack_terms}
-    groups: dict[str, list[str]] = {
-        "Must-have": [],
-        "Nice-to-have": [],
-        "Tech Stack": [],
-    }
-    for item in llm_suggested:
-        if not isinstance(item, dict):
-            continue
-        label = _llm_skill_label(item)
-        normalized = _normalize_term(label)
-        if not normalized or normalized in blocked_labels:
-            continue
-        if normalized in tech_stack_normalized:
-            groups["Tech Stack"].append(label)
-            continue
-        importance = str(item.get("importance") or "").strip().casefold()
-        target_group = "Must-have" if importance == "high" else "Nice-to-have"
-        groups[target_group].append(label)
-    return {title: _dedupe_terms(values) for title, values in groups.items()}
+    return _build_llm_skill_groups_impl(
+        llm_suggested=llm_suggested,
+        tech_stack_terms=tech_stack_terms,
+        blocked_labels=blocked_labels,
+        normalize_term=_normalize_term,
+        dedupe_terms=_dedupe_terms,
+    )
 
 
 def _render_suggestion_group(
@@ -1097,19 +1094,7 @@ def _render_skills_source_columns(
 
 
 def _jobspec_board_items(job: JobAdExtract) -> list[dict[str, Any]]:
-    items: list[dict[str, Any]] = []
-    for group, labels in _build_jobspec_skill_groups(job).items():
-        status = "must" if group == "Must-have" else "nice"
-        for label in labels:
-            items.append(
-                {
-                    "label": label,
-                    "importance": group,
-                    "source": "Jobspec",
-                    "status": status,
-                }
-            )
-    return items
+    return _jobspec_board_items_impl(_build_jobspec_skill_groups(job))
 
 
 def _esco_board_items(
@@ -1119,71 +1104,27 @@ def _esco_board_items(
     recommended_must: list[dict[str, Any]],
     recommended_nice: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    items: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for status, rows in (
-        ("must", selected_must),
-        ("nice", selected_nice),
-        ("must", recommended_must),
-        ("nice", recommended_nice),
-    ):
-        for item in rows:
-            if not isinstance(item, dict):
-                continue
-            label = _skill_title(item)
-            uri = _skill_uri(item)
-            key = uri or _normalize_term(label)
-            if not key or key in seen:
-                continue
-            row = dict(item)
-            row["label"] = label
-            row["title"] = label
-            row["status"] = status
-            row["importance"] = "Must-have" if status == "must" else "Nice-to-have"
-            row["source"] = str(row.get("source") or "ESCO").strip() or "ESCO"
-            items.append(row)
-            seen.add(key)
-    return items
+    return _esco_board_items_impl(
+        selected_must=selected_must,
+        selected_nice=selected_nice,
+        recommended_must=recommended_must,
+        recommended_nice=recommended_nice,
+        skill_title=_skill_title,
+        skill_uri=_skill_uri,
+        normalize_term=_normalize_term,
+    )
 
 
 def _llm_board_items(llm_suggested: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    items: list[dict[str, Any]] = []
-    for item in llm_suggested:
-        if not isinstance(item, dict):
-            continue
-        label = _llm_skill_label(item)
-        if not label:
-            continue
-        importance = str(item.get("importance") or "").strip()
-        items.append(
-            {
-                **item,
-                "label": label,
-                "source": "AI",
-                "status": "must" if importance.casefold() == "high" else "nice",
-            }
-        )
-    return items
+    return _llm_board_items_impl(llm_suggested)
 
 
 def _label_lookup(items: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    lookup: dict[str, dict[str, Any]] = {}
-    for item in items:
-        label = str(item.get("label") or item.get("title") or "").strip()
-        normalized = _normalize_term(label)
-        if normalized and normalized not in lookup:
-            lookup[normalized] = item
-    return lookup
+    return _label_lookup_impl(items, normalize_term=_normalize_term)
 
 
 def _status_from_candidate(item: dict[str, Any], *, fallback: str = "nice") -> str:
-    status = str(item.get("status") or "").strip().casefold()
-    if status in {"must", "nice"}:
-        return status
-    importance = str(item.get("importance") or "").strip().casefold()
-    if importance in {"must-have", "must", "high", "hoch", "critical", "kritisch"}:
-        return "must"
-    return fallback
+    return _status_from_candidate_impl(item, fallback=fallback)
 
 
 def _apply_board_selection(
@@ -1249,24 +1190,15 @@ def _count_selected_sources(
     esco_items: list[dict[str, Any]],
     llm_items: list[dict[str, Any]],
 ) -> dict[str, int]:
-    jobspec_lookup = _label_lookup(jobspec_items)
-    esco_lookup = _label_lookup(esco_items)
-    llm_lookup = _label_lookup(llm_items)
-    free_statuses = _get_free_skill_statuses()
-    counts = {"Jobspec": 0, "ESCO / Kontext": 0, "AI": 0}
-    for label in selected_labels:
-        normalized = _normalize_term(label)
-        status = free_statuses.get(_free_skill_status_key(label, ""))
-        source = str((status or {}).get("source") or "").strip().casefold()
-        if normalized in esco_lookup or source == "esco":
-            counts["ESCO / Kontext"] += 1
-        elif source == "ai" or normalized in llm_lookup:
-            counts["AI"] += 1
-        elif source == "jobspec" or normalized in jobspec_lookup:
-            counts["Jobspec"] += 1
-        else:
-            counts["Jobspec"] += 1
-    return counts
+    return _count_selected_sources_impl(
+        selected_labels=selected_labels,
+        jobspec_items=jobspec_items,
+        esco_items=esco_items,
+        llm_items=llm_items,
+        free_statuses=_get_free_skill_statuses(),
+        normalize_term=_normalize_term,
+        free_skill_status_key=_free_skill_status_key,
+    )
 
 
 def _safe_text(value: str | None) -> str:

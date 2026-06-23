@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import html
-import math
 from contextlib import nullcontext
 from time import perf_counter
 from typing import Any, Final
@@ -54,11 +53,6 @@ from intake_facts import (
     write_job_extract_intake_facts,
 )
 from occupation_context import build_occupation_question_context, classify_occupation_context
-from document_preview import (
-    docx_preview_html,
-    text_preview_html,
-    uploaded_document_preview_html,
-)
 from parsing import extract_text_from_uploaded_file, redact_pii
 from question_progress import (
     is_answered,
@@ -94,6 +88,25 @@ from wizard_pages.base import (
     _get_esco_config,
     _set_esco_config,
     render_ui_mode_selector,
+)
+from wizard_pages.jobad_evidence import (
+    confidence_values as _confidence_values_impl,
+    evidence_confidence as _evidence_confidence_impl,
+    render_analysis_priority_summary as _render_analysis_priority_summary_impl,
+    render_job_extract_provenance_block as _render_job_extract_provenance_block_impl,
+    render_priority_stat as _render_priority_stat_impl,
+    render_source_bucket as _render_source_bucket_impl,
+    source_bucket_preview as _source_bucket_preview_impl,
+)
+from wizard_pages.jobad_source_preview import (
+    clean_source_preview_lines as _clean_source_preview_lines_impl,
+    docx_preview_html as _docx_preview_html_impl,
+    looks_like_noisy_source_line as _looks_like_noisy_source_line_impl,
+    manual_input_height_for_text as _manual_input_height_for_text_impl,
+    preview_height_for_text as _preview_height_for_text_impl,
+    render_uploaded_document_preview as _render_uploaded_document_preview_impl,
+    render_uploaded_source_summary as _render_uploaded_source_summary_impl,
+    text_preview_html as _text_preview_html_impl,
 )
 from wizard_pages.esco_occupation_ui import render_esco_occupation_confirmation
 
@@ -411,88 +424,39 @@ def _promote_reviewed_job_extract(job: JobAdExtract, plan: QuestionPlan) -> None
 
 
 def _preview_height_for_text(text: str) -> int:
-    """Return a dynamic textarea height so the preview does not need scrolling."""
-    chars_per_line = 95
-    line_height_px = 28
-    padding_px = 28
-    total_lines = sum(
-        max(1, math.ceil(len(line) / chars_per_line))
-        for line in text.splitlines() or [""]
-    )
-    return (total_lines * line_height_px) + padding_px
+    return _preview_height_for_text_impl(text)
 
 
 def _manual_input_height_for_text(text: str) -> int:
-    """Return a compact default height for short text and grow moderately for longer text."""
-    min_height_px = 180
-    max_height_px = 300
-    return max(min_height_px, min(_preview_height_for_text(text), max_height_px))
+    return _manual_input_height_for_text_impl(text)
 
 
 def _looks_like_noisy_source_line(text: str) -> bool:
-    cleaned = text.strip()
-    if not cleaned:
-        return True
-    lowered = cleaned.lower()
-    noise_markers = (
-        "<div",
-        "</div",
-        "class=",
-        "cookie",
-        "skip to main content",
-        "click here to update your cookie settings",
-        "mehr lesen",
-        "speichern",
-    )
-    return any(marker in lowered for marker in noise_markers)
+    return _looks_like_noisy_source_line_impl(text)
 
 
 def _clean_source_preview_lines(text: str, *, limit: int = 6) -> list[str]:
-    lines: list[str] = []
-    for raw_line in text.splitlines():
-        line = " ".join(str(raw_line or "").strip().split())
-        if _looks_like_noisy_source_line(line):
-            continue
-        lines.append(line[:220])
-        if len(lines) >= limit:
-            break
-    return lines
+    return _clean_source_preview_lines_impl(text, limit=limit)
 
 
 def _render_uploaded_source_summary(text: str) -> None:
-    char_count = len(text.strip())
-    formatted_char_count = f"{char_count:,}".replace(",", ".")
-    lines = _clean_source_preview_lines(text)
-    if not lines:
-        st.caption(
-            f"Extrahierter Text ist bereit ({formatted_char_count} Zeichen). "
-            "Die vollständige Quelle bleibt einklappbar."
-        )
-        return
-    st.caption(
-        f"Extrahierter Text ist bereit ({formatted_char_count} Zeichen). "
-        "Kompakte Vorschau:"
-    )
-    render_static_html(
-        "<br>".join(f"• {html.escape(line)}" for line in lines),
-        streamlit_module=st,
-    )
+    _render_uploaded_source_summary_impl(text, streamlit_module=st)
 
 
 def _docx_preview_html(raw: bytes) -> str:
-    return docx_preview_html(raw)
+    return _docx_preview_html_impl(raw)
 
 
 def _text_preview_html(text: str) -> str:
-    return text_preview_html(text)
+    return _text_preview_html_impl(text)
 
 
 def _render_uploaded_document_preview(upload: object | None, fallback_text: str) -> bool:
-    preview_html = uploaded_document_preview_html(upload, fallback_text)
-    if preview_html is None:
-        return False
-    render_static_html(preview_html, streamlit_module=st)
-    return True
+    return _render_uploaded_document_preview_impl(
+        upload,
+        fallback_text,
+        streamlit_module=st,
+    )
 
 
 def _coerce_hypothesis_edit_value(original_value: Any, edited_text: str) -> Any:
@@ -889,145 +853,31 @@ def _render_input_quality_hint(job: JobAdExtract) -> None:
 
 
 def _evidence_confidence(evidence: Any) -> float | None:
-    if not isinstance(evidence, dict):
-        return None
-    try:
-        return max(0.0, min(1.0, float(evidence.get("confidence"))))
-    except (TypeError, ValueError):
-        return None
+    return _evidence_confidence_impl(evidence)
 
 
 def _source_bucket_preview(items: list[str], *, limit: int = 3) -> str:
-    cleaned = [item for item in items if item.strip()]
-    if not cleaned:
-        return "Keine"
-    preview = cleaned[:limit]
-    suffix = f" +{len(cleaned) - limit} weitere" if len(cleaned) > limit else ""
-    return " · ".join(preview) + suffix
+    return _source_bucket_preview_impl(items, limit=limit)
 
 
 def _render_source_bucket(title: str, items: list[str], caption: str) -> None:
-    with st.container(border=True):
-        st.markdown(f"**{title}**")
-        st.write(_source_bucket_preview(items))
-        st.caption(caption)
+    _render_source_bucket_impl(title, items, caption, streamlit_module=st)
 
 
 def _confidence_values(job: JobAdExtract) -> list[float]:
-    values: list[float] = []
-    for evidence in job_extract_field_evidence_by_name(job).values():
-        confidence = _evidence_confidence(evidence)
-        if confidence is not None:
-            values.append(confidence)
-    return values
+    return _confidence_values_impl(job)
 
 
 def _render_priority_stat(title: str, value: str, caption: str) -> None:
-    with st.container(border=True):
-        st.markdown(f"**{title}**")
-        st.write(value or "Nicht erkannt")
-        st.caption(caption)
+    _render_priority_stat_impl(title, value, caption, streamlit_module=st)
 
 
 def _render_analysis_priority_summary(job: JobAdExtract) -> None:
-    evidence_by_field = job_extract_field_evidence_by_name(job)
-    confidence_values = _confidence_values(job)
-    average_confidence = (
-        f"{round(sum(confidence_values) / len(confidence_values) * 100):.0f}%"
-        if confidence_values
-        else "n/a"
-    )
-    uncertain_count = 0
-    for evidence in evidence_by_field.values():
-        if not isinstance(evidence, dict):
-            continue
-        confidence = _evidence_confidence(evidence)
-        if bool(evidence.get("needs_confirmation")) or (
-            confidence is not None and confidence < 0.85
-        ):
-            uncertain_count += 1
-    gap_count = len([gap for gap in job.gaps if str(gap).strip()])
-
-    location = ", ".join(
-        value
-        for value in (
-            str(job.location_city or "").strip(),
-            str(job.location_country or "").strip(),
-        )
-        if value
-    )
-    location = str(job.place_of_work or "").strip() or location
-
-    st.markdown("#### Prüffokus")
-    columns = st.columns(4, gap="small")
-    stats = (
-        ("Rolle", str(job.job_title or "").strip(), "Erkannter Zieljob"),
-        ("Unternehmen", str(job.company_name or "").strip(), "Quelle oder Ableitung"),
-        ("Sicherheit", average_confidence, "Durchschnitt erkannter Evidenzen"),
-        ("Prüfen", f"{uncertain_count} unsicher · {gap_count} offen", "Priorität vor Weiter"),
-    )
-    for column, (title, value, caption) in zip(columns, stats):
-        with column:
-            _render_priority_stat(title, value, caption)
-
-    if location:
-        st.caption(f"Arbeitsort: {location}")
+    _render_analysis_priority_summary_impl(job, streamlit_module=st)
 
 
 def _render_job_extract_provenance_block(job: JobAdExtract) -> None:
-    evidence_by_field = job_extract_field_evidence_by_name(job)
-    upload_backed: list[str] = []
-    uncertain: list[str] = []
-
-    for field_name, evidence in evidence_by_field.items():
-        if not isinstance(evidence, dict):
-            continue
-        label = JOB_EXTRACT_DISPLAY_LABELS.get(field_name, field_name)
-        if str(evidence.get("evidence_snippet") or "").strip():
-            upload_backed.append(label)
-        confidence = _evidence_confidence(evidence)
-        if bool(evidence.get("needs_confirmation")) or (
-            confidence is not None and confidence < 0.85
-        ):
-            uncertain.append(label)
-
-    gaps = [str(note).strip() for note in job.gaps if str(note).strip()]
-    assumptions = [
-        str(note).strip() for note in job.assumptions if str(note).strip()
-    ]
-
-    st.markdown("#### Quelle & Beleg")
-    focus_specs = (
-        ("Erkannt · prüfen", uncertain, "Niedrige Sicherheit oder als prüfpflichtig markiert."),
-        ("Fehlt · ergänzen", gaps, "Nicht gefundene oder unklare Angaben."),
-    )
-    focus_columns = st.columns(2, gap="small")
-    for column, (title, items, caption) in zip(focus_columns, focus_specs):
-        with column:
-            _render_source_bucket(title, items, caption)
-
-    details_context = (
-        st.expander("Quelle & Beleg anzeigen", expanded=False)
-        if hasattr(st, "expander")
-        else nullcontext()
-    )
-    with details_context:
-        st.caption(
-            "Erkannte Angaben, fehlende Punkte und Annahmen bleiben getrennt, "
-            "damit nur passende Werte bestätigt werden."
-        )
-        columns = st.columns(2, gap="small")
-        bucket_specs = (
-            (
-                "Beleg verfügbar",
-                upload_backed,
-                "Felder mit kurzer Fundstelle aus dem hochgeladenen Text.",
-            ),
-            ("Annahme · prüfen", assumptions, "Dokumentierte Ableitungen vor Übernahme prüfen."),
-        )
-        for column, (title, items, caption) in zip(columns, bucket_specs):
-            with column:
-                _render_source_bucket(title, items, caption)
+    _render_job_extract_provenance_block_impl(job, streamlit_module=st)
 
 
 def _render_job_extract_hypothesis_form(job: JobAdExtract) -> None:
