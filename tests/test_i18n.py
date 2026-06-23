@@ -65,23 +65,25 @@ def test_translation_uses_german_as_source_copy(monkeypatch) -> None:
     assert t("Unternehmen") == "Company"
     assert t("Einleitung") == "Introduction"
     assert t("Weiter →") == "Next"
-    assert t("Zum Start") == "Go to Start"
+    assert t("Briefing-Cockpit öffnen") == "Open briefing cockpit"
     assert (
-        t("Vakanzanforderungen präzise erfassen")
-        == "Capture vacancy requirements precisely"
+        t("Recruiting-Briefing vor Workflow") == "Recruiting brief before workflow"
     )
     assert t("Anzeige hochladen oder einfügen") == "Upload or paste job ad"
-    assert t('Nach dem Klick auf "Analyse starten"') == 'After clicking "Start analysis"'
+    assert (
+        t("Was der Start vor dem Upload verspricht")
+        == "What Start promises before upload"
+    )
     assert (
         t(
-            "Wir haben die ersten Informationen zu Data Engineer erkannt. Prüfen Sie "
-            "jetzt die Briefing-Basis, schließen Sie Lücken und bestätigen Sie den "
-            "Referenzberuf."
+            "Das Briefing-Cockpit ist vorbereitet. Prüfen Sie erkannte Angaben, "
+            "bereinigen Sie Unsicherheiten und bestätigen Sie den Referenzberuf."
         )
-        == "We detected the first information for Data Engineer. Review the briefing basis, "
-        "close gaps, and confirm the reference occupation."
+        == "The briefing cockpit is prepared. Review detected facts, clean up uncertainty, "
+        "and confirm the reference occupation."
     )
-    assert t("Text verstehen") == "Understand text"
+    assert t("Quelle in Briefing verwandeln") == "Turn source into brief"
+    assert t("Mit Unternehmenskontext weiterarbeiten") == "Continue with company context"
     assert t("Was bedeutet RAG?") == "What does RAG mean?"
     assert t("Datenschutzrichtlinie") == "Privacy policy"
 

@@ -47,31 +47,29 @@ class _SafeTemplateDict(dict[str, Any]):
 _COPY: dict[str, dict[str, dict[str, str]]] = {
     "de": {
         STEP_KEY_LANDING: {
-            "headline": "Stellenanzeige hochladen. Recruiting-Briefing starten.",
+            "headline": "Vom Rollenbedarf zum Recruiting-Briefing.",
             "subheadline": (
-                "Für Recruiting, HR und Hiring Teams, die aus einer Jobspec schnell "
-                "ein belastbares Briefing machen müssen. Die App erkennt, was schon "
-                "klar ist, und zeigt, was für Search, Matching, Interview und Angebot "
-                "noch fehlt."
+                "Für Recruiting, HR und Hiring Teams, die vor Search, Matching, "
+                "Interview und Angebot eine gemeinsame Entscheidungsbasis brauchen. "
+                "Laden Sie eine Jobspec hoch oder fügen Sie Rohtext ein; die App "
+                "zeigt zuerst, was belastbar ist und welche Lücken den Prozess bremsen."
             ),
             "value_line": (
-                "Am Ende steht eine geprüfte Briefing-Basis mit Rollenprofil, "
-                "priorisierten Anforderungen, offenen Fragen und verwertbaren "
-                "Recruiting-Unterlagen."
+                "Ergebnis: ein Briefing-Cockpit mit Rollenprofil, Prioritäten, "
+                "offenen Fragen, ESCO-Anker und vorbereiteten Recruiting-Outputs."
             ),
             "headline_after_analysis": (
-                "Wir haben die ersten Informationen zu {role_title} erkannt."
+                "Briefing-Cockpit für {role_title} ist vorbereitet."
             ),
             "subheadline_after_analysis": (
-                "Jetzt wird aus der Quelle ein Recruiting-Briefing: Prüfen Sie "
-                "erkannte Angaben, schließen Sie Lücken und bestätigen Sie den "
-                "Referenzberuf."
+                "Nächste Aktion: erkannte Angaben prüfen, unsichere Punkte bereinigen "
+                "und den Referenzberuf bestätigen."
             ),
             "value_line_after_analysis": (
-                "Nächster Fortschritt: eine gemeinsame Briefing-Basis für Recruiting, "
-                "Hiring-Team, Search und Interview."
+                "Schon freigeschaltet: Rollenprofil, Lückenpriorisierung, "
+                "ESCO-Kandidaten und nächste Briefing-Fragen."
             ),
-            "primary_cta": "Briefing aus Stellenanzeige erstellen",
+            "primary_cta": "Quelle in Briefing verwandeln",
             "secondary_cta": "Beispiel ansehen",
         },
         STEP_KEY_COMPANY: {
@@ -148,29 +146,29 @@ _COPY: dict[str, dict[str, dict[str, str]]] = {
     },
     "en": {
         STEP_KEY_LANDING: {
-            "headline": "Upload a job ad. Start the recruiting brief.",
+            "headline": "Turn role need into a recruiting brief.",
             "subheadline": (
-                "For recruiting, HR, and hiring teams that need to turn a jobspec into "
-                "a reliable brief quickly. The app detects what is already clear and "
-                "shows what is still needed for search, matching, interviews, and offer "
-                "decisions."
+                "For recruiting, HR, and hiring teams that need a shared decision basis "
+                "before search, matching, interviews, and offers. Upload a jobspec or "
+                "paste raw text; the app first shows what is reliable and which gaps "
+                "slow the process down."
             ),
             "value_line": (
-                "You get a reviewed briefing basis with a role profile, prioritized "
-                "requirements, open questions, and reusable outputs."
+                "Result: a briefing cockpit with a role profile, priorities, open "
+                "questions, ESCO anchor, and prepared recruiting outputs."
             ),
             "headline_after_analysis": (
-                "We detected the first information for {role_title}."
+                "Briefing cockpit for {role_title} is prepared."
             ),
             "subheadline_after_analysis": (
-                "Now turn the source into a recruiting brief: review detected facts, "
-                "close gaps, and confirm the reference occupation."
+                "Next action: review detected facts, clean up uncertain points, and "
+                "confirm the reference occupation."
             ),
             "value_line_after_analysis": (
-                "Next progress: a shared briefing basis for recruiting, the hiring team, "
-                "search, and interviews."
+                "Already unlocked: role profile, gap prioritization, ESCO candidates, "
+                "and next briefing questions."
             ),
-            "primary_cta": "Create brief from job ad",
+            "primary_cta": "Turn source into brief",
             "secondary_cta": "See example",
         },
         STEP_KEY_COMPANY: {

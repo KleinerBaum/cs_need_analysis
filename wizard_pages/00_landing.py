@@ -16,6 +16,7 @@ from wizard_pages.base import (
     WizardPage,
     render_esco_language_toggle,
     render_landing_css,
+    render_value_cards,
 )
 
 
@@ -187,6 +188,14 @@ def _render_landing_responsive_overrides() -> None:
                 margin-bottom: 0.22rem;
                 color: var(--cs-text);
             }
+            .landing-unlocked-list {
+                margin: 0.55rem 0 0 0;
+                padding-left: 1.15rem;
+                color: var(--cs-text);
+            }
+            .landing-unlocked-list li {
+                margin: 0.28rem 0;
+            }
             @media (max-width: 900px) {
                 .landing-process-track {
                     grid-template-columns: minmax(0, 1fr);
@@ -235,6 +244,42 @@ def _render_landing_hero(copy: StepCopy) -> None:
             st.subheader(copy.value_line)
         if copy.subheadline:
             st.markdown(copy.subheadline)
+
+
+def _format_role_line(de_template: str, en_template: str, *, role_title: str) -> str:
+    template = en_template if active_language() == "en" else de_template
+    return template.format(role_title=role_title)
+
+
+def _render_pre_upload_cockpit() -> None:
+    with st.container(border=True):
+        st.subheader(str(t(START_PAGE_COPY["cockpit_title"])))
+        st.caption(str(t(START_PAGE_COPY["cockpit_caption"])))
+        value_cards = [
+            (str(t(str(title))), str(t(str(body))))
+            for title, body in tuple(START_PAGE_COPY["value_cards"])
+        ]
+        render_value_cards(value_cards=value_cards)
+
+
+def _render_unlocked_briefing_panel(role_title: str) -> None:
+    items_html = "\n".join(
+        f"<li>{escape_html_text(t(str(item)))}</li>"
+        for item in tuple(START_PAGE_COPY["unlocked_items"])
+    )
+    with st.container(border=True):
+        st.subheader(
+            _format_role_line(
+                "Schon freigeschaltet für {role_title}",
+                "Already unlocked for {role_title}",
+                role_title=role_title,
+            )
+        )
+        st.caption(str(t(START_PAGE_COPY["unlocked_next_action"])))
+        render_static_html(
+            f'<ul class="landing-unlocked-list">{items_html}</ul>',
+            streamlit_module=st,
+        )
 
 
 def _render_landing_flow_cards() -> None:
@@ -299,6 +344,11 @@ def render(ctx: WizardContext) -> None:
         context=_landing_copy_context(),
     )
     _render_landing_hero(landing_copy)
+    role_title = _landing_role_title()
+    if role_title:
+        _render_unlocked_briefing_panel(role_title)
+    else:
+        _render_pre_upload_cockpit()
 
     with st.container(border=True):
         render_jobad_intake(ctx, title=landing_copy.primary_cta)

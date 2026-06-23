@@ -74,6 +74,24 @@ def test_landing_page_does_not_render_iceberg_explainer() -> None:
     assert "render_jobad_intake" in render_body
 
 
+def test_landing_page_renders_briefing_cockpit_states() -> None:
+    landing_page = Path("wizard_pages/00_landing.py").read_text(encoding="utf-8")
+
+    assert "_render_pre_upload_cockpit" in landing_page
+    assert "_render_unlocked_briefing_panel" in landing_page
+    assert "START_PAGE_COPY[\"value_cards\"]" in landing_page
+    assert "START_PAGE_COPY[\"unlocked_items\"]" in landing_page
+
+
+def test_intro_page_is_compressed_and_skippable_after_briefing() -> None:
+    intro_page = Path("wizard_pages/00_intro.py").read_text(encoding="utf-8")
+
+    assert "Recruiting-Briefing vor Workflow" in intro_page
+    assert "Briefing-Cockpit öffnen" in intro_page
+    assert "SSKey.JOB_EXTRACT.value" in intro_page
+    assert "Aus langjähriger Erfahrung" not in intro_page
+
+
 def test_iceberg_content_loads_required_sections() -> None:
     content = load_iceberg_content()
 

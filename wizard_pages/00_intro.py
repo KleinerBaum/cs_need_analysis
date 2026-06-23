@@ -6,7 +6,7 @@ from components.iceberg_need_analysis import (
     COMPONENT_HEIGHT,
     build_iceberg_need_analysis_html,
 )
-from constants import STEP_KEY_INTRO, STEP_KEY_LANDING
+from constants import SSKey, STEP_KEY_INTRO, STEP_KEY_LANDING
 from i18n import LANGUAGE_WIDGET_KEY_PAGE, render_language_toggle, t
 from safe_html import escape_html_text, render_static_html
 from wizard_pages.base import (
@@ -18,39 +18,39 @@ from wizard_pages.base import (
 
 
 INTRO_COPY = {
-    "headline": "Vakanzanforderungen präzise erfassen",
+    "headline": "Recruiting-Briefing vor Workflow",
     "subheadline": (
-        "Bevor Recruiting beginnt, muss klar sein, welche Person wirklich gesucht wird."
+        "Erst klären, welche Entscheidung ansteht. Danach den Wizard gezielt nutzen."
     ),
     "body": (
         (
-            "Aus langjähriger Erfahrung in der Personalvermittlung zeigt sich immer wieder: "
-            "Essentielle Informationen zu einer Vakanz ändern sich oft erst im laufenden "
-            "Bewerbungsprozess, werden zu spät sichtbar oder fehlen vollständig. Das kann "
-            "Abstimmungsschleifen, Fehlbesetzungen und hohe Folgekosten verursachen."
+            "Die App beginnt vor der Stellenanzeige: Aus Jobspec, Upload oder Rohtext "
+            "entsteht zuerst ein prüfbarer Briefing-Stand für Search, Matching, "
+            "Interview und Angebot."
         ),
         (
-            "Gerade in großen Unternehmen werden regelmäßig ähnliche Qualitäten gesucht "
-            "und auf Basis derselben Stellenanzeige ausgeschrieben. Die individuellen "
-            "Charakteristika einer konkreten Vakanz bleiben dabei häufig zu unscharf."
-        ),
-        (
-            "Diese App fokussiert ausschließlich den ersten Schritt jedes Recruiting-Prozesses: "
-            "Der fachliche Vorgesetzte definiert, welchen Mitarbeiter er sucht. Diverse "
-            "Funktionen helfen dabei, mit möglichst wenig Aufwand ein umfassendes Bild der "
-            "Stelle zu erstellen. Dafür nutzt die App die europäische Berufs- und "
-            "Skill-Taxonomie ESCO sowie die OpenAI-API, um den Informationsgewinnungsprozess "
-            "dynamisch an die individuellen Bedürfnisse Ihrer Vakanz anzupassen."
+            "Erkannte Fakten, offene Lücken, ESCO-Referenzberufe und Folgefragen "
+            "bleiben nachvollziehbar getrennt. Sie prüfen Werte, bevor daraus "
+            "Recruiting-Unterlagen entstehen."
         ),
     ),
-    "closing": "Bereit, die Anforderungen Ihrer Vakanz richtig kennenzulernen? Probieren Sie es aus.",
-    "cta": "Zum Start",
+    "closing": "Starten Sie mit einer Quelle und erhalten Sie zuerst ein Recruiting-Briefing, nicht ein Formular.",
+    "cta": "Briefing-Cockpit öffnen",
+    "skip_title": "Briefing bereits vorbereitet",
+    "skip_body": (
+        "Die Einleitung ist jetzt optional. Öffnen Sie direkt den Start, prüfen Sie "
+        "die erkannte Briefing-Basis und bestätigen Sie den Referenzberuf."
+    ),
     "iceberg_title": "Warum Recruiting-Briefing?",
     "iceberg_caption": (
         "Das Eisberg-Modell zeigt, welche sichtbaren und verdeckten Informationen "
         "eine gute Vakanzerfassung zusammenführt."
     ),
 }
+
+
+def _has_prepared_briefing() -> bool:
+    return isinstance(st.session_state.get(SSKey.JOB_EXTRACT.value), dict)
 
 
 def _render_intro_overrides() -> None:
@@ -127,6 +127,9 @@ def render(ctx: WizardContext) -> None:
 
     with st.container(border=True):
         render_language_toggle(location="main", key=LANGUAGE_WIDGET_KEY_PAGE)
+        if _has_prepared_briefing():
+            st.info(str(t(INTRO_COPY["skip_title"])))
+            st.caption(str(t(INTRO_COPY["skip_body"])))
         st.title(str(t(INTRO_COPY["headline"])))
         st.subheader(str(t(INTRO_COPY["subheadline"])))
 

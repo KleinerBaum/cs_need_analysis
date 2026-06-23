@@ -40,6 +40,7 @@ from job_extract_review_helpers import (
     has_meaningful_value,
     looks_like_mixed_source_notes,
 )
+from i18n import active_language, t
 from llm_client import (
     OpenAICallError,
     TASK_EXTRACT_JOB_AD,
@@ -128,6 +129,11 @@ HYPOTHESIS_FIELD_TO_STEP: Final[dict[str, str]] = {
     for step_name, field_names in JOB_EXTRACT_TAB_FIELDS.items()
     for field_name in field_names
 }
+
+
+def _localized_template(de_template: str, en_template: str, **values: Any) -> str:
+    template = en_template if active_language() == "en" else de_template
+    return template.format(**values)
 
 
 def _render_start_success_styles() -> None:
@@ -890,13 +896,17 @@ def _render_job_extract_hypothesis_form(job: JobAdExtract) -> None:
     if not rows:
         return
 
-    st.markdown("#### Erkannte Angaben prüfen")
+    st.markdown(str(t("#### Briefing-Angaben freigeben")))
     st.caption(
-        "Prüfen Sie unsichere und offene Angaben, bevor daraus das Briefing wächst. "
-        "Die Spalten entsprechen den nächsten Briefing-Schritten; korrigieren Sie "
-        "Werte direkt in der passenden Spalte oder löschen Sie eine Zeile, wenn "
-        "die Angabe nicht übernommen werden soll. Änderungen werden automatisch "
-        "gespeichert."
+        str(
+            t(
+                "Prüfen Sie unsichere und offene Angaben, bevor daraus der nächste "
+                "Briefing-Stand wächst. Die Spalten entsprechen den nächsten "
+                "Briefing-Schritten; korrigieren Sie Werte direkt in der passenden "
+                "Spalte oder löschen Sie eine Zeile, wenn die Angabe nicht "
+                "übernommen werden soll. Änderungen werden automatisch gespeichert."
+            )
+        )
     )
     _render_hypothesis_evidence_controls(rows, evidence_by_field)
     editor_rows = _build_hypothesis_editor_rows(rows, evidence_by_field)
@@ -931,7 +941,7 @@ def _render_job_extract_hypothesis_form(job: JobAdExtract) -> None:
     reviewed_payload = _model_dump_json_compatible(reviewed_job)
     if st.session_state.get(SSKey.JOB_EXTRACT.value) != reviewed_payload:
         st.session_state[SSKey.JOB_EXTRACT.value] = reviewed_payload
-        _render_success_callout("Änderungen automatisch gespeichert.")
+        _render_success_callout(str(t("Änderungen automatisch gespeichert.")))
 
 
 def _render_identified_information_block(ctx: WizardContext) -> None:
@@ -949,9 +959,12 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
     selected_occupation_title = str(selected_occupation.get("title") or "").strip()
 
     st.caption(
-        "Die Briefing-Basis ist vorbereitet. Prüfen Sie unsichere und offene "
-        "Punkte direkt in der Tabelle und bestätigen Sie anschließend den passenden "
-        "Referenzberuf."
+        str(
+            t(
+                "Nächste Aktion: unsichere und offene Punkte direkt in der Tabelle "
+                "freigeben und anschließend den passenden Referenzberuf bestätigen."
+            )
+        )
     )
     _render_input_quality_hint(job)
     _render_analysis_priority_summary(job)
@@ -968,11 +981,22 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
 
     if has_confirmed_anchor:
         title = selected_occupation_title or "Referenzberuf"
-        _render_success_callout(f"Berufsabgleich bestätigt: {title}")
+        _render_success_callout(
+            _localized_template(
+                "Berufsabgleich bestätigt: {title}",
+                "Occupation match confirmed: {title}",
+                title=title,
+            )
+        )
     else:
         st.caption(
-            "Optional: Im nächsten Abschnitt können Sie den Referenzberuf bestätigen, "
-            "damit Aufgaben, Skills und Recruiting-Unterlagen konsistent bleiben."
+            str(
+                t(
+                    "Optional: Im nächsten Abschnitt können Sie den Referenzberuf "
+                    "bestätigen, damit Aufgaben, Skills und Recruiting-Unterlagen "
+                    "konsistent bleiben."
+                )
+            )
         )
 
 
@@ -1091,12 +1115,12 @@ def _render_routing_select(
 def _render_start_routing_controls() -> None:
     if not all(hasattr(st, name) for name in ("selectbox", "number_input")):
         if hasattr(st, "caption"):
-            st.caption("Ein paar Informationen vorab: Standardwerte werden verwendet.")
+            st.caption(str(t("Briefing-Routing vorab: Standardwerte werden verwendet.")))
         return
 
     with st.container():
         if hasattr(st, "caption"):
-            st.caption("Ein paar Informationen vorab")
+            st.caption(str(t("Briefing-Routing vorab")))
         _render_routing_select(
             fact_key=FactKey.INTAKE_SEARCH_CONFIDENTIALITY,
             label="Vertraulichkeit",
@@ -1252,10 +1276,14 @@ def _render_source_upload_controls() -> None:
     ]
     max_upload_mb = SOURCE_UPLOAD_MAX_BYTES // (1024 * 1024)
     st.file_uploader(
-        "Stellenanzeige hochladen (PDF, DOCX oder TXT)",
+        str(t("Jobspec oder Stellenanzeige hochladen (PDF, DOCX oder TXT)")),
         type=allowed_types,
         accept_multiple_files=False,
-        help=f"Maximale Dateigröße: {max_upload_mb} MB.",
+        help=_localized_template(
+            "Maximale Dateigröße: {max_upload_mb} MB.",
+            "Maximum file size: {max_upload_mb} MB.",
+            max_upload_mb=max_upload_mb,
+        ),
         key=SOURCE_UPLOAD_FILE_KEY,
         on_change=_on_upload_change,
     )
@@ -1285,20 +1313,31 @@ def _render_source_upload_status() -> None:
     file_name = str(upload_meta.get("name") or getattr(upload, "name", "") or "")
 
     if upload is not None:
-        st.info(f"Datei bereit: {file_name or 'Unbekannt'}")
+        st.info(
+            _localized_template(
+                "Quelle bereit: {file_name}",
+                "Source ready: {file_name}",
+                file_name=file_name or str(t("Unbekannt")),
+            )
+        )
 
     if upload is not None and not uploaded_text and last_error:
-        st.error(f"Extraktion fehlgeschlagen: {last_error}")
+        st.error(str(t(f"Extraktion fehlgeschlagen: {last_error}")))
         st.caption(
-            "Nächster Schritt: Text im Feld „Quelle für die Briefing-Analyse“ manuell einfügen oder andere Datei hochladen."
+            str(
+                t(
+                    "Nächste Aktion: Text im Feld „Quelle für die Briefing-Analyse“ "
+                    "manuell einfügen oder eine andere Datei hochladen."
+                )
+            )
         )
 
 
 def _render_phase_a_configuration_controls() -> None:
-    st.markdown("#### Einstellungen")
+    st.markdown(str(t("#### Briefing-Steuerung")))
     render_ui_mode_selector()
     advanced_context = (
-        st.expander("Erweiterte Intake-Einstellungen", expanded=False)
+        st.expander(str(t("Erweiterte Briefing-Steuerung")), expanded=False)
         if hasattr(st, "expander")
         else nullcontext()
     )
@@ -1310,18 +1349,28 @@ def _render_phase_a_configuration_controls() -> None:
 def _render_source_character_metric() -> None:
     active_source_text = str(st.session_state.get(SSKey.SOURCE_TEXT.value, ""))
     char_count = len(active_source_text.strip()) if active_source_text else 0
-    st.metric("Zeichen", f"{char_count:,}".replace(",", "."))
+    st.metric(str(t("Quellenumfang")), f"{char_count:,}".replace(",", "."))
     if 0 < char_count < 250:
         st.warning(
-            "Die Quelle ist sehr kurz. Ergänze mehr Text oder prüfe die erkannten Angaben in Phase B genau."
+            str(
+                t(
+                    "Die Quelle ist sehr kurz. Ergänzen Sie mehr Text oder prüfen "
+                    "Sie die erkannten Angaben im Briefing-Fortschritt genau."
+                )
+            )
         )
 
 
 def _render_phase_a_action_controls() -> bool:
     do_extract = st.button(
-        "Recruiting-Briefing vorbereiten",
+        str(t("Quelle in Briefing verwandeln")),
         width="stretch",
-        help="Erstellt aus der aktuell aktiven Quelle eine prüfbare Briefing-Basis.",
+        help=str(
+            t(
+                "Bereitet aus der aktuell aktiven Quelle einen prüfbaren "
+                "Briefing-Stand vor."
+            )
+        ),
     )
     last_error = str(st.session_state.get(SSKey.LAST_ERROR.value, "") or "").strip()
     if not last_error or _has_completed_intake_analysis():
@@ -1329,12 +1378,24 @@ def _render_phase_a_action_controls() -> bool:
 
     fallback_text = _current_editable_source_text()
     st.info(
-        "Manueller Fallback: Text behalten, automatische Extraktion überspringen und die nächsten Schritte selbst ausfüllen."
+        str(
+            t(
+                "Manueller Fallback: Text behalten, automatische Extraktion "
+                "überspringen und den Briefing-Stand selbst starten."
+            )
+        )
     )
     if not fallback_text:
-        st.caption("Nächster Schritt: Füge rechts Text ein oder lade eine lesbare Datei hoch.")
+        st.caption(
+            str(
+                t(
+                    "Nächste Aktion: rechts Text einfügen oder eine lesbare Datei "
+                    "hochladen."
+                )
+            )
+        )
     if st.button(
-        "Manuell ohne Extraktion fortsetzen",
+        str(t("Briefing manuell starten")),
         key="cs.start.manual_fallback",
         width="stretch",
         disabled=not bool(fallback_text),
@@ -1371,29 +1432,40 @@ def _render_source_text_or_preview() -> None:
         )
         with text_area_context:
             st.text_area(
-                "Quelle für die Briefing-Analyse",
+                str(t("Quelle für die Briefing-Analyse")),
                 key=SOURCE_UPLOAD_TEXT_INPUT_KEY,
                 height=min(260, max(160, _manual_input_height_for_text(upload_text))),
                 on_change=_on_upload_text_change,
-                placeholder="Füge hier den vollständigen Ausschreibungstext ein …",
+                placeholder=str(
+                    t("Fügen Sie hier den vollständigen Ausschreibungstext ein …")
+                ),
             )
             last_error = str(st.session_state.get(SSKey.LAST_ERROR.value, "") or "")
             if last_error and not upload_text.strip():
                 st.error(
-                    "Bitte füge hier den Text manuell ein oder lade eine lesbare PDF-, DOCX- oder TXT-Datei hoch."
+                    str(
+                        t(
+                            "Bitte fügen Sie hier den Text manuell ein oder laden "
+                            "Sie eine lesbare PDF-, DOCX- oder TXT-Datei hoch."
+                        )
+                    )
                 )
         return
 
     st.text_area(
-        "Stellenanzeige oder Jobspec einfügen",
+        str(t("Jobspec oder Rohtext für das Briefing einfügen")),
         key=SOURCE_TEXT_INPUT_KEY,
         height=min(320, max(220, _manual_input_height_for_text(manual_text))),
         on_change=_on_manual_text_change,
-        placeholder="Füge hier den vollständigen Ausschreibungstext ein …",
+        placeholder=str(
+            t("Fügen Sie hier den vollständigen Ausschreibungstext ein …")
+        ),
     )
     last_error = str(st.session_state.get(SSKey.LAST_ERROR.value, "") or "")
     if "füge Text ein" in last_error and not manual_text.strip():
-        st.error("Bitte füge hier Text ein oder lade links eine Datei hoch.")
+        st.error(
+            str(t("Bitte fügen Sie hier Text ein oder laden Sie links eine Datei hoch."))
+        )
 
 
 def _render_phase_a_source_and_privacy_controls() -> bool:
@@ -1554,7 +1626,7 @@ def _render_extraction_result_section(ctx: WizardContext) -> None:
     )
     with container_ctx:
         if hasattr(st, "markdown"):
-            st.markdown("### Erkannte Briefing-Basis")
+            st.markdown(str(t("### Briefing-Fortschritt: erkannte Basis")))
         _render_phase_b_extraction_review(ctx)
 
 
@@ -1566,7 +1638,7 @@ def _render_esco_anchor_section(ctx: WizardContext) -> None:
     )
     with container_ctx:
         if hasattr(st, "markdown"):
-            st.markdown("### Referenzberuf für das Briefing bestätigen")
+            st.markdown(str(t("### Briefing-Fortschritt: Referenzberuf bestätigen")))
         _render_phase_c_esco_anchor(ctx)
 
 def _render_phase_b_extraction_review(ctx: WizardContext) -> None:
@@ -1592,7 +1664,11 @@ def _render_phase_c_esco_anchor(ctx: WizardContext) -> None:
 
     _, _, next_col = st.columns([1, 1, 1], gap="small")
     with next_col:
-        if st.button("Weiter →", key="cs.start.next_step", width="stretch"):
+        if st.button(
+            str(t("Mit Unternehmenskontext weiterarbeiten")),
+            key="cs.start.next_step",
+            width="stretch",
+        ):
             active_plan_raw = st.session_state.get(SSKey.QUESTION_PLAN.value, {})
             active_plan = (
                 QuestionPlan.model_validate(active_plan_raw)
@@ -1617,25 +1693,40 @@ def render_jobad_intake(
     analysis_complete = _has_completed_intake_analysis()
     role_title = _current_job_extract_title()
     if analysis_complete and role_title:
-        st.header("Briefing-Basis prüfen")
-        subtitle = (
-            f"Wir haben die ersten Informationen zu {role_title} erkannt. Prüfen Sie "
-            "jetzt die Briefing-Basis, schließen Sie Lücken und bestätigen Sie den "
-            "Referenzberuf."
+        st.header(
+            _localized_template(
+                "Nächste Aktion für {role_title}",
+                "Next action for {role_title}",
+                role_title=role_title,
+            )
+        )
+        subtitle = _localized_template(
+            "Das Briefing-Cockpit ist vorbereitet. Prüfen Sie erkannte Angaben, "
+            "bereinigen Sie Unsicherheiten und bestätigen Sie den Referenzberuf. "
+            "Schon freigeschaltet: Rollenprofil, Lückenpriorisierung, "
+            "ESCO-Kandidaten und nächste Briefing-Fragen.",
+            "The briefing cockpit is prepared. Review detected facts, clean up "
+            "uncertainty, and confirm the reference occupation. Already unlocked: "
+            "role profile, gap prioritization, ESCO candidates, and next briefing "
+            "questions.",
+            role_title=role_title,
         )
     elif analysis_complete:
-        st.header("Briefing-Basis prüfen")
-        subtitle = (
-            "Wir haben die ersten Informationen zur Rolle erkannt. Prüfen Sie jetzt "
-            "die Briefing-Basis, schließen Sie Lücken und bestätigen Sie den "
-            "Referenzberuf."
+        st.header(str(t("Nächste Aktion im Briefing-Cockpit")))
+        subtitle = str(
+            t(
+                "Das Briefing-Cockpit ist vorbereitet. Prüfen Sie erkannte Angaben, "
+                "bereinigen Sie Unsicherheiten und bestätigen Sie den Referenzberuf."
+            )
         )
     else:
         st.header(title)
-        subtitle = (
-            "Für Recruiting, HR und Hiring Teams: Quelle hochladen oder Text einfügen. "
-            "Ergebnis ist eine geprüfte Briefing-Basis mit Rollenprofil, priorisierten "
-            "Lücken und nächsten Fragen."
+        subtitle = str(
+            t(
+                "Laden Sie eine Quelle hoch oder fügen Sie Text ein. Die App bereitet "
+                "daraus Rollenprofil, Lückenpriorisierung, ESCO-Anker und nächste "
+                "Briefing-Fragen vor."
+            )
         )
     st.caption(subtitle)
     render_error_banner()
@@ -1654,7 +1745,10 @@ def render_jobad_intake(
         _render_extraction_result_section(ctx)
         _render_esco_anchor_section(ctx)
         edit_source_context = (
-            st.expander("Quelle oder Einstellungen ändern", expanded=False)
+            st.expander(
+                str(t("Quelle oder Briefing-Steuerung anpassen")),
+                expanded=False,
+            )
             if hasattr(st, "expander")
             else nullcontext()
         )
@@ -1754,7 +1848,7 @@ def render_jobad_intake(
         )
 
         try:
-            with st.spinner("Bereite Rollenprofil vor…"):
+            with st.spinner(str(t("Bereite Briefing-Cockpit vor…"))):
                 extract_started_at = perf_counter()
                 job, usage1 = extract_job_ad(
                     submitted,
@@ -1763,7 +1857,7 @@ def render_jobad_intake(
                 )
                 extract_duration_ms = int((perf_counter() - extract_started_at) * 1000)
 
-            with st.spinner("Priorisiere offene Briefing-Fragen…"):
+            with st.spinner(str(t("Schalte nächste Briefing-Fragen frei…"))):
                 plan_started_at = perf_counter()
                 plan, usage2 = generate_question_plan(
                     job,
@@ -1809,10 +1903,15 @@ def render_jobad_intake(
             }
             _render_start_success_styles()
             _render_success_callout(
-                "Briefing-Basis vorbereitet: Informationen erkannt und nächste Fragen priorisiert."
+                str(
+                    t(
+                        "Briefing-Cockpit vorbereitet: Rollenprofil erkannt, Lücken "
+                        "priorisiert und nächste Fragen freigeschaltet."
+                    )
+                )
             )
             if extract_cached or plan_cached:
-                st.info("Aus Cache: Ergebnis wurde wiederverwendet.")
+                st.info(str(t("Aus Cache: Ergebnis wurde wiederverwendet.")))
         except OpenAICallError as e:
             render_openai_error(e)
         except Exception as exc:

@@ -11,10 +11,10 @@ from ux_copy_contract import VacancyCopyContext, build_step_copy
 def test_landing_copy_defaults_to_clear_german_value_prop() -> None:
     copy = build_step_copy(STEP_KEY_LANDING, language="de")
 
-    assert copy.headline == "Stellenanzeige hochladen. Recruiting-Briefing starten."
+    assert copy.headline == "Vom Rollenbedarf zum Recruiting-Briefing."
     assert "Recruiting, HR und Hiring Teams" in copy.subheadline
-    assert "Briefing-Basis" in copy.value_line
-    assert copy.primary_cta == "Briefing aus Stellenanzeige erstellen"
+    assert "Briefing-Cockpit" in copy.value_line
+    assert copy.primary_cta == "Quelle in Briefing verwandeln"
 
 
 def test_landing_copy_uses_role_aware_handoff_after_analysis() -> None:
@@ -24,8 +24,8 @@ def test_landing_copy_uses_role_aware_handoff_after_analysis() -> None:
         context=VacancyCopyContext(role_title="Data Engineer"),
     )
 
-    assert copy.headline == "Wir haben die ersten Informationen zu Data Engineer erkannt."
-    assert "Quelle ein Recruiting-Briefing" in copy.subheadline
+    assert copy.headline == "Briefing-Cockpit für Data Engineer ist vorbereitet."
+    assert "Nächste Aktion" in copy.subheadline
 
 
 def test_company_copy_uses_dynamic_context_in_german() -> None:

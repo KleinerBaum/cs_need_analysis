@@ -18,13 +18,13 @@
   "ux_copy": {
     "steps": {
       "landing": {
-        "headline": "Stellenanzeige hochladen. Recruiting-Briefing starten.",
-        "subheadline": "Für Recruiting, HR und Hiring Teams, die aus einer Jobspec schnell ein belastbares Briefing machen müssen. Die App erkennt, was schon klar ist, und zeigt, was für Search, Matching, Interview und Angebot noch fehlt.",
-        "value_line": "Am Ende steht eine geprüfte Briefing-Basis mit Rollenprofil, priorisierten Anforderungen, offenen Fragen und verwertbaren Recruiting-Unterlagen.",
-        "headline_after_analysis": "Wir haben die ersten Informationen zu {role_title} erkannt.",
-        "subheadline_after_analysis": "Jetzt wird aus der Quelle ein Recruiting-Briefing: Prüfen Sie erkannte Angaben, schließen Sie Lücken und bestätigen Sie den Referenzberuf.",
-        "value_line_after_analysis": "Nächster Fortschritt: eine gemeinsame Briefing-Basis für Recruiting, Hiring-Team, Search und Interview.",
-        "primary_cta": "Briefing aus Stellenanzeige erstellen",
+        "headline": "Vom Rollenbedarf zum Recruiting-Briefing.",
+        "subheadline": "Für Recruiting, HR und Hiring Teams, die vor Search, Matching, Interview und Angebot eine gemeinsame Entscheidungsbasis brauchen. Laden Sie eine Jobspec hoch oder fügen Sie Rohtext ein; die App zeigt zuerst, was belastbar ist und welche Lücken den Prozess bremsen.",
+        "value_line": "Ergebnis: ein Briefing-Cockpit mit Rollenprofil, Prioritäten, offenen Fragen, ESCO-Anker und vorbereiteten Recruiting-Outputs.",
+        "headline_after_analysis": "Briefing-Cockpit für {role_title} ist vorbereitet.",
+        "subheadline_after_analysis": "Nächste Aktion: erkannte Angaben prüfen, unsichere Punkte bereinigen und den Referenzberuf bestätigen.",
+        "value_line_after_analysis": "Schon freigeschaltet: Rollenprofil, Lückenpriorisierung, ESCO-Kandidaten und nächste Briefing-Fragen.",
+        "primary_cta": "Quelle in Briefing verwandeln",
         "secondary_cta": "Beispiel ansehen",
         "empty_state": "Noch keine Quelle geladen.",
         "readiness": "Bereit für den Intake"

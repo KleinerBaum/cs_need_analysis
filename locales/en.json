@@ -18,13 +18,13 @@
   "ux_copy": {
     "steps": {
       "landing": {
-        "headline": "Upload a job ad. Start the recruiting brief.",
-        "subheadline": "For recruiting, HR, and hiring teams that need to turn a jobspec into a reliable brief quickly. The app detects what is already clear and shows what is still needed for search, matching, interviews, and offer decisions.",
-        "value_line": "You get a reviewed briefing basis with a role profile, prioritized requirements, open questions, and reusable recruiting outputs.",
-        "headline_after_analysis": "We detected the first information for {role_title}.",
-        "subheadline_after_analysis": "Now turn the source into a recruiting brief: review detected facts, close gaps, and confirm the reference occupation.",
-        "value_line_after_analysis": "Next progress: a shared briefing basis for recruiting, the hiring team, search, and interviews.",
-        "primary_cta": "Create brief from job ad",
+        "headline": "Turn role need into a recruiting brief.",
+        "subheadline": "For recruiting, HR, and hiring teams that need a shared decision basis before search, matching, interviews, and offers. Upload a jobspec or paste raw text; the app first shows what is reliable and which gaps slow the process down.",
+        "value_line": "Result: a briefing cockpit with a role profile, priorities, open questions, ESCO anchor, and prepared recruiting outputs.",
+        "headline_after_analysis": "Briefing cockpit for {role_title} is prepared.",
+        "subheadline_after_analysis": "Next action: review detected facts, clean up uncertain points, and confirm the reference occupation.",
+        "value_line_after_analysis": "Already unlocked: role profile, gap prioritization, ESCO candidates, and next briefing questions.",
+        "primary_cta": "Turn source into brief",
         "secondary_cta": "See example",
         "empty_state": "No source loaded yet.",
         "readiness": "Ready for intake"
