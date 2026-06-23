@@ -669,29 +669,68 @@ def _render_skill_export_consequences(
     calibrated_count = (
         len(skill_items_raw) if isinstance(skill_items_raw, list) else 0
     )
+    provenance_raw = st.session_state.get(SSKey.QUESTION_FLOW_PROVENANCE.value, {})
+    provenance = provenance_raw if isinstance(provenance_raw, dict) else {}
+    selected_pack_keys = provenance.get("selected_pack_keys", [])
+    injected_question_ids = provenance.get("injected_question_ids", [])
+    active_pack_count = (
+        len(selected_pack_keys) if isinstance(selected_pack_keys, list) else 0
+    )
+    injected_question_count = (
+        len(injected_question_ids) if isinstance(injected_question_ids, list) else 0
+    )
 
     with st.container(border=True):
-        st.markdown("##### Exportwirkung")
-        metric_mapped, metric_free_text, metric_calibrated = st.columns(
-            3,
-            gap="small",
-        )
+        st.markdown("##### Export- und Question-Pack-Wirkung")
+        (
+            metric_mapped,
+            metric_free_text,
+            metric_calibrated,
+            metric_questions,
+        ) = st.columns(4, gap="small")
         with metric_mapped:
             st.metric("ESCO-gemappt", esco_mapped_count)
         with metric_free_text:
             st.metric("Freitext", free_text_count)
         with metric_calibrated:
             st.metric("Kalibriert", calibrated_count)
+        with metric_questions:
+            st.metric("Zusatzfragen", injected_question_count)
         st.caption(
             "Must-have, Nice-to-have, Timing, Niveau und Nachweise werden in "
             "`skills.items` gespeichert. ESCO-gemappte Skills behalten ihre URI für "
             "semantic exports; Freitext bleibt sichtbar in Brief, Job Ad und Review."
         )
+        if active_pack_count or injected_question_count:
+            st.caption(
+                f"Question packs aktiv: {active_pack_count} · "
+                f"kompilierte Zusatzfragen: {injected_question_count}."
+            )
+        else:
+            st.caption(
+                "Question packs verwenden aktuell den Basisplan; ESCO-Mapping ergänzt "
+                "kontextspezifische Fragen nach der nächsten Auswahl."
+            )
         if free_text_count > 0:
             st.caption(
                 "Freitext-Begriffe bleiben erhalten. Eine kurze Begründung verbessert "
                 "Review- und Exportqualität."
             )
+
+
+def _selected_skill_labels_for_artifact_preview(
+    *,
+    selected_labels: list[str],
+    deduped_must: list[dict[str, Any]],
+    deduped_nice: list[dict[str, Any]],
+) -> list[str]:
+    return _dedupe_terms(
+        [
+            *[_skill_title(item) for item in deduped_must],
+            *[_skill_title(item) for item in deduped_nice],
+            *selected_labels,
+        ]
+    )
 
 
 def _unmapped_term_bucket(
@@ -751,6 +790,164 @@ def _apply_bulk_unmapped_term_action(
         )
         applied_count += 1
     return applied_count
+
+
+def _skill_status_from_unmapped_bucket(bucket: str) -> str:
+    return "must" if str(bucket or "").strip().lower() == "must" else "nice"
+
+
+def _annotate_esco_skill_mapping(
+    *,
+    uri: str,
+    label: str,
+    raw_term: str,
+    action: str,
+    source_mode: str | None,
+) -> bool:
+    changed = False
+    normalized_uri = str(uri or "").strip()
+    normalized_label = _normalize_term(label)
+    if not normalized_uri and not normalized_label:
+        return False
+
+    for state_key in (
+        SSKey.ESCO_SKILLS_SELECTED_MUST.value,
+        SSKey.ESCO_SKILLS_SELECTED_NICE.value,
+    ):
+        rows_raw = st.session_state.get(state_key, [])
+        rows = rows_raw if isinstance(rows_raw, list) else []
+        updated_rows: list[Any] = []
+        state_changed = False
+        for item in rows:
+            if not isinstance(item, dict):
+                updated_rows.append(item)
+                continue
+            item_uri = _skill_uri(item)
+            item_label = _normalize_term(_skill_title(item))
+            matches = (normalized_uri and item_uri == normalized_uri) or (
+                normalized_label and item_label == normalized_label
+            )
+            if not matches:
+                updated_rows.append(item)
+                continue
+
+            updated_item = dict(item)
+            mapped_terms_raw = updated_item.get("mapped_from_terms", [])
+            mapped_terms = (
+                [str(value).strip() for value in mapped_terms_raw if str(value).strip()]
+                if isinstance(mapped_terms_raw, list)
+                else []
+            )
+            if raw_term and raw_term not in mapped_terms:
+                mapped_terms.append(raw_term)
+            if mapped_terms != mapped_terms_raw:
+                updated_item["mapped_from_terms"] = mapped_terms
+                state_changed = True
+            if raw_term and not str(updated_item.get("mapped_from_term") or "").strip():
+                updated_item["mapped_from_term"] = raw_term
+                state_changed = True
+            if action and not str(updated_item.get("mapping_action") or "").strip():
+                updated_item["mapping_action"] = action
+                state_changed = True
+            if (
+                source_mode
+                and not str(updated_item.get("mapping_source_mode") or "").strip()
+            ):
+                updated_item["mapping_source_mode"] = source_mode
+                state_changed = True
+            if not str(updated_item.get("source") or "").strip():
+                updated_item["source"] = "ESCO remap"
+                state_changed = True
+            updated_rows.append(updated_item)
+        if state_changed:
+            st.session_state[state_key] = updated_rows
+            changed = True
+    return changed
+
+
+def _apply_unmapped_term_decisions_to_selection(
+    *,
+    flagged_terms: list[str],
+) -> int:
+    actions_raw = st.session_state.get(SSKey.ESCO_UNMAPPED_TERM_ACTIONS.value, {})
+    actions = actions_raw if isinstance(actions_raw, dict) else {}
+    flagged_lookup = {_normalize_term(term): term for term in flagged_terms}
+    applied_count = 0
+
+    for term_key, decision_raw in actions.items():
+        decision = decision_raw if isinstance(decision_raw, dict) else {}
+        raw_term = str(decision.get("raw_term") or term_key or "").strip()
+        if flagged_lookup and _normalize_term(raw_term) not in flagged_lookup:
+            continue
+        action = str(decision.get("action") or "").strip()
+        bucket = str(decision.get("bucket") or "").strip()
+        status = _skill_status_from_unmapped_bucket(bucket)
+        source_mode = str(decision.get("source_mode") or "").strip() or None
+
+        if action in {"map_to_esco_skill", "retry_search"}:
+            mapped_uri = str(decision.get("mapped_uri") or "").strip()
+            mapped_title = str(decision.get("mapped_title") or raw_term).strip()
+            if not mapped_uri or not mapped_title:
+                continue
+            existing_status, existing_item = _find_esco_skill(mapped_uri, mapped_title)
+            already_current = existing_status == status and existing_item is not None
+            if not already_current:
+                _set_esco_skill_status(
+                    label=mapped_title,
+                    uri=mapped_uri,
+                    source="ESCO remap",
+                    group_hint=f"Open term: {raw_term}" if raw_term else "Open term",
+                    status=status,
+                )
+                applied_count += 1
+            if raw_term and _normalize_term(raw_term) != _normalize_term(mapped_title):
+                selected_normalized = {
+                    _normalize_term(label) for label in _get_selected_skill_labels()
+                }
+                if _normalize_term(raw_term) in selected_normalized:
+                    _remove_selected_skill_label(raw_term)
+                    applied_count += 1
+            if _annotate_esco_skill_mapping(
+                uri=mapped_uri,
+                label=mapped_title,
+                raw_term=raw_term,
+                action=action,
+                source_mode=source_mode,
+            ):
+                applied_count += 1
+            continue
+
+        if action == "keep_free_text":
+            if not raw_term:
+                continue
+            current_status = _selection_status(raw_term, "")
+            if current_status == status:
+                continue
+            existing_payload = _get_free_skill_statuses().get(
+                _free_skill_status_key(raw_term, ""),
+                {},
+            )
+            _set_free_skill_status(
+                label=raw_term,
+                uri="",
+                source=str(
+                    (existing_payload or {}).get("source") or "Open term decision"
+                ),
+                group_hint=str(
+                    (existing_payload or {}).get("group_hint")
+                    or bucket
+                    or "open_term"
+                ),
+                status=status,
+            )
+            applied_count += 1
+
+    if applied_count:
+        sync_selected_skill_intake_facts(st.session_state)
+        sync_esco_shared_state()
+        _sync_question_context_from_esco_skills()
+    return applied_count
+
 
 def _mark_esco_skill_optional(uri: str, label: str) -> None:
     """Move an ESCO skill from must-have to nice-to-have."""
@@ -813,6 +1010,7 @@ def _mark_esco_skill_optional(uri: str, label: str) -> None:
     st.session_state[SSKey.ESCO_SKILLS_SELECTED_NICE.value] = nice_without_duplicate
     st.session_state[SSKey.ESCO_CONFIRMED_ESSENTIAL_SKILLS.value] = remaining_must
     st.session_state[SSKey.ESCO_CONFIRMED_OPTIONAL_SKILLS.value] = nice_without_duplicate
+    sync_esco_shared_state()
 
 
 def _render_skill_action_row(
@@ -1181,6 +1379,78 @@ def _apply_board_selection(
 
     st.session_state[SSKey.SKILLS_SELECTED.value] = selected_labels
     sync_selected_skill_intake_facts(st.session_state)
+
+
+def _new_bulk_candidate_labels(
+    *,
+    items: list[dict[str, Any]],
+    target_status: str,
+) -> list[str]:
+    labels: list[str] = []
+    for item in items:
+        label = str(item.get("label") or item.get("title") or "").strip()
+        uri = _skill_uri(item)
+        if not label or _status_from_candidate(item) != target_status:
+            continue
+        if _selection_status(label, uri) is not None:
+            continue
+        labels.append(label)
+    return _dedupe_terms(labels)
+
+
+def _render_safe_bulk_board_actions(
+    *,
+    jobspec_items: list[dict[str, Any]],
+    esco_items: list[dict[str, Any]],
+    llm_items: list[dict[str, Any]],
+) -> list[str]:
+    jobspec_must = _new_bulk_candidate_labels(
+        items=jobspec_items,
+        target_status="must",
+    )
+    esco_must = _new_bulk_candidate_labels(
+        items=esco_items,
+        target_status="must",
+    )
+    ai_must = _new_bulk_candidate_labels(
+        items=llm_items,
+        target_status="must",
+    )
+    if not any((jobspec_must, esco_must, ai_must)):
+        return []
+
+    selected_labels: list[str] = []
+    with st.expander("Safe bulk actions", expanded=False):
+        st.caption(
+            "Diese Aktionen übernehmen nur neue Must-have-Kandidaten. Bestehende "
+            "Must/Nice-Entscheidungen und Provenienz bleiben unverändert."
+        )
+        col_jobspec, col_esco, col_ai = st.columns(3, gap="small")
+        with col_jobspec:
+            if st.button(
+                f"Jobspec Must-have ({len(jobspec_must)})",
+                key="skills.board.bulk.jobspec_must",
+                disabled=not jobspec_must,
+                width="stretch",
+            ):
+                selected_labels.extend(jobspec_must)
+        with col_esco:
+            if st.button(
+                f"ESCO Must-have ({len(esco_must)})",
+                key="skills.board.bulk.esco_must",
+                disabled=not esco_must,
+                width="stretch",
+            ):
+                selected_labels.extend(esco_must)
+        with col_ai:
+            if st.button(
+                f"AI Must-have ({len(ai_must)})",
+                key="skills.board.bulk.ai_must",
+                disabled=not ai_must,
+                width="stretch",
+            ):
+                selected_labels.extend(ai_must)
+    return _dedupe_terms(selected_labels)
 
 
 def _count_selected_sources(
@@ -1724,6 +1994,13 @@ def _render_open_term_and_diagnostic_subflow(
             expanded=True,
         ):
             _render_unmapped_term_workflow(flagged_terms)
+            applied_count = _apply_unmapped_term_decisions_to_selection(
+                flagged_terms=flagged_terms,
+            )
+            if applied_count:
+                st.success(
+                    f"Offene Begriffe in Auswahl und Question packs übernommen: {applied_count}"
+                )
     elif show_esco_sections:
         st.success("Keine offenen Skill-Begriffe aus Jobspec oder ESCO-Abgleich.")
     else:
@@ -2565,6 +2842,19 @@ def _render_skills_source_comparison_block(
         esco_items=esco_items,
         llm_items=llm_items,
     )
+    selected_from_bulk = _render_safe_bulk_board_actions(
+        jobspec_items=jobspec_items,
+        esco_items=esco_items,
+        llm_items=llm_items,
+    )
+    if selected_from_bulk:
+        _apply_board_selection(
+            selected_from_board=selected_from_bulk,
+            jobspec_items=jobspec_items,
+            esco_items=esco_items,
+            llm_items=llm_items,
+        )
+        st.success(f"Bulk action übernommen: {len(selected_from_bulk)} Skills")
     refreshed_view_data = _build_skills_source_view_data(
         job=job,
         show_esco_sections=show_esco_sections,
@@ -2626,6 +2916,25 @@ def _render_skills_source_comparison_block(
         matrix_snapshot=matrix_snapshot,
         ui_mode=ui_mode,
     )
+    refreshed_view_data = _build_skills_source_view_data(
+        job=job,
+        show_esco_sections=show_esco_sections,
+    )
+    deduped_must = refreshed_view_data[3]
+    deduped_nice = refreshed_view_data[4]
+    llm_suggested = refreshed_view_data[5]
+    esco_items = _esco_board_items(
+        selected_must=deduped_must if show_esco_sections else [],
+        selected_nice=deduped_nice if show_esco_sections else [],
+        recommended_must=recommended_must if show_esco_sections else [],
+        recommended_nice=recommended_nice if show_esco_sections else [],
+    )
+    source_counts = _count_selected_sources(
+        selected_labels=_get_selected_skill_labels(),
+        jobspec_items=jobspec_items,
+        esco_items=esco_items,
+        llm_items=llm_items,
+    )
     detail_cache_raw = st.session_state.get(SSKey.ESCO_SKILL_DETAIL_CACHE.value, {})
     detail_cache = detail_cache_raw if isinstance(detail_cache_raw, dict) else {}
     st.session_state[SSKey.ESCO_SKILL_DETAIL_CACHE.value] = detail_cache
@@ -2650,7 +2959,11 @@ def _render_skills_source_comparison_block(
             job=job,
             answers=get_answers(),
             selected_role_tasks=_read_selected_texts(SSKey.ROLE_TASKS_SELECTED),
-            selected_skills=_get_selected_skill_labels(),
+            selected_skills=_selected_skill_labels_for_artifact_preview(
+                selected_labels=_get_selected_skill_labels(),
+                deduped_must=deduped_must,
+                deduped_nice=deduped_nice,
+            ),
             selected_benefits=_read_selected_texts(SSKey.BENEFITS_SELECTED),
         ),
     )
@@ -2780,6 +3093,14 @@ def _render_free_text_reason_editor(skill_items: list[dict[str, Any]]) -> None:
 
 def _render_structured_skill_rows() -> None:
     selected_labels = _get_selected_skill_labels()
+    selected_must_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
+    selected_nice_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
+    selected_must = selected_must_raw if isinstance(selected_must_raw, list) else []
+    selected_nice = selected_nice_raw if isinstance(selected_nice_raw, list) else []
+    deduped_must, deduped_nice = _dedupe_selected_skills_across_buckets(
+        selected_must,
+        selected_nice,
+    )
     fallback_labels = _dedupe_terms(
         [
             *[
@@ -2789,7 +3110,14 @@ def _render_structured_skill_rows() -> None:
             ],
         ]
     )
-    labels = selected_labels or fallback_labels
+    labels = (
+        _selected_skill_labels_for_artifact_preview(
+            selected_labels=selected_labels,
+            deduped_must=deduped_must,
+            deduped_nice=deduped_nice,
+        )
+        or fallback_labels
+    )
     if not labels:
         st.caption("Wähle zuerst Skills aus den Quellen aus, um Status, Niveau und Timing zu präzisieren.")
         persist_fact(FactKey.SKILLS_ITEMS, [])
@@ -2897,7 +3225,7 @@ def _render_structured_skill_rows() -> None:
         )
         return
     edited_rows = _edited_table_rows(edited)
-    kept_labels: list[str] = []
+    kept_free_labels: list[str] = []
     skill_items: list[dict[str, Any]] = []
     for row in edited_rows:
         label = compact_text(row.get("Skill"))
@@ -2922,7 +3250,8 @@ def _render_structured_skill_rows() -> None:
             "start",
         )
         _sync_requirement_status_to_selection(label, status)
-        kept_labels.append(label)
+        if _find_esco_skill("", label)[1] is None:
+            kept_free_labels.append(label)
         existing = existing_by_label.get(label, {})
         skill_items.append(
             {
@@ -2934,7 +3263,7 @@ def _render_structured_skill_rows() -> None:
                 "free_text_reason": compact_text(existing.get("free_text_reason")),
             }
         )
-    st.session_state[SSKey.SKILLS_SELECTED.value] = _dedupe_terms(kept_labels)
+    st.session_state[SSKey.SKILLS_SELECTED.value] = _dedupe_terms(kept_free_labels)
     sync_selected_skill_intake_facts(st.session_state)
     persist_fact(FactKey.SKILLS_ITEMS, skill_items)
     persist_fact(
@@ -2954,6 +3283,20 @@ def _render_structured_skill_rows() -> None:
     )
     _render_free_text_reason_editor(skill_items)
     persist_fact(FactKey.SKILLS_CERTIFICATIONS, split_lines(certifications_text))
+    sync_esco_shared_state()
+    _sync_question_context_from_esco_skills()
+    st.success("Kalibrierung gespeichert. Exporte und Question packs sind aktualisiert.")
+    refreshed_must_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
+    refreshed_nice_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
+    refreshed_must, refreshed_nice = _dedupe_selected_skills_across_buckets(
+        refreshed_must_raw if isinstance(refreshed_must_raw, list) else [],
+        refreshed_nice_raw if isinstance(refreshed_nice_raw, list) else [],
+    )
+    _render_skill_export_consequences(
+        selected_labels=_get_selected_skill_labels(),
+        deduped_must=refreshed_must,
+        deduped_nice=refreshed_nice,
+    )
 
 
 def _render_salary_forecast_slot(

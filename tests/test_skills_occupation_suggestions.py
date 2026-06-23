@@ -713,6 +713,112 @@ def test_bulk_unmapped_term_action_only_fills_undecided_terms() -> None:
     }
 
 
+def test_apply_unmapped_term_mapping_updates_selection_and_keeps_raw_provenance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = {
+        SSKey.SKILLS_SELECTED.value: ["PySpark"],
+        SSKey.SKILLS_SELECTED_STATUS.value: {
+            "label:pyspark": {
+                "label": "PySpark",
+                "status": "must",
+                "source": "Jobspec",
+                "group_hint": "Must-have",
+                "uri": "",
+            }
+        },
+        SSKey.ESCO_SKILLS_SELECTED_MUST.value: [],
+        SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
+        SSKey.ESCO_SKILLS_REMOVED.value: [],
+        SSKey.ESCO_UNMAPPED_TERM_ACTIONS.value: {
+            "PySpark": {
+                "raw_term": "PySpark",
+                "action": "map_to_esco_skill",
+                "mapped_uri": "uri:skill:pyspark",
+                "mapped_title": "Apache Spark",
+                "bucket": "must",
+                "source_mode": "hybrid",
+            }
+        },
+    }
+    monkeypatch.setattr(SKILLS_MODULE, "st", SimpleNamespace(session_state=state))
+    monkeypatch.setattr(SKILLS_MODULE, "sync_esco_shared_state", lambda: None)
+    monkeypatch.setattr(
+        SKILLS_MODULE,
+        "_sync_question_context_from_esco_skills",
+        lambda: None,
+    )
+
+    applied = SKILLS_MODULE._apply_unmapped_term_decisions_to_selection(
+        flagged_terms=["PySpark"],
+    )
+
+    assert applied >= 1
+    assert state[SSKey.SKILLS_SELECTED.value] == []
+    assert state[SSKey.SKILLS_SELECTED_STATUS.value] == {}
+    assert state[SSKey.ESCO_SKILLS_SELECTED_MUST.value] == [
+        {
+            "uri": "uri:skill:pyspark",
+            "title": "Apache Spark",
+            "type": "skill",
+            "relation": "hasEssentialSkill",
+            "source": "ESCO remap",
+            "group_hint": "Open term: PySpark",
+            "mapped_from_terms": ["PySpark"],
+            "mapped_from_term": "PySpark",
+            "mapping_action": "map_to_esco_skill",
+            "mapping_source_mode": "hybrid",
+        }
+    ]
+
+
+def test_apply_keep_free_text_preserves_existing_source(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = {
+        SSKey.SKILLS_SELECTED.value: ["Kafka"],
+        SSKey.SKILLS_SELECTED_STATUS.value: {
+            "label:kafka": {
+                "label": "Kafka",
+                "status": "must",
+                "source": "Jobspec",
+                "group_hint": "Must-have",
+                "uri": "",
+            }
+        },
+        SSKey.ESCO_UNMAPPED_TERM_ACTIONS.value: {
+            "Kafka": {
+                "raw_term": "Kafka",
+                "action": "keep_free_text",
+                "mapped_uri": None,
+                "mapped_title": None,
+                "bucket": "unknown",
+                "source_mode": "hybrid",
+            }
+        },
+    }
+    monkeypatch.setattr(SKILLS_MODULE, "st", SimpleNamespace(session_state=state))
+    monkeypatch.setattr(SKILLS_MODULE, "sync_esco_shared_state", lambda: None)
+    monkeypatch.setattr(
+        SKILLS_MODULE,
+        "_sync_question_context_from_esco_skills",
+        lambda: None,
+    )
+
+    applied = SKILLS_MODULE._apply_unmapped_term_decisions_to_selection(
+        flagged_terms=["Kafka"],
+    )
+
+    assert applied == 1
+    assert state[SSKey.SKILLS_SELECTED_STATUS.value]["label:kafka"] == {
+        "label": "Kafka",
+        "status": "nice",
+        "source": "Jobspec",
+        "group_hint": "Must-have",
+        "uri": "",
+    }
+
+
 def test_render_unmapped_term_workflow_serializes_canonical_retry_and_bucket() -> None:
     state = {
         SSKey.ESCO_UNMAPPED_TERM_ACTIONS.value: {},
