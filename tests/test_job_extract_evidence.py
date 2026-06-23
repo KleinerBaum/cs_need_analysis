@@ -107,6 +107,14 @@ def test_resolve_trust_copy_supports_de_and_en_actions() -> None:
         format_trust_copy(resolve_trust_copy(copy_key="source_evidence", language="en"))
         == "Source & evidence · view"
     )
+    assert (
+        format_trust_copy(resolve_trust_copy(copy_key="fallback"))
+        == "Fallback · prüfen"
+    )
+    assert (
+        format_trust_copy(resolve_trust_copy(copy_key="fallback", language="en"))
+        == "Fallback · review"
+    )
 
 
 def test_format_provenance_label_maps_resolution_states() -> None:

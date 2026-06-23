@@ -18,8 +18,15 @@ ESCO_RELEASE_LANE_SELECTED_VERSION: Final[dict[str, str]] = {
     ESCO_RELEASE_LANE_PREVIEW: "v1.2.1",
 }
 DEFAULT_ESCO_INDEX_STORAGE_PATH: Final[str] = "data/esco_index"
-DEFAULT_ESCO_DATA_SOURCE_MODE: Final[str] = "live_api"
-ESCO_DATA_SOURCE_MODES: Final[tuple[str, str, str]] = ("live_api", "offline_index", "hybrid")
+ESCO_DATA_SOURCE_LIVE_API: Final[str] = "live_api"
+ESCO_DATA_SOURCE_OFFLINE_INDEX: Final[str] = "offline_index"
+ESCO_DATA_SOURCE_HYBRID: Final[str] = "hybrid"
+DEFAULT_ESCO_DATA_SOURCE_MODE: Final[str] = ESCO_DATA_SOURCE_LIVE_API
+ESCO_DATA_SOURCE_MODES: Final[tuple[str, str, str]] = (
+    ESCO_DATA_SOURCE_LIVE_API,
+    ESCO_DATA_SOURCE_OFFLINE_INDEX,
+    ESCO_DATA_SOURCE_HYBRID,
+)
 ESCO_API_MODES: Final[tuple[str, str]] = ("hosted", "local")
 ESCO_ANCHOR_STATE_DEGRADED: Final[str] = "degraded_unconfirmed"
 ESCO_ANCHOR_STATE_ANCHORED: Final[str] = "anchored"

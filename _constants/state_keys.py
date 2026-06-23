@@ -141,6 +141,7 @@ class SSKey(str, Enum):
     EMPLOYMENT_CONTRACT_LAST_MODELS = "cs.summary.employment_contract_last_models"
     ESCO_CONFIG = "cs.esco_config"
     ESCO_LAST_DATA_SOURCE = "cs.esco_last_data_source"
+    ESCO_LOOKUP_METADATA = "cs.esco_lookup_metadata"
     ESCO_RELEASE_LANE = "cs.esco_release_lane"
     ESCO_ANCHOR_STATE = "cs.esco_anchor_state"
     ESCO_PRIMARY_ANCHOR = "cs.esco_primary_anchor"

@@ -112,6 +112,7 @@ from wizard_pages.jobad_source_preview import (
     text_preview_html as _text_preview_html_impl,
 )
 from wizard_pages.esco_occupation_ui import render_esco_occupation_confirmation
+from wizard_pages.trust_grammar import render_esco_lookup_trust_indicator
 
 
 SOURCE_TEXT_INPUT_KEY: Final[str] = SSKey.SOURCE_MANUAL_TEXT.value
@@ -1616,6 +1617,11 @@ def _render_esco_operating_block() -> None:
             fallback_language=fallback_language,
             api_mode=api_mode,
             data_source_mode=data_source_mode,
+        )
+        render_esco_lookup_trust_indicator(
+            config=_get_esco_config(),
+            ui_mode=str(st.session_state.get(SSKey.UI_MODE.value, UI_MODE_DEFAULT)),
+            streamlit_module=st,
         )
         if debug_enabled:
             st.caption(

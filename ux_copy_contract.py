@@ -1159,6 +1159,105 @@ ESCO_UI_COPY: dict[str, dict[str, str]] = {
     },
 }
 
+TRUST_GRAMMAR_COPY: dict[str, dict[str, Any]] = {
+    "de": {
+        "states": {
+            "detected": {"label": "Erkannt", "action": "prüfen"},
+            "suggested": {"label": "Vorschlag", "action": "auswählen"},
+            "confirmed": {"label": "Bestätigt", "action": "nutzen"},
+            "assumed": {"label": "Annahme", "action": "prüfen"},
+            "conflicted": {"label": "Konflikt", "action": "klären"},
+            "missing": {"label": "Fehlt", "action": "ergänzen"},
+            "fallback": {"label": "Fallback", "action": "prüfen"},
+            "evidence": {"label": "Beleg", "action": "ansehen"},
+        },
+        "hints": {
+            "detected": "Automatisch erkannt; bitte bei Bedarf prüfen.",
+            "suggested": "Vorschlag aus Kontext oder externer Quelle; erst nach Auswahl verbindlich.",
+            "confirmed": "Bestätigt und für die nächsten Schritte nutzbar.",
+            "assumed": "Annahme; vor Export prüfen.",
+            "conflicted": "Abweichende Quellen; bitte klären.",
+            "missing": "Noch nicht vorhanden.",
+            "fallback": "Live-Abfrage nicht belastbar; Offline-Index wurde genutzt.",
+            "evidence": "Beleg ist verfügbar.",
+        },
+        "details_title": "Trust-Details",
+        "evidence_trigger": "Quelle & Beleg",
+        "no_details": "Keine weiteren Trust-Details verfügbar.",
+        "unknown": "unbekannt",
+        "metadata": {
+            "attempted_source": "Versuchte Quelle",
+            "final_source": "Genutzte Quelle",
+            "fallback_reason": "Fallback-Grund",
+            "endpoint": "ESCO-Endpunkt",
+            "version": "Version",
+            "data_source_mode": "Konfigurierter Modus",
+        },
+        "sources": {
+            "live_api": "Live-API",
+            "offline_index": "Offline-Index",
+            "hybrid": "Hybrid",
+            "esco": "ESCO",
+            "jobspec": "Jobspec",
+            "homepage": "Website",
+            "llm": "AI",
+            "manual": "Eingabe",
+        },
+        "esco_lookup_live_first_hint": "ESCO nutzt die Live-API zuerst; der Offline-Index dient als Fallback.",
+        "esco_lookup_fallback_hint": "Live-Abfrage fehlgeschlagen; Ergebnis stammt aus dem Offline-Index.",
+        "esco_lookup_offline_hint": "ESCO nutzt den Offline-Index gemäß Konfiguration.",
+        "esco_lookup_missing_hint": "Noch keine ESCO-Abfrage in dieser Sitzung.",
+    },
+    "en": {
+        "states": {
+            "detected": {"label": "Detected", "action": "review"},
+            "suggested": {"label": "Suggested", "action": "select"},
+            "confirmed": {"label": "Confirmed", "action": "use"},
+            "assumed": {"label": "Assumed", "action": "review"},
+            "conflicted": {"label": "Conflict", "action": "resolve"},
+            "missing": {"label": "Missing", "action": "add"},
+            "fallback": {"label": "Fallback", "action": "review"},
+            "evidence": {"label": "Evidence", "action": "view"},
+        },
+        "hints": {
+            "detected": "Detected automatically; review if needed.",
+            "suggested": "Suggested from context or an external source; binding only after selection.",
+            "confirmed": "Confirmed and usable for next steps.",
+            "assumed": "Assumption; review before export.",
+            "conflicted": "Sources differ; resolve before relying on it.",
+            "missing": "Not available yet.",
+            "fallback": "Live lookup was not reliable; the offline index was used.",
+            "evidence": "Evidence is available.",
+        },
+        "details_title": "Trust details",
+        "evidence_trigger": "Source & evidence",
+        "no_details": "No further trust details available.",
+        "unknown": "unknown",
+        "metadata": {
+            "attempted_source": "Attempted source",
+            "final_source": "Used source",
+            "fallback_reason": "Fallback reason",
+            "endpoint": "ESCO endpoint",
+            "version": "Version",
+            "data_source_mode": "Configured mode",
+        },
+        "sources": {
+            "live_api": "Live API",
+            "offline_index": "Offline index",
+            "hybrid": "Hybrid",
+            "esco": "ESCO",
+            "jobspec": "Jobspec",
+            "homepage": "Website",
+            "llm": "AI",
+            "manual": "Input",
+        },
+        "esco_lookup_live_first_hint": "ESCO uses the live API first; the offline index is available as fallback.",
+        "esco_lookup_fallback_hint": "Live lookup failed; the result comes from the offline index.",
+        "esco_lookup_offline_hint": "ESCO uses the offline index according to configuration.",
+        "esco_lookup_missing_hint": "No ESCO lookup has run in this session yet.",
+    },
+}
+
 SALARY_UI_COPY: dict[str, dict[str, str]] = {
     "de": {
         "forecast_heading": "Gehaltsprognose (indikativ)",
@@ -1317,6 +1416,15 @@ def esco_ui_copy(
     **params: Any,
 ) -> str:
     return copy_contract_value(ESCO_UI_COPY, key, language=language, **params)
+
+
+def trust_grammar_copy(
+    key: str,
+    *,
+    language: str | None = None,
+    **params: Any,
+) -> str:
+    return copy_contract_value(TRUST_GRAMMAR_COPY, key, language=language, **params)
 
 
 def salary_ui_copy(

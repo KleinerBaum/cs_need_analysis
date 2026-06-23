@@ -19,6 +19,11 @@ from constants import (
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
 )
 from schemas import AnswerType, JobAdExtract, Question, QuestionStep
+from wizard_pages.trust_grammar import (
+    TRUST_STATE_FALLBACK,
+    build_esco_lookup_trust_payload,
+    build_trust_indicator_payload,
+)
 
 
 INTERVIEW_PATH = Path(__file__).resolve().parents[1] / "wizard_pages" / "07_interview.py"
@@ -98,6 +103,36 @@ def _question(
 
 def _step_with_questions(questions: list[Question]) -> QuestionStep:
     return QuestionStep(step_key="tasks", title_de="Tasks", questions=questions)
+
+
+def test_build_trust_indicator_payload_uses_central_fallback_copy() -> None:
+    payload = build_trust_indicator_payload(
+        TRUST_STATE_FALLBACK,
+        source_label="Offline-Index",
+        language="de",
+    )
+
+    assert payload.badge_text == "Fallback · prüfen · Offline-Index"
+    assert "Offline-Index" in payload.hint
+
+
+def test_build_esco_lookup_trust_payload_maps_live_fallback_metadata() -> None:
+    payload = build_esco_lookup_trust_payload(
+        config={"data_source_mode": "live_api"},
+        metadata={
+            "attempted_source": "live_api",
+            "final_source": "offline_index",
+            "fallback_reason": "live_api_unreachable",
+            "endpoint": "search",
+            "version": "vtest",
+        },
+        language="en",
+    )
+
+    assert payload.state == TRUST_STATE_FALLBACK
+    assert payload.badge_text == "Fallback · review · Offline index"
+    assert payload.metadata["attempted_source"] == "Live API"
+    assert payload.metadata["final_source"] == "Offline index"
 
 
 def test_render_step_review_card_shows_missing_essentials_before_group_cards(

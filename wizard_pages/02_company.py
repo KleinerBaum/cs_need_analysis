@@ -86,11 +86,13 @@ from wizard_pages.company_work_context import (
     render_non_negotiables_compliance_section,
     render_working_model_location_section,
 )
-from job_extract_evidence import format_provenance_label
 from intake_facts import append_intake_fact_secondary_evidence, write_intake_fact
 from state import mark_answer_touched
-from ui_badges import render_source_evidence_popover
 from wizard_pages.team_section import render_role_context_enrichment
+from wizard_pages.trust_grammar import (
+    render_trust_indicator,
+    trust_state_for_fact_status,
+)
 
 
 _LEADERSHIP_LABELS = {
@@ -670,22 +672,23 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
                     candidate_status = FactResolutionStatus.CONFLICTED.value
                 else:
                     candidate_status = FactResolutionStatus.INFERRED.value
-                candidate_resolution = format_provenance_label(
+                render_trust_indicator(
+                    state=trust_state_for_fact_status(
+                        candidate_status,
+                        source_type=FactSourceType.HOMEPAGE.value,
+                        confirmed=(
+                            candidate_status == FactResolutionStatus.CONFIRMED.value
+                        ),
+                    ),
                     source_type=FactSourceType.HOMEPAGE.value,
                     source_label=source_label,
-                    resolution_status=candidate_status,
-                    confirmed=candidate_status == FactResolutionStatus.CONFIRMED.value,
-                )
-                st.caption(candidate_resolution)
-                render_source_evidence_popover(
-                    {
+                    evidence={
                         "source_type": FactSourceType.HOMEPAGE.value,
                         "source_label": source_label,
                         "resolution_status": candidate_status,
                         "confidence": candidate.get("confidence"),
                         "evidence_snippet": evidence,
                     },
-                    trigger_label="Quelle & Beleg",
                     streamlit_module=st,
                 )
                 override_conflict = False

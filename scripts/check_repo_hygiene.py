@@ -39,6 +39,7 @@ from ux_copy_contract import (  # noqa: E402
     SUMMARY_EXPORT_COPY,
     SUMMARY_PREVIEW_COPY,
     SUMMARY_UI_COPY,
+    TRUST_GRAMMAR_COPY,
     _COPY as WIZARD_COPY_CONTRACT,
 )
 
@@ -210,6 +211,7 @@ ACTIVE_COPY_CONTRACTS: Mapping[str, Mapping[str, object]] = {
     "summary_export": SUMMARY_EXPORT_COPY,
     "summary_preview": SUMMARY_PREVIEW_COPY,
     "esco_ui": ESCO_UI_COPY,
+    "trust_grammar": TRUST_GRAMMAR_COPY,
     "salary_ui": SALARY_UI_COPY,
 }
 

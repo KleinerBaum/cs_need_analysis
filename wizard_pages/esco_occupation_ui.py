@@ -29,6 +29,7 @@ from schemas import JobAdExtract
 from esco_semantics import normalize_anchor_ref, sync_esco_semantic_state
 from safe_html import render_static_html
 from ui_components import render_esco_explainability, render_esco_picker_card
+from wizard_pages.trust_grammar import render_esco_lookup_trust_indicator
 
 _OCCUPATION_DETAIL_RELATIONS: tuple[str, ...] = (
     OCCUPATION_RELATION_ESSENTIAL_SKILL,
@@ -1724,6 +1725,7 @@ def render_esco_occupation_confirmation(
         selected_title = str(selected.get("title") or "—").strip() or "—"
         confidence = str(explainability["confidence"]).strip().lower()
         reason = str(explainability["reason"]).strip()
+        render_esco_lookup_trust_indicator(ui_mode=ui_mode, streamlit_module=st)
         if compact and show_detail_panels:
             st.markdown("### Berufsabgleich bestätigen")
             st.caption(f"Suche mit: `{query_text}`")

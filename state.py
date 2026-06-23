@@ -126,6 +126,7 @@ VACANCY_DRAFT_SESSION_KEYS: tuple[SSKey, ...] = (
     SSKey.BOOLEAN_SEARCH_STRING,
     SSKey.EMPLOYMENT_CONTRACT_DRAFT,
     SSKey.ESCO_RELEASE_LANE,
+    SSKey.ESCO_LOOKUP_METADATA,
     SSKey.ESCO_ANCHOR_STATE,
     SSKey.ESCO_PRIMARY_ANCHOR,
     SSKey.ESCO_SECONDARY_ANCHORS,
@@ -492,6 +493,8 @@ def _reset_jobspec_source_dependent_state(
     session_state[SSKey.ESCO_MATCH_REASON.value] = None
     session_state[SSKey.ESCO_MATCH_CONFIDENCE.value] = None
     session_state[SSKey.ESCO_MATCH_PROVENANCE.value] = []
+    session_state[SSKey.ESCO_LAST_DATA_SOURCE.value] = ""
+    session_state[SSKey.ESCO_LOOKUP_METADATA.value] = {}
     session_state[SSKey.ESCO_SKILLS_SELECTED_MUST.value] = []
     session_state[SSKey.ESCO_SKILLS_SELECTED_NICE.value] = []
     session_state[SSKey.ESCO_SKILLS_REMOVED.value] = []
@@ -849,6 +852,7 @@ def init_session_state() -> None:
             "index_version": configured_esco_index_version,
         },
         SSKey.ESCO_LAST_DATA_SOURCE.value: "",
+        SSKey.ESCO_LOOKUP_METADATA.value: {},
         SSKey.ESCO_RELEASE_LANE.value: configured_esco_release_lane,
         SSKey.ESCO_ANCHOR_STATE.value: ESCO_ANCHOR_STATE_DEGRADED,
         SSKey.ESCO_PRIMARY_ANCHOR.value: None,
@@ -1228,6 +1232,7 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.ESCO_MIGRATION_LOG.value] = []
     st.session_state[SSKey.ESCO_MIGRATION_PENDING.value] = None
     st.session_state[SSKey.ESCO_LAST_DATA_SOURCE.value] = ""
+    st.session_state[SSKey.ESCO_LOOKUP_METADATA.value] = {}
     st.session_state[SSKey.ESCO_ANCHOR_STATE.value] = ESCO_ANCHOR_STATE_DEGRADED
     st.session_state[SSKey.ESCO_PRIMARY_ANCHOR.value] = None
     st.session_state[SSKey.ESCO_SECONDARY_ANCHORS.value] = []

@@ -93,6 +93,95 @@ def test_esco_client_error_is_user_safe() -> None:
     assert "response" in err.message.lower()
 
 
+def test_resolve_esco_lookup_plan_live_first_with_offline_fallback() -> None:
+    plan = esco_client.resolve_esco_lookup_plan(
+        "live_api",
+        offline_available=True,
+        endpoint="search",
+    )
+
+    assert plan.data_source_mode == "live_api"
+    assert plan.attempted_sources == ("live_api", "offline_index")
+    assert plan.fallback_enabled is True
+
+
+def test_resolve_esco_lookup_plan_preserves_offline_index_mode() -> None:
+    plan = esco_client.resolve_esco_lookup_plan(
+        "offline_index",
+        offline_available=True,
+        endpoint="search",
+    )
+
+    assert plan.attempted_sources == ("offline_index",)
+    assert plan.fallback_enabled is False
+
+
+def test_live_api_falls_back_to_offline_index_and_records_metadata(
+    monkeypatch,
+) -> None:
+    class _FallbackOfflineIndex:
+        version = "vtest"
+
+        def search(
+            self,
+            *,
+            text: str,
+            type_name: str,
+            language: str,
+            limit: int,
+        ) -> dict[str, object]:
+            return {
+                "_embedded": {
+                    "results": [
+                        {
+                            "uri": "occ:1",
+                            "title": f"{text}:{type_name}:{language}:{limit}",
+                        }
+                    ]
+                },
+                "total": 1,
+            }
+
+    def fail_live_api(**_kwargs):
+        raise esco_client.EscoClientError(
+            status_code=None,
+            endpoint="search",
+            message="ESCO service is currently unreachable.",
+        )
+
+    monkeypatch.setattr(esco_client, "_cached_get_json", fail_live_api)
+    monkeypatch.setattr(
+        esco_client.EscoClient,
+        "_load_offline_index",
+        lambda self, *, version, storage_path: _FallbackOfflineIndex(),
+    )
+    session_state: dict[str, object] = {
+        SSKey.ESCO_CONFIG.value: {
+            "base_url": "https://example.test/esco/",
+            "data_source_mode": "live_api",
+            "selected_version": "v1.2.0",
+            "index_version": "vtest",
+            "language": "de",
+            "view_obsolete": False,
+        },
+        SSKey.ESCO_NEGATIVE_CACHE.value: {},
+    }
+    client = esco_client.EscoClient(session_state=session_state)
+
+    payload = client.search(text="developer", type="occupation", limit=5)
+
+    assert payload["_embedded"]["results"][0]["uri"] == "occ:1"
+    assert session_state[SSKey.ESCO_LAST_DATA_SOURCE.value] == "offline_index"
+    metadata = session_state[SSKey.ESCO_LOOKUP_METADATA.value]
+    assert isinstance(metadata, dict)
+    assert metadata["attempted_source"] == "live_api"
+    assert metadata["attempted_sources"] == ["live_api", "offline_index"]
+    assert metadata["final_source"] == "offline_index"
+    assert metadata["fallback_reason"] == "live_api_unreachable"
+    assert metadata["endpoint"] == "search"
+    assert metadata["version"] == "vtest"
+
+
 def test_cached_get_json_retries_retryable_http_errors(monkeypatch) -> None:
     attempts = {"count": 0}
     sleeps: list[float] = []

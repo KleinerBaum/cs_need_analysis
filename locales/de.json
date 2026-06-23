@@ -10,6 +10,78 @@
     "placeholder_missing": "Bitte ergänzen",
     "placeholder_missing_optional": "Bitte ergänzen, falls vorhanden"
   },
+  "trust_grammar": {
+    "states": {
+      "detected": {
+        "label": "Erkannt",
+        "action": "prüfen"
+      },
+      "suggested": {
+        "label": "Vorschlag",
+        "action": "auswählen"
+      },
+      "confirmed": {
+        "label": "Bestätigt",
+        "action": "nutzen"
+      },
+      "assumed": {
+        "label": "Annahme",
+        "action": "prüfen"
+      },
+      "conflicted": {
+        "label": "Konflikt",
+        "action": "klären"
+      },
+      "missing": {
+        "label": "Fehlt",
+        "action": "ergänzen"
+      },
+      "fallback": {
+        "label": "Fallback",
+        "action": "prüfen"
+      },
+      "evidence": {
+        "label": "Beleg",
+        "action": "ansehen"
+      }
+    },
+    "hints": {
+      "detected": "Automatisch erkannt; bitte bei Bedarf prüfen.",
+      "suggested": "Vorschlag aus Kontext oder externer Quelle; erst nach Auswahl verbindlich.",
+      "confirmed": "Bestätigt und für die nächsten Schritte nutzbar.",
+      "assumed": "Annahme; vor Export prüfen.",
+      "conflicted": "Abweichende Quellen; bitte klären.",
+      "missing": "Noch nicht vorhanden.",
+      "fallback": "Live-Abfrage nicht belastbar; Offline-Index wurde genutzt.",
+      "evidence": "Beleg ist verfügbar."
+    },
+    "details_title": "Trust-Details",
+    "evidence_trigger": "Quelle & Beleg",
+    "no_details": "Keine weiteren Trust-Details verfügbar.",
+    "unknown": "unbekannt",
+    "metadata": {
+      "attempted_source": "Versuchte Quelle",
+      "final_source": "Genutzte Quelle",
+      "fallback_reason": "Fallback-Grund",
+      "endpoint": "ESCO-Endpunkt",
+      "version": "Version",
+      "data_source_mode": "Konfigurierter Modus"
+    },
+    "sources": {
+      "live_api": "Live-API",
+      "offline_index": "Offline-Index",
+      "hybrid": "Hybrid",
+      "esco": "ESCO",
+      "jobspec": "Jobspec",
+      "homepage": "Website",
+      "llm": "AI",
+      "manual": "Eingabe"
+    },
+    "esco_lookup_live_first_hint": "ESCO nutzt die Live-API zuerst; der Offline-Index dient als Fallback.",
+    "esco_lookup_fallback_hint": "Live-Abfrage fehlgeschlagen; Ergebnis stammt aus dem Offline-Index.",
+    "esco_lookup_offline_hint": "ESCO nutzt den Offline-Index gemäß Konfiguration.",
+    "esco_lookup_missing_hint": "Noch keine ESCO-Abfrage in dieser Sitzung."
+  },
   "iceberg": {
     "aria_label": "Eisberg-Modell für klassisches und KI-gestütztes Recruiting-Briefing",
     "surface_label": "oberhalb: sichtbar in Jobspec, Stellenanzeige und erstem Briefing",

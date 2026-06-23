@@ -7,6 +7,7 @@ import socket
 import time
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 from typing import Any, Mapping
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -14,15 +15,15 @@ from urllib.request import Request, urlopen
 
 import streamlit as st
 
-from pathlib import Path
-
 from constants import (
     ESCO_API_MODES,
     DEFAULT_ESCO_DATA_SOURCE_MODE,
     DEFAULT_ESCO_INDEX_STORAGE_PATH,
     DEFAULT_ESCO_RELEASE_LANE,
     DEFAULT_ESCO_SELECTED_VERSION,
+    ESCO_DATA_SOURCE_LIVE_API,
     ESCO_DATA_SOURCE_MODES,
+    ESCO_DATA_SOURCE_OFFLINE_INDEX,
     SSKey,
 )
 from esco_semantics import (
@@ -58,7 +59,14 @@ OCCUPATION_RELATION_OPTIONAL_KNOWLEDGE = "hasOptionalKnowledge"
 
 ENDPOINT_OCCUPATION_SKILL_GROUP_SHARE = "resource/occupationSkillsGroupShare"
 OFFLINE_INDEX_SUPPORTED_ENDPOINTS = frozenset(
-    {"search", "suggest2", "terms", "resource/occupation", "resource/skill", "resource/related"}
+    {
+        "search",
+        "suggest2",
+        "terms",
+        "resource/occupation",
+        "resource/skill",
+        "resource/related",
+    }
 )
 ESCO_RELATED_ENDPOINT_UNSUPPORTED_MESSAGE = (
     "Dieser ESCO-Endpunkt wird in der aktuell gewählten API-Variante "
@@ -80,6 +88,15 @@ class EscoApiCapabilities:
     unsupported_endpoints: frozenset[str]
     supports_occupation_knowledge_relations: bool
     supports_occupation_skill_group_share: bool
+
+
+@dataclass(frozen=True, slots=True)
+class EscoLookupPlan:
+    data_source_mode: str
+    endpoint: str
+    attempted_sources: tuple[str, ...]
+    offline_available: bool
+    fallback_enabled: bool
 
 
 _CAPABILITY_DEFAULT_RELATIONS: tuple[str, ...] = (
@@ -114,6 +131,44 @@ ESCO_CAPABILITIES_BY_API_MODE: dict[str, EscoApiCapabilities] = {
         supports_occupation_skill_group_share=False,
     ),
 }
+
+
+def resolve_esco_lookup_plan(
+    data_source_mode: object,
+    offline_available: bool,
+    endpoint: str,
+) -> EscoLookupPlan:
+    """Resolve deterministic lookup order for the configured ESCO data source mode."""
+
+    normalized_mode = (
+        str(data_source_mode or DEFAULT_ESCO_DATA_SOURCE_MODE).strip().lower()
+    )
+    if normalized_mode not in ESCO_DATA_SOURCE_MODES:
+        normalized_mode = DEFAULT_ESCO_DATA_SOURCE_MODE
+    resolved_endpoint = str(endpoint or "").strip().strip("/")
+    offline_usable = (
+        bool(offline_available)
+        and resolved_endpoint in OFFLINE_INDEX_SUPPORTED_ENDPOINTS
+    )
+    if normalized_mode == ESCO_DATA_SOURCE_OFFLINE_INDEX:
+        attempted_sources = (ESCO_DATA_SOURCE_OFFLINE_INDEX,)
+    elif offline_usable:
+        attempted_sources = (
+            ESCO_DATA_SOURCE_LIVE_API,
+            ESCO_DATA_SOURCE_OFFLINE_INDEX,
+        )
+    else:
+        attempted_sources = (ESCO_DATA_SOURCE_LIVE_API,)
+    return EscoLookupPlan(
+        data_source_mode=normalized_mode,
+        endpoint=resolved_endpoint,
+        attempted_sources=attempted_sources,
+        offline_available=offline_usable,
+        fallback_enabled=(
+            ESCO_DATA_SOURCE_LIVE_API in attempted_sources
+            and ESCO_DATA_SOURCE_OFFLINE_INDEX in attempted_sources
+        ),
+    )
 
 
 def is_retryable_server_status(status_code: int | None) -> bool:
@@ -568,36 +623,134 @@ class EscoClient:
             raise ValueError("conversion_endpoint must not be empty")
         return self._get(f"conversion/{clean_endpoint}", query)
 
-
-    def _load_offline_index(self, *, version: str, storage_path: str) -> OfflineEscoIndex | None:
+    def _load_offline_index(
+        self,
+        *,
+        version: str,
+        storage_path: str,
+    ) -> OfflineEscoIndex | None:
         return OfflineEscoIndex.load(Path(storage_path), version)
 
-    def _try_offline_get(self, endpoint: str, query: Mapping[str, object], config: Mapping[str, object]) -> dict[str, Any] | None:
+    def _offline_index_available(
+        self,
+        *,
+        endpoint: str,
+        config: Mapping[str, object],
+    ) -> bool:
+        if endpoint not in OFFLINE_INDEX_SUPPORTED_ENDPOINTS:
+            return False
+        return (
+            self._load_offline_index(
+                version=str(config.get("index_version") or ""),
+                storage_path=str(
+                    config.get("index_storage_path") or DEFAULT_ESCO_INDEX_STORAGE_PATH
+                ),
+            )
+            is not None
+        )
+
+    def _try_offline_get(
+        self,
+        endpoint: str,
+        query: Mapping[str, object],
+        config: Mapping[str, object],
+    ) -> dict[str, Any] | None:
         if endpoint not in OFFLINE_INDEX_SUPPORTED_ENDPOINTS:
             return None
         index = self._load_offline_index(
             version=str(config.get("index_version") or ""),
-            storage_path=str(config.get("index_storage_path") or DEFAULT_ESCO_INDEX_STORAGE_PATH),
+            storage_path=str(
+                config.get("index_storage_path") or DEFAULT_ESCO_INDEX_STORAGE_PATH
+            ),
         )
         if index is None:
             return None
         language = str(query.get("language") or config.get("language") or "de")
         if endpoint == "search":
-            payload = index.search(text=str(query.get("text") or ""), type_name=str(query.get("type") or "occupation"), language=language, limit=int(query.get("limit") or 20))
+            payload = index.search(
+                text=str(query.get("text") or ""),
+                type_name=str(query.get("type") or "occupation"),
+                language=language,
+                limit=int(query.get("limit") or 20),
+            )
         elif endpoint == "suggest2":
-            payload = index.suggest2(text=str(query.get("text") or ""), type_name=str(query.get("type") or "occupation"), language=language, limit=int(query.get("limit") or 20))
+            payload = index.suggest2(
+                text=str(query.get("text") or ""),
+                type_name=str(query.get("type") or "occupation"),
+                language=language,
+                limit=int(query.get("limit") or 20),
+            )
         elif endpoint == "terms":
-            payload = index.terms(uri=str(query.get("uri") or ""), type_name=str(query.get("type") or "occupation"), language=language)
+            payload = index.terms(
+                uri=str(query.get("uri") or ""),
+                type_name=str(query.get("type") or "occupation"),
+                language=language,
+            )
         elif endpoint == "resource/occupation":
-            payload = index.resource_occupation(uri=str(query.get("uri") or ""), language=language)
+            payload = index.resource_occupation(
+                uri=str(query.get("uri") or ""),
+                language=language,
+            )
         elif endpoint == "resource/skill":
-            payload = index.resource_skill(uri=str(query.get("uri") or ""), language=language)
+            payload = index.resource_skill(
+                uri=str(query.get("uri") or ""),
+                language=language,
+            )
         elif endpoint == "resource/related":
-            payload = index.resource_related(uri=str(query.get("uri") or ""), relation=str(query.get("relation") or ""), language=language)
+            payload = index.resource_related(
+                uri=str(query.get("uri") or ""),
+                relation=str(query.get("relation") or ""),
+                language=language,
+            )
         else:
             return None
-        self._session_state[SSKey.ESCO_LAST_DATA_SOURCE.value] = "offline_index"
+        self._session_state[SSKey.ESCO_LAST_DATA_SOURCE.value] = (
+            ESCO_DATA_SOURCE_OFFLINE_INDEX
+        )
         return payload
+
+    @staticmethod
+    def _fallback_reason_from_error(exc: EscoClientError) -> str:
+        if exc.from_negative_cache:
+            return "negative_cache"
+        if exc.status_code is None:
+            return "live_api_unreachable"
+        if is_retryable_server_status(exc.status_code):
+            return "live_api_temporary_error"
+        if 400 <= exc.status_code < 500:
+            return f"live_api_http_{exc.status_code}"
+        return "live_api_error"
+
+    @staticmethod
+    def _version_for_source(source: str, config: Mapping[str, object]) -> str:
+        if source == ESCO_DATA_SOURCE_OFFLINE_INDEX:
+            return str(config.get("index_version") or "").strip()
+        return str(config.get("selected_version") or "").strip()
+
+    def _record_lookup_metadata(
+        self,
+        *,
+        endpoint: str,
+        config: Mapping[str, object],
+        attempted_sources: tuple[str, ...],
+        attempted_source: str,
+        final_source: str,
+        fallback_reason: str = "",
+    ) -> None:
+        if final_source in {ESCO_DATA_SOURCE_LIVE_API, ESCO_DATA_SOURCE_OFFLINE_INDEX}:
+            self._session_state[SSKey.ESCO_LAST_DATA_SOURCE.value] = final_source
+        metadata = {
+            "attempted_source": attempted_source,
+            "attempted_sources": list(attempted_sources),
+            "final_source": final_source,
+            "fallback_reason": fallback_reason,
+            "endpoint": endpoint,
+            "version": self._version_for_source(final_source, config),
+            "data_source_mode": str(
+                config.get("data_source_mode") or DEFAULT_ESCO_DATA_SOURCE_MODE
+            ),
+        }
+        self._session_state[SSKey.ESCO_LOOKUP_METADATA.value] = metadata
 
     def _get(self, endpoint: str, query: Mapping[str, object]) -> dict[str, Any]:
         config = self._esco_config()
@@ -610,9 +763,20 @@ class EscoClient:
         selected_version = str(config["selected_version"])
         language = str(config["language"])
         view_obsolete = bool(config["view_obsolete"])
-        data_source_mode = str(config.get("data_source_mode") or DEFAULT_ESCO_DATA_SOURCE_MODE)
+        data_source_mode = str(
+            config.get("data_source_mode") or DEFAULT_ESCO_DATA_SOURCE_MODE
+        )
         if data_source_mode not in ESCO_DATA_SOURCE_MODES:
             data_source_mode = DEFAULT_ESCO_DATA_SOURCE_MODE
+        offline_available = self._offline_index_available(
+            endpoint=resolved_endpoint,
+            config=config,
+        )
+        lookup_plan = resolve_esco_lookup_plan(
+            data_source_mode=data_source_mode,
+            offline_available=offline_available,
+            endpoint=resolved_endpoint,
+        )
 
         signature = self._build_request_signature(
             base_url=base_url,
@@ -621,8 +785,16 @@ class EscoClient:
             language=language,
             query=injected_query,
         )
-        if data_source_mode == "offline_index":
+        if data_source_mode == ESCO_DATA_SOURCE_OFFLINE_INDEX:
             if resolved_endpoint not in OFFLINE_INDEX_SUPPORTED_ENDPOINTS:
+                self._record_lookup_metadata(
+                    endpoint=resolved_endpoint,
+                    config=config,
+                    attempted_sources=lookup_plan.attempted_sources,
+                    attempted_source=ESCO_DATA_SOURCE_OFFLINE_INDEX,
+                    final_source="",
+                    fallback_reason="offline_index_unsupported_endpoint",
+                )
                 LOGGER.warning(
                     "event=%s provider=esco endpoint=%s mode=offline_index reason=unsupported_offline_endpoint",
                     EXTERNAL_PROVIDER_REQUEST_ERROR_EVENT,
@@ -635,9 +807,29 @@ class EscoClient:
                         "The requested ESCO endpoint is not available in offline_index mode."
                     ),
                 )
-            offline_payload = self._try_offline_get(resolved_endpoint, injected_query, config)
+            offline_payload = self._try_offline_get(
+                resolved_endpoint,
+                injected_query,
+                config,
+            )
             if offline_payload is not None:
+                self._record_lookup_metadata(
+                    endpoint=resolved_endpoint,
+                    config=config,
+                    attempted_sources=lookup_plan.attempted_sources,
+                    attempted_source=ESCO_DATA_SOURCE_OFFLINE_INDEX,
+                    final_source=ESCO_DATA_SOURCE_OFFLINE_INDEX,
+                    fallback_reason="",
+                )
                 return offline_payload
+            self._record_lookup_metadata(
+                endpoint=resolved_endpoint,
+                config=config,
+                attempted_sources=lookup_plan.attempted_sources,
+                attempted_source=ESCO_DATA_SOURCE_OFFLINE_INDEX,
+                final_source="",
+                fallback_reason="offline_index_unavailable",
+            )
             LOGGER.warning(
                 "event=%s provider=esco endpoint=%s mode=offline_index reason=index_unavailable",
                 EXTERNAL_PROVIDER_ERROR_EVENT,
@@ -651,31 +843,11 @@ class EscoClient:
                 ),
             )
 
-        self._raise_if_negative_cached(
-            signature=signature,
-            endpoint=resolved_endpoint,
-        )
-
-        if data_source_mode == "hybrid":
-            try:
-                payload = _cached_get_json(
-                    base_url=base_url,
-                    endpoint=resolved_endpoint,
-                    query_items=query_items,
-                    cache_selected_version=selected_version,
-                    cache_language=language,
-                    cache_view_obsolete=view_obsolete,
-                    timeout_seconds=self._timeout_seconds,
-                )
-                self._session_state[SSKey.ESCO_LAST_DATA_SOURCE.value] = "live_api"
-                return payload
-            except EscoClientError:
-                offline_payload = self._try_offline_get(resolved_endpoint, injected_query, config)
-                if offline_payload is not None:
-                    return offline_payload
-                raise
-
         try:
+            self._raise_if_negative_cached(
+                signature=signature,
+                endpoint=resolved_endpoint,
+            )
             payload = _cached_get_json(
                 base_url=base_url,
                 endpoint=resolved_endpoint,
@@ -685,16 +857,56 @@ class EscoClient:
                 cache_view_obsolete=view_obsolete,
                 timeout_seconds=self._timeout_seconds,
             )
-            self._session_state[SSKey.ESCO_LAST_DATA_SOURCE.value] = "live_api"
+            self._record_lookup_metadata(
+                endpoint=resolved_endpoint,
+                config=config,
+                attempted_sources=lookup_plan.attempted_sources,
+                attempted_source=ESCO_DATA_SOURCE_LIVE_API,
+                final_source=ESCO_DATA_SOURCE_LIVE_API,
+                fallback_reason="",
+            )
             return payload
         except EscoClientError as exc:
-            if exc.status_code is not None and 400 <= exc.status_code < 500:
+            if (
+                not exc.from_negative_cache
+                and exc.status_code is not None
+                and 400 <= exc.status_code < 500
+            ):
                 self._store_negative_cache(
                     signature=signature,
                     endpoint=resolved_endpoint,
                     status_code=exc.status_code,
                     message=exc.message,
                 )
+            fallback_reason = self._fallback_reason_from_error(exc)
+            if lookup_plan.fallback_enabled:
+                offline_payload = self._try_offline_get(
+                    resolved_endpoint,
+                    injected_query,
+                    config,
+                )
+                if offline_payload is not None:
+                    self._record_lookup_metadata(
+                        endpoint=resolved_endpoint,
+                        config=config,
+                        attempted_sources=lookup_plan.attempted_sources,
+                        attempted_source=ESCO_DATA_SOURCE_LIVE_API,
+                        final_source=ESCO_DATA_SOURCE_OFFLINE_INDEX,
+                        fallback_reason=fallback_reason,
+                    )
+                    return offline_payload
+            self._record_lookup_metadata(
+                endpoint=resolved_endpoint,
+                config=config,
+                attempted_sources=lookup_plan.attempted_sources,
+                attempted_source=ESCO_DATA_SOURCE_LIVE_API,
+                final_source="",
+                fallback_reason=(
+                    fallback_reason
+                    if not lookup_plan.offline_available
+                    else f"{fallback_reason}_offline_index_unavailable"
+                ),
+            )
             raise
 
     def _esco_config(self) -> dict[str, object]:

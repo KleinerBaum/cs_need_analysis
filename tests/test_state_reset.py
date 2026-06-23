@@ -99,6 +99,7 @@ RESET_EXPECTATIONS: dict[SSKey, object] = {
     SSKey.ESCO_MATCH_CONFIDENCE: None,
     SSKey.ESCO_MATCH_PROVENANCE: [],
     SSKey.ESCO_RELEASE_LANE: "stable",
+    SSKey.ESCO_LOOKUP_METADATA: {},
     SSKey.ESCO_ANCHOR_STATE: "degraded_unconfirmed",
     SSKey.ESCO_PRIMARY_ANCHOR: None,
     SSKey.ESCO_SECONDARY_ANCHORS: [],

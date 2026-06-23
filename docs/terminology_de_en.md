@@ -94,6 +94,14 @@ This glossary maps product terminology between German UI copy and English techni
 | status | Pflicht vor Summary | Required before Summary | canonical | `_constants/facts.py` | Requirement stage display label. |
 | status | Pflicht vor Recruiting-Unterlage | Required before recruiting output | canonical | `_constants/facts.py` | Requirement stage display label. |
 | status | Optional | Optional | canonical | `_constants/facts.py` | Requirement stage display label. |
+| trust | Erkannt | Detected | canonical | `ux_copy_contract.TRUST_GRAMMAR_COPY / locales.trust_grammar` | Value was detected from a source and should be reviewed. |
+| trust | Vorschlag | Suggested | canonical | `ux_copy_contract.TRUST_GRAMMAR_COPY / locales.trust_grammar` | Value comes from context, ESCO, AI, or enrichment and is not binding until selected. |
+| trust | Bestätigt | Confirmed | canonical | `ux_copy_contract.TRUST_GRAMMAR_COPY / locales.trust_grammar` | Value is confirmed and usable downstream. |
+| trust | Annahme | Assumed | canonical | `ux_copy_contract.TRUST_GRAMMAR_COPY / locales.trust_grammar` | Value is an assumption and must be reviewed before export. |
+| trust | Konflikt | Conflict | canonical | `ux_copy_contract.TRUST_GRAMMAR_COPY / locales.trust_grammar` | Sources disagree and the value needs resolution. |
+| trust | Fehlt | Missing | canonical | `ux_copy_contract.TRUST_GRAMMAR_COPY / locales.trust_grammar` | Required or useful value is not available yet. |
+| trust | Fallback | Fallback | canonical | `ux_copy_contract.TRUST_GRAMMAR_COPY / locales.trust_grammar` | Live lookup failed or was suppressed and an offline fallback source was used. |
+| trust | Beleg | Evidence | canonical | `ux_copy_contract.TRUST_GRAMMAR_COPY / locales.trust_grammar` | Redacted supporting evidence is available. |
 | salary | Gehaltsprognose | salary forecast | canonical | `constants.STEP_SECTION_LABELS_DE / i18n.py` | Use for salary prediction block. |
 | salary | Salary-Treiber | salary driver | canonical | `_constants/facts.py` | Direct p50 salary impact. |
 | salary | Qualität/Unsicherheit | quality/uncertainty | canonical | `_constants/facts.py` | Indirect salary-quality impact. |

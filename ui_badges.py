@@ -163,6 +163,7 @@ def _provenance_badge_tone(
                 "conflict",
                 "fehlt",
                 "missing",
+                "fallback",
                 "ergänzen",
                 "resolve",
                 "klären",

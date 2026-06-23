@@ -18,8 +18,8 @@ This document is an inventory of the current translation surface. It does not in
 
 | Source | Count | Contract |
 |---|---:|---|
-| `locales/de.json` leaf keys | 300 | German source Locale values, including retained `ux_copy` parity keys |
-| `locales/en.json` leaf keys | 300 | English Locale values; key shape must match DE |
+| `locales/de.json` leaf keys | 344 | German source Locale values, including retained `ux_copy` parity keys |
+| `locales/en.json` leaf keys | 344 | English Locale values; key shape must match DE |
 | `_TRANSLATIONS_EN` | 263 | German-source copy translated by `t()` |
 | `_PHRASE_TRANSLATIONS_EN` | 64 | fallback phrase replacements inside `t()` |
 | High-confidence unkeyed UI-copy candidates | 729 | explicit migration backlog and allowlist baseline for the changed-line raw UI guard |
@@ -30,6 +30,52 @@ All Locale leaf keys below exist in both `locales/de.json` and `locales/en.json`
 
 | Category | Key | Params | DE | EN |
 |---|---|---|---|---|
+| trust_grammar | `trust_grammar.states.detected.label` | - | Erkannt | Detected |
+| trust_grammar | `trust_grammar.states.detected.action` | - | prüfen | review |
+| trust_grammar | `trust_grammar.states.suggested.label` | - | Vorschlag | Suggested |
+| trust_grammar | `trust_grammar.states.suggested.action` | - | auswählen | select |
+| trust_grammar | `trust_grammar.states.confirmed.label` | - | Bestätigt | Confirmed |
+| trust_grammar | `trust_grammar.states.confirmed.action` | - | nutzen | use |
+| trust_grammar | `trust_grammar.states.assumed.label` | - | Annahme | Assumed |
+| trust_grammar | `trust_grammar.states.assumed.action` | - | prüfen | review |
+| trust_grammar | `trust_grammar.states.conflicted.label` | - | Konflikt | Conflict |
+| trust_grammar | `trust_grammar.states.conflicted.action` | - | klären | resolve |
+| trust_grammar | `trust_grammar.states.missing.label` | - | Fehlt | Missing |
+| trust_grammar | `trust_grammar.states.missing.action` | - | ergänzen | add |
+| trust_grammar | `trust_grammar.states.fallback.label` | - | Fallback | Fallback |
+| trust_grammar | `trust_grammar.states.fallback.action` | - | prüfen | review |
+| trust_grammar | `trust_grammar.states.evidence.label` | - | Beleg | Evidence |
+| trust_grammar | `trust_grammar.states.evidence.action` | - | ansehen | view |
+| trust_grammar | `trust_grammar.hints.detected` | - | Automatisch erkannt; bitte bei Bedarf prüfen. | Detected automatically; review if needed. |
+| trust_grammar | `trust_grammar.hints.suggested` | - | Vorschlag aus Kontext oder externer Quelle; erst nach Auswahl verbindlich. | Suggested from context or an external source; binding only after selection. |
+| trust_grammar | `trust_grammar.hints.confirmed` | - | Bestätigt und für die nächsten Schritte nutzbar. | Confirmed and usable for next steps. |
+| trust_grammar | `trust_grammar.hints.assumed` | - | Annahme; vor Export prüfen. | Assumption; review before export. |
+| trust_grammar | `trust_grammar.hints.conflicted` | - | Abweichende Quellen; bitte klären. | Sources differ; resolve before relying on it. |
+| trust_grammar | `trust_grammar.hints.missing` | - | Noch nicht vorhanden. | Not available yet. |
+| trust_grammar | `trust_grammar.hints.fallback` | - | Live-Abfrage nicht belastbar; Offline-Index wurde genutzt. | Live lookup was not reliable; the offline index was used. |
+| trust_grammar | `trust_grammar.hints.evidence` | - | Beleg ist verfügbar. | Evidence is available. |
+| trust_grammar | `trust_grammar.details_title` | - | Trust-Details | Trust details |
+| trust_grammar | `trust_grammar.evidence_trigger` | - | Quelle & Beleg | Source & evidence |
+| trust_grammar | `trust_grammar.no_details` | - | Keine weiteren Trust-Details verfügbar. | No further trust details available. |
+| trust_grammar | `trust_grammar.unknown` | - | unbekannt | unknown |
+| trust_grammar | `trust_grammar.metadata.attempted_source` | - | Versuchte Quelle | Attempted source |
+| trust_grammar | `trust_grammar.metadata.final_source` | - | Genutzte Quelle | Used source |
+| trust_grammar | `trust_grammar.metadata.fallback_reason` | - | Fallback-Grund | Fallback reason |
+| trust_grammar | `trust_grammar.metadata.endpoint` | - | ESCO-Endpunkt | ESCO endpoint |
+| trust_grammar | `trust_grammar.metadata.version` | - | Version | Version |
+| trust_grammar | `trust_grammar.metadata.data_source_mode` | - | Konfigurierter Modus | Configured mode |
+| trust_grammar | `trust_grammar.sources.live_api` | - | Live-API | Live API |
+| trust_grammar | `trust_grammar.sources.offline_index` | - | Offline-Index | Offline index |
+| trust_grammar | `trust_grammar.sources.hybrid` | - | Hybrid | Hybrid |
+| trust_grammar | `trust_grammar.sources.esco` | - | ESCO | ESCO |
+| trust_grammar | `trust_grammar.sources.jobspec` | - | Jobspec | Jobspec |
+| trust_grammar | `trust_grammar.sources.homepage` | - | Website | Website |
+| trust_grammar | `trust_grammar.sources.llm` | - | AI | AI |
+| trust_grammar | `trust_grammar.sources.manual` | - | Eingabe | Input |
+| trust_grammar | `trust_grammar.esco_lookup_live_first_hint` | - | ESCO nutzt die Live-API zuerst; der Offline-Index dient als Fallback. | ESCO uses the live API first; the offline index is available as fallback. |
+| trust_grammar | `trust_grammar.esco_lookup_fallback_hint` | - | Live-Abfrage fehlgeschlagen; Ergebnis stammt aus dem Offline-Index. | Live lookup failed; the result comes from the offline index. |
+| trust_grammar | `trust_grammar.esco_lookup_offline_hint` | - | ESCO nutzt den Offline-Index gemäß Konfiguration. | ESCO uses the offline index according to configuration. |
+| trust_grammar | `trust_grammar.esco_lookup_missing_hint` | - | Noch keine ESCO-Abfrage in dieser Sitzung. | No ESCO lookup has run in this session yet. |
 | ux_copy | `ux_copy.steps.landing.headline` | - | Vom Rollenbedarf zum Recruiting-Briefing. | Turn role need into a recruiting brief. |
 | ux_copy | `ux_copy.steps.landing.subheadline` | - | Für Recruiting, HR und Hiring Teams, die vor Search, Matching, Interview und Angebot eine gemeinsame Entscheidungsbasis brauchen. Laden Sie eine Jobspec hoch oder fügen Sie Rohtext ein; die App zeigt zuerst, was belastbar ist und welche Lücken den Prozess bremsen. | For recruiting, HR, and hiring teams that need a shared decision basis before search, matching, interviews, and offers. Upload a jobspec or paste raw text; the app first shows what is reliable and which gaps slow the process down. |
 | ux_copy | `ux_copy.steps.landing.value_line` | - | Ergebnis: ein Briefing-Cockpit mit Rollenprofil, Prioritäten, offenen Fragen, ESCO-Anker und vorbereiteten Recruiting-Outputs. | Result: a recruiting brief cockpit with a role profile, priorities, open questions, ESCO anchor, and prepared recruiting outputs. |

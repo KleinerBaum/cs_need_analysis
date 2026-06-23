@@ -10,6 +10,78 @@
     "placeholder_missing": "Please add",
     "placeholder_missing_optional": "Please add if applicable"
   },
+  "trust_grammar": {
+    "states": {
+      "detected": {
+        "label": "Detected",
+        "action": "review"
+      },
+      "suggested": {
+        "label": "Suggested",
+        "action": "select"
+      },
+      "confirmed": {
+        "label": "Confirmed",
+        "action": "use"
+      },
+      "assumed": {
+        "label": "Assumed",
+        "action": "review"
+      },
+      "conflicted": {
+        "label": "Conflict",
+        "action": "resolve"
+      },
+      "missing": {
+        "label": "Missing",
+        "action": "add"
+      },
+      "fallback": {
+        "label": "Fallback",
+        "action": "review"
+      },
+      "evidence": {
+        "label": "Evidence",
+        "action": "view"
+      }
+    },
+    "hints": {
+      "detected": "Detected automatically; review if needed.",
+      "suggested": "Suggested from context or an external source; binding only after selection.",
+      "confirmed": "Confirmed and usable for next steps.",
+      "assumed": "Assumption; review before export.",
+      "conflicted": "Sources differ; resolve before relying on it.",
+      "missing": "Not available yet.",
+      "fallback": "Live lookup was not reliable; the offline index was used.",
+      "evidence": "Evidence is available."
+    },
+    "details_title": "Trust details",
+    "evidence_trigger": "Source & evidence",
+    "no_details": "No further trust details available.",
+    "unknown": "unknown",
+    "metadata": {
+      "attempted_source": "Attempted source",
+      "final_source": "Used source",
+      "fallback_reason": "Fallback reason",
+      "endpoint": "ESCO endpoint",
+      "version": "Version",
+      "data_source_mode": "Configured mode"
+    },
+    "sources": {
+      "live_api": "Live API",
+      "offline_index": "Offline index",
+      "hybrid": "Hybrid",
+      "esco": "ESCO",
+      "jobspec": "Jobspec",
+      "homepage": "Website",
+      "llm": "AI",
+      "manual": "Input"
+    },
+    "esco_lookup_live_first_hint": "ESCO uses the live API first; the offline index is available as fallback.",
+    "esco_lookup_fallback_hint": "Live lookup failed; the result comes from the offline index.",
+    "esco_lookup_offline_hint": "ESCO uses the offline index according to configuration.",
+    "esco_lookup_missing_hint": "No ESCO lookup has run in this session yet."
+  },
   "iceberg": {
     "aria_label": "Iceberg model for classic and AI-supported recruiting briefs",
     "surface_label": "above: visible in jobspec, job ad, and first briefing",

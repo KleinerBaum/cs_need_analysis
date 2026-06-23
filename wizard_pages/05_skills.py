@@ -98,6 +98,7 @@ from wizard_pages.skills_selection_board import (
     llm_skill_label as _llm_skill_label_impl,
     status_from_candidate as _status_from_candidate_impl,
 )
+from wizard_pages.trust_grammar import render_esco_lookup_trust_indicator
 
 _SKILL_STATUS_LABELS = {
     "must": "Must-have",
@@ -603,6 +604,11 @@ def _render_skills_step_framing(
     else:
         st.caption(framing_text)
     st.caption(esco_status)
+    if show_esco_sections:
+        render_esco_lookup_trust_indicator(
+            ui_mode=get_current_ui_mode(),
+            streamlit_module=st,
+        )
 
 
 def _selected_skill_groups(
