@@ -151,9 +151,12 @@ def test_live_artifact_preview_payload_uses_current_inputs_without_contact_detai
     assert any(
         "SQL" in bullet for bullet in payload["fragments"]["boolean_search"]["bullets"]
     )
-    interview_bullets = "\n".join(payload["fragments"]["interview_guide"]["bullets"])
+    interview_bullets = "\n".join(payload["fragments"]["interview_hr"]["bullets"])
+    fach_bullets = "\n".join(payload["fragments"]["interview_fach"]["bullets"])
     assert "Technical interview" in interview_bullets
+    assert "Technical interview" in fach_bullets
     assert "person@example.com" not in interview_bullets
+    assert "person@example.com" not in fach_bullets
 
 
 def test_live_artifact_preview_payload_uses_role_outcome_facts() -> None:
@@ -182,18 +185,21 @@ def test_live_artifact_preview_payload_uses_role_outcome_facts() -> None:
     brief_bullets = "\n".join(payload["fragments"]["brief"]["bullets"])
     job_ad_bullets = "\n".join(payload["fragments"]["job_ad"]["bullets"])
     search_bullets = "\n".join(payload["fragments"]["boolean_search"]["bullets"])
-    interview_bullets = "\n".join(payload["fragments"]["interview_guide"]["bullets"])
+    interview_bullets = "\n".join(payload["fragments"]["interview_hr"]["bullets"])
+    fach_bullets = "\n".join(payload["fragments"]["interview_fach"]["bullets"])
 
     assert "Reduce release cycle time" in brief_bullets
     assert "Release dashboard" in job_ad_bullets
     assert "Nicht verhandelbar: Berlin" in search_bullets
     assert "Dashboard live with weekly adoption review" in interview_bullets
+    assert "Dashboard live with weekly adoption review" in fach_bullets
     assert payload["context"]["output_count"] == 1
     assert set(payload["fragments"]) == {
         "brief",
         "job_ad",
         "boolean_search",
-        "interview_guide",
+        "interview_hr",
+        "interview_fach",
     }
 
 

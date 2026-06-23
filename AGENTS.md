@@ -155,18 +155,25 @@ Downstream behavior must respect anchor state. URI-based exports, ESCO skill nor
 
 ### Summary artifact modes
 
-Canonical artifact IDs are in `constants.SUMMARY_ARTIFACT_IDS` and labels/aliases are in `summary_artifacts.py`.
+Active Summary artifact IDs are in `constants.SUMMARY_ACTIVE_ARTIFACT_IDS`.
+Known legacy/current IDs remain in `constants.SUMMARY_ARTIFACT_IDS` for draft
+loading and compatibility; labels/aliases are in `summary_artifacts.py`.
 
-Current canonical IDs:
+Current active IDs:
 
 - `brief`
 - `job_ad`
 - `interview_hr`
 - `interview_fach`
 - `boolean_search`
-- `employment_contract`
 
 When adding or renaming artifacts, update constants, aliases, state initialization/reset, `wizard_pages/08_summary.py`, export functions, tests under `tests/test_summary_*`, and README export documentation in one change.
+
+Archived legacy ID:
+
+- `employment_contract` — hidden from active Summary UI, release gates,
+  previews, result switchers, and exports; preserved only for old draft state
+  loading until its generator/schema/state keys can be removed safely.
 
 ## OpenAI configuration contract
 

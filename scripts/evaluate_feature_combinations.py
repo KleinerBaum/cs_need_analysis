@@ -22,7 +22,7 @@ from constants import (  # noqa: E402
     ESCO_ANCHOR_STATE_ANCHORED,
     ESCO_ANCHOR_STATE_DEGRADED,
     ESCO_DATA_SOURCE_MODES,
-    SUMMARY_ARTIFACT_IDS,
+    SUMMARY_ACTIVE_ARTIFACT_IDS,
     UI_MODE_VALUES,
 )
 
@@ -157,7 +157,7 @@ COMBINATIONS: tuple[FeatureCombination, ...] = (
         esco_matrix_enabled=False,
         salary_forecast_enabled=True,
         homepage_enrichment_enabled=True,
-        artifacts_enabled=SUMMARY_ARTIFACT_IDS,
+        artifacts_enabled=SUMMARY_ACTIVE_ARTIFACT_IDS,
     ),
     FeatureCombination(
         id="quality",
@@ -170,7 +170,7 @@ COMBINATIONS: tuple[FeatureCombination, ...] = (
         esco_matrix_enabled=True,
         salary_forecast_enabled=True,
         homepage_enrichment_enabled=True,
-        artifacts_enabled=SUMMARY_ARTIFACT_IDS,
+        artifacts_enabled=SUMMARY_ACTIVE_ARTIFACT_IDS,
     ),
     FeatureCombination(
         id="fast",
@@ -220,7 +220,7 @@ def validate_matrix() -> None:
         artifact_id
         for combo in COMBINATIONS
         for artifact_id in combo.artifacts_enabled
-        if artifact_id not in SUMMARY_ARTIFACT_IDS
+        if artifact_id not in SUMMARY_ACTIVE_ARTIFACT_IDS
     }
     if invalid_artifacts:
         raise ValueError(f"Invalid artifact IDs: {sorted(invalid_artifacts)}")
@@ -230,8 +230,12 @@ def score_scenario(
     scenario: VacancyScenario, combination: FeatureCombination
 ) -> ScenarioScore:
     anchored = combination.esco_anchor_state == ESCO_ANCHOR_STATE_ANCHORED
-    full_artifacts = set(combination.artifacts_enabled) == set(SUMMARY_ARTIFACT_IDS)
-    artifact_depth = len(combination.artifacts_enabled) / len(SUMMARY_ARTIFACT_IDS)
+    full_artifacts = set(combination.artifacts_enabled) == set(
+        SUMMARY_ACTIVE_ARTIFACT_IDS
+    )
+    artifact_depth = len(combination.artifacts_enabled) / len(
+        SUMMARY_ACTIVE_ARTIFACT_IDS
+    )
 
     fact_quality = 2.2 + scenario.structured_input_quality * 0.35
     if anchored:

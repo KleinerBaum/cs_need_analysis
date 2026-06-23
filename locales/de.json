@@ -189,10 +189,6 @@
             "title": "Suchstrings",
             "body": "Ableitungen für LinkedIn, Xing oder Google, damit Suchstrategien präziser und reproduzierbarer werden."
           },
-          "contract": {
-            "title": "Contract Draft",
-            "body": "Vorlagennahe Vertragsentwürfe auf Basis derselben strukturierten Rolle."
-          },
           "exports": {
             "title": "Exports",
             "body": "Je nach Unterlage als JSON, Markdown, DOCX, PDF oder Mapping-Report weiterverwendbar."

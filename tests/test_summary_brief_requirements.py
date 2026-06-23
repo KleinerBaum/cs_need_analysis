@@ -75,7 +75,6 @@ def _registry() -> list[dict[str, Any]]:
         resolved_hr_sheet_model="gpt-5-nano",
         resolved_fach_sheet_model="gpt-5",
         resolved_boolean_search_model="gpt-5-mini",
-        resolved_employment_contract_model="o3-mini",
         follow_up_requirement_check=lambda: SUMMARY_MODULE._get_brief_requirement_status(
             "gpt-5-mini"
         ),
@@ -84,7 +83,6 @@ def _registry() -> list[dict[str, Any]]:
         generate_interview_prep_hr=lambda: None,
         generate_interview_prep_fach=lambda: None,
         generate_boolean_search=lambda: None,
-        generate_employment_contract=lambda: None,
     )
 
 

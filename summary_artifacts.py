@@ -17,7 +17,6 @@ ARTIFACT_DISPLAY_LABELS: dict[str, str] = {
     "interview_hr": "HR-Sheet",
     "interview_fach": "Fachbereich-Sheet",
     "boolean_search": "Suchstrings",
-    "employment_contract": "Arbeitsvertrag",
     "brief": "Recruiting Brief",
 }
 

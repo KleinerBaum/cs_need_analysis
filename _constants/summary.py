@@ -15,6 +15,13 @@ SUMMARY_ARTIFACT_IDS: Final[tuple[str, ...]] = (
     "boolean_search",
     "employment_contract",
 )
+SUMMARY_ACTIVE_ARTIFACT_IDS: Final[tuple[str, ...]] = (
+    "brief",
+    "job_ad",
+    "interview_hr",
+    "interview_fach",
+    "boolean_search",
+)
 SUMMARY_ARTIFACT_LEGACY_ALIASES: Final[dict[str, str]] = {
     "recruiting_brief": "brief",
     "job_ad_generator": "job_ad",

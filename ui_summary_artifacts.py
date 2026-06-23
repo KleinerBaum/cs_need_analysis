@@ -11,7 +11,6 @@ import streamlit as st
 
 from schemas import (
     BooleanSearchPack,
-    EmploymentContractDraft,
     InterviewPrepSheetHiringManager,
     InterviewPrepSheetHR,
     VacancyBrief,
@@ -125,7 +124,13 @@ def render_live_artifact_previews(
 
     fragments_raw = preview_payload.get("fragments")
     fragments = fragments_raw if isinstance(fragments_raw, Mapping) else {}
-    ordered_ids = ("brief", "job_ad", "boolean_search", "interview_guide")
+    ordered_ids = (
+        "brief",
+        "job_ad",
+        "interview_hr",
+        "interview_fach",
+        "boolean_search",
+    )
     cols = st_module.columns(2, gap="large")
     for index, fragment_id in enumerate(ordered_ids):
         fragment = _preview_fragment_payload(fragments.get(fragment_id))
@@ -514,92 +519,3 @@ def render_boolean_search_pack(pack: BooleanSearchPack) -> None:
                     channel_queries.focused,
                     key_prefix=f"{channel_name.lower()}.focused",
                 )
-
-
-def render_employment_contract_draft(draft: EmploymentContractDraft) -> None:
-    st.info(
-        "Vorlagenentwurf zur Prüfung. Kein finaler Vertrag und keine Rechtsberatung."
-    )
-    st.markdown(
-        f"**Rechtsraum:** {draft.jurisdiction} · "
-        f"**Rolle:** {draft.role_title} · "
-        f"**Beschäftigungsart:** {draft.employment_type} · "
-        f"**Vertragsart:** {draft.contract_type}"
-    )
-
-    details = [
-        ("Startdatum", draft.start_date),
-        (
-            "Probezeit (Monate)",
-            (
-                str(draft.probation_period_months)
-                if draft.probation_period_months is not None
-                else None
-            ),
-        ),
-        (
-            "Gehalt",
-            (
-                f"{draft.salary.min if draft.salary.min is not None else '—'} - "
-                f"{draft.salary.max if draft.salary.max is not None else '—'} "
-                f"{draft.salary.currency or ''} / {draft.salary.period or ''}".strip()
-            ),
-        ),
-        ("Gehaltshinweise", draft.salary.notes),
-        (
-            "Stunden / Woche",
-            (
-                str(draft.working_hours_per_week)
-                if draft.working_hours_per_week is not None
-                else None
-            ),
-        ),
-        (
-            "Urlaubstage / Jahr",
-            (
-                str(draft.vacation_days_per_year)
-                if draft.vacation_days_per_year is not None
-                else None
-            ),
-        ),
-        ("Arbeitsort", draft.place_of_work),
-        ("Kündigungsfrist", draft.notice_period),
-    ]
-    meta_col_left, meta_col_right = st.columns(2)
-    for index, (label, value) in enumerate(details):
-        col = meta_col_left if index % 2 == 0 else meta_col_right
-        with col:
-            st.markdown(f"**{label}**")
-            st.write(value or "—")
-
-    st.markdown("**Fehlende Angaben (Pflicht-Checkliste vor Finalisierung)**")
-    if draft.missing_inputs:
-        st.warning(
-            "Folgende Angaben fehlen noch. Bitte vor rechtlicher Finalisierung ergänzen."
-        )
-        for missing_input in draft.missing_inputs:
-            st.write(f"- [ ] {missing_input}")
-    else:
-        st.success("Keine fehlenden Angaben markiert.")
-
-    st.markdown("**Klauseln**")
-    if draft.clauses:
-        for clause in draft.clauses:
-            required_tag = "Pflicht" if clause.required else "Optional"
-            st.markdown(f"**{clause.title}** · `{required_tag}`")
-            st.write(clause.clause_text)
-            if clause.legal_note:
-                st.caption(f"Rechtlicher Hinweis: {clause.legal_note}")
-    else:
-        st.info("Keine Klauseln vorhanden.")
-
-    st.markdown("**Unterschriftsanforderungen**")
-    signature_requirements = list(draft.signature_requirements)
-    legal_review_note = "Rechtliche Prüfung erforderlich"
-    if all(
-        legal_review_note.lower() not in requirement.lower()
-        for requirement in signature_requirements
-    ):
-        signature_requirements.append(legal_review_note)
-    for requirement in signature_requirements:
-        st.write(f"- {requirement}")

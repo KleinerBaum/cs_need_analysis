@@ -54,7 +54,6 @@ from homepage_research import (
 from esco_client import EscoClient, EscoClientError
 from esco_semantics import normalize_anchor_ref, sync_esco_semantic_state
 from llm_client import (
-    TASK_GENERATE_EMPLOYMENT_CONTRACT,
     JobAdGenerationResult,
     OpenAICallError,
     TASK_GENERATE_BOOLEAN_SEARCH,
@@ -64,7 +63,6 @@ from llm_client import (
     TASK_GENERATE_VACANCY_BRIEF,
     generate_boolean_search_pack,
     generate_custom_job_ad,
-    generate_employment_contract_draft,
     generate_interview_sheet_hm,
     generate_interview_sheet_hr,
     generate_vacancy_brief,
@@ -77,7 +75,6 @@ from schemas import (
     EscoMappingReport,
     EscoSemanticContext,
     EscoUnresolvedTermDecision,
-    EmploymentContractDraft,
     InterviewPrepSheetHiringManager,
     InterviewPrepSheetHR,
     JobAdExtract,
@@ -161,7 +158,6 @@ from ui_components import (
     render_boolean_supporting_terms,
     render_boolean_usage_notes,
     render_brief,
-    render_employment_contract_draft,
     render_error_banner,
     render_interview_prep_fach,
     render_interview_prep_hr,
@@ -540,7 +536,9 @@ def _build_offer_positioning_payload(
         "artifact_impact": [
             "job_ad",
             "brief",
-            "employment_contract",
+            "interview_hr",
+            "interview_fach",
+            "boolean_search",
             "salary_forecast",
         ],
     }
@@ -1300,68 +1298,6 @@ def _interview_prep_fach_to_pdf_bytes(
     _bullets(sheet.debrief_questions)
 
     document.build(story)
-    return bio.getvalue()
-
-
-def _employment_contract_to_docx_bytes(draft: EmploymentContractDraft) -> bytes:
-    d = docx.Document()
-    d.add_heading("Arbeitsvertrag (Template Draft)", level=1)
-    d.add_paragraph(
-        "Hinweis: Diese Vorlage ist kein finaler Vertrag und keine Rechtsberatung."
-    )
-    d.add_paragraph(f"Jurisdiction: {draft.jurisdiction}")
-    d.add_paragraph(f"Rolle: {draft.role_title}")
-    d.add_paragraph(f"Employment Type: {draft.employment_type}")
-    d.add_paragraph(f"Contract Type: {draft.contract_type}")
-    d.add_paragraph(f"Start Date: {draft.start_date or '—'}")
-    d.add_paragraph(
-        "Probation (Monate): "
-        + (str(draft.probation_period_months) if draft.probation_period_months else "—")
-    )
-    salary = draft.salary
-    d.add_paragraph(
-        "Salary: "
-        f"{salary.min if salary.min is not None else '—'} - "
-        f"{salary.max if salary.max is not None else '—'} "
-        f"{salary.currency or ''} / {salary.period or ''}".strip()
-    )
-    if salary.notes:
-        d.add_paragraph(f"Salary Notes: {salary.notes}")
-    d.add_paragraph(
-        "Working Hours / Week: "
-        + (str(draft.working_hours_per_week) if draft.working_hours_per_week else "—")
-    )
-    d.add_paragraph(
-        "Vacation Days / Year: "
-        + (str(draft.vacation_days_per_year) if draft.vacation_days_per_year else "—")
-    )
-    d.add_paragraph(f"Place of Work: {draft.place_of_work or '—'}")
-    d.add_paragraph(f"Notice Period: {draft.notice_period or '—'}")
-
-    d.add_heading("Missing Inputs", level=2)
-    if draft.missing_inputs:
-        for missing_input in draft.missing_inputs:
-            d.add_paragraph(missing_input, style="List Bullet")
-    else:
-        d.add_paragraph("Keine fehlenden Inputs markiert.")
-
-    d.add_heading("Clauses", level=2)
-    if draft.clauses:
-        for clause in draft.clauses:
-            d.add_heading(clause.title, level=3)
-            d.add_paragraph(clause.clause_text)
-            d.add_paragraph(f"Pflichtklausel: {'Ja' if clause.required else 'Nein'}")
-            if clause.legal_note:
-                d.add_paragraph(f"Legal Note: {clause.legal_note}")
-    else:
-        d.add_paragraph("Keine Klauseln hinterlegt.")
-
-    d.add_heading("Signature Requirements", level=2)
-    for requirement in draft.signature_requirements:
-        d.add_paragraph(requirement, style="List Bullet")
-
-    bio = io.BytesIO()
-    d.save(bio)
     return bio.getvalue()
 
 

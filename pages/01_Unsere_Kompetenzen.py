@@ -91,7 +91,6 @@ render_cards(
             "job_ad",
             "interview",
             "boolean",
-            "contract",
             "exports",
         )
     ],

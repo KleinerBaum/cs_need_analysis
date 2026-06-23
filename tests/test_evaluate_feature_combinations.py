@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from constants import ESCO_DATA_SOURCE_MODES, SUMMARY_ARTIFACT_IDS, UI_MODE_VALUES
+from constants import ESCO_DATA_SOURCE_MODES, SUMMARY_ACTIVE_ARTIFACT_IDS, UI_MODE_VALUES
 from scripts.evaluate_feature_combinations import (
     COMBINATIONS,
     SCENARIOS,
@@ -20,7 +20,7 @@ def test_feature_combination_matrix_uses_canonical_values() -> None:
         artifact_id
         for combination in COMBINATIONS
         for artifact_id in combination.artifacts_enabled
-    } <= set(SUMMARY_ARTIFACT_IDS)
+    } <= set(SUMMARY_ACTIVE_ARTIFACT_IDS)
 
 
 def test_feature_combination_report_covers_planned_matrix() -> None:

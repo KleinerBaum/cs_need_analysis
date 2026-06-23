@@ -50,7 +50,6 @@ from homepage_research import (
 from esco_client import EscoClient, EscoClientError
 from esco_semantics import normalize_anchor_ref, sync_esco_semantic_state
 from llm_client import (
-    TASK_GENERATE_EMPLOYMENT_CONTRACT,
     JobAdGenerationResult,
     OpenAICallError,
     TASK_GENERATE_BOOLEAN_SEARCH,
@@ -60,7 +59,6 @@ from llm_client import (
     TASK_GENERATE_VACANCY_BRIEF,
     generate_boolean_search_pack,
     generate_custom_job_ad,
-    generate_employment_contract_draft,
     generate_interview_sheet_hm,
     generate_interview_sheet_hr,
     generate_vacancy_brief,
@@ -73,7 +71,6 @@ from schemas import (
     EscoMappingReport,
     EscoSemanticContext,
     EscoUnresolvedTermDecision,
-    EmploymentContractDraft,
     InterviewPrepSheetHiringManager,
     InterviewPrepSheetHR,
     JobAdExtract,
@@ -159,7 +156,6 @@ from ui_components import (
     render_boolean_supporting_terms,
     render_boolean_usage_notes,
     render_brief,
-    render_employment_contract_draft,
     render_error_banner,
     render_interview_prep_fach,
     render_interview_prep_hr,

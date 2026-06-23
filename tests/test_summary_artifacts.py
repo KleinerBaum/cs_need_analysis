@@ -1,10 +1,21 @@
 from __future__ import annotations
 
+from constants import SUMMARY_ACTIVE_ARTIFACT_IDS
 from summary_artifacts import (
     artifact_display_label,
     brief_pipeline_status_for_state,
     to_canonical_artifact_id,
 )
+
+
+def test_active_summary_artifacts_are_focused_product_outputs() -> None:
+    assert SUMMARY_ACTIVE_ARTIFACT_IDS == (
+        "brief",
+        "job_ad",
+        "interview_hr",
+        "interview_fach",
+        "boolean_search",
+    )
 
 
 def test_to_canonical_artifact_id_accepts_current_and_legacy_ids() -> None:
@@ -20,7 +31,7 @@ def test_artifact_display_label_maps_known_ids_and_preserves_unknown_labels() ->
     assert artifact_display_label("interview_hr") == "HR-Sheet"
     assert artifact_display_label("interview_fach") == "Fachbereich-Sheet"
     assert artifact_display_label("boolean_search") == "Suchstrings"
-    assert artifact_display_label("employment_contract") == "Arbeitsvertrag"
+    assert artifact_display_label("employment_contract") == "employment_contract"
     assert artifact_display_label("brief") == "Recruiting Brief"
     assert artifact_display_label("  custom_artifact  ") == "custom_artifact"
     assert artifact_display_label("") == ""

@@ -51,7 +51,6 @@ from homepage_research import (
 from esco_client import EscoClient, EscoClientError
 from esco_semantics import normalize_anchor_ref, sync_esco_semantic_state
 from llm_client import (
-    TASK_GENERATE_EMPLOYMENT_CONTRACT,
     JobAdGenerationResult,
     OpenAICallError,
     TASK_GENERATE_BOOLEAN_SEARCH,
@@ -61,7 +60,6 @@ from llm_client import (
     TASK_GENERATE_VACANCY_BRIEF,
     generate_boolean_search_pack,
     generate_custom_job_ad,
-    generate_employment_contract_draft,
     generate_interview_sheet_hm,
     generate_interview_sheet_hr,
     generate_vacancy_brief,
@@ -74,7 +72,6 @@ from schemas import (
     EscoMappingReport,
     EscoSemanticContext,
     EscoUnresolvedTermDecision,
-    EmploymentContractDraft,
     InterviewPrepSheetHiringManager,
     InterviewPrepSheetHR,
     JobAdExtract,
@@ -159,7 +156,6 @@ from ui_components import (
     render_boolean_supporting_terms,
     render_boolean_usage_notes,
     render_brief,
-    render_employment_contract_draft,
     render_error_banner,
     render_interview_prep_fach,
     render_interview_prep_hr,
@@ -249,7 +245,6 @@ _SUMMARY_SLICE_ORIGINALS = {
         "_apply_interview_docx_brand_style": _summary_exporters._apply_interview_docx_brand_style,
         "_interview_prep_fach_to_docx_bytes": _summary_exporters._interview_prep_fach_to_docx_bytes,
         "_interview_prep_fach_to_pdf_bytes": _summary_exporters._interview_prep_fach_to_pdf_bytes,
-        "_employment_contract_to_docx_bytes": _summary_exporters._employment_contract_to_docx_bytes,
         "_normalize_logo_payload": _summary_exporters._normalize_logo_payload,
         "_read_logo_payload": _summary_exporters._read_logo_payload,
         "_normalize_stored_logo_payload": _summary_exporters._normalize_stored_logo_payload,
@@ -349,7 +344,6 @@ _SUMMARY_SLICE_ORIGINALS = {
         "_render_job_ad_compact_controls": _summary_view._render_job_ad_compact_controls,
         "_render_interview_compact_controls": _summary_view._render_interview_compact_controls,
         "_render_boolean_compact_controls": _summary_view._render_boolean_compact_controls,
-        "_render_contract_compact_controls": _summary_view._render_contract_compact_controls,
         "_artifact_release_fact_rows": _summary_view._artifact_release_fact_rows,
         "_summary_fact_blocks_release": _summary_view._summary_fact_blocks_release,
         "_summary_fact_blocker_reason": _summary_view._summary_fact_blocker_reason,
@@ -398,7 +392,6 @@ _SUMMARY_SYNC_GLOBAL_NAMES = (
     "st",
     "docx",
     "BooleanSearchPack",
-    "EmploymentContractDraft",
     "InterviewPrepSheetHiringManager",
     "InterviewPrepSheetHR",
     "JobAdExtract",
@@ -427,7 +420,6 @@ _SUMMARY_SYNC_GLOBAL_NAMES = (
     "render_boolean_supporting_terms",
     "render_boolean_usage_notes",
     "render_boolean_risks",
-    "render_employment_contract_draft",
     "document_preview_shell",
     "markdown_article_preview_html",
     "get_usage_events",
@@ -500,7 +492,6 @@ for _summary_helper_name, _summary_helper_module in {
     "_apply_interview_docx_brand_style": _summary_exporters,
     "_interview_prep_fach_to_docx_bytes": _summary_exporters,
     "_interview_prep_fach_to_pdf_bytes": _summary_exporters,
-    "_employment_contract_to_docx_bytes": _summary_exporters,
     "_normalize_logo_payload": _summary_exporters,
     "_read_logo_payload": _summary_exporters,
     "_normalize_stored_logo_payload": _summary_exporters,
@@ -594,7 +585,6 @@ for _summary_helper_name, _summary_helper_module in {
     "_render_job_ad_compact_controls": _summary_view,
     "_render_interview_compact_controls": _summary_view,
     "_render_boolean_compact_controls": _summary_view,
-    "_render_contract_compact_controls": _summary_view,
     "_artifact_release_fact_rows": _summary_view,
     "_summary_fact_blocks_release": _summary_view,
     "_summary_fact_blocker_reason": _summary_view,
@@ -800,11 +790,6 @@ def render(ctx: WizardContext) -> None:
     )
     resolved_boolean_search_model = resolve_model_for_task(
         task_kind=TASK_GENERATE_BOOLEAN_SEARCH,
-        session_override=session_override,
-        settings=settings,
-    )
-    resolved_employment_contract_model = resolve_model_for_task(
-        task_kind=TASK_GENERATE_EMPLOYMENT_CONTRACT,
         session_override=session_override,
         settings=settings,
     )
@@ -1167,60 +1152,6 @@ def render(ctx: WizardContext) -> None:
             )
             _render_generation_recovery("Boolean Search")
 
-    def _generate_employment_contract() -> None:
-        clear_error()
-        brief_model = _resolve_brief_for_follow_up_action()
-        try:
-            store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
-            with st.spinner("Generiere Arbeitsvertragsvorlage…"):
-                draft, usage = generate_employment_contract_draft(
-                    brief=brief_model,
-                    model=resolved_employment_contract_model,
-                    generation_options=_read_artifact_options("employment_contract"),
-                    change_request=_read_artifact_change_request("employment_contract"),
-                    store=store,
-                )
-            st.session_state[SSKey.EMPLOYMENT_CONTRACT_DRAFT.value] = draft.model_dump(
-                mode="json"
-            )
-            st.session_state[SSKey.EMPLOYMENT_CONTRACT_LAST_USAGE.value] = usage or {}
-            st.session_state[SSKey.EMPLOYMENT_CONTRACT_CACHE_HIT.value] = (
-                usage_has_cache_hit(usage)
-            )
-            st.session_state[SSKey.EMPLOYMENT_CONTRACT_LAST_MODE.value] = "from_brief"
-            st.session_state[SSKey.EMPLOYMENT_CONTRACT_LAST_MODELS.value] = {
-                "draft_model": resolved_employment_contract_model
-            }
-            _mark_artifact_current(vm, "employment_contract")
-            st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = "employment_contract"
-            _record_artifact_generated_with_fact_usage(
-                st.session_state,
-                artifact_id="employment_contract",
-                cache_hit=usage_has_cache_hit(usage),
-                mode="from_brief",
-            )
-            _clear_artifact_generation_error("employment_contract")
-        except OpenAICallError as e:
-            render_openai_error(e)
-            st.error(e.ui_message)
-            _remember_artifact_generation_error(
-                artifact_id="employment_contract",
-                artifact_label="Arbeitsvertragsvorlage",
-                message=e.ui_message,
-            )
-            _render_generation_recovery("Arbeitsvertragsvorlage")
-        except Exception as exc:
-            handle_unexpected_exception(
-                step="summary.employment_contract_generation",
-                exc=exc,
-                error_type=type(exc).__name__,
-                error_code="SUMMARY_EMPLOYMENT_CONTRACT_GENERATION_UNEXPECTED",
-            )
-            _remember_last_artifact_generation_error(
-                "employment_contract", "Arbeitsvertragsvorlage"
-            )
-            _render_generation_recovery("Arbeitsvertragsvorlage")
-
     def _render_job_ad_action_hub_inputs() -> None:
         rows = _build_selection_rows(vm.job, vm.answers)
         grouped_values = _selection_options_by_group(rows)
@@ -1432,7 +1363,6 @@ def render(ctx: WizardContext) -> None:
         resolved_hr_sheet_model=resolved_hr_sheet_model,
         resolved_fach_sheet_model=resolved_fach_sheet_model,
         resolved_boolean_search_model=resolved_boolean_search_model,
-        resolved_employment_contract_model=resolved_employment_contract_model,
         render_job_ad_inputs=_render_job_ad_action_hub_inputs
         if is_advanced_mode
         else None,
@@ -1444,7 +1374,6 @@ def render(ctx: WizardContext) -> None:
         generate_interview_prep_hr=_generate_interview_prep_hr,
         generate_interview_prep_fach=_generate_interview_prep_fach,
         generate_boolean_search=_generate_boolean_search_pack,
-        generate_employment_contract=_generate_employment_contract,
     )
 
     brief_dict = st.session_state.get(SSKey.BRIEF.value)
@@ -1462,7 +1391,6 @@ def render(ctx: WizardContext) -> None:
         "interview_hr": _generate_interview_prep_hr,
         "interview_fach": _generate_interview_prep_fach,
         "boolean_search": _generate_boolean_search_pack,
-        "employment_contract": _generate_employment_contract,
     }
     release_gates = _build_summary_release_gates(
         vm,

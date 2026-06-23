@@ -529,9 +529,14 @@ def build_live_artifact_preview_payload(
                 "summary": "Welche Eingaben den Suchstring scharf oder breit machen.",
                 "bullets": boolean_guidance,
             },
-            "interview_guide": {
-                "title": "Interview-Guide-Folgen",
-                "summary": "Welche Antworten später Fragen, Scorecard und Evidenz lenken.",
+            "interview_hr": {
+                "title": "HR-Sheet-Folgen",
+                "summary": "Welche Antworten später HR-Fragen, Prozess und Evidenz lenken.",
+                "bullets": interview_guidance,
+            },
+            "interview_fach": {
+                "title": "Fachbereich-Sheet-Folgen",
+                "summary": "Welche Antworten später fachliche Fragen, Scorecard und Evidenz lenken.",
                 "bullets": interview_guidance,
             },
         },

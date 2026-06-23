@@ -90,6 +90,7 @@ from _constants.questions import (
 )
 from _constants.state_keys import SSKey
 from _constants.summary import (
+    SUMMARY_ACTIVE_ARTIFACT_IDS,
     SUMMARY_ARTIFACT_IDS,
     SUMMARY_ARTIFACT_LEGACY_ALIASES,
     SUMMARY_SESSION_KEY_LEGACY_ALIASES,

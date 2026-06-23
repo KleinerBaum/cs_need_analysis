@@ -55,6 +55,7 @@ def test_constants_reexports_private_group_objects() -> None:
     assert constants.FactKey is facts.FactKey
     assert constants.INTAKE_FACTS is facts.INTAKE_FACTS
     assert constants.SUMMARY_ARTIFACT_IDS is summary.SUMMARY_ARTIFACT_IDS
+    assert constants.SUMMARY_ACTIVE_ARTIFACT_IDS is summary.SUMMARY_ACTIVE_ARTIFACT_IDS
     assert constants.UsageEventType is usage.UsageEventType
 
 

@@ -68,7 +68,7 @@ Die folgenden Tabellen sind bewusst produktnah formuliert: jeweils ein kompakter
 |---|---|
 | Headline | **Alles bereit für Recruiting und Hiring-Team** |
 | Subtitle | **Hier siehst du, wie entscheidungsreif die Vakanz bereits ist, welche Lücken noch offen sind und welche Recruiting-Unterlagen jetzt sinnvoll gestartet werden können.** |
-| Microcopy | **Primäre CTA:** „Recruiting Brief erstellen“ / „Recruiting Brief aktualisieren“; **Recruiting-Unterlagen:** „HR-Sheet erstellen“, „Fachbereich-Sheet erstellen“, „Suchstrings erstellen“, „Arbeitsvertrag vorbereiten“; **Export-Hinweis:** „Downloads stehen bereit, sobald ein gültiger Recruiting Brief vorliegt.“; **Fallback:** „Noch kein aktueller Recruiting Brief verfügbar. Bitte prüfe Eingaben oder aktualisiere die Vakanz.“ |
+| Microcopy | **Primäre CTA:** „Recruiting Brief erstellen“ / „Recruiting Brief aktualisieren“; **Recruiting-Unterlagen:** „Stellenanzeige erstellen“, „HR-Sheet erstellen“, „Fachbereich-Sheet erstellen“, „Suchstrings erstellen“; **Export-Hinweis:** „Downloads stehen bereit, sobald ein gültiger Recruiting Brief vorliegt.“; **Fallback:** „Noch kein aktueller Recruiting Brief verfügbar. Bitte prüfe Eingaben oder aktualisiere die Vakanz.“ |
 | Tonvarianten | **Neutral:** „Zusammenfassung“; **freundlich:** „Deine Vakanz auf einen Blick“; **überzeugend:** „Vom Recruiting-Briefing direkt in nutzbare Recruiting-Unterlagen“ |
 | Personalisierung | Schrittkopf mit sicherem Kontext: **„Senior Data Engineer bei Example GmbH – entscheidungsreif zusammengefasst“**. Unterlagen-Hinweis: **„Der Recruiting Brief für Example GmbH ist aktuell. Nächster sinnvoller Schritt: Suchstrings.“** |
 

@@ -27,6 +27,7 @@ from constants import (
     STEP_KEY_ROLE_TASKS,
     STEP_KEY_SKILLS,
     STEP_KEY_SUMMARY,
+    SUMMARY_ACTIVE_ARTIFACT_IDS,
     SUMMARY_LOGO_UPLOAD_ALLOWED_EXTENSIONS,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
 )
@@ -53,7 +54,6 @@ from homepage_research import (
 from esco_client import EscoClient, EscoClientError
 from esco_semantics import normalize_anchor_ref, sync_esco_semantic_state
 from llm_client import (
-    TASK_GENERATE_EMPLOYMENT_CONTRACT,
     OpenAICallError,
     TASK_GENERATE_BOOLEAN_SEARCH,
     TASK_GENERATE_INTERVIEW_SHEET_HM,
@@ -62,7 +62,6 @@ from llm_client import (
     TASK_GENERATE_VACANCY_BRIEF,
     generate_boolean_search_pack,
     generate_custom_job_ad,
-    generate_employment_contract_draft,
     generate_interview_sheet_hm,
     generate_interview_sheet_hr,
     generate_vacancy_brief,
@@ -75,7 +74,6 @@ from schemas import (
     EscoMappingReport,
     EscoSemanticContext,
     EscoUnresolvedTermDecision,
-    EmploymentContractDraft,
     InterviewPrepSheetHiringManager,
     InterviewPrepSheetHR,
     JobAdExtract,
@@ -156,7 +154,6 @@ from ui_components import (
     render_boolean_supporting_terms,
     render_boolean_usage_notes,
     render_brief,
-    render_employment_contract_draft,
     render_error_banner,
     render_interview_prep_fach,
     render_interview_prep_hr,
@@ -179,7 +176,6 @@ from wizard_pages.summary_exporters import (
     _build_brief_structured_preview_payload,
     _build_structured_export_payload,
     _compute_esco_coverage_metrics,
-    _employment_contract_to_docx_bytes,
     _interview_prep_fach_to_docx_bytes,
     _interview_prep_fach_to_pdf_bytes,
     _interview_prep_hr_to_docx_bytes,
@@ -455,19 +451,6 @@ SUMMARY_RELEASE_FACT_AREAS_BY_ARTIFACT: Final[dict[str, frozenset[str] | None]] 
             "Rolle",
             "Rolle & Aufgaben",
             "Skills",
-        }
-    ),
-    "employment_contract": frozenset(
-        {
-            "Kernprofil",
-            "Unternehmen",
-            "Rolle",
-            "Rolle & Aufgaben",
-            "Benefits",
-            "Rechtliches",
-            "Zeitplan",
-            "Timeline",
-            "Timing",
         }
     ),
 }
@@ -1563,52 +1546,6 @@ def _render_boolean_compact_controls() -> None:
     )
 
 
-def _render_contract_compact_controls() -> None:
-    left, right = st.columns(2)
-    with left:
-        contract_type = st.selectbox(
-            "Vertragsart",
-            options=["Unbefristet", "Befristet", "Teilzeit", "Freelance"],
-            index=0,
-            key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "contract.type"),
-        )
-        jurisdiction = st.text_input(
-            "Jurisdiction",
-            value="Deutschland",
-            key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "contract.jurisdiction"),
-        )
-    with right:
-        probation = st.selectbox(
-            "Probezeit",
-            options=["offen", "3 Monate", "6 Monate"],
-            index=0,
-            key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "contract.probation"),
-        )
-        language = st.selectbox(
-            "Sprache",
-            options=["de", "en"],
-            index=0,
-            key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "contract.language"),
-        )
-    working_hours = st.text_input(
-        "Arbeitszeit / Gehaltshinweis",
-        value="",
-        placeholder="z. B. 40h/Woche, Gehaltsband aus Intake übernehmen",
-        key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, "contract.working_hours"),
-    )
-    st.caption("Rechtliche Prüfung bleibt erforderlich; das Ergebnis ist nur ein Vorlagenentwurf.")
-    _write_artifact_options(
-        "employment_contract",
-        {
-            "contract_type": contract_type,
-            "jurisdiction": jurisdiction,
-            "probation": probation,
-            "language": language,
-            "working_hours_salary_note": working_hours,
-        },
-    )
-
-
 def _artifact_release_fact_rows(
     vm: SummaryViewModel,
     artifact_id: str,
@@ -1886,13 +1823,6 @@ def _render_summary_artifact_grid(
             "description": "Kanal-spezifische Suchstrings für aktive Sourcing-Recherche.",
             "controls": _render_boolean_compact_controls,
             "cta": "Suchstrings erstellen",
-        },
-        {
-            "id": "employment_contract",
-            "title": "Arbeitsvertrag",
-            "description": "Vorlagenentwurf mit Platzhaltern und Prüfhinweisen.",
-            "controls": _render_contract_compact_controls,
-            "cta": "Arbeitsvertrag erstellen",
         },
         {
             "id": "reserved_export",
@@ -2588,7 +2518,7 @@ def _render_summary_processing_hub(
     st.markdown(
         (
             f"**Pipeline:** `Recruiting Brief` → `HR-Sheet/Fachbereich-Sheet` → "
-            f"`Suchstrings` → `Arbeitsvertrag` → `Export`  \n"
+            f"`Suchstrings` → `Export`  \n"
             f"Status Recruiting Brief: {header_badge} · {brief_status_label}"
         )
     )
@@ -2794,41 +2724,12 @@ def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
             st.info("Für diese Unterlage liegt noch kein Ergebnis vor.")
         return
 
-    if artifact_id == "employment_contract":
-        payload = st.session_state.get(SSKey.EMPLOYMENT_CONTRACT_DRAFT.value)
-        if isinstance(payload, dict):
-            contract = EmploymentContractDraft.model_validate(payload)
-            render_employment_contract_draft(contract)
-            contract_json_bytes = json.dumps(
-                contract.model_dump(mode="json"), indent=2, ensure_ascii=False
-            ).encode("utf-8")
-            contract_docx_bytes = _employment_contract_to_docx_bytes(contract)
-            x1, x2 = st.columns(2)
-            with x1:
-                st.download_button(
-                    "Arbeitsvertrag herunterladen (JSON)",
-                    data=contract_json_bytes,
-                    file_name="employment_contract_draft.json",
-                    mime="application/json",
-                )
-            with x2:
-                st.download_button(
-                    "Arbeitsvertrag herunterladen (DOCX)",
-                    data=contract_docx_bytes,
-                    file_name="employment_contract_draft.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                )
-        else:
-            st.info("Für diese Unterlage liegt noch kein Ergebnis vor.")
-
 
 def _generated_summary_artifact_ids() -> list[str]:
     ordered_ids = [
-        "job_ad",
-        "interview_hr",
-        "interview_fach",
-        "boolean_search",
-        "employment_contract",
+        artifact_id
+        for artifact_id in SUMMARY_ACTIVE_ARTIFACT_IDS
+        if artifact_id != "brief"
     ]
     return [artifact_id for artifact_id in ordered_ids if _artifact_has_result(artifact_id)]
 
@@ -2999,7 +2900,6 @@ def _render_secondary_artifacts(
         "interview_hr",
         "interview_fach",
         "boolean_search",
-        "employment_contract",
         "brief",
     ]
     priority_rank = {artifact_id: index for index, artifact_id in enumerate(secondary_priority)}
@@ -3043,8 +2943,6 @@ def _render_summary_results_workspace(*, brief: VacancyBrief) -> None:
         available_artifact_ids.append("interview_fach")
     if isinstance(st.session_state.get(SSKey.BOOLEAN_SEARCH_STRING.value), dict):
         available_artifact_ids.append("boolean_search")
-    if isinstance(st.session_state.get(SSKey.EMPLOYMENT_CONTRACT_DRAFT.value), dict):
-        available_artifact_ids.append("employment_contract")
     if not available_artifact_ids:
         st.info("Noch keine weiteren Recruiting-Unterlagen vorhanden.")
         return

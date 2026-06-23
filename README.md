@@ -169,7 +169,7 @@ Primary keys:
 | `DEFAULT_MODEL` | default model when no override is set |
 | `LIGHTWEIGHT_MODEL` | extraction-oriented tasks |
 | `MEDIUM_REASONING_MODEL` | question plan, brief, boolean/gap/benefit style tasks |
-| `HIGH_REASONING_MODEL` | job ad, interview sheet, employment contract tasks |
+| `HIGH_REASONING_MODEL` | job ad and interview sheet tasks |
 | `REASONING_EFFORT` | optional reasoning effort after capability gating |
 | `VERBOSITY` | optional `text.verbosity` after capability gating |
 | `OPENAI_REQUEST_TIMEOUT` | request timeout in seconds; default is 120 |
@@ -405,13 +405,16 @@ Canonical summary artifact IDs and user-facing labels:
 | `interview_hr` | HR-Sheet | JSON, DOCX |
 | `interview_fach` | Fachbereich-Sheet | JSON, DOCX |
 | `boolean_search` | Suchstrings | JSON, Markdown |
-| `employment_contract` | Arbeitsvertrag Draft | JSON, DOCX |
 
 Additional structured exports include ESCO mapping CSV/JSON and Summary payload fields for intake facts/evidence/resolution, supplemental routing/company/team/role/benefit/interview facts, interview process data, ESCO anchor metadata, ESCO skills, unmapped terms, occupation context, and question-flow provenance.
 
 Job ad DOCX/PDF exports use the uploaded PNG/JPG logo when available; Styleguide input controls generation only and is not included in publishable exports.
 
 When `semantic_export_mode="degraded"`, URI-based ESCO core exports are intentionally suppressed.
+
+The former `employment_contract` output is archived and hidden from the active
+Summary product flow. Legacy draft JSON may still contain its state key so older
+saved drafts can load without crashing.
 
 ## Installation
 

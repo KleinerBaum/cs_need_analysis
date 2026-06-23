@@ -99,7 +99,6 @@ def test_build_action_registry_contains_expected_actions_and_requirements() -> N
         resolved_hr_sheet_model="gpt-5-nano",
         resolved_fach_sheet_model="gpt-5",
         resolved_boolean_search_model="gpt-5-mini",
-        resolved_employment_contract_model="o3-mini",
         follow_up_requirement_check=lambda: (
             True,
             "Aktueller Recruiting Brief vorhanden.",
@@ -109,7 +108,6 @@ def test_build_action_registry_contains_expected_actions_and_requirements() -> N
         generate_interview_prep_hr=lambda: None,
         generate_interview_prep_fach=lambda: None,
         generate_boolean_search=lambda: None,
-        generate_employment_contract=lambda: None,
     )
 
     assert [action["id"] for action in action_registry] == [
@@ -118,7 +116,6 @@ def test_build_action_registry_contains_expected_actions_and_requirements() -> N
         "interview_hr",
         "interview_fach",
         "boolean_search",
-        "employment_contract",
     ]
     assert action_registry[0]["requires"] == (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN)
     assert action_registry[1]["requires"] == (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN)
@@ -128,8 +125,6 @@ def test_build_action_registry_contains_expected_actions_and_requirements() -> N
     assert action_registry[3]["generator_fn"] is not None
     assert action_registry[4]["requires"] == (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN)
     assert action_registry[4]["generator_fn"] is not None
-    assert action_registry[5]["requires"] == (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN)
-    assert action_registry[5]["generator_fn"] is not None
 
 
 def test_record_artifact_generated_with_fact_usage_marks_evidence() -> None:
@@ -317,7 +312,6 @@ def test_follow_up_actions_describe_explicit_brief_dependency() -> None:
         resolved_hr_sheet_model="gpt-5-nano",
         resolved_fach_sheet_model="gpt-5",
         resolved_boolean_search_model="gpt-5-mini",
-        resolved_employment_contract_model="o3-mini",
         follow_up_requirement_check=lambda: (
             True,
             "Aktueller Recruiting Brief vorhanden.",
@@ -327,14 +321,12 @@ def test_follow_up_actions_describe_explicit_brief_dependency() -> None:
         generate_interview_prep_hr=lambda: None,
         generate_interview_prep_fach=lambda: None,
         generate_boolean_search=lambda: None,
-        generate_employment_contract=lambda: None,
     )
 
     follow_up_ids = {
         "interview_hr",
         "interview_fach",
         "boolean_search",
-        "employment_contract",
     }
     for action in action_registry:
         if action["id"] in follow_up_ids:

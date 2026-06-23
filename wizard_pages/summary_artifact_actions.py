@@ -26,6 +26,7 @@ from constants import (
     STEP_KEY_INTERVIEW,
     STEP_KEY_ROLE_TASKS,
     STEP_KEY_SKILLS,
+    SUMMARY_ACTIVE_ARTIFACT_IDS,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
 )
 from interview_process import (
@@ -49,7 +50,6 @@ from homepage_research import (
 from esco_client import EscoClient, EscoClientError
 from esco_semantics import normalize_anchor_ref, sync_esco_semantic_state
 from llm_client import (
-    TASK_GENERATE_EMPLOYMENT_CONTRACT,
     JobAdGenerationResult,
     OpenAICallError,
     TASK_GENERATE_BOOLEAN_SEARCH,
@@ -59,7 +59,6 @@ from llm_client import (
     TASK_GENERATE_VACANCY_BRIEF,
     generate_boolean_search_pack,
     generate_custom_job_ad,
-    generate_employment_contract_draft,
     generate_interview_sheet_hm,
     generate_interview_sheet_hr,
     generate_vacancy_brief,
@@ -72,7 +71,6 @@ from schemas import (
     EscoMappingReport,
     EscoSemanticContext,
     EscoUnresolvedTermDecision,
-    EmploymentContractDraft,
     InterviewPrepSheetHiringManager,
     InterviewPrepSheetHR,
     JobAdExtract,
@@ -155,7 +153,6 @@ from ui_components import (
     render_boolean_supporting_terms,
     render_boolean_usage_notes,
     render_brief,
-    render_employment_contract_draft,
     render_error_banner,
     render_interview_prep_fach,
     render_interview_prep_hr,
@@ -208,11 +205,10 @@ class SummaryAction(TypedDict):
     input_renderer: Callable[[], None] | None
 
 
-SUMMARY_PRIMARY_ARTIFACT_IDS: Final[tuple[str, ...]] = (
-    "job_ad",
-    "interview",
-    "boolean_search",
-    "employment_contract",
+SUMMARY_PRIMARY_ARTIFACT_IDS: Final[tuple[str, ...]] = tuple(
+    artifact_id
+    for artifact_id in SUMMARY_ACTIVE_ARTIFACT_IDS
+    if artifact_id != "brief"
 )
 
 
@@ -314,7 +310,6 @@ def _artifact_result_key(artifact_id: str) -> SSKey | None:
         "interview_hr": SSKey.INTERVIEW_PREP_HR,
         "interview_fach": SSKey.INTERVIEW_PREP_FACH,
         "boolean_search": SSKey.BOOLEAN_SEARCH_STRING,
-        "employment_contract": SSKey.EMPLOYMENT_CONTRACT_DRAFT,
     }.get(artifact_id)
 
 
@@ -446,13 +441,9 @@ def _resolve_next_best_action_recommendation(
         reason = "Recruiting Brief ist verfügbar, nächster Schritt ist eine Sourcing-Unterlage."
         return NextBestActionRecommendation(action=sourcing_action, reason=reason, cta_label=sourcing_action["cta_label"])
 
-    contract_prereq_group = core_profile_group | company_basics_group | role_profile_group
-    if not _is_group_missing(contract_prereq_group) and bool(st.session_state.get(SSKey.BRIEF.value)):
-        contract_action = _first_available_action(("employment_contract",))
-        if contract_action is not None:
-            return NextBestActionRecommendation(action=contract_action, reason="Vertragsrelevante Basisdaten sind vorhanden.", cta_label=contract_action["cta_label"])
-
-    fallback_action = _first_available_action(("interview_hr", "interview_fach", "boolean_search", "employment_contract"))
+    fallback_action = _first_available_action(
+        ("interview_hr", "interview_fach", "boolean_search")
+    )
     if fallback_action is not None:
         return NextBestActionRecommendation(action=fallback_action, reason="Nächster verfügbarer Schritt basierend auf dem aktuellen Status.", cta_label=fallback_action["cta_label"])
     if brief_action is not None:
@@ -528,7 +519,6 @@ def _build_action_registry(
     resolved_hr_sheet_model: str,
     resolved_fach_sheet_model: str,
     resolved_boolean_search_model: str,
-    resolved_employment_contract_model: str,
     render_job_ad_inputs: Callable[[], None] | None = None,
     follow_up_requirement_check: Callable[[], tuple[bool, str]],
     generate_recruiting_brief: Callable[[], None],
@@ -536,7 +526,6 @@ def _build_action_registry(
     generate_interview_prep_hr: Callable[[], None],
     generate_interview_prep_fach: Callable[[], None],
     generate_boolean_search: Callable[[], None],
-    generate_employment_contract: Callable[[], None],
 ) -> list[SummaryAction]:
     return [
         {
@@ -622,24 +611,6 @@ def _build_action_registry(
                 "Aktueller Recruiting Brief (kein automatischer Fallback)",
                 "Must-have- und Nice-to-have-Skills",
                 f"Suchstrings-Modell: {resolved_boolean_search_model}",
-            ),
-            "input_renderer": None,
-        },
-        {
-            "id": "employment_contract",
-            "title": "Arbeitsvertrag",
-            "benefit": "Erstellt einen Vertragsentwurf mit Platzhaltern und klarer Prüfstruktur.",
-            "cta_label": "Arbeitsvertrag erstellen",
-            "blocked_cta_label": "Recruiting Brief erstellen und danach Arbeitsvertrag erstellen",
-            "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
-            "requirement_text": "Aktueller Recruiting Brief ist erforderlich",
-            "requirement_check_fn": follow_up_requirement_check,
-            "generator_fn": generate_employment_contract,
-            "result_key": SSKey.EMPLOYMENT_CONTRACT_DRAFT,
-            "input_hints": (
-                "Aktueller Recruiting Brief (kein automatischer Fallback)",
-                "Vertragsart und Konditionen",
-                f"Vertragsmodell: {resolved_employment_contract_model}",
             ),
             "input_renderer": None,
         },

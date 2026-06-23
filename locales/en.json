@@ -189,10 +189,6 @@
             "title": "Boolean search",
             "body": "Derivations for LinkedIn, Xing, or Google so search strategies become more precise and reproducible."
           },
-          "contract": {
-            "title": "Contract draft",
-            "body": "Template-oriented contract drafts based on the same structured role."
-          },
           "exports": {
             "title": "Exports",
             "body": "Depending on the output, results can be reused as JSON, Markdown, DOCX, PDF, or mapping report."

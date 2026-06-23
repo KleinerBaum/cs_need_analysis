@@ -145,8 +145,6 @@ All Locale leaf keys below exist in both `locales/de.json` and `locales/en.json`
 | public_pages.competencies | `public_pages.competencies.downstream.cards.interview.body` | - | Vorbereitungen für HR und Fachbereich mit klaren Themen, Prüfpunkten und Leitfragen. | Preparation for HR and the business team with clear topics, checkpoints, and guiding questions. |
 | public_pages.competencies | `public_pages.competencies.downstream.cards.boolean.title` | - | Suchstrings | Boolean search |
 | public_pages.competencies | `public_pages.competencies.downstream.cards.boolean.body` | - | Ableitungen für LinkedIn, Xing oder Google, damit Suchstrategien präziser und reproduzierbarer werden. | Derivations for LinkedIn, Xing, or Google so search strategies become more precise and reproducible. |
-| public_pages.competencies | `public_pages.competencies.downstream.cards.contract.title` | - | Contract Draft | Contract draft |
-| public_pages.competencies | `public_pages.competencies.downstream.cards.contract.body` | - | Vorlagennahe Vertragsentwürfe auf Basis derselben strukturierten Rolle. | Template-oriented contract drafts based on the same structured role. |
 | public_pages.competencies | `public_pages.competencies.downstream.cards.exports.title` | - | Exports | Exports |
 | public_pages.competencies | `public_pages.competencies.downstream.cards.exports.body` | - | Je nach Unterlage als JSON, Markdown, DOCX, PDF oder Mapping-Report weiterverwendbar. | Depending on the output, results can be reused as JSON, Markdown, DOCX, PDF, or mapping report. |
 | public_pages.competencies | `public_pages.competencies.security.heading` | - | ## Sicherheit | ## Security |
@@ -1181,9 +1179,6 @@ Priority guide: `P1` visible wizard workflow copy, `P2` shared/public/helper cop
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2489` | Fachbereich-Sheet herunterladen (PDF) |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2496` | Für diese Unterlage liegt noch kein Ergebnis vor. |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2505` | Für diese Unterlage liegt noch kein Ergebnis vor. |
-| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2519` | Arbeitsvertrag herunterladen (JSON) |
-| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2526` | Arbeitsvertrag herunterladen (DOCX) |
-| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2533` | Für diese Unterlage liegt noch kein Ergebnis vor. |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2568` | Vorhandene Ergebnisse |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2602` | Was soll am Ergebnis angepasst werden? |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2602` | z. B. kürzer, stärker auf Senior-Profile, mehr Interviewfragen zu Stakeholder-Management … |
@@ -1343,16 +1338,7 @@ Priority guide: `P1` visible wizard workflow copy, `P2` shared/public/helper cop
 | P2 | `wizard.summary` | `ui_summary_artifacts.py:305` | Rolle: {...} · Zielregionen: {...} |
 | P2 | `wizard.summary` | `ui_summary_artifacts.py:308` | Keine Suchstrings vorhanden. |
 | P2 | `wizard.summary` | `ui_summary_artifacts.py:311` | ### Kanalvarianten |
-| P2 | `wizard.summary` | `ui_summary_artifacts.py:333` | Vorlagenentwurf zur Prüfung. Kein finaler Vertrag und keine Rechtsberatung. |
-| P2 | `wizard.summary` | `ui_summary_artifacts.py:336` | **Rechtsraum:** {...} · **Rolle:** {...} · **Beschäftigungsart:** {...} · **Vertragsart:** {...} |
-| P2 | `wizard.summary` | `ui_summary_artifacts.py:388` | **Fehlende Angaben (Pflicht-Checkliste vor Finalisierung)** |
-| P2 | `wizard.summary` | `ui_summary_artifacts.py:390` | Folgende Angaben fehlen noch. Bitte vor rechtlicher Finalisierung ergänzen. |
-| P2 | `wizard.summary` | `ui_summary_artifacts.py:396` | Keine fehlenden Angaben markiert. |
-| P2 | `wizard.summary` | `ui_summary_artifacts.py:398` | **Klauseln** |
-| P2 | `wizard.summary` | `ui_summary_artifacts.py:405` | Rechtlicher Hinweis: {...} |
-| P2 | `wizard.summary` | `ui_summary_artifacts.py:407` | Keine Klauseln vorhanden. |
-| P2 | `wizard.summary` | `ui_summary_artifacts.py:409` | **Unterschriftsanforderungen** |
-| P2 | `wizard.summary` | `wizard_pages/summary_view.py:2204` | **Pipeline:** `Recruiting Brief` → `HR-Sheet/Fachbereich-Sheet` → `Suchstrings` → `Arbeitsvertrag` → `Export` / Status Recruiting Brief: {...} · {...} |
+| P2 | `wizard.summary` | `wizard_pages/summary_view.py:2204` | **Pipeline:** `Recruiting Brief` → `HR-Sheet/Fachbereich-Sheet` → `Suchstrings` → `Export` / Status Recruiting Brief: {...} · {...} |
 | P3 | `common` | `wizard_pages/01a_jobspec_review.py:91` | Extraktionsqualität: {...} ({...}/{...} Kernfelder gefüllt). |
 | P3 | `common` | `wizard_pages/01a_jobspec_review.py:110` | Identifizierte Informationen |
 | P3 | `common` | `wizard_pages/01a_jobspec_review.py:111` | Hier prüfst und ergänzt du die extrahierten Inhalte, Gaps und Assumptions, bevor du in den Schritt 'Unternehmen' wechselst. |

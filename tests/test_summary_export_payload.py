@@ -324,7 +324,9 @@ def test_build_brief_structured_preview_payload_uses_export_subset(monkeypatch) 
             "artifact_impact": [
                 "job_ad",
                 "brief",
-                "employment_contract",
+                "interview_hr",
+                "interview_fach",
+                "boolean_search",
                 "salary_forecast",
             ],
         },
