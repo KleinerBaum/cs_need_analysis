@@ -75,7 +75,7 @@ _PROCESS_PROGRESS_STATUS_LABELS: dict[str, str] = {
 _PROCESS_PROGRESS_DETAIL_LABELS: dict[str, str] = {
     STEP_KEY_INTRO: "Kontext",
     STEP_KEY_LANDING: "Quelle & Analyse",
-    STEP_KEY_SUMMARY: "Review & Export",
+    STEP_KEY_SUMMARY: "Prüfung & Export",
 }
 
 

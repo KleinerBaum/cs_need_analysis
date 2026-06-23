@@ -18,10 +18,10 @@ This document is an inventory of the current translation surface. It does not in
 
 | Source | Count | Contract |
 |---|---:|---|
-| `locales/de.json` leaf keys | 297 | German source Locale values, including 55 retained `ux_copy` parity keys |
-| `locales/en.json` leaf keys | 297 | English Locale values; key shape must match DE |
-| `_TRANSLATIONS_EN` | 222 | German-source copy translated by `t()` |
-| `_PHRASE_TRANSLATIONS_EN` | 61 | fallback phrase replacements inside `t()` |
+| `locales/de.json` leaf keys | 300 | German source Locale values, including retained `ux_copy` parity keys |
+| `locales/en.json` leaf keys | 300 | English Locale values; key shape must match DE |
+| `_TRANSLATIONS_EN` | 263 | German-source copy translated by `t()` |
+| `_PHRASE_TRANSLATIONS_EN` | 64 | fallback phrase replacements inside `t()` |
 | High-confidence unkeyed UI-copy candidates | 729 | backlog only, generated from direct Streamlit/helper literals |
 
 ## Locale Leaf Keys
@@ -75,7 +75,7 @@ All Locale leaf keys below exist in both `locales/de.json` and `locales/en.json`
 | ux_copy | `ux_copy.steps.summary.headline.default` | readiness_score, role_title | Das Recruiting-Briefing für {role_title} ist zu {readiness_score}% bereit | The recruiting brief for {role_title} is {readiness_score}% ready |
 | ux_copy | `ux_copy.steps.summary.headline.gap` | critical_gaps_count | Noch {critical_gaps_count} kritische Punkte offen | {critical_gaps_count} critical points still open |
 | ux_copy | `ux_copy.steps.summary.headline.ready` | - | Bereit für Recruiting, Interviews und Active Sourcing | Ready for recruiting, interviews, and active sourcing |
-| ux_copy | `ux_copy.steps.summary.subheadline.default` | - | Prüfen Sie offene Lücken, übernehmen Sie finale Anpassungen und erstellen Sie die passenden Ergebnisse für Recruiting, HR und Active Sourcing. | Review remaining gaps, apply final adjustments, and generate the right outputs for recruiting, HR, and active sourcing. |
+| ux_copy | `ux_copy.steps.summary.subheadline.default` | - | Prüfen Sie offene Lücken, übernehmen Sie finale Anpassungen und erstellen Sie die passenden Recruiting-Unterlagen für Recruiting, HR und Active Sourcing. | Review remaining gaps, apply final adjustments, and generate the right recruiting outputs for recruiting, HR, and active sourcing. |
 | ux_copy | `ux_copy.steps.summary.subheadline.gap` | - | Klären Sie diese Angaben, bevor Sie Stellenanzeige, Interviewleitfaden oder Suchstrings exportieren. | Clarify these items before exporting a job ad, interview guide, or search strings. |
 | ux_copy | `ux_copy.steps.summary.subheadline.ready` | - | Alle wichtigen Fakten sind geprüft. Erstellen Sie jetzt Stellenanzeige, HR-Sheet und Suchstrings. | All important facts are checked. Generate the job ad, HR sheet, and search strings now. |
 | ux_copy | `ux_copy.steps.summary.value_line` | - | Erstellt direkt nutzbare Unterlagen für HR, Recruiting und Sourcing. | Creates directly usable material for HR, recruiting, and sourcing. |
@@ -94,16 +94,16 @@ All Locale leaf keys below exist in both `locales/de.json` and `locales/en.json`
 | common.country_germany | `common.country_germany` | - | Deutschland | Germany |
 | common.placeholder_missing | `common.placeholder_missing` | - | Bitte ergänzen | Please add |
 | common.placeholder_missing_optional | `common.placeholder_missing_optional` | - | Bitte ergänzen, falls vorhanden | Please add if applicable |
-| iceberg.aria_label | `iceberg.aria_label` | - | Eisberg-Modell klassischer und AI-gestützter Need-Analysis | Iceberg model of classic and AI-supported need analysis |
+| iceberg.aria_label | `iceberg.aria_label` | - | Eisberg-Modell für klassisches und KI-gestütztes Recruiting-Briefing | Iceberg model for classic and AI-supported vacancy intake |
 | iceberg.surface_label | `iceberg.surface_label` | - | oberhalb der Wasserlinie: sichtbar in Jobspec & Briefing | above the waterline: visible in jobspec and briefing |
 | iceberg.deep_label | `iceberg.deep_label` | - | unterhalb der Wasserlinie: entscheidend für Search, Matching & Interview | below the waterline: essential for search, matching, and interview |
 | public_pages.legal_placeholder_title | `public_pages.legal_placeholder_title` | - | 🟧 **Platzhalter – Fachinput fehlt** | 🟧 **Placeholder - subject-matter input missing** |
 | public_pages.legal_template_notice | `public_pages.legal_template_notice` | - | Diese Seite ist eine Vorlage und wird erst nach rechtlicher Prüfung verbindlich. | This page is a template and becomes binding only after legal review. |
 | public_pages.competencies | `public_pages.competencies.title` | - | Unsere Kompetenzen | Our competencies |
-| public_pages.competencies | `public_pages.competencies.hero.eyebrow` | - | Vacancy Intake · ESCO · KI · Struktur | Vacancy intake · ESCO · AI · structure |
-| public_pages.competencies | `public_pages.competencies.hero.lead` | - | Wir professionalisieren den ersten Schritt jedes Recruiting-Prozesses: den Vacancy Intake. Aus unstrukturierten Eingangsinformationen entsteht ein klarer, belastbarer und weiterverwendbarer Datensatz, der Suche, Auswahl und interne Abstimmung von Beginn an verbessert. | We professionalize the first step of every recruiting process: vacancy intake. Unstructured input is turned into a clear, robust, reusable data set that improves search, selection, and internal alignment from the start. |
+| public_pages.competencies | `public_pages.competencies.hero.eyebrow` | - | Recruiting-Briefing · ESCO · KI · Struktur | Vacancy intake · ESCO · AI · structure |
+| public_pages.competencies | `public_pages.competencies.hero.lead` | - | Wir professionalisieren den ersten Schritt jedes Recruiting-Prozesses: das Recruiting-Briefing. Aus unstrukturierten Eingangsinformationen entsteht ein klarer, belastbarer und weiterverwendbarer Datensatz, der Suche, Auswahl und interne Abstimmung von Beginn an verbessert. | We professionalize the first step of every recruiting process: vacancy intake. Unstructured input is turned into a clear, robust, reusable data set that improves search, selection, and internal alignment from the start. |
 | public_pages.competencies | `public_pages.competencies.meta` | - | Fokus: strukturierter Intake, semantische Qualität, kontrollierte KI-Nutzung, Sicherheit und Weiterverarbeitung | Focus: structured intake, semantic quality, controlled AI use, security, and downstream processing |
-| public_pages.competencies | `public_pages.competencies.top_cards.structured_intake.title` | - | Strukturierter Vacancy Intake | Structured vacancy intake |
+| public_pages.competencies | `public_pages.competencies.top_cards.structured_intake.title` | - | Strukturiertes Recruiting-Briefing | Structured vacancy intake |
 | public_pages.competencies | `public_pages.competencies.top_cards.structured_intake.body` | - | Wir setzen nicht erst bei der Jobanzeige an, sondern bei der Bedarfsklärung. So werden Missverständnisse, spätere Korrekturschleifen und überladene Wunschprofile früh reduziert. | We do not start with the job ad, but with need clarification. This reduces misunderstandings, late correction loops, and overloaded wish lists early. |
 | public_pages.competencies | `public_pages.competencies.top_cards.dynamic_flow.title` | - | Dynamischer Fragenfluss | Dynamic question flow |
 | public_pages.competencies | `public_pages.competencies.top_cards.dynamic_flow.body` | - | Die App arbeitet nicht mit einem starren Standardformular. Sie leitet aus Jobspec, Rolle, Kontext und bisherigen Antworten genau die Fragen ab, die wirklich relevant sind. | The app does not use a rigid standard form. It derives exactly the questions that matter from the jobspec, role, context, and previous answers. |
@@ -114,7 +114,7 @@ All Locale leaf keys below exist in both `locales/de.json` and `locales/en.json`
 | public_pages.competencies | `public_pages.competencies.top_cards.salary_estimation.title` | - | Salary Estimation | Salary estimation |
 | public_pages.competencies | `public_pages.competencies.top_cards.salary_estimation.body` | - | Eine indikative Gehaltsprognose macht sichtbar, wie einzelne Parameter die Vergütung beeinflussen. Dadurch werden Stellen realistischer und marktnäher formuliert. | An indicative salary forecast makes visible how individual parameters influence compensation. This helps formulate roles more realistically and closer to the market. |
 | public_pages.competencies | `public_pages.competencies.top_cards.exports.title` | - | Weiterverarbeitung & Exporte | Downstream processing and exports |
-| public_pages.competencies | `public_pages.competencies.top_cards.exports.body` | - | Aus derselben Datengrundlage lassen sich Recruiting Brief, Job Ad, Interview Sheets, Boolean Search Strings und weitere Artefakte direkt ableiten. | The same data foundation can directly produce a recruiting brief, job ad, interview sheets, Boolean search strings, and further artifacts. |
+| public_pages.competencies | `public_pages.competencies.top_cards.exports.body` | - | Aus derselben Datengrundlage lassen sich Recruiting Brief, Stellenanzeige, HR-Sheet, Fachbereich-Sheet, Suchstrings und weitere Recruiting-Unterlagen direkt ableiten. | The same data foundation can directly produce a recruiting brief, job ad, HR sheet, hiring manager sheet, Boolean search, and further recruiting outputs. |
 | public_pages.competencies | `public_pages.competencies.how.heading` | - | ## Wie die App arbeitet | ## How the app works |
 | public_pages.competencies | `public_pages.competencies.how.body` | - | Die App beginnt mit einer Jobspec, einem Upload oder Freitext. Diese Ausgangsbasis wird zuerst analysiert und in eine belastbare Struktur überführt.<br><br>Darauf aufbauend entsteht ein rollenabhängiger Frageplan, der Nutzerinnen und Nutzer Schritt für Schritt durch die weitere Präzisierung führt.<br><br>Das Ziel ist kein längerer Prozess, sondern ein besserer: weniger unnötige Fragen, weniger Interpretationsspielraum und eine deutlich höhere Wiederverwendbarkeit der Ergebnisse. | The app starts with a jobspec, an upload, or free text. This starting point is first analyzed and converted into a robust structure.<br><br>Based on that, a role-specific question plan guides users step by step through further clarification.<br><br>The goal is not a longer process, but a better one: fewer unnecessary questions, less room for interpretation, and much higher reusability of the results. |
 | public_pages.competencies | `public_pages.competencies.expanders.intake.title` | - | 1. Intake statt Rätselraten | 1. Intake instead of guesswork |
@@ -129,9 +129,9 @@ All Locale leaf keys below exist in both `locales/de.json` and `locales/en.json`
 | public_pages.competencies | `public_pages.competencies.esco.callout_body` | - | Statt nur freie Rollen- und Skillbezeichnungen zu sammeln, kann die App Occupations und Skills semantisch verankern. Das erhöht Konsistenz, Vergleichbarkeit und die Qualität späterer Ableitungen. | Instead of collecting only free-form role and skill labels, the app can semantically anchor occupations and skills. This increases consistency, comparability, and the quality of later derivations. |
 | public_pages.competencies | `public_pages.competencies.esco.column_a` | - | ### Was ESCO mitbringt<br>- standardisierte Occupations und Skills,<br>- mehrsprachige Begriffe,<br>- API-Zugriff für technische Einbindung,<br>- Beziehungen zwischen Berufen, Skills und Wissensbereichen,<br>- maschinenlesbare Konzepte statt bloßer Stichwörter. | ### What ESCO provides<br>- standardized occupations and skills,<br>- multilingual terms,<br>- API access for technical integration,<br>- relationships between occupations, skills, and knowledge areas,<br>- machine-readable concepts instead of plain keywords. |
 | public_pages.competencies | `public_pages.competencies.esco.column_b` | - | ### Mehrwert für Cognitive Staffing<br>- saubereres Occupation-Mapping,<br>- normalisierte Skill-Vorschläge,<br>- nachvollziehbare Herkunft von Empfehlungen,<br>- bessere Anschlussfähigkeit für Suche, Matching und Reporting,<br>- stabilere Begriffslogik über Teams und Standorte hinweg. | ### Value for Cognitive Staffing<br>- cleaner occupation mapping,<br>- normalized skill suggestions,<br>- traceable origin of recommendations,<br>- better interoperability for search, matching, and reporting,<br>- more stable terminology across teams and locations. |
-| public_pages.competencies | `public_pages.competencies.esco.after` | - | Gerade weil ESCO Occupations und Skills nicht nur als Wörter, sondern als verknüpfte Konzepte beschreibt, eignet sich die Klassifikation sehr gut für ein strukturiertes Vacancy Intake. | Because ESCO describes occupations and skills not merely as words, but as linked concepts, the classification is especially well suited for structured vacancy intake. |
+| public_pages.competencies | `public_pages.competencies.esco.after` | - | Gerade weil ESCO Occupations und Skills nicht nur als Wörter, sondern als verknüpfte Konzepte beschreibt, eignet sich die Klassifikation sehr gut für ein strukturiertes Recruiting-Briefing. | Because ESCO describes occupations and skills not merely as words, but as linked concepts, the classification is especially well suited for structured vacancy intake. |
 | public_pages.competencies | `public_pages.competencies.model.heading` | - | ## Verwendetes ChatGPT-Modell und KI-Architektur | ## ChatGPT model use and AI architecture |
-| public_pages.competencies | `public_pages.competencies.model.body` | - | Die App nutzt die OpenAI API **aufgabenbezogen**. Das bedeutet: Nicht jede Funktion wird zwangsläufig mit demselben Modell ausgeführt.<br><br>Je nach Task – etwa Extraktion, Frageplanung oder Artefaktgenerierung – kann unterschiedlich geroutet werden.<br><br>Wichtig ist deshalb nicht nur das Modell selbst, sondern die **kontrollierte Form der Ausgabe**:<br>- strukturierte Ergebnisse statt bloßer Fließtexte,<br>- klare Schemata statt freier Halluzinationsflächen,<br>- bessere Weiterverarbeitung innerhalb des Wizards. | The app uses the OpenAI API **by task**. This means not every function necessarily runs on the same model.<br><br>Depending on the task - such as extraction, question planning, or artifact generation - routing can differ.<br><br>What matters is therefore not only the model itself, but the **controlled shape of the output**:<br>- structured results instead of plain prose,<br>- clear schemas instead of open-ended hallucination space,<br>- better downstream processing inside the wizard. |
+| public_pages.competencies | `public_pages.competencies.model.body` | - | Die App nutzt die OpenAI API **aufgabenbezogen**. Das bedeutet: Nicht jede Funktion wird zwangsläufig mit demselben Modell ausgeführt.<br><br>Je nach Task – etwa Extraktion, Frageplanung oder Generierung von Recruiting-Unterlagen – kann unterschiedlich geroutet werden.<br><br>Wichtig ist deshalb nicht nur das Modell selbst, sondern die **kontrollierte Form der Ausgabe**:<br>- strukturierte Ergebnisse statt bloßer Fließtexte,<br>- klare Schemata statt freier Halluzinationsflächen,<br>- bessere Weiterverarbeitung innerhalb des Wizards. | The app uses the OpenAI API **by task**. This means not every function necessarily runs on the same model.<br><br>Depending on the task - such as extraction, question planning, or output generation - routing can differ.<br><br>What matters is therefore not only the model itself, but the **controlled shape of the output**:<br>- structured results instead of plain prose,<br>- clear schemas instead of open-ended hallucination space,<br>- better downstream processing inside the wizard. |
 | public_pages.competencies | `public_pages.competencies.model.callout_title` | - | Wichtige Einordnung | Important context |
 | public_pages.competencies | `public_pages.competencies.model.callout_body` | - | Die produktive Konfiguration ist modellabhängig und deploymentabhängig. Damit bleibt die Architektur flexibel, ohne die Qualität des Workflows an ein einziges festes Modell zu ketten. | Production configuration depends on the selected model and deployment. This keeps the architecture flexible without tying workflow quality to a single fixed model. |
 | public_pages.competencies | `public_pages.competencies.dynamic_flow.heading` | - | ## Dynamischer Fragenfluss | ## Dynamic question flow |
@@ -139,22 +139,22 @@ All Locale leaf keys below exist in both `locales/de.json` and `locales/en.json`
 | public_pages.competencies | `public_pages.competencies.downstream.heading` | - | ## Weiterverarbeitungsoptionen | ## Downstream options |
 | public_pages.competencies | `public_pages.competencies.downstream.cards.brief.title` | - | Recruiting Brief | Recruiting brief |
 | public_pages.competencies | `public_pages.competencies.downstream.cards.brief.body` | - | Die konsolidierte Entscheidungsgrundlage für Recruiting, Fachbereich und Management. | The consolidated decision foundation for recruiting, the business team, and management. |
-| public_pages.competencies | `public_pages.competencies.downstream.cards.job_ad.title` | - | Job Ad Generation | Job ad generation |
+| public_pages.competencies | `public_pages.competencies.downstream.cards.job_ad.title` | - | Stellenanzeige | Job ad generation |
 | public_pages.competencies | `public_pages.competencies.downstream.cards.job_ad.body` | - | Aus der strukturierten Datensammlung entsteht eine konsistente, zielgruppengerechte Stellenanzeige. | The structured data collection becomes a consistent, audience-specific job ad. |
-| public_pages.competencies | `public_pages.competencies.downstream.cards.interview.title` | - | Interview Sheets | Interview sheets |
+| public_pages.competencies | `public_pages.competencies.downstream.cards.interview.title` | - | HR-Sheet und Fachbereich-Sheet | HR sheet and hiring manager sheet |
 | public_pages.competencies | `public_pages.competencies.downstream.cards.interview.body` | - | Vorbereitungen für HR und Fachbereich mit klaren Themen, Prüfpunkten und Leitfragen. | Preparation for HR and the business team with clear topics, checkpoints, and guiding questions. |
-| public_pages.competencies | `public_pages.competencies.downstream.cards.boolean.title` | - | Boolean Search Strings | Boolean search strings |
+| public_pages.competencies | `public_pages.competencies.downstream.cards.boolean.title` | - | Suchstrings | Boolean search |
 | public_pages.competencies | `public_pages.competencies.downstream.cards.boolean.body` | - | Ableitungen für LinkedIn, Xing oder Google, damit Suchstrategien präziser und reproduzierbarer werden. | Derivations for LinkedIn, Xing, or Google so search strategies become more precise and reproducible. |
 | public_pages.competencies | `public_pages.competencies.downstream.cards.contract.title` | - | Contract Draft | Contract draft |
 | public_pages.competencies | `public_pages.competencies.downstream.cards.contract.body` | - | Vorlagennahe Vertragsentwürfe auf Basis derselben strukturierten Rolle. | Template-oriented contract drafts based on the same structured role. |
 | public_pages.competencies | `public_pages.competencies.downstream.cards.exports.title` | - | Exports | Exports |
-| public_pages.competencies | `public_pages.competencies.downstream.cards.exports.body` | - | Je nach Artefakt als JSON, Markdown, DOCX, PDF oder Mapping-Report weiterverwendbar. | Depending on the artifact, results can be reused as JSON, Markdown, DOCX, PDF, or mapping report. |
+| public_pages.competencies | `public_pages.competencies.downstream.cards.exports.body` | - | Je nach Unterlage als JSON, Markdown, DOCX, PDF oder Mapping-Report weiterverwendbar. | Depending on the output, results can be reused as JSON, Markdown, DOCX, PDF, or mapping report. |
 | public_pages.competencies | `public_pages.competencies.security.heading` | - | ## Sicherheit | ## Security |
 | public_pages.competencies | `public_pages.competencies.security.body` | - | Im HR-Kontext ist Datensensibilität kein Randthema. Deshalb ist Sicherheit für uns Teil der Produktlogik – nicht bloß ein Nachgedanke.<br><br>Schon in einem cloudbasierten Setup helfen strukturierte Verarbeitung, klare Exportpfade, kontrollierte Modellaufrufe und Datenminimierung dabei, sensible Inhalte bewusster zu behandeln. | In an HR context, data sensitivity is not a side issue. That is why security is part of the product logic, not an afterthought.<br><br>Even in a cloud-based setup, structured processing, clear export paths, controlled model calls, and data minimization help handle sensitive content more deliberately. |
 | public_pages.competencies | `public_pages.competencies.security.local_llm.title` | - | Lokales LLM als Sicherheitsoption | Local LLM as a security option |
 | public_pages.competencies | `public_pages.competencies.security.local_llm.body` | - | Für besonders sensible HR-Themen kann ein **lokal laufendes LLM** oder ein streng isoliertes On-Prem-/VPC-Setup erhebliche Vorteile bringen:<br><br>- Daten verbleiben in der eigenen Infrastruktur,<br>- Zugriffe und Speicherorte sind enger kontrollierbar,<br>- Drittlandtransfers und externe Abhängigkeiten können reduziert werden,<br>- Sicherheitsregeln lassen sich unternehmensspezifisch erzwingen,<br>- Akzeptanz für sensible HR-Prozesse steigt oft deutlich.<br><br>**Wichtige Einordnung**<br>Ein lokales LLM ist nicht automatisch sicher. Es verschiebt Verantwortung vom externen Anbieter in die eigene Umgebung.<br><br>Richtig umgesetzt bietet es jedoch bei sensiblen Recruiting- und HR-Themen oft mehr Kontrolle, mehr Transparenz und mehr Governance. | For especially sensitive HR topics, a **locally running LLM** or a strictly isolated on-prem/VPC setup can provide significant advantages:<br><br>- data remains in the organization's own infrastructure,<br>- access and storage locations can be controlled more tightly,<br>- third-country transfers and external dependencies can be reduced,<br>- security rules can be enforced company-specifically,<br>- acceptance for sensitive HR processes often increases significantly.<br><br>**Important context**<br>A local LLM is not automatically secure. It shifts responsibility from an external provider into the organization's own environment.<br><br>Implemented properly, however, it often offers more control, more transparency, and more governance for sensitive recruiting and HR topics. |
 | public_pages.competencies | `public_pages.competencies.cta.title` | - | Sie möchten sehen, wie aus einem unklaren Stellenbedarf ein belastbarer Recruiting-Startpunkt wird? | Would you like to see how an unclear hiring need becomes a reliable recruiting starting point? |
-| public_pages.competencies | `public_pages.competencies.cta.body` | brand | Testen Sie {brand} und erleben Sie, wie strukturierter Vacancy Intake Recruiting von Anfang an besser macht. | Try {brand} and experience how structured vacancy intake improves recruiting from the start. |
+| public_pages.competencies | `public_pages.competencies.cta.body` | brand | Testen Sie {brand} und erleben Sie, wie strukturiertes Recruiting-Briefing Recruiting von Anfang an besser macht. | Try {brand} and experience how structured vacancy intake improves recruiting from the start. |
 | public_pages.about | `public_pages.about.title` | - | Über Cognitive Staffing | About Cognitive Staffing |
 | public_pages.about | `public_pages.about.hero.eyebrow` | - | Über uns | About us |
 | public_pages.about | `public_pages.about.hero.lead` | - | Der Firmengründer, Gerrit Fabisch, entwickelt digitale Werkzeuge, die Arbeitgebern helfen, Prozesse klarer zu definieren und durch den Einsatz von KI zu optimieren. | The company founder, Gerrit Fabisch, develops digital tools that help employers define processes more clearly and optimize them through the use of AI. |
@@ -201,7 +201,7 @@ All Locale leaf keys below exist in both `locales/de.json` and `locales/en.json`
 | public_pages.privacy | `public_pages.privacy.processed_data.heading` | - | ## 3. Welche Daten wir verarbeiten | ## 3. Which data we process |
 | public_pages.privacy | `public_pages.privacy.processed_data.body` | - | Je nach Nutzung der Website und App können insbesondere folgende Daten verarbeitet werden:<br><br>- technische Zugriffsdaten und Protokolldaten,<br>- Kontakt- und Kommunikationsdaten,<br>- Inhalte, die Nutzerinnen und Nutzer aktiv eingeben oder hochladen,<br>- Nutzungs- und Einstellungsdaten,<br>- Einwilligungs- und Präferenzdaten, soweit einschlägig,<br>- organisationsbezogene Informationen im Rahmen der App-Nutzung. | Depending on website and app use, the following data in particular may be processed:<br><br>- technical access data and log data,<br>- contact and communication data,<br>- content that users actively enter or upload,<br>- usage and settings data,<br>- consent and preference data where applicable,<br>- organization-related information in the context of app use. |
 | public_pages.privacy | `public_pages.privacy.purposes.heading` | - | ## 4. Zwecke der Verarbeitung | ## 4. Purposes of processing |
-| public_pages.privacy | `public_pages.privacy.purposes.body` | - | Wir verarbeiten Daten insbesondere zu folgenden Zwecken:<br><br>- Bereitstellung und Betrieb der Website und App,<br>- Bearbeitung von Anfragen,<br>- strukturierte Aufbereitung von Recruiting- und Stelleninformationen,<br>- Generierung von Folgeartefakten innerhalb der Anwendung,<br>- Gewährleistung von IT-Sicherheit, Fehleranalyse und Missbrauchsprävention,<br>- Nachweis- und Dokumentationspflichten. | We process data in particular for the following purposes:<br><br>- providing and operating the website and app,<br>- handling inquiries,<br>- structurally preparing recruiting and vacancy information,<br>- generating downstream artifacts inside the application,<br>- ensuring IT security, error analysis, and abuse prevention,<br>- meeting documentation and evidence obligations. |
+| public_pages.privacy | `public_pages.privacy.purposes.body` | - | Wir verarbeiten Daten insbesondere zu folgenden Zwecken:<br><br>- Bereitstellung und Betrieb der Website und App,<br>- Bearbeitung von Anfragen,<br>- strukturierte Aufbereitung von Recruiting- und Stelleninformationen,<br>- Generierung weiterer Recruiting-Unterlagen innerhalb der Anwendung,<br>- Gewährleistung von IT-Sicherheit, Fehleranalyse und Missbrauchsprävention,<br>- Nachweis- und Dokumentationspflichten. | We process data in particular for the following purposes:<br><br>- providing and operating the website and app,<br>- handling inquiries,<br>- structurally preparing recruiting and vacancy information,<br>- generating downstream recruiting outputs inside the application,<br>- ensuring IT security, error analysis, and abuse prevention,<br>- meeting documentation and evidence obligations. |
 | public_pages.privacy | `public_pages.privacy.hr_content.heading` | - | ## 5. Besondere Hinweise zu HR-Inhalten | ## 5. Special notes on HR content |
 | public_pages.privacy | `public_pages.privacy.hr_content.body` | - | Unsere Anwendung kann zur Verarbeitung von Stelleninformationen, Jobspecs und vergleichbaren Dokumenten genutzt werden.<br><br>Bitte laden Sie nur solche Inhalte hoch oder übermitteln Sie nur solche Informationen, deren Verarbeitung zulässig, erforderlich und intern freigegeben ist.<br><br>Besonders sensible personenbezogene Daten sollten nur dann verarbeitet werden, wenn hierfür eine tragfähige rechtliche Grundlage und ein geeigneter organisatorischer Rahmen bestehen. | Our application can be used to process vacancy information, jobspecs, and comparable documents.<br><br>Please upload or submit only content whose processing is lawful, necessary, and internally approved.<br><br>Especially sensitive personal data should be processed only where there is a sound legal basis and an appropriate organizational framework. |
 | public_pages.privacy | `public_pages.privacy.legal_basis.heading` | - | ## 6. Rechtsgrundlagen | ## 6. Legal bases |
@@ -213,7 +213,7 @@ All Locale leaf keys below exist in both `locales/de.json` and `locales/en.json`
 | public_pages.privacy | `public_pages.privacy.recipients.providers.consent` | - | Consent- / Cookie-Management: Bitte ergänzen | Consent / cookie management: please add |
 | public_pages.privacy | `public_pages.privacy.recipients.body` | - | Sofern externe technische Dienstleister oder KI-Dienste eingebunden sind, erfolgt dies nur im Rahmen der jeweils vorgesehenen technischen, organisatorischen und vertraglichen Vorkehrungen. | Where external technical service providers or AI services are involved, this takes place only within the intended technical, organizational, and contractual safeguards. |
 | public_pages.privacy | `public_pages.privacy.retention.heading` | - | ## 8. Speicherung und Löschung | ## 8. Storage and deletion |
-| public_pages.privacy | `public_pages.privacy.retention.body` | - | Wir speichern personenbezogene Daten nur so lange, wie dies für die jeweiligen Zwecke erforderlich ist oder gesetzliche Aufbewahrungspflichten dies verlangen.<br><br>Soweit Inhalte innerhalb der Anwendung verarbeitet werden, sollte die Verarbeitung auf das erforderliche Maß begrenzt und organisatorisch kontrolliert werden. Exportierte Dokumente und Folgeartefakte unterliegen zusätzlich den Regeln der jeweiligen Nutzerorganisation. | We store personal data only for as long as necessary for the respective purposes or as required by statutory retention obligations.<br><br>Where content is processed inside the application, processing should be limited to what is necessary and organizationally controlled. Exported documents and downstream artifacts are also subject to the rules of the respective user organization. |
+| public_pages.privacy | `public_pages.privacy.retention.body` | - | Wir speichern personenbezogene Daten nur so lange, wie dies für die jeweiligen Zwecke erforderlich ist oder gesetzliche Aufbewahrungspflichten dies verlangen.<br><br>Soweit Inhalte innerhalb der Anwendung verarbeitet werden, sollte die Verarbeitung auf das erforderliche Maß begrenzt und organisatorisch kontrolliert werden. Exportierte Dokumente und weitere Recruiting-Unterlagen unterliegen zusätzlich den Regeln der jeweiligen Nutzerorganisation. | We store personal data only for as long as necessary for the respective purposes or as required by statutory retention obligations.<br><br>Where content is processed inside the application, processing should be limited to what is necessary and organizationally controlled. Exported documents and downstream recruiting outputs are also subject to the rules of the respective user organization. |
 | public_pages.privacy | `public_pages.privacy.cookies.heading` | - | ## 9. Cookies und ähnliche Technologien | ## 9. Cookies and similar technologies |
 | public_pages.privacy | `public_pages.privacy.cookies.body` | - | Wir verwenden Cookies und vergleichbare Technologien nur im jeweils erforderlichen Umfang.<br><br>Soweit nicht unbedingt erforderliche Technologien eingesetzt werden, erfolgt dies nur auf der Grundlage einer wirksamen Einwilligung oder einer sonst einschlägigen Rechtsgrundlage.<br><br>Weitere Informationen finden Sie in unserer Cookie Policy. | We use cookies and comparable technologies only to the extent required.<br><br>Where technologies that are not strictly necessary are used, this is done only on the basis of valid consent or another applicable legal basis.<br><br>Further information is available in our cookie policy. |
 | public_pages.privacy | `public_pages.privacy.rights.heading` | - | ## 10. Ihre Rechte | ## 10. Your rights |
@@ -295,9 +295,9 @@ All Locale leaf keys below exist in both `locales/de.json` and `locales/en.json`
 | public_pages.contact | `public_pages.contact.hero.lead` | - | Sie möchten Cognitive Staffing kennenlernen, eine Demo anfragen oder über einen konkreten Einsatzfall sprechen? Dann freuen wir uns auf Ihre Nachricht. | Would you like to get to know Cognitive Staffing, request a demo, or discuss a specific use case? We look forward to your message. |
 | public_pages.contact | `public_pages.contact.meta` | - | Für Unternehmen, HR, Recruiting, IT und Produktverantwortliche | For companies, HR, recruiting, IT, and product owners |
 | public_pages.contact | `public_pages.contact.cards.decision_makers.title` | - | Unternehmen & Entscheider | Companies and decision makers |
-| public_pages.contact | `public_pages.contact.cards.decision_makers.body` | - | Sie möchten Ihren Vacancy Intake professionalisieren, Reibung im Recruiting reduzieren und bessere Entscheidungen früher im Prozess ermöglichen. | You want to professionalize vacancy intake, reduce friction in recruiting, and enable better decisions earlier in the process. |
+| public_pages.contact | `public_pages.contact.cards.decision_makers.body` | - | Sie möchten Ihr Recruiting-Briefing professionalisieren, Reibung im Recruiting reduzieren und bessere Entscheidungen früher im Prozess ermöglichen. | You want to professionalize vacancy intake, reduce friction in recruiting, and enable better decisions earlier in the process. |
 | public_pages.contact | `public_pages.contact.cards.hr.title` | - | HR & Recruiting | HR and recruiting |
-| public_pages.contact | `public_pages.contact.cards.hr.body` | - | Sie interessieren sich für klarere Übergaben, bessere Suchprofile, stärkere Interviewvorbereitung und wiederverwendbare Recruiting-Artefakte. | You are interested in clearer handovers, better search profiles, stronger interview preparation, and reusable recruiting artifacts. |
+| public_pages.contact | `public_pages.contact.cards.hr.body` | - | Sie interessieren sich für klarere Übergaben, bessere Suchprofile, stärkere Interviewvorbereitung und wiederverwendbare Recruiting-Unterlagen. | You are interested in clearer handovers, better search profiles, stronger interview preparation, and reusable recruiting outputs. |
 | public_pages.contact | `public_pages.contact.cards.it.title` | - | IT & Produktverantwortliche | IT and product owners |
 | public_pages.contact | `public_pages.contact.cards.it.body` | - | Sie möchten mehr über Architektur, Sicherheit, Integrationsfähigkeit, On-Prem-Optionen oder lokale LLM-Szenarien erfahren. | You want to learn more about architecture, security, integration capability, on-prem options, or local LLM scenarios. |
 | public_pages.contact | `public_pages.contact.reach.heading` | - | ## So erreichen Sie uns | ## How to reach us |
@@ -434,27 +434,27 @@ These entries are consumed by `t(text)` when the active UI language is English. 
 | wizard.intake | Fragen priorisieren | Prioritize questions |
 | common | Nur fehlende oder unsichere Punkte werden für den Wizard vorbereitet. | Only missing or uncertain points are prepared for the wizard. |
 | common | Weiterverarbeiten | Continue processing |
-| summary.artifact | Aufgaben, Skills, Benefits, Interview- und Summary-Artefakte bauen darauf auf. | Tasks, skills, benefits, interview, and summary artifacts build on it. |
+| summary.artifact | Aufgaben, Skills, Benefits, Interview und Summary-Unterlagen bauen darauf auf. | Tasks, skills, benefits, interview, and summary outputs build on it. |
 | common | Ergebnis: weniger manuelle Sortierarbeit und eine bessere Grundlage für alle Recruiting-Aktivitäten. | Result: less manual sorting and a better foundation for all recruiting activities. |
 | common | Mehr Kontext: | More context: |
 | esco | Was ist ESCO? | What is ESCO? |
 | common | Was bedeutet RAG? | What does RAG mean? |
-| common | Warum Need Analysis? | Why need analysis? |
+| common | Warum Recruiting-Briefing? | Why vacancy intake? |
 | common | Kurzer Kontext, warum die App nicht nur sichtbare Anforderungen, sondern auch Lücken und implizite Bedarfstreiber strukturiert. | Brief context on why the app structures not only visible requirements, but also gaps and implicit demand drivers. |
 | public.legal | Datenschutz und Kontrolle | Privacy and control |
 | wizard.intake | Weniger Rückfragen | Fewer follow-up questions |
 | common | Der Wizard fragt gezielt nach, statt ein starres Formular abzuarbeiten. | The wizard asks targeted questions instead of running through a rigid form. |
 | common | Klarer Rollenanker | Clear role anchor |
 | esco | Jobtitel werden mit ESCO abgeglichen, damit alle Folgeschritte denselben Berufskontext nutzen. | Job titles are matched with ESCO so every later step uses the same occupation context. |
-| common | Direkt nutzbare Outputs | Ready-to-use outputs |
+| common | Direkt nutzbare Recruiting-Unterlagen | Ready-to-use recruiting outputs |
 | summary.artifact | Aus dem Intake entstehen strukturierte Informationen für Recruiting, Hiring-Team und Summary. | The intake produces structured information for recruiting, the hiring team, and the summary. |
 | common | 1. Beruf eindeutig verankern | 1. Anchor the occupation clearly |
 | esco | Die Rolle wird auf einen klaren ESCO-Beruf gemappt, damit alle Folgeschritte denselben Kontext nutzen. | The role is mapped to a clear ESCO occupation so all later steps use the same context. |
 | common | 2. Anforderungen strukturieren | 2. Structure requirements |
 | domain | Skills, Aufgaben und Muss-/Kann-Kriterien werden normalisiert und in einen nutzbaren Plan überführt. | Skills, tasks, and must-have/nice-to-have criteria are normalized into a usable plan. |
-| summary.artifact | 3. Recruiting-Artefakte erzeugen | 3. Generate recruiting artifacts |
-| common | Die App erstellt belastbare Texte, Zusammenfassungen und Folge-Outputs für Recruiting und Hiring-Team. | The app creates robust text, summaries, and follow-up outputs for recruiting and the hiring team. |
-| wizard.intake | Vor der Verarbeitung können sensible personenbezogene Angaben optional reduziert werden. Ziel ist eine datensparsame, nachvollziehbare Nutzung im Vacancy Intake. | Before processing, sensitive personal information can optionally be reduced. The goal is data-minimizing, traceable use in vacancy intake. |
+| summary.artifact | 3. Recruiting-Unterlagen erzeugen | 3. Generate recruiting outputs |
+| common | Die App erstellt belastbare Texte, Zusammenfassungen und Recruiting-Unterlagen für Recruiting und Hiring-Team. | The app creates robust text, summaries, and recruiting outputs for recruiting and the hiring team. |
+| wizard.intake | Vor der Verarbeitung können sensible personenbezogene Angaben optional reduziert werden. Ziel ist ein datensparsames, nachvollziehbares Recruiting-Briefing. | Before processing, sensitive personal information can optionally be reduced. The goal is data-minimizing, traceable vacancy intake. |
 | common | Start ist gesperrt, bis die Einwilligung bestätigt wurde. Start is blocked until consent is confirmed. | Start is blocked until consent is confirmed. |
 | common | Wenn für eure Organisation Designated Content freigegeben ist, können diese Inhalte von OpenAI zu Entwicklungszwecken genutzt werden (inkl. Training, Evaluierung, Tests). Ihr müsst Endnutzende informieren und – falls erforderlich – Einwilligungen einholen. | If designated content is enabled for your organization, this content may be used by OpenAI for development purposes, including training, evaluation, and testing. You must inform end users and obtain consent where required. |
 | common | Offen kommunizierbar | Can be communicated openly |
@@ -518,7 +518,7 @@ These entries are consumed by `t(text)` when the active UI language is English. 
 | summary.artifact | Interviewprozess definieren | Define interview process |
 | common | Candidate Communication | Candidate communication |
 | common | Readiness-Übersicht | Readiness overview |
-| summary.artifact | Artefaktübersicht | Artifact overview |
+| summary.artifact | Unterlagenübersicht | Recruiting outputs overview |
 | wizard.intake | Quellen & Details prüfen | Review sources and details |
 | summary.artifact | Recruiting Brief | Recruiting brief |
 | wizard.intake | Frageblöcke | Question blocks |
@@ -809,7 +809,7 @@ Priority guide: `P1` visible wizard workflow copy, `P2` shared/public/helper cop
 | P1 | `wizard.benefits` | `wizard_pages/06_benefits.py:843` | #### Offene Klärungen |
 | P1 | `wizard.benefits` | `wizard_pages/06_benefits.py:844` | Klärt, was für Angebot und Kommunikation noch fehlt. |
 | P1 | `wizard.benefits` | `wizard_pages/06_benefits.py:848` | Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen. |
-| P1 | `wizard.benefits` | `wizard_pages/06_benefits.py:855` | #### Review |
+| P1 | `wizard.benefits` | `wizard_pages/06_benefits.py:855` | #### Prüfung |
 | P1 | `wizard.benefits` | `wizard_pages/06_benefits.py:856` | Prüft, ob Angebot, Auswahl und offene Punkte zusammenpassen. |
 | P1 | `wizard.benefits` | `wizard_pages/06_benefits.py:876` | Angebot kompakt machen |
 | P1 | `wizard.company` | `wizard_pages/02_company.py:152` | Abschnitt gespeichert. |
@@ -888,7 +888,7 @@ Priority guide: `P1` visible wizard workflow copy, `P2` shared/public/helper cop
 | P1 | `wizard.interview` | `wizard_pages/07_interview.py:1095` | Ablauf, Kommunikation, Zuständigkeiten und Bewertung werden hier zusammen gepflegt. |
 | P1 | `wizard.interview` | `wizard_pages/07_interview.py:1161` | #### Offene Fragen |
 | P1 | `wizard.interview` | `wizard_pages/07_interview.py:1163` | Für diesen Abschnitt wurden keine spezifischen Fragen erzeugt. Du kannst trotzdem weitergehen. |
-| P1 | `wizard.interview` | `wizard_pages/07_interview.py:1170` | #### Review |
+| P1 | `wizard.interview` | `wizard_pages/07_interview.py:1170` | #### Prüfung |
 | P1 | `wizard.interview` | `wizard_pages/07_interview.py:1187` | Interviewprozess klar und fair gestalten |
 | P1 | `wizard.role_tasks` | `wizard_pages/04_role_tasks.py:344` | Keine Angabe erkannt. |
 | P1 | `wizard.role_tasks` | `wizard_pages/04_role_tasks.py:350` | {...} weitere anzeigen |
@@ -1005,7 +1005,7 @@ Priority guide: `P1` visible wizard workflow copy, `P2` shared/public/helper cop
 | P1 | `wizard.start` | `wizard_pages/jobad_intake.py:466` | Extrahierter Text ist bereit ({...} Zeichen). Die vollständige Quelle bleibt einklappbar. |
 | P1 | `wizard.start` | `wizard_pages/jobad_intake.py:471` | Extrahierter Text ist bereit ({...} Zeichen). Kompakte Vorschau: |
 | P1 | `wizard.start` | `wizard_pages/jobad_intake.py:736` | Kleine Info-Icons zeigen die jeweilige Fundstelle bei Bedarf. |
-| P1 | `wizard.start` | `wizard_pages/jobad_intake.py:967` | #### Review-Fokus |
+| P1 | `wizard.start` | `wizard_pages/jobad_intake.py:967` | #### Prüffokus |
 | P1 | `wizard.start` | `wizard_pages/jobad_intake.py:980` | Arbeitsort: {...} |
 | P1 | `wizard.start` | `wizard_pages/jobad_intake.py:1005` | #### Herkunft der Informationen |
 | P1 | `wizard.start` | `wizard_pages/jobad_intake.py:1016` | Belegte Fundstellen und Annahmen anzeigen |
@@ -1113,8 +1113,8 @@ Priority guide: `P1` visible wizard workflow copy, `P2` shared/public/helper cop
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:1518` | Arbeitszeit / Gehaltshinweis |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:1518` | z. B. 40h/Woche, Gehaltsband aus Intake übernehmen |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:1524` | Rechtliche Prüfung bleibt erforderlich; das Ergebnis ist nur ein Vorlagenentwurf. |
-| P1 | `wizard.summary` | `wizard_pages/summary_view.py:1542` | ### Artefakte |
-| P1 | `wizard.summary` | `wizard_pages/summary_view.py:1543` | Wähle ein Artefakt, schärfe die wichtigsten Einflussfaktoren und generiere direkt aus den aktuellen Daten. |
+| P1 | `wizard.summary` | `wizard_pages/summary_view.py:1542` | ### Recruiting-Unterlagen |
+| P1 | `wizard.summary` | `wizard_pages/summary_view.py:1543` | Wähle eine Unterlage, schärfe die wichtigsten Einflussfaktoren und generiere direkt aus den aktuellen Daten. |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:1592` | Reservierter Slot |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:1593` | Noch nicht aktiv |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:1607` | Status: {...} |
@@ -1132,21 +1132,21 @@ Priority guide: `P1` visible wizard workflow copy, `P2` shared/public/helper cop
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:1721` | Panel ausgeblendet. Nutze „Stellenanzeige vorbereiten“ in der Job-Ad-Karte. |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:1738` | ### Recruiting Brief |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:1747` | Status: {...} · {...} |
-| P1 | `wizard.summary` | `wizard_pages/summary_view.py:1766` | ### Folgeartefakte |
-| P1 | `wizard.summary` | `wizard_pages/summary_view.py:1767` | Nachgelagerte Artefakte bauen auf einem aktuellen Recruiting Brief auf. |
+| P1 | `wizard.summary` | `wizard_pages/summary_view.py:1766` | ### Weitere Recruiting-Unterlagen |
+| P1 | `wizard.summary` | `wizard_pages/summary_view.py:1767` | Nachgelagerte Unterlagen bauen auf einem aktuellen Recruiting Brief auf. |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:1780` | ### Export |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:1782` | Export wird im Bereich **Brief & Export** bereitgestellt (JSON, Markdown, DOCX, ESCO-Mapping). |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:1786` | Bereit: Recruiting Brief vorhanden – Exporte können erstellt werden. |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:1790` | Noch nicht bereit: Erst den Recruiting Brief erstellen, dann Exporte nutzen. |
-| P1 | `wizard.summary` | `wizard_pages/summary_view.py:1876` | #### Artefakt-Pipeline |
-| P1 | `wizard.summary` | `wizard_pages/summary_view.py:1877` | Status der wichtigsten Folgeartefakte auf einen Blick. |
+| P1 | `wizard.summary` | `wizard_pages/summary_view.py:1876` | #### Unterlagen-Pipeline |
+| P1 | `wizard.summary` | `wizard_pages/summary_view.py:1877` | Status der wichtigsten Recruiting-Unterlagen auf einen Blick. |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:1903` | Status: {...} |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:1907` | Voraussetzungen: {...} |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:1980` | Aktuell ist kein nächster Schritt verfügbar. |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2000` | Voraussetzung: {...} {...} |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2003` | Aktion: {...} |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2021` | Keine kritischen Lücken erkannt. |
-| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2029` | #### Artefakte starten |
+| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2029` | #### Recruiting-Unterlagen starten |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2043` | Status: {...} · Voraussetzungen: {...} |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2047` | Voraussetzungen: {...} |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2102` | ### Arbeitsbereiche |
@@ -1155,7 +1155,7 @@ Priority guide: `P1` visible wizard workflow copy, `P2` shared/public/helper cop
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2137` | Technische Vorschauen und Statusdaten bleiben hier gebündelt. |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2139` | Strukturierte Exportvorschau |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2170` | Noch keine Timing-Daten für Enrichment-Pfade verfügbar. |
-| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2212` | #### Artefaktübersicht |
+| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2212` | #### Unterlagenübersicht |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2256` | Details: {...}{...} |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2261` | **Voraussetzungen:** {...} {...} |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2265` | Stellenanzeige vorbereiten |
@@ -1171,29 +1171,29 @@ Priority guide: `P1` visible wizard workflow copy, `P2` shared/public/helper cop
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2386` | PDF-Export benötigt reportlab (nicht verfügbar). |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2388` | Stellenanzeige herunterladen (PDF) |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2395` | Stellenanzeige herunterladen (Markdown) |
-| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2417` | Für dieses Artefakt liegt noch kein Ergebnis vor. |
-| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2433` | Interview Sheet herunterladen (JSON) |
-| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2440` | Interview Sheet herunterladen (DOCX) |
-| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2447` | Für dieses Artefakt liegt noch kein Ergebnis vor. |
-| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2472` | Interview Sheet (Fachbereich) herunterladen (JSON) |
-| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2479` | Interview Sheet (Fachbereich) herunterladen (DOCX) |
+| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2417` | Für diese Unterlage liegt noch kein Ergebnis vor. |
+| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2433` | HR-Sheet herunterladen (JSON) |
+| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2440` | HR-Sheet herunterladen (DOCX) |
+| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2447` | Für diese Unterlage liegt noch kein Ergebnis vor. |
+| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2472` | Fachbereich-Sheet herunterladen (JSON) |
+| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2479` | Fachbereich-Sheet herunterladen (DOCX) |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2487` | PDF-Export benötigt reportlab (nicht verfügbar). |
-| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2489` | Interview Sheet (Fachbereich) herunterladen (PDF) |
-| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2496` | Für dieses Artefakt liegt noch kein Ergebnis vor. |
-| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2505` | Für dieses Artefakt liegt noch kein Ergebnis vor. |
+| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2489` | Fachbereich-Sheet herunterladen (PDF) |
+| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2496` | Für diese Unterlage liegt noch kein Ergebnis vor. |
+| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2505` | Für diese Unterlage liegt noch kein Ergebnis vor. |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2519` | Arbeitsvertrag herunterladen (JSON) |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2526` | Arbeitsvertrag herunterladen (DOCX) |
-| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2533` | Für dieses Artefakt liegt noch kein Ergebnis vor. |
+| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2533` | Für diese Unterlage liegt noch kein Ergebnis vor. |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2568` | Vorhandene Ergebnisse |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2602` | Was soll am Ergebnis angepasst werden? |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2602` | z. B. kürzer, stärker auf Senior-Profile, mehr Interviewfragen zu Stakeholder-Management … |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2612` | Anpassungen übernehmen |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2670` | ### Ergebnis |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2687` | Dieses Ergebnis basiert auf älteren Fakten oder Optionen. Bitte neu generieren. |
-| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2691` | Für dieses Artefakt liegt noch kein Ergebnis vor. |
+| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2691` | Für diese Unterlage liegt noch kein Ergebnis vor. |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2734` | Weitere Ergebnisse |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2736` | Als Fokus öffnen: {...} |
-| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2760` | Noch keine Folgeartefakte vorhanden. |
+| P1 | `wizard.summary` | `wizard_pages/summary_view.py:2760` | Noch keine weiteren Recruiting-Unterlagen vorhanden. |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2784` | Lade die Exportformate direkt herunter. JSON-Vorschau und Debug-Details sind standardmäßig eingeklappt. |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2789` | JSON herunterladen |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2796` | Markdown herunterladen |
@@ -1257,7 +1257,7 @@ Priority guide: `P1` visible wizard workflow copy, `P2` shared/public/helper cop
 | P2 | `ui` | `ui_job_extract.py:78` | ### Identifizierte Informationen |
 | P2 | `ui` | `ui_job_extract.py:154` | Alle {...} Einträge anzeigen |
 | P2 | `ui` | `ui_job_extract.py:171` | ### Analyseergebnis |
-| P2 | `ui` | `ui_job_extract.py:172` | Die wichtigsten Angaben sind nach Themen gruppiert. Die Review fokussiert auf Sicherheit, offene Punkte und direkte Korrektur. |
+| P2 | `ui` | `ui_job_extract.py:172` | Die wichtigsten Angaben sind nach Themen gruppiert. Die Prüfung fokussiert auf Sicherheit, offene Punkte und direkte Korrektur. |
 | P2 | `ui` | `ui_job_extract.py:256` | Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions. |
 | P2 | `ui` | `ui_job_extract.py:260` | Kompaktansicht für lange Listen. Gezeigt werden zunächst die Top 5 Einträge. |
 | P2 | `ui` | `ui_job_extract.py:294` | Alle {...} Einträge anzeigen |
@@ -1339,9 +1339,9 @@ Priority guide: `P1` visible wizard workflow copy, `P2` shared/public/helper cop
 | P2 | `wizard.summary` | `ui_summary_artifacts.py:273` | Keine Nutzungshinweise hinterlegt. |
 | P2 | `wizard.summary` | `ui_summary_artifacts.py:277` | ### Risiken |
 | P2 | `wizard.summary` | `ui_summary_artifacts.py:282` | Keine kanalbezogenen Einschränkungen hinterlegt. |
-| P2 | `wizard.summary` | `ui_summary_artifacts.py:303` | ## Boolean Search |
+| P2 | `wizard.summary` | `ui_summary_artifacts.py:303` | ## Suchstrings |
 | P2 | `wizard.summary` | `ui_summary_artifacts.py:305` | Rolle: {...} · Zielregionen: {...} |
-| P2 | `wizard.summary` | `ui_summary_artifacts.py:308` | Keine Boolean-Suchstrings vorhanden. |
+| P2 | `wizard.summary` | `ui_summary_artifacts.py:308` | Keine Suchstrings vorhanden. |
 | P2 | `wizard.summary` | `ui_summary_artifacts.py:311` | ### Kanalvarianten |
 | P2 | `wizard.summary` | `ui_summary_artifacts.py:333` | Vorlagenentwurf zur Prüfung. Kein finaler Vertrag und keine Rechtsberatung. |
 | P2 | `wizard.summary` | `ui_summary_artifacts.py:336` | **Rechtsraum:** {...} · **Rolle:** {...} · **Beschäftigungsart:** {...} · **Vertragsart:** {...} |
@@ -1352,7 +1352,7 @@ Priority guide: `P1` visible wizard workflow copy, `P2` shared/public/helper cop
 | P2 | `wizard.summary` | `ui_summary_artifacts.py:405` | Rechtlicher Hinweis: {...} |
 | P2 | `wizard.summary` | `ui_summary_artifacts.py:407` | Keine Klauseln vorhanden. |
 | P2 | `wizard.summary` | `ui_summary_artifacts.py:409` | **Unterschriftsanforderungen** |
-| P2 | `wizard.summary` | `wizard_pages/summary_view.py:2204` | **Pipeline:** `Recruiting Brief` → `Interview HR/Fach` → `Boolean Search` → `Arbeitsvertrag` → `Export` / Status Recruiting Brief: {...} · {...} |
+| P2 | `wizard.summary` | `wizard_pages/summary_view.py:2204` | **Pipeline:** `Recruiting Brief` → `HR-Sheet/Fachbereich-Sheet` → `Suchstrings` → `Arbeitsvertrag` → `Export` / Status Recruiting Brief: {...} · {...} |
 | P3 | `common` | `wizard_pages/01a_jobspec_review.py:91` | Extraktionsqualität: {...} ({...}/{...} Kernfelder gefüllt). |
 | P3 | `common` | `wizard_pages/01a_jobspec_review.py:110` | Identifizierte Informationen |
 | P3 | `common` | `wizard_pages/01a_jobspec_review.py:111` | Hier prüfst und ergänzt du die extrahierten Inhalte, Gaps und Assumptions, bevor du in den Schritt 'Unternehmen' wechselst. |

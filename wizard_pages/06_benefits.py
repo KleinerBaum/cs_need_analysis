@@ -858,7 +858,7 @@ def render(ctx: WizardContext) -> None:
         render_question_step(step)
 
     def _render_review_slot() -> None:
-        st.markdown("#### Review")
+        st.markdown("#### Prüfung")
         st.caption(
             "Prüft, ob Angebot, Auswahl und offene Punkte zusammenpassen."
         )

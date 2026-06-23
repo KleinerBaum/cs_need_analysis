@@ -132,7 +132,7 @@ def test_summary_hero_status_missing_brief(monkeypatch) -> None:
     )
 
     assert status.brief_state == "missing"
-    assert status.next_step == "Gewünschtes Recruiting-Artefakt erzeugen"
+    assert status.next_step == "Gewünschte Recruiting-Unterlage erzeugen"
     assert status.ready_for_follow_ups is True
 
 
@@ -159,7 +159,7 @@ def test_summary_hero_status_stale_brief_text_path(monkeypatch) -> None:
     subheader = SUMMARY_MODULE._build_summary_subheader(meta, status)
 
     assert status.brief_state == "stale"
-    assert status.next_step == "Gewünschtes Recruiting-Artefakt erzeugen"
+    assert status.next_step == "Gewünschte Recruiting-Unterlage erzeugen"
     assert "Recruiting Brief ist veraltet." in subheader
 
 
@@ -178,7 +178,7 @@ def test_summary_hero_meta_badges_show_dynamic_readiness(monkeypatch) -> None:
         completion_text="10/10 beantwortet",
         brief_state="ready",
         brief_status_label="Aktueller Recruiting Brief vorhanden.",
-        next_step="Gewünschtes Folge-Artefakt erzeugen",
+        next_step="Gewünschte Recruiting-Unterlage erzeugen",
         readiness_percent=100,
         ready_for_follow_ups=True,
         esco_ready=True,

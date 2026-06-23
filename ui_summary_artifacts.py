@@ -300,12 +300,12 @@ def _has_visible_boolean_queries(pack: BooleanSearchPack) -> bool:
 
 
 def render_boolean_search_pack(pack: BooleanSearchPack) -> None:
-    st.markdown("## Boolean Search")
+    st.markdown("## Suchstrings")
     locations = ", ".join(pack.target_locations) if pack.target_locations else "—"
     st.caption(f"Rolle: {pack.role_title} · Zielregionen: {locations}")
 
     if not _has_visible_boolean_queries(pack):
-        st.info("Keine Boolean-Suchstrings vorhanden.")
+        st.info("Keine Suchstrings vorhanden.")
         return
 
     st.markdown("### Kanalvarianten")

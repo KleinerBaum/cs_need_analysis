@@ -45,7 +45,7 @@ INTRO_COPY = {
     ),
     "closing": "Bereit, die Anforderungen Ihrer Vakanz richtig kennenzulernen? Probieren Sie es aus.",
     "cta": "Zum Start",
-    "iceberg_title": "Warum Need Analysis?",
+    "iceberg_title": "Warum Recruiting-Briefing?",
     "iceberg_caption": (
         "Das Eisberg-Modell zeigt, welche sichtbaren und verdeckten Informationen "
         "eine gute Vakanzerfassung zusammenführt."

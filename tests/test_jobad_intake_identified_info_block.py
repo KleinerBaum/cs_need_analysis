@@ -222,7 +222,7 @@ def test_identified_info_next_is_enabled_without_esco_anchor(monkeypatch) -> Non
     assert "cs.jobspec.ident_info.next" not in fake_st.button_disabled
     assert (
         "Optional: Im nächsten Abschnitt können Sie den Referenzberuf bestätigen, "
-        "damit Aufgaben, Skills und Folge-Outputs konsistent bleiben."
+        "damit Aufgaben, Skills und Recruiting-Unterlagen konsistent bleiben."
         in fake_st.captions
     )
     assert overview_calls

@@ -333,7 +333,7 @@ def test_artifact_display_label_maps_expected_labels_and_fallbacks() -> None:
     assert SUMMARY_MODULE._artifact_display_label("job_ad") == "Stellenanzeige"
     assert SUMMARY_MODULE._artifact_display_label("interview_hr") == "HR-Sheet"
     assert SUMMARY_MODULE._artifact_display_label("interview_fach") == "Fachbereich-Sheet"
-    assert SUMMARY_MODULE._artifact_display_label("boolean_search") == "Boolean Search"
+    assert SUMMARY_MODULE._artifact_display_label("boolean_search") == "Suchstrings"
     assert SUMMARY_MODULE._artifact_display_label("employment_contract") == "Arbeitsvertrag"
     assert SUMMARY_MODULE._artifact_display_label("brief") == "Recruiting Brief"
     assert SUMMARY_MODULE._artifact_display_label("custom_artifact") == "custom_artifact"

@@ -665,7 +665,7 @@ def _build_summary_status(
     )
     brief_state = brief_status.state
     brief_status_label = brief_status.message
-    next_step = "Gewünschtes Recruiting-Artefakt erzeugen"
+    next_step = "Gewünschte Recruiting-Unterlage erzeugen"
 
     if fact_readiness is not None:
         readiness_percent = fact_readiness.readiness_percent
@@ -1056,7 +1056,7 @@ def _with_summary_row_metadata(
 
 
 def _is_meaningful_summary_fact_row(row: SummaryFactsRow) -> bool:
-    if row.bereich == "Artefakte":
+    if row.bereich == "Recruiting-Unterlagen":
         return False
     if row.status == "Fehlend":
         return False
@@ -1392,7 +1392,7 @@ def _build_summary_fact_rows(
 
 
 def _is_visible_summary_fact_row(row: Mapping[str, str]) -> bool:
-    if str(row.get("Bereich", "")).strip() == "Artefakte":
+    if str(row.get("Bereich", "")).strip() == "Recruiting-Unterlagen":
         return False
     if str(row.get("Status", "")).strip() == "Fehlend":
         return False
@@ -1487,7 +1487,7 @@ def _build_summary_critical_gap_rows(vm: SummaryViewModel) -> list[dict[str, str
     rows: list[dict[str, str]] = []
     for row in vm.fact_rows:
         if (
-            row.bereich == "Artefakte"
+            row.bereich == "Recruiting-Unterlagen"
             or row.status not in {"Fehlend", "Teilweise"}
             or not _is_critical_summary_fact_row(row)
         ):

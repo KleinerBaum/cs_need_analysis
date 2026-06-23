@@ -19,7 +19,7 @@ def test_artifact_display_label_maps_known_ids_and_preserves_unknown_labels() ->
     assert artifact_display_label("job_ad") == "Stellenanzeige"
     assert artifact_display_label("interview_hr") == "HR-Sheet"
     assert artifact_display_label("interview_fach") == "Fachbereich-Sheet"
-    assert artifact_display_label("boolean_search") == "Boolean Search"
+    assert artifact_display_label("boolean_search") == "Suchstrings"
     assert artifact_display_label("employment_contract") == "Arbeitsvertrag"
     assert artifact_display_label("brief") == "Recruiting Brief"
     assert artifact_display_label("  custom_artifact  ") == "custom_artifact"

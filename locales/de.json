@@ -11,7 +11,7 @@
     "placeholder_missing_optional": "Bitte ergänzen, falls vorhanden"
   },
   "iceberg": {
-    "aria_label": "Eisberg-Modell klassischer und AI-gestützter Need-Analysis",
+    "aria_label": "Eisberg-Modell für klassisches und KI-gestütztes Recruiting-Briefing",
     "surface_label": "oberhalb der Wasserlinie: sichtbar in Jobspec & Briefing",
     "deep_label": "unterhalb der Wasserlinie: entscheidend für Search, Matching & Interview"
   },
@@ -20,7 +20,7 @@
       "landing": {
         "headline": "Stellenanzeige hochladen. Recruiting-Briefing starten.",
         "subheadline": "Für Recruiting, HR und Hiring Teams, die aus einer Jobspec schnell ein belastbares Briefing machen müssen. Die App erkennt, was schon klar ist, und zeigt, was für Search, Matching, Interview und Angebot noch fehlt.",
-        "value_line": "Am Ende steht eine geprüfte Briefing-Basis mit Rollenprofil, priorisierten Anforderungen, offenen Fragen und verwertbaren Outputs.",
+        "value_line": "Am Ende steht eine geprüfte Briefing-Basis mit Rollenprofil, priorisierten Anforderungen, offenen Fragen und verwertbaren Recruiting-Unterlagen.",
         "headline_after_analysis": "Wir haben die ersten Informationen zu {role_title} erkannt.",
         "subheadline_after_analysis": "Jetzt wird aus der Quelle ein Recruiting-Briefing: Prüfen Sie erkannte Angaben, schließen Sie Lücken und bestätigen Sie den Referenzberuf.",
         "value_line_after_analysis": "Nächster Fortschritt: eine gemeinsame Briefing-Basis für Recruiting, Hiring-Team, Search und Interview.",
@@ -81,7 +81,7 @@
           "ready": "Bereit für Recruiting, Interviews und Active Sourcing"
         },
         "subheadline": {
-          "default": "Prüfen Sie offene Lücken, übernehmen Sie finale Anpassungen und erstellen Sie die passenden Ergebnisse für Recruiting, HR und Active Sourcing.",
+          "default": "Prüfen Sie offene Lücken, übernehmen Sie finale Anpassungen und erstellen Sie die passenden Recruiting-Unterlagen für Recruiting, HR und Active Sourcing.",
           "gap": "Klären Sie diese Angaben, bevor Sie Stellenanzeige, Interviewleitfaden oder Suchstrings exportieren.",
           "ready": "Alle wichtigen Fakten sind geprüft. Erstellen Sie jetzt Stellenanzeige, HR-Sheet und Suchstrings."
         },
@@ -103,13 +103,13 @@
     "competencies": {
       "title": "Unsere Kompetenzen",
       "hero": {
-        "eyebrow": "Vacancy Intake · ESCO · KI · Struktur",
-        "lead": "Wir professionalisieren den ersten Schritt jedes Recruiting-Prozesses: den Vacancy Intake. Aus unstrukturierten Eingangsinformationen entsteht ein klarer, belastbarer und weiterverwendbarer Datensatz, der Suche, Auswahl und interne Abstimmung von Beginn an verbessert."
+        "eyebrow": "Recruiting-Briefing · ESCO · KI · Struktur",
+        "lead": "Wir professionalisieren den ersten Schritt jedes Recruiting-Prozesses: das Recruiting-Briefing. Aus unstrukturierten Eingangsinformationen entsteht ein klarer, belastbarer und weiterverwendbarer Datensatz, der Suche, Auswahl und interne Abstimmung von Beginn an verbessert."
       },
       "meta": "Fokus: strukturierter Intake, semantische Qualität, kontrollierte KI-Nutzung, Sicherheit und Weiterverarbeitung",
       "top_cards": {
         "structured_intake": {
-          "title": "Strukturierter Vacancy Intake",
+          "title": "Strukturiertes Recruiting-Briefing",
           "body": "Wir setzen nicht erst bei der Jobanzeige an, sondern bei der Bedarfsklärung. So werden Missverständnisse, spätere Korrekturschleifen und überladene Wunschprofile früh reduziert."
         },
         "dynamic_flow": {
@@ -130,7 +130,7 @@
         },
         "exports": {
           "title": "Weiterverarbeitung & Exporte",
-          "body": "Aus derselben Datengrundlage lassen sich Recruiting Brief, Job Ad, Interview Sheets, Boolean Search Strings und weitere Artefakte direkt ableiten."
+          "body": "Aus derselben Datengrundlage lassen sich Recruiting Brief, Stellenanzeige, HR-Sheet, Fachbereich-Sheet, Suchstrings und weitere Recruiting-Unterlagen direkt ableiten."
         }
       },
       "how": {
@@ -158,11 +158,11 @@
         "callout_body": "Statt nur freie Rollen- und Skillbezeichnungen zu sammeln, kann die App Occupations und Skills semantisch verankern. Das erhöht Konsistenz, Vergleichbarkeit und die Qualität späterer Ableitungen.",
         "column_a": "### Was ESCO mitbringt\n- standardisierte Occupations und Skills,\n- mehrsprachige Begriffe,\n- API-Zugriff für technische Einbindung,\n- Beziehungen zwischen Berufen, Skills und Wissensbereichen,\n- maschinenlesbare Konzepte statt bloßer Stichwörter.",
         "column_b": "### Mehrwert für Cognitive Staffing\n- saubereres Occupation-Mapping,\n- normalisierte Skill-Vorschläge,\n- nachvollziehbare Herkunft von Empfehlungen,\n- bessere Anschlussfähigkeit für Suche, Matching und Reporting,\n- stabilere Begriffslogik über Teams und Standorte hinweg.",
-        "after": "Gerade weil ESCO Occupations und Skills nicht nur als Wörter, sondern als verknüpfte Konzepte beschreibt, eignet sich die Klassifikation sehr gut für ein strukturiertes Vacancy Intake."
+        "after": "Gerade weil ESCO Occupations und Skills nicht nur als Wörter, sondern als verknüpfte Konzepte beschreibt, eignet sich die Klassifikation sehr gut für ein strukturiertes Recruiting-Briefing."
       },
       "model": {
         "heading": "## Verwendetes ChatGPT-Modell und KI-Architektur",
-        "body": "Die App nutzt die OpenAI API **aufgabenbezogen**. Das bedeutet: Nicht jede Funktion wird zwangsläufig mit demselben Modell ausgeführt.\n\nJe nach Task – etwa Extraktion, Frageplanung oder Artefaktgenerierung – kann unterschiedlich geroutet werden.\n\nWichtig ist deshalb nicht nur das Modell selbst, sondern die **kontrollierte Form der Ausgabe**:\n- strukturierte Ergebnisse statt bloßer Fließtexte,\n- klare Schemata statt freier Halluzinationsflächen,\n- bessere Weiterverarbeitung innerhalb des Wizards.",
+        "body": "Die App nutzt die OpenAI API **aufgabenbezogen**. Das bedeutet: Nicht jede Funktion wird zwangsläufig mit demselben Modell ausgeführt.\n\nJe nach Task – etwa Extraktion, Frageplanung oder Generierung von Recruiting-Unterlagen – kann unterschiedlich geroutet werden.\n\nWichtig ist deshalb nicht nur das Modell selbst, sondern die **kontrollierte Form der Ausgabe**:\n- strukturierte Ergebnisse statt bloßer Fließtexte,\n- klare Schemata statt freier Halluzinationsflächen,\n- bessere Weiterverarbeitung innerhalb des Wizards.",
         "callout_title": "Wichtige Einordnung",
         "callout_body": "Die produktive Konfiguration ist modellabhängig und deploymentabhängig. Damit bleibt die Architektur flexibel, ohne die Qualität des Workflows an ein einziges festes Modell zu ketten."
       },
@@ -178,15 +178,15 @@
             "body": "Die konsolidierte Entscheidungsgrundlage für Recruiting, Fachbereich und Management."
           },
           "job_ad": {
-            "title": "Job Ad Generation",
+            "title": "Stellenanzeige",
             "body": "Aus der strukturierten Datensammlung entsteht eine konsistente, zielgruppengerechte Stellenanzeige."
           },
           "interview": {
-            "title": "Interview Sheets",
+            "title": "HR-Sheet und Fachbereich-Sheet",
             "body": "Vorbereitungen für HR und Fachbereich mit klaren Themen, Prüfpunkten und Leitfragen."
           },
           "boolean": {
-            "title": "Boolean Search Strings",
+            "title": "Suchstrings",
             "body": "Ableitungen für LinkedIn, Xing oder Google, damit Suchstrategien präziser und reproduzierbarer werden."
           },
           "contract": {
@@ -195,7 +195,7 @@
           },
           "exports": {
             "title": "Exports",
-            "body": "Je nach Artefakt als JSON, Markdown, DOCX, PDF oder Mapping-Report weiterverwendbar."
+            "body": "Je nach Unterlage als JSON, Markdown, DOCX, PDF oder Mapping-Report weiterverwendbar."
           }
         }
       },
@@ -209,7 +209,7 @@
       },
       "cta": {
         "title": "Sie möchten sehen, wie aus einem unklaren Stellenbedarf ein belastbarer Recruiting-Startpunkt wird?",
-        "body": "Testen Sie {brand} und erleben Sie, wie strukturierter Vacancy Intake Recruiting von Anfang an besser macht."
+        "body": "Testen Sie {brand} und erleben Sie, wie strukturiertes Recruiting-Briefing Recruiting von Anfang an besser macht."
       }
     },
     "about": {
@@ -312,7 +312,7 @@
       },
       "purposes": {
         "heading": "## 4. Zwecke der Verarbeitung",
-        "body": "Wir verarbeiten Daten insbesondere zu folgenden Zwecken:\n\n- Bereitstellung und Betrieb der Website und App,\n- Bearbeitung von Anfragen,\n- strukturierte Aufbereitung von Recruiting- und Stelleninformationen,\n- Generierung von Folgeartefakten innerhalb der Anwendung,\n- Gewährleistung von IT-Sicherheit, Fehleranalyse und Missbrauchsprävention,\n- Nachweis- und Dokumentationspflichten."
+        "body": "Wir verarbeiten Daten insbesondere zu folgenden Zwecken:\n\n- Bereitstellung und Betrieb der Website und App,\n- Bearbeitung von Anfragen,\n- strukturierte Aufbereitung von Recruiting- und Stelleninformationen,\n- Generierung weiterer Recruiting-Unterlagen innerhalb der Anwendung,\n- Gewährleistung von IT-Sicherheit, Fehleranalyse und Missbrauchsprävention,\n- Nachweis- und Dokumentationspflichten."
       },
       "hr_content": {
         "heading": "## 5. Besondere Hinweise zu HR-Inhalten",
@@ -334,7 +334,7 @@
       },
       "retention": {
         "heading": "## 8. Speicherung und Löschung",
-        "body": "Wir speichern personenbezogene Daten nur so lange, wie dies für die jeweiligen Zwecke erforderlich ist oder gesetzliche Aufbewahrungspflichten dies verlangen.\n\nSoweit Inhalte innerhalb der Anwendung verarbeitet werden, sollte die Verarbeitung auf das erforderliche Maß begrenzt und organisatorisch kontrolliert werden. Exportierte Dokumente und Folgeartefakte unterliegen zusätzlich den Regeln der jeweiligen Nutzerorganisation."
+        "body": "Wir speichern personenbezogene Daten nur so lange, wie dies für die jeweiligen Zwecke erforderlich ist oder gesetzliche Aufbewahrungspflichten dies verlangen.\n\nSoweit Inhalte innerhalb der Anwendung verarbeitet werden, sollte die Verarbeitung auf das erforderliche Maß begrenzt und organisatorisch kontrolliert werden. Exportierte Dokumente und weitere Recruiting-Unterlagen unterliegen zusätzlich den Regeln der jeweiligen Nutzerorganisation."
       },
       "cookies": {
         "heading": "## 9. Cookies und ähnliche Technologien",
@@ -503,11 +503,11 @@
       "cards": {
         "decision_makers": {
           "title": "Unternehmen & Entscheider",
-          "body": "Sie möchten Ihren Vacancy Intake professionalisieren, Reibung im Recruiting reduzieren und bessere Entscheidungen früher im Prozess ermöglichen."
+          "body": "Sie möchten Ihr Recruiting-Briefing professionalisieren, Reibung im Recruiting reduzieren und bessere Entscheidungen früher im Prozess ermöglichen."
         },
         "hr": {
           "title": "HR & Recruiting",
-          "body": "Sie interessieren sich für klarere Übergaben, bessere Suchprofile, stärkere Interviewvorbereitung und wiederverwendbare Recruiting-Artefakte."
+          "body": "Sie interessieren sich für klarere Übergaben, bessere Suchprofile, stärkere Interviewvorbereitung und wiederverwendbare Recruiting-Unterlagen."
         },
         "it": {
           "title": "IT & Produktverantwortliche",

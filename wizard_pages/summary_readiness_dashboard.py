@@ -52,6 +52,6 @@ def render_readiness_dashboard_header(
             metric_renderer(vm)
         if hasattr(streamlit_module, "caption"):
             streamlit_module.caption(
-                "Diese Kennzahlen steuern die nächsten Artefakte; "
+                "Diese Kennzahlen steuern die nächsten Recruiting-Unterlagen; "
                 "Detailwerte stehen im Fakten-Workspace."
             )

@@ -19,7 +19,7 @@ Score each criterion from 1 to 5:
 | Criterion | What to score |
 |---|---|
 | `intake_quality` | Role profile, skills, benefits, interview process, and open questions are captured correctly. |
-| `hiring_value` | Summary and artifacts help with job ads, interview prep, Boolean Search, and briefing. |
+| `hiring_value` | Summary and recruiting outputs help with job ads, interview prep, search strings, and briefing. |
 | `user_effort` | The flow avoids unnecessary questions, clicks, and manual repairs. |
 | `speed` | Time to a usable Summary and at least one generated artifact. |
 | `cost` | OpenAI calls, RAG calls, ESCO lookups, and artifact-generation cost stay proportionate. |

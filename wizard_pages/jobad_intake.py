@@ -964,7 +964,7 @@ def _render_analysis_priority_summary(job: JobAdExtract) -> None:
     )
     location = str(job.place_of_work or "").strip() or location
 
-    st.markdown("#### Review-Fokus")
+    st.markdown("#### Prüffokus")
     columns = st.columns(4, gap="small")
     stats = (
         ("Rolle", str(job.job_title or "").strip(), "Erkannter Zieljob"),
@@ -1129,7 +1129,7 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
     else:
         st.caption(
             "Optional: Im nächsten Abschnitt können Sie den Referenzberuf bestätigen, "
-            "damit Aufgaben, Skills und Folge-Outputs konsistent bleiben."
+            "damit Aufgaben, Skills und Recruiting-Unterlagen konsistent bleiben."
         )
 
 

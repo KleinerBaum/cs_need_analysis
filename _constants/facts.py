@@ -142,7 +142,7 @@ FACT_SALARY_IMPACT_DISPLAY_LABELS: Final[dict[FactSalaryImpact, str]] = {
 }
 FACT_REQUIREMENT_STAGE_DISPLAY_LABELS: Final[dict[FactRequirementStage, str]] = {
     FactRequirementStage.BEFORE_SUMMARY: "Pflicht vor Summary",
-    FactRequirementStage.BEFORE_ARTIFACT: "Pflicht vor Artefakt",
+    FactRequirementStage.BEFORE_ARTIFACT: "Pflicht vor Recruiting-Unterlage",
     FactRequirementStage.OPTIONAL: "Optional",
 }
 

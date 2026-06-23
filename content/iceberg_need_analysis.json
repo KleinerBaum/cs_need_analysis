@@ -55,8 +55,8 @@
         "items": ["ESCO", "Skill-Mapping", "Titelvarianten"]
       },
       {
-        "title": "Interview- & Artefaktlogik",
-        "body": "Fragen, Scorecards, Briefing und Folge-Outputs basieren auf derselben geprüften Faktenlage.",
+        "title": "Interview- & Unterlagenlogik",
+        "body": "Fragen, Scorecards, Briefing und Recruiting-Unterlagen basieren auf derselben geprüften Faktenlage.",
         "items": ["Scorecard", "Brief", "Interview"]
       }
     ]

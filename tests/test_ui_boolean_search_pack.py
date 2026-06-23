@@ -100,7 +100,7 @@ def test_render_boolean_search_pack_shows_empty_message(monkeypatch) -> None:
         )
     )
 
-    assert "Keine Boolean-Suchstrings vorhanden." in fake_st.info_calls
+    assert "Keine Suchstrings vorhanden." in fake_st.info_calls
     assert fake_st.code_calls == []
 
 

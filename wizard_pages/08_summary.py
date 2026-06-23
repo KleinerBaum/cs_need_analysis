@@ -918,7 +918,7 @@ def render(ctx: WizardContext) -> None:
         brief_model = _resolve_brief_for_follow_up_action()
         try:
             store = bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False))
-            with st.spinner("Generiere Boolean Search Pack…"):
+            with st.spinner("Generiere Suchstrings…"):
                 pack, usage = generate_boolean_search_pack(
                     brief=brief_model,
                     model=resolved_boolean_search_model,

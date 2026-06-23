@@ -84,7 +84,7 @@ def brief_to_markdown(brief: VacancyBrief) -> str:
     lines.append("## Risks / Open Questions")
     lines.extend([f"- {x}" for x in brief.risks_open_questions])
     lines.append("")
-    lines.append("## Job Ad Draft (DE)")
+    lines.append("## Stellenanzeigenentwurf (DE)")
     lines.append(brief.job_ad_draft)
     lines.append("")
     return "\n".join(lines)
@@ -99,7 +99,7 @@ def boolean_search_pack_to_markdown(pack: BooleanSearchPack) -> str:
         return [f"- {value}" for value in values]
 
     lines = [
-        "# Boolean Search Pack",
+        "# Suchstrings",
         "",
         f"**Role Title:** {pack.role_title}",
         "",

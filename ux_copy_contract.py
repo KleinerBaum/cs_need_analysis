@@ -56,7 +56,8 @@ _COPY: dict[str, dict[str, dict[str, str]]] = {
             ),
             "value_line": (
                 "Am Ende steht eine geprüfte Briefing-Basis mit Rollenprofil, "
-                "priorisierten Anforderungen, offenen Fragen und verwertbaren Outputs."
+                "priorisierten Anforderungen, offenen Fragen und verwertbaren "
+                "Recruiting-Unterlagen."
             ),
             "headline_after_analysis": (
                 "Wir haben die ersten Informationen zu {role_title} erkannt."
@@ -129,7 +130,8 @@ _COPY: dict[str, dict[str, dict[str, str]]] = {
             "headline_ready": "Bereit für Recruiting, Interviews und Active Sourcing",
             "subheadline_default": (
                 "Prüfen Sie offene Lücken, übernehmen Sie finale Anpassungen und "
-                "erstellen Sie die passenden Outputs für Recruiting, HR und Active Sourcing."
+                "erstellen Sie die passenden Recruiting-Unterlagen für Recruiting, "
+                "HR und Active Sourcing."
             ),
             "subheadline_gap": (
                 "Klären Sie diese Angaben, bevor Sie Stellenanzeige, Interviewleitfaden "
@@ -227,7 +229,7 @@ _COPY: dict[str, dict[str, dict[str, str]]] = {
             "headline_ready": "Ready for recruiting, interviews, and active sourcing",
             "subheadline_default": (
                 "Review remaining gaps, apply final adjustments, and generate the right "
-                "outputs for recruiting, HR, and active sourcing."
+                "recruiting outputs for recruiting, HR, and active sourcing."
             ),
             "subheadline_gap": (
                 "Clarify these items before exporting a job ad, interview guide, or search strings."

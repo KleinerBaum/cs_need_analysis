@@ -75,7 +75,7 @@ def test_brief_to_markdown_exports_primary_sections() -> None:
 
     assert markdown.startswith("# Recruiting Brief – Data Engineer")
     assert "## Top Responsibilities\n- Build pipelines" in markdown
-    assert "## Job Ad Draft (DE)\nDraft text" in markdown
+    assert "## Stellenanzeigenentwurf (DE)\nDraft text" in markdown
 
 
 def test_boolean_search_pack_to_markdown_formats_channel_queries() -> None:
@@ -99,7 +99,7 @@ def test_boolean_search_pack_to_markdown_formats_channel_queries() -> None:
 
     markdown = boolean_search_pack_to_markdown(pack)
 
-    assert markdown.startswith("# Boolean Search Pack")
+    assert markdown.startswith("# Suchstrings")
     assert "**Role Title:** Data Engineer" in markdown
     assert "- `site:linkedin.com/in Python`" in markdown
     assert "### Focused\n- —" in markdown

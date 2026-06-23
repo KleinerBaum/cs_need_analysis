@@ -170,7 +170,7 @@ def _render_compact_job_extract_overview(
     if show_heading:
         st.markdown("### Analyseergebnis")
     st.caption(
-        "Die wichtigsten Angaben sind nach Themen gruppiert. Die Review fokussiert "
+        "Die wichtigsten Angaben sind nach Themen gruppiert. Die Prüfung fokussiert "
         "auf Sicherheit, offene Punkte und direkte Korrektur."
     )
     evidence_by_field = job_extract_field_evidence_by_name(job)

@@ -1,8 +1,8 @@
 # Cognitive Staffing — Vacancy Intake Wizard
 
-Streamlit app for structured vacancy intake, jobspec extraction, ESCO/EURES enrichment, salary forecasting, interview-process capture, and generation of recruiting artifacts with OpenAI structured outputs.
+Streamlit app for structured vacancy intake, jobspec extraction, ESCO/EURES enrichment, salary forecasting, interview-process capture, and generation of recruiting outputs with OpenAI structured outputs.
 
-The current implementation is not a loose demo. It is a stateful workflow application with tight coupling between canonical constants, session state, Pydantic schemas, wizard UI, fact/evidence handling, summary artifacts, and exports.
+The current implementation is not a loose demo. It is a stateful workflow application with tight coupling between canonical constants, session state, Pydantic schemas, wizard UI, fact/evidence handling, summary outputs, and exports.
 
 ## Current implementation status
 
@@ -18,7 +18,7 @@ Implemented core flow:
 8. Role/task, skill, and benefit curation through comparable source-pill blocks.
 9. Deterministic salary forecast and scenario state.
 10. Interview-process workspace.
-11. Summary readiness dashboard, action hub, artifact generation, and exports.
+11. Summary readiness dashboard, action hub, recruiting output generation, and exports.
 12. Privacy-safe usage events for lightweight observability.
 
 Known partials / explicit non-goals in this snapshot:
@@ -41,7 +41,7 @@ The active visible route is defined by `constants.STEPS` and enforced by `wizard
 | 5 | `skills` | Skills & Anforderungen | `wizard_pages/05_skills.py` | Jobspec/ESCO/AI skills, normalization, matrix priors, unmapped-term decisions |
 | 6 | `benefits` | Benefits & Rahmenbedingungen | `wizard_pages/06_benefits.py` | Benefits and operating conditions from jobspec/context/AI |
 | 7 | `interview` | Interviewprozess | `wizard_pages/07_interview.py` | Interview values, candidate communication, internal roles/timing |
-| 8 | `summary` | Zusammenfassung | `wizard_pages/08_summary.py` | Readiness, facts, action hub, artifacts, exports |
+| 8 | `summary` | Zusammenfassung | `wizard_pages/08_summary.py` | Readiness, facts, action hub, recruiting outputs, exports |
 
 ### Start step phases
 
@@ -63,7 +63,7 @@ The app supports three global UI modes:
 | `standard` | `ausführlich` | Essential intake using 50% of dependency-visible `core` and `standard` questions per step |
 | `expert` | `vollumfänglich` | Full intake using dependency-visible `core`, `standard`, and conditional `detail` questions |
 
-The mode is controlled through the sidebar preference center and the Start step. It affects the number of visible follow-up inputs through `question_limits.py` and compact/detail behavior through shared UI helpers, but does not reduce extraction, enrichment, artifact, export, or forecast quality. `quick` keeps the essential app functions visible and asks the highest-ranked 30% of eligible core questions per step. `standard` is the default first-run mode and asks the highest-ranked 50% of eligible `core` + `standard` questions per step. `expert` adds deep conditional questions that can become relevant in specific cases. Expensive secondary blocks such as source comparison and salary forecast render lazily; source comparison follows the detail-expanded preference, while salary forecast remains on-demand.
+The mode is controlled through the sidebar preference center and the Start step. It affects the number of visible follow-up inputs through `question_limits.py` and compact/detail behavior through shared UI helpers, but does not reduce extraction, enrichment, output, export, or forecast quality. `quick` keeps the essential app functions visible and asks the highest-ranked 30% of eligible core questions per step. `standard` is the default first-run mode and asks the highest-ranked 50% of eligible `core` + `standard` questions per step. `expert` adds deep conditional questions that can become relevant in specific cases. Expensive secondary blocks such as source comparison and salary forecast render lazily; source comparison follows the detail-expanded preference, while salary forecast remains on-demand.
 
 Adaptive question ranking can use optional question metadata: `impact_targets`, `acquisition_cost`, and `info_gain_score`. These fields let high-impact unanswered questions rise above lower-value detail questions without changing the visible step contract or existing UI modes.
 
@@ -91,14 +91,14 @@ The intake process combines several evidence streams:
 | Manual review/input | `job_extract_review_helpers.py`, wizard pages, `state.py` | confirmed answers/facts with manual precedence |
 | ESCO/EURES context | `esco_client.py`, `esco_semantics.py`, `eures_mapping.py` | occupation anchors, skill suggestions, task context, export metadata |
 | Homepage enrichment | `homepage_research.py`, `wizard_pages/02_company.py` | company/team facts and open-question matches |
-| AI suggestions | `llm_client.py`, role/skills/benefits pages | source-pill suggestions and optional artifact inputs |
+| AI suggestions | `llm_client.py`, role/skills/benefits pages | source-pill suggestions and optional output inputs |
 | Salary engine | `salary/`, salary forecast panels | deterministic forecast result and scenario state |
 
 Manual corrections remain authoritative over extracted values. Jobspec assumptions/gaps are not collected as a single Start-step backlog; they are routed to the best matching downstream step.
 
 Canonical intake fact evidence also carries a resolution status (`confirmed`, `inferred`, `assumed`, `conflicted`, or `missing`). Structured Summary exports include `intake_fact_resolution` so downstream consumers can distinguish confirmed facts from inferred, assumed, conflicted, or still-missing information without changing the legacy fact values.
 
-Fact definitions in `constants.INTAKE_FACTS` also carry steering metadata: `salary_impact` separates direct Salary drivers from quality/uncertainty inputs, `requirement_stage` distinguishes facts required before Summary from facts required before artifact generation, and `website_enrichable` marks fields that can be reviewed against homepage evidence.
+Fact definitions in `constants.INTAKE_FACTS` also carry steering metadata: `salary_impact` separates direct Salary drivers from quality/uncertainty inputs, `requirement_stage` distinguishes facts required before Summary from facts required before recruiting output generation, and `website_enrichable` marks fields that can be reviewed against homepage evidence.
 
 The canonical fact registry also covers downstream decision points from the improvement report: company and team context, role outcomes and travel profile, typed skill requirements, variable pay and offer constraints, work authorization, start-date flexibility, and interview assessment/scorecard fields.
 
@@ -109,7 +109,7 @@ The canonical fact registry also covers downstream decision points from the impr
 - `constants.py` — session keys, step IDs, UI modes, ESCO modes, fact registry, artifact IDs.
 - `state_store.py` — typed facade over canonical `SSKey` session-state storage; new code should prefer it for high-value state domains.
 - `state.py` — session defaults, vacancy reset behavior, answer/fact adapters.
-- `schemas.py` — Pydantic contracts for jobspec extraction, question plans, briefs, and generated artifacts.
+- `schemas.py` — Pydantic contracts for jobspec extraction, question plans, briefs, and generated outputs.
 - `intake_facts.py` — canonical fact/evidence storage and legacy field compatibility.
 - `question_*`, `question_plan_compiler.py`, `question_packs/` — dynamic question flow and occupation-aware overlays.
 
@@ -362,12 +362,12 @@ export SALARY_BENCHMARK_PATH=/path/to/benchmarks.csv
 
 Bundled demo data lives under `data/salary_benchmarks/` and `data/salary_skill_premiums/`.
 
-## Summary artifacts and exports
+## Summary recruiting outputs and exports
 
 The visible Summary step starts with `Alles bereit für Recruiting und Hiring-Team`.
-It shows editable facts by wizard step, a critical-gap table, a compact artifact grid,
+It shows editable facts by wizard step, a critical-gap table, a compact output grid,
 and the active output with refinement requests and downloads. The Recruiting Brief
-remains a compatible internal context artifact for downstream generation, but it is
+remains a compatible internal context output for downstream generation, but it is
 not shown as a required user-facing CTA.
 
 The Summary facts table and per-step fact matrix show steering columns for Salary
@@ -375,15 +375,15 @@ impact, requirement stage, and website second-source eligibility. Missing
 `before_summary` facts remain hidden from the main fact table but are surfaced in
 critical gaps.
 
-Canonical summary artifact IDs:
+Canonical summary artifact IDs and user-facing labels:
 
 | ID | Label | Main export formats |
 |---|---|---|
 | `brief` | Recruiting Brief (internal context) | JSON, Markdown, DOCX |
 | `job_ad` | Stellenanzeige | Markdown, DOCX, PDF when `reportlab` is available |
-| `interview_hr` | HR Interview Sheet | JSON, DOCX |
-| `interview_fach` | Fachbereich Interview Sheet | JSON, DOCX |
-| `boolean_search` | Boolean Search Pack | JSON, Markdown |
+| `interview_hr` | HR-Sheet | JSON, DOCX |
+| `interview_fach` | Fachbereich-Sheet | JSON, DOCX |
+| `boolean_search` | Suchstrings | JSON, Markdown |
 | `employment_contract` | Arbeitsvertrag Draft | JSON, DOCX |
 
 Additional structured exports include ESCO mapping CSV/JSON and Summary payload fields for intake facts/evidence/resolution, supplemental routing/company/team/role/benefit/interview facts, interview process data, ESCO anchor metadata, ESCO skills, unmapped terms, occupation context, and question-flow provenance.

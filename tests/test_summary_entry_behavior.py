@@ -139,7 +139,7 @@ def test_render_entry_without_brief_still_renders_summary(monkeypatch) -> None:
         "Expected no auto-generation at summary entry; actual generator call count > 0"
     )
     assert render_events == [
-        "Alles bereit für Recruiting und Hiring-Team",
+        "Noch 5 kritische Punkte offen",
         "gaps",
         "grid",
         "facts",

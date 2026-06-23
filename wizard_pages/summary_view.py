@@ -777,7 +777,7 @@ def _build_summary_subheader(meta: SummaryMeta, status: SummaryStatus) -> str:
     mapping_status = " und ".join(mapping_fragments)
 
     readiness_intro = (
-        "Die Vakanz ist inhaltlich bereit für Folge-Artefakte."
+        "Die Vakanz ist inhaltlich bereit für weitere Recruiting-Unterlagen."
         if status.ready_for_follow_ups
         else "Die Vakanz ist noch nicht vollständig entscheidungsreif."
     )
@@ -1542,12 +1542,12 @@ def _render_summary_artifact_grid(
     vm: SummaryViewModel,
     generator_by_id: Mapping[str, Callable[[], None]],
 ) -> None:
-    st.markdown("### Artefakte")
-    st.caption("Wähle ein Artefakt, schärfe die wichtigsten Einflussfaktoren und generiere direkt aus den aktuellen Daten.")
+    st.markdown("### Recruiting-Unterlagen")
+    st.caption("Wähle eine Unterlage, schärfe die wichtigsten Einflussfaktoren und generiere direkt aus den aktuellen Daten.")
     specs: list[dict[str, Any]] = [
         {
             "id": "job_ad",
-            "title": "Stellenanzeigen-Generator",
+            "title": "Stellenanzeige",
             "description": "Zielgruppenorientierte Stellenanzeige mit AGG-Check.",
             "controls": lambda: _render_job_ad_compact_controls(vm),
             "cta": "Stellenanzeige erstellen",
@@ -1561,10 +1561,10 @@ def _render_summary_artifact_grid(
         },
         {
             "id": "boolean_search",
-            "title": "Boolean Search",
+            "title": "Suchstrings",
             "description": "Kanal-spezifische Suchstrings für aktive Sourcing-Recherche.",
             "controls": _render_boolean_compact_controls,
-            "cta": "Boolean Search erstellen",
+            "cta": "Suchstrings erstellen",
         },
         {
             "id": "employment_contract",
@@ -1581,7 +1581,7 @@ def _render_summary_artifact_grid(
         {
             "id": "reserved_templates",
             "title": "Weitere Vorlagen",
-            "description": "Reserviert für künftige Hiring-Team-Artefakte.",
+            "description": "Reserviert für künftige Hiring-Team-Unterlagen.",
         },
     ]
     for row_start in range(0, len(specs), 2):
@@ -1766,9 +1766,9 @@ def _render_follow_up_cards(
     *,
     follow_up_actions: list[SummaryAction],
 ) -> tuple[bool, SummaryAction | None]:
-    st.markdown("### Folgeartefakte")
+    st.markdown("### Weitere Recruiting-Unterlagen")
     st.caption(
-        "Nachgelagerte Artefakte bauen auf einem aktuellen Recruiting Brief auf."
+        "Nachgelagerte Unterlagen bauen auf einem aktuellen Recruiting Brief auf."
     )
     card_columns = st.columns(2)
     for index, action in enumerate(follow_up_actions):
@@ -1876,8 +1876,8 @@ def _render_summary_dashboard_css() -> None:
 def _render_artifact_pipeline(
     action_registry: list[SummaryAction], *, resolved_brief_model: str
 ) -> None:
-    st.markdown("#### Artefakt-Pipeline")
-    st.caption("Status der wichtigsten Folgeartefakte auf einen Blick.")
+    st.markdown("#### Unterlagen-Pipeline")
+    st.caption("Status der wichtigsten Recruiting-Unterlagen auf einen Blick.")
     card_columns = st.columns(2)
     for index, action in enumerate(action_registry):
         status_key, status_label = _artifact_pipeline_status(
@@ -2033,7 +2033,7 @@ def _render_critical_gaps_card(vm: SummaryViewModel) -> None:
 def _render_artifact_launcher_cards(
     *, action_registry: list[SummaryAction], resolved_brief_model: str
 ) -> None:
-    st.markdown("#### Artefakte starten")
+    st.markdown("#### Recruiting-Unterlagen starten")
     for action in action_registry:
         requirements_ok = _has_required_state(action["requires"])
         requirement_ok = True
@@ -2145,13 +2145,13 @@ def _render_summary_workspace_tabs(
         if brief is not None:
             with st.expander("Strukturierte Exportvorschau", expanded=False):
                 st.json(_build_brief_structured_preview_payload(brief), expanded=False)
-        with st.expander("Artefaktstatus", expanded=False):
+        with st.expander("Unterlagenstatus", expanded=False):
             st.dataframe(
                 _build_artifact_status_rows(action_registry=action_registry),
                 width="stretch",
                 hide_index=True,
                 column_config={
-                    "Artefakt": st.column_config.TextColumn("Dokument"),
+                    "Unterlage": st.column_config.TextColumn("Dokument"),
                     "Status": st.column_config.TextColumn("Status"),
                     "Voraussetzungen": st.column_config.TextColumn("Voraussetzungen"),
                 },
@@ -2186,7 +2186,7 @@ def _render_summary_processing_hub(
 ) -> None:
     render_output_header(
         "Processing Hub",
-        "Primärer Pfad kompakt: Recruiting Brief → Folgeartefakte → Export.",
+        "Primärer Pfad kompakt: Recruiting Brief → weitere Recruiting-Unterlagen → Export.",
     )
 
     primary_action = next(
@@ -2210,15 +2210,15 @@ def _render_summary_processing_hub(
     }.get(brief_state, "🟡 offen")
     st.markdown(
         (
-            f"**Pipeline:** `Recruiting Brief` → `Interview HR/Fach` → "
-            f"`Boolean Search` → `Arbeitsvertrag` → `Export`  \n"
+            f"**Pipeline:** `Recruiting Brief` → `HR-Sheet/Fachbereich-Sheet` → "
+            f"`Suchstrings` → `Arbeitsvertrag` → `Export`  \n"
             f"Status Recruiting Brief: {header_badge} · {brief_status_label}"
         )
     )
 
-    st.markdown("#### Artefaktübersicht")
+    st.markdown("#### Unterlagenübersicht")
     header_columns = st.columns([2.1, 1.1, 1.2, 2.0], gap="small")
-    header_columns[0].markdown("**Artefakt**")
+    header_columns[0].markdown("**Unterlage**")
     header_columns[1].markdown("**Status**")
     header_columns[2].markdown("**Voraussetzungen**")
     header_columns[3].markdown("**Primäre Aktion**")
@@ -2421,7 +2421,7 @@ def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
     if artifact_id == "job_ad":
         custom_job_ad_raw = st.session_state.get(SSKey.JOB_AD_DRAFT_CUSTOM.value)
         if not isinstance(custom_job_ad_raw, dict):
-            st.info("Für dieses Artefakt liegt noch kein Ergebnis vor.")
+            st.info("Für diese Unterlage liegt noch kein Ergebnis vor.")
             return
         _render_job_ad_artifact(custom_job_ad_raw)
         return
@@ -2438,20 +2438,20 @@ def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
             x1, x2 = st.columns(2)
             with x1:
                 st.download_button(
-                    "Interview Sheet herunterladen (JSON)",
+                    "HR-Sheet herunterladen (JSON)",
                     data=hr_json_bytes,
                     file_name="interview_sheet_hr.json",
                     mime="application/json",
                 )
             with x2:
                 st.download_button(
-                    "Interview Sheet herunterladen (DOCX)",
+                    "HR-Sheet herunterladen (DOCX)",
                     data=hr_docx_bytes,
                     file_name="interview_sheet_hr.docx",
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 )
         else:
-            st.info("Für dieses Artefakt liegt noch kein Ergebnis vor.")
+            st.info("Für diese Unterlage liegt noch kein Ergebnis vor.")
         return
 
     if artifact_id == "interview_fach":
@@ -2477,14 +2477,14 @@ def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
             download_columns = st.columns(2)
             with download_columns[0]:
                 st.download_button(
-                    "Interview Sheet (Fachbereich) herunterladen (JSON)",
+                    "Fachbereich-Sheet herunterladen (JSON)",
                     data=fach_json_bytes,
                     file_name="interview_sheet_fachbereich.json",
                     mime="application/json",
                 )
             with download_columns[1]:
                 st.download_button(
-                    "Interview Sheet (Fachbereich) herunterladen (DOCX)",
+                    "Fachbereich-Sheet herunterladen (DOCX)",
                     data=fach_docx_bytes,
                     file_name="interview_sheet_fachbereich.docx",
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -2494,13 +2494,13 @@ def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
                     st.caption("PDF-Export benötigt reportlab (nicht verfügbar).")
                 else:
                     st.download_button(
-                        "Interview Sheet (Fachbereich) herunterladen (PDF)",
+                        "Fachbereich-Sheet herunterladen (PDF)",
                         data=fach_pdf_bytes,
                         file_name="interview_sheet_fachbereich.pdf",
                         mime="application/pdf",
                     )
         else:
-            st.info("Für dieses Artefakt liegt noch kein Ergebnis vor.")
+            st.info("Für diese Unterlage liegt noch kein Ergebnis vor.")
         return
 
     if artifact_id == "boolean_search":
@@ -2509,7 +2509,7 @@ def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
             boolean_pack = BooleanSearchPack.model_validate(payload)
             render_boolean_search_pack(boolean_pack)
         else:
-            st.info("Für dieses Artefakt liegt noch kein Ergebnis vor.")
+            st.info("Für diese Unterlage liegt noch kein Ergebnis vor.")
         return
 
     if artifact_id == "employment_contract":
@@ -2537,7 +2537,7 @@ def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 )
         else:
-            st.info("Für dieses Artefakt liegt noch kein Ergebnis vor.")
+            st.info("Für diese Unterlage liegt noch kein Ergebnis vor.")
 
 
 def _generated_summary_artifact_ids() -> list[str]:
@@ -2695,7 +2695,7 @@ def _render_summary_output_workspace(
     if active_artifact_id in available_artifact_ids:
         _render_active_artifact(artifact_id=active_artifact_id, brief=brief)
     else:
-        st.info("Für dieses Artefakt liegt noch kein Ergebnis vor.")
+        st.info("Für diese Unterlage liegt noch kein Ergebnis vor.")
     if active_artifact_id == "boolean_search":
         rendered_context = _render_boolean_artifact_context_panels(
             vm=vm,
@@ -2764,7 +2764,7 @@ def _render_summary_results_workspace(*, brief: VacancyBrief) -> None:
     if isinstance(st.session_state.get(SSKey.EMPLOYMENT_CONTRACT_DRAFT.value), dict):
         available_artifact_ids.append("employment_contract")
     if not available_artifact_ids:
-        st.info("Noch keine Folgeartefakte vorhanden.")
+        st.info("Noch keine weiteren Recruiting-Unterlagen vorhanden.")
         return
 
     active_artifact_id = _resolve_active_artifact_id(

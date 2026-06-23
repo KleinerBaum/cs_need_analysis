@@ -11,7 +11,7 @@
     "placeholder_missing_optional": "Please add if applicable"
   },
   "iceberg": {
-    "aria_label": "Iceberg model of classic and AI-supported need analysis",
+    "aria_label": "Iceberg model for classic and AI-supported vacancy intake",
     "surface_label": "above the waterline: visible in jobspec and briefing",
     "deep_label": "below the waterline: essential for search, matching, and interview"
   },
@@ -20,7 +20,7 @@
       "landing": {
         "headline": "Upload a job ad. Start the recruiting brief.",
         "subheadline": "For recruiting, HR, and hiring teams that need to turn a jobspec into a reliable brief quickly. The app detects what is already clear and shows what is still needed for search, matching, interviews, and offer decisions.",
-        "value_line": "You get a reviewed briefing basis with a role profile, prioritized requirements, open questions, and reusable outputs.",
+        "value_line": "You get a reviewed briefing basis with a role profile, prioritized requirements, open questions, and reusable recruiting outputs.",
         "headline_after_analysis": "We detected the first information for {role_title}.",
         "subheadline_after_analysis": "Now turn the source into a recruiting brief: review detected facts, close gaps, and confirm the reference occupation.",
         "value_line_after_analysis": "Next progress: a shared briefing basis for recruiting, the hiring team, search, and interviews.",
@@ -81,7 +81,7 @@
           "ready": "Ready for recruiting, interviews, and active sourcing"
         },
         "subheadline": {
-          "default": "Review remaining gaps, apply final adjustments, and generate the right outputs for recruiting, HR, and active sourcing.",
+          "default": "Review remaining gaps, apply final adjustments, and generate the right recruiting outputs for recruiting, HR, and active sourcing.",
           "gap": "Clarify these items before exporting a job ad, interview guide, or search strings.",
           "ready": "All important facts are checked. Generate the job ad, HR sheet, and search strings now."
         },
@@ -130,7 +130,7 @@
         },
         "exports": {
           "title": "Downstream processing and exports",
-          "body": "The same data foundation can directly produce a recruiting brief, job ad, interview sheets, Boolean search strings, and further artifacts."
+          "body": "The same data foundation can directly produce a recruiting brief, job ad, HR sheet, hiring manager sheet, Boolean search, and further recruiting outputs."
         }
       },
       "how": {
@@ -162,7 +162,7 @@
       },
       "model": {
         "heading": "## ChatGPT model use and AI architecture",
-        "body": "The app uses the OpenAI API **by task**. This means not every function necessarily runs on the same model.\n\nDepending on the task - such as extraction, question planning, or artifact generation - routing can differ.\n\nWhat matters is therefore not only the model itself, but the **controlled shape of the output**:\n- structured results instead of plain prose,\n- clear schemas instead of open-ended hallucination space,\n- better downstream processing inside the wizard.",
+        "body": "The app uses the OpenAI API **by task**. This means not every function necessarily runs on the same model.\n\nDepending on the task - such as extraction, question planning, or output generation - routing can differ.\n\nWhat matters is therefore not only the model itself, but the **controlled shape of the output**:\n- structured results instead of plain prose,\n- clear schemas instead of open-ended hallucination space,\n- better downstream processing inside the wizard.",
         "callout_title": "Important context",
         "callout_body": "Production configuration depends on the selected model and deployment. This keeps the architecture flexible without tying workflow quality to a single fixed model."
       },
@@ -182,11 +182,11 @@
             "body": "The structured data collection becomes a consistent, audience-specific job ad."
           },
           "interview": {
-            "title": "Interview sheets",
+            "title": "HR sheet and hiring manager sheet",
             "body": "Preparation for HR and the business team with clear topics, checkpoints, and guiding questions."
           },
           "boolean": {
-            "title": "Boolean search strings",
+            "title": "Boolean search",
             "body": "Derivations for LinkedIn, Xing, or Google so search strategies become more precise and reproducible."
           },
           "contract": {
@@ -195,7 +195,7 @@
           },
           "exports": {
             "title": "Exports",
-            "body": "Depending on the artifact, results can be reused as JSON, Markdown, DOCX, PDF, or mapping report."
+            "body": "Depending on the output, results can be reused as JSON, Markdown, DOCX, PDF, or mapping report."
           }
         }
       },
@@ -312,7 +312,7 @@
       },
       "purposes": {
         "heading": "## 4. Purposes of processing",
-        "body": "We process data in particular for the following purposes:\n\n- providing and operating the website and app,\n- handling inquiries,\n- structurally preparing recruiting and vacancy information,\n- generating downstream artifacts inside the application,\n- ensuring IT security, error analysis, and abuse prevention,\n- meeting documentation and evidence obligations."
+        "body": "We process data in particular for the following purposes:\n\n- providing and operating the website and app,\n- handling inquiries,\n- structurally preparing recruiting and vacancy information,\n- generating downstream recruiting outputs inside the application,\n- ensuring IT security, error analysis, and abuse prevention,\n- meeting documentation and evidence obligations."
       },
       "hr_content": {
         "heading": "## 5. Special notes on HR content",
@@ -334,7 +334,7 @@
       },
       "retention": {
         "heading": "## 8. Storage and deletion",
-        "body": "We store personal data only for as long as necessary for the respective purposes or as required by statutory retention obligations.\n\nWhere content is processed inside the application, processing should be limited to what is necessary and organizationally controlled. Exported documents and downstream artifacts are also subject to the rules of the respective user organization."
+        "body": "We store personal data only for as long as necessary for the respective purposes or as required by statutory retention obligations.\n\nWhere content is processed inside the application, processing should be limited to what is necessary and organizationally controlled. Exported documents and downstream recruiting outputs are also subject to the rules of the respective user organization."
       },
       "cookies": {
         "heading": "## 9. Cookies and similar technologies",
@@ -507,7 +507,7 @@
         },
         "hr": {
           "title": "HR and recruiting",
-          "body": "You are interested in clearer handovers, better search profiles, stronger interview preparation, and reusable recruiting artifacts."
+          "body": "You are interested in clearer handovers, better search profiles, stronger interview preparation, and reusable recruiting outputs."
         },
         "it": {
           "title": "IT and product owners",

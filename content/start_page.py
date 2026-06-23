@@ -37,8 +37,8 @@ START_PAGE_COPY: dict[str, object] = {
             "Die App zeigt nur Angaben, die für Search, Matching, Interview oder Angebot noch fehlen.",
         ),
         (
-            "3. Outputs vorbereiten",
-            "Briefing, Stellenanzeige, Interview-Sheets und Search-Unterlagen nutzen dieselbe Faktenbasis.",
+            "3. Recruiting-Unterlagen vorbereiten",
+            "Briefing, Stellenanzeige, Interview-Sheets und Suchstrings nutzen dieselbe Faktenbasis.",
         ),
     ),
     "security_title": "Vertrauen, Datenschutz und Kontrolle",

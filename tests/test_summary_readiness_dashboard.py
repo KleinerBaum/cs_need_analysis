@@ -348,6 +348,11 @@ def test_readiness_tab_delegates_detail_sections_to_workspaces(monkeypatch) -> N
         "input_renderer": None,
     }
     vm = SimpleNamespace(
+        meta=SimpleNamespace(
+            role_label="Data Engineer",
+            company_label="Example GmbH",
+            country_label="Deutschland",
+        ),
         status=SimpleNamespace(
             readiness_percent=80,
             completion_text="4/5 beantwortet",

@@ -1173,7 +1173,7 @@ def render(ctx: WizardContext) -> None:
         render_question_step(step, context_mode="compact")
 
     def _render_review_slot() -> None:
-        st.markdown("#### Review")
+        st.markdown("#### Prüfung")
         render_standard_step_review(
             step,
             render_mode=resolve_standard_review_mode(context=ReviewRenderContext.STEP_FORM),

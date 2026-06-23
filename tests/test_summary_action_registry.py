@@ -394,10 +394,10 @@ def test_render_artifact_launcher_cards_uses_artifact_specific_labels(monkeypatc
         },
         {
             "id": "boolean_search",
-            "title": "Boolean Search",
+            "title": "Suchstrings",
             "benefit": "desc",
-            "cta_label": "Boolean Search erstellen",
-            "blocked_cta_label": "Recruiting Brief erstellen und danach Boolean Search erstellen",
+            "cta_label": "Suchstrings erstellen",
+            "blocked_cta_label": "Recruiting Brief erstellen und danach Suchstrings erstellen",
             "requires": (SSKey.JOB_EXTRACT,),
             "requirement_text": "Jobspec vorhanden",
             "requirement_check_fn": None,
@@ -415,7 +415,7 @@ def test_render_artifact_launcher_cards_uses_artifact_specific_labels(monkeypatc
 
     assert fake_st.button_labels[0] == "Brief aktualisieren"
     assert fake_st.button_labels[1] == "Stellenanzeige erstellen"
-    assert fake_st.button_labels[2] == "Boolean Search erstellen"
+    assert fake_st.button_labels[2] == "Suchstrings erstellen"
 
 
 def test_render_artifact_launcher_cards_prefers_blocked_label_when_requirements_fail(
@@ -428,10 +428,10 @@ def test_render_artifact_launcher_cards_prefers_blocked_label_when_requirements_
     action_registry = [
         {
             "id": "boolean_search",
-            "title": "Boolean Search",
+            "title": "Suchstrings",
             "benefit": "desc",
-            "cta_label": "Boolean Search erstellen",
-            "blocked_cta_label": "Recruiting Brief erstellen und danach Boolean Search erstellen",
+            "cta_label": "Suchstrings erstellen",
+            "blocked_cta_label": "Recruiting Brief erstellen und danach Suchstrings erstellen",
             "requires": (SSKey.BRIEF,),
             "requirement_text": "Aktueller Recruiting Brief ist erforderlich",
             "requirement_check_fn": None,
@@ -448,7 +448,7 @@ def test_render_artifact_launcher_cards_prefers_blocked_label_when_requirements_
     )
 
     assert fake_st.button_labels == [
-        "Recruiting Brief erstellen und danach Boolean Search erstellen"
+        "Recruiting Brief erstellen und danach Suchstrings erstellen"
     ]
 
 

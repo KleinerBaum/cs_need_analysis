@@ -348,7 +348,7 @@ def _build_artifact_status_rows(
             requirement_ok, _ = requirement_check_fn()
         rows.append(
             {
-                "Artefakt": action["title"],
+                "Unterlage": action["title"],
                 "Status": "Aktuell" if has_result else "Offen",
                 "Voraussetzungen": (
                     "Erfüllt" if (requirements_ok and requirement_ok) else "Offen"
@@ -443,7 +443,7 @@ def _resolve_next_best_action_recommendation(
 
     sourcing_action = _first_available_action(("job_ad", "boolean_search"))
     if sourcing_action is not None:
-        reason = "Recruiting Brief ist verfügbar, nächster Schritt ist ein Sourcing-Artefakt."
+        reason = "Recruiting Brief ist verfügbar, nächster Schritt ist eine Sourcing-Unterlage."
         return NextBestActionRecommendation(action=sourcing_action, reason=reason, cta_label=sourcing_action["cta_label"])
 
     contract_prereq_group = core_profile_group | company_basics_group | role_profile_group
@@ -559,7 +559,7 @@ def _build_action_registry(
         },
         {
             "id": "job_ad",
-            "title": "Stellenanzeigen-Generator",
+            "title": "Stellenanzeige",
             "benefit": "Erstellt eine zielgruppenorientierte Stellenanzeige mit nachvollziehbarer AGG-Checkliste.",
             "cta_label": "Stellenanzeige erstellen",
             "blocked_cta_label": None,
@@ -573,7 +573,7 @@ def _build_action_registry(
         },
         {
             "id": "interview_hr",
-            "title": "Interview-Vorbereitungssheet (HR)",
+            "title": "HR-Sheet",
             "benefit": "Liefert ein strukturiertes HR-Interviewblatt mit Leitfaden und Bewertungsrubrik.",
             "cta_label": "HR-Sheet erstellen",
             "blocked_cta_label": "Recruiting Brief erstellen und danach HR-Sheet erstellen",
@@ -591,7 +591,7 @@ def _build_action_registry(
         },
         {
             "id": "interview_fach",
-            "title": "Interview-Vorbereitungssheet (Fachbereich)",
+            "title": "Fachbereich-Sheet",
             "benefit": "Liefert ein fachliches Interviewblatt für Vertiefungen und konsistente Bewertung.",
             "cta_label": "Fachbereich-Sheet erstellen",
             "blocked_cta_label": "Recruiting Brief erstellen und danach Fachbereich-Sheet erstellen",
@@ -609,10 +609,10 @@ def _build_action_registry(
         },
         {
             "id": "boolean_search",
-            "title": "Boolean Search",
-            "benefit": "Erstellt kanal-spezifische Boolean-Queries für Google, LinkedIn und XING.",
-            "cta_label": "Boolean Search erstellen",
-            "blocked_cta_label": "Recruiting Brief erstellen und danach Boolean Search erstellen",
+            "title": "Suchstrings",
+            "benefit": "Erstellt kanal-spezifische Suchstrings für Google, LinkedIn und XING.",
+            "cta_label": "Suchstrings erstellen",
+            "blocked_cta_label": "Recruiting Brief erstellen und danach Suchstrings erstellen",
             "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
             "requirement_text": "Aktueller Recruiting Brief ist erforderlich",
             "requirement_check_fn": follow_up_requirement_check,
@@ -621,7 +621,7 @@ def _build_action_registry(
             "input_hints": (
                 "Aktueller Recruiting Brief (kein automatischer Fallback)",
                 "Must-have- und Nice-to-have-Skills",
-                f"Boolean-Modell: {resolved_boolean_search_model}",
+                f"Suchstrings-Modell: {resolved_boolean_search_model}",
             ),
             "input_renderer": None,
         },

@@ -864,7 +864,7 @@ def _brief_to_docx_bytes(brief: VacancyBrief) -> bytes:
     for x in brief.risks_open_questions:
         d.add_paragraph(x, style="List Bullet")
 
-    d.add_heading("Job Ad Draft (DE)", level=2)
+    d.add_heading("Stellenanzeigenentwurf (DE)", level=2)
     d.add_paragraph(brief.job_ad_draft)
 
     bio = io.BytesIO()
@@ -874,7 +874,7 @@ def _brief_to_docx_bytes(brief: VacancyBrief) -> bytes:
 
 def _interview_prep_hr_to_docx_bytes(sheet: InterviewPrepSheetHR) -> bytes:
     d = docx.Document()
-    d.add_heading("Interview Sheet (HR)", level=1)
+    d.add_heading("HR-Sheet", level=1)
     d.add_paragraph(f"Rolle: {sheet.role_title}")
     d.add_paragraph(f"Interview-Stage: {sheet.interview_stage}")
     d.add_paragraph(f"Dauer: {sheet.duration_minutes} Minuten")
@@ -945,7 +945,7 @@ def _interview_prep_fach_to_docx_bytes(
     if logo_payload is None:
         logo_payload = _read_logo_payload()
     _add_logo_to_docx(document=d, logo_payload=logo_payload)
-    d.add_heading("Interview Sheet (Fachbereich)", level=1)
+    d.add_heading("Fachbereich-Sheet", level=1)
     d.add_paragraph(f"Rolle: {sheet.role_title}")
     d.add_paragraph(f"Interview-Stage: {sheet.interview_stage}")
     d.add_paragraph(f"Dauer: {sheet.duration_minutes} Minuten")
@@ -1026,7 +1026,7 @@ def _interview_prep_fach_to_pdf_bytes(
         rightMargin=2 * cm,
         topMargin=2 * cm,
         bottomMargin=2 * cm,
-        title="Interview Sheet (Fachbereich)",
+        title="Fachbereich-Sheet",
         author="anonymous",
     )
     styles = getSampleStyleSheet()
@@ -1077,7 +1077,7 @@ def _interview_prep_fach_to_pdf_bytes(
             )
         )
 
-    _heading("Interview Sheet (Fachbereich)", "Title")
+    _heading("Fachbereich-Sheet", "Title")
     story.append(_paragraph(f"Rolle: {sheet.role_title}"))
     story.append(_paragraph(f"Interview-Stage: {sheet.interview_stage}"))
     story.append(_paragraph(f"Dauer: {sheet.duration_minutes} Minuten"))

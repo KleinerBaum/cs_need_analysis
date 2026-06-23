@@ -18,16 +18,17 @@ This glossary maps product terminology between German UI copy and English techni
 | Category | DE term | EN term | Status | Canonical source | Usage note |
 |---|---|---|---|---|---|
 | product | Cognitive Staffing | Cognitive Staffing | canonical | `SiteProfile.brand_name` | Brand name is not translated. |
-| product | Vacancy Intake Wizard | Vacancy Intake Wizard | canonical | `components/layout.py` | Product descriptor used in page footer. |
+| product | Vacancy Intake Wizard | Vacancy Intake Wizard | canonical | `components/layout.py` | Technical product descriptor used in page footer; German UI should prefer `Recruiting-Briefing` for the user-facing process. |
 | product | Vakanz | vacancy | canonical | `i18n.py` | Use for the concrete open role to be filled. |
-| product | Vakanzerfassung | vacancy intake | canonical | `AGENTS.md / i18n.py` | Use for the structured intake process. |
-| product | Need Analysis | need analysis | canonical | `i18n.py` | Keep as product concept; do not translate as generic Bedarfsermittlung in EN. |
+| product | Recruiting-Briefing | vacancy intake | canonical | `ux_copy.steps.* / locales` | Canonical user-facing process label. Avoid German-side `Vacancy Intake` and `Need Analysis` in visible copy. |
+| product | Vakanzerfassung | vacancy intake | proposed | `AGENTS.md / i18n.py` | Technical/domain synonym; prefer `Recruiting-Briefing` in German UI. |
+| product | Need Analysis | need analysis | proposed | repo/path legacy concept | Avoid in visible product copy; keep only where referring to legacy/repo terminology. |
 | product | Stellenanzeige | job ad | canonical | `summary_artifacts.py / i18n.py` | Use `job ad`, not `job advertisement`, for UI brevity. |
 | product | Jobspec | job spec | canonical | `AGENTS.md / i18n.py` | Use for source vacancy description/specification. |
 | product | Recruiting Brief | recruiting brief | canonical | `summary_artifacts.py` | Artifact label keeps the English term in German UI. |
-| product | Recruiting-Briefing | recruiting brief | canonical | `ux_copy.steps.*` | Use for the user-facing outcome of the intake before artifact generation. |
+| product | Recruiting-Unterlagen | recruiting outputs | canonical | `ux_copy.steps.* / summary_view.py` | Canonical user-facing umbrella for generated downstream materials; avoid `Artefakte` and German-side `Outputs`. |
 | product | Hiring-Team | hiring team | canonical | `i18n.py` | Use for stakeholders involved in hiring. |
-| product | Fachbereich | specialist department | proposed | `summary_artifacts.py` | For artifact naming, current EN label is `department sheet` only where explicitly used. |
+| product | Fachbereich | hiring manager / business team | proposed | `summary_artifacts.py` | In artifact naming, use `Hiring manager sheet` as the English label for `Fachbereich-Sheet`. |
 | wizard.step | Einleitung | Introduction | canonical | `constants.STEPS / i18n.py` | Visible wizard route label. |
 | wizard.step | Start | Start | canonical | `constants.STEPS / i18n.py` | Visible wizard route label. |
 | wizard.step | Unternehmen | Company | canonical | `constants.STEPS / i18n.py` | Visible wizard route label. |
@@ -71,8 +72,8 @@ This glossary maps product terminology between German UI copy and English techni
 | summary.artifact | Recruiting Brief | Recruiting brief | canonical | `summary_artifacts.py:brief` | Canonical Summary artifact label. |
 | summary.artifact | Stellenanzeige | Job ad | canonical | `summary_artifacts.py:job_ad` | Canonical Summary artifact label. |
 | summary.artifact | HR-Sheet | HR sheet | canonical | `summary_artifacts.py:interview_hr` | Canonical Summary artifact label. |
-| summary.artifact | Fachbereich-Sheet | Specialist department sheet | canonical | `summary_artifacts.py:interview_fach` | Canonical Summary artifact label. |
-| summary.artifact | Boolean Search | Boolean search | canonical | `summary_artifacts.py:boolean_search` | Canonical Summary artifact label. |
+| summary.artifact | Fachbereich-Sheet | Hiring manager sheet | canonical | `summary_artifacts.py:interview_fach` | Canonical Summary artifact label. |
+| summary.artifact | Suchstrings | Boolean search | canonical | `summary_artifacts.py:boolean_search` | Canonical Summary artifact label; use `Suchstrings` in German UI, not `Boolean Search`. |
 | summary.artifact | Arbeitsvertrag | Employment contract | canonical | `summary_artifacts.py:employment_contract` | Canonical Summary artifact label. |
 | status | Offen | Open | canonical | `i18n.py` | Generic open status. |
 | status | Teilweise | Partial | canonical | `i18n.py` | Partial completion status. |
@@ -88,7 +89,7 @@ This glossary maps product terminology between German UI copy and English techni
 | status | kritische Punkte | critical points | canonical | `ux_copy.steps.summary.headline.gap` | Short Summary headline wording; use when the count refers to blocking facts. |
 | status | Keine kritischen Lücken erkannt | No critical gaps detected | canonical | `i18n.py` | Readiness/action dashboard wording. |
 | status | Pflicht vor Summary | Required before Summary | canonical | `_constants/facts.py` | Requirement stage display label. |
-| status | Pflicht vor Artefakt | Required before artifact | canonical | `_constants/facts.py` | Requirement stage display label. |
+| status | Pflicht vor Recruiting-Unterlage | Required before recruiting output | canonical | `_constants/facts.py` | Requirement stage display label. |
 | status | Optional | Optional | canonical | `_constants/facts.py` | Requirement stage display label. |
 | salary | Gehaltsprognose | salary forecast | canonical | `constants.STEP_SECTION_LABELS_DE / i18n.py` | Use for salary prediction block. |
 | salary | Salary-Treiber | salary driver | canonical | `_constants/facts.py` | Direct p50 salary impact. |
