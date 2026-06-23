@@ -58,6 +58,9 @@ def test_render_ui_styles_uses_streamlit_theme_tokens(monkeypatch) -> None:
     css = calls[0]
     assert "--cs-font-sans:" in css
     assert ':root[data-theme="light"]' in css
+    assert ':root[data-cs-theme="light"]' in css
+    assert ':root[data-cs-theme="dark"]' in css
+    assert ':where([data-theme="dark"], [data-cs-theme="dark"]) h1' in css
     assert "color-scheme: light;" in css
     assert "color-scheme: dark;" in css
     assert "--cs-bg: var(--background-color, #F4F7FA);" in css
@@ -128,6 +131,8 @@ def test_render_ui_styles_scopes_metric_styles_for_sidebar(monkeypatch) -> None:
     assert '[data-testid="stSidebar"] [data-testid="stAlert"] svg {' in css
     assert "fill: currentColor !important;" in css
     assert '[data-testid="stButton"] button {' in css
+    assert '[data-testid="stButton"] button:disabled,' in css
+    assert "cursor: not-allowed;" in css
     assert '[data-testid="stAlert"] {' in css
     assert '[data-testid="stTabs"] button' in css
     assert '[data-testid="stFileUploader"] section {' in css

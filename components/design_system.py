@@ -52,9 +52,13 @@ def render_ui_styles() -> None:
         <style>
         :root,
         :root[data-theme="light"],
+        :root[data-cs-theme="light"],
         html[data-theme="light"],
+        html[data-cs-theme="light"],
         body[data-theme="light"],
-        [data-theme="light"] {
+        body[data-cs-theme="light"],
+        [data-theme="light"],
+        [data-cs-theme="light"] {
             color-scheme: light;
             --cs-font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             --cs-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -99,9 +103,13 @@ def render_ui_styles() -> None:
             --cs-radius-lg: 12px;
         }
         :root[data-theme="dark"],
+        :root[data-cs-theme="dark"],
         html[data-theme="dark"],
+        html[data-cs-theme="dark"],
         body[data-theme="dark"],
-        [data-theme="dark"] {
+        body[data-cs-theme="dark"],
+        [data-theme="dark"],
+        [data-cs-theme="dark"] {
             color-scheme: dark;
             --cs-primary-navy: #0B1220;
             --cs-primary-blue: #60A5FA;
@@ -169,23 +177,23 @@ def render_ui_styles() -> None:
         small {
             color: var(--cs-text-muted) !important;
         }
-        [data-theme="dark"] h1,
-        [data-theme="dark"] h2,
-        [data-theme="dark"] h3,
-        [data-theme="dark"] h4,
-        [data-theme="dark"] h5,
-        [data-theme="dark"] h6,
-        [data-theme="dark"] label,
-        [data-theme="dark"] p,
-        [data-theme="dark"] li,
-        [data-theme="dark"] [data-testid="stMarkdownContainer"],
-        [data-theme="dark"] [data-testid="stWidgetLabel"],
-        [data-theme="dark"] [data-testid="stDataFrame"],
-        [data-theme="dark"] [data-testid="stTable"] {
+        :where([data-theme="dark"], [data-cs-theme="dark"]) h1,
+        :where([data-theme="dark"], [data-cs-theme="dark"]) h2,
+        :where([data-theme="dark"], [data-cs-theme="dark"]) h3,
+        :where([data-theme="dark"], [data-cs-theme="dark"]) h4,
+        :where([data-theme="dark"], [data-cs-theme="dark"]) h5,
+        :where([data-theme="dark"], [data-cs-theme="dark"]) h6,
+        :where([data-theme="dark"], [data-cs-theme="dark"]) label,
+        :where([data-theme="dark"], [data-cs-theme="dark"]) p,
+        :where([data-theme="dark"], [data-cs-theme="dark"]) li,
+        :where([data-theme="dark"], [data-cs-theme="dark"]) [data-testid="stMarkdownContainer"],
+        :where([data-theme="dark"], [data-cs-theme="dark"]) [data-testid="stWidgetLabel"],
+        :where([data-theme="dark"], [data-cs-theme="dark"]) [data-testid="stDataFrame"],
+        :where([data-theme="dark"], [data-cs-theme="dark"]) [data-testid="stTable"] {
             color: var(--cs-text) !important;
         }
-        [data-theme="dark"] [data-testid="stCaptionContainer"],
-        [data-theme="dark"] small {
+        :where([data-theme="dark"], [data-cs-theme="dark"]) [data-testid="stCaptionContainer"],
+        :where([data-theme="dark"], [data-cs-theme="dark"]) small {
             color: var(--cs-text-muted) !important;
         }
         [data-testid="stSidebar"] {
@@ -346,6 +354,32 @@ def render_ui_styles() -> None:
         [data-testid="stDownloadButton"] button:hover {
             border-color: var(--cs-primary) !important;
             color: var(--cs-primary) !important;
+        }
+        [data-testid="stButton"] button:disabled,
+        [data-testid="stButton"] button[disabled],
+        [data-testid="stFormSubmitButton"] button:disabled,
+        [data-testid="stFormSubmitButton"] button[disabled],
+        [data-testid="stDownloadButton"] button:disabled,
+        [data-testid="stDownloadButton"] button[disabled],
+        [data-testid="stFileUploader"] button:disabled,
+        [data-testid="stFileUploader"] button[disabled] {
+            background: var(--cs-surface-muted) !important;
+            border-color: var(--cs-border) !important;
+            color: var(--cs-text-muted) !important;
+            opacity: 1 !important;
+            box-shadow: none !important;
+            cursor: not-allowed;
+        }
+        [data-testid="stButton"] button:disabled *,
+        [data-testid="stButton"] button[disabled] *,
+        [data-testid="stFormSubmitButton"] button:disabled *,
+        [data-testid="stFormSubmitButton"] button[disabled] *,
+        [data-testid="stDownloadButton"] button:disabled *,
+        [data-testid="stDownloadButton"] button[disabled] *,
+        [data-testid="stFileUploader"] button:disabled *,
+        [data-testid="stFileUploader"] button[disabled] * {
+            color: inherit !important;
+            fill: currentColor !important;
         }
         [data-testid="stButton"] button:focus-visible,
         [data-testid="stFormSubmitButton"] button:focus-visible,
@@ -535,34 +569,34 @@ def render_ui_styles() -> None:
         [data-testid="stProgress"] [role="progressbar"] > div {
             background: var(--cs-primary) !important;
         }
-        [data-theme="dark"] [data-testid="stButton"] button[kind="primary"],
-        [data-theme="dark"] [data-testid="stFormSubmitButton"] button[kind="primary"],
-        [data-theme="dark"] [data-testid="stDownloadButton"] button[kind="primary"] {
+        :where([data-theme="dark"], [data-cs-theme="dark"]) [data-testid="stButton"] button[kind="primary"],
+        :where([data-theme="dark"], [data-cs-theme="dark"]) [data-testid="stFormSubmitButton"] button[kind="primary"],
+        :where([data-theme="dark"], [data-cs-theme="dark"]) [data-testid="stDownloadButton"] button[kind="primary"] {
             background: var(--cs-primary) !important;
             border-color: var(--cs-primary) !important;
             color: var(--cs-on-primary) !important;
         }
-        [data-theme="dark"] [data-testid="stButton"] button[kind="primary"]:hover,
-        [data-theme="dark"] [data-testid="stFormSubmitButton"] button[kind="primary"]:hover,
-        [data-theme="dark"] [data-testid="stDownloadButton"] button[kind="primary"]:hover {
+        :where([data-theme="dark"], [data-cs-theme="dark"]) [data-testid="stButton"] button[kind="primary"]:hover,
+        :where([data-theme="dark"], [data-cs-theme="dark"]) [data-testid="stFormSubmitButton"] button[kind="primary"]:hover,
+        :where([data-theme="dark"], [data-cs-theme="dark"]) [data-testid="stDownloadButton"] button[kind="primary"]:hover {
             background: #93C5FD !important;
             border-color: #93C5FD !important;
             color: var(--cs-on-primary) !important;
         }
-        [data-theme="dark"] input,
-        [data-theme="dark"] textarea,
-        [data-theme="dark"] [data-baseweb="select"] > div,
-        [data-theme="dark"] [data-baseweb="textarea"] textarea {
+        :where([data-theme="dark"], [data-cs-theme="dark"]) input,
+        :where([data-theme="dark"], [data-cs-theme="dark"]) textarea,
+        :where([data-theme="dark"], [data-cs-theme="dark"]) [data-baseweb="select"] > div,
+        :where([data-theme="dark"], [data-cs-theme="dark"]) [data-baseweb="textarea"] textarea {
             background: var(--cs-surface) !important;
             border-color: var(--cs-border) !important;
             color: var(--cs-text) !important;
         }
-        [data-theme="dark"] input::placeholder,
-        [data-theme="dark"] textarea::placeholder {
+        :where([data-theme="dark"], [data-cs-theme="dark"]) input::placeholder,
+        :where([data-theme="dark"], [data-cs-theme="dark"]) textarea::placeholder {
             color: var(--cs-text-subtle) !important;
         }
-        [data-theme="dark"] [data-testid="stDataFrame"] tbody tr,
-        [data-theme="dark"] [data-testid="stTable"] tbody tr {
+        :where([data-theme="dark"], [data-cs-theme="dark"]) [data-testid="stDataFrame"] tbody tr,
+        :where([data-theme="dark"], [data-cs-theme="dark"]) [data-testid="stTable"] tbody tr {
             background: var(--cs-surface-muted) !important;
         }
         [data-testid="stSidebar"] input,

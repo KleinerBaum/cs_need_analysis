@@ -38,10 +38,11 @@ def document_preview_shell(
         <style>
         .cs-document-preview-wrap {{
             border: 1px solid var(--cs-border);
-            background: color-mix(in srgb, var(--cs-surface) 72%, #ffffff 28%);
+            background: var(--cs-surface);
             border-radius: 8px;
             padding: 12px;
             margin-bottom: 12px;
+            color: var(--cs-text);
         }}
         .cs-document-preview-title {{
             color: var(--cs-text);
@@ -49,7 +50,7 @@ def document_preview_shell(
             margin: 0 0 10px;
         }}
         .cs-document-preview {{
-            background: #f3f4f6;
+            background: color-mix(in srgb, var(--cs-surface-muted) 86%, var(--cs-bg) 14%);
             border: 1px solid color-mix(in srgb, var(--cs-border) 70%, transparent);
             border-radius: 6px;
             height: {preview_height};

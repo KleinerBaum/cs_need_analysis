@@ -219,43 +219,25 @@ def _landing_copy_context() -> VacancyCopyContext | None:
 
 
 def _render_landing_hero(copy: StepCopy) -> None:
-    render_static_html(
-        (
-            f'<section id="{escape_html_text(LANDING_SECTION_IDS["hero"], quote=True)}" '
-            'class="landing-section landing-hero">'
-        ),
-        streamlit_module=st,
-    )
-    render_static_html('<div class="landing-start-logo">', streamlit_module=st)
-    st.image(str(_landing_logo_path()), width=220)
-    render_static_html("</div>", streamlit_module=st)
-    render_static_html('<div class="landing-app-title-row">', streamlit_module=st)
-    render_static_html(
-        f'<span class="landing-app-title">{escape_html_text(APP_TITLE)}</span>',
-        streamlit_module=st,
-    )
-    render_language_toggle(location="main", key=LANGUAGE_WIDGET_KEY_PAGE)
-    render_esco_language_toggle()
-    render_static_html("</div>", streamlit_module=st)
-
-    render_static_html('<div class="landing-hero-copy">', streamlit_module=st)
-    st.title(copy.headline)
-    if copy.value_line:
-        st.subheader(copy.value_line)
-    if copy.subheadline:
-        st.markdown(copy.subheadline)
-    render_static_html("</div>", streamlit_module=st)
-    render_static_html("</section>", streamlit_module=st)
+    with st.container(border=True):
+        st.image(str(_landing_logo_path()), width=118)
+        title_col, controls_col = st.columns([1.45, 1], gap="small")
+        with title_col:
+            render_static_html(
+                f'<span class="landing-app-title">{escape_html_text(APP_TITLE)}</span>',
+                streamlit_module=st,
+            )
+        with controls_col:
+            render_language_toggle(location="main", key=LANGUAGE_WIDGET_KEY_PAGE)
+            render_esco_language_toggle()
+        st.title(copy.headline)
+        if copy.value_line:
+            st.subheader(copy.value_line)
+        if copy.subheadline:
+            st.markdown(copy.subheadline)
 
 
 def _render_landing_flow_cards() -> None:
-    render_static_html(
-        (
-            f'<section id="{escape_html_text(LANDING_SECTION_IDS["flow"], quote=True)}" '
-            'class="landing-section">'
-        ),
-        streamlit_module=st,
-    )
     st.subheader(str(t(START_PAGE_COPY["flow_title"])))
     flow_heading = t("Was nach dem Briefing-Start entsteht")
     flow_steps = tuple(START_PAGE_COPY["flow_steps"])
@@ -279,7 +261,10 @@ def _render_landing_flow_cards() -> None:
     security_body = t(START_PAGE_COPY["security_body"])
     render_static_html(
         f"""
-        <div class="landing-process-diagram">
+        <section
+            id="{escape_html_text(LANDING_SECTION_IDS["flow"], quote=True)}"
+            class="landing-process-diagram"
+        >
             <h4>{escape_html_text(flow_heading)}</h4>
             <div class="landing-process-track">
                 {flow_step_html}
@@ -299,11 +284,10 @@ def _render_landing_flow_cards() -> None:
                 <strong>{escape_html_text(security_title)}</strong>
                 {escape_html_text(security_body)}
             </div>
-        </div>
+        </section>
         """,
         streamlit_module=st,
     )
-    render_static_html("</section>", streamlit_module=st)
 
 
 def render(ctx: WizardContext) -> None:
@@ -316,12 +300,8 @@ def render(ctx: WizardContext) -> None:
     )
     _render_landing_hero(landing_copy)
 
-    render_static_html(
-        '<section class="landing-section landing-card landing-intake-card">',
-        streamlit_module=st,
-    )
-    render_jobad_intake(ctx, title=landing_copy.primary_cta)
-    render_static_html("</section>", streamlit_module=st)
+    with st.container(border=True):
+        render_jobad_intake(ctx, title=landing_copy.primary_cta)
     _render_landing_flow_cards()
 
 

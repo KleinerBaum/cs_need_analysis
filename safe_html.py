@@ -18,5 +18,10 @@ def render_static_html(html_markup: str, *, streamlit_module: Any = st) -> None:
     Dynamic values must be escaped with ``escape_html_text`` before interpolation.
     """
 
-    # Intentional single Streamlit unsafe HTML boundary for repo-owned markup.
+    render_html = getattr(streamlit_module, "html", None)
+    if callable(render_html):
+        render_html(str(html_markup))
+        return
+
+    # Intentional Streamlit unsafe HTML fallback for older/runtime-limited Streamlit.
     streamlit_module.markdown(str(html_markup), unsafe_allow_html=True)

@@ -63,3 +63,5 @@ def test_landing_query_param_smoke_renders_jobspec_intake() -> None:
     assert app_test.session_state[SSKey.CURRENT_STEP.value] == STEP_KEY_LANDING
     rendered_text = "\n".join(_element_strings(app_test))
     assert "Stellenanzeige oder Jobspec" in rendered_text
+    assert "landing-process-step" not in rendered_text
+    assert "cs-document-preview-wrap" not in rendered_text

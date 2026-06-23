@@ -112,54 +112,35 @@ def _render_intro_overrides() -> None:
 
 
 def _render_intro_iceberg() -> None:
-    render_static_html(
-        (
-            '<section class="intro-iceberg">'
-            f'<h3>{escape_html_text(t(INTRO_COPY["iceberg_title"]))}</h3>'
-            f'<p>{escape_html_text(t(INTRO_COPY["iceberg_caption"]))}</p>'
-        ),
-        streamlit_module=st,
-    )
-    st.iframe(
-        build_iceberg_need_analysis_html(),
-        height=COMPONENT_HEIGHT,
-    )
-    render_static_html("</section>", streamlit_module=st)
+    with st.container(border=True):
+        st.markdown(f"### {t(INTRO_COPY['iceberg_title'])}")
+        st.caption(str(t(INTRO_COPY["iceberg_caption"])))
+        st.iframe(
+            build_iceberg_need_analysis_html(),
+            height=COMPONENT_HEIGHT,
+        )
 
 
 def render(ctx: WizardContext) -> None:
     render_landing_css(LANDING_STYLE_TOKENS)
     _render_intro_overrides()
 
-    render_static_html('<div class="intro-page">', streamlit_module=st)
-    render_language_toggle(location="main", key=LANGUAGE_WIDGET_KEY_PAGE)
-    render_static_html(
-        '<section class="landing-section landing-hero">',
-        streamlit_module=st,
-    )
-    st.title(str(t(INTRO_COPY["headline"])))
-    st.subheader(str(t(INTRO_COPY["subheadline"])))
+    with st.container(border=True):
+        render_language_toggle(location="main", key=LANGUAGE_WIDGET_KEY_PAGE)
+        st.title(str(t(INTRO_COPY["headline"])))
+        st.subheader(str(t(INTRO_COPY["subheadline"])))
 
-    render_static_html('<div class="intro-body">', streamlit_module=st)
-    for paragraph in INTRO_COPY["body"]:
+        for paragraph in INTRO_COPY["body"]:
+            st.markdown(str(t(paragraph)))
+
         render_static_html(
-            f"<p>{escape_html_text(t(paragraph))}</p>",
+            f'<div class="intro-closing">{escape_html_text(t(INTRO_COPY["closing"]))}</div>',
             streamlit_module=st,
         )
-    render_static_html("</div>", streamlit_module=st)
-
-    render_static_html(
-        f'<div class="intro-closing">{escape_html_text(t(INTRO_COPY["closing"]))}</div>',
-        streamlit_module=st,
-    )
-    render_static_html('<div class="intro-start-action">', streamlit_module=st)
-    if st.button(str(t(INTRO_COPY["cta"])), type="primary"):
-        ctx.goto(STEP_KEY_LANDING)
-        st.rerun()
-    render_static_html("</div>", streamlit_module=st)
+        if st.button(str(t(INTRO_COPY["cta"])), type="primary"):
+            ctx.goto(STEP_KEY_LANDING)
+            st.rerun()
     _render_intro_iceberg()
-    render_static_html("</section>", streamlit_module=st)
-    render_static_html("</div>", streamlit_module=st)
 
 
 PAGE = WizardPage(
