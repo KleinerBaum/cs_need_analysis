@@ -89,6 +89,7 @@ from schemas import (
 )
 from settings_openai import load_openai_settings
 from state import (
+    build_vacancy_draft_json,
     clear_error,
     get_esco_occupation_selected,
     get_answers,
@@ -208,9 +209,13 @@ from wizard_pages.summary_readiness import (
     _build_summary_critical_gap_rows,
     _is_visible_summary_fact_row,
     _release_state_label,
+    _summary_blocker_severity,
+    _summary_blockers_allow_expert_override,
     _summary_fact_row_id,
     _summary_fact_rows_by_step,
     _summary_visible_fact_rows,
+    can_export_final,
+    can_generate_draft,
 )
 from wizard_pages.summary_readiness_dashboard import (
     render_readiness_dashboard_header as _render_readiness_dashboard_header_impl,
@@ -1595,6 +1600,22 @@ def _summary_fact_blocker_next_step(row: SummaryFactsRow) -> str:
     return f"{row.feld} im Schritt „{step_label}“ prüfen."
 
 
+def _summary_fact_blocker_type(row: SummaryFactsRow) -> tuple[str, str]:
+    resolution_status = str(row.resolution_status or "").strip()
+    if resolution_status == FactResolutionStatus.CONFLICTED.value:
+        return "factual_integrity", "critical"
+    area = str(row.bereich or "").strip().casefold()
+    field = str(row.feld or "").strip().casefold()
+    if area in {"rechtliches", "legal", "compliance"}:
+        return "compliance", "critical"
+    privacy_terms = ("datenschutz", "privacy", "pii", "consent", "einwilligung")
+    if any(term in field for term in privacy_terms):
+        return "privacy", "critical"
+    if row.status == "Teilweise":
+        return "warning_fact", "warning"
+    return "missing_core", "critical"
+
+
 def _release_blockers_for_artifact(
     vm: SummaryViewModel,
     *,
@@ -1606,13 +1627,17 @@ def _release_blockers_for_artifact(
     for row in _artifact_release_fact_rows(vm, artifact_id):
         if not _summary_fact_blocks_release(row):
             continue
+        blocker_type, severity = _summary_fact_blocker_type(row)
         blockers.append(
             SummaryReleaseBlocker(
                 artifact_id=artifact_id,
                 artifact_label=artifact_label,
                 reason=_summary_fact_blocker_reason(row),
                 next_step=_summary_fact_blocker_next_step(row),
-                blocker_type="fact",
+                blocker_type=blocker_type,
+                severity=severity,
+                fact_key=row.fact_key,
+                provenance=row.provenienz,
             )
         )
         if len(blockers) >= limit:
@@ -1630,19 +1655,25 @@ def _brief_blocker_for_artifact(
     if requirement_ok or not requirement_message:
         return None
     next_step = "Recruiting Brief erstellen oder aktualisieren."
+    blocker_type = "brief"
     if "ungültig" in requirement_message.casefold():
         next_step = "Recruiting Brief neu erstellen."
+        blocker_type = "invalid"
     elif (
         "veraltet" in requirement_message.casefold()
         or "passt nicht" in requirement_message.casefold()
+        or "snapshot" in requirement_message.casefold()
+        or "modell" in requirement_message.casefold()
     ):
         next_step = "Recruiting Brief aktualisieren."
+        blocker_type = "stale_brief"
     return SummaryReleaseBlocker(
         artifact_id=artifact_id,
         artifact_label=artifact_label,
         reason=requirement_message,
         next_step=next_step,
-        blocker_type="brief",
+        blocker_type=blocker_type,
+        severity="critical",
     )
 
 
@@ -1660,6 +1691,7 @@ def _stale_result_blocker(
         reason=f"{artifact_label} passt nicht mehr zu den aktuellen Eingaben.",
         next_step=f"{artifact_label} neu erstellen.",
         blocker_type="stale_artifact",
+        severity="critical",
     )
 
 
@@ -1686,6 +1718,7 @@ def _build_artifact_release_gate(
                 reason="Jobspec oder Wizard-Plan fehlt.",
                 next_step="Start-Schritt abschließen und Summary erneut öffnen.",
                 blocker_type="prerequisite",
+                severity="critical",
             )
         )
     brief_blocker = _brief_blocker_for_artifact(
@@ -1709,14 +1742,21 @@ def _build_artifact_release_gate(
             primary_action=action,
             resolved_brief_model=resolved_brief_model,
         )
-        if state in {"stale", "invalid", "blocked"} and not blockers:
+        if state in {"missing", "stale", "invalid", "blocked"} and not blockers:
+            blocker_type = {
+                "missing": "missing_core",
+                "stale": "stale_brief",
+                "invalid": "invalid",
+                "blocked": "blocked",
+            }.get(state, state)
             blockers.append(
                 SummaryReleaseBlocker(
                     artifact_id=artifact_id,
                     artifact_label=artifact_label,
                     reason=status_label,
                     next_step=cta_label,
-                    blocker_type=state,
+                    blocker_type=blocker_type,
+                    severity="critical",
                 )
             )
     else:
@@ -1732,8 +1772,30 @@ def _build_artifact_release_gate(
             state = "ready"
             status_label = _release_state_label(state)
 
+    blocker_severity = _summary_blocker_severity(blockers)
+    override_allowed = _summary_blockers_allow_expert_override(blockers)
+    stale_regeneration_required = bool(
+        state == "stale"
+        or any(
+            blocker.blocker_type in {"stale_brief", "stale_artifact", "stale"}
+            for blocker in blockers
+        )
+    )
+    final_export_ready = state == "current" and not blockers
+    final_export_blocked = bool(
+        not final_export_ready
+        and (blockers or state in {"missing", "stale", "invalid", "blocked"})
+    )
+    draft_available = bool(
+        requirements_ok and requirement_ok and action["generator_fn"] is not None
+    )
+
     if blockers:
-        state_label = f"{len(blockers)} Blocker"
+        if blocker_severity == "warning":
+            noun = "Warnung" if len(blockers) == 1 else "Warnungen"
+        else:
+            noun = "Blocker"
+        state_label = f"{len(blockers)} {noun}"
         next_step = blockers[0].next_step
     else:
         state_label = _release_state_label(state)
@@ -1750,6 +1812,13 @@ def _build_artifact_release_gate(
         state_label=state_label,
         blockers=blockers,
         next_step=next_step,
+        preview_available=True,
+        draft_available=draft_available,
+        final_export_ready=final_export_ready,
+        final_export_blocked=final_export_blocked,
+        stale_regeneration_required=stale_regeneration_required,
+        blocker_severity=blocker_severity,
+        override_allowed=override_allowed,
     )
 
 
@@ -1788,6 +1857,132 @@ def _render_artifact_blockers(gate: SummaryArtifactGate) -> None:
     remaining = len(gate.blockers) - 3
     if remaining > 0:
         st.caption(f"Weitere {remaining} Blocker im Fakten-Workspace prüfen.")
+
+
+_FINAL_EXPORT_PAUSE_COPY: Final[dict[str, dict[str, str]]] = {
+    "de": {
+        "title": "Finalexport pausiert",
+        "blockers": "Blockierende Punkte",
+        "next_action": "Nächste Aktion",
+        "preview": "Vorschau bleibt verfügbar.",
+        "draft": "Entwurf speichern",
+        "draft_help": "Speichert den aktuellen Arbeitsstand als Entwurf-JSON. Das ist kein finaler Export.",
+        "fallback_blocker": "Finaler Download ist erst nach Freigabe verfügbar.",
+        "expert_details": "Sichere Expert-Details",
+        "override_available": "Expert Override verfügbar: nur nicht-kritische Warnungen blockieren den Finalexport.",
+        "override_hidden": "Kein Override verfügbar: kritische Release-Blocker müssen zuerst behoben werden.",
+        "summary_ready": "Finalexport bereit.",
+        "summary_stale": "Finalexport pausiert: Ergebnis zuerst neu erstellen.",
+        "summary_warning": "Finalexport pausiert: Warnungen prüfen; Expert Override möglich.",
+        "summary_blocked": "Finalexport pausiert: Blocker zuerst beheben.",
+        "summary_draft": "Entwurf kann erstellt werden; Finalexport folgt nach Freigabe.",
+        "summary_preview": "Vorschau bleibt verfügbar; Entwurf braucht mehr Basiskontext.",
+        "summary_open": "Status offen.",
+    },
+    "en": {
+        "title": "Final export paused",
+        "blockers": "Blocking items",
+        "next_action": "Next action",
+        "preview": "Preview remains available.",
+        "draft": "Save draft",
+        "draft_help": "Saves the current working state as draft JSON. This is not a final export.",
+        "fallback_blocker": "Final download is available only after release approval.",
+        "expert_details": "Safe expert details",
+        "override_available": "Expert override available: only non-critical warnings block final export.",
+        "override_hidden": "No override available: critical release blockers must be fixed first.",
+        "summary_ready": "Final export ready.",
+        "summary_stale": "Final export paused: regenerate the result first.",
+        "summary_warning": "Final export paused: review warnings; expert override is possible.",
+        "summary_blocked": "Final export paused: fix blockers first.",
+        "summary_draft": "Draft can be generated; final export follows release approval.",
+        "summary_preview": "Preview remains available; draft generation needs more base context.",
+        "summary_open": "Status open.",
+    },
+}
+
+
+def _final_export_pause_copy(key: str) -> str:
+    language = active_language()
+    labels = _FINAL_EXPORT_PAUSE_COPY.get(language, _FINAL_EXPORT_PAUSE_COPY["de"])
+    return labels.get(key, _FINAL_EXPORT_PAUSE_COPY["de"].get(key, key))
+
+
+def _localized_artifact_release_state(gate: SummaryArtifactGate) -> str:
+    if gate.final_export_ready:
+        return _final_export_pause_copy("summary_ready")
+    if gate.stale_regeneration_required:
+        return _final_export_pause_copy("summary_stale")
+    if gate.final_export_blocked:
+        return _final_export_pause_copy(
+            "summary_warning" if gate.override_allowed else "summary_blocked"
+        )
+    if gate.draft_available:
+        return _final_export_pause_copy("summary_draft")
+    if gate.preview_available:
+        return _final_export_pause_copy("summary_preview")
+    return _final_export_pause_copy("summary_open")
+
+
+def render_final_export_pause_panel(
+    gate: SummaryArtifactGate,
+    artifact_label: str,
+    ui_mode: str,
+) -> None:
+    title = _final_export_pause_copy("title")
+    with st.container(border=True):
+        st.warning(f"{title}: {artifact_label}")
+        st.caption(_localized_artifact_release_state(gate))
+        st.markdown(f"**{_final_export_pause_copy('blockers')}**")
+        if gate.blockers:
+            for blocker in gate.blockers[:5]:
+                st.write(f"- {blocker.reason}")
+        else:
+            st.write(f"- {_final_export_pause_copy('fallback_blocker')}")
+
+        st.caption(f"{_final_export_pause_copy('next_action')}: {gate.next_step}")
+        st.info(_final_export_pause_copy("preview"))
+
+        if gate.preview_available:
+            try:
+                draft_json = build_vacancy_draft_json(st.session_state)
+            except Exception:
+                draft_json = ""
+            if draft_json and callable(getattr(st, "download_button", None)):
+                st.download_button(
+                    _final_export_pause_copy("draft"),
+                    data=draft_json.encode("utf-8"),
+                    file_name="vacancy_draft.json",
+                    mime="application/json",
+                    help=_final_export_pause_copy("draft_help"),
+                    width="stretch",
+                    key=_widget_key(
+                        SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
+                        f"final_export_pause.draft.{gate.artifact_id}",
+                    ),
+                )
+            else:
+                st.caption(_final_export_pause_copy("draft_help"))
+
+        if str(ui_mode or "").strip() != "expert":
+            return
+        st.caption(
+            _final_export_pause_copy("override_available")
+            if gate.override_allowed
+            else _final_export_pause_copy("override_hidden")
+        )
+        if not gate.blockers or not callable(getattr(st, "expander", None)):
+            return
+        with st.expander(_final_export_pause_copy("expert_details"), expanded=False):
+            for blocker in gate.blockers:
+                details = [
+                    f"type={blocker.blocker_type}",
+                    f"severity={blocker.severity}",
+                ]
+                if blocker.fact_key:
+                    details.append(f"fact_id={blocker.fact_key}")
+                if blocker.provenance:
+                    details.append(f"provenance={blocker.provenance}")
+                st.code(" | ".join(details), language="text")
 
 
 def _render_summary_artifact_grid(
@@ -1871,11 +2066,13 @@ def _render_summary_artifact_grid(
                         status_label = gate.state_label
                         st.caption(f"Release Gate: {status_label}")
                         _render_artifact_blockers(gate)
+                        draft_enabled = can_generate_draft(artifact_id, gate)
                     else:
                         status_key, status_label = _artifact_status_label(
                             vm, artifact_id
                         )
                         st.caption(f"Status: {_release_state_label(status_key)}")
+                        draft_enabled = True
                     button_type = (
                         "primary"
                         if status_key in {"ready", "open", "stale", "missing"}
@@ -1889,6 +2086,7 @@ def _render_summary_artifact_grid(
                             SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
                             f"grid.generate.{spec['id']}",
                         ),
+                        disabled=not draft_enabled,
                     ):
                         st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = artifact_id
                         generator = generator_by_id.get(artifact_id)
@@ -2169,17 +2367,21 @@ def _render_artifact_pipeline(
         )
         if gate is not None:
             status_key, status_label = gate.state, gate.state_label
+            draft_enabled = can_generate_draft(action["id"], gate)
         else:
             status_key, status_label = _artifact_pipeline_status(
                 action,
                 resolved_brief_model=resolved_brief_model,
             )
+            draft_enabled = False
         requirements_ok = _has_required_state(action["requires"])
         requirement_ok = True
         requirement_message = ""
         requirement_check_fn = action.get("requirement_check_fn")
         if requirement_check_fn is not None:
             requirement_ok, requirement_message = requirement_check_fn()
+        if gate is None:
+            draft_enabled = bool(requirements_ok and requirement_ok)
 
         cta_label = action["cta_label"]
         if action["id"] == "brief":
@@ -2208,7 +2410,7 @@ def _render_artifact_pipeline(
                         f"readiness.pipeline.{action['id']}",
                     ),
                     disabled=(
-                        not (requirements_ok and requirement_ok)
+                        not draft_enabled
                         or action["generator_fn"] is None
                     ),
                 ):
@@ -2270,6 +2472,7 @@ def _render_readiness_tab(
         action_registry=action_registry,
         resolved_brief_model=resolved_brief_model,
         brief=brief,
+        ui_mode=get_current_ui_mode(),
     )
 
 
@@ -2410,6 +2613,7 @@ def _render_summary_workspace_tabs(
     action_registry: list[SummaryAction],
     resolved_brief_model: str,
     brief: VacancyBrief | None,
+    ui_mode: str = "standard",
 ) -> None:
     st.markdown("### Arbeitsbereiche")
     render_static_html(
@@ -2444,7 +2648,24 @@ def _render_summary_workspace_tabs(
                 "Export blockiert: Erstellen oder aktualisieren Sie zuerst den Recruiting Brief."
             )
         else:
-            _render_summary_export_workspace(brief=brief)
+            brief_action = next(
+                (action for action in action_registry if action["id"] == "brief"),
+                None,
+            )
+            brief_gate = (
+                _build_artifact_release_gate(
+                    vm,
+                    brief_action,
+                    resolved_brief_model=resolved_brief_model,
+                )
+                if brief_action is not None
+                else None
+            )
+            _render_summary_export_workspace(
+                brief=brief,
+                gate=brief_gate,
+                ui_mode=ui_mode,
+            )
 
     with advanced_tab:
         st.subheader("Technik")
@@ -2609,7 +2830,12 @@ def _render_agg_checklist_review(items: Sequence[str]) -> None:
     )
 
 
-def _render_job_ad_artifact(custom_job_ad_raw: dict[str, Any]) -> None:
+def _render_job_ad_artifact(
+    custom_job_ad_raw: dict[str, Any],
+    *,
+    final_export_available: bool = True,
+    final_export_pause_renderer: Callable[[], None] | None = None,
+) -> None:
     _render_job_ad_artifact_impl(
         custom_job_ad_raw,
         streamlit_module=st,
@@ -2617,16 +2843,57 @@ def _render_job_ad_artifact(custom_job_ad_raw: dict[str, Any]) -> None:
         render_card_start_fn=render_card_start,
         job_ad_to_docx_bytes_fn=_job_ad_to_docx_bytes,
         job_ad_to_pdf_bytes_fn=_job_ad_to_pdf_bytes,
+        final_export_available=final_export_available,
+        final_export_pause_renderer=final_export_pause_renderer,
     )
 
 
-def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
+def _artifact_final_export_available(
+    artifact_id: str,
+    gate: SummaryArtifactGate | None,
+    ui_mode: str,
+) -> bool:
+    if gate is None:
+        return True
+    return can_export_final(artifact_id, gate, ui_mode)
+
+
+def _render_artifact_final_export_pause(
+    *,
+    artifact_id: str,
+    gate: SummaryArtifactGate | None,
+    ui_mode: str,
+) -> bool:
+    if _artifact_final_export_available(artifact_id, gate, ui_mode):
+        return False
+    if gate is not None:
+        render_final_export_pause_panel(gate, gate.artifact_label, ui_mode)
+    return True
+
+
+def _render_active_artifact(
+    *,
+    artifact_id: str,
+    brief: VacancyBrief,
+    gate: SummaryArtifactGate | None = None,
+    ui_mode: str = "standard",
+) -> None:
     if artifact_id == "brief":
         render_card_start("cs-card cs-result-card")
         render_brief(
             brief,
             structured_data_payload=_build_brief_structured_preview_payload(brief),
+            show_structured_data=_artifact_final_export_available(
+                artifact_id, gate, ui_mode
+            ),
         )
+        if _render_artifact_final_export_pause(
+            artifact_id=artifact_id,
+            gate=gate,
+            ui_mode=ui_mode,
+        ):
+            render_static_html("</section>", streamlit_module=st)
+            return
         render_static_html("</section>", streamlit_module=st)
         return
 
@@ -2635,7 +2902,21 @@ def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
         if not isinstance(custom_job_ad_raw, dict):
             st.info("Für diese Unterlage liegt noch kein Ergebnis vor.")
             return
-        _render_job_ad_artifact(custom_job_ad_raw)
+        _render_job_ad_artifact(
+            custom_job_ad_raw,
+            final_export_available=_artifact_final_export_available(
+                artifact_id, gate, ui_mode
+            ),
+            final_export_pause_renderer=(
+                (
+                    lambda: render_final_export_pause_panel(
+                        gate, gate.artifact_label, ui_mode
+                    )
+                )
+                if gate is not None
+                else None
+            ),
+        )
         return
 
     if artifact_id == "interview_hr":
@@ -2643,6 +2924,12 @@ def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
         if isinstance(payload, dict):
             sheet = InterviewPrepSheetHR.model_validate(payload)
             render_interview_prep_hr(sheet)
+            if _render_artifact_final_export_pause(
+                artifact_id=artifact_id,
+                gate=gate,
+                ui_mode=ui_mode,
+            ):
+                return
             hr_json_bytes = json.dumps(
                 sheet.model_dump(mode="json"), indent=2, ensure_ascii=False
             ).encode("utf-8")
@@ -2671,6 +2958,12 @@ def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
         if isinstance(payload, dict):
             sheet = InterviewPrepSheetHiringManager.model_validate(payload)
             render_interview_prep_fach(sheet)
+            if _render_artifact_final_export_pause(
+                artifact_id=artifact_id,
+                gate=gate,
+                ui_mode=ui_mode,
+            ):
+                return
             fach_json_bytes = json.dumps(
                 sheet.model_dump(mode="json"), indent=2, ensure_ascii=False
             ).encode("utf-8")
@@ -2720,6 +3013,11 @@ def _render_active_artifact(*, artifact_id: str, brief: VacancyBrief) -> None:
         if isinstance(payload, dict):
             boolean_pack = BooleanSearchPack.model_validate(payload)
             render_boolean_search_pack(boolean_pack)
+            _render_artifact_final_export_pause(
+                artifact_id=artifact_id,
+                gate=gate,
+                ui_mode=ui_mode,
+            )
         else:
             st.info("Für diese Unterlage liegt noch kein Ergebnis vor.")
         return
@@ -2856,6 +3154,9 @@ def _render_summary_output_workspace(
     vm: SummaryViewModel,
     brief: VacancyBrief,
     generator_by_id: Mapping[str, Callable[[], None]],
+    action_registry: list[SummaryAction] | None = None,
+    resolved_brief_model: str = "",
+    ui_mode: str = "standard",
 ) -> None:
     st.markdown("### Ergebnis")
     available_artifact_ids = _generated_summary_artifact_ids()
@@ -2869,6 +3170,19 @@ def _render_summary_output_workspace(
         available_artifact_ids=available_artifact_ids,
     )
     status_key, status_label = _artifact_status_label(vm, active_artifact_id)
+    action_by_id = {
+        _to_canonical_artifact_id(action["id"]) or action["id"]: action
+        for action in action_registry or []
+    }
+    gate = None
+    action = action_by_id.get(active_artifact_id)
+    if action is not None:
+        gate = _build_artifact_release_gate(
+            vm,
+            action,
+            resolved_brief_model=resolved_brief_model,
+        )
+        status_key, status_label = gate.state, gate.state_label
     render_output_header(
         _artifact_display_label(active_artifact_id),
         f"Status: {status_label}",
@@ -2876,7 +3190,12 @@ def _render_summary_output_workspace(
     if status_key == "stale":
         st.warning("Dieses Ergebnis basiert auf älteren Fakten oder Optionen. Bitte neu generieren.")
     if active_artifact_id in available_artifact_ids:
-        _render_active_artifact(artifact_id=active_artifact_id, brief=brief)
+        _render_active_artifact(
+            artifact_id=active_artifact_id,
+            brief=brief,
+            gate=gate,
+            ui_mode=ui_mode,
+        )
     else:
         st.info("Für diese Unterlage liegt noch kein Ergebnis vor.")
     if active_artifact_id == "boolean_search":
@@ -2961,15 +3280,32 @@ def _render_summary_results_workspace(*, brief: VacancyBrief) -> None:
     )
 
 
-def _render_summary_export_workspace(*, brief: VacancyBrief) -> None:
-    st.subheader("Export")
+def _render_summary_export_workspace(
+    *,
+    brief: VacancyBrief,
+    gate: SummaryArtifactGate | None = None,
+    ui_mode: str = "standard",
+) -> None:
+    st.subheader("Finalexport")
+    if gate is not None and not can_export_final("brief", gate, ui_mode):
+        render_final_export_pause_panel(gate, gate.artifact_label, ui_mode)
+        return
+    if (
+        gate is not None
+        and gate.override_allowed
+        and str(ui_mode or "").strip() == "expert"
+        and not gate.final_export_ready
+    ):
+        st.warning(
+            "Expert Override aktiv: Finalexport trotz nicht-kritischer Warnungen verfügbar."
+        )
     export_payload = _build_structured_export_payload(brief)
     export_json_text = json.dumps(export_payload, indent=2, ensure_ascii=False)
     md = _brief_to_markdown(brief)
     json_bytes = export_json_text.encode("utf-8")
     docx_bytes = _brief_to_docx_bytes(brief)
     st.caption(
-        "Lade die Exportformate direkt herunter. JSON-Vorschau und Debug-Details sind standardmäßig eingeklappt."
+        "Lade die freigegebenen Finalexporte direkt herunter. JSON-Vorschau und Debug-Details sind standardmäßig eingeklappt."
     )
     download_columns = st.columns(2)
     with download_columns[0]:

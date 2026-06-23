@@ -77,12 +77,12 @@
       "summary": {
         "headline": {
           "default": "The Recruiting-Briefing for {role_title} is {readiness_score}% ready",
-          "gap": "{critical_gaps_count} critical points still open",
+          "gap": "{critical_gaps_count} release blockers still open",
           "ready": "Ready for recruiting, interviews, and active sourcing"
         },
         "subheadline": {
           "default": "Review remaining gaps, apply final adjustments, and generate the right recruiting outputs for recruiting, HR, and active sourcing.",
-          "gap": "Clarify these items before exporting a job ad, interview guide, or search strings.",
+          "gap": "Clarify or refresh the blocking items before exporting a job ad, interview guide, or search strings as final exports.",
           "ready": "All important facts are checked. Generate the job ad, HR sheet, and search strings now."
         },
         "value_line": "Creates directly usable material for HR, recruiting, and sourcing.",

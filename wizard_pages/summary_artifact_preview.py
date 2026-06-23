@@ -63,6 +63,8 @@ def render_job_ad_artifact(
     render_card_start_fn: Callable[..., None] = render_card_start,
     job_ad_to_docx_bytes_fn: Callable[..., bytes] = _job_ad_to_docx_bytes,
     job_ad_to_pdf_bytes_fn: Callable[..., bytes | None] = _job_ad_to_pdf_bytes,
+    final_export_available: bool = True,
+    final_export_pause_renderer: Callable[[], None] | None = None,
 ) -> None:
     custom_job_ad = JobAdGenerationResult.model_validate(
         {
@@ -135,6 +137,13 @@ def render_job_ad_artifact(
 
     render_card_start_fn("cs-card cs-result-card")
     streamlit_module.markdown("### Export")
+    if not final_export_available:
+        if final_export_pause_renderer is not None:
+            final_export_pause_renderer()
+        else:
+            streamlit_module.caption("Finalexport pausiert.")
+        render_static_html("</section>", streamlit_module=streamlit_module)
+        return
     custom_docx = job_ad_to_docx_bytes_fn(custom_job_ad, logo_payload=logo_payload)
     custom_pdf = job_ad_to_pdf_bytes_fn(custom_job_ad, logo_payload=logo_payload)
     custom_md = publishable_markdown.encode("utf-8")

@@ -77,12 +77,12 @@
       "summary": {
         "headline": {
           "default": "Das Recruiting-Briefing für {role_title} ist zu {readiness_score}% bereit",
-          "gap": "Noch {critical_gaps_count} kritische Punkte offen",
+          "gap": "Noch {critical_gaps_count} Release-Blocker offen",
           "ready": "Bereit für Recruiting, Interviews und Active Sourcing"
         },
         "subheadline": {
           "default": "Prüfen Sie offene Lücken, übernehmen Sie finale Anpassungen und erstellen Sie die passenden Recruiting-Unterlagen für Recruiting, HR und Active Sourcing.",
-          "gap": "Klären Sie diese Angaben, bevor Sie Stellenanzeige, Interviewleitfaden oder Suchstrings exportieren.",
+          "gap": "Klären oder aktualisieren Sie die blockierenden Punkte, bevor Sie Stellenanzeige, Interviewleitfaden oder Suchstrings final exportieren.",
           "ready": "Alle wichtigen Fakten sind geprüft. Erstellen Sie jetzt Stellenanzeige, HR-Sheet und Suchstrings."
         },
         "value_line": "Erstellt direkt nutzbare Unterlagen für HR, Recruiting und Sourcing.",

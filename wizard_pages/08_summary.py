@@ -200,6 +200,9 @@ SummaryReleaseBlocker = _summary_readiness.SummaryReleaseBlocker
 SummaryArtifactGate = _summary_readiness.SummaryArtifactGate
 SummaryViewModel = _summary_readiness.SummaryViewModel
 SummaryFactReadiness = _summary_readiness.SummaryFactReadiness
+can_generate_draft = _summary_readiness.can_generate_draft
+can_export_final = _summary_readiness.can_export_final
+summarize_artifact_release_state = _summary_readiness.summarize_artifact_release_state
 SummaryAction = _summary_artifact_actions.SummaryAction
 SUMMARY_PRIMARY_ARTIFACT_IDS = _summary_artifact_actions.SUMMARY_PRIMARY_ARTIFACT_IDS
 NextBestActionRecommendation = _summary_artifact_actions.NextBestActionRecommendation
@@ -214,6 +217,7 @@ JOB_AD_OPTIMIZATION_BLOCKS = _summary_view.JOB_AD_OPTIMIZATION_BLOCKS
 JOB_AD_ALWAYS_ON_COMPLIANCE_TEXT = _summary_view.JOB_AD_ALWAYS_ON_COMPLIANCE_TEXT
 RenderableContainer = _summary_view.RenderableContainer
 SummaryTabs = _summary_view.SummaryTabs
+render_final_export_pause_panel = _summary_view.render_final_export_pause_panel
 
 _SUMMARY_SLICE_MODULES = (
     _summary_exporters,
@@ -268,6 +272,11 @@ _SUMMARY_SLICE_ORIGINALS = {
         "_build_summary_view_model": _summary_readiness._build_summary_view_model,
         "_release_state_label": _summary_readiness._release_state_label,
         "_release_gate_headline": _summary_readiness._release_gate_headline,
+        "_summary_blocker_severity": _summary_readiness._summary_blocker_severity,
+        "_summary_blockers_allow_expert_override": _summary_readiness._summary_blockers_allow_expert_override,
+        "can_generate_draft": _summary_readiness.can_generate_draft,
+        "can_export_final": _summary_readiness.can_export_final,
+        "summarize_artifact_release_state": _summary_readiness.summarize_artifact_release_state,
         "_summary_fact_allows_readiness": _summary_readiness._summary_fact_allows_readiness,
         "_resolve_summary_meta_value": _summary_readiness._resolve_summary_meta_value,
         "_build_summary_meta": _summary_readiness._build_summary_meta,
@@ -348,6 +357,7 @@ _SUMMARY_SLICE_ORIGINALS = {
         "_summary_fact_blocks_release": _summary_view._summary_fact_blocks_release,
         "_summary_fact_blocker_reason": _summary_view._summary_fact_blocker_reason,
         "_summary_fact_blocker_next_step": _summary_view._summary_fact_blocker_next_step,
+        "_summary_fact_blocker_type": _summary_view._summary_fact_blocker_type,
         "_release_blockers_for_artifact": _summary_view._release_blockers_for_artifact,
         "_brief_blocker_for_artifact": _summary_view._brief_blocker_for_artifact,
         "_stale_result_blocker": _summary_view._stale_result_blocker,
@@ -355,6 +365,7 @@ _SUMMARY_SLICE_ORIGINALS = {
         "_build_summary_release_gates": _summary_view._build_summary_release_gates,
         "_release_blocker_count": _summary_view._release_blocker_count,
         "_render_artifact_blockers": _summary_view._render_artifact_blockers,
+        "render_final_export_pause_panel": _summary_view.render_final_export_pause_panel,
         "_render_summary_artifact_grid": _summary_view._render_summary_artifact_grid,
         "_render_action_card": _summary_view._render_action_card,
         "_render_job_ad_configuration_panel": _summary_view._render_job_ad_configuration_panel,
@@ -375,6 +386,8 @@ _SUMMARY_SLICE_ORIGINALS = {
         "_is_warning_checklist_item": _summary_view._is_warning_checklist_item,
         "_render_agg_checklist_review": _summary_view._render_agg_checklist_review,
         "_render_job_ad_artifact": _summary_view._render_job_ad_artifact,
+        "_artifact_final_export_available": _summary_view._artifact_final_export_available,
+        "_render_artifact_final_export_pause": _summary_view._render_artifact_final_export_pause,
         "_render_active_artifact": _summary_view._render_active_artifact,
         "_generated_summary_artifact_ids": _summary_view._generated_summary_artifact_ids,
         "_resolve_output_artifact_id": _summary_view._resolve_output_artifact_id,
@@ -513,6 +526,11 @@ for _summary_helper_name, _summary_helper_module in {
     "_build_summary_view_model": _summary_readiness,
     "_release_state_label": _summary_readiness,
     "_release_gate_headline": _summary_readiness,
+    "_summary_blocker_severity": _summary_readiness,
+    "_summary_blockers_allow_expert_override": _summary_readiness,
+    "can_generate_draft": _summary_readiness,
+    "can_export_final": _summary_readiness,
+    "summarize_artifact_release_state": _summary_readiness,
     "_summary_fact_allows_readiness": _summary_readiness,
     "_resolve_summary_meta_value": _summary_readiness,
     "_build_summary_meta": _summary_readiness,
@@ -589,6 +607,7 @@ for _summary_helper_name, _summary_helper_module in {
     "_summary_fact_blocks_release": _summary_view,
     "_summary_fact_blocker_reason": _summary_view,
     "_summary_fact_blocker_next_step": _summary_view,
+    "_summary_fact_blocker_type": _summary_view,
     "_release_blockers_for_artifact": _summary_view,
     "_brief_blocker_for_artifact": _summary_view,
     "_stale_result_blocker": _summary_view,
@@ -596,6 +615,7 @@ for _summary_helper_name, _summary_helper_module in {
     "_build_summary_release_gates": _summary_view,
     "_release_blocker_count": _summary_view,
     "_render_artifact_blockers": _summary_view,
+    "render_final_export_pause_panel": _summary_view,
     "_render_summary_artifact_grid": _summary_view,
     "_render_action_card": _summary_view,
     "_render_job_ad_configuration_panel": _summary_view,
@@ -616,6 +636,8 @@ for _summary_helper_name, _summary_helper_module in {
     "_is_warning_checklist_item": _summary_view,
     "_render_agg_checklist_review": _summary_view,
     "_render_job_ad_artifact": _summary_view,
+    "_artifact_final_export_available": _summary_view,
+    "_render_artifact_final_export_pause": _summary_view,
     "_render_active_artifact": _summary_view,
     "_generated_summary_artifact_ids": _summary_view,
     "_resolve_output_artifact_id": _summary_view,
@@ -1454,6 +1476,9 @@ def render(ctx: WizardContext) -> None:
         vm=vm,
         brief=internal_brief,
         generator_by_id=generator_by_id,
+        action_registry=action_registry,
+        resolved_brief_model=resolved_brief_model,
+        ui_mode=ui_mode,
     )
 
     nav_buttons(ctx, disable_next=True)

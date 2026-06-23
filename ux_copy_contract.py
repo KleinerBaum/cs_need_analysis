@@ -133,7 +133,7 @@ _COPY: dict[str, dict[str, dict[str, str]]] = {
             ),
             "subheadline_gap": (
                 "Klären oder aktualisieren Sie die blockierenden Punkte, bevor Sie "
-                "Stellenanzeige, Interviewleitfaden, Suchstrings oder Vertrag freigeben."
+                "Stellenanzeige, Interviewleitfaden oder Suchstrings final exportieren."
             ),
             "subheadline_ready": (
                 "Alle wichtigen Fakten sind geprüft. Erstellen Sie jetzt Stellenanzeige, "
@@ -231,7 +231,7 @@ _COPY: dict[str, dict[str, dict[str, str]]] = {
             ),
             "subheadline_gap": (
                 "Clarify or refresh the blocking items before releasing a job ad, "
-                "interview guide, search strings, or contract."
+                "interview guide, or search strings as final exports."
             ),
             "subheadline_ready": (
                 "All important facts are checked. Generate the job ad, HR sheet, and search strings now."

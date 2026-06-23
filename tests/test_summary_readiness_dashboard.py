@@ -580,6 +580,128 @@ def test_build_summary_critical_gap_rows_include_deep_link_targets() -> None:
     assert rows[0]["target_fact_key"] == FactKey.COMPANY_LOCATION_COUNTRY.value
 
 
+def test_artifact_release_gate_allows_expert_override_for_warning_only(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={SSKey.JOB_EXTRACT.value: {"job_title": "Engineer"}}
+        ),
+    )
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "_artifact_status_label",
+        lambda _vm, _artifact_id: ("current", "Aktuell"),
+    )
+    action = {
+        "id": "job_ad",
+        "title": "Stellenanzeige",
+        "benefit": "",
+        "cta_label": "Stellenanzeige erstellen",
+        "blocked_cta_label": None,
+        "requires": (SSKey.JOB_EXTRACT,),
+        "requirement_text": "",
+        "requirement_check_fn": None,
+        "generator_fn": lambda: None,
+        "result_key": SSKey.JOB_AD_DRAFT_CUSTOM,
+        "input_hints": (),
+        "input_renderer": None,
+    }
+    vm = SimpleNamespace(
+        fact_rows=[
+            _fact_row(
+                "Skills",
+                "Must-have-Skills",
+                "Teilweise",
+                requirement_stage=FactRequirementStage.BEFORE_ARTIFACT,
+            )
+        ]
+    )
+
+    gate = SUMMARY_MODULE._build_artifact_release_gate(
+        vm,
+        action,
+        resolved_brief_model="gpt-5-mini",
+    )
+
+    assert gate.preview_available is True
+    assert gate.draft_available is True
+    assert gate.final_export_ready is False
+    assert gate.final_export_blocked is True
+    assert gate.blocker_severity == "warning"
+    assert gate.override_allowed is True
+    assert SUMMARY_MODULE.can_generate_draft("job_ad", gate) is True
+    assert SUMMARY_MODULE.can_export_final("job_ad", gate, "standard") is False
+    assert SUMMARY_MODULE.can_export_final("job_ad", gate, "expert") is True
+
+
+def test_artifact_release_gate_never_overrides_critical_or_stale_blockers(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={SSKey.JOB_EXTRACT.value: {"job_title": "Engineer"}}
+        ),
+    )
+    action = {
+        "id": "job_ad",
+        "title": "Stellenanzeige",
+        "benefit": "",
+        "cta_label": "Stellenanzeige erstellen",
+        "blocked_cta_label": None,
+        "requires": (SSKey.JOB_EXTRACT,),
+        "requirement_text": "",
+        "requirement_check_fn": None,
+        "generator_fn": lambda: None,
+        "result_key": SSKey.JOB_AD_DRAFT_CUSTOM,
+        "input_hints": (),
+        "input_renderer": None,
+    }
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "_artifact_status_label",
+        lambda _vm, _artifact_id: ("current", "Aktuell"),
+    )
+    critical_gate = SUMMARY_MODULE._build_artifact_release_gate(
+        SimpleNamespace(
+            fact_rows=[
+                _fact_row(
+                    "Kernprofil",
+                    "Land",
+                    "Vollständig",
+                    requirement_stage=FactRequirementStage.BEFORE_ARTIFACT,
+                    resolution_status=FactResolutionStatus.CONFLICTED,
+                )
+            ]
+        ),
+        action,
+        resolved_brief_model="gpt-5-mini",
+    )
+
+    assert critical_gate.blocker_severity == "critical"
+    assert critical_gate.override_allowed is False
+    assert SUMMARY_MODULE.can_export_final("job_ad", critical_gate, "expert") is False
+
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "_artifact_status_label",
+        lambda _vm, _artifact_id: ("stale", "Veraltet"),
+    )
+    stale_gate = SUMMARY_MODULE._build_artifact_release_gate(
+        SimpleNamespace(fact_rows=[]),
+        action,
+        resolved_brief_model="gpt-5-mini",
+    )
+
+    assert stale_gate.stale_regeneration_required is True
+    assert stale_gate.final_export_blocked is True
+    assert SUMMARY_MODULE.can_export_final("job_ad", stale_gate, "expert") is False
+
+
 def test_resolve_next_best_action_recommendation_priority_order(monkeypatch) -> None:
     monkeypatch.setattr(
         SUMMARY_MODULE,

@@ -286,6 +286,9 @@ class SummaryReleaseBlocker:
     reason: str
     next_step: str
     blocker_type: str = "fact"
+    severity: str = "critical"
+    fact_key: str = ""
+    provenance: str = ""
 
 
 @dataclass(frozen=True)
@@ -296,10 +299,110 @@ class SummaryArtifactGate:
     state_label: str
     blockers: list[SummaryReleaseBlocker]
     next_step: str
+    preview_available: bool
+    draft_available: bool
+    final_export_ready: bool
+    final_export_blocked: bool
+    stale_regeneration_required: bool
+    blocker_severity: str
+    override_allowed: bool
 
     @property
     def is_release_ready(self) -> bool:
-        return not self.blockers and self.state == "current"
+        return self.final_export_ready
+
+
+SUMMARY_BLOCKER_SEVERITY_ORDER: Final[dict[str, int]] = {
+    "none": 0,
+    "warning": 1,
+    "critical": 2,
+}
+
+SUMMARY_NON_OVERRIDEABLE_BLOCKER_TYPES: Final[frozenset[str]] = frozenset(
+    {
+        "compliance",
+        "privacy",
+        "factual_integrity",
+        "stale_brief",
+        "stale_artifact",
+        "missing_core",
+        "prerequisite",
+        "brief",
+        "invalid",
+        "blocked",
+        "stale",
+    }
+)
+
+
+def _normalize_blocker_severity(value: str) -> str:
+    severity = str(value or "").strip().lower()
+    return severity if severity in SUMMARY_BLOCKER_SEVERITY_ORDER else "critical"
+
+
+def _summary_blocker_severity(
+    blockers: Sequence[SummaryReleaseBlocker],
+) -> str:
+    if not blockers:
+        return "none"
+    severity_rank = max(
+        SUMMARY_BLOCKER_SEVERITY_ORDER[_normalize_blocker_severity(blocker.severity)]
+        for blocker in blockers
+    )
+    for label, rank in SUMMARY_BLOCKER_SEVERITY_ORDER.items():
+        if rank == severity_rank:
+            return label
+    return "critical"
+
+
+def _summary_blockers_allow_expert_override(
+    blockers: Sequence[SummaryReleaseBlocker],
+) -> bool:
+    if not blockers:
+        return False
+    return all(
+        _normalize_blocker_severity(blocker.severity) == "warning"
+        and str(blocker.blocker_type or "").strip()
+        not in SUMMARY_NON_OVERRIDEABLE_BLOCKER_TYPES
+        for blocker in blockers
+    )
+
+
+def can_generate_draft(artifact_id: str, gate: SummaryArtifactGate) -> bool:
+    del artifact_id
+    return bool(gate.draft_available)
+
+
+def can_export_final(
+    artifact_id: str,
+    gate: SummaryArtifactGate,
+    ui_mode: str,
+) -> bool:
+    del artifact_id
+    if gate.final_export_ready:
+        return True
+    return (
+        str(ui_mode or "").strip() == "expert"
+        and gate.override_allowed
+        and gate.state == "current"
+        and not gate.stale_regeneration_required
+    )
+
+
+def summarize_artifact_release_state(gate: SummaryArtifactGate) -> str:
+    if gate.final_export_ready:
+        return "Finalexport bereit."
+    if gate.stale_regeneration_required:
+        return "Finalexport pausiert: Ergebnis zuerst neu erstellen."
+    if gate.final_export_blocked:
+        if gate.override_allowed:
+            return "Finalexport pausiert: Warnungen prüfen; Expert Override möglich."
+        return "Finalexport pausiert: Blocker zuerst beheben."
+    if gate.draft_available:
+        return "Entwurf kann erstellt werden; Finalexport folgt nach Freigabe."
+    if gate.preview_available:
+        return "Vorschau bleibt verfügbar; Entwurf braucht mehr Basiskontext."
+    return "Status offen."
 
 
 @dataclass(frozen=True)
