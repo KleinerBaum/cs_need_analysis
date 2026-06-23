@@ -1,6 +1,6 @@
-# Cognitive Staffing — Vacancy Intake Wizard
+# Cognitive Staffing — Recruiting-Briefing
 
-Streamlit app for structured vacancy intake, jobspec extraction, ESCO/EURES enrichment, salary forecasting, interview-process capture, and generation of recruiting outputs with OpenAI structured outputs.
+Streamlit app for structured Recruiting-Briefing, jobspec extraction, ESCO/EURES enrichment, salary forecasting, interview-process capture, and generation of recruiting outputs with OpenAI structured outputs.
 
 The current implementation is not a loose demo. It is a stateful workflow application with tight coupling between canonical constants, session state, Pydantic schemas, wizard UI, fact/evidence handling, summary outputs, and exports.
 
@@ -30,18 +30,25 @@ Known partials / explicit non-goals in this snapshot:
 
 ## Wizard flow
 
-The active visible route is defined by `constants.STEPS` and enforced by `wizard_pages/__init__.py`.
+The full routable contract is defined by `constants.STEPS` and enforced by `wizard_pages/__init__.py`. The intro route is a short pre-start information page. Sidebar navigation, process progress, and completion/readiness metrics use `constants.OPERATIONAL_WIZARD_STEP_KEYS` / `constants.PROGRESS_STEP_KEYS`.
+
+Pre-start route:
+
+| Step key | UI label | Main module | Purpose |
+|---|---|---|---|
+| `intro` | Einleitung | `wizard_pages/00_intro.py` | Introductory context before the operational flow starts |
+
+Operational flow:
 
 | Order | Step key | UI label | Main module | Purpose |
 |---:|---|---|---|---|
-| 1 | `intro` | Einleitung | `wizard_pages/00_intro.py` | Introductory context before the operational intake starts |
-| 2 | `landing` | Start | `wizard_pages/00_landing.py` + `wizard_pages/jobad_intake.py` | Landing page plus jobspec intake phases A/B/C |
-| 3 | `company` | Unternehmen | `wizard_pages/02_company.py` | Employer profile, website evidence, ESCO context, company questions, team/reporting |
-| 4 | `role_tasks` | Rolle & Aufgaben | `wizard_pages/04_role_tasks.py` | Work model/location, non-negotiables/compliance, role/task curation, ESCO/context/AI suggestions, salary block |
-| 5 | `skills` | Skills & Anforderungen | `wizard_pages/05_skills.py` | Jobspec/ESCO/AI skills, normalization, matrix priors, unmapped-term decisions |
-| 6 | `benefits` | Benefits & Rahmenbedingungen | `wizard_pages/06_benefits.py` | Benefits and operating conditions from jobspec/context/AI |
-| 7 | `interview` | Interviewprozess | `wizard_pages/07_interview.py` | Interview values, candidate communication, internal roles/timing |
-| 8 | `summary` | Zusammenfassung | `wizard_pages/08_summary.py` | Readiness, facts, action hub, recruiting outputs, exports |
+| 1 | `landing` | Start | `wizard_pages/00_landing.py` + `wizard_pages/jobad_intake.py` | Landing page plus jobspec intake phases A/B/C |
+| 2 | `company` | Unternehmen | `wizard_pages/02_company.py` | Employer profile, website evidence, ESCO context, company questions, team/reporting |
+| 3 | `role_tasks` | Rolle & Aufgaben | `wizard_pages/04_role_tasks.py` | Work model/location, non-negotiables/compliance, role/task curation, ESCO/context/AI suggestions, salary block |
+| 4 | `skills` | Skills & Anforderungen | `wizard_pages/05_skills.py` | Jobspec/ESCO/AI skills, normalization, matrix priors, unmapped-term decisions |
+| 5 | `benefits` | Benefits & Rahmenbedingungen | `wizard_pages/06_benefits.py` | Benefits and operating conditions from jobspec/context/AI |
+| 6 | `interview` | Interviewprozess | `wizard_pages/07_interview.py` | Interview values, candidate communication, internal roles/timing |
+| 7 | `summary` | Zusammenfassung | `wizard_pages/08_summary.py` | Readiness, facts, action hub, recruiting outputs, exports |
 
 ### Start step phases
 

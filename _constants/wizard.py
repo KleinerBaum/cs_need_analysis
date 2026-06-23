@@ -46,6 +46,19 @@ STEP_KEY_BENEFITS: Final[str] = "benefits"
 STEP_KEY_INTERVIEW: Final[str] = "interview"
 STEP_KEY_SUMMARY: Final[str] = "summary"
 
+# ---- Canonical Route Groups ----
+PRE_WIZARD_STEP_KEYS: Final[tuple[str, ...]] = (STEP_KEY_INTRO,)
+OPERATIONAL_WIZARD_STEP_KEYS: Final[tuple[str, ...]] = (
+    STEP_KEY_LANDING,
+    STEP_KEY_COMPANY,
+    STEP_KEY_ROLE_TASKS,
+    STEP_KEY_SKILLS,
+    STEP_KEY_BENEFITS,
+    STEP_KEY_INTERVIEW,
+    STEP_KEY_SUMMARY,
+)
+PROGRESS_STEP_KEYS: Final[tuple[str, ...]] = OPERATIONAL_WIZARD_STEP_KEYS
+
 # Plan/System steps that are intentionally excluded from intake completion/facts views.
 NON_INTAKE_STEP_KEYS: Final[tuple[str, ...]] = (
     STEP_KEY_INTRO,
@@ -53,7 +66,7 @@ NON_INTAKE_STEP_KEYS: Final[tuple[str, ...]] = (
     STEP_KEY_SUMMARY,
 )
 
-# ---- Wizard Steps (canonical routed/visible wizard navigation only) ----
+# ---- Wizard Steps (canonical routable page contract) ----
 @dataclass(frozen=True)
 class WizardStepDef:
     key: str

@@ -146,7 +146,7 @@ _COPY: dict[str, dict[str, dict[str, str]]] = {
     },
     "en": {
         STEP_KEY_LANDING: {
-            "headline": "Turn role need into a recruiting brief.",
+            "headline": "Turn role need into a Recruiting-Briefing.",
             "subheadline": (
                 "For recruiting, HR, and hiring teams that need a shared decision basis "
                 "before search, matching, interviews, and offers. Upload a jobspec or "
@@ -154,7 +154,7 @@ _COPY: dict[str, dict[str, dict[str, str]]] = {
                 "slow the process down."
             ),
             "value_line": (
-                "Result: a briefing cockpit with a role profile, priorities, open "
+                "Result: a Recruiting-Briefing cockpit with a role profile, priorities, open "
                 "questions, ESCO anchor, and prepared recruiting outputs."
             ),
             "headline_after_analysis": (
@@ -222,7 +222,7 @@ _COPY: dict[str, dict[str, dict[str, str]]] = {
             "secondary_cta": "Review scorecards",
         },
         STEP_KEY_SUMMARY: {
-            "headline_default": "The recruiting brief for {role_title} is {readiness_score}% ready",
+            "headline_default": "The Recruiting-Briefing for {role_title} is {readiness_score}% ready",
             "headline_gap": "{critical_gaps_count} release blockers still open",
             "headline_ready": "Ready for recruiting, interviews, and active sourcing",
             "subheadline_default": (

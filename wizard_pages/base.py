@@ -34,6 +34,7 @@ from constants import (
     ESCO_RELEASE_LANE_SELECTED_VERSION,
     ESCO_RELEASE_LANE_STABLE,
     FactKey,
+    OPERATIONAL_WIZARD_STEP_KEYS,
     SSKey,
     STEPS,
     STEP_KEY_INTRO,
@@ -1615,17 +1616,24 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
     _ensure_salary_forecast_state_defaults()
     sync_adaptive_question_limits()
     pages = ctx.pages
-    options = [p.key for p in pages]
+    route_keys = [p.key for p in pages]
+    operational_keys = set(OPERATIONAL_WIZARD_STEP_KEYS)
+    nav_pages = [p for p in pages if p.key in operational_keys]
+    options = [p.key for p in nav_pages]
+    if not options:
+        options = route_keys
+        nav_pages = pages
     cur_key = ctx.get_current_page_key()
-    if cur_key not in options:
+    if cur_key not in route_keys:
         cur_key = options[0]
         set_current_step(cur_key)
 
     nav_key = SSKey.NAV_SELECTED.value
     nav_sync_pending = bool(st.session_state.get(SSKey.NAV_SYNC_PENDING.value, False))
     nav_selected = st.session_state.get(nav_key)
+    fallback_nav_key = cur_key if cur_key in options else options[0]
     if nav_sync_pending or nav_selected not in options:
-        st.session_state[nav_key] = cur_key
+        st.session_state[nav_key] = fallback_nav_key
         st.session_state[SSKey.NAV_SYNC_PENDING.value] = False
 
     ui_preferences_key = SSKey.UI_PREFERENCES.value
@@ -1634,7 +1642,7 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
         st.session_state.get(ui_preferences_key)
     )
     format_map: dict[str, str] = {}
-    for page in pages:
+    for page in nav_pages:
         format_map[page.key] = page.label
 
     def _format(k: str) -> str:
@@ -1646,11 +1654,11 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
         key=nav_key,
         format_func=_format,
     )
-    if selected != cur_key:
+    if selected != cur_key and (cur_key in options or selected != fallback_nav_key):
         set_current_step(selected, sync_navigation=False)
         st.rerun()
 
-    current_page = next(p for p in pages if p.key == selected)
+    current_page = next(p for p in pages if p.key == cur_key)
 
     job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
     answers_raw = st.session_state.get(SSKey.ANSWERS.value, {})

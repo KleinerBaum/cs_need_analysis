@@ -27,7 +27,7 @@
         "primary_cta": "Quelle in Briefing verwandeln",
         "secondary_cta": "Beispiel ansehen",
         "empty_state": "Noch keine Quelle geladen.",
-        "readiness": "Bereit für den Intake"
+        "readiness": "Bereit fürs Recruiting-Briefing"
       },
       "company": {
         "headline": "{company_name} als Arbeitgeber für {role_title} einordnen",
@@ -106,7 +106,7 @@
         "eyebrow": "Recruiting-Briefing · ESCO · KI · Struktur",
         "lead": "Wir professionalisieren den ersten Schritt jedes Recruiting-Prozesses: das Recruiting-Briefing. Aus unstrukturierten Eingangsinformationen entsteht ein klarer, belastbarer und weiterverwendbarer Datensatz, der Suche, Auswahl und interne Abstimmung von Beginn an verbessert."
       },
-      "meta": "Fokus: strukturierter Intake, semantische Qualität, kontrollierte KI-Nutzung, Sicherheit und Weiterverarbeitung",
+      "meta": "Fokus: strukturiertes Recruiting-Briefing, semantische Qualität, kontrollierte KI-Nutzung, Sicherheit und Weiterverarbeitung",
       "top_cards": {
         "structured_intake": {
           "title": "Strukturiertes Recruiting-Briefing",
@@ -139,7 +139,7 @@
       },
       "expanders": {
         "intake": {
-          "title": "1. Intake statt Rätselraten",
+          "title": "1. Briefing statt Rätselraten",
           "body": "Zu Beginn werden vorhandene Stelleninformationen aufgenommen und strukturiert analysiert. Die App trennt dabei bewusst zwischen Quelle, Interpretation und Bestätigung.\n\nSo entsteht früh ein belastbarer Startpunkt für den weiteren Recruiting-Prozess.\n\n**Mehrwert**\n- weniger unklare Ausgangslagen,\n- weniger Rückfragen zwischen Fachbereich und Recruiting,\n- frühere Qualitätssicherung im Prozess."
         },
         "dynamic": {

@@ -67,7 +67,8 @@ def test_translation_uses_german_as_source_copy(monkeypatch) -> None:
     assert t("Weiter →") == "Next"
     assert t("Briefing-Cockpit öffnen") == "Open briefing cockpit"
     assert (
-        t("Recruiting-Briefing vor Workflow") == "Recruiting brief before workflow"
+        t("Recruiting-Briefing vor Workflow")
+        == "Recruiting-Briefing before workflow"
     )
     assert t("Anzeige hochladen oder einfügen") == "Upload or paste job ad"
     assert (

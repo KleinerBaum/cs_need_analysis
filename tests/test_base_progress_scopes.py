@@ -5,7 +5,15 @@ from pathlib import Path
 from types import SimpleNamespace
 import sys
 
-from constants import AnswerType, FactKey, SSKey, STEP_KEY_SUMMARY
+from constants import (
+    AnswerType,
+    FactKey,
+    SSKey,
+    STEP_KEY_COMPANY,
+    STEP_KEY_INTRO,
+    STEP_KEY_LANDING,
+    STEP_KEY_SUMMARY,
+)
 from question_progress import build_step_scope_progress_labels
 from schemas import JobAdExtract, Question, QuestionDependency, QuestionPlan, QuestionStep
 
@@ -226,7 +234,7 @@ def test_sidebar_progress_uses_adaptive_selection_instead_of_prefix_slice(
     assert statuses[0]["payload"]["missing_essential_ids"] == ["uncovered_core"]
 
 
-def test_intake_process_progress_starts_with_intro_and_marks_summary_from_brief(
+def test_intake_process_progress_starts_with_landing_and_marks_summary_from_brief(
     monkeypatch,
 ) -> None:
     company_question = Question(
@@ -269,22 +277,28 @@ def test_intake_process_progress_starts_with_intro_and_marks_summary_from_brief(
     assert rendered_items
     items = rendered_items[0]
     assert [item["label"] for item in items][:3] == [
-        "Einleitung",
         "Start",
         "Unternehmen",
+        "Rolle & Aufgaben",
     ]
-    assert items[0]["href"] == "?wizard_step=intro"
+    assert all(item["key"] != STEP_KEY_INTRO for item in items)
+    assert items[0]["key"] == STEP_KEY_LANDING
+    assert items[0]["href"] == "?wizard_step=landing"
     assert items[0]["step_index"] == 1
     assert items[0]["step_total"] == len(items)
-    assert items[0]["status"] == "complete"
-    assert items[0]["detail"] == "Kontext"
-    assert items[1]["href"] == "?wizard_step=landing"
+    assert items[0]["status"] == "partial"
+    assert items[0]["detail"] == "Quelle & Analyse"
+    assert items[1]["key"] == STEP_KEY_COMPANY
     assert items[1]["step_index"] == 2
-    assert items[2]["status"] == "complete"
-    assert items[2]["count"] == "1/1"
+    assert items[1]["status"] == "complete"
+    assert items[1]["count"] == "1/1"
     assert items[-1]["label"] == "Zusammenfassung"
     assert items[-1]["status"] == "complete"
     assert items[-1]["current"] is True
+
+    rendered_items.clear()
+    UI_LAYOUT_MODULE.render_intake_process_progress(STEP_KEY_INTRO)
+    assert rendered_items == []
 
 
 def test_intake_process_progress_uses_adaptive_selection_instead_of_prefix_slice(
@@ -338,7 +352,7 @@ def test_intake_process_progress_uses_adaptive_selection_instead_of_prefix_slice
 
     UI_LAYOUT_MODULE.render_intake_process_progress(STEP_KEY_SUMMARY)
 
-    company_item = rendered_items[0][2]
+    company_item = rendered_items[0][1]
     assert company_item["status"] == "not_started"
     assert company_item["count"] == "0/1"
     assert company_item["title"] == "Unternehmen: 0/1 beantwortet"
@@ -357,7 +371,7 @@ def test_sidebar_navigation_uses_navigation_only_labels(monkeypatch) -> None:
         BASE_MODULE,
         "st",
         SimpleNamespace(
-            session_state={SSKey.CURRENT_STEP.value: "company"},
+            session_state={SSKey.CURRENT_STEP.value: STEP_KEY_INTRO},
             sidebar=_FakeSidebar(),
             rerun=lambda: None,
         ),
@@ -374,6 +388,12 @@ def test_sidebar_navigation_uses_navigation_only_labels(monkeypatch) -> None:
     monkeypatch.setattr(BASE_MODULE, "_render_esco_warnings_and_migration_cta", lambda: None)
     pages = [
         BASE_MODULE.WizardPage(
+            key=STEP_KEY_INTRO,
+            title_de="Einleitung",
+            icon="ℹ️",
+            render=_noop_render,
+        ),
+        BASE_MODULE.WizardPage(
             key="company",
             title_de="Unternehmen",
             icon="🏢",
@@ -387,7 +407,8 @@ def test_sidebar_navigation_uses_navigation_only_labels(monkeypatch) -> None:
         ),
     ]
 
-    BASE_MODULE.sidebar_navigation(BASE_MODULE.WizardContext(pages=pages))
+    current_page = BASE_MODULE.sidebar_navigation(BASE_MODULE.WizardContext(pages=pages))
 
     assert captured_labels == ["🏢 Unternehmen", "✅ Zusammenfassung"]
     assert all("/" not in label for label in captured_labels)
+    assert current_page.key == STEP_KEY_INTRO

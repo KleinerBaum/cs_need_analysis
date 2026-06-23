@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import app
-from constants import WIZARD_STEP_QUERY_PARAM
+from constants import STEP_KEY_INTRO, WIZARD_STEP_QUERY_PARAM
 
 
 class _FakeQueryParams(dict[str, Any]):
@@ -19,6 +19,7 @@ class _FakeStreamlit:
 class _FakeContext:
     def __init__(self) -> None:
         self.pages = [
+            SimpleNamespace(key=STEP_KEY_INTRO),
             SimpleNamespace(key="landing"),
             SimpleNamespace(key="company"),
             SimpleNamespace(key="skills"),
@@ -69,3 +70,14 @@ def test_consume_wizard_step_query_param_uses_first_repeated_value(monkeypatch) 
     app._consume_wizard_step_query_param(ctx)
 
     assert ctx.goto_calls == ["company"]
+
+
+def test_consume_wizard_step_query_param_allows_intro_route(monkeypatch) -> None:
+    fake_st = _FakeStreamlit({WIZARD_STEP_QUERY_PARAM: STEP_KEY_INTRO})
+    ctx = _FakeContext()
+    monkeypatch.setattr(app, "st", fake_st)
+
+    app._consume_wizard_step_query_param(ctx)
+
+    assert ctx.goto_calls == [STEP_KEY_INTRO]
+    assert WIZARD_STEP_QUERY_PARAM not in fake_st.query_params

@@ -1,6 +1,6 @@
 # AGENTS.md — cs_need_analysis
 
-Working guide for AI/coding agents in `cs_need_analysis`, a Streamlit vacancy-intake wizard with OpenAI structured outputs, ESCO/EURES enrichment, deterministic question-flow overlays, salary forecasting, summary artifacts, and export generation.
+Working guide for AI/coding agents in `cs_need_analysis`, a Streamlit Recruiting-Briefing workflow with OpenAI structured outputs, ESCO/EURES enrichment, deterministic question-flow overlays, salary forecasting, summary artifacts, and export generation.
 
 This repository is a stateful workflow application. Treat changes as system changes, not isolated edits.
 
@@ -8,18 +8,25 @@ This repository is a stateful workflow application. Treat changes as system chan
 
 ### Active product flow
 
-The visible wizard route is defined by `constants.STEPS` and enforced by `wizard_pages/__init__.py`.
+The full routable contract is defined by `constants.STEPS` and enforced by `wizard_pages/__init__.py`. Sidebar navigation, process progress, and completion/readiness metrics use the operational route group constants.
+
+Pre-start route:
+
+| Step key | UI label | Page module |
+|---|---|---|
+| `intro` | Einleitung | `wizard_pages/00_intro.py` |
+
+Operational flow:
 
 | Order | Step key | UI label | Page module |
 |---:|---|---|---|
-| 1 | `intro` | Einleitung | `wizard_pages/00_intro.py` |
-| 2 | `landing` | Start | `wizard_pages/00_landing.py` |
-| 3 | `company` | Unternehmen | `wizard_pages/02_company.py` |
-| 4 | `role_tasks` | Rolle & Aufgaben | `wizard_pages/04_role_tasks.py` |
-| 5 | `skills` | Skills & Anforderungen | `wizard_pages/05_skills.py` |
-| 6 | `benefits` | Benefits & Rahmenbedingungen | `wizard_pages/06_benefits.py` |
-| 7 | `interview` | Interviewprozess | `wizard_pages/07_interview.py` |
-| 8 | `summary` | Zusammenfassung | `wizard_pages/08_summary.py` |
+| 1 | `landing` | Start | `wizard_pages/00_landing.py` |
+| 2 | `company` | Unternehmen | `wizard_pages/02_company.py` |
+| 3 | `role_tasks` | Rolle & Aufgaben | `wizard_pages/04_role_tasks.py` |
+| 4 | `skills` | Skills & Anforderungen | `wizard_pages/05_skills.py` |
+| 5 | `benefits` | Benefits & Rahmenbedingungen | `wizard_pages/06_benefits.py` |
+| 6 | `interview` | Interviewprozess | `wizard_pages/07_interview.py` |
+| 7 | `summary` | Zusammenfassung | `wizard_pages/08_summary.py` |
 
 Legacy/non-routable modules:
 
@@ -32,7 +39,7 @@ Do not reintroduce these modules into routing unless the task explicitly redesig
 
 The current intake process is intentionally staged:
 
-1. **Einleitung** — short product context before operational intake starts.
+1. **Einleitung** — short product context before the operational flow starts; routable but excluded from sidebar/progress/readiness.
 2. **Start / Phase A** — source selection, upload/manual text, consent, PII reduction, UI mode, ESCO operating settings.
 3. **Start / Phase B** — structured jobspec extraction review with field-level fact/evidence handling.
 4. **Start / Phase C** — ESCO occupation anchoring with primary anchor and up to two secondary context anchors.

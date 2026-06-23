@@ -5,7 +5,13 @@ import re
 from pathlib import Path
 
 import constants as app_constants
-from constants import STEPS, STEP_KEY_JOBSPEC_REVIEW, STEP_KEY_TEAM
+from constants import (
+    OPERATIONAL_WIZARD_STEP_KEYS,
+    PRE_WIZARD_STEP_KEYS,
+    STEPS,
+    STEP_KEY_JOBSPEC_REVIEW,
+    STEP_KEY_TEAM,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -107,8 +113,12 @@ def _ci_job_ids() -> list[str]:
 
 
 def test_documented_wizard_tables_match_canonical_steps() -> None:
+    operational_steps = [
+        step for step in STEPS if step.key in set(OPERATIONAL_WIZARD_STEP_KEYS)
+    ]
     expected_rows = [
-        (order, step.key, step.title_de) for order, step in enumerate(STEPS, start=1)
+        (order, step.key, step.title_de)
+        for order, step in enumerate(operational_steps, start=1)
     ]
 
     for doc_path in CONTRACT_DOCS:
@@ -117,6 +127,9 @@ def test_documented_wizard_tables_match_canonical_steps() -> None:
             (order, key, title_de)
             for order, key, title_de, _module_path in documented_rows
         ] == expected_rows
+        text = _read(doc_path)
+        for step_key in PRE_WIZARD_STEP_KEYS:
+            assert f"`{step_key}`" in text
 
 
 def test_documented_active_page_modules_exist_and_match_step_keys() -> None:

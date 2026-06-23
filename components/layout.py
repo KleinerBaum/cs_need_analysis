@@ -121,7 +121,7 @@ def render_standard_page(
     intro: Sequence[str],
     sections: Sequence[SectionBlock],
     footer_classification: str,
-    product_name: str = "Cognitive Staffing – Vacancy Intake Wizard",
+    product_name: str = "Cognitive Staffing – Recruiting-Briefing",
     trust_heading: str | None = None,
     trust_details: Sequence[str] = (),
     legal_template: bool = False,

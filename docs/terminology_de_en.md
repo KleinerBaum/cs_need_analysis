@@ -18,25 +18,24 @@ This glossary maps product terminology between German UI copy and English techni
 | Category | DE term | EN term | Status | Canonical source | Usage note |
 |---|---|---|---|---|---|
 | product | Cognitive Staffing | Cognitive Staffing | canonical | `SiteProfile.brand_name` | Brand name is not translated. |
-| product | Vacancy Intake Wizard | Vacancy Intake Wizard | canonical | `components/layout.py` | Technical product descriptor used in page footer; German UI should prefer `Recruiting-Briefing` for the user-facing process. |
+| product | Recruiting-Briefing | Recruiting-Briefing | canonical | `constants.APP_TITLE / components/layout.py` | Canonical visible product/process label. |
 | product | Vakanz | vacancy | canonical | `i18n.py` | Use for the concrete open role to be filled. |
-| product | Recruiting-Briefing | vacancy intake | canonical | `ux_copy.steps.* / locales` | Canonical user-facing process label. Avoid German-side `Vacancy Intake` and `Need Analysis` in visible copy. |
-| product | Vakanzerfassung | vacancy intake | proposed | `AGENTS.md / i18n.py` | Technical/domain synonym; prefer `Recruiting-Briefing` in German UI. |
-| product | Need Analysis | need analysis | proposed | repo/path legacy concept | Avoid in visible product copy; keep only where referring to legacy/repo terminology. |
+| product | Recruiting-Briefing | Recruiting-Briefing | canonical | `ux_copy.steps.* / locales` | Canonical user-facing process label. Avoid old product descriptors in visible copy. |
+| product | Bedarfsanalyse | need clarification | proposed | repo/path legacy concept | Domain synonym; prefer `Recruiting-Briefing` in visible product copy. |
 | product | Stellenanzeige | job ad | canonical | `summary_artifacts.py / i18n.py` | Use `job ad`, not `job advertisement`, for UI brevity. |
 | product | Jobspec | job spec | canonical | `AGENTS.md / i18n.py` | Use for source vacancy description/specification. |
 | product | Recruiting Brief | recruiting brief | canonical | `summary_artifacts.py` | Artifact label keeps the English term in German UI. |
 | product | Recruiting-Unterlagen | recruiting outputs | canonical | `ux_copy.steps.* / summary_view.py` | Canonical user-facing umbrella for generated downstream materials; avoid `Artefakte` and German-side `Outputs`. |
 | product | Hiring-Team | hiring team | canonical | `i18n.py` | Use for stakeholders involved in hiring. |
 | product | Fachbereich | hiring manager / business team | proposed | `summary_artifacts.py` | In artifact naming, use `Hiring manager sheet` as the English label for `Fachbereich-Sheet`. |
-| wizard.step | Einleitung | Introduction | canonical | `constants.STEPS / i18n.py` | Visible wizard route label. |
-| wizard.step | Start | Start | canonical | `constants.STEPS / i18n.py` | Visible wizard route label. |
-| wizard.step | Unternehmen | Company | canonical | `constants.STEPS / i18n.py` | Visible wizard route label. |
-| wizard.step | Rolle & Aufgaben | Role & tasks | canonical | `constants.STEPS / i18n.py` | Visible wizard route label. |
-| wizard.step | Skills & Anforderungen | Skills & requirements | canonical | `constants.STEPS / i18n.py` | Visible wizard route label. |
-| wizard.step | Benefits & Rahmenbedingungen | Benefits & conditions | canonical | `constants.STEPS / i18n.py` | Visible wizard route label. |
-| wizard.step | Interviewprozess | Interview process | canonical | `constants.STEPS / i18n.py` | Visible wizard route label. |
-| wizard.step | Zusammenfassung | Summary | canonical | `constants.STEPS / i18n.py` | Visible wizard route label. |
+| wizard.step | Einleitung | Introduction | canonical | `constants.PRE_WIZARD_STEP_KEYS / i18n.py` | Pre-start route label; excluded from sidebar/progress/readiness. |
+| wizard.step | Start | Start | canonical | `constants.OPERATIONAL_WIZARD_STEP_KEYS / i18n.py` | Operational route label. |
+| wizard.step | Unternehmen | Company | canonical | `constants.OPERATIONAL_WIZARD_STEP_KEYS / i18n.py` | Operational route label. |
+| wizard.step | Rolle & Aufgaben | Role & tasks | canonical | `constants.OPERATIONAL_WIZARD_STEP_KEYS / i18n.py` | Operational route label. |
+| wizard.step | Skills & Anforderungen | Skills & requirements | canonical | `constants.OPERATIONAL_WIZARD_STEP_KEYS / i18n.py` | Operational route label. |
+| wizard.step | Benefits & Rahmenbedingungen | Benefits & conditions | canonical | `constants.OPERATIONAL_WIZARD_STEP_KEYS / i18n.py` | Operational route label. |
+| wizard.step | Interviewprozess | Interview process | canonical | `constants.OPERATIONAL_WIZARD_STEP_KEYS / i18n.py` | Operational route label. |
+| wizard.step | Zusammenfassung | Summary | canonical | `constants.OPERATIONAL_WIZARD_STEP_KEYS / i18n.py` | Operational route label. |
 | ui | schnell | quick | canonical | `constants.py / i18n.py / locales` | Visible lowercase mode label. |
 | ui | ausführlich | standard | canonical | `constants.py / i18n.py / locales` | Visible lowercase mode label. |
 | ui | vollumfänglich | full | canonical | `constants.py / i18n.py / locales` | Visible lowercase mode label; canonical mode value remains `expert`. |

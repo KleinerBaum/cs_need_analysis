@@ -107,7 +107,7 @@ def test_iceberg_content_loads_required_sections() -> None:
         for group in content[section_key]["groups"]:
             assert set(group) >= {"title", "body", "items"}
             assert isinstance(group["items"], list)
-    assert "Recruitment-Need-Analysis" in content["header"]
+    assert "Recruiting-Briefing" in content["header"]
     assert "weniger Schleifen" in content["footer"]
 
 
@@ -127,7 +127,7 @@ def test_iceberg_html_embeds_png_and_overlay_selectors() -> None:
     assert "ina-deep" in html
     assert 'class="ina-main-header"' in html
     assert 'class="ina-group-items"' in html
-    assert "Von der Vakanzbeschreibung zur echten Recruitment-Need-Analysis" in html
+    assert "Von der Jobspec zum belastbaren Recruiting-Briefing" in html
     assert "Geprüfte Faktenbasis" in html
     assert "Prioritäten &amp; Kompromisse" in html
     assert "Scorecard" in html

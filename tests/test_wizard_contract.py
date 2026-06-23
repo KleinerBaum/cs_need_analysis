@@ -3,6 +3,9 @@ from __future__ import annotations
 from constants import (
     AnswerType,
     NON_INTAKE_STEP_KEYS,
+    OPERATIONAL_WIZARD_STEP_KEYS,
+    PRE_WIZARD_STEP_KEYS,
+    PROGRESS_STEP_KEYS,
     STEPS,
     STEP_KEY_BENEFITS,
     STEP_KEY_COMPANY,
@@ -22,8 +25,8 @@ from wizard_pages import load_pages
 
 def test_loaded_wizard_pages_match_canonical_steps() -> None:
     pages = load_pages()
-    visible_page_keys = [page.key for page in pages]
-    expected_visible_step_order = [
+    routed_page_keys = [page.key for page in pages]
+    expected_routed_step_order = [
         STEP_KEY_INTRO,
         STEP_KEY_LANDING,
         STEP_KEY_COMPANY,
@@ -34,15 +37,35 @@ def test_loaded_wizard_pages_match_canonical_steps() -> None:
         STEP_KEY_SUMMARY,
     ]
 
-    assert visible_page_keys == [step.key for step in STEPS]
-    assert visible_page_keys == expected_visible_step_order
-    assert visible_page_keys[3:6] == [
+    assert routed_page_keys == [step.key for step in STEPS]
+    assert routed_page_keys == expected_routed_step_order
+    assert routed_page_keys[3:6] == [
         STEP_KEY_ROLE_TASKS,
         STEP_KEY_SKILLS,
         STEP_KEY_BENEFITS,
     ]
-    assert STEP_KEY_JOBSPEC_REVIEW not in visible_page_keys
-    assert STEP_KEY_TEAM not in visible_page_keys
+    assert STEP_KEY_JOBSPEC_REVIEW not in routed_page_keys
+    assert STEP_KEY_TEAM not in routed_page_keys
+
+
+def test_wizard_route_groups_keep_intro_out_of_operational_progress() -> None:
+    operational_order = (
+        STEP_KEY_LANDING,
+        STEP_KEY_COMPANY,
+        STEP_KEY_ROLE_TASKS,
+        STEP_KEY_SKILLS,
+        STEP_KEY_BENEFITS,
+        STEP_KEY_INTERVIEW,
+        STEP_KEY_SUMMARY,
+    )
+
+    assert PRE_WIZARD_STEP_KEYS == (STEP_KEY_INTRO,)
+    assert OPERATIONAL_WIZARD_STEP_KEYS == operational_order
+    assert PROGRESS_STEP_KEYS == OPERATIONAL_WIZARD_STEP_KEYS
+    assert STEP_KEY_INTRO not in OPERATIONAL_WIZARD_STEP_KEYS
+    assert STEP_KEY_INTRO not in PROGRESS_STEP_KEYS
+    assert STEP_KEY_JOBSPEC_REVIEW not in OPERATIONAL_WIZARD_STEP_KEYS
+    assert STEP_KEY_TEAM not in OPERATIONAL_WIZARD_STEP_KEYS
 
 
 def test_non_intake_step_keys_follow_active_step_contract() -> None:

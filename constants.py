@@ -134,6 +134,9 @@ from _constants.wizard import (
     COMPLETION_STATE_PREFIX_TOKENS,
     COMPLETION_STATES,
     NON_INTAKE_STEP_KEYS,
+    OPERATIONAL_WIZARD_STEP_KEYS,
+    PRE_WIZARD_STEP_KEYS,
+    PROGRESS_STEP_KEYS,
     STEPS,
     STEP_KEY_BENEFITS,
     STEP_KEY_COMPANY,
@@ -160,7 +163,7 @@ from _constants.wizard import (
 
 APP_NAME: Final[str] = "Cognitive Staffing"
 APP_TAGLINE: Final[str] = "AI-gestützte Kompetenz- und Matching-Workflows"
-APP_TITLE: Final[str] = f"{APP_NAME} – Vacancy Intake Wizard"
+APP_TITLE: Final[str] = f"{APP_NAME} – Recruiting-Briefing"
 DEFAULT_LANGUAGE: Final[str] = "de"
 LLM_RESPONSE_CACHE_MAX_ENTRIES: Final[int] = 64
 

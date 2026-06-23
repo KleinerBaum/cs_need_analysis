@@ -44,7 +44,7 @@ INTRO_COPY = {
     "iceberg_title": "Warum Recruiting-Briefing?",
     "iceberg_caption": (
         "Das Eisberg-Modell zeigt, welche sichtbaren und verdeckten Informationen "
-        "eine gute Vakanzerfassung zusammenführt."
+        "ein gutes Recruiting-Briefing zusammenführt."
     ),
 }
 
