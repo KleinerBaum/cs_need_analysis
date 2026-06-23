@@ -95,8 +95,8 @@ All Locale leaf keys below exist in both `locales/de.json` and `locales/en.json`
 | common.placeholder_missing | `common.placeholder_missing` | - | Bitte ergänzen | Please add |
 | common.placeholder_missing_optional | `common.placeholder_missing_optional` | - | Bitte ergänzen, falls vorhanden | Please add if applicable |
 | iceberg.aria_label | `iceberg.aria_label` | - | Eisberg-Modell für klassisches und KI-gestütztes Recruiting-Briefing | Iceberg model for classic and AI-supported vacancy intake |
-| iceberg.surface_label | `iceberg.surface_label` | - | oberhalb der Wasserlinie: sichtbar in Jobspec & Briefing | above the waterline: visible in jobspec and briefing |
-| iceberg.deep_label | `iceberg.deep_label` | - | unterhalb der Wasserlinie: entscheidend für Search, Matching & Interview | below the waterline: essential for search, matching, and interview |
+| iceberg.surface_label | `iceberg.surface_label` | - | oberhalb: sichtbar in Jobspec, Stellenanzeige und erstem Briefing | above: visible in jobspec, job ad, and first briefing |
+| iceberg.deep_label | `iceberg.deep_label` | - | unterhalb: entscheidend für Search, Matching, Interview und Zusage | below: essential for search, matching, interview, and offer acceptance |
 | public_pages.legal_placeholder_title | `public_pages.legal_placeholder_title` | - | 🟧 **Platzhalter – Fachinput fehlt** | 🟧 **Placeholder - subject-matter input missing** |
 | public_pages.legal_template_notice | `public_pages.legal_template_notice` | - | Diese Seite ist eine Vorlage und wird erst nach rechtlicher Prüfung verbindlich. | This page is a template and becomes binding only after legal review. |
 | public_pages.competencies | `public_pages.competencies.title` | - | Unsere Kompetenzen | Our competencies |

@@ -80,15 +80,17 @@ def test_iceberg_content_loads_required_sections() -> None:
     assert DEFAULT_CONTENT_PATH.exists()
     assert DEFAULT_IMAGE_PATH.exists()
     assert DEFAULT_IMAGE_PATH.name == "eisberg_need_analysis_surface_deep.png"
-    assert set(content) >= {"surface", "deep", "kpis"}
+    assert set(content) >= {"header", "subtitle", "surface", "waterline", "deep", "footer"}
     assert set(content["surface"]) >= {"headline", "subline", "groups"}
+    assert set(content["waterline"]) >= {"surface", "deep"}
     assert set(content["deep"]) >= {"headline", "subline", "groups"}
     for section_key in ("surface", "deep"):
         assert len(content[section_key]["groups"]) >= 3
         for group in content[section_key]["groups"]:
             assert set(group) >= {"title", "body", "items"}
             assert isinstance(group["items"], list)
-    assert len(content["kpis"]) == 6
+    assert "Recruitment-Need-Analysis" in content["header"]
+    assert "weniger Schleifen" in content["footer"]
 
 
 def test_iceberg_html_embeds_png_and_overlay_selectors() -> None:
@@ -105,10 +107,14 @@ def test_iceberg_html_embeds_png_and_overlay_selectors() -> None:
     assert 'class="ina-deep-grid"' in html
     assert "ina-surface" in html
     assert "ina-deep" in html
+    assert 'class="ina-main-header"' in html
     assert 'class="ina-group-items"' in html
-    assert "Prioritäten &amp; Erfolgskriterien" in html
+    assert "Von der Vakanzbeschreibung zur echten Recruitment-Need-Analysis" in html
+    assert "Geprüfte Faktenbasis" in html
+    assert "Prioritäten &amp; Kompromisse" in html
     assert "Scorecard" in html
-    assert 'class="ina-kpi-bar"' in html
+    assert 'class="ina-footer"' in html
+    assert "Mehr geprüfte Tiefe am Anfang" in html
 
 
 def test_iceberg_html_escapes_content(tmp_path: Path) -> None:
@@ -140,7 +146,8 @@ def test_iceberg_html_escapes_content(tmp_path: Path) -> None:
                     }
                 ],
             },
-            "kpis": ["<b>unsafe</b>"],
+            "waterline": {"surface": "Surface", "deep": "Deep"},
+            "footer": "<b>unsafe</b>",
         },
     )
 
@@ -182,7 +189,8 @@ def test_iceberg_html_escapes_svg_and_attribute_payloads(tmp_path: Path) -> None
                     }
                 ],
             },
-            "kpis": ['<iframe src="javascript:alert(1)"></iframe>'],
+            "waterline": {"surface": "Surface", "deep": "Deep"},
+            "footer": '<iframe src="javascript:alert(1)"></iframe>',
         },
     )
 
@@ -215,7 +223,7 @@ def test_iceberg_html_includes_mobile_stacked_layout_rules() -> None:
     assert ".ina-bg" in html
     assert "aspect-ratio: 1672 / 941;" in html
     assert "order: 6;" in html
-    assert "grid-template-columns: repeat(2, minmax(0, 1fr));" in html
+    assert ".ina-footer" in html
 
 
 def test_iceberg_html_requires_core_content_sections() -> None:
@@ -227,7 +235,7 @@ def test_iceberg_html_requires_core_content_sections() -> None:
                     "subline": "Sub",
                     "groups": [{"title": "Surface", "body": "Body", "items": []}],
                 },
-                "kpis": [],
+                "footer": "",
             }
         )
 
@@ -238,7 +246,7 @@ def test_iceberg_html_requires_groups_as_array() -> None:
             content={
                 "surface": {"headline": "Surface", "subline": "Sub", "groups": "bad"},
                 "deep": {"headline": "Deep", "subline": "Sub", "groups": []},
-                "kpis": [],
+                "footer": "",
             }
         )
 
@@ -253,6 +261,6 @@ def test_iceberg_html_requires_group_items_as_array() -> None:
                     "groups": [{"title": "Surface", "body": "Body", "items": "bad"}],
                 },
                 "deep": {"headline": "Deep", "subline": "Sub", "groups": []},
-                "kpis": [],
+                "footer": "",
             }
         )

@@ -12,8 +12,8 @@
   },
   "iceberg": {
     "aria_label": "Iceberg model for classic and AI-supported vacancy intake",
-    "surface_label": "above the waterline: visible in jobspec and briefing",
-    "deep_label": "below the waterline: essential for search, matching, and interview"
+    "surface_label": "above: visible in jobspec, job ad, and first briefing",
+    "deep_label": "below: essential for search, matching, interview, and offer acceptance"
   },
   "ux_copy": {
     "steps": {

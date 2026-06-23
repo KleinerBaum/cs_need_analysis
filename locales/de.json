@@ -12,8 +12,8 @@
   },
   "iceberg": {
     "aria_label": "Eisberg-Modell für klassisches und KI-gestütztes Recruiting-Briefing",
-    "surface_label": "oberhalb der Wasserlinie: sichtbar in Jobspec & Briefing",
-    "deep_label": "unterhalb der Wasserlinie: entscheidend für Search, Matching & Interview"
+    "surface_label": "oberhalb: sichtbar in Jobspec, Stellenanzeige und erstem Briefing",
+    "deep_label": "unterhalb: entscheidend für Search, Matching, Interview und Zusage"
   },
   "ux_copy": {
     "steps": {
