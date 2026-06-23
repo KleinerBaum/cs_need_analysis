@@ -19,6 +19,7 @@ from schemas import (
 from summary_exports import (
     boolean_search_pack_to_markdown,
     brief_to_markdown,
+    build_live_artifact_preview_payload,
     build_summary_input_fingerprint,
     build_vacancy_draft_payload,
     parse_vacancy_draft_json,
@@ -108,6 +109,51 @@ def test_boolean_search_pack_to_markdown_formats_channel_queries() -> None:
     assert "- `site:linkedin.com/in Python`" in markdown
     assert "### Focused\n- —" in markdown
     assert "## Usage Notes\n- Start broad, then tighten" in markdown
+
+
+def test_live_artifact_preview_payload_uses_current_inputs_without_contact_details() -> None:
+    payload = build_live_artifact_preview_payload(
+        job=JobAdExtract(
+            job_title="Data Engineer",
+            company_name="ACME GmbH",
+            responsibilities=["Build data products"],
+            must_have_skills=["Python"],
+            benefits=["Hybrid work"],
+            location_city="Berlin",
+        ),
+        answers={},
+        selected_role_tasks=["Own data pipelines"],
+        selected_skills=["SQL"],
+        selected_benefits=["Mentoring"],
+        interview_process={
+            "candidate_stages": ["HR Screen", "Technical interview"],
+            "selected_values": [
+                {
+                    "Bereich": "Interne Rollen",
+                    "Feld": "Money E-Mail-Adresse",
+                    "Wert": "person@example.com",
+                },
+                {
+                    "Bereich": "Interview",
+                    "Feld": "Interviewphase 1",
+                    "Wert": "Technical interview",
+                },
+            ],
+        },
+    )
+
+    assert payload["is_preview"] is True
+    assert payload["fragments"]["brief"]["summary"] == "Data Engineer bei ACME GmbH"
+    assert any(
+        "Own data pipelines" in bullet
+        for bullet in payload["fragments"]["job_ad"]["bullets"]
+    )
+    assert any(
+        "SQL" in bullet for bullet in payload["fragments"]["boolean_search"]["bullets"]
+    )
+    interview_bullets = "\n".join(payload["fragments"]["interview_guide"]["bullets"])
+    assert "Technical interview" in interview_bullets
+    assert "person@example.com" not in interview_bullets
 
 
 def test_vacancy_draft_payload_exports_schema_and_allowed_state_only() -> None:

@@ -52,6 +52,7 @@ from state import (
     get_esco_semantic_context,
     sync_esco_shared_state,
 )
+from summary_exports import build_live_artifact_preview_payload
 from step_sections import build_step_shell_section_kwargs
 from ui_layout import (
     LazySectionConfig,
@@ -63,6 +64,7 @@ from ui_components import (
     has_meaningful_value,
     render_esco_picker_card,
     render_error_banner,
+    render_live_artifact_preview_panel,
     render_question_step,
     render_compact_requirement_board,
     ReviewRenderContext,
@@ -116,6 +118,11 @@ _SAFE_BULK_UNMAPPED_ACTIONS = ("keep_free_text", "ignore")
 
 def _extract_skill_candidates(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return _extract_skill_candidates_service(payload)
+
+
+def _read_selected_texts(state_key: SSKey) -> list[str]:
+    raw = st.session_state.get(state_key.value, [])
+    return _dedupe_terms([str(item) for item in raw]) if isinstance(raw, list) else []
 
 
 def _build_skill_suggestion_context(
@@ -2699,6 +2706,18 @@ def _render_skills_source_comparison_block(
         selected_labels=_get_selected_skill_labels(),
         deduped_must=deduped_must,
         deduped_nice=deduped_nice,
+    )
+    render_live_artifact_preview_panel(
+        key="skills",
+        default_open=True,
+        streamlit_module=st,
+        preview_builder=lambda: build_live_artifact_preview_payload(
+            job=job,
+            answers=get_answers(),
+            selected_role_tasks=_read_selected_texts(SSKey.ROLE_TASKS_SELECTED),
+            selected_skills=_get_selected_skill_labels(),
+            selected_benefits=_read_selected_texts(SSKey.BENEFITS_SELECTED),
+        ),
     )
     return source_counts
 

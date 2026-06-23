@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 import streamlit as st
@@ -82,6 +82,113 @@ def _render_downstream_impact(payload: dict[str, Any]) -> None:
             hiring_plan,
             empty="Keine Interviewwerte im Exportkontext.",
         )
+
+
+def _preview_fragment_payload(fragment: Any) -> dict[str, Any]:
+    return fragment if isinstance(fragment, dict) else {}
+
+
+def _preview_bullets(fragment: Mapping[str, Any], *, limit: int = 3) -> list[str]:
+    raw_bullets = fragment.get("bullets")
+    bullets = _as_text_list(raw_bullets, limit=limit)
+    if bullets:
+        return bullets
+    summary = str(fragment.get("summary") or "").strip()
+    return [summary] if summary else []
+
+
+def render_live_artifact_previews(
+    preview_payload: Mapping[str, Any],
+    *,
+    show_title: bool = True,
+    max_items_per_fragment: int = 3,
+    streamlit_module: Any | None = None,
+) -> None:
+    """Render concise deterministic previews for downstream artifacts."""
+
+    st_module = streamlit_module or st
+    if not all(
+        callable(getattr(st_module, name, None))
+        for name in ("markdown", "caption", "columns", "container", "write")
+    ):
+        return
+
+    if show_title:
+        st_module.markdown("#### Live-Preview: Folgeunterlagen")
+    notice = str(preview_payload.get("notice") or "").strip()
+    if notice:
+        st_module.caption(f"Preview, kein finaler Export. {notice}")
+    else:
+        st_module.caption(
+            "Preview, kein finaler Export. Es wird kein Artefakt generiert."
+        )
+
+    fragments_raw = preview_payload.get("fragments")
+    fragments = fragments_raw if isinstance(fragments_raw, Mapping) else {}
+    ordered_ids = ("brief", "job_ad", "boolean_search", "interview_guide")
+    cols = st_module.columns(2, gap="large")
+    for index, fragment_id in enumerate(ordered_ids):
+        fragment = _preview_fragment_payload(fragments.get(fragment_id))
+        title = str(fragment.get("title") or fragment_id).strip()
+        summary = str(fragment.get("summary") or "").strip()
+        bullets = _preview_bullets(fragment, limit=max_items_per_fragment)
+        with cols[index % len(cols)]:
+            with st_module.container(border=True):
+                st_module.markdown(f"**{title}**")
+                if summary:
+                    st_module.caption(summary)
+                if bullets:
+                    for bullet in bullets[:max_items_per_fragment]:
+                        st_module.write(f"- {bullet}")
+                else:
+                    st_module.caption(
+                        "Noch nicht genug Eingaben für eine belastbare Vorschau."
+                    )
+
+
+def render_live_artifact_preview_panel(
+    *,
+    preview_builder: Callable[[], Mapping[str, Any]],
+    key: str,
+    default_open: bool = False,
+    title: str = "Live-Preview: Folgeunterlagen",
+    caption: str = (
+        "Kurze Vorschau, warum die aktuellen Angaben später Brief, Anzeige, Suche "
+        "und Interview-Sheets verändern."
+    ),
+    streamlit_module: Any | None = None,
+) -> None:
+    st_module = streamlit_module or st
+    if not callable(getattr(st_module, "markdown", None)) or not callable(
+        getattr(st_module, "caption", None)
+    ):
+        return
+
+    state_key = f"cs.live_artifact_preview.{key}.revealed"
+    session_state = getattr(st_module, "session_state", {})
+    if state_key not in session_state and default_open:
+        session_state[state_key] = True
+
+    st_module.markdown(f"#### {title}")
+    st_module.caption(caption)
+    revealed = bool(session_state.get(state_key, False))
+    if not revealed:
+        button = getattr(st_module, "button", None)
+        if callable(button) and button(
+            "Preview anzeigen",
+            key=f"{state_key}.button",
+            width="stretch",
+        ):
+            session_state[state_key] = True
+            revealed = True
+        if not revealed:
+            return
+
+    render_live_artifact_previews(
+        preview_builder(),
+        show_title=False,
+        streamlit_module=st_module,
+    )
 
 
 def render_brief(

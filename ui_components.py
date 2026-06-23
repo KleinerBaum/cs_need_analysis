@@ -183,4 +183,6 @@ from ui_summary_artifacts import (
     render_employment_contract_draft,
     render_interview_prep_fach,
     render_interview_prep_hr,
+    render_live_artifact_preview_panel,
+    render_live_artifact_previews,
 )

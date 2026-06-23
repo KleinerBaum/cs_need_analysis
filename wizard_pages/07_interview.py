@@ -19,12 +19,14 @@ from constants import (
 )
 from intake_facts import write_intake_fact_by_legacy_field
 from interview_process import (
+    build_interview_export_payload,
     build_interview_value_rows,
     default_selected_interview_value_ids,
     normalize_interview_internal_flow,
 )
 from schemas import JobAdExtract, QuestionStep, RecruitmentStep
 from state import get_answers
+from summary_exports import build_live_artifact_preview_payload
 from step_sections import build_step_shell_section_kwargs
 from ui_layout import render_step_shell, responsive_three_columns, responsive_two_columns
 from ui_components import (
@@ -32,6 +34,7 @@ from ui_components import (
     has_answered_question_with_keywords,
     has_meaningful_value,
     render_error_banner,
+    render_live_artifact_preview_panel,
     render_question_step,
     render_recruiting_consistency_checklist,
     ReviewRenderContext,
@@ -68,6 +71,11 @@ def _normalize_values(values: list[str]) -> list[str]:
         deduped.append(compact)
         seen.add(normalized)
     return deduped
+
+
+def _read_selected_texts(state_key: SSKey) -> list[str]:
+    raw = st.session_state.get(state_key.value, [])
+    return _normalize_values([str(item) for item in raw]) if isinstance(raw, list) else []
 
 
 def _read_internal_flow_state() -> dict[str, Any]:
@@ -1270,6 +1278,34 @@ def render(ctx: WizardContext) -> None:
 
     def _render_source_comparison_slot() -> None:
         _render_combined_interview_workspace(job)
+        render_live_artifact_preview_panel(
+            key="interview",
+            default_open=True,
+            streamlit_module=st,
+            preview_builder=lambda: build_live_artifact_preview_payload(
+                job=job,
+                answers=get_answers(),
+                selected_role_tasks=_read_selected_texts(SSKey.ROLE_TASKS_SELECTED),
+                selected_skills=_read_selected_texts(SSKey.SKILLS_SELECTED),
+                selected_benefits=_read_selected_texts(SSKey.BENEFITS_SELECTED),
+                intake_facts={
+                    FactKey.INTERVIEW_SCORECARD_TEMPLATE.value: fact_value(
+                        FactKey.INTERVIEW_SCORECARD_TEMPLATE,
+                        {},
+                    ),
+                    FactKey.INTERVIEW_CORE_QUESTIONS.value: fact_value(
+                        FactKey.INTERVIEW_CORE_QUESTIONS,
+                        [],
+                    ),
+                },
+                interview_process=build_interview_export_payload(
+                    job=job,
+                    answers=get_answers(),
+                    plan=plan,
+                    internal_flow=_read_internal_flow_state(),
+                ),
+            ),
+        )
         expander = getattr(st, "expander", None)
         if callable(expander):
             with expander("Leitlinien für den Prozess", expanded=False):

@@ -27,6 +27,7 @@ from schemas import JobAdExtract, QuestionStep
 from safe_html import render_static_html
 from settings_openai import load_openai_settings
 from state import get_answers, get_esco_semantic_context
+from summary_exports import build_live_artifact_preview_payload
 from step_sections import build_step_shell_section_kwargs
 from ui_layout import (
     LazySectionConfig,
@@ -40,6 +41,7 @@ from ui_components import (
     has_answered_question_with_keywords,
     has_meaningful_value,
     render_error_banner,
+    render_live_artifact_preview_panel,
     render_question_step,
     render_recruiting_consistency_checklist,
     render_source_pill_selection,
@@ -168,6 +170,15 @@ def _dedupe_benefit_terms(values: list[str]) -> list[str]:
         deduped.append(cleaned)
         seen.add(normalized)
     return deduped
+
+
+def _read_selected_texts(state_key: SSKey) -> list[str]:
+    raw = st.session_state.get(state_key.value, [])
+    return (
+        _dedupe_benefit_terms([str(item) for item in raw])
+        if isinstance(raw, list)
+        else []
+    )
 
 
 def _benefit_labels_from_suggestions(raw_items: object) -> list[str]:
@@ -972,6 +983,18 @@ def render(ctx: WizardContext) -> None:
         _render_offer_outcome_preview(
             job=job,
             selected_benefits=selection_result["selected_labels"],
+        )
+        render_live_artifact_preview_panel(
+            key="benefits",
+            default_open=True,
+            streamlit_module=st,
+            preview_builder=lambda: build_live_artifact_preview_payload(
+                job=job,
+                answers=get_answers(),
+                selected_role_tasks=_read_selected_texts(SSKey.ROLE_TASKS_SELECTED),
+                selected_skills=_read_selected_texts(SSKey.SKILLS_SELECTED),
+                selected_benefits=selection_result["selected_labels"],
+            ),
         )
 
     def _render_salary_forecast_slot() -> None:

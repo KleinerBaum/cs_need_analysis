@@ -132,6 +132,7 @@ from summary_artifacts import (
 )
 from summary_exports import (
     brief_to_markdown as _brief_to_markdown,
+    build_live_artifact_preview_payload,
     build_summary_input_fingerprint as _build_summary_input_fingerprint,
 )
 from summary_esco import (
@@ -161,6 +162,7 @@ from ui_components import (
     render_error_banner,
     render_interview_prep_fach,
     render_interview_prep_hr,
+    render_live_artifact_preview_panel,
     render_openai_error,
 )
 from usage_events import get_usage_events, record_artifact_generated
@@ -1256,6 +1258,27 @@ def render(ctx: WizardContext) -> None:
     _render_readiness_dashboard_header(vm)
     _render_esco_coverage_kpis()
     _render_summary_critical_gaps_table(vm, ctx=ctx)
+    render_live_artifact_preview_panel(
+        key="summary",
+        default_open=True,
+        streamlit_module=st,
+        preview_builder=lambda: build_live_artifact_preview_payload(
+            job=vm.job,
+            answers=vm.answers,
+            selected_role_tasks=vm.artifacts.selected_role_tasks,
+            selected_skills=vm.artifacts.selected_skills,
+            selected_benefits=vm.artifacts.selected_benefits,
+            intake_facts=get_intake_fact_state(st.session_state),
+            interview_process=build_interview_export_payload(
+                job=vm.job,
+                answers=vm.answers,
+                plan=vm.plan,
+                internal_flow=normalize_interview_internal_flow(
+                    st.session_state.get(SSKey.INTERVIEW_INTERNAL_FLOW.value, {})
+                ),
+            ),
+        ),
+    )
     _render_summary_artifact_grid(vm=vm, generator_by_id=generator_by_id)
     facts_workspace = (
         st.expander("Fakten je Schritt bearbeiten", expanded=False)

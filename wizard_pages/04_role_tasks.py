@@ -21,6 +21,7 @@ from esco_rag import retrieve_esco_context_multi as retrieve_esco_context
 from llm_client import generate_requirement_gap_suggestions
 from schemas import JobAdExtract, QuestionStep
 from components.design_system import render_output_header
+from summary_exports import build_live_artifact_preview_payload
 from usage_events import record_enrichment_timed
 from state import (
     get_active_model,
@@ -38,6 +39,7 @@ from ui_components import (
     render_compare_adopt_intro,
     render_esco_explainability,
     render_error_banner,
+    render_live_artifact_preview_panel,
     render_question_step,
     ReviewRenderContext,
     resolve_standard_review_mode,
@@ -106,6 +108,15 @@ def _dedupe_task_terms(values: list[str]) -> list[str]:
         deduped.append(label)
         seen.add(normalized)
     return deduped
+
+
+def _read_selected_texts(state_key: SSKey) -> list[str]:
+    raw = st.session_state.get(state_key.value, [])
+    return (
+        _dedupe_task_terms([str(item) for item in raw])
+        if isinstance(raw, list)
+        else []
+    )
 
 
 def _split_task_like_text(value: str) -> list[str]:
@@ -752,6 +763,18 @@ def render(ctx: WizardContext) -> None:
                     *esco_labels,
                     *llm_after_labels,
                 ]
+            ),
+        )
+        render_live_artifact_preview_panel(
+            key="role_tasks",
+            default_open=True,
+            streamlit_module=st,
+            preview_builder=lambda: build_live_artifact_preview_payload(
+                job=job,
+                answers=get_answers(),
+                selected_role_tasks=selection_result["selected_labels"],
+                selected_skills=_read_selected_texts(SSKey.SKILLS_SELECTED),
+                selected_benefits=_read_selected_texts(SSKey.BENEFITS_SELECTED),
             ),
         )
 
