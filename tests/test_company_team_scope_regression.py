@@ -238,9 +238,14 @@ class _Context:
 class _CompanySectionStreamlit:
     def __init__(self) -> None:
         self.markdown_calls: list[str] = []
+        self.caption_calls: list[str] = []
+        self.session_state: dict[str, object] = {}
 
     def markdown(self, text: str, *_args: object, **_kwargs: object) -> None:
         self.markdown_calls.append(text)
+
+    def caption(self, text: str, *_args: object, **_kwargs: object) -> None:
+        self.caption_calls.append(text)
 
     def text_area(self, *_args: object, **_kwargs: object) -> str:
         return ""
@@ -270,29 +275,52 @@ def test_company_context_renders_new_section_order(monkeypatch) -> None:
     monkeypatch.setattr(company_module, "render_number_fact", lambda *_args, **_kwargs: 0)
     monkeypatch.setattr(company_module, "fact_value", lambda *_args, **_kwargs: [])
     monkeypatch.setattr(company_module, "persist_fact", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(company_module, "render_error_banner", lambda: None)
+    monkeypatch.setattr(company_module, "render_jobspec_step_notes", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        company_module,
+        "render_next_best_question_coach",
+        lambda *_args, **_kwargs: None,
+    )
     monkeypatch.setattr(
         company_module,
         "render_role_context_enrichment",
-        lambda **_kwargs: fake_st.markdown("#### Rollenprofil mit ESCO-Kontext ergänzen"),
+        lambda **_kwargs: fake_st.markdown("ESCO-Kontext"),
     )
     monkeypatch.setattr(
         company_module,
         "_render_website_enrichment",
-        lambda *_args, **_kwargs: fake_st.markdown("#### Website analysieren"),
+        lambda *_args, **_kwargs: fake_st.markdown("Website-Body"),
+    )
+    monkeypatch.setattr(
+        company_module,
+        "render_working_model_location_section",
+        lambda *_args, **_kwargs: fake_st.markdown("Work-Body"),
+    )
+    monkeypatch.setattr(
+        company_module,
+        "render_non_negotiables_compliance_section",
+        lambda *_args, **_kwargs: fake_st.markdown("Compliance-Body"),
     )
 
-    company_module._render_company_research_and_esco(
-        JobAdExtract(),
+    company_module._render_company_sections(
+        job=JobAdExtract(),
         ctx=SimpleNamespace(),
         plan=QuestionPlan(steps=[]),
+        open_question_step=None,
+        company_open_question_step=None,
+        team_open_question_step=None,
     )
-    company_module._render_company_context(JobAdExtract())
-    company_module._render_team_context(JobAdExtract(), ctx=SimpleNamespace())
 
-    assert fake_st.markdown_calls == [
-        "#### Website analysieren",
-        "#### Rollenprofil mit ESCO-Kontext ergänzen",
+    section_headings = [
+        call for call in fake_st.markdown_calls if call.startswith("#### ")
+    ]
+    assert section_headings == [
+        "#### Website-Funde",
+        "#### Business-Kontext",
         "#### Arbeitgeberprofil",
-        "#### Unternehmenskontext",
+        "#### Offene Fragen",
         "#### Team & Berichtslinie",
+        "#### Arbeitsmodell & Standort",
+        "#### Non-negotiables / Compliance",
     ]

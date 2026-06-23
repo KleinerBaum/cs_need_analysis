@@ -214,8 +214,6 @@ def test_company_team_interview_use_step_shell_with_review_slot_and_canonical_or
 
     assert _slot_order_from_render_kwargs(company_kwargs) == [
         "open_questions_slot",
-        "extracted_from_jobspec_slot",
-        "source_comparison_slot",
         "review_slot",
     ]
     assert _slot_order_from_render_kwargs(team_kwargs) == [

@@ -15,10 +15,8 @@ from constants import (
     FactValueType,
     SSKey,
     STEP_KEY_COMPANY,
-    STEP_SECTION_EXTRACTED_FROM_JOBSPEC,
     STEP_SECTION_OPEN_QUESTIONS,
     STEP_SECTION_REVIEW,
-    STEP_SECTION_SOURCE_COMPARISON,
     WEBSITE_RESEARCH_OPEN_QUESTION_MATCHES,
     WEBSITE_RESEARCH_SECTIONS,
     WEBSITE_SECTION_FACTS,
@@ -51,7 +49,6 @@ from step_sections import (
     question_canonical_fact_key,
 )
 from ui_components import (
-    has_meaningful_value,
     render_error_banner,
     render_next_best_question_coach,
     render_question_step,
@@ -59,7 +56,12 @@ from ui_components import (
     resolve_standard_review_mode,
     render_standard_step_review,
 )
-from ui_layout import render_step_shell, responsive_three_columns, responsive_two_columns
+from ui_layout import (
+    render_jobspec_step_notes,
+    render_step_shell,
+    responsive_three_columns,
+    responsive_two_columns,
+)
 from usage_events import record_enrichment_timed, record_homepage_fetch_failed
 from wizard_pages.base import (
     WizardContext,
@@ -79,6 +81,10 @@ from wizard_pages.fact_inputs import (
     render_text_area_fact,
     render_text_fact,
     split_lines,
+)
+from wizard_pages.company_work_context import (
+    render_non_negotiables_compliance_section,
+    render_working_model_location_section,
 )
 from intake_facts import append_intake_fact_secondary_evidence, write_intake_fact
 from state import mark_answer_touched
@@ -143,6 +149,89 @@ _TEAM_CONTEXT_FACT_KEYS = frozenset(
         FactKey.TEAM_SUCCESS_CONTEXT_90D,
     }
 )
+_COMPANY_SECTION_VALUE_STATEMENTS = {
+    "Website-Funde": (
+        "Website-Belege stützen oder markieren bestehende Angaben; sie ersetzen "
+        "bestätigte Fakten nicht automatisch."
+    ),
+    "Business-Kontext": (
+        "Kläre, warum die Rolle jetzt entsteht und welchen Beitrag sie zum Geschäft leistet."
+    ),
+    "Arbeitgeberprofil": (
+        "Formuliere die kurze Arbeitgeberstory, die später Briefing und Anzeige trägt."
+    ),
+    "Offene Fragen": (
+        "Zeige nur Zusatzfragen, die nicht schon durch strukturierte Fakten abgedeckt sind."
+    ),
+    "Team & Berichtslinie": (
+        "Mache Reporting, Teamgröße, Führung und Stakeholder für die Kandidatenstory greifbar."
+    ),
+    "Arbeitsmodell & Standort": (
+        "Halte Ort, Remote-Regel, Sprachen und Zeitzonen als klare Rahmenbedingungen fest."
+    ),
+    "Non-negotiables / Compliance": (
+        "Trenne harte Muss-Vorgaben und regulatorische Grenzen von verhandelbaren Präferenzen."
+    ),
+    "Prüfung": (
+        "Prüfe fehlende, widersprüchliche oder unsichere Angaben vor dem nächsten Schritt."
+    ),
+}
+
+
+def _company_detail_sections_expanded_by_default() -> bool:
+    session_state = getattr(st, "session_state", {})
+    state_get = getattr(session_state, "get", None)
+    if not callable(state_get):
+        return False
+    ui_mode = str(state_get(SSKey.UI_MODE.value, "standard")).strip().lower()
+    return ui_mode == "expert"
+
+
+def _render_company_section(
+    title: str,
+    renderer: Callable[[], None],
+    *,
+    critical: bool = True,
+    collapsed_label: str = "Details bearbeiten",
+) -> None:
+    st.markdown(f"#### {title}")
+    value_statement = _COMPANY_SECTION_VALUE_STATEMENTS.get(title, "")
+    if value_statement:
+        st.caption(value_statement)
+    if critical or _company_detail_sections_expanded_by_default():
+        renderer()
+        return
+
+    expander = getattr(st, "expander", None)
+    if callable(expander):
+        with expander(collapsed_label, expanded=False):
+            renderer()
+        return
+    renderer()
+
+
+def _render_optional_company_detail(
+    title: str,
+    value_statement: str,
+    renderer: Callable[[], None],
+) -> None:
+    if _company_detail_sections_expanded_by_default():
+        st.markdown(f"##### {title}")
+        st.caption(value_statement)
+        renderer()
+        return
+
+    expander = getattr(st, "expander", None)
+    if callable(expander):
+        with expander(title, expanded=False):
+            st.caption(value_statement)
+            renderer()
+        return
+
+    st.caption(value_statement)
+    renderer()
+
+
 def _render_section_form(
     *,
     form_key: str,
@@ -321,7 +410,9 @@ def _run_website_research(
 
 
 def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
-    st.markdown("#### Website analysieren")
+    st.caption(
+        "Starte gezielte Website-Checks und übernimm Funde erst nach kurzer Prüfung."
+    )
     extracted_homepage = _normalize_url(
         str(
             fact_value(
@@ -456,9 +547,10 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
     if not candidates:
         return
 
-    st.markdown("#### Website-Funde übernehmen")
+    st.markdown("#### Website-Funde als Belege prüfen")
     st.caption(
-        "Prüfe die vorgeschlagenen Werte und übernimm nur belastbare Angaben."
+        "Website-Funde stützen bestehende Fakten. Abweichungen werden ohne aktive "
+        "Bestätigung nur als Konfliktbeleg gespeichert."
     )
     review_raw = st.session_state.get(SSKey.COMPANY_WEBSITE_FACT_REVIEW.value, {})
     review_state = review_raw if isinstance(review_raw, dict) else {}
@@ -520,13 +612,13 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
                 if not _is_empty_fact_value(current_value) and _fact_values_equal(
                     current_value, parsed_value
                 ):
-                    candidate_resolution = "Bestätigt · Website"
+                    candidate_resolution = "Stützt bestehenden Wert · Website"
                     candidate_status = FactResolutionStatus.CONFIRMED.value
                 elif has_confirmed_conflict:
-                    candidate_resolution = "Konflikt · prüfen"
+                    candidate_resolution = "Abweichender Website-Beleg · prüfen"
                     candidate_status = FactResolutionStatus.CONFLICTED.value
                 else:
-                    candidate_resolution = "Erkannt · Website"
+                    candidate_resolution = "Neuer Website-Hinweis · prüfen"
                     candidate_status = FactResolutionStatus.INFERRED.value
                 st.caption(candidate_resolution)
                 render_source_evidence_popover(
@@ -553,7 +645,7 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
                 if parse_error:
                     st.caption(parse_error)
                 selected = st.checkbox(
-                    "Diesen Fund übernehmen",
+                    "Als Beleg/Wert übernehmen",
                     value=default_selected,
                     key=f"company.website.fact_review.{candidate_id}.selected",
                 )
@@ -576,7 +668,7 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
             )
 
         submitted = st.form_submit_button(
-            "Website-Funde übernehmen", width="stretch"
+            "Website-Belege übernehmen", width="stretch"
         )
 
     st.session_state[SSKey.COMPANY_WEBSITE_FACT_REVIEW.value] = next_review_state
@@ -614,7 +706,7 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
     if saved_count:
         st.success(f"{saved_count} Website-Kontextwerte gespeichert.")
     if corroborated_count:
-        st.success(f"{corroborated_count} Website-Kontextwerte bestätigt.")
+        st.success(f"{corroborated_count} Website-Belege als Bestätigung ergänzt.")
     if conflict_count:
         st.warning(
             f"{conflict_count} Website-Konflikte wurden als zusätzlicher Beleg gespeichert."
@@ -849,82 +941,97 @@ def _format_company_subheader(job: JobAdExtract) -> str | None:
 
 
 def _render_employer_profile_section(job: JobAdExtract) -> None:
-    with section_container(border=True):
-        st.markdown("#### Arbeitgeberprofil")
-        left, right = responsive_two_columns(gap="large")
-        with left:
-            render_text_fact(
-                FactKey.COMPANY_COMPANY_NAME,
-                "Unternehmensname",
-                default=job.company_name or "",
-            )
-            render_text_fact(
-                FactKey.COMPANY_BRAND_NAME,
-                "Marke / Brand",
-                default=job.brand_name or "",
-            )
-            render_text_fact(
-                FactKey.COMPANY_COMPANY_WEBSITE,
-                "Unternehmenswebsite",
-                default=job.company_website or "",
-                placeholder="https://www.beispiel.de",
-            )
-        with right:
-            render_text_area_fact(
-                FactKey.COMPANY_EMPLOYER_PITCH,
-                "Wie würden Sie das Unternehmen in 1-2 Sätzen für Kandidat:innen beschreiben?",
-                height=110,
-            )
+    def _render_fields() -> None:
+        with section_container(border=True):
+            left, right = responsive_two_columns(gap="large")
+            with left:
+                render_text_fact(
+                    FactKey.COMPANY_COMPANY_NAME,
+                    "Unternehmensname",
+                    default=job.company_name or "",
+                )
+                render_text_fact(
+                    FactKey.COMPANY_BRAND_NAME,
+                    "Marke / Brand",
+                    default=job.brand_name or "",
+                )
+                render_text_fact(
+                    FactKey.COMPANY_COMPANY_WEBSITE,
+                    "Unternehmenswebsite",
+                    default=job.company_website or "",
+                    placeholder="https://www.beispiel.de",
+                )
+            with right:
+                render_text_area_fact(
+                    FactKey.COMPANY_EMPLOYER_PITCH,
+                    "Wie würden Sie das Unternehmen in 1-2 Sätzen für Kandidat:innen beschreiben?",
+                    height=110,
+                )
+
+    _render_company_section(
+        "Arbeitgeberprofil",
+        lambda: _render_section_form(
+            form_key="company.employer_profile.form",
+            submit_label="Arbeitgeberprofil speichern",
+            renderer=_render_fields,
+        ),
+    )
 
 
 def _render_business_context_section(job: JobAdExtract) -> None:
-    with section_container(border=True):
-        st.markdown("#### Unternehmenskontext")
-        left, right = responsive_two_columns(gap="large")
-        with left:
-            render_text_fact(
-                FactKey.COMPANY_BUSINESS_UNIT,
-                "In welchem Geschäfts- oder Produktbereich sitzt die Rolle?",
-                default=job.department_name or "",
-            )
-            render_text_fact(
-                FactKey.COMPANY_HIRING_REASON,
-                "Warum wird diese Rolle jetzt besetzt?",
-                placeholder="z. B. Wachstum, Ersatz, neue Capability, Transformation",
-            )
-            render_text_area_fact(
-                FactKey.COMPANY_GROWTH_CONTEXT,
-                "Welcher Markt-, Wachstums- oder Aufbaukontext ist relevant?",
-                height=100,
-            )
-        with right:
-            render_multiselect_fact(
-                FactKey.COMPANY_ROLE_RELEVANT_POSITIONING,
-                "Welche Positionierungsaspekte sind für diese Rolle relevant?",
-                options=[
-                    "Marktposition",
-                    "Produkt",
-                    "Wachstum",
-                    "Stabilität",
-                    "Technologie",
-                    "Mission",
-                    "Kundennutzen",
-                    "Sonstiges",
-                ],
-            )
-            render_text_area_fact(
-                FactKey.COMPANY_ROLE_BUSINESS_IMPACT,
-                "Welchen Business Impact soll die Rolle für das Unternehmen haben?",
-                height=110,
-            )
+    def _render_fields() -> None:
+        with section_container(border=True):
+            left, right = responsive_two_columns(gap="large")
+            with left:
+                render_text_fact(
+                    FactKey.COMPANY_BUSINESS_UNIT,
+                    "In welchem Geschäfts- oder Produktbereich sitzt die Rolle?",
+                    default=job.department_name or "",
+                )
+                render_text_fact(
+                    FactKey.COMPANY_HIRING_REASON,
+                    "Warum wird diese Rolle jetzt besetzt?",
+                    placeholder="z. B. Wachstum, Ersatz, neue Capability, Transformation",
+                )
+                render_text_area_fact(
+                    FactKey.COMPANY_GROWTH_CONTEXT,
+                    "Welcher Markt-, Wachstums- oder Aufbaukontext ist relevant?",
+                    height=100,
+                )
+            with right:
+                render_multiselect_fact(
+                    FactKey.COMPANY_ROLE_RELEVANT_POSITIONING,
+                    "Welche Positionierungsaspekte sind für diese Rolle relevant?",
+                    options=[
+                        "Marktposition",
+                        "Produkt",
+                        "Wachstum",
+                        "Stabilität",
+                        "Technologie",
+                        "Mission",
+                        "Kundennutzen",
+                        "Sonstiges",
+                    ],
+                )
+                render_text_area_fact(
+                    FactKey.COMPANY_ROLE_BUSINESS_IMPACT,
+                    "Welchen Business Impact soll die Rolle für das Unternehmen haben?",
+                    height=110,
+                )
+
+    _render_company_section(
+        "Business-Kontext",
+        lambda: _render_section_form(
+            form_key="company.business_context.form",
+            submit_label="Business-Kontext speichern",
+            renderer=_render_fields,
+        ),
+    )
 
 
 def _render_team_reporting_section(job: JobAdExtract, *, ctx: WizardContext) -> None:
-    del ctx
-
     def _render_team_reporting_fields() -> None:
         with section_container(border=True):
-            st.markdown("#### Team & Berichtslinie")
             team_col, department_col, reports_to_col = responsive_three_columns(
                 gap="large"
             )
@@ -995,43 +1102,35 @@ def _render_team_reporting_section(job: JobAdExtract, *, ctx: WizardContext) -> 
                 height=100,
             )
 
-    _render_section_form(
-        form_key="company.team_reporting.form",
-        submit_label="Team & Berichtslinie speichern",
-        renderer=_render_team_reporting_fields,
+    def _render_fields_and_optional_context() -> None:
+        _render_section_form(
+            form_key="company.team_reporting.form",
+            submit_label="Team & Berichtslinie speichern",
+            renderer=_render_team_reporting_fields,
+        )
+        _render_optional_company_detail(
+            "Rollenprofil mit ESCO-Kontext ergänzen",
+            "Optionale ESCO-Hinweise ergänzen Teamarbeit, Stakeholder und Führungslogik.",
+            lambda: render_role_context_enrichment(
+                step=None,
+                ctx=ctx,
+                adopt_context_callback=_append_context_to_team_success_fact,
+            ),
+        )
+
+    _render_company_section(
+        "Team & Berichtslinie",
+        _render_fields_and_optional_context,
     )
 
 
 def _render_company_context(job: JobAdExtract) -> None:
-    _render_section_form(
-        form_key="company.employer_profile.form",
-        submit_label="Arbeitgeberprofil speichern",
-        renderer=lambda: _render_employer_profile_section(job),
-    )
-    _render_section_form(
-        form_key="company.business_context.form",
-        submit_label="Unternehmenskontext speichern",
-        renderer=lambda: _render_business_context_section(job),
-    )
+    _render_business_context_section(job)
+    _render_employer_profile_section(job)
 
 
 def _render_team_context(job: JobAdExtract, *, ctx: WizardContext) -> None:
     _render_team_reporting_section(job, ctx=ctx)
-
-
-def _render_company_research_and_esco(
-    job: JobAdExtract,
-    *,
-    ctx: WizardContext,
-    plan: QuestionPlan,
-) -> None:
-    _render_website_enrichment(job, plan)
-    with section_container(border=True):
-        render_role_context_enrichment(
-            step=None,
-            ctx=ctx,
-            adopt_context_callback=_append_context_to_team_success_fact,
-        )
 
 
 def _append_context_to_team_success_fact(context_line: str) -> bool:
@@ -1064,6 +1163,79 @@ def _render_compact_open_questions(
     )
 
 
+def _render_website_finds_section(job: JobAdExtract, plan: QuestionPlan) -> None:
+    _render_company_section(
+        "Website-Funde",
+        lambda: _render_website_enrichment(job, plan),
+        critical=False,
+        collapsed_label="Website-Funde prüfen",
+    )
+
+
+def _render_open_questions_section(
+    *,
+    open_question_step: QuestionStep | None,
+    company_open_question_step: QuestionStep | None,
+    team_open_question_step: QuestionStep | None,
+) -> None:
+    def _render_questions() -> None:
+        render_jobspec_step_notes(STEP_KEY_COMPANY)
+        render_next_best_question_coach(open_question_step)
+        _render_compact_open_questions(
+            title="Business / Arbeitgeber",
+            step=company_open_question_step,
+            form_key_suffix="company_context",
+        )
+        _render_compact_open_questions(
+            title="Team / Stakeholder",
+            step=team_open_question_step,
+            form_key_suffix="team_context",
+        )
+
+    _render_company_section(
+        "Offene Fragen",
+        _render_questions,
+        critical=False,
+        collapsed_label="Zusatzfragen anzeigen",
+    )
+
+
+def _render_working_model_section(job: JobAdExtract) -> None:
+    _render_company_section(
+        "Arbeitsmodell & Standort",
+        lambda: render_working_model_location_section(job, show_heading=False),
+    )
+
+
+def _render_compliance_section() -> None:
+    _render_company_section(
+        "Non-negotiables / Compliance",
+        lambda: render_non_negotiables_compliance_section(show_heading=False),
+    )
+
+
+def _render_company_sections(
+    *,
+    job: JobAdExtract,
+    ctx: WizardContext,
+    plan: QuestionPlan,
+    open_question_step: QuestionStep | None,
+    company_open_question_step: QuestionStep | None,
+    team_open_question_step: QuestionStep | None,
+) -> None:
+    render_error_banner()
+    _render_website_finds_section(job, plan)
+    _render_company_context(job)
+    _render_open_questions_section(
+        open_question_step=open_question_step,
+        company_open_question_step=company_open_question_step,
+        team_open_question_step=team_open_question_step,
+    )
+    _render_team_context(job, ctx=ctx)
+    _render_working_model_section(job)
+    _render_compliance_section()
+
+
 def render(ctx: WizardContext) -> None:
     preflight = guard_job_and_plan(ctx)
     if preflight is None:
@@ -1078,66 +1250,19 @@ def render(ctx: WizardContext) -> None:
         _split_company_open_question_steps(open_question_step)
     )
 
-    def _render_extracted_slot() -> None:
-        extracted_rows = [
-            ("Unternehmen", job.company_name),
-            ("Marke/Brand", job.brand_name),
-            ("Homepage", job.company_website),
-            ("Ort", job.location_city),
-            ("Abteilung", job.department_name),
-            ("Berichtet an", job.reports_to),
-            ("Direct Reports", job.direct_reports_count),
-        ]
-        shown_rows = [
-            (label, value)
-            for label, value in extracted_rows
-            if has_meaningful_value(value)
-        ]
-        if not shown_rows:
-            st.info(
-                "Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions."
-            )
-            return
-
-        cols = responsive_three_columns(gap="small")
-        for index, (label, value) in enumerate(shown_rows):
-            with cols[index % len(cols)]:
-                st.caption(label)
-                st.write(str(value).strip())
-
-    def _render_source_comparison_slot() -> None:
-        render_error_banner()
-        expander = getattr(st, "expander", None)
-        if callable(expander):
-            with expander("Website-Analyse und ESCO-Kontext", expanded=False):
-                _render_company_research_and_esco(job, ctx=ctx, plan=plan)
-            return
-        _render_company_research_and_esco(job, ctx=ctx, plan=plan)
-
     def _render_open_questions_slot() -> None:
-        st.markdown("#### Kontext bearbeiten")
-        st.caption(
-            "Unternehmen, Team und offene Klärungen werden hier zusammen gepflegt."
-        )
-        render_next_best_question_coach(open_question_step)
-        st.markdown("##### Unternehmen")
-        _render_company_context(job)
-        _render_compact_open_questions(
-            title="Offene Fragen zum Unternehmen",
-            step=company_open_question_step,
-            form_key_suffix="company_context",
-        )
-
-        st.markdown("##### Team")
-        _render_team_context(job, ctx=ctx)
-        _render_compact_open_questions(
-            title="Offene Fragen zum Team",
-            step=team_open_question_step,
-            form_key_suffix="team_context",
+        _render_company_sections(
+            job=job,
+            ctx=ctx,
+            plan=plan,
+            open_question_step=open_question_step,
+            company_open_question_step=company_open_question_step,
+            team_open_question_step=team_open_question_step,
         )
 
     def _render_review_slot() -> None:
         st.markdown("#### Prüfung")
+        st.caption(_COMPANY_SECTION_VALUE_STATEMENTS["Prüfung"])
         render_standard_step_review(
             step_company,
             render_mode=resolve_standard_review_mode(
@@ -1148,8 +1273,6 @@ def render(ctx: WizardContext) -> None:
     section_kwargs = build_step_shell_section_kwargs(
         step_key=STEP_KEY_COMPANY,
         renderers={
-            STEP_SECTION_EXTRACTED_FROM_JOBSPEC: _render_extracted_slot,
-            STEP_SECTION_SOURCE_COMPARISON: _render_source_comparison_slot,
             STEP_SECTION_OPEN_QUESTIONS: _render_open_questions_slot,
             STEP_SECTION_REVIEW: _render_review_slot,
         },
