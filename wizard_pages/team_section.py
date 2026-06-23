@@ -148,8 +148,10 @@ def render_role_context_enrichment(
     step: QuestionStep | None,
     ctx: WizardContext,
     adopt_context_callback: Callable[[str], bool] | None = None,
+    show_heading: bool = True,
 ) -> None:
-    st.markdown(ROLE_CONTEXT_TITLE)
+    if show_heading:
+        st.markdown(ROLE_CONTEXT_TITLE)
 
     semantic_context = get_esco_semantic_context()
     occupation_uri = (

@@ -152,29 +152,28 @@ _TEAM_CONTEXT_FACT_KEYS = frozenset(
 )
 _COMPANY_SECTION_VALUE_STATEMENTS = {
     "Website-Funde": (
-        "Website-Belege stützen oder markieren bestehende Angaben; sie ersetzen "
-        "bestätigte Fakten nicht automatisch."
+        "Website-Belege stützen die Hiring-Story; bestätigte Fakten bleiben führend."
     ),
     "Business-Kontext": (
-        "Kläre, warum die Rolle jetzt entsteht und welchen Beitrag sie zum Geschäft leistet."
+        "Kläre den Auslöser der Einstellung und den Business Impact der Rolle."
     ),
     "Arbeitgeberprofil": (
-        "Formuliere die kurze Arbeitgeberstory, die später Briefing und Anzeige trägt."
+        "Formuliere die Arbeitgeberstory, die Briefing und Anzeige tragen soll."
     ),
     "Offene Fragen": (
-        "Zeige nur Zusatzfragen, die nicht schon durch strukturierte Fakten abgedeckt sind."
+        "Schließe nur Kontextlücken, die durch Fakten noch nicht abgedeckt sind."
     ),
     "Team & Berichtslinie": (
-        "Mache Reporting, Teamgröße, Führung und Stakeholder für die Kandidatenstory greifbar."
+        "Mache Reporting, Führung und Zusammenarbeit für Kandidat:innen greifbar."
     ),
     "Arbeitsmodell & Standort": (
-        "Halte Ort, Remote-Regel, Sprachen und Zeitzonen als klare Rahmenbedingungen fest."
+        "Halte Arbeitsmodell, Ort und Mobilitätsrahmen als klare Erwartungen fest."
     ),
     "Non-negotiables / Compliance": (
-        "Trenne harte Muss-Vorgaben und regulatorische Grenzen von verhandelbaren Präferenzen."
+        "Trenne harte Must-haves und Compliance-Grenzen von verhandelbaren Präferenzen."
     ),
     "Prüfung": (
-        "Prüfe fehlende, widersprüchliche oder unsichere Angaben vor dem nächsten Schritt."
+        "Prüfe Lücken, Konflikte und Unsicherheiten vor dem nächsten Schritt."
     ),
 }
 
@@ -230,6 +229,22 @@ def _render_optional_company_detail(
         return
 
     st.caption(value_statement)
+    renderer()
+
+
+def _render_secondary_company_detail(
+    title: str,
+    renderer: Callable[[], None],
+) -> None:
+    if _company_detail_sections_expanded_by_default():
+        renderer()
+        return
+
+    expander = getattr(st, "expander", None)
+    if callable(expander):
+        with expander(title, expanded=False):
+            renderer()
+        return
     renderer()
 
 
@@ -364,7 +379,7 @@ def _run_website_research(
         )
     except _HomepageResearchInvalidUrlError:
         st.session_state[SSKey.COMPANY_WEBSITE_LAST_ERROR.value] = (
-            "Keine valide Homepage-URL gefunden. Prüfe das Feld Unternehmenswebsite und starte den Check erneut."
+            "Keine valide Homepage-URL gefunden."
         )
         record_enrichment_timed(
             st.session_state,
@@ -416,7 +431,7 @@ def _dismiss_website_recovery_message() -> None:
 
 def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
     st.caption(
-        "Starte gezielte Website-Checks und übernimm Funde erst nach kurzer Prüfung."
+        "Prüfe öffentliche Website-Funde als zusätzliche Evidenz zur bestehenden Hiring-Story."
     )
     extracted_homepage = _normalize_url(
         str(
@@ -447,7 +462,7 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
                 "Alternative Unternehmenswebsite",
                 key=SSKey.COMPANY_WEBSITE_MANUAL_URL.value,
                 placeholder="https://www.beispiel.de",
-                help="Manuelle URL überschreibt die Website aus der Anzeige.",
+                help="Manuelle URL wird nur für den Website-Check verwendet.",
             )
             if manual_homepage:
                 st.caption("Manuelle URL wird für die Analyse verwendet.")
@@ -487,8 +502,8 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
                 "Arbeitgeberprofil und Business-Kontext unten direkt manuell ausfüllen."
             )
             st.caption(
-                "Website-Funde werden erst nach deiner Prüfung übernommen; "
-                "Laufzeitstatus ist keine dauerhafte Sicherung."
+                "Website-Funde bleiben Zusatzbelege; geprüfte Fakten unten manuell erfassen "
+                "oder nach Review übernehmen."
             )
             st.button(
                 "Fehlerhinweis ausblenden",
@@ -502,7 +517,7 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
     section_payload = sections if isinstance(sections, dict) else {}
     if not section_payload:
         st.caption(
-            "Noch keine Website-Analyse durchgeführt. Optional URL eintragen und Check starten; sonst unten manuell ausfüllen."
+            "Noch keine Website-Analyse durchgeführt. Optional URL eintragen und Check starten; sonst Business-Kontext und Arbeitgeberprofil manuell ausfüllen."
         )
         return
 
@@ -568,7 +583,7 @@ def _render_website_open_question_matches(research: dict[str, Any]) -> None:
         if str(item) in option_by_id
     ] if isinstance(existing_raw, list) else []
     selected = st.multiselect(
-        "Website-Hinweise für offene Fragen",
+        "Website-Belege für offene Fragen",
         options=list(option_by_id),
         default=existing,
         format_func=lambda option_id: option_by_id[option_id]["display_label"],
@@ -585,10 +600,10 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
     if not candidates:
         return
 
-    st.markdown("#### Website-Funde als Belege prüfen")
+    st.markdown("##### Website-Funde als Belege prüfen")
     st.caption(
         "Website-Funde stützen bestehende Fakten. Abweichungen werden ohne aktive "
-        "Bestätigung nur als Konfliktbeleg gespeichert."
+        "Bestätigung nur als Konfliktbeleg dokumentiert."
     )
     review_raw = st.session_state.get(SSKey.COMPANY_WEBSITE_FACT_REVIEW.value, {})
     review_state = review_raw if isinstance(review_raw, dict) else {}
@@ -676,7 +691,7 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
                 override_conflict = False
                 if has_confirmed_conflict:
                     override_conflict = st.checkbox(
-                        "Bestätigten Wert überschreiben",
+                        "Ausnahme: bestätigten Wert durch Website-Beleg ersetzen",
                         value=bool(draft.get("override_conflict", False)),
                         key=(
                             "company.website.fact_review."
@@ -686,7 +701,7 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
                 if parse_error:
                     st.error(parse_error)
                 selected = st.checkbox(
-                    "Als Beleg/Wert übernehmen",
+                    "Als Zusatzbeleg übernehmen",
                     value=default_selected,
                     key=f"company.website.fact_review.{candidate_id}.selected",
                 )
@@ -745,7 +760,7 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
             saved_count += 1
 
     if saved_count:
-        st.success(f"{saved_count} Website-Kontextwerte gespeichert.")
+        st.success(f"{saved_count} leere Fakten mit Website-Beleg gefüllt.")
     if corroborated_count:
         st.success(f"{corroborated_count} Website-Belege als Bestätigung ergänzt.")
     if conflict_count:
@@ -993,23 +1008,33 @@ def _render_employer_profile_section(job: JobAdExtract) -> None:
                     "Unternehmensname",
                     default=job.company_name or "",
                 )
-                render_text_fact(
-                    FactKey.COMPANY_BRAND_NAME,
-                    "Marke / Brand",
-                    default=job.brand_name or "",
-                )
-                render_text_fact(
-                    FactKey.COMPANY_COMPANY_WEBSITE,
-                    "Unternehmenswebsite",
-                    default=job.company_website or "",
-                    placeholder="https://www.beispiel.de",
-                )
             with right:
                 render_text_area_fact(
                     FactKey.COMPANY_EMPLOYER_PITCH,
                     "Wie würden Sie das Unternehmen in 1-2 Sätzen für Kandidat:innen beschreiben?",
                     height=110,
                 )
+
+            def _render_company_data() -> None:
+                brand_col, website_col = responsive_two_columns(gap="large")
+                with brand_col:
+                    render_text_fact(
+                        FactKey.COMPANY_BRAND_NAME,
+                        "Marke / Brand",
+                        default=job.brand_name or "",
+                    )
+                with website_col:
+                    render_text_fact(
+                        FactKey.COMPANY_COMPANY_WEBSITE,
+                        "Unternehmenswebsite",
+                        default=job.company_website or "",
+                        placeholder="https://www.beispiel.de",
+                    )
+
+            _render_secondary_company_detail(
+                "Sekundäre Arbeitgeberdaten",
+                _render_company_data,
+            )
 
     _render_company_section(
         "Arbeitgeberprofil",
@@ -1027,40 +1052,50 @@ def _render_business_context_section(job: JobAdExtract) -> None:
             left, right = responsive_two_columns(gap="large")
             with left:
                 render_text_fact(
-                    FactKey.COMPANY_BUSINESS_UNIT,
-                    "In welchem Geschäfts- oder Produktbereich sitzt die Rolle?",
-                    default=job.department_name or "",
-                )
-                render_text_fact(
                     FactKey.COMPANY_HIRING_REASON,
                     "Warum wird diese Rolle jetzt besetzt?",
                     placeholder="z. B. Wachstum, Ersatz, neue Capability, Transformation",
                 )
-                render_text_area_fact(
-                    FactKey.COMPANY_GROWTH_CONTEXT,
-                    "Welcher Markt-, Wachstums- oder Aufbaukontext ist relevant?",
-                    height=100,
-                )
             with right:
-                render_multiselect_fact(
-                    FactKey.COMPANY_ROLE_RELEVANT_POSITIONING,
-                    "Welche Positionierungsaspekte sind für diese Rolle relevant?",
-                    options=[
-                        "Marktposition",
-                        "Produkt",
-                        "Wachstum",
-                        "Stabilität",
-                        "Technologie",
-                        "Mission",
-                        "Kundennutzen",
-                        "Sonstiges",
-                    ],
-                )
                 render_text_area_fact(
                     FactKey.COMPANY_ROLE_BUSINESS_IMPACT,
                     "Welchen Business Impact soll die Rolle für das Unternehmen haben?",
                     height=110,
                 )
+
+            def _render_secondary_business_context() -> None:
+                context_left, context_right = responsive_two_columns(gap="large")
+                with context_left:
+                    render_text_fact(
+                        FactKey.COMPANY_BUSINESS_UNIT,
+                        "In welchem Geschäfts- oder Produktbereich sitzt die Rolle?",
+                        default=job.department_name or "",
+                    )
+                    render_multiselect_fact(
+                        FactKey.COMPANY_ROLE_RELEVANT_POSITIONING,
+                        "Welche Positionierungsaspekte sind für diese Rolle relevant?",
+                        options=[
+                            "Marktposition",
+                            "Produkt",
+                            "Wachstum",
+                            "Stabilität",
+                            "Technologie",
+                            "Mission",
+                            "Kundennutzen",
+                            "Sonstiges",
+                        ],
+                    )
+                with context_right:
+                    render_text_area_fact(
+                        FactKey.COMPANY_GROWTH_CONTEXT,
+                        "Welcher Markt-, Wachstums- oder Aufbaukontext ist relevant?",
+                        height=100,
+                    )
+
+            _render_secondary_company_detail(
+                "Sekundärer Business-Kontext",
+                _render_secondary_business_context,
+            )
 
     _render_company_section(
         "Business-Kontext",
@@ -1075,7 +1110,7 @@ def _render_business_context_section(job: JobAdExtract) -> None:
 def _render_team_reporting_section(job: JobAdExtract, *, ctx: WizardContext) -> None:
     def _render_team_reporting_fields() -> None:
         with section_container(border=True):
-            team_col, department_col, reports_to_col = responsive_three_columns(
+            team_col, reports_to_col, scope_col = responsive_three_columns(
                 gap="large"
             )
             with team_col:
@@ -1084,22 +1119,12 @@ def _render_team_reporting_section(job: JobAdExtract, *, ctx: WizardContext) -> 
                     "Welches Team nimmt die Person auf?",
                     default=job.department_name or "",
                 )
-            with department_col:
-                render_text_fact(
-                    FactKey.COMPANY_DEPARTMENT_NAME,
-                    "Abteilung / Fachbereich",
-                    default=job.department_name or "",
-                )
             with reports_to_col:
                 render_text_fact(
                     FactKey.COMPANY_REPORTS_TO,
                     "An wen berichtet die Rolle?",
                     default=job.reports_to or "",
                 )
-
-            scope_col, direct_reports_col, team_size_col = responsive_three_columns(
-                gap="large"
-            )
             with scope_col:
                 render_select_fact(
                     FactKey.TEAM_LEADERSHIP_SCOPE,
@@ -1108,41 +1133,57 @@ def _render_team_reporting_section(job: JobAdExtract, *, ctx: WizardContext) -> 
                     default="individual_contributor",
                     labels=_LEADERSHIP_LABELS,
                 )
-            with direct_reports_col:
-                render_number_fact(
-                    FactKey.COMPANY_DIRECT_REPORTS_COUNT,
-                    "Wie viele Direct Reports hat die Rolle?",
-                    min_value=0,
-                    max_value=500,
-                    default=job.direct_reports_count or 0,
+
+            def _render_secondary_team_context() -> None:
+                department_col, direct_reports_col, team_size_col = (
+                    responsive_three_columns(gap="large")
                 )
-            with team_size_col:
-                render_number_fact(
-                    FactKey.TEAM_SIZE_DIRECT,
-                    "Wie groß ist das unmittelbare Team?",
-                    min_value=0,
-                    max_value=500,
-                    default=job.direct_reports_count or 0,
+                with department_col:
+                    render_text_fact(
+                        FactKey.COMPANY_DEPARTMENT_NAME,
+                        "Abteilung / Fachbereich",
+                        default=job.department_name or "",
+                    )
+                with direct_reports_col:
+                    render_number_fact(
+                        FactKey.COMPANY_DIRECT_REPORTS_COUNT,
+                        "Wie viele Direct Reports hat die Rolle?",
+                        min_value=0,
+                        max_value=500,
+                        default=job.direct_reports_count or 0,
+                    )
+                with team_size_col:
+                    render_number_fact(
+                        FactKey.TEAM_SIZE_DIRECT,
+                        "Wie groß ist das unmittelbare Team?",
+                        min_value=0,
+                        max_value=500,
+                        default=job.direct_reports_count or 0,
+                    )
+                render_multiselect_fact(
+                    FactKey.TEAM_STAKEHOLDERS_PRIMARY,
+                    "Mit welchen wichtigsten Stakeholdern arbeitet die Person regelmäßig?",
+                    options=[
+                        "Fachbereich",
+                        "Management",
+                        "HR/Recruiting",
+                        "Sales",
+                        "Customer Success",
+                        "Operations",
+                        "Kund:innen",
+                        "Lieferanten/Partner",
+                        "Sonstiges",
+                    ],
                 )
-            render_multiselect_fact(
-                FactKey.TEAM_STAKEHOLDERS_PRIMARY,
-                "Mit welchen wichtigsten Stakeholdern arbeitet die Person regelmäßig?",
-                options=[
-                    "Fachbereich",
-                    "Management",
-                    "HR/Recruiting",
-                    "Sales",
-                    "Customer Success",
-                    "Operations",
-                    "Kund:innen",
-                    "Lieferanten/Partner",
-                    "Sonstiges",
-                ],
-            )
-            render_text_area_fact(
-                FactKey.TEAM_SUCCESS_CONTEXT_90D,
-                "Welche Arbeitsweise ist im Team nötig, um in den ersten 90 Tagen zu bestehen?",
-                height=100,
+                render_text_area_fact(
+                    FactKey.TEAM_SUCCESS_CONTEXT_90D,
+                    "Welche Arbeitsweise ist im Team nötig, um in den ersten 90 Tagen zu bestehen?",
+                    height=100,
+                )
+
+            _render_secondary_company_detail(
+                "Sekundäre Teamdetails",
+                _render_secondary_team_context,
             )
 
     def _render_fields_and_optional_context() -> None:
@@ -1158,6 +1199,7 @@ def _render_team_reporting_section(job: JobAdExtract, *, ctx: WizardContext) -> 
                 step=None,
                 ctx=ctx,
                 adopt_context_callback=_append_context_to_team_success_fact,
+                show_heading=False,
             ),
         )
 
@@ -1246,14 +1288,21 @@ def _render_open_questions_section(
 def _render_working_model_section(job: JobAdExtract) -> None:
     _render_company_section(
         "Arbeitsmodell & Standort",
-        lambda: render_working_model_location_section(job, show_heading=False),
+        lambda: render_working_model_location_section(
+            job,
+            show_heading=False,
+            collapse_secondary_details=not _company_detail_sections_expanded_by_default(),
+        ),
     )
 
 
 def _render_compliance_section() -> None:
     _render_company_section(
         "Non-negotiables / Compliance",
-        lambda: render_non_negotiables_compliance_section(show_heading=False),
+        lambda: render_non_negotiables_compliance_section(
+            show_heading=False,
+            collapse_secondary_details=not _company_detail_sections_expanded_by_default(),
+        ),
     )
 
 

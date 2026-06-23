@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import streamlit as st
 
 from constants import FactKey
@@ -27,6 +29,20 @@ WORK_ARRANGEMENT_LABELS = {
     "unknown": "Noch unklar",
 }
 CEFR_LEVELS = ("A1", "A2", "B1", "B2", "C1", "C2")
+
+
+def _render_secondary_detail(
+    title: str,
+    renderer: Callable[[], None],
+    *,
+    collapsed: bool,
+) -> None:
+    expander = getattr(st, "expander", None)
+    if collapsed and callable(expander):
+        with expander(title, expanded=False):
+            renderer()
+        return
+    renderer()
 
 
 def _render_language_fact(
@@ -71,11 +87,14 @@ def render_working_model_location_section(
     job: JobAdExtract,
     *,
     show_heading: bool = True,
+    collapse_secondary_details: bool = False,
 ) -> None:
     with section_container(border=True):
         if show_heading:
             st.markdown("#### Arbeitsmodell & Standort")
-        location_col, country_col, place_col = responsive_three_columns(gap="large")
+        location_col, country_col, arrangement_col = responsive_three_columns(
+            gap="large"
+        )
         with location_col:
             render_text_fact(
                 FactKey.COMPANY_LOCATION_CITY,
@@ -88,14 +107,6 @@ def render_working_model_location_section(
                 "Land",
                 default=job.location_country or "",
             )
-        with place_col:
-            render_text_fact(
-                FactKey.COMPANY_PLACE_OF_WORK,
-                "Konkreter Arbeitsort",
-                default=job.place_of_work or "",
-            )
-
-        arrangement_col, days_col, remote_col = responsive_three_columns(gap="large")
         with arrangement_col:
             render_select_fact(
                 FactKey.COMPANY_WORK_ARRANGEMENT,
@@ -104,6 +115,7 @@ def render_working_model_location_section(
                 default="unknown",
                 labels=WORK_ARRANGEMENT_LABELS,
             )
+        days_col, remote_col = responsive_two_columns(gap="large")
         with days_col:
             render_number_fact(
                 FactKey.COMPANY_OFFICE_DAYS_PER_WEEK,
@@ -118,38 +130,54 @@ def render_working_model_location_section(
                 "Remote-Regel",
                 default=job.remote_policy or "",
             )
-        allowed_regions = st.text_area(
-            "Erlaubte Regionen oder Zeitzonen",
-            value="\n".join(
-                split_lines(fact_value(FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES, []))
-            ),
-            placeholder="z. B. Deutschland\nDACH\nCET +/- 2h",
-            height=90,
-            key=f"fact_input.{FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES.value}",
-        )
-        persist_fact(
-            FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES,
-            split_lines(allowed_regions),
-        )
-        lang_left, lang_right = responsive_two_columns(gap="large")
-        with lang_left:
-            _render_language_fact(
-                fact_key=FactKey.COMPANY_LANGUAGE_INTERNAL,
-                title="Interne Arbeitssprache",
-                default_context="interne Zusammenarbeit",
+
+        def _render_secondary_work_details() -> None:
+            render_text_fact(
+                FactKey.COMPANY_PLACE_OF_WORK,
+                "Konkreter Arbeitsort",
+                default=job.place_of_work or "",
             )
-        with lang_right:
-            _render_language_fact(
-                fact_key=FactKey.COMPANY_LANGUAGE_EXTERNAL,
-                title="Externe Kommunikationssprache",
-                default_context="Kund:innen / Partner",
+            allowed_regions = st.text_area(
+                "Erlaubte Regionen oder Zeitzonen",
+                value="\n".join(
+                    split_lines(
+                        fact_value(FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES, [])
+                    )
+                ),
+                placeholder="z. B. Deutschland\nDACH\nCET +/- 2h",
+                height=90,
+                key=f"fact_input.{FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES.value}",
             )
+            persist_fact(
+                FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES,
+                split_lines(allowed_regions),
+            )
+            lang_left, lang_right = responsive_two_columns(gap="large")
+            with lang_left:
+                _render_language_fact(
+                    fact_key=FactKey.COMPANY_LANGUAGE_INTERNAL,
+                    title="Interne Arbeitssprache",
+                    default_context="interne Zusammenarbeit",
+                )
+            with lang_right:
+                _render_language_fact(
+                    fact_key=FactKey.COMPANY_LANGUAGE_EXTERNAL,
+                    title="Externe Kommunikationssprache",
+                    default_context="Kund:innen / Partner",
+                )
+
+        _render_secondary_detail(
+            "Sekundäre Standort- und Sprachdetails",
+            _render_secondary_work_details,
+            collapsed=collapse_secondary_details,
+        )
 
 
 def render_non_negotiables_compliance_section(
     *,
     show_heading: bool = True,
     heading: str = "Fixe Rahmenbedingungen",
+    collapse_secondary_details: bool = False,
 ) -> None:
     with section_container(border=True):
         if show_heading:
@@ -169,26 +197,34 @@ def render_non_negotiables_compliance_section(
                 "Sonstiges",
             ],
         )
-        compliance_col, tariff_col = responsive_two_columns(gap="large")
-        with compliance_col:
-            render_multiselect_fact(
-                FactKey.COMPANY_COMPLIANCE_CONTEXT,
-                "Regulatorische oder betriebliche Besonderheiten",
-                options=[
-                    "Regulierte Branche",
-                    "Datenschutz",
-                    "Arbeitssicherheit",
-                    "Zertifizierungen",
-                    "Betriebsrat",
-                    "Öffentlicher Sektor",
-                    "Sonstiges",
-                ],
-            )
-        with tariff_col:
-            render_text_fact(
-                FactKey.COMPANY_TARIFF_CONTEXT,
-                "Tarifbindung / Betriebsvereinbarung / besondere Vorgaben",
-            )
+
+        def _render_secondary_compliance_details() -> None:
+            compliance_col, tariff_col = responsive_two_columns(gap="large")
+            with compliance_col:
+                render_multiselect_fact(
+                    FactKey.COMPANY_COMPLIANCE_CONTEXT,
+                    "Regulatorische oder betriebliche Besonderheiten",
+                    options=[
+                        "Regulierte Branche",
+                        "Datenschutz",
+                        "Arbeitssicherheit",
+                        "Zertifizierungen",
+                        "Betriebsrat",
+                        "Öffentlicher Sektor",
+                        "Sonstiges",
+                    ],
+                )
+            with tariff_col:
+                render_text_fact(
+                    FactKey.COMPANY_TARIFF_CONTEXT,
+                    "Tarifbindung / Betriebsvereinbarung / besondere Vorgaben",
+                )
+
+        _render_secondary_detail(
+            "Sekundäre Compliance-Details",
+            _render_secondary_compliance_details,
+            collapsed=collapse_secondary_details,
+        )
 
 
 def render_work_context_sections(job: JobAdExtract) -> None:

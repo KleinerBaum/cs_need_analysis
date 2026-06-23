@@ -239,6 +239,7 @@ class _CompanySectionStreamlit:
     def __init__(self) -> None:
         self.markdown_calls: list[str] = []
         self.caption_calls: list[str] = []
+        self.expander_calls: list[tuple[str, bool | None]] = []
         self.session_state: dict[str, object] = {}
 
     def markdown(self, text: str, *_args: object, **_kwargs: object) -> None:
@@ -246,6 +247,16 @@ class _CompanySectionStreamlit:
 
     def caption(self, text: str, *_args: object, **_kwargs: object) -> None:
         self.caption_calls.append(text)
+
+    def expander(
+        self,
+        label: str,
+        *_args: object,
+        expanded: bool | None = None,
+        **_kwargs: object,
+    ) -> _Context:
+        self.expander_calls.append((label, expanded))
+        return _Context()
 
     def text_area(self, *_args: object, **_kwargs: object) -> str:
         return ""
@@ -324,3 +335,24 @@ def test_company_context_renders_new_section_order(monkeypatch) -> None:
         "#### Arbeitsmodell & Standort",
         "#### Non-negotiables / Compliance",
     ]
+    value_statement_order = [
+        caption
+        for caption in fake_st.caption_calls
+        if caption in company_module._COMPANY_SECTION_VALUE_STATEMENTS.values()
+    ]
+    assert value_statement_order == [
+        company_module._COMPANY_SECTION_VALUE_STATEMENTS["Website-Funde"],
+        company_module._COMPANY_SECTION_VALUE_STATEMENTS["Business-Kontext"],
+        company_module._COMPANY_SECTION_VALUE_STATEMENTS["Arbeitgeberprofil"],
+        company_module._COMPANY_SECTION_VALUE_STATEMENTS["Offene Fragen"],
+        company_module._COMPANY_SECTION_VALUE_STATEMENTS["Team & Berichtslinie"],
+        company_module._COMPANY_SECTION_VALUE_STATEMENTS["Arbeitsmodell & Standort"],
+        company_module._COMPANY_SECTION_VALUE_STATEMENTS[
+            "Non-negotiables / Compliance"
+        ],
+    ]
+    assert {
+        ("Sekundärer Business-Kontext", False),
+        ("Sekundäre Arbeitgeberdaten", False),
+        ("Sekundäre Teamdetails", False),
+    } <= set(fake_st.expander_calls)
