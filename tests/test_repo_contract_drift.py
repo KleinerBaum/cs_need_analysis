@@ -18,6 +18,7 @@ from constants import (
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_DOCS = (ROOT / "README.md", ROOT / "AGENTS.md")
+REPORTS_README = ROOT / "reports" / "README.md"
 QA_SUPPORT_FILES = (
     "pyproject.toml",
     "pytest.ini",
@@ -166,6 +167,19 @@ def test_documented_legacy_modules_stay_non_routable() -> None:
         assert "legacy/non-routable" in text.lower()
         for module_path in LEGACY_MODULES:
             assert f"`{module_path}`" in text
+
+
+def test_reports_archive_index_marks_reports_historical() -> None:
+    assert REPORTS_README.exists()
+    text = _read(REPORTS_README).lower()
+
+    assert "historical archive" in text
+    assert re.search(r"not\s+the\s+current\s+runtime\s+contract", text)
+    assert "source-of-truth" in text
+    assert "docs/legacy_wizard_modules.md" in text
+
+    for doc_path in CONTRACT_DOCS:
+        assert "`reports/README.md`" in _read(doc_path)
 
 
 def test_documented_summary_artifacts_match_active_contract() -> None:

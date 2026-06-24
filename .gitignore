@@ -52,7 +52,8 @@ coverage.xml
 cover/
 
 # Local QA/security reports and generated analysis outputs
-reports/
+reports/*
+!reports/README.md
 gitleaks-report.*
 artifact-scan-report.*
 *:Zone.*

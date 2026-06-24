@@ -111,6 +111,7 @@ Product-readiness contracts are documented in:
 - [`docs/persistence_strategy.md`](docs/persistence_strategy.md) - current JSON draft/resume strategy, excluded state, and future adapter boundary.
 - [`docs/legacy_wizard_modules.md`](docs/legacy_wizard_modules.md) - archived wizard modules, replacement paths, route guardrails, and removal prerequisites.
 - [`docs/definition_of_done.md`](docs/definition_of_done.md) - beta Definition of Done, Summary release credibility, DE/EN parity, focused outputs, and no-live-API smoke expectations.
+- [`reports/README.md`](reports/README.md) - historical report archive index and current-source-of-truth warning.
 
 ## Information acquisition model
 
@@ -475,8 +476,9 @@ python -m pytest -q tests/apptest --junitxml=reports/junit/apptest.xml
 python scripts/openai_smoke_test.py --mode all --ci-dry-run-if-no-key --json-only > reports/openai-smoke.json
 ```
 
-CI uploads JUnit reports from `reports/junit/*.xml`; the local `reports/`
-directory is intentionally ignored.
+CI uploads JUnit reports from `reports/junit/*.xml`. Historical analysis files
+under `reports/` are archived through [`reports/README.md`](reports/README.md)
+and are not source-of-truth runtime docs.
 
 ### Docs and wizard contract
 

@@ -1,3 +1,13 @@
+"""Legacy team page.
+
+This module is intentionally kept as a non-routable legacy implementation. The
+active wizard handles team and reporting context inside the Company step via
+`wizard_pages/02_company.py` and `wizard_pages/team_section.py`.
+
+Do not add a `PAGE` export here unless the canonical wizard contract is
+deliberately redesigned and the route tests/docs are updated in the same change.
+"""
+
 from __future__ import annotations
 
 import streamlit as st

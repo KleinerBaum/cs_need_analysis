@@ -35,6 +35,8 @@ Legacy/non-routable modules:
 
 Do not reintroduce these modules into routing unless the task explicitly redesigns the wizard contract and updates tests/docs.
 
+Detailed archive status and removal prerequisites live in `docs/legacy_wizard_modules.md`. Historical internal reports are indexed in `reports/README.md`; treat reports as point-in-time context, not current source-of-truth contracts.
+
 ### Information acquisition pipeline
 
 The current intake process is intentionally staged:
