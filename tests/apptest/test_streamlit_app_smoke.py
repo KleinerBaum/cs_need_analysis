@@ -6,7 +6,13 @@ from typing import Iterable
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from constants import SSKey, STEP_KEY_LANDING, WIZARD_STEP_QUERY_PARAM
+from constants import (
+    OPERATIONAL_WIZARD_STEP_KEYS,
+    SSKey,
+    STEP_KEY_LANDING,
+    STEP_KEY_SUMMARY,
+    WIZARD_STEP_QUERY_PARAM,
+)
 
 
 pytestmark = pytest.mark.apptest
@@ -34,6 +40,7 @@ def _element_strings(app_test: AppTest) -> Iterable[str]:
         app_test.button,
         app_test.radio,
         app_test.text_area,
+        app_test.warning,
     )
     for group in element_groups:
         for element in group:
@@ -47,11 +54,40 @@ def _assert_no_streamlit_exceptions(app_test: AppTest) -> None:
     assert not app_test.exception
 
 
+def _rendered_text(app_test: AppTest) -> str:
+    return "\n".join(_element_strings(app_test))
+
+
+def _process_progress_html(app_test: AppTest) -> str:
+    for element in app_test.main:
+        if getattr(element, "type", None) != "html":
+            continue
+        proto = getattr(element, "proto", None)
+        body = str(getattr(proto, "body", "") or "")
+        if "cs-process-progress" in body:
+            return body
+    return ""
+
+
+def _button_by_label(app_test: AppTest, label: str):
+    for button in app_test.button:
+        if getattr(button, "label", None) == label:
+            return button
+    raise AssertionError(f"Button not found: {label}")
+
+
+def _radio_by_label(app_test: AppTest, label: str):
+    for radio in app_test.radio:
+        if getattr(radio, "label", None) == label:
+            return radio
+    raise AssertionError(f"Radio not found: {label}")
+
+
 def test_intro_smoke_renders_start_cta() -> None:
     app_test = _run_app()
 
     _assert_no_streamlit_exceptions(app_test)
-    rendered_text = "\n".join(_element_strings(app_test))
+    rendered_text = _rendered_text(app_test)
     assert "Recruiting-Briefing vor Workflow" in rendered_text
     assert "Briefing-Cockpit öffnen" in rendered_text
 
@@ -61,7 +97,37 @@ def test_landing_query_param_smoke_renders_jobspec_intake() -> None:
 
     _assert_no_streamlit_exceptions(app_test)
     assert app_test.session_state[SSKey.CURRENT_STEP.value] == STEP_KEY_LANDING
-    rendered_text = "\n".join(_element_strings(app_test))
+    rendered_text = _rendered_text(app_test)
     assert "Jobspec oder Rohtext für das Briefing einfügen" in rendered_text
     assert "landing-process-step" not in rendered_text
     assert "cs-document-preview-wrap" not in rendered_text
+
+
+def test_operational_wizard_path_reaches_summary_guard_via_sidebar() -> None:
+    app_test = _run_app()
+    _assert_no_streamlit_exceptions(app_test)
+
+    _button_by_label(app_test, "Briefing-Cockpit öffnen").click().run(timeout=45)
+    _assert_no_streamlit_exceptions(app_test)
+    assert app_test.session_state[SSKey.CURRENT_STEP.value] == STEP_KEY_LANDING
+
+    rendered_text = _rendered_text(app_test)
+    assert "Jobspec oder Rohtext für das Briefing einfügen" in rendered_text
+    progress_html = _process_progress_html(app_test)
+    assert "Fortschritt des Informationsgewinnungsprozesses" in progress_html
+    for label in ("Start", "Unternehmen", "Zusammenfassung"):
+        assert label in progress_html
+
+    process_radio = _radio_by_label(app_test, "Prozess")
+    assert process_radio.value == STEP_KEY_LANDING
+    assert len(process_radio.options) == len(OPERATIONAL_WIZARD_STEP_KEYS)
+    assert process_radio.options[0].endswith("Start")
+    assert process_radio.options[-1].endswith("Zusammenfassung")
+
+    process_radio.set_value(STEP_KEY_SUMMARY).run(timeout=45)
+    _assert_no_streamlit_exceptions(app_test)
+    assert app_test.session_state[SSKey.CURRENT_STEP.value] == STEP_KEY_SUMMARY
+
+    rendered_text = _rendered_text(app_test)
+    assert "Bitte zuerst im Start-Schritt eine Analyse durchführen" in rendered_text
+    assert "Zur Startseite" in rendered_text

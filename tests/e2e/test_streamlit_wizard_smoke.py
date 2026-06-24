@@ -99,10 +99,23 @@ def streamlit_base_url() -> Iterator[str]:
 
 @pytest.fixture()
 def page() -> Iterator["Page"]:
+    from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=True)
+        try:
+            browser = playwright.chromium.launch(headless=True)
+        except PlaywrightError as exc:
+            message = str(exc)
+            if (
+                "error while loading shared libraries" in message
+                or "Host system is missing dependencies" in message
+            ):
+                pytest.skip(
+                    "Chromium system dependencies are unavailable; run "
+                    "`python -m playwright install --with-deps chromium`."
+                )
+            raise
         context = browser.new_context(
             accept_downloads=True,
             viewport={"width": 1440, "height": 1000},
