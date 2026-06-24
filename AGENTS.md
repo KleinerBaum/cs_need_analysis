@@ -158,6 +158,7 @@ Downstream behavior must respect anchor state. URI-based exports, ESCO skill nor
 Active Summary artifact IDs are in `constants.SUMMARY_ACTIVE_ARTIFACT_IDS`.
 Known legacy/current IDs remain in `constants.SUMMARY_ARTIFACT_IDS` for draft
 loading and compatibility; labels/aliases are in `summary_artifacts.py`.
+Do not use `SUMMARY_ARTIFACT_IDS` as the active output set.
 
 Current active IDs:
 

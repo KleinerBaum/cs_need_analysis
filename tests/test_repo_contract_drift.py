@@ -8,6 +8,8 @@ import constants as app_constants
 from constants import (
     OPERATIONAL_WIZARD_STEP_KEYS,
     PRE_WIZARD_STEP_KEYS,
+    SUMMARY_ACTIVE_ARTIFACT_IDS,
+    SUMMARY_ARTIFACT_IDS,
     STEPS,
     STEP_KEY_JOBSPEC_REVIEW,
     STEP_KEY_TEAM,
@@ -164,6 +166,26 @@ def test_documented_legacy_modules_stay_non_routable() -> None:
         assert "legacy/non-routable" in text.lower()
         for module_path in LEGACY_MODULES:
             assert f"`{module_path}`" in text
+
+
+def test_documented_summary_artifacts_match_active_contract() -> None:
+    assert "employment_contract" in SUMMARY_ARTIFACT_IDS
+    assert "employment_contract" not in SUMMARY_ACTIVE_ARTIFACT_IDS
+
+    for doc_path in CONTRACT_DOCS:
+        text = _read(doc_path)
+        assert "`constants.SUMMARY_ACTIVE_ARTIFACT_IDS`" in text
+        assert "`constants.SUMMARY_ARTIFACT_IDS`" in text
+
+        for artifact_id in SUMMARY_ACTIVE_ARTIFACT_IDS:
+            assert f"`{artifact_id}`" in text
+
+        assert "`employment_contract`" in text
+        assert re.search(
+            r"`employment_contract`[^\n]*(archived|hidden|compatibility|compatibility-only)",
+            text,
+            re.IGNORECASE,
+        ), f"{doc_path.name} must document employment_contract as inactive legacy"
 
 
 def test_docs_reference_current_quality_gate_support_files() -> None:

@@ -406,7 +406,10 @@ impact, requirement stage, and website second-source eligibility. Missing
 `before_summary` facts remain hidden from the main fact table but are surfaced in
 critical gaps.
 
-Canonical summary artifact IDs and user-facing labels:
+Active Summary artifact IDs are governed by
+`constants.SUMMARY_ACTIVE_ARTIFACT_IDS`; known compatibility IDs remain in
+`constants.SUMMARY_ARTIFACT_IDS` only for draft loading and migration safety.
+Current active IDs and user-facing labels:
 
 | ID | Label | Main export formats |
 |---|---|---|
