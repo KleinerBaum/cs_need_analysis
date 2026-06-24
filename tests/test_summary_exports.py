@@ -148,7 +148,7 @@ def test_boolean_search_pack_to_markdown_formats_channel_queries() -> None:
 
     english_markdown = boolean_search_pack_to_markdown(pack, language="en")
 
-    assert english_markdown.startswith("# Boolean search")
+    assert english_markdown.startswith("# Search strings")
     assert "**Role title:** Data Engineer" in english_markdown
     assert "### Focused\n- —" in english_markdown
     assert "## Usage notes\n- Start broad, then tighten" in english_markdown

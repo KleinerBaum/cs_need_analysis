@@ -92,7 +92,7 @@
       "landing": {
         "headline": "Vom Rollenbedarf zum Recruiting-Briefing.",
         "subheadline": "Für Recruiting, HR und Hiring Teams, die vor Search, Matching, Interview und Angebot eine gemeinsame Entscheidungsbasis brauchen. Laden Sie eine Jobspec hoch oder fügen Sie Rohtext ein; die App zeigt zuerst, was belastbar ist und welche Lücken den Prozess bremsen.",
-        "value_line": "Ergebnis: ein Briefing-Cockpit mit Rollenprofil, Prioritäten, offenen Fragen, ESCO-Anker und vorbereiteten Recruiting-Outputs.",
+        "value_line": "Ergebnis: ein Briefing-Cockpit mit Rollenprofil, Prioritäten, offenen Fragen, ESCO-Anker und vorbereiteten Recruiting-Unterlagen.",
         "headline_after_analysis": "Briefing-Cockpit für {role_title} ist vorbereitet.",
         "subheadline_after_analysis": "Nächste Aktion: erkannte Angaben prüfen, unsichere Punkte bereinigen und den Referenzberuf bestätigen.",
         "value_line_after_analysis": "Schon freigeschaltet: Rollenprofil, Lückenpriorisierung, ESCO-Kandidaten und nächste Briefing-Fragen.",
@@ -294,7 +294,7 @@
         },
         "offer": {
           "title": "Was ich biete",
-          "body": "In meiner aktuellen Tätigkeit als Gründer und KI-Recruitment-Berater entwickle ich einen KI-gestützten Prototypen zur Optimierung von Recruiting-Aktivitäten auf Basis der OpenAI-API, ESCO-API und eines eigenen Vector Stores. Ergänzt wird dies durch meine Data-Science-Weiterbildung sowie LLM-spezifische Kurse zu strukturierten Outputs und Reasoning."
+          "body": "In meiner aktuellen Tätigkeit als Gründer und KI-Recruitment-Berater entwickle ich einen KI-gestützten Prototypen zur Optimierung von Recruiting-Aktivitäten auf Basis der OpenAI-API, ESCO-API und eines eigenen Vector Stores. Ergänzt wird dies durch meine Data-Science-Weiterbildung sowie LLM-spezifische Kurse zu strukturierten Ergebnissen und Reasoning."
         },
         "goal": {
           "title": "Was ich mir wünsche",

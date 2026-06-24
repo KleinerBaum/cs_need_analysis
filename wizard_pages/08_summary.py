@@ -1200,10 +1200,10 @@ def render(ctx: WizardContext) -> None:
             st.error(e.ui_message)
             _remember_artifact_generation_error(
                 artifact_id="boolean_search",
-                artifact_label="Boolean Search",
+                artifact_label="Suchstrings",
                 message=e.ui_message,
             )
-            _render_generation_recovery("Boolean Search")
+            _render_generation_recovery("Suchstrings")
         except Exception as exc:
             handle_unexpected_exception(
                 step="summary.boolean_search_generation",
@@ -1212,9 +1212,9 @@ def render(ctx: WizardContext) -> None:
                 error_code="SUMMARY_BOOLEAN_SEARCH_GENERATION_UNEXPECTED",
             )
             _remember_last_artifact_generation_error(
-                "boolean_search", "Boolean Search"
+                "boolean_search", "Suchstrings"
             )
-            _render_generation_recovery("Boolean Search")
+            _render_generation_recovery("Suchstrings")
 
     def _render_job_ad_action_hub_inputs() -> None:
         rows = _build_selection_rows(vm.job, vm.answers)

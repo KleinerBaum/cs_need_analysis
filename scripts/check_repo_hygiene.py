@@ -298,6 +298,39 @@ class RawUiStringFinding:
     rule: str = "i18n-raw-ui-string"
 
 
+@dataclass(frozen=True)
+class TerminologyFinding:
+    location: str
+    term: str
+    rule: str = "active-terminology-drift"
+
+
+ACTIVE_TERMINOLOGY_SOURCE_PATHS = (
+    "wizard_pages/02_company.py",
+    "wizard_pages/04_role_tasks.py",
+    "wizard_pages/05_skills.py",
+    "wizard_pages/08_summary.py",
+    "wizard_pages/summary_view.py",
+    "ui_feedback.py",
+)
+ACTIVE_SOURCE_FORBIDDEN_TERMS = (
+    "Boolean Search",
+    "Boolean Searchstrings",
+    "Artefakt",
+    "Artefakte",
+    "Artefaktgenerierung",
+    "Vacancy Intake",
+    "Need Analysis",
+    "Vakanzerfassung",
+    "Recruiting-Outputs",
+)
+GERMAN_ACTIVE_COPY_FORBIDDEN_TERMS = (
+    *ACTIVE_SOURCE_FORBIDDEN_TERMS,
+    "Review",
+    "Outputs",
+)
+
+
 def _tracked_paths() -> list[str]:
     result = subprocess.run(
         ["git", "ls-files", "-z"],
@@ -648,6 +681,91 @@ def _check_active_artifact_label_contract() -> list[ContractFinding]:
                 )
             )
     return findings
+
+
+def _iter_string_leaf_values(
+    value: object, prefix: str = ""
+) -> Iterable[tuple[str, str]]:
+    if isinstance(value, Mapping):
+        for key, nested_value in value.items():
+            nested_prefix = f"{prefix}.{key}" if prefix else str(key)
+            yield from _iter_string_leaf_values(nested_value, nested_prefix)
+    elif isinstance(value, str):
+        yield prefix, value
+
+
+def _terminology_findings_for_text(
+    *,
+    location: str,
+    text: str,
+    forbidden_terms: Iterable[str],
+) -> list[TerminologyFinding]:
+    matched_terms = [term for term in forbidden_terms if term in text]
+    specific_terms = [
+        term
+        for term in matched_terms
+        if not any(term != other and term in other for other in matched_terms)
+    ]
+    return [TerminologyFinding(location=location, term=term) for term in specific_terms]
+
+
+def find_active_terminology_findings() -> list[TerminologyFinding]:
+    findings: list[TerminologyFinding] = []
+
+    active_de_copy: dict[str, object] = {
+        "inline_wizard_copy.de": WIZARD_COPY_CONTRACT.get("de", {}),
+        "artifact_labels.de": ARTIFACT_LABELS.get("de", {}),
+        "summary_ui.de": SUMMARY_UI_COPY.get("de", {}),
+        "summary_export.de": SUMMARY_EXPORT_COPY.get("de", {}),
+        "summary_preview.de": SUMMARY_PREVIEW_COPY.get("de", {}),
+    }
+    for contract_name, payload in active_de_copy.items():
+        for dotted_key, text in _iter_string_leaf_values(payload, contract_name):
+            findings.extend(
+                _terminology_findings_for_text(
+                    location=dotted_key,
+                    text=text,
+                    forbidden_terms=GERMAN_ACTIVE_COPY_FORBIDDEN_TERMS,
+                )
+            )
+
+    active_en_copy: dict[str, object] = {
+        "artifact_labels.en": ARTIFACT_LABELS.get("en", {}),
+        "summary_ui.en": SUMMARY_UI_COPY.get("en", {}),
+        "summary_export.en": SUMMARY_EXPORT_COPY.get("en", {}),
+        "summary_preview.en": SUMMARY_PREVIEW_COPY.get("en", {}),
+    }
+    for contract_name, payload in active_en_copy.items():
+        for dotted_key, text in _iter_string_leaf_values(payload, contract_name):
+            findings.extend(
+                _terminology_findings_for_text(
+                    location=dotted_key,
+                    text=text,
+                    forbidden_terms=("Boolean search", "Boolean Search"),
+                )
+            )
+
+    for path in ACTIVE_TERMINOLOGY_SOURCE_PATHS:
+        absolute_path = ROOT / path
+        if not absolute_path.exists():
+            continue
+        source = absolute_path.read_text(encoding="utf-8")
+        for line_number, line in enumerate(source.splitlines(), start=1):
+            findings.extend(
+                _terminology_findings_for_text(
+                    location=f"{path}:{line_number}",
+                    text=line,
+                    forbidden_terms=ACTIVE_SOURCE_FORBIDDEN_TERMS,
+                )
+            )
+            if "nach Review" in line or "Review-" in line:
+                findings.append(
+                    TerminologyFinding(location=f"{path}:{line_number}", term="Review")
+                )
+
+    return sorted(
+        findings, key=lambda finding: (finding.location, finding.term, finding.rule)
+    )
 
 
 def find_i18n_contract_findings() -> list[ContractFinding]:
@@ -1008,8 +1126,14 @@ def main() -> int:
     path_findings = find_hygiene_findings(_tracked_paths())
     contract_findings = find_i18n_contract_findings()
     raw_ui_findings = find_changed_raw_ui_string_findings()
+    terminology_findings = find_active_terminology_findings()
 
-    if not path_findings and not contract_findings and not raw_ui_findings:
+    if (
+        not path_findings
+        and not contract_findings
+        and not raw_ui_findings
+        and not terminology_findings
+    ):
         print(
             "Repository hygiene guard passed: no forbidden tracked paths or "
             "i18n contract drift."
@@ -1038,6 +1162,14 @@ def main() -> int:
             "  Use tr(...), tr_safe(...), t(...), ux_copy_contract.py, or add "
             f"`# {RAW_UI_ALLOW_COMMENT} <reason>` for an intentional exception."
         )
+
+    if terminology_findings:
+        print("Repository hygiene guard found active terminology drift:")
+        for terminology_finding in terminology_findings:
+            print(
+                f"- {terminology_finding.location} "
+                f"[{terminology_finding.rule}] {terminology_finding.term}"
+            )
     return 1
 
 

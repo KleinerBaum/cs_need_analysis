@@ -237,6 +237,27 @@ def test_repo_hygiene_guard_output_reports_only_paths_and_rules(
     assert "sk-" not in output
 
 
+def test_active_terminology_guard_flags_visible_residual_copy(monkeypatch) -> None:
+    monkeypatch.setattr(
+        check_repo_hygiene,
+        "WIZARD_COPY_CONTRACT",
+        {
+            "de": {"landing": {"value_line": "Vorbereitete Recruiting-Outputs"}},
+            "en": {},
+        },
+    )
+    monkeypatch.setattr(check_repo_hygiene, "ACTIVE_TERMINOLOGY_SOURCE_PATHS", ())
+
+    findings = check_repo_hygiene.find_active_terminology_findings()
+
+    assert findings == [
+        check_repo_hygiene.TerminologyFinding(
+            location="inline_wizard_copy.de.landing.value_line",
+            term="Recruiting-Outputs",
+        )
+    ]
+
+
 def test_ci_wires_advisory_browser_smoke_job() -> None:
     workflow = _read(".github/workflows/ci.yml")
     browser_job = workflow.split("  browser_smoke:", 1)[1].split("  security:", 1)[0]

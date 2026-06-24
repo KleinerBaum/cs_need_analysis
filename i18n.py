@@ -349,6 +349,14 @@ _TRANSLATIONS_EN: dict[str, str] = {
     "Arbeitsmodell": "Work model",
     "Non-negotiables & Compliance": "Non-negotiables & compliance",
     "Outcome & Scope": "Outcome & scope",
+    "Kurzer Live-Stand für Recruiter: Rollenauftrag, Ergebnis, erster Erfolgshorizont und harte Suchgrenzen.": (
+        "Short live status for recruiters: role mandate, outcome, first success horizon, "
+        "and hard search boundaries."
+    ),
+    "Kläre, wofür die Rolle da ist, welche Ergebnisse entstehen müssen und welche Verantwortung Recruiter vor der Suche verstanden haben müssen.": (
+        "Clarify what the role is for, which outcomes must be produced, and which "
+        "responsibilities recruiters must understand before search starts."
+    ),
     "Priorisierung": "Prioritization",
     "Erfolg und Entscheidungsspielraum": "Success and decision scope",
     "Reiseprofil": "Travel profile",
@@ -383,7 +391,7 @@ _TRANSLATIONS_EN: dict[str, str] = {
     "Recruiting-Unterlagen": "Recruiting outputs",
     "Unterlage": "Output",
     "Pflicht vor Recruiting-Unterlage": "Required before recruiting output",
-    "Suchstrings": "Boolean search",
+    "Suchstrings": "Search strings",
     "Keine Suchstrings vorhanden.": "No search strings available.",
     "HR-Sheet": "HR sheet",
     "Fachbereich-Sheet": "Hiring manager sheet",

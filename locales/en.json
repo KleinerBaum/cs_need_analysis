@@ -202,7 +202,7 @@
         },
         "exports": {
           "title": "Downstream processing and exports",
-          "body": "The same data foundation can directly produce a recruiting brief, job ad, HR sheet, hiring manager sheet, Boolean search, and further recruiting outputs."
+          "body": "The same data foundation can directly produce a recruiting brief, job ad, HR sheet, hiring manager sheet, search strings, and further recruiting outputs."
         }
       },
       "how": {
@@ -258,7 +258,7 @@
             "body": "Preparation for HR and the business team with clear topics, checkpoints, and guiding questions."
           },
           "boolean": {
-            "title": "Boolean search",
+            "title": "Search strings",
             "body": "Derivations for LinkedIn, Xing, or Google so search strategies become more precise and reproducible."
           },
           "exports": {

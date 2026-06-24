@@ -76,7 +76,7 @@ This glossary maps product terminology between German UI copy and English techni
 | summary.artifact | Stellenanzeige | Job ad | canonical | `summary_artifacts.py:job_ad` | Canonical Summary artifact label. |
 | summary.artifact | HR-Sheet | HR sheet | canonical | `summary_artifacts.py:interview_hr` | Canonical Summary artifact label. |
 | summary.artifact | Fachbereich-Sheet | Hiring manager sheet | canonical | `summary_artifacts.py:interview_fach` | Canonical Summary artifact label. |
-| summary.artifact | Suchstrings | Boolean search | canonical | `summary_artifacts.py:boolean_search` | Canonical Summary artifact label; use `Suchstrings` in German UI, not `Boolean Search`. |
+| summary.artifact | Suchstrings | search strings | canonical | `summary_artifacts.py:boolean_search` | Canonical Summary artifact label; keep the code/artifact ID `boolean_search`, but use `Suchstrings` in German UI and `search strings` in English visible copy. |
 | summary.artifact | Arbeitsvertragsentwurf | Employment contract draft | legacy | `docs/legacy_summary_outputs.md` | Archived Summary output; keep distinct from the role fact `Vertragsart` / `contract type`. |
 | status | Offen | Open | canonical | `i18n.py` | Generic open status. |
 | status | Teilweise | Partial | canonical | `i18n.py` | Partial completion status. |

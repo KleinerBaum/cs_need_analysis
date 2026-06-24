@@ -18,6 +18,7 @@ from constants import (
 )
 from esco_client import EscoClient, EscoClientError
 from esco_rag import retrieve_esco_context_multi as retrieve_esco_context
+from i18n import t
 from llm_client import generate_requirement_gap_suggestions
 from schemas import JobAdExtract, QuestionStep
 from components.design_system import render_output_header
@@ -441,13 +442,18 @@ def _render_role_search_start_snapshot(
     with section_container(border=True):
         st.markdown("#### Suchstart-Check")
         st.caption(
-            "Kurzer Live-Stand für Recruiter: Rollenauftrag, Output, erster "
-            "Erfolgshorizont und harte Suchgrenzen."
+            t(
+                "Kurzer Live-Stand für Recruiter: Rollenauftrag, Ergebnis, erster "
+                "Erfolgshorizont und harte Suchgrenzen."
+            )
         )
         cols = st.columns(2, gap="large")
         items = (
             ("Rollenauftrag", outcome),
-            ("Outputs", ", ".join(outputs[:3]) if outputs else "Noch offen"),
+            (
+                "Erwartete Ergebnisse",
+                ", ".join(outputs[:3]) if outputs else "Noch offen",
+            ),
             ("Erster Erfolg", _first_success_horizon_text(job)),
             (
                 "Nicht verhandelbar",
@@ -462,7 +468,7 @@ def _render_role_search_start_snapshot(
         if selected_tasks:
             st.caption(
                 f"{len(selected_tasks)} ausgewählte Aufgaben prägen Brief, Job-Ad, "
-                "Boolean Search und Interview-Evidenz."
+                "Suchstrings und Interview-Evidenz."
             )
 
 
@@ -586,8 +592,10 @@ def _render_structured_role_scope(
     )
     st.markdown("### Rollenauftrag vor Suchstart")
     st.caption(
-        "Kläre, wofür die Rolle da ist, welche Outputs entstehen müssen und "
-        "welche Verantwortung Recruiter vor der Suche verstanden haben müssen."
+        t(
+            "Kläre, wofür die Rolle da ist, welche Ergebnisse entstehen müssen und "
+            "welche Verantwortung Recruiter vor der Suche verstanden haben müssen."
+        )
     )
     with section_container(border=True):
         render_text_fact(
@@ -600,7 +608,7 @@ def _render_structured_role_scope(
         with col_outputs:
             render_multiselect_fact(
                 FactKey.ROLE_DELIVERABLES,
-                "Erwartete Outputs",
+                "Erwartete Ergebnisse",
                 options=output_options
                 or [
                     "Betriebsergebnis",
@@ -945,8 +953,8 @@ def render(ctx: WizardContext) -> None:
             title="Warum das zählt",
             caption=(
                 "Live aus den aktuellen Angaben: welche Signale später in Brief, "
-                "Job-Ad, Boolean Search und Interview-Sheets landen. Keine "
-                "Artefaktgenerierung."
+                "Job-Ad, Suchstrings und Interview-Sheets landen. Keine "
+                "Unterlagenerstellung."
             ),
             streamlit_module=st,
             preview_builder=lambda: build_live_artifact_preview_payload(

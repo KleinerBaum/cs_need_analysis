@@ -58,7 +58,7 @@ def render_intake_process_animation(*, state: Literal["idle", "running", "done"]
         ),
         (
             "Folgeschritte optimieren",
-            "Job Ad, Vertrag, Boolean Searchstrings, Interviewleitfäden und interne oder externe Kommunikation bauen auf derselben Datenbasis auf.",
+            "Job Ad, Vertrag, Suchstrings, Interviewleitfäden und interne oder externe Kommunikation bauen auf derselben Datenbasis auf.",
         ),
     )
     step_items = []

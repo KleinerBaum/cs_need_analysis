@@ -57,7 +57,7 @@ _COPY: dict[str, dict[str, dict[str, str]]] = {
             ),
             "value_line": (
                 "Ergebnis: ein Briefing-Cockpit mit Rollenprofil, Prioritäten, "
-                "offenen Fragen, ESCO-Anker und vorbereiteten Recruiting-Outputs."
+                "offenen Fragen, ESCO-Anker und vorbereiteten Recruiting-Unterlagen."
             ),
             "headline_after_analysis": (
                 "Briefing-Cockpit für {role_title} ist vorbereitet."
@@ -258,7 +258,7 @@ ARTIFACT_LABELS: dict[str, dict[str, str]] = {
         "job_ad": "Job ad",
         "interview_hr": "HR sheet",
         "interview_fach": "Hiring manager sheet",
-        "boolean_search": "Boolean search",
+        "boolean_search": "Search strings",
     },
 }
 
@@ -401,7 +401,7 @@ SUMMARY_UI_COPY: dict[str, dict[str, Any]] = {
         "live_preview": {
             "title": "Live-Preview: Folgeunterlagen",
             "notice_with_detail": "Preview, kein finaler Export. {notice}",
-            "notice_default": "Preview, kein finaler Export. Es wird kein Artefakt generiert.",
+            "notice_default": "Preview, kein finaler Export. Es werden keine Unterlagen erstellt.",
             "empty": "Noch nicht genug Eingaben für eine belastbare Vorschau.",
             "panel_title": "Live-Preview: Folgeunterlagen",
             "panel_caption": (
@@ -812,7 +812,7 @@ SUMMARY_UI_COPY: dict[str, dict[str, Any]] = {
             "pipeline_action_column": "Primary action",
             "pipeline_line": (
                 "**Pipeline:** `Recruiting brief` → `HR sheet/hiring manager sheet` → "
-                "`Boolean search` → `Export`  \n"
+                "`search strings` → `Export`  \n"
                 "Recruiting brief status: {status} · {label}"
             ),
             "details_heading": "Details: {artifact_label}{suffix}",
@@ -851,12 +851,12 @@ SUMMARY_UI_COPY: dict[str, dict[str, Any]] = {
             "boolean_benefit": (
                 "Creates channel-specific search strings for Google, LinkedIn, and XING."
             ),
-            "boolean_cta": "Create Boolean search",
+            "boolean_cta": "Create search strings",
             "boolean_blocked_cta": (
-                "Create recruiting brief, then create Boolean search"
+                "Create recruiting brief, then create search strings"
             ),
             "skills_hint": "Must-have and nice-to-have skills",
-            "boolean_model": "Boolean search model: {model}",
+            "boolean_model": "Search strings model: {model}",
         },
     },
 }
@@ -905,7 +905,7 @@ SUMMARY_EXPORT_COPY: dict[str, dict[str, str]] = {
         "evaluation_rubric": "Evaluation rubric",
         "risks_open_questions": "Risks / open questions",
         "job_ad_draft": "Job ad draft",
-        "boolean_title": "Boolean search",
+        "boolean_title": "Search strings",
         "role_title": "Role title",
         "must_have_terms": "Must-have terms",
         "seniority_terms": "Seniority terms",
@@ -924,7 +924,7 @@ SUMMARY_PREVIEW_COPY: dict[str, dict[str, Any]] = {
     "de": {
         "notice": (
             "Live-Vorschau aus aktuellen Eingaben. Kein finaler Export und keine "
-            "Artefaktgenerierung."
+            "Unterlagenerstellung."
         ),
         "role_fallback": "Rolle",
         "at_company": "{role_title} bei {company}",
@@ -945,7 +945,7 @@ SUMMARY_PREVIEW_COPY: dict[str, dict[str, Any]] = {
         "prefix": {
             "role": "Rolle: {value}",
             "why_role": "Wofür die Rolle da ist: {value}",
-            "outputs": "Outputs: {value}",
+            "outputs": "Unterlagen: {value}",
             "tasks": "Aufgaben: {value}",
             "must_have": "Must-have: {value}",
             "candidate_value": "Candidate Value: {value}",
@@ -976,7 +976,7 @@ SUMMARY_PREVIEW_COPY: dict[str, dict[str, Any]] = {
                 "summary": "Welche Signale später die Anzeige prägen.",
             },
             "boolean_search": {
-                "title": "Boolean-Relevanz",
+                "title": "Suchstring-Relevanz",
                 "summary": "Welche Eingaben den Suchstring scharf oder breit machen.",
             },
             "interview_hr": {
@@ -991,7 +991,7 @@ SUMMARY_PREVIEW_COPY: dict[str, dict[str, Any]] = {
     },
     "en": {
         "notice": (
-            "Live preview from current inputs. Not a final export and no artifact generation."
+            "Live preview from current inputs. Not a final export and no output generation."
         ),
         "role_fallback": "role",
         "at_company": "{role_title} at {company}",
@@ -1012,7 +1012,7 @@ SUMMARY_PREVIEW_COPY: dict[str, dict[str, Any]] = {
         "prefix": {
             "role": "Role: {value}",
             "why_role": "Why the role exists: {value}",
-            "outputs": "Outputs: {value}",
+            "outputs": "Recruiting outputs: {value}",
             "tasks": "Tasks: {value}",
             "must_have": "Must-have: {value}",
             "candidate_value": "Candidate value: {value}",
@@ -1043,7 +1043,7 @@ SUMMARY_PREVIEW_COPY: dict[str, dict[str, Any]] = {
                 "summary": "Which signals will shape the job ad later.",
             },
             "boolean_search": {
-                "title": "Boolean relevance",
+                "title": "Search string relevance",
                 "summary": "Which inputs make the search string sharp or broad.",
             },
             "interview_hr": {

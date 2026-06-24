@@ -707,7 +707,7 @@ def _render_skill_export_consequences(
         st.caption(
             "Must-have, Nice-to-have, Timing, Niveau und Nachweise werden in "
             "`skills.items` gespeichert. ESCO-gemappte Skills behalten ihre URI für "
-            "semantic exports; Freitext bleibt sichtbar in Brief, Job Ad und Review."
+            "semantic exports; Freitext bleibt sichtbar in Brief, Job Ad und Prüfung."
         )
         if active_pack_count or injected_question_count:
             st.caption(
@@ -722,7 +722,7 @@ def _render_skill_export_consequences(
         if free_text_count > 0:
             st.caption(
                 "Freitext-Begriffe bleiben erhalten. Eine kurze Begründung verbessert "
-                "Review- und Exportqualität."
+                "Prüf- und Exportqualität."
             )
 
 

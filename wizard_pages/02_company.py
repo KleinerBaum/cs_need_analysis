@@ -530,7 +530,7 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
             )
             st.caption(
                 "Website-Funde bleiben Zusatzbelege; geprüfte Fakten unten manuell erfassen "
-                "oder nach Review übernehmen."
+                "oder nach Prüfung übernehmen."
             )
             st.button(
                 "Fehlerhinweis ausblenden",
