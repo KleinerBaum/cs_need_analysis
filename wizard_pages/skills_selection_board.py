@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 
 
@@ -10,10 +11,84 @@ SkillTitleFn = Callable[[dict[str, Any]], str]
 SkillUriFn = Callable[[dict[str, Any]], str]
 DedupeTermsFn = Callable[[list[str]], list[str]]
 FreeStatusKeyFn = Callable[[str, str], str]
+HasMeaningfulValueFn = Callable[[object], bool]
+DedupeSelectedSkillsFn = Callable[
+    [list[dict[str, Any]], list[dict[str, Any]]],
+    tuple[list[dict[str, Any]], list[dict[str, Any]]],
+]
+
+
+@dataclass(frozen=True)
+class SkillsSourceViewData:
+    jobspec_terms: list[str]
+    jobspec_suggestions: list[dict[str, str]]
+    llm_labels: list[str]
+    esco_labels: list[str]
+    deduped_must: list[dict[str, Any]]
+    deduped_nice: list[dict[str, Any]]
+    llm_suggested: list[Any]
 
 
 def llm_skill_label(item: dict[str, Any]) -> str:
     return str(item.get("label") or item.get("title") or "").strip()
+
+
+def build_skills_source_view_data(
+    *,
+    job: Any,
+    show_esco_sections: bool,
+    llm_raw: object,
+    selected_must_raw: object,
+    selected_nice_raw: object,
+    has_meaningful_value: HasMeaningfulValueFn,
+    dedupe_terms: DedupeTermsFn,
+    dedupe_selected_skills_across_buckets: DedupeSelectedSkillsFn,
+) -> SkillsSourceViewData:
+    jobspec_terms = dedupe_terms(
+        [
+            *[x for x in job.must_have_skills if has_meaningful_value(x)],
+            *[x for x in job.nice_to_have_skills if has_meaningful_value(x)],
+            *[x for x in job.tech_stack if has_meaningful_value(x)],
+        ]
+    )
+    jobspec_suggestions = [
+        {"label": term, "source": "Jobspec"} for term in jobspec_terms
+    ]
+
+    llm_suggested = llm_raw if isinstance(llm_raw, list) else []
+    llm_labels = dedupe_terms(
+        [
+            str(item.get("label") or "").strip()
+            for item in llm_suggested
+            if isinstance(item, dict)
+        ]
+    )
+
+    selected_must = selected_must_raw if isinstance(selected_must_raw, list) else []
+    selected_nice = selected_nice_raw if isinstance(selected_nice_raw, list) else []
+    deduped_must, deduped_nice = dedupe_selected_skills_across_buckets(
+        selected_must,
+        selected_nice,
+    )
+    esco_labels = (
+        dedupe_terms(
+            [
+                str(item.get("title") or "").strip()
+                for item in (deduped_must + deduped_nice)
+            ]
+        )
+        if show_esco_sections
+        else []
+    )
+    return SkillsSourceViewData(
+        jobspec_terms=jobspec_terms,
+        jobspec_suggestions=jobspec_suggestions,
+        llm_labels=llm_labels,
+        esco_labels=esco_labels,
+        deduped_must=deduped_must,
+        deduped_nice=deduped_nice,
+        llm_suggested=llm_suggested,
+    )
 
 
 def build_llm_skill_groups(

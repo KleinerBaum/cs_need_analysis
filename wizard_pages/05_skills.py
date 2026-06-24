@@ -92,6 +92,7 @@ from wizard_pages.skills_selection import (
 )
 from wizard_pages.skills_selection_board import (
     build_llm_skill_groups as _build_llm_skill_groups_impl,
+    build_skills_source_view_data as _build_skills_source_view_data_impl,
     count_selected_sources as _count_selected_sources_impl,
     esco_board_items as _esco_board_items_impl,
     jobspec_board_items as _jobspec_board_items_impl,
@@ -1071,31 +1072,30 @@ def _build_skills_source_view_data(
     job: JobAdExtract,
     show_esco_sections: bool,
 ) -> tuple[list[str], list[str], list[str], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-    jobspec_terms = _dedupe_terms(
-        [
-            *[x for x in job.must_have_skills if has_meaningful_value(x)],
-            *[x for x in job.nice_to_have_skills if has_meaningful_value(x)],
-            *[x for x in job.tech_stack if has_meaningful_value(x)],
-        ]
-    )
-    jobspec_suggestions = [{"label": term, "source": "Jobspec"} for term in jobspec_terms]
-    st.session_state[SSKey.SKILLS_JOBSPEC_SUGGESTED.value] = jobspec_suggestions
-
     llm_raw = st.session_state.get(SSKey.SKILLS_LLM_SUGGESTED.value, [])
-    llm_suggested = llm_raw if isinstance(llm_raw, list) else []
-    llm_labels = _dedupe_terms(
-        [str(item.get("label") or "").strip() for item in llm_suggested if isinstance(item, dict)]
-    )
-
     selected_must_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
     selected_nice_raw = st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
-    selected_must = selected_must_raw if isinstance(selected_must_raw, list) else []
-    selected_nice = selected_nice_raw if isinstance(selected_nice_raw, list) else []
-    deduped_must, deduped_nice = _dedupe_selected_skills_across_buckets(selected_must, selected_nice)
-    esco_labels = _dedupe_terms(
-        [str(item.get("title") or "").strip() for item in (deduped_must + deduped_nice)]
-    ) if show_esco_sections else []
-    return jobspec_terms, llm_labels, esco_labels, deduped_must, deduped_nice, llm_suggested
+    view_data = _build_skills_source_view_data_impl(
+        job=job,
+        show_esco_sections=show_esco_sections,
+        llm_raw=llm_raw,
+        selected_must_raw=selected_must_raw,
+        selected_nice_raw=selected_nice_raw,
+        has_meaningful_value=has_meaningful_value,
+        dedupe_terms=_dedupe_terms,
+        dedupe_selected_skills_across_buckets=_dedupe_selected_skills_across_buckets,
+    )
+    st.session_state[SSKey.SKILLS_JOBSPEC_SUGGESTED.value] = (
+        view_data.jobspec_suggestions
+    )
+    return (
+        view_data.jobspec_terms,
+        view_data.llm_labels,
+        view_data.esco_labels,
+        view_data.deduped_must,
+        view_data.deduped_nice,
+        view_data.llm_suggested,
+    )
 
 
 def _llm_skill_label(item: dict[str, Any]) -> str:
