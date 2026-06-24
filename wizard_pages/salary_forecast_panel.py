@@ -1137,26 +1137,6 @@ def _quality_label_from_payload(payload: Any) -> str:
     return "noch nicht bewertet"
 
 
-def _render_influence_factor_header(
-    *,
-    title: str,
-    items: list[str],
-    empty_caption: str,
-    intro_caption: str | None = None,
-) -> None:
-    st.markdown(f"##### {title}")
-    if intro_caption:
-        st.caption(intro_caption)
-    if not items:
-        st.caption(empty_caption)
-        return
-    column_count = min(3, max(2, len(items) // 5 + 1))
-    columns = st.columns(column_count, gap="small")
-    for index, item in enumerate(items):
-        with columns[index % column_count]:
-            st.markdown(f"- {item}")
-
-
 def _render_common_scenario_inputs(job: JobAdExtract | None = None) -> None:
     sync_salary_scenario_context_defaults(st.session_state, job=job)
     st.slider(
@@ -1362,11 +1342,6 @@ def render_role_tasks_salary_forecast_panel(
             options=task_candidates,
             default=task_candidates,
         )
-        _render_influence_factor_header(
-            title="Aktive Aufgaben",
-            items=active_tasks,
-            empty_caption="Keine Aufgaben ausgewählt.",
-        )
         st.caption(f"Aktive Rollen/Aufgaben: {len(active_tasks)}")
         delta_rows = _build_factor_delta_rows(
             job=job.model_copy(update={"responsibilities": active_tasks}),
@@ -1487,11 +1462,6 @@ def render_benefits_salary_forecast_panel(
             default=benefit_options,
         )
         selected_count = len([item for item in active_benefits if str(item).strip()])
-        _render_influence_factor_header(
-            title="Aktive Benefits",
-            items=active_benefits,
-            empty_caption="Keine Benefits ausgewählt.",
-        )
         st.caption("Diese Faktoren werden in der Prognose berücksichtigt.")
         st.caption(f"Gewählte Benefits: {selected_count}")
         delta_rows = _build_factor_delta_rows(
@@ -1641,11 +1611,6 @@ def render_skills_salary_forecast_panel(
         return must_priority, nice_priority
 
     def _render_influence_factors() -> None:
-        _render_influence_factor_header(
-            title="Einflussfaktoren: Aktive Skills",
-            items=unique_selected_skills,
-            empty_caption="Keine Skills ausgewählt.",
-        )
         default_must = st.session_state.get(priority_must_key, unique_selected_skills)
         must_default = [
             skill
