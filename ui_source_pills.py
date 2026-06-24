@@ -11,6 +11,7 @@ import streamlit as st
 from constants import FactResolutionStatus, FactSourceType
 from ui_badges import render_provenance_badge, trust_source_label
 from ui_inputs import inject_pills_grid_css
+from ui_widget_state import ensure_multiselect_widget_state
 
 def render_multi_select_pills(
     label: str,
@@ -25,20 +26,27 @@ def render_multi_select_pills(
         if default is not None
         else []
     )
+    ensure_multiselect_widget_state(
+        key,
+        options=normalized_options,
+        default=normalized_default,
+        session_state=st.session_state,
+    )
     if hasattr(st, "pills"):
         inject_pills_grid_css()
         return (
             st.pills(
                 label,
                 options=normalized_options,
-                default=normalized_default,
                 selection_mode="multi",
                 key=key,
             )
             or []
         )
     return st.multiselect(
-        label, options=normalized_options, default=normalized_default, key=key
+        label,
+        options=normalized_options,
+        key=key,
     )
 
 

@@ -554,9 +554,14 @@ def test_salary_panel_chart_selection_uses_pending_keys_on_rerun(monkeypatch) ->
             return self._register_widget(key, options[0])
 
         def multiselect(
-            self, _label: str, *, default: list[str], key: str, **_kwargs: Any
+            self,
+            _label: str,
+            *,
+            key: str,
+            default: list[str] | None = None,
+            **_kwargs: Any,
         ) -> Any:
-            return self._register_widget(key, list(default))
+            return self._register_widget(key, list(default or []))
 
         def text_input(self, _label: str, *, key: str, **_kwargs: Any) -> str:
             return str(self._register_widget(key, ""))

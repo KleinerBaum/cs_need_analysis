@@ -71,6 +71,7 @@ from step_sections import build_section_status_payloads, section_status_summary
 from step_status import StepStatusPayload, build_step_status_payload
 from state import normalize_ui_preferences
 from state_store import StateStore
+from ui_widget_state import ensure_option_widget_state
 from usage_events import record_step_entered, record_step_submitted
 from ux_copy_contract import StepCopy, VacancyCopyContext, build_step_copy
 from wizard_pages.landing_sections import (
@@ -1459,16 +1460,22 @@ def render_esco_language_toggle() -> None:
         language = "de"
 
     language_options = ("de", "en")
+    language_widget_key = f"{SSKey.ESCO_CONFIG.value}.language_choice"
+    ensure_option_widget_state(
+        language_widget_key,
+        options=language_options,
+        default=language,
+        session_state=st.session_state,
+    )
     selected_language = st.radio(
         "Sprache",
         options=language_options,
-        index=language_options.index(language),
         format_func=lambda value: "🇩🇪 Deutsch" if value == "de" else "🇬🇧 English",
         horizontal=True,
-        key=f"{SSKey.ESCO_CONFIG.value}.language_choice",
+        key=language_widget_key,
         label_visibility="collapsed",
         on_change=sync_streamlit_language_widget,
-        args=(f"{SSKey.ESCO_CONFIG.value}.language_choice",),
+        args=(language_widget_key,),
     )
     selected_language = str(selected_language).strip().lower()
     selected_fallback_language = "en" if selected_language == "de" else "de"

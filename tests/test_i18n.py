@@ -293,6 +293,34 @@ def test_known_widget_sync_prefers_last_changed_language_widget() -> None:
     assert session_state[SSKey.UI_PREFERENCES.value][UI_PREFERENCE_UI_LANGUAGE] == "en"
 
 
+def test_language_toggle_uses_widget_state_without_index(monkeypatch) -> None:
+    session_state = {
+        SSKey.LANGUAGE.value: "en",
+        SSKey.UI_PREFERENCES.value: {UI_PREFERENCE_UI_LANGUAGE: "en"},
+        LANGUAGE_WIDGET_KEY_PAGE: "en",
+    }
+    radio_kwargs: dict[str, object] = {}
+
+    class FakeStreamlit:
+        def __init__(self) -> None:
+            self.query_params: dict[str, str] = {}
+            self.session_state = session_state
+
+        def radio(self, _label: str, **kwargs: object) -> str:
+            radio_kwargs.update(kwargs)
+            return str(self.session_state[str(kwargs["key"])])
+
+    fake_st = FakeStreamlit()
+    monkeypatch.setattr(i18n, "st", fake_st)
+    monkeypatch.setattr(i18n, "render_language_persistence_bridge", lambda **_: None)
+
+    selected = i18n.render_language_toggle(location="main", key=LANGUAGE_WIDGET_KEY_PAGE)
+
+    assert selected == "en"
+    assert "index" not in radio_kwargs
+    assert session_state[SSKey.LANGUAGE.value] == "en"
+
+
 def test_wizard_page_label_uses_active_ui_language(monkeypatch) -> None:
     monkeypatch.setattr(
         "i18n.st",

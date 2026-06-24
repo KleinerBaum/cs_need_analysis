@@ -31,6 +31,7 @@ from salary.types import SalaryEscoContext, SalaryScenarioInputs, SalaryScenario
 from safe_html import escape_html_text, render_static_html
 from schemas import JobAdExtract
 from ui_layout import render_fragment_pilot_panel
+from ui_widget_state import ensure_multiselect_widget_state
 from i18n import active_language
 from ux_copy_contract import salary_ui_copy
 
@@ -483,17 +484,42 @@ def _apply_salary_scenario_inputs(job: JobAdExtract) -> tuple[JobAdExtract, list
     candidate_skills = build_candidate_skill_pool(
         job=job, esco_skill_titles=esco_titles
     )
+    current_skills_add_raw = st.session_state.get(
+        SSKey.SALARY_SCENARIO_SKILLS_ADD.value, []
+    )
+    current_skills_add = _selected_clean(
+        current_skills_add_raw if isinstance(current_skills_add_raw, list) else []
+    )
+    current_skills_remove_raw = st.session_state.get(
+        SSKey.SALARY_SCENARIO_SKILLS_REMOVE.value, []
+    )
+    current_skills_remove = _selected_clean(
+        current_skills_remove_raw if isinstance(current_skills_remove_raw, list) else []
+    )
+    skill_options = unique_skills(
+        [*candidate_skills, *current_skills_add, *current_skills_remove]
+    )
+    ensure_multiselect_widget_state(
+        SSKey.SALARY_SCENARIO_SKILLS_ADD.value,
+        options=skill_options,
+        default=current_skills_add,
+        session_state=st.session_state,
+    )
+    ensure_multiselect_widget_state(
+        SSKey.SALARY_SCENARIO_SKILLS_REMOVE.value,
+        options=skill_options,
+        default=current_skills_remove,
+        session_state=st.session_state,
+    )
 
     skills_add = st.multiselect(
         "Skills hinzufügen",
-        options=candidate_skills,
-        default=st.session_state.get(SSKey.SALARY_SCENARIO_SKILLS_ADD.value, []),
+        options=skill_options,
         key=SSKey.SALARY_SCENARIO_SKILLS_ADD.value,
     )
     skills_remove = st.multiselect(
         "Skills entfernen",
-        options=candidate_skills,
-        default=st.session_state.get(SSKey.SALARY_SCENARIO_SKILLS_REMOVE.value, []),
+        options=skill_options,
         key=SSKey.SALARY_SCENARIO_SKILLS_REMOVE.value,
     )
     city = st.text_input(
@@ -538,7 +564,7 @@ def _apply_salary_scenario_inputs(job: JobAdExtract) -> tuple[JobAdExtract, list
             st.session_state.get(SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value, "")
         ).strip(),
     )
-    return forecast_job, candidate_skills
+    return forecast_job, unique_skills([*candidate_skills, *skills_add, *skills_remove])
 
 
 def render_salary_forecast_panel(job: JobAdExtract, answers: dict[str, Any]) -> None:

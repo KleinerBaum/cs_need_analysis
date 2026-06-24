@@ -23,6 +23,7 @@ from constants import (
     UI_LANGUAGE_WIDGET_KEYS,
     UI_PREFERENCE_UI_LANGUAGE,
 )
+from ui_widget_state import ensure_option_widget_state
 
 
 SUPPORTED_UI_LANGUAGES = UI_LANGUAGE_VALUES
@@ -776,11 +777,16 @@ def render_language_toggle(
     sync_language_state_from_request()
     current = active_language()
     options = list(SUPPORTED_UI_LANGUAGES)
+    ensure_option_widget_state(
+        key,
+        options=options,
+        default=current,
+        session_state=st.session_state,
+    )
     container = st.sidebar if location == "sidebar" else st
     selected = container.radio(
         tr("common.language"),
         options=options,
-        index=options.index(current),
         key=key,
         horizontal=horizontal,
         format_func=lambda value: (
