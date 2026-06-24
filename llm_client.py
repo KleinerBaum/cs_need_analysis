@@ -1886,6 +1886,9 @@ def generate_vacancy_brief(
     selected_role_tasks: Optional[List[str]] = None,
     selected_skills: Optional[List[str]] = None,
     selected_benefits: Optional[List[str]] = None,
+    offer_positioning: Optional[Mapping[str, Any]] = None,
+    salary_forecast: Optional[Mapping[str, Any]] = None,
+    interview_process: Optional[Mapping[str, Any]] = None,
     company_website_research: Optional[CompanyWebsiteResearch] = None,
     language: str = DEFAULT_LANGUAGE,
     store: bool = False,
@@ -1920,9 +1923,21 @@ def generate_vacancy_brief(
         f"{json.dumps(_normalized_structured_fields(answers), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
         "Explizit ausgewählte Benefits (JSON):\n"
         f"{json.dumps(selected_benefits or [], ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
+        "Offer-Decision-Kontext (JSON):\n"
+        f"{json.dumps(dict(offer_positioning or {}), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
+        "Salary-Forecast-Kontext (JSON, nur Orientierung):\n"
+        f"{json.dumps(dict(salary_forecast or {}), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
+        "Hiring-Plan-Kontext (JSON, ohne Kontakt-PII):\n"
+        f"{json.dumps(dict(interview_process or {}), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
         "Firmen-Homepage-Research (JSON):\n"
         f"{json.dumps((company_website_research.model_dump(mode='json') if company_website_research is not None else {}), ensure_ascii=False, sort_keys=True, separators=(',',':'))}\n\n"
-        "Wichtig: Falls wichtige Informationen fehlen, schreibe sie unter risks_open_questions."
+        "Wichtig: Falls wichtige Informationen fehlen, schreibe sie unter risks_open_questions. "
+        "Salary Forecast ist Orientierung, keine Vergütungs- oder Rechtsberatung. "
+        "Erfinde keine Gehaltsranges; nutze numerische Gehaltsangaben nur, wenn "
+        "offer_positioning.salary_decision.explicit_salary_range_confirmed wahr ist. "
+        "Aus qualitativen Hinweisen wie competitive darf keine Zahl abgeleitet werden. "
+        "Benefits gehören in Candidate Value/Offer, nicht in Must-have-Anforderungen. "
+        "Deutsch- und Englischanforderungen getrennt lassen."
     )
 
     normalized_content = _canonicalize_for_cache(
@@ -1933,6 +1948,9 @@ def generate_vacancy_brief(
             "selected_role_tasks": selected_role_tasks or [],
             "selected_skills": selected_skills or [],
             "selected_benefits": selected_benefits or [],
+            "offer_positioning": dict(offer_positioning or {}),
+            "salary_forecast": dict(salary_forecast or {}),
+            "interview_process": dict(interview_process or {}),
             "company_website_research": (
                 company_website_research.model_dump(mode="json")
                 if company_website_research is not None
@@ -1988,6 +2006,9 @@ def generate_vacancy_brief(
         "selected_role_tasks": selected_role_tasks or None,
         "selected_skills": selected_skills or None,
         "selected_benefits": selected_benefits or None,
+        "offer_positioning": dict(offer_positioning or {}) or None,
+        "salary_forecast": dict(salary_forecast or {}) or None,
+        "interview_process": dict(interview_process or {}) or None,
         "company_website_research": (
             company_website_research.model_dump(mode="json")
             if company_website_research is not None
@@ -2110,6 +2131,7 @@ def generate_custom_job_ad(
     style_guide: str,
     change_request: str | None,
     model: str,
+    offer_positioning: Optional[Mapping[str, Any]] = None,
     language: str = DEFAULT_LANGUAGE,
     store: bool = False,
     temperature: float | None = None,
@@ -2156,8 +2178,15 @@ def generate_custom_job_ad(
         f"{json.dumps(answers, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
         "Ausgewählte Inhalte (JSON):\n"
         f"{json.dumps(selected_values, ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
+        "Offer-Decision-Kontext (JSON):\n"
+        f"{json.dumps(dict(offer_positioning or {}), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}\n\n"
         f"Styleguide:\n{style_guide.strip() or 'Nicht angegeben.'}\n\n"
         f"Anpassungswunsch:\n{(change_request or '').strip() or 'Kein zusätzlicher Änderungswunsch.'}\n\n"
+        "Regeln zur Vergütung und Benefits:\n"
+        "- Salary Forecast ist nur interne Orientierung, keine rechtliche oder Vergütungsberatung.\n"
+        "- Erfinde keine Gehaltsranges und leite aus competitive/marktgerecht keine Zahl ab.\n"
+        "- Nutze numerische Gehaltsangaben nur, wenn offer_positioning.salary_decision.explicit_salary_range_confirmed wahr ist.\n"
+        "- Benefits sind Arbeitgeberangebot/Candidate Value, keine Muss-Anforderungen im Profil.\n\n"
         "Pflicht: headline, target_group (Liste), agg_checklist (Liste), job_ad_text, "
         "intro, responsibilities, profile, offer, cta und equal_opportunity_note liefern. "
         "Kopiere den Styleguide niemals in job_ad_text oder die publishable Felder."
@@ -2167,6 +2196,7 @@ def generate_custom_job_ad(
             "job": job.model_dump(mode="json"),
             "answers": answers,
             "selected_values": selected_values,
+            "offer_positioning": dict(offer_positioning or {}),
             "style_guide": style_guide,
             "change_request": change_request or "",
         }
@@ -2400,6 +2430,10 @@ def generate_interview_sheet_hr(
         "stelle ausschließlich arbeitsplatzrelevante Fragen. "
         "Nutze ein strukturiertes Interviewformat mit objektiver Bewertungsrubrik "
         "und konsistenter Formulierung. "
+        "Nutze brief.structured_data.interview_process.evaluation_plan für "
+        "Stufenintention, Evaluator-Verantwortung, Evidenzanker, Scorecard und "
+        "Fairness-Hinweise. Halte Kontakt-/Terminlogik getrennt von Bewertung. "
+        "Nenne keine Kontaktpersonen, Telefonnummern oder E-Mail-Adressen. "
         f"Sprache: {language}."
     )
     user = (
@@ -2424,7 +2458,8 @@ def generate_interview_sheet_hr(
             "Muss-Kriterien aus dem Brief im Gespräch valide prüfen.",
         ],
         "candidate_experience_notes": [
-            "Klaren Ablauf kommunizieren und Zeitrahmen einhalten."
+            "Klaren Ablauf kommunizieren und Zeitrahmen einhalten.",
+            "Kontakt- und Terminabstimmung getrennt von Bewertung dokumentieren.",
         ],
         "evaluation_rubric": _fallback_rubric_from_scorecard(brief),
         "final_recommendation_options": _fallback_recommendation_options(brief),
@@ -2483,6 +2518,11 @@ def generate_interview_sheet_hm(
         "gewichteten, objektiven Bewertungsrubrik. "
         "Keine diskriminierenden, privaten oder nicht arbeitsplatzrelevanten Fragen "
         "(AGG-konform). "
+        "Nutze brief.structured_data.interview_process.evaluation_plan für "
+        "Stage Intent, Evaluator-Verantwortung, beobachtbare Evidenz, Scorecard "
+        "und Fairness-Hinweise. Kontakt-/Terminlogik gehört nicht in die "
+        "Bewertungsrubrik. Nenne keine Kontaktpersonen, Telefonnummern oder "
+        "E-Mail-Adressen. "
         "Leite technical_deep_dive_topics direkt aus brief.must_have und "
         "brief.top_responsibilities ab. "
         "Beachte Artifact-Optionen strikt: stage, duration_minutes, focus, "
@@ -2517,10 +2557,12 @@ def generate_interview_sheet_hm(
         "case_or_task_prompt": "Bitte schildern Sie eine vergleichbare Aufgabe inklusive Ziel, Vorgehen und Ergebnis.",
         "evaluation_rubric": _fallback_rubric_from_scorecard(brief),
         "hiring_signal_summary": [
-            "Belegbare Ergebnisse, klare Priorisierung, nachvollziehbare Entscheidungen."
+            "Belegbare Ergebnisse, klare Priorisierung, nachvollziehbare Entscheidungen.",
+            "Bewertung auf beobachtbare Evidenz stützen und für alle Kandidat:innen konsistent dokumentieren.",
         ],
         "debrief_questions": [
-            "Welche evidenzbasierten Signale sprechen für/gegen eine Einstellung?"
+            "Welche evidenzbasierten Signale sprechen für/gegen eine Einstellung?",
+            "Welche Kriterien wurden unabhängig beobachtet und welche Annahmen bleiben offen?",
         ],
     }
     parsed, usage = _generate_structured_with_fallback(
@@ -2583,6 +2625,9 @@ def generate_boolean_search_pack(
         "Google darf site:-Operatoren, Anführungszeichen und Minus-Operatoren für Ausschlüsse nutzen. "
         "XING nutzt AND/OR/NOT sowie Klammern und Anführungszeichen. "
         f"Nutze maximal {keyword_count} Schlagworte über Rolle, Skills, Seniorität und Standort hinweg. "
+        "Nutze offer_positioning nur als Candidate-Value-/Matching-Kontext; "
+        "Benefits dürfen nicht als harte Muss-Suchkriterien erscheinen. "
+        "Erzeuge keine numerischen Gehaltsbegriffe aus qualitativen Angaben wie competitive. "
         f"Priorisierte Kanäle: {', '.join(channels)}. "
         f"Zugelassene Nutzer-Operatoren: {', '.join(operators)}. "
         "Verwende nur zugelassene Operatoren, soweit sie mit den jeweiligen Kanalregeln kompatibel sind. "

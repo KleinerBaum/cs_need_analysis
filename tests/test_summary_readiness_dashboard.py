@@ -702,6 +702,178 @@ def test_artifact_release_gate_never_overrides_critical_or_stale_blockers(
     assert SUMMARY_MODULE.can_export_final("job_ad", stale_gate, "expert") is False
 
 
+def test_artifact_release_gate_blocks_unconfirmed_numeric_salary_claim(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={SSKey.JOB_EXTRACT.value: {"job_title": "Engineer"}}
+        ),
+    )
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "_artifact_status_label",
+        lambda _vm, _artifact_id: ("current", "Aktuell"),
+    )
+    action = {
+        "id": "job_ad",
+        "title": "Stellenanzeige",
+        "benefit": "",
+        "cta_label": "Stellenanzeige erstellen",
+        "blocked_cta_label": None,
+        "requires": (SSKey.JOB_EXTRACT,),
+        "requirement_text": "",
+        "requirement_check_fn": None,
+        "generator_fn": lambda: None,
+        "result_key": SSKey.JOB_AD_DRAFT_CUSTOM,
+        "input_hints": (),
+        "input_renderer": None,
+    }
+    vm = SimpleNamespace(
+        job=JobAdExtract(
+            job_title="Engineer",
+            salary_range={"min": 70000, "max": 90000, "currency": "EUR"},
+        ),
+        artifacts=SimpleNamespace(selected_benefits=[]),
+        fact_rows=[],
+    )
+
+    gate = SUMMARY_MODULE._build_artifact_release_gate(
+        vm,
+        action,
+        resolved_brief_model="gpt-5-mini",
+    )
+
+    assert gate.final_export_ready is False
+    assert gate.final_export_blocked is True
+    assert gate.blocker_severity == "critical"
+    assert gate.override_allowed is False
+    assert gate.blockers[0].blocker_type == "salary_factual_integrity"
+    assert gate.blockers[0].fact_key == FactKey.BENEFITS_SALARY_RANGE.value
+    assert SUMMARY_MODULE.can_export_final("job_ad", gate, "expert") is False
+
+
+def test_artifact_release_gate_blocks_stale_salary_forecast_for_job_ad(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.JOB_EXTRACT.value: {"job_title": "Engineer"},
+                SSKey.INTAKE_FACTS.value: {
+                    FactKey.BENEFITS_SALARY_RANGE.value: {
+                        "min": 70000,
+                        "max": 90000,
+                        "currency": "EUR",
+                    }
+                },
+                SSKey.INTAKE_FACT_EVIDENCE.value: {
+                    FactKey.BENEFITS_SALARY_RANGE.value: {
+                        "resolution_status": FactResolutionStatus.CONFIRMED.value
+                    }
+                },
+                SSKey.SALARY_FORECAST_LAST_RESULT.value: {
+                    "step_key": "role_tasks",
+                    "input_fingerprint": "old",
+                    "forecast": {"p50": 82000},
+                },
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "_artifact_status_label",
+        lambda _vm, _artifact_id: ("current", "Aktuell"),
+    )
+    action = {
+        "id": "job_ad",
+        "title": "Stellenanzeige",
+        "benefit": "",
+        "cta_label": "Stellenanzeige erstellen",
+        "blocked_cta_label": None,
+        "requires": (SSKey.JOB_EXTRACT,),
+        "requirement_text": "",
+        "requirement_check_fn": None,
+        "generator_fn": lambda: None,
+        "result_key": SSKey.JOB_AD_DRAFT_CUSTOM,
+        "input_hints": (),
+        "input_renderer": None,
+    }
+    vm = SimpleNamespace(
+        job=JobAdExtract(job_title="Engineer"),
+        artifacts=SimpleNamespace(selected_benefits=[]),
+        fact_rows=[],
+    )
+
+    gate = SUMMARY_MODULE._build_artifact_release_gate(
+        vm,
+        action,
+        resolved_brief_model="gpt-5-mini",
+    )
+
+    assert gate.final_export_blocked is True
+    assert gate.blocker_severity == "critical"
+    assert gate.override_allowed is False
+    assert any(
+        "veraltet" in blocker.reason.casefold() or "stale" in blocker.reason.casefold()
+        for blocker in gate.blockers
+    )
+    assert SUMMARY_MODULE.can_export_final("job_ad", gate, "expert") is False
+
+
+def test_artifact_release_gate_warns_interview_outputs_on_forecast_assumptions(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={SSKey.JOB_EXTRACT.value: {"job_title": "Engineer"}}
+        ),
+    )
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "_artifact_status_label",
+        lambda _vm, _artifact_id: ("current", "Aktuell"),
+    )
+    action = {
+        "id": "interview_hr",
+        "title": "HR-Sheet",
+        "benefit": "",
+        "cta_label": "HR-Sheet erstellen",
+        "blocked_cta_label": None,
+        "requires": (SSKey.JOB_EXTRACT,),
+        "requirement_text": "",
+        "requirement_check_fn": None,
+        "generator_fn": lambda: None,
+        "result_key": SSKey.INTERVIEW_PREP_HR,
+        "input_hints": (),
+        "input_renderer": None,
+    }
+    vm = SimpleNamespace(
+        job=JobAdExtract(job_title="Engineer"),
+        artifacts=SimpleNamespace(selected_benefits=[]),
+        fact_rows=[],
+    )
+
+    gate = SUMMARY_MODULE._build_artifact_release_gate(
+        vm,
+        action,
+        resolved_brief_model="gpt-5-mini",
+    )
+
+    assert gate.final_export_blocked is True
+    assert gate.blocker_severity == "warning"
+    assert gate.override_allowed is True
+    assert gate.blockers[0].blocker_type == "forecast_assumptions"
+    assert SUMMARY_MODULE.can_export_final("interview_hr", gate, "standard") is False
+    assert SUMMARY_MODULE.can_export_final("interview_hr", gate, "expert") is True
+
+
 def test_resolve_next_best_action_recommendation_priority_order(monkeypatch) -> None:
     monkeypatch.setattr(
         SUMMARY_MODULE,

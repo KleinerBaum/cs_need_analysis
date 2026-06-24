@@ -918,6 +918,18 @@ class VacancyStructuredData(StrictSchemaModel):
         default=None,
         description="Optional benefit labels explicitly selected in the wizard.",
     )
+    offer_positioning: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Optional offer decision context for benefits, terms, caveats, and output impact.",
+    )
+    salary_forecast: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Optional deterministic salary forecast snapshot used as orientation only.",
+    )
+    interview_process: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Optional sanitized hiring-plan context for downstream interview artifacts.",
+    )
     company_website_research: Optional[CompanyWebsiteResearch] = Field(
         default=None,
         description="Optional homepage research findings captured in the company step.",

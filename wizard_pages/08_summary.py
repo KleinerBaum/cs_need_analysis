@@ -45,6 +45,7 @@ from intake_facts import (
     mark_intake_facts_used_by_artifact,
     write_intake_fact,
 )
+from offer_decision import build_offer_decision_context
 from homepage_research import (
     normalize_company_website_research_payload as _normalize_company_website_research_payload,
 )
@@ -360,6 +361,9 @@ _SUMMARY_SLICE_ORIGINALS = {
         "_summary_fact_blocker_next_step": _summary_view._summary_fact_blocker_next_step,
         "_summary_fact_blocker_type": _summary_view._summary_fact_blocker_type,
         "_release_blockers_for_artifact": _summary_view._release_blockers_for_artifact,
+        "_current_offer_positioning": _summary_view._current_offer_positioning,
+        "_salary_blocker_reason": _summary_view._salary_blocker_reason,
+        "_salary_release_blockers_for_artifact": _summary_view._salary_release_blockers_for_artifact,
         "_brief_blocker_for_artifact": _summary_view._brief_blocker_for_artifact,
         "_stale_result_blocker": _summary_view._stale_result_blocker,
         "_build_artifact_release_gate": _summary_view._build_artifact_release_gate,
@@ -610,6 +614,9 @@ for _summary_helper_name, _summary_helper_module in {
     "_summary_fact_blocker_next_step": _summary_view,
     "_summary_fact_blocker_type": _summary_view,
     "_release_blockers_for_artifact": _summary_view,
+    "_current_offer_positioning": _summary_view,
+    "_salary_blocker_reason": _summary_view,
+    "_salary_release_blockers_for_artifact": _summary_view,
     "_brief_blocker_for_artifact": _summary_view,
     "_stale_result_blocker": _summary_view,
     "_build_artifact_release_gate": _summary_view,
@@ -822,6 +829,35 @@ def render(ctx: WizardContext) -> None:
             f"{artifact_label} konnte nicht erstellt werden. Prüfe die Eingaben, passe den Änderungswunsch an oder nutze den Export mit vorhandenen Fakten."
         )
 
+    def _current_salary_forecast_payload() -> dict[str, Any]:
+        raw = st.session_state.get(SSKey.SALARY_FORECAST_LAST_RESULT.value)
+        return raw if isinstance(raw, dict) else {}
+
+    def _current_salary_fingerprints_payload() -> dict[str, Any]:
+        raw = st.session_state.get(SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value, {})
+        return raw if isinstance(raw, dict) else {}
+
+    def _current_offer_positioning_payload() -> dict[str, Any]:
+        return build_offer_decision_context(
+            job=vm.job,
+            selected_benefits=vm.artifacts.selected_benefits,
+            intake_facts=get_intake_fact_state(st.session_state),
+            intake_fact_evidence=get_intake_fact_evidence_state(st.session_state),
+            salary_forecast=_current_salary_forecast_payload(),
+            salary_fingerprints=_current_salary_fingerprints_payload(),
+        )
+
+    def _current_interview_process_payload() -> dict[str, Any]:
+        return build_interview_export_payload(
+            job=vm.job,
+            answers=vm.answers,
+            plan=vm.plan,
+            internal_flow=normalize_interview_internal_flow(
+                st.session_state.get(SSKey.INTERVIEW_INTERNAL_FLOW.value, {})
+            ),
+            intake_facts=get_intake_fact_state(st.session_state),
+        )
+
     def _run_generate_recruiting_brief(
         *,
         mode: str = "standard_draft",
@@ -873,6 +909,9 @@ def render(ctx: WizardContext) -> None:
                     selected_role_tasks=vm.artifacts.selected_role_tasks,
                     selected_skills=vm.artifacts.selected_skills,
                     selected_benefits=vm.artifacts.selected_benefits,
+                    offer_positioning=_current_offer_positioning_payload(),
+                    salary_forecast=_current_salary_forecast_payload(),
+                    interview_process=_current_interview_process_payload(),
                     company_website_research=company_website_research,
                     store=store,
                 )
@@ -939,6 +978,7 @@ def render(ctx: WizardContext) -> None:
                     selected_values=selected_values,
                     style_guide=styleguide,
                     change_request=change_request,
+                    offer_positioning=_current_offer_positioning_payload(),
                     model=resolved_job_ad_model,
                     store=bool(
                         st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)
@@ -1449,15 +1489,9 @@ def render(ctx: WizardContext) -> None:
             selected_role_tasks=vm.artifacts.selected_role_tasks,
             selected_skills=vm.artifacts.selected_skills,
             selected_benefits=vm.artifacts.selected_benefits,
+            offer_positioning=_current_offer_positioning_payload(),
             intake_facts=get_intake_fact_state(st.session_state),
-            interview_process=build_interview_export_payload(
-                job=vm.job,
-                answers=vm.answers,
-                plan=vm.plan,
-                internal_flow=normalize_interview_internal_flow(
-                    st.session_state.get(SSKey.INTERVIEW_INTERNAL_FLOW.value, {})
-                ),
-            ),
+            interview_process=_current_interview_process_payload(),
             language=active_language(),
         ),
     )

@@ -139,7 +139,7 @@ def test_render_entry_without_brief_still_renders_summary(monkeypatch) -> None:
         "Expected no auto-generation at summary entry; actual generator call count > 0"
     )
     assert render_events == [
-        "Noch 5 kritische Punkte offen",
+        "Das Recruiting-Briefing für Engineer ist zu 5% bereit",
         "gaps",
         "grid",
         "facts",
@@ -198,13 +198,17 @@ def test_summary_entry_dirty_state_reports_stale_brief_message(monkeypatch) -> N
         },
         SSKey.SUMMARY_INPUT_FINGERPRINT.value: "new",
         SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value: "old",
+        SSKey.SUMMARY_LAST_MODELS.value: {"draft_model": "gpt-5-mini"},
     }
     monkeypatch.setattr(SUMMARY_MODULE, "st", _FakeStreamlit(session_state))
 
     ok, reason = SUMMARY_MODULE._get_brief_requirement_status("gpt-5-mini")
 
     assert ok is False
-    assert reason == "Recruiting Brief ist veraltet."
+    assert reason == (
+        "Recruiting Brief passt nicht mehr zu den aktuellen Eingaben. "
+        "Aktualisieren Sie ihn vor Export oder Folgeunterlagen."
+    )
 
 
 def test_summary_normalizes_legacy_website_research_before_validation() -> None:

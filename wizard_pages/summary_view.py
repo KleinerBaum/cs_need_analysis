@@ -47,6 +47,11 @@ from intake_facts import (
     mark_intake_facts_used_by_artifact,
     write_intake_fact,
 )
+from offer_decision import (
+    build_offer_decision_context,
+    forecast_assumption_warnings,
+    salary_claim_blocker_codes,
+)
 from safe_html import render_static_html
 from homepage_research import (
     normalize_company_website_research_payload as _normalize_company_website_research_payload,
@@ -1645,8 +1650,14 @@ def _release_blockers_for_artifact(
     artifact_label: str,
     limit: int = 4,
 ) -> list[SummaryReleaseBlocker]:
-    blockers: list[SummaryReleaseBlocker] = []
+    blockers: list[SummaryReleaseBlocker] = _salary_release_blockers_for_artifact(
+        vm,
+        artifact_id=artifact_id,
+        artifact_label=artifact_label,
+    )
     for row in _artifact_release_fact_rows(vm, artifact_id):
+        if len(blockers) >= limit:
+            break
         if not _summary_fact_blocks_release(row):
             continue
         blocker_type, severity = _summary_fact_blocker_type(row)
@@ -1664,6 +1675,102 @@ def _release_blockers_for_artifact(
         )
         if len(blockers) >= limit:
             break
+    return blockers
+
+
+def _current_offer_positioning(vm: SummaryViewModel) -> dict[str, Any]:
+    job = getattr(vm, "job", None)
+    artifacts = getattr(vm, "artifacts", None)
+    if job is None or artifacts is None:
+        return {}
+    intake_facts = get_intake_fact_state(st.session_state)
+    intake_fact_evidence = get_intake_fact_evidence_state(st.session_state)
+    salary_forecast_raw = st.session_state.get(SSKey.SALARY_FORECAST_LAST_RESULT.value)
+    salary_forecast = (
+        salary_forecast_raw if isinstance(salary_forecast_raw, Mapping) else {}
+    )
+    salary_fingerprints_raw = st.session_state.get(
+        SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value,
+        {},
+    )
+    salary_fingerprints = (
+        salary_fingerprints_raw
+        if isinstance(salary_fingerprints_raw, Mapping)
+        else {}
+    )
+    return build_offer_decision_context(
+        job=job,
+        selected_benefits=getattr(artifacts, "selected_benefits", []),
+        intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        salary_forecast=salary_forecast,
+        salary_fingerprints=salary_fingerprints,
+    )
+
+
+def _salary_blocker_reason(code: str) -> str:
+    language = active_language()
+    if code == "stale_salary_forecast":
+        return (
+            "Salary forecast for the numeric salary claim is stale."
+            if language == "en"
+            else "Gehaltsprognose zur numerischen Gehaltsangabe ist veraltet."
+        )
+    return (
+        "Numeric salary claim is not explicitly confirmed."
+        if language == "en"
+        else "Numerische Gehaltsangabe ist nicht ausdrücklich bestätigt."
+    )
+
+
+def _salary_release_blockers_for_artifact(
+    vm: SummaryViewModel,
+    *,
+    artifact_id: str,
+    artifact_label: str,
+) -> list[SummaryReleaseBlocker]:
+    offer_positioning = _current_offer_positioning(vm)
+    language = active_language()
+    blockers: list[SummaryReleaseBlocker] = []
+    if artifact_id == "job_ad":
+        for code in salary_claim_blocker_codes(offer_positioning):
+            blockers.append(
+                SummaryReleaseBlocker(
+                    artifact_id=artifact_id,
+                    artifact_label=artifact_label,
+                    reason=_salary_blocker_reason(code),
+                    next_step=(
+                        "Review and confirm salary in Benefits."
+                        if language == "en"
+                        else "Gehalt im Schritt „Benefits & Rahmenbedingungen“ prüfen und bestätigen."
+                    ),
+                    blocker_type="salary_factual_integrity",
+                    severity="critical",
+                    fact_key=FactKey.BENEFITS_SALARY_RANGE.value,
+                )
+            )
+    if artifact_id in {"interview_hr", "interview_fach"}:
+        missing = forecast_assumption_warnings(offer_positioning)
+        if missing:
+            blockers.append(
+                SummaryReleaseBlocker(
+                    artifact_id=artifact_id,
+                    artifact_label=artifact_label,
+                    reason=(
+                        "Forecast assumptions missing: " + ", ".join(missing[:4])
+                        if language == "en"
+                        else "Forecast-Annahmen fehlen: " + ", ".join(missing[:4])
+                    ),
+                    next_step=(
+                        "Review salary forecast assumptions before final interview sheets."
+                        if language == "en"
+                        else "Salary-Forecast-Annahmen vor finalen Interview-Sheets prüfen."
+                    ),
+                    blocker_type="forecast_assumptions",
+                    severity="warning",
+                    fact_key=FactKey.BENEFITS_SALARY_RANGE.value,
+                )
+            )
     return blockers
 
 

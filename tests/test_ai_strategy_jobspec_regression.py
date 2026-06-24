@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from job_extract_evidence import format_field_evidence_snippet
+from offer_decision import build_offer_decision_context
 from occupation_context import classify_occupation_context
 from schemas import Contact, JobAdExtract, JobAdFieldEvidence, MoneyRange
 
@@ -79,6 +80,43 @@ def test_ai_strategy_manager_remote_plus_mobility_is_not_remote_only() -> None:
     profile = classify_occupation_context(job=job)
 
     assert profile.work_arrangement.value != "remote_global_possible"
+
+
+def test_ai_strategy_manager_offer_decision_keeps_competitive_salary_qualitative() -> None:
+    job = _ai_strategy_manager_extract()
+
+    offer = build_offer_decision_context(
+        job=job,
+        selected_benefits=job.benefits,
+        intake_facts={},
+        intake_fact_evidence={},
+        salary_forecast={},
+        salary_fingerprints={},
+    )
+
+    salary_decision = offer["salary_decision"]
+    assert salary_decision["salary_claim_status"] == "notes_only"
+    assert salary_decision["has_numeric_salary_claim"] is False
+    assert "salary_text" not in salary_decision
+    assert salary_decision["salary_notes"] == "Competitive package, abhängig von Erfahrung."
+    assert "kein numerischer Gehaltsrahmen abgeleitet" in offer["salary_caveat"]
+
+
+def test_ai_strategy_manager_offer_decision_keeps_benefits_candidate_value_only() -> None:
+    job = _ai_strategy_manager_extract()
+
+    offer = build_offer_decision_context(
+        job=job,
+        selected_benefits=job.benefits,
+        intake_facts={},
+        intake_fact_evidence={},
+        salary_forecast={},
+        salary_fingerprints={},
+    )
+
+    assert "Hybrid Work" in offer["candidate_value"]
+    assert not any("remote-only" in item.casefold() for item in offer["fixed_terms"])
+    assert "Hybrid Work" not in job.must_have_skills
 
 
 def test_ai_strategy_manager_contact_evidence_is_redacted() -> None:

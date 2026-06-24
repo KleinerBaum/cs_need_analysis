@@ -33,6 +33,9 @@ def build_summary_input_fingerprint(
     intake_facts: dict[str, Any] | None = None,
     intake_fact_resolution: dict[str, Any] | None = None,
     confidence_threshold: float | None = None,
+    offer_positioning: Mapping[str, Any] | None = None,
+    interview_process: Mapping[str, Any] | None = None,
+    salary_forecast: Mapping[str, Any] | None = None,
 ) -> str:
     non_sensitive_payload = {
         "job": job.model_dump(mode="json", exclude_none=True),
@@ -40,6 +43,9 @@ def build_summary_input_fingerprint(
         "intake_facts": intake_facts or {},
         "intake_fact_resolution": intake_fact_resolution or {},
         "confidence_threshold": confidence_threshold,
+        "offer_positioning": dict(offer_positioning or {}),
+        "interview_process": dict(interview_process or {}),
+        "salary_forecast": dict(salary_forecast or {}),
         "selected_role_tasks": selected_role_tasks,
         "selected_skills": selected_skills,
         "selected_benefits": selected_benefits,
@@ -338,6 +344,7 @@ def build_live_artifact_preview_payload(
     selected_benefits: Sequence[str] | None = None,
     intake_facts: Mapping[str, Any] | None = None,
     interview_process: Mapping[str, Any] | None = None,
+    offer_positioning: Mapping[str, Any] | None = None,
     language: str | None = None,
 ) -> dict[str, Any]:
     """Build concise deterministic artifact previews without generating artifacts."""
@@ -411,9 +418,19 @@ def build_live_artifact_preview_payload(
         limit=5,
     )
     nice_skills = _dedupe_preview_items(job.nice_to_have_skills or [], limit=3)
+    offer_candidate_value = (
+        _preview_sequence_values(offer_positioning.get("candidate_value"))
+        if isinstance(offer_positioning, Mapping)
+        else []
+    )
     benefits = _dedupe_preview_items(
-        [*(selected_benefits or []), *list(job.benefits or [])],
+        [*offer_candidate_value, *(selected_benefits or []), *list(job.benefits or [])],
         limit=4,
+    )
+    salary_caveat = (
+        _compact_preview_text(offer_positioning.get("salary_caveat"))
+        if isinstance(offer_positioning, Mapping)
+        else ""
     )
     open_clarifications = _dedupe_preview_items(
         [*list(job.gaps or []), *list(job.assumptions or [])],
@@ -485,6 +502,7 @@ def build_live_artifact_preview_payload(
             prefix("tasks", ", ".join(tasks[:2])) if tasks else "",
             prefix("must_have", ", ".join(skills[:3])) if skills else "",
             prefix("candidate_value", ", ".join(benefits[:3])) if benefits else "",
+            prefix("open_clarify", salary_caveat) if salary_caveat else "",
         ],
         limit=4,
     )
@@ -501,6 +519,7 @@ def build_live_artifact_preview_payload(
             prefix("open_clarify", ", ".join(open_clarifications))
             if open_clarifications
             else "",
+            prefix("candidate_value", ", ".join(benefits[:2])) if benefits else "",
             summary_preview_copy("prefix.skill_missing", language=language)
             if not skills
             else "",
@@ -608,6 +627,7 @@ def build_live_artifact_preview_payload(
             "task_count": len(tasks),
             "output_count": len(expected_outputs),
             "non_negotiable_count": len(non_negotiables),
+            "salary_caveat": salary_caveat,
         },
     }
 
@@ -651,6 +671,13 @@ def brief_to_markdown(brief: VacancyBrief, *, language: str | None = None) -> st
         lines.append(f"## {summary_export_copy('candidate_value', language=language)}")
         lines.extend([f"- {x}" for x in selected_benefits])
         lines.append("")
+    offer_positioning = structured_data.get("offer_positioning")
+    if isinstance(offer_positioning, Mapping):
+        salary_caveat = str(offer_positioning.get("salary_caveat") or "").strip()
+        if salary_caveat:
+            lines.append(f"## {summary_export_copy('salary_caveat', language=language)}")
+            lines.append(f"- {salary_caveat}")
+            lines.append("")
     lines.append(f"## {summary_export_copy('dealbreakers', language=language)}")
     lines.extend([f"- {x}" for x in brief.dealbreakers])
     lines.append("")

@@ -133,6 +133,9 @@ def test_generate_vacancy_brief_returns_cached_brief_without_parse(
                 "selected_role_tasks": [],
                 "selected_skills": [],
                 "selected_benefits": [],
+                "offer_positioning": {},
+                "salary_forecast": {},
+                "interview_process": {},
                 "company_website_research": {},
             }
         ),
@@ -200,11 +203,28 @@ def test_generate_vacancy_brief_includes_selected_role_tasks_skills_and_benefits
         selected_role_tasks=["Build ETL pipelines"],
         selected_skills=["Python", "SQL"],
         selected_benefits=["Mentoring"],
+        offer_positioning={
+            "salary_decision": {"salary_claim_status": "notes_only"},
+            "candidate_value": ["Mentoring"],
+        },
+        salary_forecast={"forecast": {"p50": 90000}, "orientation_only": True},
+        interview_process={"evaluation_plan": {"core_questions": ["Warum diese Rolle?"]}},
     )
 
     assert brief.structured_data.selected_role_tasks == ["Build ETL pipelines"]
     assert brief.structured_data.selected_skills == ["Python", "SQL"]
     assert brief.structured_data.selected_benefits == ["Mentoring"]
+    assert brief.structured_data.offer_positioning == {
+        "salary_decision": {"salary_claim_status": "notes_only"},
+        "candidate_value": ["Mentoring"],
+    }
+    assert brief.structured_data.salary_forecast == {
+        "forecast": {"p50": 90000},
+        "orientation_only": True,
+    }
+    assert brief.structured_data.interview_process == {
+        "evaluation_plan": {"core_questions": ["Warum diese Rolle?"]}
+    }
 
 
 def test_generate_vacancy_brief_embeds_normalized_structured_objects(

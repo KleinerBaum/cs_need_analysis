@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
 from typing import Any
 
-from constants import AnswerType, STEP_KEY_INTERVIEW
+from constants import AnswerType, FactKey, STEP_KEY_INTERVIEW
 from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
 
 
@@ -291,12 +292,198 @@ def default_selected_interview_value_ids(rows: list[dict[str, str]]) -> list[str
     return [row["id"] for row in rows if _compact(row.get("Wert"))]
 
 
+def _object_list(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, dict)]
+
+
+def _text_list(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value] if _compact(value) else []
+    if not isinstance(value, list):
+        return []
+    return [_compact(item) for item in value if _compact(item)]
+
+
+def _safe_interview_export_row(row: Mapping[str, str]) -> bool:
+    area = _compact(row.get("Bereich") or row.get("area")).casefold()
+    field = _compact(row.get("Feld") or row.get("field")).casefold()
+    if area in {"interne rollen", "internal roles"}:
+        return False
+    blocked_terms = (
+        "e-mail",
+        "email",
+        "telefon",
+        "phone",
+        "ansprechpartner",
+        "contact",
+        "kontakt",
+        "name",
+    )
+    if any(term in field for term in blocked_terms):
+        return False
+    return area in {
+        "interview",
+        "zeitplan",
+        "timing",
+        "kandidatenkommunikation",
+        "candidate communication",
+    }
+
+
+def _safe_internal_flow_payload(normalized_flow: Mapping[str, Any]) -> dict[str, Any]:
+    contact_roles: list[dict[str, Any]] = []
+    for contact in normalized_flow.get("contacts", []):
+        if not isinstance(contact, dict):
+            continue
+        role = _compact(contact.get("role"))
+        if not role:
+            continue
+        contact_roles.append(
+            {
+                "role": role,
+                "participates_in_interview": bool(
+                    contact.get("participates_in_interview")
+                ),
+            }
+        )
+    return {
+        "contacts": contact_roles,
+        "info_loop_items": list(normalized_flow.get("info_loop_items", [])),
+        "earliest_start_date": normalized_flow.get("earliest_start_date"),
+        "latest_start_date": normalized_flow.get("latest_start_date"),
+        "selected_value_ids": list(normalized_flow.get("selected_value_ids", [])),
+    }
+
+
+def _stage_context_from_facts(
+    *,
+    job: JobAdExtract,
+    intake_facts: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    fact_steps = _object_list(intake_facts.get(FactKey.INTERVIEW_RECRUITMENT_STEPS.value))
+    stages: list[dict[str, Any]] = []
+    if fact_steps:
+        for item in fact_steps:
+            name = _compact(item.get("name"))
+            if not name:
+                continue
+            stages.append(
+                {
+                    "stage": name,
+                    "intent": _compact(item.get("goal") or item.get("details")),
+                    "duration_minutes": item.get("duration_minutes"),
+                }
+            )
+    else:
+        for step in job.recruitment_steps:
+            name = _compact(step.name)
+            if not name:
+                continue
+            stages.append(
+                {
+                    "stage": name,
+                    "intent": _compact(step.details),
+                    "duration_minutes": None,
+                }
+            )
+    return stages
+
+
+def _decision_owner_context(intake_facts: Mapping[str, Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for item in _object_list(intake_facts.get(FactKey.INTERVIEW_STAGE_OWNERS.value)):
+        stage = _compact(item.get("stage"))
+        decision_role = _compact(item.get("decision_role"))
+        if stage or decision_role:
+            rows.append(
+                {
+                    "stage": stage,
+                    "responsibility": decision_role,
+                }
+            )
+    return rows
+
+
+def _candidate_communication_context(
+    *,
+    intake_facts: Mapping[str, Any],
+    normalized_flow: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for item in _object_list(
+        intake_facts.get(FactKey.INTERVIEW_COMMUNICATION_SLA.value)
+    ):
+        event = _compact(item.get("event"))
+        if not event:
+            continue
+        rows.append(
+            {
+                "event": event,
+                "days": item.get("days"),
+                "stage_hint": _compact(item.get("stage_hint")),
+            }
+        )
+    for label in normalized_flow.get("info_loop_items", []):
+        text = _compact(label)
+        if text:
+            rows.append({"event": text, "days": None, "stage_hint": ""})
+    return rows
+
+
+def build_interview_hiring_plan_context(
+    *,
+    job: JobAdExtract,
+    answers: dict[str, Any],
+    plan: QuestionPlan | None,
+    internal_flow: dict[str, Any],
+    intake_facts: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build sanitized hiring-plan context for generated outputs."""
+
+    del answers
+    del plan
+    facts = intake_facts or {}
+    normalized_flow = normalize_interview_internal_flow(internal_flow)
+    scorecard = facts.get(FactKey.INTERVIEW_SCORECARD_TEMPLATE.value)
+    scorecard_payload = scorecard if isinstance(scorecard, dict) else {}
+    fairness_notes = _compact(
+        facts.get(FactKey.INTERVIEW_COMPLIANCE_NOTES.value)
+        or scorecard_payload.get("notes")
+    )
+    context = {
+        "stage_intents": _stage_context_from_facts(job=job, intake_facts=facts),
+        "evaluator_responsibilities": _decision_owner_context(facts),
+        "assessment_evidence": _object_list(
+            facts.get(FactKey.INTERVIEW_ASSESSMENT_EVIDENCE.value)
+        ),
+        "scorecard_template": scorecard_payload,
+        "core_questions": _text_list(facts.get(FactKey.INTERVIEW_CORE_QUESTIONS.value)),
+        "candidate_communication": _candidate_communication_context(
+            intake_facts=facts,
+            normalized_flow=normalized_flow,
+        ),
+        "fairness_notes": fairness_notes,
+        "separation_note": (
+            "Candidate communication and scheduling stay separate from evaluation logic."
+        ),
+        "output_consequences": [
+            "HR-Sheet: consistent stage intent, knockout checks, candidate updates.",
+            "Fachbereich-Sheet: observable evidence, scorecard criteria, debrief anchors.",
+            "Fair interview evidence: same core questions and documented success signals.",
+        ],
+    }
+    return {key: value for key, value in context.items() if value not in ("", [], {})}
+
+
 def build_interview_export_payload(
     *,
     job: JobAdExtract,
     answers: dict[str, Any],
     plan: QuestionPlan | None,
     internal_flow: dict[str, Any],
+    intake_facts: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     normalized_flow = normalize_interview_internal_flow(internal_flow)
     rows = build_interview_value_rows(
@@ -308,7 +495,24 @@ def build_interview_export_payload(
     selected_ids = normalized_flow["selected_value_ids"] or default_selected_interview_value_ids(
         rows
     )
-    selected_rows = [row for row in rows if row["id"] in set(selected_ids)]
+    selected_rows = [
+        row
+        for row in rows
+        if row["id"] in set(selected_ids) and _safe_interview_export_row(row)
+    ]
+    scheduling = {
+        "candidate_updates": list(normalized_flow["info_loop_items"]),
+        "earliest_start_date": normalized_flow.get("earliest_start_date"),
+        "latest_start_date": normalized_flow.get("latest_start_date"),
+    }
+    scheduling = {key: value for key, value in scheduling.items() if value}
+    evaluation_plan = build_interview_hiring_plan_context(
+        job=job,
+        answers=answers,
+        plan=plan,
+        internal_flow=normalized_flow,
+        intake_facts=intake_facts,
+    )
     payload: dict[str, Any] = {
         "candidate_stages": build_candidate_stage_values(
             job=job,
@@ -316,6 +520,12 @@ def build_interview_export_payload(
             plan=plan,
         ),
         "selected_values": selected_rows,
-        "internal_flow": normalized_flow,
+        "internal_flow": {
+            **_safe_internal_flow_payload(normalized_flow),
+            "selected_value_ids": [row["id"] for row in selected_rows],
+        },
+        "scheduling": scheduling,
+        "evaluation_plan": evaluation_plan,
+        "artifact_impact": ["brief", "interview_hr", "interview_fach"],
     }
     return payload

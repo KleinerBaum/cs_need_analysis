@@ -284,6 +284,7 @@ def _build_step_salary_result(
     job: JobAdExtract,
     answers: dict[str, Any],
     inputs: dict[str, Any],
+    input_fingerprint: str | None = None,
 ) -> dict[str, Any]:
     forecast = compute_salary_forecast(
         job_extract=_step_job_with_seniority_override(job),
@@ -293,6 +294,8 @@ def _build_step_salary_result(
     )
     result = forecast.model_dump(mode="json")
     result["step_key"] = step_key
+    if input_fingerprint:
+        result["input_fingerprint"] = input_fingerprint
     result["confidence_note"] = _build_quality_note(result.get("quality", {}))
     result["inputs"] = {
         **inputs,
@@ -1039,6 +1042,7 @@ def render_role_tasks_salary_forecast_panel(
                         job=forecast_job,
                         answers={"selected_tasks": selected_tasks},
                         inputs={"selected_tasks": selected_tasks},
+                        input_fingerprint=fingerprint,
                     )
                 )
             _remember_step_forecast_fingerprint(
@@ -1127,6 +1131,7 @@ def render_benefits_salary_forecast_panel(
                         "benefits_selected": selected_benefits,
                         "factors": [item for item in _factor_candidates() if item],
                     },
+                    input_fingerprint=fingerprint,
                 )
             try:
                 st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = forecast_payload
@@ -1281,6 +1286,7 @@ def render_skills_salary_forecast_panel(
                             "nice_to_have_skills": nice_priority,
                             "selected_role_tasks": selected_role_tasks,
                         },
+                        input_fingerprint=fingerprint,
                     )
                 )
             _remember_step_forecast_fingerprint(

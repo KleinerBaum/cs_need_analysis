@@ -90,6 +90,35 @@ def test_brief_to_markdown_exports_primary_sections() -> None:
     assert "## Job ad draft\nDraft text" in english_markdown
 
 
+def test_brief_to_markdown_exports_salary_caveat_by_language() -> None:
+    brief = VacancyBrief(
+        one_liner="One line",
+        hiring_context="Context",
+        role_summary="Summary",
+        top_responsibilities=[],
+        must_have=[],
+        nice_to_have=[],
+        dealbreakers=[],
+        interview_plan=[],
+        evaluation_rubric=[],
+        risks_open_questions=[],
+        job_ad_draft="Draft text",
+        structured_data=VacancyStructuredData(
+            job_extract={"job_title": "Data Engineer"},
+            answers={},
+            offer_positioning={
+                "salary_caveat": "Salary forecast is orientation only."
+            },
+        ),
+    )
+
+    markdown = brief_to_markdown(brief)
+    english_markdown = brief_to_markdown(brief, language="en")
+
+    assert "## Vergütungshinweis\n- Salary forecast is orientation only." in markdown
+    assert "## Compensation note\n- Salary forecast is orientation only." in english_markdown
+
+
 def test_boolean_search_pack_to_markdown_formats_channel_queries() -> None:
     channel = BooleanSearchChannelQueries(
         broad=["site:linkedin.com/in Python"],

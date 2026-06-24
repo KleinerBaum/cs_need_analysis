@@ -358,6 +358,8 @@ def test_generate_custom_job_ad_prompt_requires_structured_plain_text_sections(
     assert "Styleguide ist nur eine Schreibanweisung" in combined_prompt
     assert "Kopiere den Styleguide niemals" in combined_prompt
     assert "intro, responsibilities, profile, offer, cta" in combined_prompt
+    assert "competitive/marktgerecht keine Zahl" in combined_prompt
+    assert "Benefits sind Arbeitgeberangebot/Candidate Value" in combined_prompt
     assert TASK_GENERATE_JOB_AD == "generate_job_ad"
 
 

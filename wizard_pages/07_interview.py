@@ -367,7 +367,9 @@ def _render_known_interview_overview(
     st.markdown("### Hiring-Plan Vorschau")
     st.caption(
         "Diese Angaben erklären Ablauf, Entscheidungen, Evidenz und "
-        "Candidate-Kommunikation."
+        "Candidate-Kommunikation. Exportwirkung: HR-Sheet nutzt Ablauf, Updates "
+        "und Knockout-Kriterien; Fachbereich-Sheet nutzt Evidenzanker, Scorecard "
+        "und Debrief-Fragen."
     )
     col_process, col_comm = responsive_two_columns(gap="large")
     with col_process:
@@ -472,7 +474,8 @@ def _render_internal_process_container(
 
         if show_internal_roles:
             st.caption(
-                "Lege fest, wer Budget, Fachbedarf und finale Entscheidung verantwortet."
+                "Lege fest, wer Budget, Fachbedarf und finale Entscheidung verantwortet. "
+                "Kontakt- und Terminabstimmung bleibt von der Bewertung getrennt."
             )
             header_col1, header_col2, header_col3 = responsive_three_columns(gap="large")
             with header_col1:
@@ -904,7 +907,7 @@ def _render_stage_rows(job: JobAdExtract) -> list[str]:
             col_goal, col_duration = responsive_two_columns(gap="large")
             with col_goal:
                 goal = st.text_input(
-                    "Was wird hier getestet?",
+                    "Testziel / Evidenzfokus",
                     value=compact_text(current.get("goal") or current.get("details")),
                     placeholder="z. B. Motivation, Must-haves, Arbeitsprobe, Teamfit",
                     key=f"fact_input.{FactKey.INTERVIEW_RECRUITMENT_STEPS.value}.{idx}.goal",
@@ -947,7 +950,7 @@ def _render_stage_owner_rows(stage_labels: list[str]) -> None:
             )
         with cols[2]:
             role = st.text_input(
-                "Entscheidungsbeitrag",
+                "Evaluator-Verantwortung",
                 value=compact_text(current.get("decision_role")),
                 placeholder="z. B. finale Entscheidung, Fachsignal, Budgetfreigabe",
                 key=f"fact_input.{FactKey.INTERVIEW_STAGE_OWNERS.value}.{idx}.role",
@@ -1294,33 +1297,61 @@ def render(ctx: WizardContext) -> None:
 
     def _render_source_comparison_slot() -> None:
         _render_combined_interview_workspace(job)
-        render_live_artifact_preview_panel(
-            key="interview",
-            default_open=True,
-            streamlit_module=st,
-            preview_builder=lambda: build_live_artifact_preview_payload(
+        def _current_interview_preview_facts() -> dict[str, Any]:
+            return {
+                FactKey.INTERVIEW_RECRUITMENT_STEPS.value: fact_value(
+                    FactKey.INTERVIEW_RECRUITMENT_STEPS,
+                    [],
+                ),
+                FactKey.INTERVIEW_STAGE_OWNERS.value: fact_value(
+                    FactKey.INTERVIEW_STAGE_OWNERS,
+                    [],
+                ),
+                FactKey.INTERVIEW_ASSESSMENT_EVIDENCE.value: fact_value(
+                    FactKey.INTERVIEW_ASSESSMENT_EVIDENCE,
+                    [],
+                ),
+                FactKey.INTERVIEW_SCORECARD_TEMPLATE.value: fact_value(
+                    FactKey.INTERVIEW_SCORECARD_TEMPLATE,
+                    {},
+                ),
+                FactKey.INTERVIEW_CORE_QUESTIONS.value: fact_value(
+                    FactKey.INTERVIEW_CORE_QUESTIONS,
+                    [],
+                ),
+                FactKey.INTERVIEW_COMMUNICATION_SLA.value: fact_value(
+                    FactKey.INTERVIEW_COMMUNICATION_SLA,
+                    [],
+                ),
+                FactKey.INTERVIEW_COMPLIANCE_NOTES.value: fact_value(
+                    FactKey.INTERVIEW_COMPLIANCE_NOTES,
+                    "",
+                ),
+            }
+
+        def _build_interview_preview() -> dict[str, Any]:
+            preview_facts = _current_interview_preview_facts()
+            return build_live_artifact_preview_payload(
                 job=job,
                 answers=get_answers(),
                 selected_role_tasks=_read_selected_texts(SSKey.ROLE_TASKS_SELECTED),
                 selected_skills=_read_selected_texts(SSKey.SKILLS_SELECTED),
                 selected_benefits=_read_selected_texts(SSKey.BENEFITS_SELECTED),
-                intake_facts={
-                    FactKey.INTERVIEW_SCORECARD_TEMPLATE.value: fact_value(
-                        FactKey.INTERVIEW_SCORECARD_TEMPLATE,
-                        {},
-                    ),
-                    FactKey.INTERVIEW_CORE_QUESTIONS.value: fact_value(
-                        FactKey.INTERVIEW_CORE_QUESTIONS,
-                        [],
-                    ),
-                },
+                intake_facts=preview_facts,
                 interview_process=build_interview_export_payload(
                     job=job,
                     answers=get_answers(),
                     plan=plan,
                     internal_flow=_read_internal_flow_state(),
+                    intake_facts=preview_facts,
                 ),
-            ),
+            )
+
+        render_live_artifact_preview_panel(
+            key="interview",
+            default_open=True,
+            streamlit_module=st,
+            preview_builder=_build_interview_preview,
         )
         expander = getattr(st, "expander", None)
         if callable(expander):

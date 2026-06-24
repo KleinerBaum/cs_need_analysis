@@ -307,30 +307,17 @@ def test_build_brief_structured_preview_payload_uses_export_subset(monkeypatch) 
     preview_payload = SUMMARY_MODULE._build_brief_structured_preview_payload(brief)
     export_payload = SUMMARY_MODULE._build_structured_export_payload(brief)
 
-    assert preview_payload == {
-        "job_extract": {"job_title": "Engineer"},
-        "answers": {},
-        "selected_role_tasks": ["Build ETL pipelines"],
-        "selected_skills": ["Python", "SQL"],
-        "selected_benefits": ["Mentoring"],
-        "offer_positioning": {
-            "candidate_value": ["Mentoring"],
-            "early_candidate_info": [
-                "Gehaltsrahmen früh klären",
-                "Variable Vergütung bestätigen oder ausschließen",
-                "Starttermin und Flexibilität früh klären",
-                "Visa-/Arbeitserlaubnis-Support früh klären",
-            ],
-            "artifact_impact": [
-                "job_ad",
-                "brief",
-                "interview_hr",
-                "interview_fach",
-                "boolean_search",
-                "salary_forecast",
-            ],
-        },
-    }
+    assert preview_payload["job_extract"] == {"job_title": "Engineer"}
+    assert preview_payload["answers"] == {}
+    assert preview_payload["selected_role_tasks"] == ["Build ETL pipelines"]
+    assert preview_payload["selected_skills"] == ["Python", "SQL"]
+    assert preview_payload["selected_benefits"] == ["Mentoring"]
+    offer_positioning = preview_payload["offer_positioning"]
+    assert offer_positioning["candidate_value"] == ["Mentoring"]
+    assert "Gehaltsrahmen früh klären" in offer_positioning["early_candidate_info"]
+    assert offer_positioning["salary_decision"]["salary_claim_status"] == "missing"
+    assert offer_positioning["salary_decision"]["orientation_only"] is True
+    assert "salary_forecast" in offer_positioning["artifact_impact"]
     assert export_payload["selected_role_tasks"] == preview_payload["selected_role_tasks"]
     assert export_payload["selected_skills"] == preview_payload["selected_skills"]
     assert export_payload["selected_benefits"] == preview_payload["selected_benefits"]
@@ -604,6 +591,66 @@ def test_build_structured_export_payload_includes_salary_artifacts_when_availabl
     assert len(payload["salary_scenarios"]) == 100
 
 
+def test_build_structured_export_payload_keeps_competitive_salary_non_numeric(
+    monkeypatch,
+) -> None:
+    brief = VacancyBrief(
+        one_liner="One line",
+        hiring_context="Context",
+        role_summary="Summary",
+        top_responsibilities=[],
+        must_have=[],
+        nice_to_have=[],
+        dealbreakers=[],
+        interview_plan=[],
+        evaluation_rubric=[],
+        sourcing_channels=[],
+        risks_open_questions=[],
+        job_ad_draft="Draft",
+        structured_data=VacancyStructuredData(
+            job_extract={
+                "job_title": "AI Strategy / Analytics Manager",
+                "salary_range": {
+                    "notes": "Competitive package, abhängig von Erfahrung."
+                },
+                "remote_policy": (
+                    "Hybrid möglich; regelmäßige Projektpräsenz beim Kunden erforderlich."
+                ),
+                "benefits": ["Hybrid Work", "Corporate Benefits"],
+            },
+            answers={},
+            selected_benefits=["Hybrid Work"],
+        ),
+    )
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "st",
+        SimpleNamespace(
+            session_state={
+                SSKey.ESCO_CONFIG.value: {},
+                SSKey.ESCO_SKILLS_SELECTED_MUST.value: [],
+                SSKey.ESCO_SKILLS_SELECTED_NICE.value: [],
+            }
+        ),
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "get_esco_occupation_selected", lambda: None)
+
+    payload = SUMMARY_MODULE._build_structured_export_payload(brief)
+
+    salary_decision = payload["offer_positioning"]["salary_decision"]
+    assert salary_decision["salary_claim_status"] == "notes_only"
+    assert salary_decision["has_numeric_salary_claim"] is False
+    assert "salary_text" not in salary_decision
+    assert salary_decision["salary_notes"] == (
+        "Competitive package, abhängig von Erfahrung."
+    )
+    assert "Hybrid Work" in payload["offer_positioning"]["candidate_value"]
+    assert not any(
+        "remote-only" in item.casefold()
+        for item in payload["offer_positioning"]["fixed_terms"]
+    )
+
+
 def test_build_structured_export_payload_includes_interview_process(
     monkeypatch,
 ) -> None:
@@ -671,11 +718,17 @@ def test_build_structured_export_payload_includes_interview_process(
     assert interview_process["internal_flow"]["info_loop_items"] == [
         "Interview-Feedback bündeln"
     ]
-    assert any(
-        row["Feld"] == "Authority Ansprechpartner"
-        and row["Wert"] == "A. Example"
-        for row in interview_process["selected_values"]
-    )
+    assert not any("example.com" in str(row) for row in interview_process["selected_values"])
+    assert not any("A. Example" in str(row) for row in interview_process["selected_values"])
+    assert interview_process["internal_flow"]["contacts"] == [
+        {"role": "Authority", "participates_in_interview": True}
+    ]
+    assert interview_process["internal_flow"]["selected_value_ids"] == [
+        row["id"] for row in interview_process["selected_values"]
+    ]
+    assert interview_process["scheduling"]["candidate_updates"] == [
+        "Interview-Feedback bündeln"
+    ]
 
 
 def test_build_esco_mapping_report_rows_uses_expected_fields_and_sorting(

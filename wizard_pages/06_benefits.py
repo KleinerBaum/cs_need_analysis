@@ -16,7 +16,12 @@ from constants import (
     STEP_SECTION_SALARY_FORECAST,
     STEP_SECTION_SOURCE_COMPARISON,
 )
-from intake_facts import write_intake_fact_by_legacy_field
+from intake_facts import (
+    get_intake_fact_evidence_state,
+    get_intake_fact_state,
+    write_intake_fact_by_legacy_field,
+)
+from offer_decision import build_offer_decision_context
 from llm_client import (
     TASK_GENERATE_BENEFIT_SUGGESTIONS,
     TASK_GENERATE_ROLE_TASKS_SALARY_FORECAST,
@@ -670,19 +675,31 @@ def _render_offer_outcome_preview(
     job: JobAdExtract,
     selected_benefits: list[str],
 ) -> None:
-    candidate_value, fixed_terms, early_info = _offer_outcome_items(
+    offer_decision = build_offer_decision_context(
         job=job,
         selected_benefits=selected_benefits,
+        intake_facts=get_intake_fact_state(st.session_state),
+        intake_fact_evidence=get_intake_fact_evidence_state(st.session_state),
+        salary_forecast=st.session_state.get(SSKey.SALARY_FORECAST_LAST_RESULT.value, {}),
+        salary_fingerprints=st.session_state.get(
+            SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value,
+            {},
+        ),
     )
+    candidate_value = list(offer_decision.get("candidate_value", []))
+    fixed_terms = list(offer_decision.get("fixed_terms", []))
+    negotiable_terms = list(offer_decision.get("negotiable_terms", []))
+    early_info = list(offer_decision.get("early_candidate_info", []))
+    salary_caveat = compact_text(offer_decision.get("salary_caveat"))
     st.markdown("#### Angebotswirkung")
     st.caption(
         "Macht sichtbar, warum die Rolle attraktiv ist, was fix ist und welche "
         "Informationen Kandidat:innen früh brauchen."
     )
-    col_value, col_fixed, col_early = responsive_three_columns(gap="large")
+    col_value, col_fixed = responsive_two_columns(gap="large")
     with col_value:
         _render_outcome_list(
-            title="Warum attraktiv?",
+            title="Candidate Value",
             items=candidate_value,
             empty="Noch kein klares Nutzenargument ausgewählt.",
         )
@@ -692,15 +709,29 @@ def _render_offer_outcome_preview(
             items=fixed_terms,
             empty="Noch keine verbindlichen Angebotsbestandteile markiert.",
         )
+    col_negotiable, col_early = responsive_two_columns(gap="large")
+    with col_negotiable:
+        _render_outcome_list(
+            title="Verhandelbar",
+            items=negotiable_terms,
+            empty="Keine verhandelbaren Angebotsbestandteile erkannt.",
+        )
     with col_early:
         _render_outcome_list(
-            title="Verhandelbar / früh klären",
-            items=_dedupe_benefit_terms(early_info),
+            title="Früh kommunizieren",
+            items=early_info,
             empty="Keine Verhandlungs- oder frühen Klärpunkte erkannt.",
+        )
+    with section_container(border=True):
+        st.markdown("**Salary Caveat**")
+        st.caption(
+            salary_caveat
+            or "Gehaltsprognose ist Orientierung und ersetzt keine Vergütungsprüfung."
         )
     st.caption(
         "Exportwirkung: Diese Auswahl steuert Stellenanzeige, Recruiting Brief, "
-        "Vertragsentwurf und die Benefit-Gewichtung der Gehaltsprognose."
+        "HR-/Fachbereich-Sheets, Search-Kriterien und die Benefit-Gewichtung der "
+        "Gehaltsprognose."
     )
 
 
@@ -1001,6 +1032,22 @@ def render(ctx: WizardContext) -> None:
                 selected_role_tasks=_read_selected_texts(SSKey.ROLE_TASKS_SELECTED),
                 selected_skills=_read_selected_texts(SSKey.SKILLS_SELECTED),
                 selected_benefits=selection_result["selected_labels"],
+                offer_positioning=build_offer_decision_context(
+                    job=job,
+                    selected_benefits=selection_result["selected_labels"],
+                    intake_facts=get_intake_fact_state(st.session_state),
+                    intake_fact_evidence=get_intake_fact_evidence_state(
+                        st.session_state
+                    ),
+                    salary_forecast=st.session_state.get(
+                        SSKey.SALARY_FORECAST_LAST_RESULT.value,
+                        {},
+                    ),
+                    salary_fingerprints=st.session_state.get(
+                        SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value,
+                        {},
+                    ),
+                ),
             ),
         )
 

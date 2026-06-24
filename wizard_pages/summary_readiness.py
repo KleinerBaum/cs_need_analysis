@@ -45,6 +45,7 @@ from intake_facts import (
     mark_intake_facts_used_by_artifact,
     write_intake_fact,
 )
+from offer_decision import build_offer_decision_context
 from homepage_research import (
     normalize_company_website_research_payload as _normalize_company_website_research_payload,
 )
@@ -878,6 +879,36 @@ def _build_summary_view_model() -> SummaryViewModel | None:
     answer_meta = get_answer_meta()
     intake_facts = get_intake_fact_state(st.session_state)
     intake_fact_evidence = get_intake_fact_evidence_state(st.session_state)
+    salary_forecast_raw = st.session_state.get(SSKey.SALARY_FORECAST_LAST_RESULT.value)
+    salary_forecast = (
+        salary_forecast_raw if isinstance(salary_forecast_raw, Mapping) else {}
+    )
+    salary_fingerprints_raw = st.session_state.get(
+        SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value,
+        {},
+    )
+    salary_fingerprints = (
+        salary_fingerprints_raw
+        if isinstance(salary_fingerprints_raw, Mapping)
+        else {}
+    )
+    offer_positioning = build_offer_decision_context(
+        job=job,
+        selected_benefits=selected_benefits,
+        intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        salary_forecast=salary_forecast,
+        salary_fingerprints=salary_fingerprints,
+    )
+    interview_process = build_interview_export_payload(
+        job=job,
+        answers=answers,
+        plan=plan,
+        internal_flow=normalize_interview_internal_flow(
+            st.session_state.get(SSKey.INTERVIEW_INTERNAL_FLOW.value, {})
+        ),
+        intake_facts=intake_facts,
+    )
     confidence_threshold = _read_summary_confidence_threshold()
     meta = _build_summary_meta(
         job,
@@ -901,6 +932,9 @@ def _build_summary_view_model() -> SummaryViewModel | None:
             intake_fact_evidence=intake_fact_evidence,
         ),
         confidence_threshold=confidence_threshold,
+        offer_positioning=offer_positioning,
+        interview_process=interview_process,
+        salary_forecast=salary_forecast,
         selected_role_tasks=selected_role_tasks,
         selected_skills=selected_skills,
         selected_benefits=selected_benefits,
@@ -1065,6 +1099,38 @@ def _build_internal_fallback_brief(vm: SummaryViewModel) -> VacancyBrief:
     ][:8]
     nice_to_have = [str(item).strip() for item in job.nice_to_have_skills or [] if str(item).strip()][:6]
     benefits = [str(item).strip() for item in vm.artifacts.selected_benefits if str(item).strip()]
+    intake_facts = get_intake_fact_state(st.session_state)
+    intake_fact_evidence = get_intake_fact_evidence_state(st.session_state)
+    salary_forecast_raw = st.session_state.get(SSKey.SALARY_FORECAST_LAST_RESULT.value)
+    salary_forecast = (
+        salary_forecast_raw if isinstance(salary_forecast_raw, Mapping) else {}
+    )
+    salary_fingerprints_raw = st.session_state.get(
+        SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value,
+        {},
+    )
+    salary_fingerprints = (
+        salary_fingerprints_raw
+        if isinstance(salary_fingerprints_raw, Mapping)
+        else {}
+    )
+    offer_positioning = build_offer_decision_context(
+        job=job,
+        selected_benefits=vm.artifacts.selected_benefits,
+        intake_facts=intake_facts,
+        intake_fact_evidence=intake_fact_evidence,
+        salary_forecast=salary_forecast,
+        salary_fingerprints=salary_fingerprints,
+    )
+    interview_process = build_interview_export_payload(
+        job=job,
+        answers=vm.answers,
+        plan=vm.plan,
+        internal_flow=normalize_interview_internal_flow(
+            st.session_state.get(SSKey.INTERVIEW_INTERNAL_FLOW.value, {})
+        ),
+        intake_facts=intake_facts,
+    )
     structured_data = VacancyStructuredData.model_validate(
         {
             "job_extract": job.model_dump(mode="json"),
@@ -1072,6 +1138,9 @@ def _build_internal_fallback_brief(vm: SummaryViewModel) -> VacancyBrief:
             "selected_role_tasks": vm.artifacts.selected_role_tasks or None,
             "selected_skills": vm.artifacts.selected_skills or None,
             "selected_benefits": vm.artifacts.selected_benefits or None,
+            "offer_positioning": offer_positioning or None,
+            "salary_forecast": dict(salary_forecast) if salary_forecast else None,
+            "interview_process": interview_process or None,
         }
     )
     return VacancyBrief(
