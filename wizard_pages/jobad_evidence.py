@@ -106,25 +106,17 @@ def render_analysis_priority_summary(
     )
     location = str(job.place_of_work or "").strip() or location
 
-    streamlit_module.markdown("#### Prüffokus")
-    columns = streamlit_module.columns(4, gap="small")
-    stats = (
-        ("Rolle", str(job.job_title or "").strip(), "Erkannter Zieljob"),
-        ("Unternehmen", str(job.company_name or "").strip(), "Quelle oder Ableitung"),
-        ("Sicherheit", average_confidence, "Durchschnitt erkannter Evidenzen"),
-        ("Prüfen", f"{uncertain_count} unsicher · {gap_count} offen", "Priorität vor Weiter"),
-    )
-    for column, (title, value, caption) in zip(columns, stats):
-        with column:
-            render_priority_stat(
-                title,
-                value,
-                caption,
-                streamlit_module=streamlit_module,
-            )
-
+    role = str(job.job_title or "").strip() or "Rolle offen"
+    company = str(job.company_name or "").strip() or "Unternehmen offen"
+    focus_parts = [
+        f"{role} · {company}",
+        f"Sicherheit {average_confidence}",
+        f"{uncertain_count} unsicher",
+        f"{gap_count} offen",
+    ]
     if location:
-        streamlit_module.caption(f"Arbeitsort: {location}")
+        focus_parts.append(f"Arbeitsort {location}")
+    streamlit_module.caption("Prüfstatus: " + " · ".join(focus_parts))
 
 
 def render_job_extract_provenance_block(

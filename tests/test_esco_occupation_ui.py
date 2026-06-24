@@ -165,7 +165,7 @@ def test_render_secondary_anchor_controls_uses_friendly_expander_and_labels(
     assert fake_st.column_calls == [([1, 1.4], "large")]
     assert any(
         "Grenzrollen oder Mischprofile" in message
-        and "Primäranker und Kernexport" in message
+        and "bestätigte Referenzberuf" in message
         for message in fake_st.caption_messages
     )
     assert any(
@@ -182,8 +182,9 @@ def test_render_secondary_anchor_controls_uses_friendly_expander_and_labels(
             "query_label": "Suchbegriff für Kontextrolle",
             "query_placeholder": "Benachbarte Rolle oder Alternativtitel eingeben",
             "confirmed_summary_label": "Ausgewählte Kontextrolle",
-            "show_results_overview": True,
-            "taxonomy_auto_load": True,
+            "show_results_overview": False,
+            "show_confirmed_summary": False,
+            "taxonomy_auto_load": False,
             "layout_variant": "secondary_anchor",
         }
     ]

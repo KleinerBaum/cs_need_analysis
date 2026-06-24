@@ -1114,8 +1114,8 @@ ESCO_UI_COPY: dict[str, dict[str, str]] = {
         "default_query": "ESCO Suche",
         "query_placeholder": "Begriff eingeben (z. B. Data Engineer)",
         "anchor_helper": (
-            "Der Begriff steuert nur den Berufsabgleich; deine Rollenbeschreibung "
-            "und spätere Antworten bleiben unverändert."
+            "Steuert nur den Berufsabgleich; Rollenbeschreibung und spätere Antworten "
+            "bleiben unverändert."
         ),
         "search_unavailable": "ESCO-Suche aktuell nicht verfügbar: {error}",
         "no_match": (
@@ -1163,8 +1163,8 @@ ESCO_UI_COPY: dict[str, dict[str, str]] = {
         "default_query": "ESCO search",
         "query_placeholder": "Enter term (e.g. data engineer)",
         "anchor_helper": (
-            "The term controls only occupation matching; your role description and later "
-            "answers remain unchanged."
+            "Controls only occupation matching; your role description and later answers "
+            "remain unchanged."
         ),
         "search_unavailable": "ESCO search is currently unavailable: {error}",
         "no_match": (

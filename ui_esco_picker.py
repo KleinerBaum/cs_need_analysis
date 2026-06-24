@@ -667,23 +667,26 @@ def render_esco_picker_card(
         for idx, concept in enumerate(current_entries):
             concept_id = _build_esco_concept_id(concept, idx)
             with st.container(border=True):
-                st.markdown(_esco_copy("confirmed_reference"))
-                st.markdown(f"### {concept['title']}")
-                if ui_mode == "expert":
-                    st.caption(
-                        f"URI: {concept['uri']} · Version: {version} · "
-                        f"{_esco_copy('source')}: {source}"
+                summary_col, taxonomy_col = st.columns([0.9, 1.4], gap="medium")
+                with summary_col:
+                    st.markdown(_esco_copy("confirmed_reference"))
+                    st.markdown(f"**{concept['title']}**")
+                    if ui_mode == "expert":
+                        st.caption(
+                            f"URI: {concept['uri']} · Version: {version} · "
+                            f"{_esco_copy('source')}: {source}"
+                        )
+                with taxonomy_col:
+                    st.markdown(_esco_copy("catalog_position"))
+                    _render_esco_taxonomy_breadcrumb(
+                        session_key=session_key,
+                        concept=concept,
+                        concept_id=concept_id,
+                        auto_load=taxonomy_auto_load,
+                        in_expander=False,
+                        title=taxonomy_title,
+                        show_title=False,
                     )
-                st.markdown(_esco_copy("catalog_position"))
-                _render_esco_taxonomy_breadcrumb(
-                    session_key=session_key,
-                    concept=concept,
-                    concept_id=concept_id,
-                    auto_load=taxonomy_auto_load,
-                    in_expander=False,
-                    title=taxonomy_title,
-                    show_title=False,
-                )
         return
 
     st.markdown(f"**{confirmed_summary_label or _esco_copy('confirmed_selection')}**")

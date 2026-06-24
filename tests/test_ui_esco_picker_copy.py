@@ -138,8 +138,8 @@ def test_render_esco_picker_card_anchor_card_uses_compact_occupation_copy(
     assert fake_st.selectbox_labels == ["Referenzberuf auswählen"]
     assert fake_st.container_calls == [{"border": True}]
     assert (
-        "Der Begriff steuert nur den Berufsabgleich; deine Rollenbeschreibung "
-        "und spätere Antworten bleiben unverändert."
+        "Steuert nur den Berufsabgleich; Rollenbeschreibung und spätere Antworten "
+        "bleiben unverändert."
     ) in fake_st.captions
 
 
@@ -160,8 +160,8 @@ def test_render_esco_picker_card_anchor_card_uses_english_copy(
     assert fake_st.text_input_labels == ["Search term for occupation matching"]
     assert fake_st.selectbox_labels == ["Select reference occupation"]
     assert (
-        "The term controls only occupation matching; your role description and later "
-        "answers remain unchanged."
+        "Controls only occupation matching; your role description and later answers "
+        "remain unchanged."
     ) in fake_st.captions
     assert fake_st.expander_labels == ["Preview before apply"]
 
@@ -185,7 +185,7 @@ def test_render_esco_picker_card_anchor_card_bundles_confirmed_summary_and_bread
 
     assert fake_st.container_calls == [{"border": True}, {"border": True}]
     assert "**Bestätigter Referenzberuf**" in fake_st.markdown_calls
-    assert "### Data Engineer" in fake_st.markdown_calls
+    assert "**Data Engineer**" in fake_st.markdown_calls
     assert "**Position im Berufsverzeichnis**" in fake_st.markdown_calls
     assert "**Bestätigte ESCO-Auswahl**" not in fake_st.markdown_calls
     assert "**Taxonomie/Breadcrumb**" not in fake_st.markdown_calls

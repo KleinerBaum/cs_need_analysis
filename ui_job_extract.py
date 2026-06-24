@@ -111,24 +111,66 @@ def _compact_value_rows(
     return rows
 
 
+def _preview_text(values: Sequence[str], *, limit: int = 3) -> str:
+    cleaned = [str(value).strip() for value in values if str(value).strip()]
+    if not cleaned:
+        return ""
+    preview = cleaned[:limit]
+    suffix = f" +{len(cleaned) - limit}" if len(cleaned) > limit else ""
+    return " · ".join(preview) + suffix
+
+
+def _compact_value_preview(
+    fields: Sequence[tuple[str, str, Any]],
+    evidence_by_field: Mapping[str, Any],
+) -> tuple[int, str]:
+    rows = _compact_value_rows(fields, evidence_by_field)
+    if not rows:
+        return 0, ""
+    values = [f"{row['Angabe']}: {row['Inhalt']}" for row in rows]
+    return len(rows), _preview_text(values, limit=3)
+
+
+def _compact_list_preview(
+    entries: Any,
+) -> tuple[int, str]:
+    source = entries if isinstance(entries, list) else []
+    cleaned = [str(item).strip() for item in source if has_meaningful_value(item)]
+    if not cleaned:
+        return 0, ""
+    return len(cleaned), _preview_text(cleaned, limit=3)
+
+
+def _append_compact_overview_row(
+    rows: list[dict[str, str]],
+    *,
+    title: str,
+    count: int,
+    preview: str,
+) -> None:
+    if count <= 0:
+        return
+    rows.append(
+        {
+            "Bereich": title,
+            "Erkannt": str(count),
+            "Kurzüberblick": preview,
+        }
+    )
+
+
 def _render_compact_value_section(
     title: str,
     fields: Sequence[tuple[str, str, Any]],
     evidence_by_field: Mapping[str, Any],
 ) -> bool:
-    rows = _compact_value_rows(fields, evidence_by_field)
-    if not rows:
+    count, preview = _compact_value_preview(fields, evidence_by_field)
+    if count <= 0:
         return False
-    st.markdown(f"**{title}**")
     st.dataframe(
-        rows,
+        [{"Bereich": title, "Erkannt": str(count), "Kurzüberblick": preview}],
         hide_index=True,
         width="stretch",
-        column_config={
-            "Angabe": st.column_config.TextColumn("Angabe"),
-            "Inhalt": st.column_config.TextColumn("Inhalt"),
-            "Sicherheit": st.column_config.TextColumn("Sicherheit"),
-        },
     )
     return True
 
@@ -141,24 +183,15 @@ def _render_compact_list_section(
     evidence_by_field: Mapping[str, Any],
     key: str,
 ) -> bool:
-    source = entries if isinstance(entries, list) else []
-    cleaned = [str(item).strip() for item in source if has_meaningful_value(item)]
-    if not cleaned:
+    del evidence_field, evidence_by_field, key
+    count, preview = _compact_list_preview(entries)
+    if count <= 0:
         return False
-
-    st.markdown(f"**{title}**")
-    preview = cleaned[:5]
-    st.table([{"#": index + 1, "Eintrag": value} for index, value in enumerate(preview)])
-    remaining = len(cleaned) - len(preview)
-    if remaining > 0:
-        with st.expander(f"Alle {len(cleaned)} Einträge anzeigen", expanded=False):
-            st.dataframe(
-                [{"#": index + 1, "Eintrag": value} for index, value in enumerate(cleaned)],
-                key=key,
-                hide_index=True,
-                width="stretch",
-            )
-    del evidence_by_field, evidence_field, title
+    st.dataframe(
+        [{"Bereich": title, "Erkannt": str(count), "Kurzüberblick": preview}],
+        hide_index=True,
+        width="stretch",
+    )
     return True
 
 
@@ -170,90 +203,117 @@ def _render_compact_job_extract_overview(
     if show_heading:
         st.markdown("### Analyseergebnis")
     st.caption(
-        "Die wichtigsten Angaben sind nach Themen gruppiert. Die Prüfung fokussiert "
-        "auf Sicherheit, offene Punkte und direkte Korrektur."
+        "Kurzüberblick der erkannten Angaben. Korrekturen erfolgen unten in der "
+        "Freigabetabelle."
     )
     evidence_by_field = job_extract_field_evidence_by_name(job)
-    rendered_any = False
+    rows: list[dict[str, str]] = []
 
-    rendered_any = (
-        _render_compact_value_section(
-            "Kernprofil",
+    core_count, core_preview = _compact_value_preview(
+        (
+            ("job_title", "Rolle", _normalize_display_text(job.job_title)),
+            ("company_name", "Unternehmen", _normalize_display_text(job.company_name)),
+            ("brand_name", "Marke", _normalize_display_text(job.brand_name)),
+            ("place_of_work", "Ort", _join_compact_location(job)),
             (
-                ("job_title", "Rolle", _normalize_display_text(job.job_title)),
-                ("company_name", "Unternehmen", _normalize_display_text(job.company_name)),
-                ("brand_name", "Marke", _normalize_display_text(job.brand_name)),
-                ("place_of_work", "Ort", _join_compact_location(job)),
-                (
-                    "employment_type",
-                    "Beschäftigungsart",
-                    _normalize_display_text(job.employment_type),
-                ),
-                (
-                    "contract_type",
-                    "Vertragsart",
-                    _normalize_display_text(job.contract_type),
-                ),
-                (
-                    "seniority_level",
-                    "Seniorität",
-                    _normalize_display_text(job.seniority_level),
-                ),
+                "employment_type",
+                "Beschäftigungsart",
+                _normalize_display_text(job.employment_type),
             ),
-            evidence_by_field,
-        )
-        or rendered_any
-    )
-    rendered_any = (
-        _render_compact_value_section(
-            "Rahmenbedingungen",
             (
-                (
-                    "remote_policy",
-                    "Remote-Regelung",
-                    _normalize_display_text(job.remote_policy),
-                ),
-                ("start_date", "Startdatum", _normalize_display_text(job.start_date)),
-                ("salary_range", "Gehaltsrahmen", _format_salary_range_value(job.salary_range)),
-                (
-                    "travel_required",
-                    "Reisebereitschaft",
-                    _normalize_display_text(job.travel_required),
-                ),
-                ("on_call", "Rufbereitschaft", _normalize_display_text(job.on_call)),
-                (
-                    "recruitment_steps",
-                    "Recruiting-Prozess",
-                    _format_recruitment_steps_value(job.recruitment_steps),
-                ),
+                "contract_type",
+                "Vertragsart",
+                _normalize_display_text(job.contract_type),
             ),
-            evidence_by_field,
-        )
-        or rendered_any
+            (
+                "seniority_level",
+                "Seniorität",
+                _normalize_display_text(job.seniority_level),
+            ),
+        ),
+        evidence_by_field,
+    )
+    _append_compact_overview_row(
+        rows,
+        title="Kernprofil",
+        count=core_count,
+        preview=core_preview,
     )
 
-    list_sections = (
-        ("Rolle & Aufgaben", job.responsibilities, "responsibilities"),
-        ("Lieferergebnisse", job.deliverables, "deliverables"),
-        ("Erfolgskriterien", job.success_metrics, "success_metrics"),
-        ("Must-have Skills", job.must_have_skills, "must_have_skills"),
-        ("Nice-to-have Skills", job.nice_to_have_skills, "nice_to_have_skills"),
-        ("Benefits", job.benefits, "benefits"),
+    conditions_count, conditions_preview = _compact_value_preview(
+        (
+            (
+                "remote_policy",
+                "Remote-Regelung",
+                _normalize_display_text(job.remote_policy),
+            ),
+            ("start_date", "Startdatum", _normalize_display_text(job.start_date)),
+            ("salary_range", "Gehaltsrahmen", _format_salary_range_value(job.salary_range)),
+            (
+                "travel_required",
+                "Reisebereitschaft",
+                _normalize_display_text(job.travel_required),
+            ),
+            ("on_call", "Rufbereitschaft", _normalize_display_text(job.on_call)),
+            (
+                "recruitment_steps",
+                "Recruiting-Prozess",
+                _format_recruitment_steps_value(job.recruitment_steps),
+            ),
+        ),
+        evidence_by_field,
     )
-    for title, entries, field in list_sections:
-        rendered_any = (
-            _render_compact_list_section(
-                title,
-                entries,
-                evidence_field=field,
-                evidence_by_field=evidence_by_field,
-                key=f"cs.job_extract.preview.{field}",
-            )
-            or rendered_any
-        )
+    _append_compact_overview_row(
+        rows,
+        title="Rahmenbedingungen",
+        count=conditions_count,
+        preview=conditions_preview,
+    )
 
-    if not rendered_any:
+    tasks = [
+        *list(job.responsibilities or []),
+        *list(job.deliverables or []),
+        *list(job.success_metrics or []),
+    ]
+    tasks_count, tasks_preview = _compact_list_preview(tasks)
+    _append_compact_overview_row(
+        rows,
+        title="Rolle & Aufgaben",
+        count=tasks_count,
+        preview=tasks_preview,
+    )
+
+    skills = [*list(job.must_have_skills or []), *list(job.nice_to_have_skills or [])]
+    skills_count, skills_preview = _compact_list_preview(skills)
+    _append_compact_overview_row(
+        rows,
+        title="Skills",
+        count=skills_count,
+        preview=skills_preview,
+    )
+
+    benefits_count, benefits_preview = _compact_list_preview(job.benefits)
+    _append_compact_overview_row(
+        rows,
+        title="Benefits",
+        count=benefits_count,
+        preview=benefits_preview,
+    )
+
+    if not rows:
         st.info("Keine verlässlichen Werte erkannt. Details siehe Gaps/Assumptions.")
+        return
+
+    st.dataframe(
+        rows,
+        hide_index=True,
+        width="stretch",
+        column_config={
+            "Bereich": st.column_config.TextColumn("Bereich"),
+            "Erkannt": st.column_config.TextColumn("Erkannt"),
+            "Kurzüberblick": st.column_config.TextColumn("Kurzüberblick"),
+        },
+    )
 
 
 def _render_compact_extract_lists(job: JobAdExtract) -> None:

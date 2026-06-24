@@ -1434,8 +1434,8 @@ def _render_secondary_anchor_controls(*, primary_uri: str) -> None:
     current = current_raw if isinstance(current_raw, list) else []
     with st.expander("Optionale Kontextanker", expanded=False):
         st.caption(
-            "Für Grenzrollen oder Mischprofile: Kontextanker ergänzen die "
-            "Einordnung, ersetzen aber nicht Primäranker und Kernexport."
+            "Nur für Grenzrollen oder Mischprofile; der bestätigte Referenzberuf "
+            "bleibt führend."
         )
         existing_column, picker_column = st.columns([1, 1.4], gap="large")
         with existing_column:
@@ -1465,8 +1465,9 @@ def _render_secondary_anchor_controls(*, primary_uri: str) -> None:
                 query_label="Suchbegriff für Kontextrolle",
                 query_placeholder="Benachbarte Rolle oder Alternativtitel eingeben",
                 confirmed_summary_label="Ausgewählte Kontextrolle",
-                show_results_overview=True,
-                taxonomy_auto_load=True,
+                show_results_overview=False,
+                show_confirmed_summary=False,
+                taxonomy_auto_load=False,
                 layout_variant="secondary_anchor",
             )
             reason = st.selectbox(
@@ -1548,9 +1549,6 @@ def render_esco_occupation_confirmation(
         enable_preview=False,
         apply_label=None,
         selection_label="Referenzberuf auswählen",
-        confirmation_helper_text=(
-            "Diese Auswahl gibt Aufgaben, Skills und Summary einen eindeutigen fachlichen Bezug."
-        ),
         auto_apply_single_select=True,
         show_apply_button=False,
         show_results_overview=True,

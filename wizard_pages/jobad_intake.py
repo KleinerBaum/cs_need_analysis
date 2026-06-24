@@ -907,11 +907,9 @@ def _render_job_extract_hypothesis_form(job: JobAdExtract) -> None:
     st.caption(
         str(
             t(
-                "Prüfen Sie unsichere und offene Angaben, bevor daraus der nächste "
-                "Briefing-Stand wächst. Die Spalten entsprechen den nächsten "
-                "Briefing-Schritten; korrigieren Sie Werte direkt in der passenden "
-                "Spalte oder löschen Sie eine Zeile, wenn die Angabe nicht "
-                "übernommen werden soll. Änderungen werden automatisch gespeichert."
+                "Nur unsichere oder fehlende Angaben prüfen. Werte direkt in der "
+                "passenden Spalte korrigieren oder die Zeile löschen. Änderungen "
+                "werden automatisch gespeichert."
             )
         )
     )
@@ -968,8 +966,7 @@ def _render_identified_information_block(ctx: WizardContext) -> None:
     st.caption(
         str(
             t(
-                "Nächste Aktion: unsichere und offene Punkte direkt in der Tabelle "
-                "freigeben und anschließend den passenden Referenzberuf bestätigen."
+                "Nächste Aktion: kurze Prüfung der Basis, danach Referenzberuf bestätigen."
             )
         )
     )
@@ -1660,7 +1657,7 @@ def _render_extraction_result_section(ctx: WizardContext) -> None:
     )
     with container_ctx:
         if hasattr(st, "markdown"):
-            st.markdown(str(t("### Briefing-Fortschritt: erkannte Basis")))
+            st.markdown(str(t("### Erkannte Basis prüfen")))
         _render_phase_b_extraction_review(ctx)
 
 
@@ -1672,7 +1669,7 @@ def _render_esco_anchor_section(ctx: WizardContext) -> None:
     )
     with container_ctx:
         if hasattr(st, "markdown"):
-            st.markdown(str(t("### Briefing-Fortschritt: Referenzberuf bestätigen")))
+            st.markdown(str(t("### Referenzberuf bestätigen")))
         _render_phase_c_esco_anchor(ctx)
 
 def _render_phase_b_extraction_review(ctx: WizardContext) -> None:
@@ -1735,22 +1732,15 @@ def render_jobad_intake(
             )
         )
         subtitle = _localized_template(
-            "Das Briefing-Cockpit ist vorbereitet. Prüfen Sie erkannte Angaben, "
-            "bereinigen Sie Unsicherheiten und bestätigen Sie den Referenzberuf. "
-            "Schon freigeschaltet: Rollenprofil, Lückenpriorisierung, "
-            "ESCO-Kandidaten und nächste Briefing-Fragen.",
-            "The briefing cockpit is prepared. Review detected facts, clean up "
-            "uncertainty, and confirm the reference occupation. Already unlocked: "
-            "role profile, gap prioritization, ESCO candidates, and next briefing "
-            "questions.",
+            "Prüfen Sie kurz die erkannte Basis und bestätigen Sie den Referenzberuf.",
+            "Briefly review the detected basis and confirm the reference occupation.",
             role_title=role_title,
         )
     elif analysis_complete:
         st.header(str(t("Nächste Aktion im Briefing-Cockpit")))
         subtitle = str(
             t(
-                "Das Briefing-Cockpit ist vorbereitet. Prüfen Sie erkannte Angaben, "
-                "bereinigen Sie Unsicherheiten und bestätigen Sie den Referenzberuf."
+                "Prüfen Sie kurz die erkannte Basis und bestätigen Sie den Referenzberuf."
             )
         )
     else:

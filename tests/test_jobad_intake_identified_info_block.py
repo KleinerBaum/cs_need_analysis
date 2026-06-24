@@ -213,8 +213,7 @@ def test_identified_info_next_is_enabled_without_esco_anchor(monkeypatch) -> Non
 
     assert "Analyse abgeschlossen" not in fake_st.successes
     assert (
-        "Nächste Aktion: unsichere und offene Punkte direkt in der Tabelle "
-        "freigeben und anschließend den passenden Referenzberuf bestätigen."
+        "Nächste Aktion: kurze Prüfung der Basis, danach Referenzberuf bestätigen."
         in fake_st.captions
     )
     assert "Technische Details zur Analyse" not in fake_st.expanders
@@ -314,7 +313,11 @@ def test_job_extract_overview_maps_gap_labels_to_german(monkeypatch) -> None:
     assert dataframe_kwargs["hide_index"] is True
     assert dataframe_kwargs["width"] == "stretch"
     assert table_rows == [
-        {"Angabe": "Rolle", "Inhalt": "Data Engineer", "Sicherheit": ""}
+        {
+            "Bereich": "Kernprofil",
+            "Erkannt": "1",
+            "Kurzüberblick": "Rolle: Data Engineer",
+        }
     ]
     assert all("Feld" not in row for row in table_rows)
 
@@ -343,8 +346,8 @@ def test_job_extract_overview_shows_redacted_field_evidence(monkeypatch) -> None
     ui_components.render_job_extract_overview(extract, mode="compact")
 
     table_rows, _dataframe_kwargs = fake_st.dataframes[0]
-    role_row = next(row for row in table_rows if row["Angabe"] == "Rolle")
-    assert role_row["Sicherheit"] == "82% · prüfen"
+    role_row = next(row for row in table_rows if row["Bereich"] == "Kernprofil")
+    assert role_row["Kurzüberblick"] == "Rolle: Data Engineer"
     assert "Fundstelle anzeigen: Rolle" not in fake_st.expanders
 
 
