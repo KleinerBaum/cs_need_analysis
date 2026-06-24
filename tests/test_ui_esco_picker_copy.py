@@ -5,6 +5,7 @@ from typing import Literal
 
 import ui_components
 import ui_esco_picker
+from esco_mapper import EscoMappedConcept
 
 
 class _NoopContext:
@@ -239,41 +240,35 @@ def test_render_esco_picker_card_anchor_card_does_not_change_skill_picker(
 
 
 class _FakeEscoClient:
-    def suggest2(self, **__: Any) -> dict[str, Any]:
-        return {}
-
-    def search(self, **__: Any) -> dict[str, Any]:
-        return {}
+    pass
 
 
 def test_render_esco_picker_card_retries_occupation_query_without_context(
     monkeypatch,
 ) -> None:
-    class _RecordingEscoClient:
-        calls: list[tuple[str, str, str]] = []
+    calls: list[tuple[str, str]] = []
 
-        def suggest2(self, **query: Any) -> dict[str, Any]:
-            text = str(query.get("text") or "")
-            concept_type = str(query.get("type") or "")
-            self.calls.append(("suggest2", text, concept_type))
-            if text == "Data Engineer":
-                return {
-                    "uri": "https://example.test/occupation/1",
-                    "title": "Data Engineer",
-                    "type": "occupation",
-                }
-            return {}
-
-        def search(self, **query: Any) -> dict[str, Any]:
-            text = str(query.get("text") or "")
-            concept_type = str(query.get("type") or "")
-            self.calls.append(("search", text, concept_type))
-            return {}
+    def _map_esco_concepts(text: str, **kwargs: Any) -> list[EscoMappedConcept]:
+        calls.append((text, str(kwargs.get("kind") or "")))
+        if text == "Data Engineer":
+            return [
+                EscoMappedConcept(
+                    uri="https://example.test/occupation/1",
+                    preferred_label="Data Engineer",
+                    kind="occupation",
+                    language="de",
+                    selected_version="v1.2.1",
+                    confidence=0.93,
+                    query=text,
+                    rank=1,
+                )
+            ]
+        return []
 
     fake_st = _FakeStreamlit()
     fake_st.text_input_value = "Data Engineer (Analytics, Berlin)"
     monkeypatch.setattr(ui_esco_picker, "st", fake_st)
-    monkeypatch.setattr(ui_esco_picker, "EscoClient", _RecordingEscoClient)
+    monkeypatch.setattr(ui_esco_picker, "map_esco_concepts", _map_esco_concepts)
 
     ui_components.render_esco_picker_card(
         concept_type="occupation",
@@ -281,49 +276,36 @@ def test_render_esco_picker_card_retries_occupation_query_without_context(
         show_apply_button=False,
     )
 
-    assert _RecordingEscoClient.calls == [
-        ("suggest2", "Data Engineer (Analytics, Berlin)", "occupation"),
-        ("search", "Data Engineer (Analytics, Berlin)", "occupation"),
-        ("suggest2", "Data Engineer", "occupation"),
+    assert calls == [
+        ("Data Engineer (Analytics, Berlin)", "occupation"),
+        ("Data Engineer", "occupation"),
     ]
     assert fake_st.session_state["esco.occupation.esco_picker.options"] == [
         {
             "uri": "https://example.test/occupation/1",
             "title": "Data Engineer",
+            "preferred_label": "Data Engineer",
+            "preferredLabel": "Data Engineer",
             "type": "occupation",
-            "source": "auto",
+            "language": "de",
+            "selectedVersion": "v1.2.1",
+            "confidence": "0.93",
+            "source": "search+resource",
         }
     ]
 
 
 def test_render_esco_picker_card_does_not_clean_skill_queries(monkeypatch) -> None:
-    class _RecordingEscoClient:
-        calls: list[tuple[str, str, str]] = []
+    calls: list[tuple[str, str]] = []
 
-        def suggest2(self, **query: Any) -> dict[str, Any]:
-            self.calls.append(
-                (
-                    "suggest2",
-                    str(query.get("text") or ""),
-                    str(query.get("type") or ""),
-                )
-            )
-            return {}
-
-        def search(self, **query: Any) -> dict[str, Any]:
-            self.calls.append(
-                (
-                    "search",
-                    str(query.get("text") or ""),
-                    str(query.get("type") or ""),
-                )
-            )
-            return {}
+    def _map_esco_concepts(text: str, **kwargs: Any) -> list[EscoMappedConcept]:
+        calls.append((text, str(kwargs.get("kind") or "")))
+        return []
 
     fake_st = _FakeStreamlit()
     fake_st.text_input_value = "Python (Backend)"
     monkeypatch.setattr(ui_esco_picker, "st", fake_st)
-    monkeypatch.setattr(ui_esco_picker, "EscoClient", _RecordingEscoClient)
+    monkeypatch.setattr(ui_esco_picker, "map_esco_concepts", _map_esco_concepts)
 
     ui_components.render_esco_picker_card(
         concept_type="skill",
@@ -331,10 +313,7 @@ def test_render_esco_picker_card_does_not_clean_skill_queries(monkeypatch) -> No
         show_apply_button=False,
     )
 
-    assert _RecordingEscoClient.calls == [
-        ("suggest2", "Python (Backend)", "skill"),
-        ("search", "Python (Backend)", "skill"),
-    ]
+    assert calls == [("Python (Backend)", "skill")]
 
 
 def test_render_esco_picker_card_results_overview_uses_three_candidate_columns(
@@ -345,29 +324,40 @@ def test_render_esco_picker_card_results_overview_uses_three_candidate_columns(
     fake_st.selectbox_value = 1
     fake_st.session_state[ui_esco_picker.SSKey.UI_MODE.value] = "expert"
     monkeypatch.setattr(ui_esco_picker, "st", fake_st)
-    monkeypatch.setattr(ui_esco_picker, "EscoClient", _FakeEscoClient)
     monkeypatch.setattr(
         ui_esco_picker,
-        "_extract_esco_suggestions",
+        "map_esco_concepts",
         lambda *_args, **_kwargs: [
-            {
-                "title": "Data Engineer",
-                "uri": "https://example.test/occupation/1",
-                "type": "occupation",
-                "source": "auto",
-            },
-            {
-                "title": "Data Analyst",
-                "uri": "https://example.test/occupation/2",
-                "type": "occupation",
-                "source": "manual",
-            },
-            {
-                "title": "Business Analyst",
-                "uri": "https://example.test/occupation/3",
-                "type": "occupation",
-                "source": "auto",
-            },
+            EscoMappedConcept(
+                uri="https://example.test/occupation/1",
+                preferred_label="Data Engineer",
+                kind="occupation",
+                language="de",
+                selected_version="v1.2.1",
+                confidence=0.95,
+                query="Data",
+                rank=1,
+            ),
+            EscoMappedConcept(
+                uri="https://example.test/occupation/2",
+                preferred_label="Data Analyst",
+                kind="occupation",
+                language="de",
+                selected_version="v1.2.1",
+                confidence=0.9,
+                query="Data",
+                rank=2,
+            ),
+            EscoMappedConcept(
+                uri="https://example.test/occupation/3",
+                preferred_label="Business Analyst",
+                kind="occupation",
+                language="de",
+                selected_version="v1.2.1",
+                confidence=0.84,
+                query="Data",
+                rank=3,
+            ),
         ],
     )
 

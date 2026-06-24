@@ -12,6 +12,7 @@ import streamlit as st
 
 from constants import SSKey
 from esco_client import EscoClient, EscoClientError
+from esco_mapper import EscoMappedConcept, map_esco_concepts
 from esco_semantics import sync_esco_semantic_state
 from i18n import active_language
 from schemas import EscoBreadcrumbNode, EscoConceptRef
@@ -139,6 +140,28 @@ def _extract_esco_suggestions(
             entry["type"] = concept_type
             normalized.append(entry)
     return normalized
+
+
+def _mapped_esco_suggestions(
+    mapped: list[EscoMappedConcept],
+) -> list[dict[str, str]]:
+    suggestions: list[dict[str, str]] = []
+    for item in mapped:
+        persisted = item.to_persistence_dict()
+        suggestions.append(
+            {
+                "uri": str(persisted["uri"]),
+                "title": str(persisted["preferred_label"]),
+                "preferred_label": str(persisted["preferred_label"]),
+                "preferredLabel": str(persisted["preferredLabel"]),
+                "type": str(persisted["type"]),
+                "language": str(persisted["language"]),
+                "selectedVersion": str(persisted["selectedVersion"]),
+                "confidence": str(persisted["confidence"]),
+                "source": str(persisted["source"]),
+            }
+        )
+    return suggestions
 
 
 def _normalize_esco_breadcrumb_nodes(
@@ -389,20 +412,24 @@ def render_esco_picker_card(
     used_fallback_path = False
     used_cleaned_query_fallback = False
     if len(query_text) >= 2:
-        client = EscoClient()
+        esco_config = st.session_state.get(SSKey.ESCO_CONFIG.value, {})
+        resolved_config = esco_config if isinstance(esco_config, dict) else {}
+        language = str(resolved_config.get("language") or "de").strip().lower() or "de"
+        selected_version = str(
+            resolved_config.get("selected_version")
+            or resolved_config.get("selectedVersion")
+            or "v1.2.1"
+        ).strip() or "v1.2.1"
         try:
-            suggestions = _extract_esco_suggestions(
-                client.suggest2(text=query_text, type=concept_type, limit=12),
-                concept_type=concept_type,
-                source="auto",
-            )
-            if not suggestions:
-                used_fallback_path = True
-                suggestions = _extract_esco_suggestions(
-                    client.search(text=query_text, type=concept_type, limit=12),
-                    concept_type=concept_type,
-                    source="manual",
+            suggestions = _mapped_esco_suggestions(
+                map_esco_concepts(
+                    query_text,
+                    kind=concept_type,
+                    language=language,
+                    selected_version=selected_version,
+                    limit=12,
                 )
+            )
             cleaned_query = (
                 _clean_esco_occupation_query(query_text)
                 if concept_type == "occupation"
@@ -410,17 +437,16 @@ def render_esco_picker_card(
             )
             if not suggestions and len(cleaned_query) >= 2:
                 used_cleaned_query_fallback = True
-                suggestions = _extract_esco_suggestions(
-                    client.suggest2(text=cleaned_query, type=concept_type, limit=12),
-                    concept_type=concept_type,
-                    source="auto",
-                )
-                if not suggestions:
-                    suggestions = _extract_esco_suggestions(
-                        client.search(text=cleaned_query, type=concept_type, limit=12),
-                        concept_type=concept_type,
-                        source="manual",
+                used_fallback_path = True
+                suggestions = _mapped_esco_suggestions(
+                    map_esco_concepts(
+                        cleaned_query,
+                        kind=concept_type,
+                        language=language,
+                        selected_version=selected_version,
+                        limit=12,
                     )
+                )
         except EscoClientError as exc:
             st.warning(_esco_copy("search_unavailable", error=exc))
 
@@ -581,16 +607,33 @@ def render_esco_picker_card(
 
     if apply_clicked or (enter_submit and bool(options)):
         try:
-            validated = [
-                EscoConceptRef.model_validate(
+            validated: list[dict[str, Any]] = []
+            for item in selected_payload:
+                concept = EscoConceptRef.model_validate(
                     {
                         "uri": item["uri"],
                         "title": item["title"],
                         "type": item["type"],
                     }
                 ).model_dump()
-                for item in selected_payload
-            ]
+                preferred_label = str(
+                    item.get("preferred_label")
+                    or item.get("preferredLabel")
+                    or concept["title"]
+                ).strip()
+                concept.update(
+                    {
+                        "preferred_label": preferred_label,
+                        "preferredLabel": preferred_label,
+                        "language": str(item.get("language") or "").strip(),
+                        "selectedVersion": str(
+                            item.get("selectedVersion") or ""
+                        ).strip(),
+                        "confidence": item.get("confidence"),
+                        "source": item.get("source", "search+resource"),
+                    }
+                )
+                validated.append(concept)
         except Exception:
             st.warning(_esco_copy("validate_failed"))
             return
