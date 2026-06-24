@@ -72,6 +72,7 @@ from question_progress import (
     compute_question_progress,
 )
 from schemas import JobAdExtract, Question, QuestionPlan, QuestionStep
+from salary.context_defaults import sync_salary_scenario_context_defaults
 from step_sections import build_section_status_payloads, section_status_summary
 from step_status import StepStatusPayload, build_step_status_payload
 from state import normalize_ui_preferences
@@ -766,6 +767,8 @@ def _ensure_salary_forecast_state_defaults() -> None:
     st.session_state.setdefault(SSKey.SALARY_FORECAST_LAST_RESULT.value, {})
     st.session_state.setdefault(SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value, {})
     st.session_state.setdefault(SSKey.SALARY_FORECAST_INPUT_SELECTIONS.value, {})
+    st.session_state.setdefault(SSKey.SALARY_FORECAST_FACTOR_SELECTIONS.value, {})
+    st.session_state.setdefault(SSKey.SALARY_SCENARIO_CONTEXT_DEFAULTS.value, {})
 
 
 def set_current_step(key: str, *, sync_navigation: bool = True) -> None:
@@ -1737,6 +1740,7 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
             job = JobAdExtract.model_validate(job_dict)
         except Exception:
             job = None
+    sync_salary_scenario_context_defaults(st.session_state, job=job)
     sidebar_input_rows = _build_sidebar_salary_input_rows()
     sidebar_input_selections = _sync_sidebar_salary_input_selections(
         sidebar_input_rows

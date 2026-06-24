@@ -1,4 +1,11 @@
-from salary.engine import compute_salary_forecast, estimate_salary_baseline
+from constants import SSKey
+from salary.context_defaults import sync_salary_scenario_context_defaults
+from salary.engine import (
+    compute_salary_forecast,
+    estimate_salary_baseline,
+    infer_remote_share_percent,
+    normalize_seniority_level,
+)
 from salary.types import (
     SalaryEscoContext,
     SalaryScenarioInputs,
@@ -150,7 +157,9 @@ def test_benchmark_hit_has_higher_quality_than_heuristic_fallback(monkeypatch) -
     assert benchmark.quality.value > fallback.quality.value
     assert benchmark.quality.benchmark_confidence is not None
     assert fallback.quality.benchmark_confidence == 0.0
-    assert benchmark.quality.benchmark_confidence > fallback.quality.benchmark_confidence
+    assert (
+        benchmark.quality.benchmark_confidence > fallback.quality.benchmark_confidence
+    )
 
 
 def test_esco_skill_premium_match_increases_p50() -> None:
@@ -191,6 +200,85 @@ def test_remote_share_has_graduated_direct_effect() -> None:
     assert high_remote.forecast.p50 > low_remote.forecast.p50
 
 
+def test_remote_share_is_inferred_from_jobspec_policy_when_scenario_is_missing() -> (
+    None
+):
+    job = JobAdExtract(
+        job_title="HR Business Partner",
+        location_country="United Kingdom",
+        remote_policy="Primarily on-site; one remote administration day per week may be possible.",
+    )
+
+    inferred = compute_salary_forecast(job_extract=job, answers={})
+    explicit = compute_salary_forecast(
+        job_extract=job,
+        answers={},
+        scenario_inputs=SalaryScenarioInputs(remote_share_percent=20),
+    )
+
+    assert infer_remote_share_percent(job.remote_policy) == 20
+    assert inferred.forecast.p50 == explicit.forecast.p50
+    assert "remote_share_percent=20" in inferred.quality.signals
+
+
+def test_seniority_free_text_is_normalized_for_calibration() -> None:
+    assert (
+        normalize_seniority_level("Experienced Professional / HR Business Partner")
+        == "mid"
+    )
+    assert normalize_seniority_level("Principal Consultant") == "lead"
+    assert normalize_seniority_level("Senior Engineer") == "senior"
+
+
+def test_tasks_and_benefits_influence_forecast_drivers() -> None:
+    base_job = JobAdExtract(
+        job_title="HR Business Partner",
+        salary_range=MoneyRange(min=70000, max=90000, currency="EUR", period="yearly"),
+    )
+    enriched_job = base_job.model_copy(
+        update={
+            "responsibilities": [
+                "Advise managers",
+                "Support workforce planning",
+                "Coach people leaders",
+            ],
+            "benefits": ["Pension contribution", "Learning budget", "Health support"],
+        }
+    )
+
+    base = compute_salary_forecast(job_extract=base_job, answers={})
+    enriched = compute_salary_forecast(job_extract=enriched_job, answers={})
+    drivers = {driver.key: driver for driver in enriched.drivers}
+
+    assert enriched.forecast.p50 > base.forecast.p50
+    assert drivers["responsibilities"].impact_eur > 0
+    assert drivers["benefits"].impact_eur > 0
+
+
+def test_context_defaults_seed_salary_scenario_without_overwriting_manual_edits() -> (
+    None
+):
+    session_state = {
+        SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value: 0,
+        SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value: "",
+        SSKey.SALARY_SCENARIO_CONTEXT_DEFAULTS.value: {},
+    }
+    job = JobAdExtract(
+        remote_policy="Primarily on-site; one remote administration day per week.",
+        seniority_level="Experienced Professional",
+    )
+
+    sync_salary_scenario_context_defaults(session_state, job=job)
+
+    assert session_state[SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value] == 20
+    assert session_state[SSKey.SALARY_SCENARIO_SENIORITY_OVERRIDE.value] == "mid"
+
+    session_state[SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value] = 0
+    sync_salary_scenario_context_defaults(session_state, job=job)
+
+    assert session_state[SSKey.SALARY_SCENARIO_REMOTE_SHARE_PERCENT.value] == 0
+
+
 def test_seniority_calibration_is_monotonic() -> None:
     junior = compute_salary_forecast(
         job_extract=JobAdExtract(job_title="Engineer", seniority_level="junior"),
@@ -209,7 +297,9 @@ def test_seniority_calibration_is_monotonic() -> None:
         answers={},
     )
 
-    assert junior.forecast.p50 < mid.forecast.p50 < senior.forecast.p50 < lead.forecast.p50
+    assert (
+        junior.forecast.p50 < mid.forecast.p50 < senior.forecast.p50 < lead.forecast.p50
+    )
 
 
 def test_high_market_location_does_not_decrease_p50() -> None:

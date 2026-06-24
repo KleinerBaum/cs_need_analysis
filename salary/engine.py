@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+import re
 from typing import Any
 
 from schemas import JobAdExtract
@@ -132,6 +133,88 @@ def _remote_share_multiplier(remote_share_percent: int | None) -> float:
     return round((clamped / 100) * 0.04, 4)
 
 
+def infer_remote_share_percent(remote_policy: str | None) -> int | None:
+    """Infer a scenario remote-share percentage from jobspec wording."""
+
+    text = str(remote_policy or "").strip().lower()
+    if not text:
+        return None
+    if re.search(r"\b(0|no|none)\s+remote\b", text) or any(
+        marker in text
+        for marker in (
+            "onsite only",
+            "on-site only",
+            "primarily on-site",
+            "primarily onsite",
+            "vor ort",
+            "standortgebunden",
+        )
+    ):
+        if re.search(r"\b(one|1)\s+remote\b|\b1\s+day\b|\bone\s+day\b", text):
+            return 20
+        return 0
+    percentage_match = re.search(r"(\d{1,3})\s*%", text)
+    if percentage_match:
+        return min(100, max(0, int(percentage_match.group(1))))
+    days_match = re.search(
+        r"(\d(?:[.,]\d+)?)\s*(?:remote\s*)?(?:days?|tage?)\s*(?:per|pro)?\s*(?:week|woche)",
+        text,
+    )
+    if days_match:
+        days = float(days_match.group(1).replace(",", "."))
+        return min(100, max(0, int(round((days / 5) * 100))))
+    if re.search(r"\b(one|ein)\s+(?:remote\s*)?(?:day|tag)\b", text):
+        return 20
+    if any(
+        marker in text
+        for marker in ("remote-first", "remote first", "fully remote", "full remote")
+    ):
+        return 100
+    if any(
+        marker in text
+        for marker in ("work from anywhere", "global remote", "weltweit remote")
+    ):
+        return 100
+    if any(
+        marker in text
+        for marker in ("hybrid", "teilremote", "homeoffice", "home office")
+    ):
+        return 50
+    if "remote" in text:
+        return 25
+    return None
+
+
+def normalize_seniority_level(seniority: str | None) -> str:
+    """Map free-form seniority labels to the engine calibration buckets."""
+
+    text = str(seniority or "").strip().lower()
+    if not text:
+        return ""
+    if any(
+        marker in text for marker in ("principal", "staff", "lead", "leiter", "head")
+    ):
+        return "lead"
+    if any(marker in text for marker in ("senior", "sr.", "sr ")):
+        return "senior"
+    if any(
+        marker in text
+        for marker in (
+            "experienced",
+            "professional",
+            "mid",
+            "mittel",
+            "berufserfahren",
+            "mehrjährige",
+            "mehrjaehrige",
+        )
+    ):
+        return "mid"
+    if any(marker in text for marker in ("junior", "entry", "trainee", "einsteiger")):
+        return "junior"
+    return text
+
+
 def _benchmark_confidence(
     *,
     benchmark_row: Any | None,
@@ -140,7 +223,10 @@ def _benchmark_confidence(
 ) -> float:
     if benchmark_row is None:
         return 0.0
-    if benchmark_row.occupation_id == occupation_id and benchmark_row.region_id == region_id:
+    if (
+        benchmark_row.occupation_id == occupation_id
+        and benchmark_row.region_id == region_id
+    ):
         return 0.9
     if benchmark_row.occupation_id == occupation_id:
         return 0.75
@@ -183,6 +269,7 @@ def compute_salary_forecast(
     interview_steps = len(job_extract.recruitment_steps)
     answers_count = _count_meaningful_answers(answers)
     responsibilities_count = len(job_extract.responsibilities)
+    benefits_count = len(job_extract.benefits)
     requirements_density = (
         must_have_count + len(job_extract.certifications) + len(job_extract.languages)
     )
@@ -238,7 +325,7 @@ def compute_salary_forecast(
     elif requirements_density > 4:
         requirements_multiplier = 0.05
 
-    seniority = (job_extract.seniority_level or "").lower()
+    seniority = normalize_seniority_level(job_extract.seniority_level)
     seniority_multiplier = 0.0
     if "lead" in seniority or "principal" in seniority:
         seniority_multiplier = 0.12
@@ -249,10 +336,16 @@ def compute_salary_forecast(
 
     remote_policy = (job_extract.remote_policy or "").lower()
     remote_policy_multiplier = 0.03 if "remote" in remote_policy else 0.0
-    remote_share_percent = scenario_inputs.remote_share_percent if scenario_inputs else None
+    remote_share_percent = (
+        scenario_inputs.remote_share_percent if scenario_inputs else None
+    )
+    if remote_share_percent is None:
+        remote_share_percent = infer_remote_share_percent(job_extract.remote_policy)
     remote_share_multiplier = _remote_share_multiplier(remote_share_percent)
     remote_multiplier = remote_policy_multiplier + remote_share_multiplier
     interview_multiplier = 0.02 if interview_steps >= 5 else 0.0
+    responsibility_multiplier = min(0.06, max(0.0, responsibilities_count * 0.008))
+    benefit_multiplier = min(0.03, max(0.0, benefits_count * 0.005))
     location_multiplier = _location_salary_multiplier(effective_location_country)
     title_multiplier = _title_salary_multiplier(job_extract.job_title or "")
 
@@ -271,6 +364,8 @@ def compute_salary_forecast(
     interview_delta = baseline_p50 * (
         interview_multiplier + overrides.interview_multiplier_delta
     )
+    responsibility_delta = baseline_p50 * responsibility_multiplier
+    benefit_delta = baseline_p50 * benefit_multiplier
     location_delta = baseline_p50 * (
         (location_multiplier * overrides.location_multiplier_factor) - 1.0
     )
@@ -289,6 +384,8 @@ def compute_salary_forecast(
         + seniority_delta
         + remote_delta
         + interview_delta
+        + responsibility_delta
+        + benefit_delta
         + location_delta
         + title_delta
         + radius_delta
@@ -312,6 +409,7 @@ def compute_salary_forecast(
         + (20 if benchmark_row is not None else 0)
         + min(8, requirements_density)
         + min(7, responsibilities_count)
+        + min(4, benefits_count)
         + (8 if esco_context and esco_context.occupation_uri else 0)
         + min(8, (len(esco_context.skill_uris_must) if esco_context else 0))
     )
@@ -379,6 +477,20 @@ def compute_salary_forecast(
             eur_delta=interview_delta,
             category="process",
             detail=f"{interview_steps} Interview-Schritte berücksichtigt.",
+        ),
+        _driver_from_delta(
+            key="responsibilities",
+            label="Aufgabenumfang",
+            eur_delta=responsibility_delta,
+            category="role",
+            detail=f"{responsibilities_count} Aufgaben berücksichtigt.",
+        ),
+        _driver_from_delta(
+            key="benefits",
+            label="Benefits & Rahmen",
+            eur_delta=benefit_delta,
+            category="benefits",
+            detail=f"{benefits_count} Benefits/Rahmenbedingungen berücksichtigt.",
         ),
         _driver_from_delta(
             key="search_radius",
@@ -464,8 +576,8 @@ def compute_salary_forecast(
         seniority=seniority_label,
         job_title=job_title,
         base_salary=round(base_salary, 0),
-        salary_multiplier=round((forecast.p50 / baseline_p50), 3)
-        if baseline_p50
-        else 1.0,
+        salary_multiplier=(
+            round((forecast.p50 / baseline_p50), 3) if baseline_p50 else 1.0
+        ),
         spread_factor=spread_factor,
     )

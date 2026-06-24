@@ -11,6 +11,7 @@ import streamlit as st
 
 from constants import SSKey
 from esco_semantics import resolve_esco_semantic_context
+from salary.context_defaults import sync_salary_scenario_context_defaults
 from salary.engine import compute_salary_forecast
 from salary.features_esco import extract_esco_context
 from salary.scenario_lab_builders import (
@@ -27,7 +28,11 @@ from salary.scenarios import (
     SALARY_SCENARIO_OPTIONS,
     map_salary_scenario_to_overrides,
 )
-from salary.types import SalaryEscoContext, SalaryScenarioInputs, SalaryScenarioOverrides
+from salary.types import (
+    SalaryEscoContext,
+    SalaryScenarioInputs,
+    SalaryScenarioOverrides,
+)
 from safe_html import escape_html_text, render_static_html
 from schemas import JobAdExtract
 from ui_layout import render_fragment_pilot_panel
@@ -50,7 +55,85 @@ def _safe_int(value: Any) -> int:
 
 
 def _selected_clean(values: list[str]) -> list[str]:
-    return list(dict.fromkeys(str(item).strip() for item in values if str(item).strip()))
+    return list(
+        dict.fromkeys(str(item).strip() for item in values if str(item).strip())
+    )
+
+
+def _unique_texts(values: list[Any]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        text = str(value or "").strip()
+        if not text:
+            continue
+        key = text.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(text)
+    return result
+
+
+def _merge_answers(
+    base_answers: dict[str, Any], additions: dict[str, Any]
+) -> dict[str, Any]:
+    return {**base_answers, **additions}
+
+
+def _factor_widget_key(*, step_key: str, factor_key: str) -> str:
+    return f"{SSKey.SALARY_FORECAST_FACTOR_SELECTIONS.value}.{step_key}.{factor_key}"
+
+
+def _select_salary_factors(
+    *,
+    step_key: str,
+    factor_key: str,
+    label: str,
+    options: list[str],
+    default: list[str] | None = None,
+) -> list[str]:
+    candidates = _unique_texts(options)
+    raw_store = st.session_state.get(SSKey.SALARY_FORECAST_FACTOR_SELECTIONS.value, {})
+    store = dict(raw_store) if isinstance(raw_store, dict) else {}
+    step_store_raw = store.get(step_key, {})
+    step_store = dict(step_store_raw) if isinstance(step_store_raw, dict) else {}
+    factor_store_raw = step_store.get(factor_key, {})
+    factor_store = dict(factor_store_raw) if isinstance(factor_store_raw, dict) else {}
+
+    previous_candidates = _unique_texts(factor_store.get("candidates", []))
+    previous_selected = _unique_texts(factor_store.get("selected", []))
+    if previous_candidates:
+        previous_candidate_keys = {item.casefold() for item in previous_candidates}
+        selected_default = [
+            item
+            for item in previous_selected
+            if item.casefold() in {candidate.casefold() for candidate in candidates}
+        ]
+        selected_keys = {item.casefold() for item in selected_default}
+        selected_default.extend(
+            item
+            for item in candidates
+            if item.casefold() not in previous_candidate_keys
+            and item.casefold() not in selected_keys
+        )
+    else:
+        selected_default = _unique_texts(default or candidates)
+
+    widget_key = _factor_widget_key(step_key=step_key, factor_key=factor_key)
+    ensure_multiselect_widget_state(
+        widget_key,
+        options=candidates,
+        default=selected_default,
+        session_state=st.session_state,
+    )
+    selected = st.multiselect(label, options=candidates, key=widget_key)
+    selected = _unique_texts(selected)
+
+    step_store[factor_key] = {"candidates": candidates, "selected": selected}
+    store[step_key] = step_store
+    st.session_state[SSKey.SALARY_FORECAST_FACTOR_SELECTIONS.value] = store
+    return selected
 
 
 def _current_step_forecast_fingerprint(
@@ -122,27 +205,114 @@ def _render_source_mix_pie(
         st.caption("Quellenmix erscheint, sobald Elemente ausgewählt sind.")
         return
     fig = go.Figure(
-        go.Pie(
-            labels=list(counts.keys()),
-            values=list(counts.values()),
-            hole=0.42,
-            textinfo="label+percent",
-            hovertemplate="%{label}: %{value} ausgewählt<extra></extra>",
+        go.Bar(
+            x=list(counts.values()),
+            y=list(counts.keys()),
+            orientation="h",
+            marker_color="#5EA2FF",
+            hovertemplate="%{y}: %{x} ausgewählt<extra></extra>",
         )
     )
     fig.update_layout(
-        height=260,
+        height=max(180, 44 * len(counts) + 80),
         margin=dict(l=8, r=8, t=12, b=8),
-        showlegend=True,
+        showlegend=False,
+        xaxis_title="Ausgewählte Elemente",
+        yaxis_title="",
     )
     st.plotly_chart(fig, width="stretch", key=chart_key)
-    st.caption("Das Diagramm zeigt den Quellenmix der aktuell ausgewählten Elemente.")
+    st.caption("Die Übersicht zeigt, aus welchen Quellen die aktiven Elemente stammen.")
 
+
+def _driver_chart_rows(salary_result: dict[str, Any] | None) -> list[dict[str, Any]]:
+    payload = salary_result if isinstance(salary_result, dict) else {}
+    raw_drivers = payload.get("drivers", [])
+    if not isinstance(raw_drivers, list):
+        return []
+    rows: list[dict[str, Any]] = []
+    for driver in raw_drivers:
+        if not isinstance(driver, dict):
+            continue
+        impact = _safe_int(driver.get("impact_eur") or driver.get("impact"))
+        direction = str(driver.get("direction") or "").strip()
+        signed = -impact if direction == "down" else impact
+        if signed == 0:
+            continue
+        rows.append(
+            {
+                "label": str(driver.get("label") or driver.get("key") or "").strip(),
+                "value": signed,
+                "detail": str(driver.get("detail") or "").strip(),
+            }
+        )
+    return sorted(rows, key=lambda row: abs(row["value"]), reverse=True)[:8]
+
+
+def _render_driver_impact_chart(
+    *, salary_result: dict[str, Any] | None, chart_key: str
+) -> None:
+    rows = _driver_chart_rows(salary_result)
+    if not rows:
+        st.caption("Treiberdiagramm erscheint nach der nächsten Prognose.")
+        return
+    fig = go.Figure(
+        go.Bar(
+            x=[row["value"] for row in rows],
+            y=[row["label"] for row in rows],
+            orientation="h",
+            marker_color=[
+                "#44B678" if row["value"] >= 0 else "#D66A6A" for row in rows
+            ],
+            customdata=[row["detail"] for row in rows],
+            hovertemplate="%{y}: %{x:,.0f} EUR<br>%{customdata}<extra></extra>",
+        )
+    )
+    fig.update_layout(
+        height=max(260, 36 * len(rows) + 100),
+        margin=dict(l=8, r=8, t=24, b=8),
+        title="Einfluss auf p50",
+        xaxis_title="EUR",
+        yaxis_title="",
+        showlegend=False,
+    )
+    st.plotly_chart(fig, width="stretch", key=chart_key)
+
+
+def _render_factor_delta_chart(
+    *,
+    rows: list[dict[str, Any]],
+    chart_key: str,
+    empty_caption: str,
+) -> None:
+    if not rows:
+        st.caption(empty_caption)
+        return
+    visible_rows = sorted(rows, key=lambda row: abs(row["delta"]), reverse=True)[:12]
+    fig = go.Figure(
+        go.Bar(
+            x=[row["delta"] for row in visible_rows],
+            y=[row["label"] for row in visible_rows],
+            orientation="h",
+            marker_color="#44B678",
+            hovertemplate="%{y}: %{x:,.0f} EUR p50-Effekt<extra></extra>",
+        )
+    )
+    fig.update_layout(
+        height=max(260, 34 * len(visible_rows) + 90),
+        margin=dict(l=8, r=8, t=24, b=8),
+        title="Einzeleffekt bei Abwahl",
+        xaxis_title="EUR",
+        yaxis_title="",
+        showlegend=False,
+    )
+    st.plotly_chart(fig, width="stretch", key=chart_key)
 
 
 def _build_quality_note(quality_payload: Any) -> str:
     fallback_note = "Heuristische Prognose ohne zusätzliche Qualitätssignale"
-    if not hasattr(quality_payload, "signals") and not isinstance(quality_payload, dict):
+    if not hasattr(quality_payload, "signals") and not isinstance(
+        quality_payload, dict
+    ):
         return fallback_note
 
     if isinstance(quality_payload, dict):
@@ -167,6 +337,7 @@ def _build_quality_note(quality_payload: Any) -> str:
     if kind:
         return f"{kind}: {int(round(value * 100, 0))}%"
     return fallback_note
+
 
 def _extract_esco_skill_titles(raw_items: Any) -> list[str]:
     if not isinstance(raw_items, list):
@@ -314,6 +485,91 @@ def _build_step_salary_result(
     return result
 
 
+def _build_factor_delta_rows(
+    *,
+    job: JobAdExtract,
+    answers: dict[str, Any],
+    selected_items: list[str],
+    field_name: str,
+) -> list[dict[str, Any]]:
+    selected = _unique_texts(selected_items)
+    if len(selected) <= 1:
+        return []
+    forecast_job = _step_job_with_seniority_override(job)
+    baseline = compute_salary_forecast(
+        job_extract=forecast_job,
+        answers=answers,
+        esco_context=_session_esco_context(),
+        scenario_inputs=_current_salary_scenario_inputs(),
+    )
+    baseline_p50 = float(baseline.forecast.p50)
+    rows: list[dict[str, Any]] = []
+    for item in selected:
+        remaining = [value for value in selected if value.casefold() != item.casefold()]
+        scenario_job = forecast_job.model_copy(update={field_name: remaining})
+        forecast = compute_salary_forecast(
+            job_extract=scenario_job,
+            answers=answers,
+            esco_context=_session_esco_context(),
+            scenario_inputs=_current_salary_scenario_inputs(),
+        )
+        rows.append(
+            {
+                "label": item,
+                "delta": round(baseline_p50 - float(forecast.forecast.p50), 0),
+            }
+        )
+    return rows
+
+
+def _build_skill_factor_delta_rows(
+    *,
+    job: JobAdExtract,
+    answers: dict[str, Any],
+    must_have_skills: list[str],
+    nice_to_have_skills: list[str],
+) -> list[dict[str, Any]]:
+    selected = _unique_texts([*must_have_skills, *nice_to_have_skills])
+    if len(selected) <= 1:
+        return []
+    forecast_job = _step_job_with_seniority_override(job)
+    baseline = compute_salary_forecast(
+        job_extract=forecast_job,
+        answers=answers,
+        esco_context=_session_esco_context(),
+        scenario_inputs=_current_salary_scenario_inputs(),
+    )
+    baseline_p50 = float(baseline.forecast.p50)
+    rows: list[dict[str, Any]] = []
+    for item in selected:
+        item_key = item.casefold()
+        scenario_job = forecast_job.model_copy(
+            update={
+                "must_have_skills": [
+                    skill for skill in must_have_skills if skill.casefold() != item_key
+                ],
+                "nice_to_have_skills": [
+                    skill
+                    for skill in nice_to_have_skills
+                    if skill.casefold() != item_key
+                ],
+            }
+        )
+        forecast = compute_salary_forecast(
+            job_extract=scenario_job,
+            answers=answers,
+            esco_context=_session_esco_context(),
+            scenario_inputs=_current_salary_scenario_inputs(),
+        )
+        rows.append(
+            {
+                "label": item,
+                "delta": round(baseline_p50 - float(forecast.forecast.p50), 0),
+            }
+        )
+    return rows
+
+
 def _build_salary_forecast_snapshot(
     job: JobAdExtract,
     answers: dict[str, Any],
@@ -367,7 +623,9 @@ def _build_salary_forecast_snapshot(
 def _salary_debug_enabled() -> bool:
     return str(
         st.session_state.get(SSKey.UI_MODE.value, "standard")
-    ).strip().lower() == "expert" or bool(st.session_state.get(SSKey.DEBUG.value, False))
+    ).strip().lower() == "expert" or bool(
+        st.session_state.get(SSKey.DEBUG.value, False)
+    )
 
 
 def _render_salary_forecast_recovery(
@@ -501,16 +759,20 @@ def _apply_pending_salary_scenario_update() -> None:
 
 def _apply_salary_scenario_inputs(job: JobAdExtract) -> tuple[JobAdExtract, list[str]]:
     semantic_context = resolve_esco_semantic_context(st.session_state)
-    esco_titles = unique_skills(
-        [
-            *_extract_esco_skill_titles(
-                st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
-            ),
-            *_extract_esco_skill_titles(
-                st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
-            ),
-        ]
-    ) if semantic_context.can_use_esco_normalization else []
+    esco_titles = (
+        unique_skills(
+            [
+                *_extract_esco_skill_titles(
+                    st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
+                ),
+                *_extract_esco_skill_titles(
+                    st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
+                ),
+            ]
+        )
+        if semantic_context.can_use_esco_normalization
+        else []
+    )
     candidate_skills = build_candidate_skill_pool(
         job=job, esco_skill_titles=esco_titles
     )
@@ -599,6 +861,7 @@ def _apply_salary_scenario_inputs(job: JobAdExtract) -> tuple[JobAdExtract, list
 
 def render_salary_forecast_panel(job: JobAdExtract, answers: dict[str, Any]) -> None:
     _apply_pending_salary_scenario_update()
+    sync_salary_scenario_context_defaults(st.session_state, job=job)
     st.subheader(_salary_copy("forecast_heading"))
     controls_col, result_col = st.columns((1, 2))
 
@@ -666,12 +929,12 @@ def render_salary_forecast_panel(job: JobAdExtract, answers: dict[str, Any]) -> 
         )
         quality_percent = int(round(float(forecast.quality.value) * 100, 0))
         st.caption(_salary_copy("main_caveat"))
-        st.caption(
-            _salary_copy("quality_caveat", quality=quality_percent)
-        )
+        st.caption(_salary_copy("quality_caveat", quality=quality_percent))
         show_debug = str(
             st.session_state.get(SSKey.UI_MODE.value, "standard")
-        ).strip().lower() == "expert" or bool(st.session_state.get(SSKey.DEBUG.value, False))
+        ).strip().lower() == "expert" or bool(
+            st.session_state.get(SSKey.DEBUG.value, False)
+        )
         if show_debug:
             with st.expander("Technische Prognose-Diagnose", expanded=False):
                 st.caption(f"quality_kind={forecast.quality.kind}")
@@ -894,7 +1157,8 @@ def _render_influence_factor_header(
             st.markdown(f"- {item}")
 
 
-def _render_common_scenario_inputs() -> None:
+def _render_common_scenario_inputs(job: JobAdExtract | None = None) -> None:
+    sync_salary_scenario_context_defaults(st.session_state, job=job)
     st.slider(
         "Suchradius (km)",
         min_value=0,
@@ -980,8 +1244,12 @@ def render_salary_forecast_result_card(
                 streamlit_module=st,
             )
             p50_label = escape_html_text(_format_eur(p50))
-            p10_label = escape_html_text(_format_eur(p10) if p10 > 0 else "nicht verfügbar")
-            p90_label = escape_html_text(_format_eur(p90) if p90 > 0 else "nicht verfügbar")
+            p10_label = escape_html_text(
+                _format_eur(p10) if p10 > 0 else "nicht verfügbar"
+            )
+            p90_label = escape_html_text(
+                _format_eur(p90) if p90 > 0 else "nicht verfügbar"
+            )
             render_static_html(
                 (
                     "<div class='salary-main-cards-grid'>"
@@ -999,9 +1267,13 @@ def render_salary_forecast_result_card(
             with metric_col_main:
                 st.metric("p50 (Median)", _format_eur(p50))
             with metric_col_low:
-                st.metric("p10 (niedrig)", _format_eur(p10) if p10 > 0 else "nicht verfügbar")
+                st.metric(
+                    "p10 (niedrig)", _format_eur(p10) if p10 > 0 else "nicht verfügbar"
+                )
             with metric_col_high:
-                st.metric("p90 (hoch)", _format_eur(p90) if p90 > 0 else "nicht verfügbar")
+                st.metric(
+                    "p90 (hoch)", _format_eur(p90) if p90 > 0 else "nicht verfügbar"
+                )
         st.info(_salary_copy("context_caveat", language=language))
         st.caption(
             _salary_copy("quality_caveat", language=language, quality=quality_label)
@@ -1010,7 +1282,9 @@ def render_salary_forecast_result_card(
             st.caption(f"Berücksichtigte Antworten: {answers_count}.")
         show_debug = str(
             st.session_state.get(SSKey.UI_MODE.value, "standard")
-        ).strip().lower() == "expert" or bool(st.session_state.get(SSKey.DEBUG.value, False))
+        ).strip().lower() == "expert" or bool(
+            st.session_state.get(SSKey.DEBUG.value, False)
+        )
         if show_debug and confidence_note:
             with st.expander("Technische Prognose-Diagnose", expanded=False):
                 st.caption(confidence_note)
@@ -1021,6 +1295,7 @@ def render_salary_forecast_step_sections(
     influence_factors_slot: Callable[[], None],
     scenario_controls_slot: Callable[[], None],
     forecast_result_slot: Callable[[], None],
+    salary_result: dict[str, Any] | None = None,
     source_counts: dict[str, int] | None = None,
     source_mix_chart_key: str = "salary_source_mix_chart",
 ) -> None:
@@ -1052,6 +1327,15 @@ def render_salary_forecast_step_sections(
                     width="stretch",
                 )
             st.markdown("---")
+            st.markdown("#### Wirkungstreiber")
+            latest_result = st.session_state.get(
+                SSKey.SALARY_FORECAST_LAST_RESULT.value, salary_result or {}
+            )
+            _render_driver_impact_chart(
+                salary_result=latest_result if isinstance(latest_result, dict) else {},
+                chart_key=f"{source_mix_chart_key}.drivers",
+            )
+            st.markdown("---")
             st.markdown("#### Prognose-Ergebnis")
             forecast_result_slot()
 
@@ -1060,45 +1344,70 @@ def render_role_tasks_salary_forecast_panel(
     *,
     job: JobAdExtract,
     selected_tasks: list[str],
+    answers: dict[str, Any],
     model: str,
     language: str,
     store: bool,
     source_counts: dict[str, int] | None = None,
 ) -> None:
-    selected_count = len([item for item in selected_tasks if str(item).strip()])
+    task_candidates = _unique_texts([*selected_tasks, *job.responsibilities])
+    active_tasks = task_candidates
 
     def _render_influence_factors() -> None:
+        nonlocal active_tasks
+        active_tasks = _select_salary_factors(
+            step_key="role_tasks",
+            factor_key="tasks",
+            label="Aufgaben für die Prognose",
+            options=task_candidates,
+            default=task_candidates,
+        )
         _render_influence_factor_header(
-            title="Ausgewählte Aufgaben",
-            items=selected_tasks,
+            title="Aktive Aufgaben",
+            items=active_tasks,
             empty_caption="Keine Aufgaben ausgewählt.",
         )
-        st.caption(f"Ausgewählte Rollen/Aufgaben: {selected_count}")
+        st.caption(f"Aktive Rollen/Aufgaben: {len(active_tasks)}")
+        delta_rows = _build_factor_delta_rows(
+            job=job.model_copy(update={"responsibilities": active_tasks}),
+            answers=_merge_answers(answers, {"selected_tasks": active_tasks}),
+            selected_items=active_tasks,
+            field_name="responsibilities",
+        )
+        _render_factor_delta_chart(
+            rows=delta_rows,
+            chart_key="role_tasks.salary.factor_delta",
+            empty_caption="Einzeleffekte erscheinen, sobald mindestens zwei Aufgaben aktiv sind.",
+        )
 
     def _render_scenario_controls() -> None:
-        _render_common_scenario_inputs()
+        _render_common_scenario_inputs(job)
         fingerprint = _current_step_forecast_fingerprint(
             step_key="role_tasks",
             job=job,
-            selected_inputs=selected_tasks,
+            selected_inputs=active_tasks,
             model=model,
             language=language,
             store=store,
         )
-        if _should_refresh_step_forecast(step_key="role_tasks", fingerprint=fingerprint):
+        if _should_refresh_step_forecast(
+            step_key="role_tasks", fingerprint=fingerprint
+        ):
             try:
                 with st.spinner("Berechne Gehaltsprognose …"):
                     forecast_job = job.model_copy(
                         update={
-                            "responsibilities": selected_tasks or job.responsibilities,
+                            "responsibilities": active_tasks or job.responsibilities,
                         }
                     )
                     st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = (
                         _build_step_salary_result(
                             step_key="role_tasks",
                             job=forecast_job,
-                            answers={"selected_tasks": selected_tasks},
-                            inputs={"selected_tasks": selected_tasks},
+                            answers=_merge_answers(
+                                answers, {"selected_tasks": active_tasks}
+                            ),
+                            inputs={"selected_tasks": active_tasks},
                             input_fingerprint=fingerprint,
                         )
                     )
@@ -1136,6 +1445,9 @@ def render_role_tasks_salary_forecast_panel(
             influence_factors_slot=_render_influence_factors,
             scenario_controls_slot=_render_scenario_controls,
             forecast_result_slot=_render_forecast_result,
+            salary_result=st.session_state.get(
+                SSKey.SALARY_FORECAST_LAST_RESULT.value, {}
+            ),
             source_counts=source_counts,
             source_mix_chart_key="role_tasks.salary.source_mix",
         ),
@@ -1153,7 +1465,8 @@ def render_benefits_salary_forecast_panel(
     source_counts: dict[str, int] | None = None,
 ) -> None:
     """Render salary forecast for the Benefits step using shared section layout."""
-    selected_benefits = list(benefit_candidates)
+    benefit_options = _unique_texts([*benefit_candidates, *job.benefits])
+    active_benefits = benefit_options
 
     def _factor_candidates() -> list[str]:
         return [
@@ -1161,29 +1474,48 @@ def render_benefits_salary_forecast_panel(
             str(job.location_city or "").strip(),
             str(job.location_country or "").strip(),
             str(job.seniority_level or "").strip(),
-            *(item for item in selected_benefits if str(item).strip()),
+            *(item for item in active_benefits if str(item).strip()),
         ]
 
     def _render_influence_factors() -> None:
-        selected_count = len([item for item in selected_benefits if str(item).strip()])
+        nonlocal active_benefits
+        active_benefits = _select_salary_factors(
+            step_key="benefits",
+            factor_key="benefits",
+            label="Benefits für die Prognose",
+            options=benefit_options,
+            default=benefit_options,
+        )
+        selected_count = len([item for item in active_benefits if str(item).strip()])
         _render_influence_factor_header(
-            title="Ausgewählte Benefits",
-            items=selected_benefits,
+            title="Aktive Benefits",
+            items=active_benefits,
             empty_caption="Keine Benefits ausgewählt.",
         )
         st.caption("Diese Faktoren werden in der Prognose berücksichtigt.")
         st.caption(f"Gewählte Benefits: {selected_count}")
-        if not benefit_candidates:
+        delta_rows = _build_factor_delta_rows(
+            job=job.model_copy(update={"benefits": active_benefits}),
+            answers=_merge_answers(answers, {"benefits_selected": active_benefits}),
+            selected_items=active_benefits,
+            field_name="benefits",
+        )
+        _render_factor_delta_chart(
+            rows=delta_rows,
+            chart_key="benefits.salary.factor_delta",
+            empty_caption="Einzeleffekte erscheinen, sobald mindestens zwei Benefits aktiv sind.",
+        )
+        if not benefit_options:
             st.caption(
                 "Keine Benefits ausgewählt – Prognose wird ohne Benefit-Einflussfaktoren berechnet."
             )
 
     def _render_scenario_controls() -> None:
-        _render_common_scenario_inputs()
+        _render_common_scenario_inputs(job)
         fingerprint = _current_step_forecast_fingerprint(
             step_key="benefits",
             job=job,
-            selected_inputs=selected_benefits,
+            selected_inputs=active_benefits,
             model=model,
             language=language,
             store=store,
@@ -1193,15 +1525,19 @@ def render_benefits_salary_forecast_panel(
                 with st.spinner("Berechne Gehaltsprognose …"):
                     forecast_payload = _build_step_salary_result(
                         step_key="benefits",
-                        job=job,
-                        answers=answers,
+                        job=job.model_copy(update={"benefits": active_benefits}),
+                        answers=_merge_answers(
+                            answers, {"benefits_selected": active_benefits}
+                        ),
                         inputs={
-                            "benefits_selected": selected_benefits,
+                            "benefits_selected": active_benefits,
                             "factors": [item for item in _factor_candidates() if item],
                         },
                         input_fingerprint=fingerprint,
                     )
-                st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = forecast_payload
+                st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = (
+                    forecast_payload
+                )
                 _remember_step_forecast_fingerprint(
                     step_key="benefits", fingerprint=fingerprint
                 )
@@ -1237,6 +1573,9 @@ def render_benefits_salary_forecast_panel(
             influence_factors_slot=_render_influence_factors,
             scenario_controls_slot=_render_scenario_controls,
             forecast_result_slot=_render_forecast_result,
+            salary_result=st.session_state.get(
+                SSKey.SALARY_FORECAST_LAST_RESULT.value, {}
+            ),
             source_counts=source_counts,
             source_mix_chart_key="benefits.salary.source_mix",
         ),
@@ -1248,6 +1587,7 @@ def render_skills_salary_forecast_panel(
     job: JobAdExtract,
     selected_skills: list[str],
     selected_role_tasks: list[str],
+    answers: dict[str, Any],
     model: str,
     language: str,
     store: bool,
@@ -1257,10 +1597,31 @@ def render_skills_salary_forecast_panel(
 
     priority_must_key = f"{SSKey.SKILLS_SELECTED.value}.priority.must"
     priority_nice_key = f"{SSKey.SKILLS_SELECTED.value}.priority.nice"
-    unique_selected_skills = [
-        str(skill).strip() for skill in selected_skills if str(skill).strip()
-    ]
-    unique_selected_skills = list(dict.fromkeys(unique_selected_skills))
+    semantic_context = resolve_esco_semantic_context(st.session_state)
+    esco_titles = (
+        _unique_texts(
+            [
+                *_extract_esco_skill_titles(
+                    st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_MUST.value, [])
+                ),
+                *_extract_esco_skill_titles(
+                    st.session_state.get(SSKey.ESCO_SKILLS_SELECTED_NICE.value, [])
+                ),
+            ]
+        )
+        if semantic_context.can_use_esco_normalization
+        else []
+    )
+    unique_selected_skills = _unique_texts(
+        [
+            *selected_skills,
+            *job.must_have_skills,
+            *job.nice_to_have_skills,
+            *job.tech_stack,
+            *esco_titles,
+        ]
+    )
+    active_role_tasks = _unique_texts([*selected_role_tasks, *job.responsibilities])
 
     def _read_priority_selection() -> tuple[list[str], list[str]]:
         must_payload = st.session_state.get(priority_must_key, unique_selected_skills)
@@ -1281,7 +1642,7 @@ def render_skills_salary_forecast_panel(
 
     def _render_influence_factors() -> None:
         _render_influence_factor_header(
-            title="Einflussfaktoren: Ausgewählte Skills",
+            title="Einflussfaktoren: Aktive Skills",
             items=unique_selected_skills,
             empty_caption="Keine Skills ausgewählt.",
         )
@@ -1290,7 +1651,28 @@ def render_skills_salary_forecast_panel(
             skill
             for skill in (default_must if isinstance(default_must, list) else [])
             if skill in unique_selected_skills
-        ] or unique_selected_skills
+        ]
+        default_nice = st.session_state.get(priority_nice_key, [])
+        nice_existing = [
+            skill
+            for skill in (default_nice if isinstance(default_nice, list) else [])
+            if skill in unique_selected_skills
+        ]
+        if (
+            priority_must_key not in st.session_state
+            and priority_nice_key not in st.session_state
+        ):
+            must_default = unique_selected_skills
+        else:
+            existing_keys = {
+                *(skill.casefold() for skill in must_default),
+                *(skill.casefold() for skill in nice_existing),
+            }
+            must_default.extend(
+                skill
+                for skill in unique_selected_skills
+                if skill.casefold() not in existing_keys
+            )
         chosen_must = st.multiselect(
             "Must-have",
             options=unique_selected_skills,
@@ -1300,12 +1682,7 @@ def render_skills_salary_forecast_panel(
         remaining_options = [
             skill for skill in unique_selected_skills if skill not in chosen_must
         ]
-        default_nice = st.session_state.get(priority_nice_key, [])
-        nice_default = [
-            skill
-            for skill in (default_nice if isinstance(default_nice, list) else [])
-            if skill in remaining_options
-        ]
+        nice_default = [skill for skill in nice_existing if skill in remaining_options]
         chosen_nice = st.multiselect(
             "Nice-to-have",
             options=remaining_options,
@@ -1313,15 +1690,40 @@ def render_skills_salary_forecast_panel(
             key=priority_nice_key,
         )
         st.caption(f"Must-have: {len(chosen_must)} · Nice-to-have: {len(chosen_nice)}")
+        forecast_job = job.model_copy(
+            update={
+                "must_have_skills": _unique_texts(chosen_must),
+                "nice_to_have_skills": _unique_texts(chosen_nice),
+                "responsibilities": active_role_tasks or job.responsibilities,
+            }
+        )
+        delta_rows = _build_skill_factor_delta_rows(
+            job=forecast_job,
+            answers=_merge_answers(
+                answers,
+                {
+                    "must_have_skills": _unique_texts(chosen_must),
+                    "nice_to_have_skills": _unique_texts(chosen_nice),
+                    "selected_role_tasks": active_role_tasks,
+                },
+            ),
+            must_have_skills=_unique_texts(chosen_must),
+            nice_to_have_skills=_unique_texts(chosen_nice),
+        )
+        _render_factor_delta_chart(
+            rows=delta_rows,
+            chart_key="skills.salary.factor_delta",
+            empty_caption="Einzeleffekte erscheinen, sobald mindestens zwei Skills aktiv sind.",
+        )
 
     def _render_scenario_controls() -> None:
         st.caption("Szenario-Parameter")
-        _render_common_scenario_inputs()
+        _render_common_scenario_inputs(job)
         must_priority, nice_priority = _read_priority_selection()
         selected_inputs = [
             *(f"Must-have: {skill}" for skill in must_priority),
             *(f"Nice-to-have: {skill}" for skill in nice_priority),
-            *selected_role_tasks,
+            *active_role_tasks,
         ]
         fingerprint = _current_step_forecast_fingerprint(
             step_key="skills",
@@ -1338,7 +1740,7 @@ def render_skills_salary_forecast_panel(
                         update={
                             "must_have_skills": must_priority,
                             "nice_to_have_skills": nice_priority,
-                            "responsibilities": selected_role_tasks
+                            "responsibilities": active_role_tasks
                             or job.responsibilities,
                         }
                     )
@@ -1346,15 +1748,18 @@ def render_skills_salary_forecast_panel(
                         _build_step_salary_result(
                             step_key="skills",
                             job=forecast_job,
-                            answers={
-                                "must_have_skills": must_priority,
-                                "nice_to_have_skills": nice_priority,
-                                "selected_role_tasks": selected_role_tasks,
-                            },
+                            answers=_merge_answers(
+                                answers,
+                                {
+                                    "must_have_skills": must_priority,
+                                    "nice_to_have_skills": nice_priority,
+                                    "selected_role_tasks": active_role_tasks,
+                                },
+                            ),
                             inputs={
                                 "must_have_skills": must_priority,
                                 "nice_to_have_skills": nice_priority,
-                                "selected_role_tasks": selected_role_tasks,
+                                "selected_role_tasks": active_role_tasks,
                             },
                             input_fingerprint=fingerprint,
                         )
@@ -1393,6 +1798,9 @@ def render_skills_salary_forecast_panel(
             influence_factors_slot=_render_influence_factors,
             scenario_controls_slot=_render_scenario_controls,
             forecast_result_slot=_render_forecast_result,
+            salary_result=st.session_state.get(
+                SSKey.SALARY_FORECAST_LAST_RESULT.value, {}
+            ),
             source_counts=source_counts,
             source_mix_chart_key="skills.salary.source_mix",
         ),

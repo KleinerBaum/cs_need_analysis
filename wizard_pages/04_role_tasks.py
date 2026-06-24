@@ -341,6 +341,7 @@ def _render_role_tasks_salary_block(
     render_role_tasks_salary_forecast_panel(
         job=job,
         selected_tasks=selected_tasks,
+        answers=get_answers(),
         model=get_active_model(),
         language=str(st.session_state.get(SSKey.LANGUAGE.value, "de")),
         store=bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)),

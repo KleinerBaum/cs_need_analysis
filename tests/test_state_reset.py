@@ -13,7 +13,6 @@ from state_store import (
     SummaryDirtyState,
 )
 
-
 RESET_EXPECTATIONS: dict[SSKey, object] = {
     SSKey.SOURCE_TEXT: "",
     SSKey.SOURCE_FILE_META: {},
@@ -191,6 +190,8 @@ RESET_EXPECTATIONS: dict[SSKey, object] = {
     SSKey.BENEFITS_AI_GENERATE_CLICKED: False,
     SSKey.SALARY_FORECAST_INPUT_FINGERPRINT: {},
     SSKey.SALARY_FORECAST_INPUT_SELECTIONS: {},
+    SSKey.SALARY_FORECAST_FACTOR_SELECTIONS: {},
+    SSKey.SALARY_SCENARIO_CONTEXT_DEFAULTS: {},
     SSKey.LAST_ERROR: None,
 }
 
@@ -266,7 +267,9 @@ def test_state_store_setters_write_only_canonical_session_keys() -> None:
     assert set(session_state).issubset({key.value for key in SSKey})
     assert session_state[SSKey.SOURCE_ACTIVE.value] == "upload"
     assert session_state[SSKey.JOB_EXTRACT.value]["job_title"] == "Data Engineer"
-    assert session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] == "esco:occupation:1"
+    assert (
+        session_state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] == "esco:occupation:1"
+    )
     assert session_state[SSKey.ANSWERS.value] == {"role_title": "Data Engineer"}
     assert session_state[SSKey.SUMMARY_DIRTY.value] is True
 
@@ -359,10 +362,7 @@ def test_vacancy_draft_json_round_trips_allowlisted_state_only(monkeypatch) -> N
     assert target_state[SSKey.LAST_ERROR.value] is None
     assert target_state[SSKey.CONTENT_SHARING_CONSENT.value] is False
     assert isinstance(target_state[SSKey.DRAFT_RESUME_NOTICE.value], dict)
-    assert (
-        target_state[SSKey.DRAFT_RESUME_NOTICE.value]["restored_step"]
-        == "summary"
-    )
+    assert target_state[SSKey.DRAFT_RESUME_NOTICE.value]["restored_step"] == "summary"
 
 
 def test_reset_vacancy_clears_progressive_disclosure_state(
@@ -374,9 +374,7 @@ def test_reset_vacancy_clears_progressive_disclosure_state(
         SSKey.SOURCE_REDACT_PII.value: False,
         SSKey.JOB_EXTRACT.value: {"job_title": "Engineer"},
         SSKey.INTAKE_FACTS.value: {"role.job_title": "Engineer"},
-        SSKey.INTAKE_FACT_EVIDENCE.value: {
-            "role.job_title": {"confidence": 0.75}
-        },
+        SSKey.INTAKE_FACT_EVIDENCE.value: {"role.job_title": {"confidence": 0.75}},
         SSKey.QUESTION_PLAN_BASE.value: {"steps": []},
         SSKey.QUESTION_PLAN.value: {"steps": []},
         SSKey.QUESTION_LIMITS.value: {"company": 3},
@@ -533,6 +531,8 @@ def test_apply_jobspec_source_change_clears_only_source_dependent_state(
         SSKey.SALARY_FORECAST_LAST_RESULT.value: {"base": 1},
         SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value: {"role_tasks": "old"},
         SSKey.SALARY_FORECAST_INPUT_SELECTIONS.value: {"role_tasks": {}},
+        SSKey.SALARY_FORECAST_FACTOR_SELECTIONS.value: {"role_tasks": ["old"]},
+        SSKey.SALARY_SCENARIO_CONTEXT_DEFAULTS.value: {"remote": {"value": 25}},
         SSKey.JOBAD_CACHE_HIT.value: {"extract_job_ad": True},
         SSKey.LLM_RESPONSE_CACHE.value: {"keep": {"result": "cached"}},
         SSKey.LAST_ERROR.value: "old error",
@@ -556,9 +556,12 @@ def test_apply_jobspec_source_change_clears_only_source_dependent_state(
         mixed_fact_key: ["Mobiles Arbeiten"],
     }
     assert jobspec_fact_key not in fake_session_state[SSKey.INTAKE_FACT_EVIDENCE.value]
-    assert fake_session_state[SSKey.INTAKE_FACT_EVIDENCE.value][manual_fact_key][
-        "source_type"
-    ] == FactSourceType.MANUAL.value
+    assert (
+        fake_session_state[SSKey.INTAKE_FACT_EVIDENCE.value][manual_fact_key][
+            "source_type"
+        ]
+        == FactSourceType.MANUAL.value
+    )
     assert fake_session_state[SSKey.INTAKE_FACT_EVIDENCE.value][mixed_fact_key][
         "secondary_evidence"
     ] == [{"source_type": FactSourceType.HOMEPAGE.value}]
@@ -573,15 +576,16 @@ def test_apply_jobspec_source_change_clears_only_source_dependent_state(
     assert fake_session_state[SSKey.ESCO_OCCUPATION_SELECTED.value] is None
     assert fake_session_state[SSKey.ROLE_TASKS_JOBSPEC_SUGGESTED.value] == []
     assert fake_session_state[SSKey.ROLE_TASKS_ESCO_SUGGESTED.value] == []
-    assert fake_session_state[SSKey.ROLE_TASKS_SELECTED.value] == [
-        "Keep selected task"
-    ]
+    assert fake_session_state[SSKey.ROLE_TASKS_SELECTED.value] == ["Keep selected task"]
     assert fake_session_state[SSKey.SKILLS_SELECTED.value] == ["Keep selected skill"]
     assert fake_session_state[SSKey.BENEFITS_SELECTED.value] == [
         "Keep selected benefit"
     ]
     assert fake_session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] == {}
     assert fake_session_state[SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value] == {}
+    assert fake_session_state[SSKey.SALARY_FORECAST_INPUT_SELECTIONS.value] == {}
+    assert fake_session_state[SSKey.SALARY_FORECAST_FACTOR_SELECTIONS.value] == {}
+    assert fake_session_state[SSKey.SALARY_SCENARIO_CONTEXT_DEFAULTS.value] == {}
     assert fake_session_state[SSKey.JOBAD_CACHE_HIT.value] == {}
     assert fake_session_state[SSKey.LLM_RESPONSE_CACHE.value] == {
         "keep": {"result": "cached"}
@@ -748,7 +752,6 @@ def test_init_session_state_uses_streamlit_esco_secrets(monkeypatch) -> None:
     assert esco_config["data_source_mode"] == "hybrid"
     assert esco_config["index_storage_path"] == "data/custom_esco_index"
     assert esco_config["index_version"] == "v1.2.1"
-
 
 
 def test_init_session_state_maps_legacy_summary_alias_key(monkeypatch) -> None:

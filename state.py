@@ -205,6 +205,8 @@ VACANCY_DRAFT_SESSION_KEYS: tuple[SSKey, ...] = (
     SSKey.SALARY_FORECAST_LAST_RESULT,
     SSKey.SALARY_FORECAST_INPUT_FINGERPRINT,
     SSKey.SALARY_FORECAST_INPUT_SELECTIONS,
+    SSKey.SALARY_FORECAST_FACTOR_SELECTIONS,
+    SSKey.SALARY_SCENARIO_CONTEXT_DEFAULTS,
 )
 
 
@@ -442,6 +444,8 @@ def _has_jobspec_source_dependent_state(session_state: Mapping[str, Any]) -> boo
         SSKey.SALARY_FORECAST_LAST_RESULT,
         SSKey.SALARY_FORECAST_INPUT_FINGERPRINT,
         SSKey.SALARY_FORECAST_INPUT_SELECTIONS,
+        SSKey.SALARY_FORECAST_FACTOR_SELECTIONS,
+        SSKey.SALARY_SCENARIO_CONTEXT_DEFAULTS,
     )
     if any(bool(session_state.get(key.value)) for key in collection_keys):
         return True
@@ -542,6 +546,8 @@ def _reset_jobspec_source_dependent_state(
     session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {}
     session_state[SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value] = {}
     session_state[SSKey.SALARY_FORECAST_INPUT_SELECTIONS.value] = {}
+    session_state[SSKey.SALARY_FORECAST_FACTOR_SELECTIONS.value] = {}
+    session_state[SSKey.SALARY_SCENARIO_CONTEXT_DEFAULTS.value] = {}
     session_state[SSKey.JOBAD_CACHE_HIT.value] = {}
     session_state[SSKey.LAST_ERROR.value] = None
     session_state[SSKey.LAST_ERROR_DEBUG.value] = None
@@ -972,6 +978,8 @@ def init_session_state() -> None:
         SSKey.SALARY_FORECAST_LAST_RESULT.value: {},
         SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value: {},
         SSKey.SALARY_FORECAST_INPUT_SELECTIONS.value: {},
+        SSKey.SALARY_FORECAST_FACTOR_SELECTIONS.value: {},
+        SSKey.SALARY_SCENARIO_CONTEXT_DEFAULTS.value: {},
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -1334,6 +1342,8 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {}
     st.session_state[SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value] = {}
     st.session_state[SSKey.SALARY_FORECAST_INPUT_SELECTIONS.value] = {}
+    st.session_state[SSKey.SALARY_FORECAST_FACTOR_SELECTIONS.value] = {}
+    st.session_state[SSKey.SALARY_SCENARIO_CONTEXT_DEFAULTS.value] = {}
     st.session_state[SSKey.LAST_ERROR.value] = None
     st.session_state[SSKey.LAST_ERROR_DEBUG.value] = None
     st.session_state[SSKey.OPENAI_LAST_STRUCTURED_OUTPUT_PATH.value] = None

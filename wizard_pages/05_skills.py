@@ -3337,6 +3337,7 @@ def _render_salary_forecast_slot(
         job=job,
         selected_skills=selected_skills,
         selected_role_tasks=role_tasks,
+        answers=get_answers(),
         model=get_active_model(),
         language=str(st.session_state.get(SSKey.LANGUAGE.value, "de")),
         store=bool(st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)),
