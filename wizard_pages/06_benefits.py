@@ -36,8 +36,8 @@ from summary_exports import build_live_artifact_preview_payload
 from step_sections import build_step_shell_section_kwargs
 from ui_layout import (
     LazySectionConfig,
-    default_focus_drilldown_open,
     default_primary_workspace_open,
+    default_secondary_section_open,
     is_focus_design_enabled,
     render_step_shell,
     responsive_three_columns,
@@ -1026,7 +1026,7 @@ def render(ctx: WizardContext) -> None:
         )
         render_live_artifact_preview_panel(
             key="benefits",
-            default_open=default_focus_drilldown_open(classic_default_open=True),
+            default_open=default_secondary_section_open(classic_default_open=True),
             streamlit_module=st,
             preview_builder=lambda: build_live_artifact_preview_payload(
                 job=job,
@@ -1147,21 +1147,28 @@ def render(ctx: WizardContext) -> None:
             button_label="Gehaltsprognose laden",
             default_open=False,
         ),
+        "extracted_from_jobspec_slot": LazySectionConfig(
+            label="Aus Jobspec extrahiert",
+            caption=(
+                "Zeigt erkannte Gehalts-, Arbeitsmodell- und "
+                "Benefit-Signale."
+            ),
+            button_label="Jobspec-Snapshot öffnen",
+            default_open=default_secondary_section_open(classic_default_open=True),
+        ),
+        "review_slot": LazySectionConfig(
+            label="Prüfung",
+            caption=(
+                "Prüft, ob Attraktivität, fixe Zusagen und offene "
+                "Verhandlungspunkte zusammenpassen."
+            ),
+            button_label="Prüfung öffnen",
+            default_open=default_secondary_section_open(classic_default_open=True),
+        ),
     }
     if is_focus_design_enabled():
         lazy_section_configs.update(
             {
-                "extracted_from_jobspec_slot": LazySectionConfig(
-                    label="Aus Jobspec extrahiert",
-                    caption=(
-                        "Zeigt erkannte Gehalts-, Arbeitsmodell- und "
-                        "Benefit-Signale."
-                    ),
-                    button_label="Jobspec-Snapshot öffnen",
-                    default_open=default_focus_drilldown_open(
-                        classic_default_open=True
-                    ),
-                ),
                 "open_questions_slot": LazySectionConfig(
                     label="Offene Klärungen",
                     caption=(
@@ -1169,18 +1176,7 @@ def render(ctx: WizardContext) -> None:
                         "Candidate-Kommunikation noch fehlt."
                     ),
                     button_label="Offene Klärungen öffnen",
-                    default_open=default_focus_drilldown_open(
-                        classic_default_open=True
-                    ),
-                ),
-                "review_slot": LazySectionConfig(
-                    label="Prüfung",
-                    caption=(
-                        "Prüft, ob Attraktivität, fixe Zusagen und offene "
-                        "Verhandlungspunkte zusammenpassen."
-                    ),
-                    button_label="Prüfung öffnen",
-                    default_open=default_focus_drilldown_open(
+                    default_open=default_secondary_section_open(
                         classic_default_open=True
                     ),
                 ),

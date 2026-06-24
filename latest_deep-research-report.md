@@ -265,7 +265,7 @@ export async function callResponsesWithRetry({ instructions, input, textFormat, 
 }
 ```
 
-### COD-03 ESCO Live Mapper mit URI-first Persistenz
+From "latest_deep-research-report.md" I want you to implement: COD-03 ESCO Live Mapper mit URI-first Persistenz
 
 **Ziel:** Aus Freitext wird zuerst ein Kandidatenset via `/search`, dann eine kanonische Auflösung via `/resource/occupation` oder `/resource/skill`. Persistiert wird immer URI-first, nicht label-first. Das ist stabiler über Sprachvarianten und Versionswechsel hinweg. ESCO verlangt Sprach- und Versionsparameter; `/suggest` ist als deprecated markiert. citeturn17view0turn16view2turn16view3turn16view5turn17view1
 
@@ -341,7 +341,7 @@ export async function getEscoResource({ uri, kind, language = "de", selectedVers
 }
 ```
 
-### COD-04 Hybrides RAG für Jobspec, ESCO und Website-Kontext
+From "latest_deep-research-report.md" I want you to implement: COD-04 Hybrides RAG für Jobspec, ESCO und Website-Kontext
 
 **Ziel:** Retrieval so umbauen, dass Chunking, Metadatenfilter und Re-Ranking kontrollierbar werden. OpenAI nennt für Retrieval standardmäßig 800/400 Tokens; Search unterstützt `rewrite_query`, `ranker`, `score_threshold` und bis zu 50 Ergebnisse. Zugleich zeigt „Lost in the Middle“, dass relevante Information in langen Kontexten gerade in der Mitte schlechter genutzt wird. Deshalb ist **gutes Chunking und aggressives Kontextkürzen** wichtiger als bloß mehr Kontext. citeturn9view1turn9view0turn23view1
 
@@ -405,7 +405,7 @@ export async function searchVectorStore({ vectorStoreId, query, maxNumResults = 
 }
 ```
 
-### COD-05 Rollenbasierte UX- und Prompting-Muster
+From "latest_deep-research-report.md" I want you to implement: COD-05 Rollenbasierte UX- und Prompting-Muster
 
 **Ziel:** Recruiter und Kandidaten sollten nicht denselben Antwortstil erhalten. Recruiter brauchen Lücken, Risiken, Konflikte, Verifikationsfragen und nächste Schritte; Kandidaten brauchen Klarheit, Erwartungen, Transparenz und verständliche Begründungen. Streamlit Session State eignet sich für pro-Session Rollenmodi; Callbacks und Multipage-Zustand sind dafür vorgesehen. citeturn32view3turn20view0
 
@@ -500,7 +500,7 @@ export function summarizeEval(rows) {
 }
 ```
 
-### COD-07 CI/CD, Monitoring, Security und GDPR-Härtung
+From "latest_deep-research-report.md" I want you to implement: COD-07 CI/CD, Monitoring, Security und GDPR-Härtung
 
 **Ziel:** Alles Relevante in GitHub Actions mit Secrets/OIDC, Security-Scans, Testläufen, Kosten- und Fehlertelemetrie. GitHub empfiehlt Secrets auf Repo-/Environment-/Org-Ebene; OIDC reduziert langlebige Cloud-Secrets durch kurzlebige Tokens; Secret Scanning, Push Protection und Dependabot ergänzen das. Streamlit empfiehlt, `secrets.toml` nie zu committen. citeturn28view5turn29view1turn28view1turn28view2turn32view2
 

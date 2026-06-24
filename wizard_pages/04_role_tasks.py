@@ -48,8 +48,8 @@ from ui_components import (
 )
 from ui_layout import (
     LazySectionConfig,
-    default_focus_drilldown_open,
     default_primary_workspace_open,
+    default_secondary_section_open,
     is_focus_design_enabled,
     render_step_shell,
     responsive_three_columns,
@@ -998,7 +998,7 @@ def render(ctx: WizardContext) -> None:
         )
         render_live_artifact_preview_panel(
             key="role_tasks",
-            default_open=default_focus_drilldown_open(classic_default_open=True),
+            default_open=default_secondary_section_open(classic_default_open=True),
             title="Warum das zählt",
             caption=(
                 "Live aus den aktuellen Angaben: welche Signale später in Brief, "
@@ -1089,21 +1089,28 @@ def render(ctx: WizardContext) -> None:
             button_label="Gehaltsprognose laden",
             default_open=False,
         ),
+        "extracted_from_jobspec_slot": LazySectionConfig(
+            label="Aus Jobspec extrahiert",
+            caption=(
+                "Zeigt die aus der Anzeige erkannten Aufgaben, Ergebnisse "
+                "und Erfolgskriterien."
+            ),
+            button_label="Jobspec-Snapshot öffnen",
+            default_open=default_secondary_section_open(classic_default_open=True),
+        ),
+        "review_slot": LazySectionConfig(
+            label="Prüfung",
+            caption=(
+                "Kurz prüfen, ob Aufgaben, Verantwortung und offene Punkte "
+                "reichen."
+            ),
+            button_label="Prüfung öffnen",
+            default_open=default_secondary_section_open(classic_default_open=True),
+        ),
     }
     if is_focus_design_enabled():
         lazy_section_configs.update(
             {
-                "extracted_from_jobspec_slot": LazySectionConfig(
-                    label="Aus Jobspec extrahiert",
-                    caption=(
-                        "Zeigt die aus der Anzeige erkannten Aufgaben, Ergebnisse "
-                        "und Erfolgskriterien."
-                    ),
-                    button_label="Jobspec-Snapshot öffnen",
-                    default_open=default_focus_drilldown_open(
-                        classic_default_open=True
-                    ),
-                ),
                 "open_questions_slot": LazySectionConfig(
                     label="Offene Punkte",
                     caption=(
@@ -1111,18 +1118,7 @@ def render(ctx: WizardContext) -> None:
                         "noch fehlen."
                     ),
                     button_label="Offene Punkte öffnen",
-                    default_open=default_focus_drilldown_open(
-                        classic_default_open=True
-                    ),
-                ),
-                "review_slot": LazySectionConfig(
-                    label="Prüfung",
-                    caption=(
-                        "Kurz prüfen, ob Aufgaben, Verantwortung und offene Punkte "
-                        "reichen."
-                    ),
-                    button_label="Prüfung öffnen",
-                    default_open=default_focus_drilldown_open(
+                    default_open=default_secondary_section_open(
                         classic_default_open=True
                     ),
                 ),

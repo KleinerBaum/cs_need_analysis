@@ -115,6 +115,20 @@ def test_non_gpt5_fallback_does_not_get_gpt5_only_fields() -> None:
     assert "text" not in kwargs
 
 
+def test_responses_request_kwargs_can_forward_previous_response_id() -> None:
+    kwargs = build_responses_request_kwargs(
+        model="gpt-5.4-mini",
+        store=False,
+        maybe_temperature=None,
+        reasoning_effort="none",
+        verbosity="low",
+        previous_response_id="resp_previous",
+    )
+
+    assert kwargs["previous_response_id"] == "resp_previous"
+    assert kwargs["store"] is False
+
+
 def test_smoke_invalid_reasoning_and_temperature_are_safely_filtered() -> None:
     kwargs = build_responses_request_kwargs(
         model="gpt-5-mini",
@@ -309,6 +323,9 @@ def test_openai_smoke_modes_cover_capability_gate_edges_without_live_calls() -> 
 
     for result in results.values():
         assert result.actual_response_metadata["parse_status"] == "dry_run"
+        assert result.actual_response_metadata["request_id"] is None
+        assert result.actual_response_metadata["response_id"] is None
+        assert result.actual_response_metadata["latency_ms"] is None
         assert result.fields_preview is None
 
 

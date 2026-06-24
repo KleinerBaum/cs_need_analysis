@@ -15,6 +15,7 @@ from constants import (
     SSKey,
     UI_MODE_PRIORITY_TIERS,
     UI_MODE_QUESTION_LIMIT_RATIOS,
+    UI_MODE_STEP_QUESTION_CAPS,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
 )
 from question_dependencies import should_show_question
@@ -66,6 +67,24 @@ def _limit_for_ratio(total: int, ratio: float) -> int:
     if ratio >= 1.0:
         return total
     return min(total, max(1, ceil(total * ratio)))
+
+
+def _mode_step_question_cap(ui_mode: str, step_key: str) -> int | None:
+    caps_by_step = UI_MODE_STEP_QUESTION_CAPS.get(ui_mode, {})
+    raw_cap = caps_by_step.get(step_key)
+    try:
+        cap = int(raw_cap) if raw_cap is not None else None
+    except (TypeError, ValueError):
+        return None
+    if cap is None or cap <= 0:
+        return None
+    return cap
+
+
+def _apply_step_question_cap(limit: int, cap: int | None) -> int:
+    if cap is None or limit <= 0:
+        return limit
+    return max(1, min(limit, cap))
 
 
 def _question_is_covered(
@@ -589,6 +608,9 @@ def compute_adaptive_question_limits(
             "ui_mode": normalized_ui_mode,
             "priority_tiers": list(priority_tiers),
             "question_limit_ratio": question_limit_ratio,
+            "step_question_caps": dict(
+                UI_MODE_STEP_QUESTION_CAPS.get(normalized_ui_mode, {})
+            ),
         }
     }
 
@@ -610,9 +632,16 @@ def compute_adaptive_question_limits(
             priority_tiers,
         )
         total = len(scoped_questions)
-        limit = _limit_for_ratio(total, question_limit_ratio)
+        ratio_limit = _limit_for_ratio(total, question_limit_ratio)
+        step_question_cap = _mode_step_question_cap(
+            normalized_ui_mode,
+            step.step_key,
+        )
+        limit = _apply_step_question_cap(ratio_limit, step_question_cap)
         limits[step.step_key] = {
             "limit": limit,
+            "ratio_limit": ratio_limit,
+            "step_question_cap": step_question_cap,
             "priority_tiers": list(priority_tiers),
             "ui_mode": normalized_ui_mode,
             "question_limit_ratio": question_limit_ratio,

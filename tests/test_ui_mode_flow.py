@@ -233,6 +233,29 @@ def test_lazy_source_section_default_follows_mode_and_details_preference(
         assert ui_layout.default_lazy_source_section_open() is expected
 
 
+def test_secondary_section_default_follows_lean_mode_policy(monkeypatch) -> None:
+    import ui_layout
+
+    cases = [
+        ("quick", {}, False),
+        ("standard", {}, False),
+        ("expert", {}, True),
+        ("quick", {UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT: True}, True),
+        ("expert", {UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT: False}, False),
+        ("expert", {UI_PREFERENCE_WIZARD_DESIGN: "focus"}, False),
+    ]
+    for ui_mode, preferences, expected in cases:
+        session_state = _LockedSessionState(
+            {
+                SSKey.UI_MODE.value: ui_mode,
+                SSKey.UI_PREFERENCES.value: preferences,
+            }
+        )
+        monkeypatch.setattr(ui_layout, "st", _FakeStreamlit(session_state))
+
+        assert ui_layout.default_secondary_section_open() is expected
+
+
 def test_set_current_step_records_step_entered_once(monkeypatch) -> None:
     session_state = _LockedSessionState({SSKey.CURRENT_STEP.value: "landing"})
     fake_st = _FakeStreamlit(session_state)

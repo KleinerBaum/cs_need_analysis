@@ -30,7 +30,7 @@ from summary_exports import build_live_artifact_preview_payload
 from step_sections import build_step_shell_section_kwargs
 from ui_layout import (
     LazySectionConfig,
-    default_focus_drilldown_open,
+    default_secondary_section_open,
     is_focus_design_enabled,
     render_step_shell,
     responsive_three_columns,
@@ -1356,7 +1356,7 @@ def render(ctx: WizardContext) -> None:
 
         render_live_artifact_preview_panel(
             key="interview",
-            default_open=default_focus_drilldown_open(classic_default_open=True),
+            default_open=default_secondary_section_open(classic_default_open=True),
             streamlit_module=st,
             preview_builder=_build_interview_preview,
         )
@@ -1395,34 +1395,39 @@ def render(ctx: WizardContext) -> None:
     )
 
     step_copy = resolve_dynamic_step_copy(STEP_KEY_INTERVIEW, job=job)
-    lazy_section_configs = None
+    lazy_section_configs = {
+        "extracted_from_jobspec_slot": LazySectionConfig(
+            label="Identifizierte Interview-Werte",
+            caption=(
+                "Zeigt bereits erkannte Interviewwerte aus Jobspec und "
+                "bisherigen Antworten."
+            ),
+            button_label="Interview-Werte öffnen",
+            default_open=default_secondary_section_open(classic_default_open=True),
+        ),
+        "review_slot": LazySectionConfig(
+            label="Hiring-Plan prüfen",
+            caption=(
+                "Prüft Konsistenz, Fairness und Exportfähigkeit des "
+                "Interviewprozesses."
+            ),
+            button_label="Prüfung öffnen",
+            default_open=default_secondary_section_open(classic_default_open=True),
+        ),
+    }
     if is_focus_design_enabled():
-        lazy_section_configs = {
-            "extracted_from_jobspec_slot": LazySectionConfig(
-                label="Identifizierte Interview-Werte",
-                caption=(
-                    "Zeigt bereits erkannte Interviewwerte aus Jobspec und "
-                    "bisherigen Antworten."
+        lazy_section_configs.update(
+            {
+                "open_questions_slot": LazySectionConfig(
+                    label="Offene Hiring-Plan-Fragen",
+                    caption="Klärt fehlende Prozess-, Update- und Bewertungspunkte.",
+                    button_label="Offene Fragen öffnen",
+                    default_open=default_secondary_section_open(
+                        classic_default_open=True
+                    ),
                 ),
-                button_label="Interview-Werte öffnen",
-                default_open=default_focus_drilldown_open(classic_default_open=True),
-            ),
-            "open_questions_slot": LazySectionConfig(
-                label="Offene Hiring-Plan-Fragen",
-                caption="Klärt fehlende Prozess-, Update- und Bewertungspunkte.",
-                button_label="Offene Fragen öffnen",
-                default_open=default_focus_drilldown_open(classic_default_open=True),
-            ),
-            "review_slot": LazySectionConfig(
-                label="Hiring-Plan prüfen",
-                caption=(
-                    "Prüft Konsistenz, Fairness und Exportfähigkeit des "
-                    "Interviewprozesses."
-                ),
-                button_label="Prüfung öffnen",
-                default_open=default_focus_drilldown_open(classic_default_open=True),
-            ),
-        }
+            }
+        )
     render_step_shell(
         title=step_copy.headline,
         subtitle=step_copy.subheadline,

@@ -35,6 +35,7 @@ from constants import (
     STEP_KEY_LANDING,
     STEP_KEY_SUMMARY,
     STEP_SECTION_SLOT_NAMES,
+    UI_MODE_DEFAULT,
     UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT,
     UI_PREFERENCE_WIZARD_DESIGN,
     UI_WIZARD_DESIGN_DEFAULT,
@@ -308,16 +309,41 @@ def is_focus_design_enabled() -> bool:
     return get_current_wizard_design() == UI_WIZARD_DESIGN_FOCUS
 
 
-def default_lazy_source_section_open() -> bool:
+def _configured_details_expanded_default() -> bool | None:
     preferences_raw = st.session_state.get(SSKey.UI_PREFERENCES.value, {})
     preferences = preferences_raw if isinstance(preferences_raw, dict) else {}
     configured = preferences.get(UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT)
+    return configured if isinstance(configured, bool) else None
+
+
+def default_lazy_source_section_open() -> bool:
+    configured = _configured_details_expanded_default()
     if is_focus_design_enabled():
-        return bool(configured) if isinstance(configured, bool) else False
-    if isinstance(configured, bool):
+        return bool(configured) if configured is not None else False
+    if configured is not None:
         return configured
 
-    ui_mode = str(st.session_state.get(SSKey.UI_MODE.value, "")).strip().lower()
+    ui_mode = (
+        str(st.session_state.get(SSKey.UI_MODE.value, UI_MODE_DEFAULT))
+        .strip()
+        .lower()
+    )
+    return ui_mode == "expert"
+
+
+def default_secondary_section_open(*, classic_default_open: bool = True) -> bool:
+    """Return default open state for secondary panels in the active UI mode."""
+    configured = _configured_details_expanded_default()
+    if configured is not None:
+        return configured
+    if is_focus_design_enabled() or not classic_default_open:
+        return False
+
+    ui_mode = (
+        str(st.session_state.get(SSKey.UI_MODE.value, UI_MODE_DEFAULT))
+        .strip()
+        .lower()
+    )
     return ui_mode == "expert"
 
 

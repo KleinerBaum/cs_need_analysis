@@ -140,7 +140,7 @@ def test_generate_vacancy_brief_uses_llm_parse_model_and_injects_structured_data
     captured: dict[str, Any] = {}
 
     def fake_parse_with_structured_outputs(**kwargs: Any):
-        captured["out_model"] = kwargs["out_model"]
+        captured.update(kwargs)
         return (
             VacancyBriefLLM(
                 one_liner="One line",
@@ -173,6 +173,14 @@ def test_generate_vacancy_brief_uses_llm_parse_model_and_injects_structured_data
     brief, usage = generate_vacancy_brief(job, answers, model="gpt-5-mini")
 
     assert captured["out_model"] is VacancyBriefLLM
+    assert captured["responses_instructions"].startswith(
+        "Du bist ein Recruiting Partner"
+    )
+    assert captured["responses_input"].startswith(
+        "Erstelle jetzt den finalen VacancyBrief."
+    )
+    assert captured["store"] is False
+    assert captured["include_response_metadata"] is True
     assert usage == {"total_tokens": 11}
     assert isinstance(brief, VacancyBrief)
     structured_data = brief.structured_data.model_dump(mode="json")
@@ -325,7 +333,7 @@ def test_generate_vacancy_brief_embeds_normalized_structured_objects(
     captured: dict[str, Any] = {}
 
     def fake_parse_with_structured_outputs(**kwargs: Any):
-        captured["messages"] = kwargs["messages"]
+        captured.update(kwargs)
         return (
             VacancyBriefLLM(
                 one_liner="One line",
@@ -381,8 +389,8 @@ def test_generate_vacancy_brief_embeds_normalized_structured_objects(
     assert brief.structured_data.travel_profile is not None
     assert brief.structured_data.travel_profile.required is False
     assert brief.structured_data.interview_scorecard_template is not None
-    assert "Normalisierte strukturierte Felder" in captured["messages"][1]["content"]
-    assert "Fachinterview" in captured["messages"][1]["content"]
+    assert "Normalisierte strukturierte Felder" in captured["responses_input"]
+    assert "Fachinterview" in captured["responses_input"]
 
 
 
@@ -392,7 +400,7 @@ def test_generate_vacancy_brief_serializes_valid_company_website_research(
     captured: dict[str, Any] = {}
 
     def fake_parse_with_structured_outputs(**kwargs: Any):
-        captured["messages"] = kwargs["messages"]
+        captured.update(kwargs)
         return (
             VacancyBriefLLM(
                 one_liner="One line",
@@ -446,7 +454,7 @@ def test_generate_vacancy_brief_serializes_valid_company_website_research(
         brief.structured_data.company_website_research.model_dump(mode="json")
         == website_research.model_dump(mode="json")
     )
-    assert "https://example.com/about" in captured["messages"][1]["content"]
+    assert "https://example.com/about" in captured["responses_input"]
 
 
 def test_generate_vacancy_brief_rejects_invalid_company_website_research_type(

@@ -9,6 +9,7 @@ from openai import (
     APIStatusError,
     APITimeoutError,
     AuthenticationError,
+    RateLimitError,
 )
 from pydantic import BaseModel, ValidationError
 
@@ -19,6 +20,7 @@ from llm_client import (
     OpenAIRuntimeConfig,
     _error_from_openai_exception,
     _error_from_structured_output_exception,
+    _is_retryable_openai_exception,
     _parse_with_structured_outputs,
 )
 from settings_openai import OpenAISettings
@@ -52,6 +54,18 @@ def test_openai_timeout_maps_to_concise_ui_message() -> None:
     assert mapped.debug_detail is not None
     assert "endpoint=responses.parse" in mapped.debug_detail
     assert "exception=APITimeoutError" in mapped.debug_detail
+
+
+def test_openai_rate_limit_is_retryable_for_backoff() -> None:
+    request = httpx.Request("POST", "https://api.openai.com/v1/responses")
+    response = httpx.Response(status_code=429, request=request)
+    err = RateLimitError(
+        "rate limit",
+        response=response,
+        body={"error": {"message": "rate limit"}},
+    )
+
+    assert _is_retryable_openai_exception(err)
 
 
 def test_openai_400_maps_to_invalid_parameter_message() -> None:

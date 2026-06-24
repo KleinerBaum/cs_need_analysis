@@ -15,6 +15,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import time
 from dataclasses import asdict, dataclass
 from typing import Any
 
@@ -101,8 +102,28 @@ def _looks_like_api_key(text: str | None) -> bool:
     return bool(text and text.strip().startswith("sk-"))
 
 
+def _resolved_api_key() -> str | None:
+    from settings_openai import load_openai_settings
+
+    settings = load_openai_settings()
+    if _looks_like_api_key(settings.openai_api_key):
+        return settings.openai_api_key
+    return None
+
+
 def _has_api_key() -> bool:
-    return _looks_like_api_key(os.getenv("OPENAI_API_KEY"))
+    return (
+        _looks_like_api_key(os.getenv("OPENAI_API_KEY"))
+        or _resolved_api_key() is not None
+    )
+
+
+def _response_request_id(response: Any) -> str | None:
+    for attr in ("_request_id", "request_id", "id"):
+        value = getattr(response, attr, None)
+        if isinstance(value, str) and value:
+            return value
+    return None
 
 
 def run_mode(mode: SmokeMode, *, dry_run: bool) -> ModeResult:
@@ -126,22 +147,27 @@ def run_mode(mode: SmokeMode, *, dry_run: bool) -> ModeResult:
             effective_request_kwargs=request_kwargs,
             actual_response_metadata={
                 "parse_status": "dry_run" if dry_run else "simulated",
+                "request_id": None,
+                "response_id": None,
                 "response_model_id": None,
+                "latency_ms": None,
                 "usage": None,
             },
             fields_preview=None,
         )
 
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY") or _resolved_api_key())
     if not hasattr(client, "responses") or not hasattr(client.responses, "parse"):
         raise RuntimeError("OpenAI SDK does not provide responses.parse(...).")
 
     messages = build_extract_job_ad_messages(SAMPLE_JOB_TEXT, language="de")
+    started = time.perf_counter()
     response = client.responses.parse(
         input=messages,
         text_format=JobAdExtract,
         **request_kwargs,
     )
+    latency_ms = int((time.perf_counter() - started) * 1000)
 
     parsed = response.output_parsed
     parse_status = "ok" if parsed is not None else "empty"
@@ -151,8 +177,10 @@ def run_mode(mode: SmokeMode, *, dry_run: bool) -> ModeResult:
         configured_mode=asdict(mode),
         effective_request_kwargs=request_kwargs,
         actual_response_metadata={
+            "request_id": _response_request_id(response),
             "response_id": getattr(response, "id", None),
             "response_model_id": getattr(response, "model", None),
+            "latency_ms": latency_ms,
             "usage": _usage_to_dict(getattr(response, "usage", None)),
             "parse_status": parse_status,
         },

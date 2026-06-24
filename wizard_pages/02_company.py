@@ -59,7 +59,7 @@ from ui_components import (
 )
 from ui_layout import (
     LazySectionConfig,
-    default_focus_drilldown_open,
+    default_secondary_section_open,
     render_jobspec_step_notes,
     render_step_shell,
     responsive_three_columns,
@@ -1417,16 +1417,14 @@ def render(ctx: WizardContext) -> None:
     )
 
     step_copy = resolve_dynamic_step_copy(STEP_KEY_COMPANY, job=job)
-    lazy_section_configs = None
-    if is_focus_design_enabled():
-        lazy_section_configs = {
-            "review_slot": LazySectionConfig(
-                label="Prüfung",
-                caption=_COMPANY_SECTION_VALUE_STATEMENTS["Prüfung"],
-                button_label="Prüfung öffnen",
-                default_open=default_focus_drilldown_open(classic_default_open=True),
-            ),
-        }
+    lazy_section_configs = {
+        "review_slot": LazySectionConfig(
+            label="Prüfung",
+            caption=_COMPANY_SECTION_VALUE_STATEMENTS["Prüfung"],
+            button_label="Prüfung öffnen",
+            default_open=default_secondary_section_open(classic_default_open=True),
+        ),
+    }
     render_step_shell(
         title=step_copy.headline,
         subtitle=step_copy.subheadline,

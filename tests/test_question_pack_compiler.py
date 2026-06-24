@@ -849,9 +849,16 @@ def test_context_heavy_standard_scope_prioritizes_company_metadata() -> None:
     selected_ids = [question.id for question in selected]
 
     assert len(selected_ids) == limits[STEP_KEY_COMPANY]["limit"]
-    assert "ctx_leadership_reporting_detail" in selected_ids
-    assert "ctx_low_maturity_role_assumptions" in selected_ids
-    assert "ctx_confidential_external_narrative" in selected_ids
+    assert limits[STEP_KEY_COMPANY]["step_question_cap"] == 4
+    assert set(selected_ids) == {
+        "ctx_team_stakeholders_primary",
+        "ctx_company_business_unit",
+        "ctx_team_name",
+        "ctx_company_employer_pitch",
+    }
+    assert "ctx_leadership_reporting_detail" not in selected_ids
+    assert "ctx_low_maturity_role_assumptions" not in selected_ids
+    assert "ctx_confidential_external_narrative" not in selected_ids
     assert "ctx_company_role_business_impact" not in selected_ids
 
 

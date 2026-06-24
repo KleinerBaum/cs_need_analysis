@@ -9,6 +9,7 @@ from openai import (
     APIStatusError,
     APITimeoutError,
     AuthenticationError,
+    RateLimitError,
 )
 from pydantic import ValidationError
 
@@ -236,4 +237,6 @@ def _error_from_structured_output_exception(exc: Exception) -> OpenAICallError:
 def _is_retryable_openai_exception(exc: Exception) -> bool:
     """Return True for transient errors worth retrying."""
 
-    return isinstance(exc, (APITimeoutError, TimeoutError, APIConnectionError))
+    return isinstance(
+        exc, (APITimeoutError, TimeoutError, APIConnectionError, RateLimitError)
+    )
