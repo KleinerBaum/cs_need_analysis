@@ -8,12 +8,20 @@ from html import escape
 import streamlit as st
 
 from safe_html import render_static_html
+from step_header_overview import StepHeaderOverview
 
 _PILL_TONE_CLASS_MAP = {
     "neutral": "cs-pill--neutral",
     "primary": "cs-pill--primary",
     "warning": "cs-pill--warning",
     "success": "cs-pill--success",
+}
+
+_OVERVIEW_TONE_CLASS_MAP = {
+    "neutral": "cs-step-overview--neutral",
+    "primary": "cs-step-overview--primary",
+    "warning": "cs-step-overview--warning",
+    "success": "cs-step-overview--success",
 }
 
 
@@ -44,6 +52,85 @@ def _render_meta_items(meta_items: Sequence[tuple[str, str, str]]) -> str:
     if not entries:
         return ""
     return '<ul class="cs-meta-list" aria-label="Schrittstatus">' + "".join(entries) + "</ul>"
+
+
+def _render_step_header_overview(overview: StepHeaderOverview | None) -> str:
+    if overview is None or not overview.groups:
+        return ""
+
+    group_entries: list[str] = []
+    for group in overview.groups:
+        item_entries: list[str] = []
+        for item in group.items:
+            tone_class = _OVERVIEW_TONE_CLASS_MAP.get(
+                item.tone,
+                _OVERVIEW_TONE_CLASS_MAP["neutral"],
+            )
+            value_html = (
+                f'<span class="cs-step-overview-value">{escape(item.value)}</span>'
+                if item.value
+                else ""
+            )
+            chip_entries = [
+                f'<span class="cs-step-overview-chip {tone_class}">{escape(label)}</span>'
+                for label in item.items
+            ]
+            if item.count is not None and item.count > len(item.items):
+                chip_entries.append(
+                    '<span class="cs-step-overview-chip cs-step-overview--neutral">'
+                    f"+{item.count - len(item.items)}</span>"
+                )
+            chips_html = (
+                '<span class="cs-step-overview-chips">'
+                + "".join(chip_entries)
+                + "</span>"
+                if chip_entries
+                else ""
+            )
+            count_html = (
+                f'<span class="cs-step-overview-count">{item.count}</span>'
+                if item.count is not None and not chip_entries
+                else ""
+            )
+            item_entries.append(
+                """
+                <li class="cs-step-overview-item {tone_class}">
+                    <span class="cs-step-overview-label">{label}</span>
+                    {value_html}{chips_html}{count_html}
+                </li>
+                """.format(
+                    tone_class=tone_class,
+                    label=escape(item.label),
+                    value_html=value_html,
+                    chips_html=chips_html,
+                    count_html=count_html,
+                )
+            )
+        if not item_entries:
+            continue
+        tone_class = _OVERVIEW_TONE_CLASS_MAP.get(
+            group.tone,
+            _OVERVIEW_TONE_CLASS_MAP["neutral"],
+        )
+        group_entries.append(
+            """
+            <section class="cs-step-overview-group {tone_class}">
+                <h3 class="cs-step-overview-title">{title}</h3>
+                <ul class="cs-step-overview-list">{items}</ul>
+            </section>
+            """.format(
+                tone_class=tone_class,
+                title=escape(group.title),
+                items="".join(item_entries),
+            )
+        )
+    if not group_entries:
+        return ""
+    return (
+        '<div class="cs-step-overview" aria-label="Extrahierte und verbundene Daten">'
+        + "".join(group_entries)
+        + "</div>"
+    )
 
 
 def render_ui_styles() -> None:
@@ -1060,6 +1147,105 @@ def render_ui_styles() -> None:
             font-weight: 650;
             overflow-wrap: anywhere;
         }
+        .cs-step-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(15.5rem, 1fr));
+            gap: 0.55rem;
+            margin-top: 0.8rem;
+        }
+        .cs-step-overview-group {
+            min-width: 0;
+            padding: 0.62rem 0.68rem;
+            border-left: 3px solid var(--cs-border);
+            border-radius: 8px;
+            background: color-mix(in srgb, var(--cs-surface-muted) 78%, transparent);
+        }
+        .cs-step-overview-group.cs-step-overview--primary {
+            border-left-color: var(--cs-primary);
+        }
+        .cs-step-overview-group.cs-step-overview--success {
+            border-left-color: var(--cs-success);
+        }
+        .cs-step-overview-group.cs-step-overview--warning {
+            border-left-color: var(--cs-warning);
+        }
+        .cs-step-overview-title {
+            margin: 0 0 0.45rem;
+            color: var(--cs-text);
+            font-size: 0.88rem;
+            font-weight: 780;
+            line-height: 1.25;
+        }
+        .cs-step-overview-list {
+            display: grid;
+            gap: 0.38rem;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+        .cs-step-overview-item {
+            display: grid;
+            gap: 0.18rem;
+            min-width: 0;
+        }
+        .cs-step-overview-label {
+            color: var(--cs-text-subtle);
+            font-size: 0.69rem;
+            font-weight: 760;
+            line-height: 1.2;
+            text-transform: uppercase;
+        }
+        .cs-step-overview-value {
+            color: var(--cs-text);
+            font-size: 0.88rem;
+            font-weight: 680;
+            line-height: 1.32;
+            overflow-wrap: anywhere;
+        }
+        .cs-step-overview-count {
+            color: var(--cs-text);
+            font-size: 1.12rem;
+            font-weight: 780;
+            line-height: 1.1;
+        }
+        .cs-step-overview-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.26rem;
+            min-width: 0;
+        }
+        .cs-step-overview-chip {
+            display: inline-flex;
+            align-items: center;
+            max-width: 100%;
+            padding: 0.18rem 0.46rem;
+            border: 1px solid var(--cs-border-soft);
+            border-radius: 999px;
+            background: var(--cs-surface-muted);
+            color: var(--cs-text-muted);
+            font-size: 0.74rem;
+            font-weight: 650;
+            line-height: 1.18;
+            overflow-wrap: anywhere;
+        }
+        .cs-step-overview-chip.cs-step-overview--primary,
+        .cs-step-overview-item.cs-step-overview--primary .cs-step-overview-value,
+        .cs-step-overview-item.cs-step-overview--primary .cs-step-overview-count {
+            border-color: color-mix(in srgb, var(--cs-primary) 48%, var(--cs-border));
+            color: var(--cs-text);
+        }
+        .cs-step-overview-chip.cs-step-overview--success,
+        .cs-step-overview-item.cs-step-overview--success .cs-step-overview-value,
+        .cs-step-overview-item.cs-step-overview--success .cs-step-overview-count {
+            border-color: color-mix(in srgb, var(--cs-success) 48%, var(--cs-border));
+            color: var(--cs-text);
+        }
+        .cs-step-overview-chip.cs-step-overview--warning,
+        .cs-step-overview-item.cs-step-overview--warning .cs-step-overview-value,
+        .cs-step-overview-item.cs-step-overview--warning .cs-step-overview-count {
+            border-color: color-mix(in srgb, var(--cs-warning) 52%, var(--cs-border));
+            color: var(--cs-text);
+        }
         .cs-step-topline, .cs-output-topline {
             display: flex;
             justify-content: space-between;
@@ -1185,12 +1371,14 @@ def render_step_header(
     subtitle: str,
     outcome: str | None = None,
     meta_items: Sequence[tuple[str, str, str]] = (),
+    overview: StepHeaderOverview | None = None,
 ) -> None:
     step_header_html = _build_step_header_html(
         title=title,
         subtitle=subtitle,
         outcome=outcome,
         meta_items=meta_items,
+        overview=overview,
     )
     _render_html_block(step_header_html)
 
@@ -1340,6 +1528,7 @@ def _build_step_header_html(
     subtitle: str,
     outcome: str | None,
     meta_items: Sequence[tuple[str, str, str]],
+    overview: StepHeaderOverview | None = None,
 ) -> str:
     outcome_html = (
         f'<span class="cs-pill cs-pill--primary">{escape(outcome)}</span>' if outcome else ""
@@ -1355,6 +1544,7 @@ def _build_step_header_html(
             </div>
             {subtitle_html}
             {_render_meta_items(meta_items)}
+            {_render_step_header_overview(overview)}
         </section>
         """
 
@@ -1363,6 +1553,7 @@ def render_output_header(
     title: str,
     context: str,
     meta_items: Sequence[tuple[str, str, str]] = (),
+    overview: StepHeaderOverview | None = None,
 ) -> None:
     context_html = (
         f'<p class="cs-output-context">{escape(context)}</p>' if context else ""
@@ -1375,6 +1566,7 @@ def render_output_header(
             </div>
             {context_html}
             {_render_meta_items(meta_items)}
+            {_render_step_header_overview(overview)}
         </section>
         """
     )

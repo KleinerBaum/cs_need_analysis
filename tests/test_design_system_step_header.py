@@ -1,4 +1,5 @@
 from components import design_system
+from step_header_overview import StepHeaderGroup, StepHeaderItem, StepHeaderOverview
 from wizard_pages import base
 
 
@@ -16,6 +17,40 @@ def test_build_step_header_html_is_single_safe_block() -> None:
     assert "&lt;span class=\"cs-meta-label\"&gt;" not in html
     assert ">neutral<" not in html
     assert ">warning<" not in html
+
+
+def test_build_step_header_html_renders_escaped_overview() -> None:
+    overview = StepHeaderOverview(
+        groups=(
+            StepHeaderGroup(
+                "Daten <Signal>",
+                (
+                    StepHeaderItem(
+                        label="Skills",
+                        items=("Python", "<script>alert(1)</script>"),
+                        count=4,
+                        tone="primary",
+                    ),
+                    StepHeaderItem(label="Status", value="Bereit <jetzt>", tone="success"),
+                ),
+            ),
+        )
+    )
+
+    html = design_system._build_step_header_html(
+        title="Titel",
+        subtitle="Untertitel",
+        outcome=None,
+        meta_items=[],
+        overview=overview,
+    )
+
+    assert "cs-step-overview" in html
+    assert "Daten &lt;Signal&gt;" in html
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+    assert "Bereit &lt;jetzt&gt;" in html
+    assert ">+2<" in html
+    assert "<script>" not in html
 
 
 def test_build_step_section_heading_html_escapes_label() -> None:

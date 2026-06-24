@@ -101,6 +101,7 @@ from state_store import StateStore
 from question_dependencies import should_show_question
 from question_limits import select_visible_questions_for_step_scope
 from step_status import build_step_status_payload
+from step_header_overview import build_summary_header_overview
 from components.design_system import (
     render_card_start,
     render_critical_gaps,
@@ -1475,6 +1476,16 @@ def render(ctx: WizardContext) -> None:
         meta_items=[("💡", "", summary_copy.value_line)]
         if summary_copy.value_line
         else (),
+        overview=build_summary_header_overview(
+            readiness_percent=vm.status.readiness_percent,
+            completion_text=vm.status.completion_text,
+            blocker_count=release_blocker_count,
+            esco_ready=vm.status.esco_ready,
+            brief_state=vm.status.brief_state,
+            brief_status_label=vm.status.brief_status_label,
+            ready_for_follow_ups=vm.status.ready_for_follow_ups,
+            session_state=st.session_state,
+        ),
     )
     _render_readiness_dashboard_header(vm, blocker_count=release_blocker_count)
     if is_focus_design_enabled():

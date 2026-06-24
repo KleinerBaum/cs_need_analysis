@@ -52,6 +52,7 @@ from step_payload import (
     read_confidence_threshold_from_state,
     read_question_limits_from_state,
 )
+from step_header_overview import build_step_header_overview
 from step_sections import section_status_summary
 from step_status import StepStatusPayload
 from state import (
@@ -766,7 +767,18 @@ def render_step_shell(
                 ("🧩", "Abschnitte", f"{complete_sections}/{total_sections} geklärt")
             )
 
-    render_step_header(title, subtitle, outcome=outcome_text, meta_items=header_meta)
+    step_overview = build_step_header_overview(
+        step_key=current_step_key,
+        step_payload=step_payload,
+        session_state=st.session_state,
+    )
+    render_step_header(
+        title,
+        subtitle,
+        outcome=outcome_text,
+        meta_items=header_meta,
+        overview=step_overview,
+    )
     if outcome_slot is not None:
         outcome_slot()
 

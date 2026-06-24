@@ -838,6 +838,50 @@ def test_step_shell_header_status_does_not_render_duplicate_status_captions(
     assert not any(name == "caption" for name, _value in fake_st.events)
 
 
+def test_step_shell_passes_extracted_overview_to_header(monkeypatch) -> None:
+    import ui_layout
+
+    fake_st = _ShellFakeStreamlit()
+    fake_st.session_state = {
+        SSKey.JOB_EXTRACT.value: JobAdExtract(company_name="Acme Corp").model_dump(
+            mode="json"
+        ),
+        SSKey.INTAKE_FACTS.value: {
+            FactKey.COMPANY_WORK_ARRANGEMENT.value: "hybrid",
+        },
+        SSKey.ANSWERS.value: {},
+        SSKey.ANSWER_META.value: {},
+    }
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(ui_layout, "st", fake_st)
+    monkeypatch.setattr(
+        ui_layout,
+        "render_step_header",
+        lambda *_args, overview=None, **_kwargs: captured.update({"overview": overview}),
+    )
+
+    ui_layout.render_step_shell(
+        title="Company",
+        subtitle="Kontext",
+        step=QuestionStep(
+            step_key=STEP_KEY_COMPANY,
+            title_de="Company",
+            questions=[],
+        ),
+    )
+
+    overview = captured["overview"]
+    item_text = " | ".join(
+        part
+        for group in overview.groups
+        for item in group.items
+        for part in (item.value, *item.items)
+        if part
+    )
+    assert "Acme Corp" in item_text
+    assert "hybrid" in item_text
+
+
 def test_landing_and_summary_do_not_render_jobspec_step_notes(monkeypatch) -> None:
     import ui_layout
 
