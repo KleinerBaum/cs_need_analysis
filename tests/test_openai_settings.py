@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+import llm_client
 import settings_openai
 from settings_openai import DEFAULT_TIMEOUT_SECONDS, load_openai_settings
 
@@ -53,3 +54,30 @@ def test_openai_settings_timeout_still_uses_default(monkeypatch) -> None:
     settings = load_openai_settings()
 
     assert settings.openai_request_timeout == DEFAULT_TIMEOUT_SECONDS
+
+
+def test_all_llm_task_kinds_have_limit_settings() -> None:
+    configured_task_kinds = set(settings_openai._TASK_KINDS)
+    llm_task_kinds = {
+        value
+        for name, value in vars(llm_client).items()
+        if name.startswith("TASK_") and isinstance(value, str)
+    }
+
+    assert llm_task_kinds <= configured_task_kinds
+
+
+def test_role_tasks_salary_forecast_limit_settings_resolve_from_env(
+    monkeypatch,
+) -> None:
+    task_upper = llm_client.TASK_GENERATE_ROLE_TASKS_SALARY_FORECAST.upper()
+    monkeypatch.setenv(f"{task_upper}_MAX_OUTPUT_TOKENS", "900")
+    monkeypatch.setenv(f"{task_upper}_MAX_BULLETS_PER_FIELD", "4")
+    monkeypatch.setenv(f"{task_upper}_MAX_SENTENCES_PER_FIELD", "2")
+
+    settings = load_openai_settings()
+
+    task_kind = llm_client.TASK_GENERATE_ROLE_TASKS_SALARY_FORECAST
+    assert settings.task_max_output_tokens[task_kind] == 900
+    assert settings.task_max_bullets_per_field[task_kind] == 4
+    assert settings.task_max_sentences_per_field[task_kind] == 2

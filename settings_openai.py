@@ -46,6 +46,7 @@ _TASK_KINDS = (
     "generate_employment_contract",
     "generate_requirement_gap_suggestions",
     "generate_benefit_suggestions",
+    "generate_role_tasks_salary_forecast",
 )
 
 
