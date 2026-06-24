@@ -27,6 +27,7 @@ from constants import (
     STEP_KEY_INTERVIEW,
     STEP_KEY_ROLE_TASKS,
     STEP_KEY_SKILLS,
+    SUMMARY_ACTIVE_ARTIFACT_IDS,
     STEP_SECTION_OPEN_QUESTIONS,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
 )
@@ -371,8 +372,18 @@ def _summary_blockers_allow_expert_override(
     )
 
 
+def _active_release_artifact_id(artifact_id: str) -> str:
+    canonical_id = _to_canonical_artifact_id(artifact_id) or str(
+        artifact_id or ""
+    ).strip()
+    return canonical_id if canonical_id in SUMMARY_ACTIVE_ARTIFACT_IDS else ""
+
+
 def can_generate_draft(artifact_id: str, gate: SummaryArtifactGate) -> bool:
-    del artifact_id
+    canonical_id = _active_release_artifact_id(artifact_id)
+    gate_id = _active_release_artifact_id(gate.artifact_id)
+    if not canonical_id or gate_id != canonical_id:
+        return False
     return bool(gate.draft_available)
 
 
@@ -381,7 +392,10 @@ def can_export_final(
     gate: SummaryArtifactGate,
     ui_mode: str,
 ) -> bool:
-    del artifact_id
+    canonical_id = _active_release_artifact_id(artifact_id)
+    gate_id = _active_release_artifact_id(gate.artifact_id)
+    if not canonical_id or gate_id != canonical_id:
+        return False
     if gate.final_export_ready:
         return True
     return (

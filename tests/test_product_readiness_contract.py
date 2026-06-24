@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 import esco_client
 import homepage_research
 import llm_client
@@ -25,8 +27,10 @@ from wizard_pages.summary_readiness import (
     SummaryArtifactGate,
     SummaryReleaseBlocker,
     can_export_final,
+    can_generate_draft,
     summarize_artifact_release_state,
 )
+from wizard_pages.summary_release_gate_ui import localized_artifact_release_state
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -238,6 +242,140 @@ def test_summary_release_state_contract_covers_beta_statuses() -> None:
     assert can_export_final("job_ad", risky_gate, "standard") is False
     assert can_export_final("job_ad", risky_gate, "expert") is True
     assert can_export_final("job_ad", stale_gate, "expert") is False
+    assert can_export_final("employment_contract", ready_gate, "standard") is False
+
+
+@pytest.mark.parametrize("artifact_id", tuple(SUMMARY_ACTIVE_ARTIFACT_IDS))
+@pytest.mark.parametrize(
+    ("state_name", "gate_overrides", "standard_export", "expert_export", "draft"),
+    (
+        (
+            "ready",
+            {"state": "current", "final_export_ready": True},
+            True,
+            True,
+            False,
+        ),
+        (
+            "warning",
+            {
+                "state": "current",
+                "blockers": [
+                    SummaryReleaseBlocker(
+                        artifact_id="matrix",
+                        artifact_label="Matrix output",
+                        reason="Non-critical assumption is open.",
+                        next_step="Review warning.",
+                        blocker_type="forecast_assumptions",
+                        severity="warning",
+                    )
+                ],
+                "draft_available": True,
+                "final_export_blocked": True,
+                "blocker_severity": "warning",
+                "override_allowed": True,
+            },
+            False,
+            True,
+            True,
+        ),
+        (
+            "blocked",
+            {
+                "state": "current",
+                "blockers": [
+                    SummaryReleaseBlocker(
+                        artifact_id="matrix",
+                        artifact_label="Matrix output",
+                        reason="Critical fact is missing.",
+                        next_step="Complete critical fact.",
+                        blocker_type="missing_core",
+                        severity="critical",
+                    )
+                ],
+                "draft_available": True,
+                "final_export_blocked": True,
+                "blocker_severity": "critical",
+            },
+            False,
+            False,
+            True,
+        ),
+        (
+            "stale",
+            {
+                "state": "stale",
+                "draft_available": True,
+                "final_export_blocked": True,
+                "stale_regeneration_required": True,
+                "blocker_severity": "critical",
+            },
+            False,
+            False,
+            True,
+        ),
+    ),
+)
+def test_active_artifact_release_matrix_is_consistent(
+    artifact_id: str,
+    state_name: str,
+    gate_overrides: dict[str, object],
+    standard_export: bool,
+    expert_export: bool,
+    draft: bool,
+) -> None:
+    del state_name
+    defaults = {
+        "artifact_id": artifact_id,
+        "artifact_label": artifact_display_label(artifact_id, language="en"),
+        "state": "open",
+        "state_label": "Open",
+        "blockers": [],
+        "next_step": "Continue.",
+        "preview_available": True,
+        "draft_available": False,
+        "final_export_ready": False,
+        "final_export_blocked": False,
+        "stale_regeneration_required": False,
+        "blocker_severity": "none",
+        "override_allowed": False,
+    }
+    defaults.update(gate_overrides)
+    gate = SummaryArtifactGate(**defaults)
+
+    assert gate.preview_available is True
+    assert can_generate_draft(artifact_id, gate) is draft
+    assert can_export_final(artifact_id, gate, "standard") is standard_export
+    assert can_export_final(artifact_id, gate, "expert") is expert_export
+    if gate.stale_regeneration_required:
+        assert summarize_artifact_release_state(gate, language="en") == (
+            "Final export paused: regenerate the result first."
+        )
+
+
+def test_final_export_pause_state_copy_is_localized() -> None:
+    gate = SummaryArtifactGate(
+        artifact_id="job_ad",
+        artifact_label="Job ad",
+        state="stale",
+        state_label="Stale",
+        blockers=[],
+        next_step="Regenerate job ad.",
+        preview_available=True,
+        draft_available=True,
+        final_export_ready=False,
+        final_export_blocked=True,
+        stale_regeneration_required=True,
+        blocker_severity="critical",
+        override_allowed=False,
+    )
+
+    assert localized_artifact_release_state(gate, language="de") == (
+        "Finalexport pausiert: Ergebnis zuerst neu erstellen."
+    )
+    assert localized_artifact_release_state(gate, language="en") == (
+        "Final export paused: regenerate the result first."
+    )
 
 
 def test_active_flow_copy_and_artifact_labels_have_de_en_parity() -> None:
