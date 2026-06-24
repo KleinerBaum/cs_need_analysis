@@ -9,6 +9,8 @@ from constants import (
 from ux_copy_contract import (
     ARTIFACT_LABELS,
     ESCO_UI_COPY,
+    QUESTION_COACH_ARTIFACT_LABELS,
+    QUESTION_COACH_COPY,
     SALARY_UI_COPY,
     SUMMARY_EXPORT_COPY,
     SUMMARY_PREVIEW_COPY,
@@ -117,6 +119,8 @@ def test_active_copy_contracts_have_de_en_shape_parity() -> None:
         SUMMARY_PREVIEW_COPY,
         ESCO_UI_COPY,
         SALARY_UI_COPY,
+        QUESTION_COACH_ARTIFACT_LABELS,
+        QUESTION_COACH_COPY,
     ):
         assert _leaf_keys(contract["de"]) == _leaf_keys(contract["en"])
 

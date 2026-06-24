@@ -5,6 +5,11 @@ from typing import Any, Mapping
 
 from constants import (
     DEFAULT_LANGUAGE,
+    QUESTION_IMPACT_TARGET_BRIEF,
+    QUESTION_IMPACT_TARGET_EXPORT,
+    QUESTION_IMPACT_TARGET_INTERVIEW,
+    QUESTION_IMPACT_TARGET_SALARY,
+    QUESTION_IMPACT_TARGET_SKILLS,
     SUMMARY_ACTIVE_ARTIFACT_IDS,
     STEP_KEY_BENEFITS,
     STEP_KEY_COMPANY,
@@ -259,6 +264,63 @@ ARTIFACT_LABELS: dict[str, dict[str, str]] = {
         "interview_hr": "HR sheet",
         "interview_fach": "Hiring manager sheet",
         "boolean_search": "Search strings",
+    },
+}
+
+QUESTION_COACH_ARTIFACT_LABELS: dict[str, dict[str, str]] = {
+    "de": {
+        "brief": "Recruiting-Briefing",
+        "job_ad": "Stellenanzeige",
+        "interview_hr": "HR-Sheet",
+        "interview_fach": "Fachbereich-Sheet",
+        "boolean_search": "Suchstrings",
+    },
+    "en": {
+        "brief": "recruiting brief",
+        "job_ad": "job ad",
+        "interview_hr": "HR sheet",
+        "interview_fach": "hiring-manager sheet",
+        "boolean_search": "search strings",
+    },
+}
+
+QUESTION_IMPACT_TARGET_ARTIFACT_IDS: dict[str, tuple[str, ...]] = {
+    QUESTION_IMPACT_TARGET_BRIEF: ("brief",),
+    QUESTION_IMPACT_TARGET_SALARY: ("brief", "job_ad"),
+    QUESTION_IMPACT_TARGET_SKILLS: (
+        "brief",
+        "job_ad",
+        "interview_fach",
+        "boolean_search",
+    ),
+    QUESTION_IMPACT_TARGET_INTERVIEW: ("interview_hr", "interview_fach"),
+    QUESTION_IMPACT_TARGET_EXPORT: SUMMARY_ACTIVE_ARTIFACT_IDS,
+}
+
+QUESTION_COACH_STEP_ARTIFACT_IDS: dict[str, tuple[str, ...]] = {
+    STEP_KEY_COMPANY: ("brief", "job_ad"),
+    STEP_KEY_ROLE_TASKS: ("brief", "job_ad", "boolean_search"),
+    STEP_KEY_SKILLS: ("job_ad", "interview_fach", "boolean_search"),
+    STEP_KEY_BENEFITS: ("brief", "job_ad"),
+    STEP_KEY_INTERVIEW: ("interview_hr", "interview_fach"),
+}
+
+QUESTION_COACH_COPY: dict[str, dict[str, str]] = {
+    "de": {
+        "title": "Als Nächstes sinnvoll",
+        "body_with_label": "Beantworte \"{label}\": {reason}.",
+        "body_without_label": "Beantworte die nächste offene Frage, {reason}.",
+        "impact_line": "Verbessert vor allem {outputs}.",
+        "fallback_workflow": "die nächsten Recruiting-Unterlagen",
+        "more_outputs": "{count} weitere Unterlagen",
+    },
+    "en": {
+        "title": "Next best question",
+        "body_with_label": "Answer \"{label}\": {reason}.",
+        "body_without_label": "Answer the next open question, {reason}.",
+        "impact_line": "Improves {outputs} most.",
+        "fallback_workflow": "the next recruiting outputs",
+        "more_outputs": "{count} more outputs",
     },
 }
 
@@ -1427,6 +1489,54 @@ def artifact_label(artifact_id: Any, *, language: str | None = None) -> str:
         return ""
     labels = ARTIFACT_LABELS.get(_normalize_language(language), ARTIFACT_LABELS[DEFAULT_LANGUAGE])
     return labels.get(normalized, normalized)
+
+
+def question_coach_copy(
+    key: str,
+    *,
+    language: str | None = None,
+    **params: Any,
+) -> str:
+    value = _copy_tree_value(QUESTION_COACH_COPY, key, language=language)
+    text = str(value)
+    return _safe_format(text, params) if params else text
+
+
+def question_impact_artifact_labels(
+    impact_targets: Any,
+    *,
+    step_key: str | None = None,
+    language: str | None = None,
+) -> list[str]:
+    if isinstance(impact_targets, str):
+        raw_targets = [impact_targets]
+    elif isinstance(impact_targets, list):
+        raw_targets = impact_targets
+    else:
+        raw_targets = []
+
+    artifact_ids: list[str] = []
+    for raw_target in raw_targets:
+        target = str(raw_target or "").strip().casefold()
+        artifact_ids.extend(QUESTION_IMPACT_TARGET_ARTIFACT_IDS.get(target, ()))
+
+    if not artifact_ids and step_key:
+        artifact_ids.extend(QUESTION_COACH_STEP_ARTIFACT_IDS.get(step_key, ()))
+
+    labels_by_id = QUESTION_COACH_ARTIFACT_LABELS.get(
+        _normalize_language(language),
+        QUESTION_COACH_ARTIFACT_LABELS[DEFAULT_LANGUAGE],
+    )
+    labels: list[str] = []
+    seen: set[str] = set()
+    for artifact_id in artifact_ids:
+        label = labels_by_id.get(artifact_id, "").strip()
+        key = label.casefold()
+        if not label or key in seen:
+            continue
+        labels.append(label)
+        seen.add(key)
+    return labels
 
 
 def summary_ui_copy(

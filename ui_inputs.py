@@ -21,13 +21,9 @@ from constants import (
     QUESTION_IMPACT_TARGET_SKILLS,
     QUESTION_GROUP_DISPLAY_LABELS_DE,
     SSKey,
-    STEP_KEY_BENEFITS,
-    STEP_KEY_COMPANY,
-    STEP_KEY_INTERVIEW,
-    STEP_KEY_ROLE_TASKS,
-    STEP_KEY_SKILLS,
     WIDGET_KEY_PREFIX,
 )
+from i18n import active_language
 from job_extract_review_helpers import has_meaningful_value
 from question_dependencies import should_show_question
 from question_limits import resolve_next_best_question
@@ -52,6 +48,7 @@ from step_payload import (
     read_confidence_threshold_from_state,
 )
 from step_sections import filter_open_questions_for_step
+from ux_copy_contract import question_coach_copy, question_impact_artifact_labels
 
 PILLS_GRID_COLUMNS = 3
 QUESTION_PROVENANCE_TEXT_MAX_CHARS = 180
@@ -62,20 +59,6 @@ QUESTION_IMPACT_LABELS: dict[str, str] = {
     QUESTION_IMPACT_TARGET_SKILLS: "Skills",
     QUESTION_IMPACT_TARGET_INTERVIEW: "Interview",
     QUESTION_IMPACT_TARGET_EXPORT: "Export",
-}
-QUESTION_COACH_IMPACT_LABELS: dict[str, str] = {
-    QUESTION_IMPACT_TARGET_BRIEF: "Brief",
-    QUESTION_IMPACT_TARGET_SALARY: "Gehaltsprognose",
-    QUESTION_IMPACT_TARGET_SKILLS: "Matching",
-    QUESTION_IMPACT_TARGET_INTERVIEW: "Interview",
-    QUESTION_IMPACT_TARGET_EXPORT: "Export",
-}
-QUESTION_COACH_STEP_UNLOCK_LABELS: dict[str, list[str]] = {
-    STEP_KEY_COMPANY: ["Brief", "Matching"],
-    STEP_KEY_ROLE_TASKS: ["Brief", "Gehaltsprognose"],
-    STEP_KEY_SKILLS: ["Matching", "Interview"],
-    STEP_KEY_BENEFITS: ["Gehaltsprognose", "Angebot"],
-    STEP_KEY_INTERVIEW: ["Interview", "Export"],
 }
 QUESTION_ACQUISITION_COST_LABELS: dict[str, str] = {
     "low": "geringer Aufwand",
@@ -847,48 +830,117 @@ def _first_sentence_fragment(value: object, *, max_chars: int = 120) -> str:
     return first_sentence.rstrip(".!?").strip()
 
 
-def _next_best_question_fallback_reason(question: Question) -> str:
+def _coach_language(language: str | None = None) -> str:
+    normalized = str(language or active_language() or "de").strip().lower()
+    return "en" if normalized == "en" else "de"
+
+
+def _next_best_question_fallback_reason(
+    question: Question,
+    *,
+    language: str | None = None,
+) -> str:
+    resolved_language = _coach_language(language)
     if question.required:
-        return "damit der Step belastbar und vollständig wird"
+        return (
+            "so downstream outputs stay reliable"
+            if resolved_language == "en"
+            else "damit die nachgelagerten Unterlagen belastbar werden"
+        )
     if question.fact_key:
-        return "damit die Antwort in nachgelagerte Unterlagen einfließt"
+        return (
+            "so confirmed facts flow into the recruiting outputs"
+            if resolved_language == "en"
+            else "damit bestätigte Fakten in die Recruiting-Unterlagen einfließen"
+        )
     if question.group_key:
         group_label = str(question.group_key).replace("_", " ").strip().lower()
         if group_label:
-            return f"damit der Abschnitt {group_label} vollständig wird"
-    return "damit die Vakanz sauber weiterverarbeitet werden kann"
+            return (
+                f"so the {group_label} output context is clear"
+                if resolved_language == "en"
+                else f"damit der Output-Kontext {group_label} klarer wird"
+            )
+    return (
+        "so the vacancy can be reused in the recruiting outputs"
+        if resolved_language == "en"
+        else "damit die Vakanz in den Recruiting-Unterlagen nutzbar wird"
+    )
 
 
-def _next_best_question_body(question: Question) -> str:
+def _next_best_question_body(
+    question: Question,
+    *,
+    language: str | None = None,
+) -> str:
+    resolved_language = _coach_language(language)
     label = _safe_question_provenance_text(question.label, max_chars=96)
     reason = _first_sentence_fragment(question.rationale)
     if not reason:
-        reason = _next_best_question_fallback_reason(question)
+        reason = _next_best_question_fallback_reason(
+            question,
+            language=resolved_language,
+        )
     if not label:
-        return f"Beantworte die nächste offene Frage, {reason}."
-    return f"Beantworte „{label}“: {reason}."
+        return question_coach_copy(
+            "body_without_label",
+            language=resolved_language,
+            reason=reason,
+        )
+    return question_coach_copy(
+        "body_with_label",
+        language=resolved_language,
+        label=label,
+        reason=reason,
+    )
 
 
-def _join_german_labels(labels: Sequence[str], *, max_items: int = 3) -> str:
-    cleaned = _dedupe_labels(labels)[:max_items]
+def _join_coach_labels(
+    labels: Sequence[str],
+    *,
+    language: str | None = None,
+    max_items: int = 3,
+) -> str:
+    resolved_language = _coach_language(language)
+    deduped = _dedupe_labels(labels)
+    cleaned = deduped[:max_items]
     if not cleaned:
-        return "den weiteren Workflow"
+        return question_coach_copy("fallback_workflow", language=resolved_language)
+    if len(deduped) > max_items:
+        cleaned.append(
+            question_coach_copy(
+                "more_outputs",
+                language=resolved_language,
+                count=len(deduped) - max_items,
+            )
+        )
     if len(cleaned) == 1:
         return cleaned[0]
     if len(cleaned) == 2:
-        return f"{cleaned[0]} und {cleaned[1]}"
-    return f"{', '.join(cleaned[:-1])} und {cleaned[-1]}"
+        joiner = "and" if resolved_language == "en" else "und"
+        return f"{cleaned[0]} {joiner} {cleaned[1]}"
+    joiner = "and" if resolved_language == "en" else "und"
+    comma = "," if resolved_language == "en" else ""
+    return f"{', '.join(cleaned[:-1])}{comma} {joiner} {cleaned[-1]}"
 
 
-def _next_best_question_unlock_line(question: Question, *, step_key: str) -> str:
-    impact_labels = [
-        QUESTION_COACH_IMPACT_LABELS.get(str(target or "").strip().lower(), "")
-        for target in question.impact_targets
-    ]
-    cleaned = _dedupe_labels([label for label in impact_labels if label])
-    if not cleaned:
-        cleaned = QUESTION_COACH_STEP_UNLOCK_LABELS.get(step_key, [])
-    return f"Hilft besonders für {_join_german_labels(cleaned)}."
+def _next_best_question_unlock_line(
+    question: Question,
+    *,
+    step_key: str,
+    language: str | None = None,
+) -> str:
+    resolved_language = _coach_language(language)
+    labels = question_impact_artifact_labels(
+        question.impact_targets,
+        step_key=step_key,
+        language=resolved_language,
+    )
+    return question_coach_copy(
+        "impact_line",
+        language=resolved_language,
+        outputs=_join_coach_labels(labels, language=resolved_language),
+    )
 
 
 def _render_next_best_question_coach_from_scope(
@@ -903,6 +955,7 @@ def _render_next_best_question_coach_from_scope(
     )
     if question is None:
         return
+    language = _coach_language()
 
     _render_html_block(
         """
@@ -912,9 +965,15 @@ def _render_next_best_question_coach_from_scope(
             <div class="cs-next-cta">{unlock}</div>
         </section>
         """.format(
-            title=escape("Als Nächstes sinnvoll"),
-            body=escape(_next_best_question_body(question)),
-            unlock=escape(_next_best_question_unlock_line(question, step_key=step_key)),
+            title=escape(question_coach_copy("title", language=language)),
+            body=escape(_next_best_question_body(question, language=language)),
+            unlock=escape(
+                _next_best_question_unlock_line(
+                    question,
+                    step_key=step_key,
+                    language=language,
+                )
+            ),
         )
     )
 

@@ -849,7 +849,10 @@ def test_render_question_step_shows_next_best_question_coach(monkeypatch) -> Non
     assert "Als Nächstes sinnvoll" in rendered
     assert "Welche Skills sind Must-have?" in rendered
     assert "Clarifies the candidate matching criteria" in rendered
-    assert "Hilft besonders für Matching und Interview." in rendered
+    assert (
+        "Verbessert vor allem Recruiting-Briefing, Stellenanzeige, "
+        "Fachbereich-Sheet und 2 weitere Unterlagen."
+    ) in rendered
 
 
 def test_render_question_step_hides_next_best_question_when_complete(

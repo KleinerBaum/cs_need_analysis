@@ -6,7 +6,9 @@ from constants import (
     FactResolutionStatus,
     FactSourceType,
     SSKey,
+    STEP_KEY_ROLE_TASKS,
 )
+import ui_inputs
 from question_progress import (
     build_answered_lookup,
     build_answers_with_job_extract_coverage,
@@ -15,6 +17,7 @@ from question_progress import (
     is_answered,
 )
 from schemas import JobAdExtract, Question
+from ux_copy_contract import question_impact_artifact_labels
 
 
 def _question(answer_type: AnswerType) -> Question:
@@ -501,3 +504,80 @@ def test_build_step_scope_progress_labels_marks_scope_difference() -> None:
         == "Gesamt im Step (inkl. derzeit ausgeblendeter Details): 1/3"
     )
     assert labels["has_different_denominator"] is True
+
+
+def test_question_impact_artifact_labels_name_active_outputs_in_de_and_en() -> None:
+    assert question_impact_artifact_labels(["export"], language="de") == [
+        "Recruiting-Briefing",
+        "Stellenanzeige",
+        "HR-Sheet",
+        "Fachbereich-Sheet",
+        "Suchstrings",
+    ]
+    assert question_impact_artifact_labels(["export"], language="en") == [
+        "recruiting brief",
+        "job ad",
+        "HR sheet",
+        "hiring-manager sheet",
+        "search strings",
+    ]
+
+
+def test_next_best_question_coach_copy_explains_artifact_impact() -> None:
+    question = Question(
+        id="role_scope",
+        label="Welche Ergebnisse zählen nach 90 Tagen?",
+        answer_type=AnswerType.SHORT_TEXT,
+        impact_targets=["interview"],
+    )
+
+    assert ui_inputs._next_best_question_body(question, language="de").startswith(
+        'Beantworte "Welche Ergebnisse zählen nach 90 Tagen?"'
+    )
+    assert ui_inputs._next_best_question_unlock_line(
+        question,
+        step_key="interview",
+        language="de",
+    ) == "Verbessert vor allem HR-Sheet und Fachbereich-Sheet."
+
+    assert ui_inputs._next_best_question_unlock_line(
+        Question(
+            id="search_context",
+            label="Welche Suchbegriffe passen?",
+            answer_type=AnswerType.SHORT_TEXT,
+            impact_targets=[],
+        ),
+        step_key=STEP_KEY_ROLE_TASKS,
+        language="en",
+    ) == "Improves recruiting brief, job ad, and search strings most."
+
+
+def test_next_best_question_coach_suppresses_completed_visible_scope(
+    monkeypatch,
+) -> None:
+    rendered_blocks: list[str] = []
+    question = Question(
+        id="done",
+        label="Welche Zielgruppe ist relevant?",
+        answer_type=AnswerType.SHORT_TEXT,
+        priority="core",
+        impact_targets=["brief"],
+    )
+    monkeypatch.setattr(ui_inputs, "_render_html_block", rendered_blocks.append)
+
+    ui_inputs._render_next_best_question_coach_from_scope(
+        step_key="company",
+        visible_questions=[question],
+        answered_lookup={"done": True},
+    )
+
+    assert rendered_blocks == []
+
+    ui_inputs._render_next_best_question_coach_from_scope(
+        step_key="company",
+        visible_questions=[question],
+        answered_lookup={"done": False},
+    )
+
+    assert len(rendered_blocks) == 1
+    assert "Recruiting-Briefing" in rendered_blocks[0]
