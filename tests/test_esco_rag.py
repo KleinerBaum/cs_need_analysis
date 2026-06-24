@@ -33,6 +33,9 @@ def test_retrieve_esco_context_success(monkeypatch) -> None:
         esco_vector_store_id="vs_123",
         esco_rag_enabled=True,
         esco_rag_max_results=3,
+        esco_rag_rewrite_query=True,
+        esco_rag_ranker="auto",
+        esco_rag_score_threshold=0.35,
     )
     calls: dict[str, object] = {}
 
@@ -73,6 +76,11 @@ def test_retrieve_esco_context_success(monkeypatch) -> None:
     assert result.hits[0].language == "unknown"
     assert result.hits[0].skill_type == "unknown"
     assert calls["max_num_results"] == 3
+    assert calls["rewrite_query"] is True
+    assert calls["ranking_options"] == {
+        "ranker": "auto",
+        "score_threshold": 0.35,
+    }
     assert calls["filters"]["type"] == "and"
 
 
@@ -105,11 +113,31 @@ def test_build_retrieval_filters_with_optional_metadata() -> None:
     ]
 
 
+def test_build_esco_rag_chunking_strategy_uses_configured_profile() -> None:
+    strategy = esco_rag.build_esco_rag_chunking_strategy(
+        SimpleNamespace(
+            esco_rag_chunk_size_tokens=600,
+            esco_rag_chunk_overlap_tokens=200,
+        )
+    )
+
+    assert strategy == {
+        "type": "static",
+        "static": {
+            "max_chunk_size_tokens": 600,
+            "chunk_overlap_tokens": 200,
+        },
+    }
+
+
 def test_retrieve_esco_context_retries_without_hard_metadata_filters(monkeypatch) -> None:
     settings = SimpleNamespace(
         esco_vector_store_id="vs_123",
         esco_rag_enabled=True,
         esco_rag_max_results=3,
+        esco_rag_rewrite_query=False,
+        esco_rag_ranker="default-2024-11-15",
+        esco_rag_score_threshold=0.42,
     )
     search_calls: list[dict[str, object]] = []
 
@@ -146,11 +174,61 @@ def test_retrieve_esco_context_retries_without_hard_metadata_filters(monkeypatch
     assert len(result.hits) == 1
     assert len(search_calls) == 2
     assert search_calls[0]["filters"]["type"] == "and"
+    assert search_calls[0]["rewrite_query"] is False
+    assert search_calls[0]["ranking_options"] == {
+        "ranker": "default-2024-11-15",
+        "score_threshold": 0.42,
+    }
     assert search_calls[1]["filters"] == {
         "type": "eq",
         "key": "purpose",
         "value": "skills",
     }
+    assert search_calls[1]["rewrite_query"] is False
+    assert search_calls[1]["ranking_options"] == search_calls[0]["ranking_options"]
+
+
+def test_retrieve_esco_context_logs_hit_count_and_top_score(
+    monkeypatch, caplog
+) -> None:
+    settings = SimpleNamespace(
+        esco_vector_store_id="vs_123",
+        esco_rag_enabled=True,
+        esco_rag_max_results=5,
+        esco_rag_rewrite_query=True,
+        esco_rag_ranker="auto",
+        esco_rag_score_threshold=0.2,
+    )
+
+    class _VectorStores:
+        def search(self, **_kwargs):
+            return _FakeResponse(
+                {
+                    "data": [
+                        {"text": "First hit", "score": 0.61},
+                        {"text": "Second hit", "score": 0.82},
+                    ]
+                }
+            )
+
+    monkeypatch.setattr(esco_rag, "load_openai_settings", lambda: settings)
+    monkeypatch.setattr(
+        esco_rag,
+        "get_openai_client",
+        lambda *, settings: SimpleNamespace(vector_stores=_VectorStores()),
+    )
+
+    with caplog.at_level(logging.INFO):
+        result = esco_rag.retrieve_esco_context(
+            "john.doe@example.com salary", purpose="skills"
+        )
+
+    assert len(result.hits) == 2
+    assert any(
+        "hit_count=2" in record.message and "top_score=0.82" in record.message
+        for record in caplog.records
+    )
+    assert all("john.doe@example.com" not in rec.message for rec in caplog.records)
 
 
 def test_extract_hits_infers_known_filename_metadata() -> None:

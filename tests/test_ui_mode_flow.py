@@ -273,7 +273,9 @@ def test_set_current_step_records_step_entered_once(monkeypatch) -> None:
     ]
 
 
-def test_sidebar_salary_forecast_is_rendered_for_all_ui_modes(monkeypatch) -> None:
+def test_sidebar_salary_forecast_is_hidden_on_landing_for_all_ui_modes(
+    monkeypatch,
+) -> None:
     rendered_modes: list[str] = []
     computed_modes: list[str] = []
 
@@ -337,7 +339,7 @@ def test_sidebar_salary_forecast_is_rendered_for_all_ui_modes(monkeypatch) -> No
         assert current_page.key == "landing"
 
     assert computed_modes == []
-    assert rendered_modes == ["quick", "standard", "expert"]
+    assert rendered_modes == []
 
 
 def test_sidebar_salary_input_selections_default_active_and_persist(

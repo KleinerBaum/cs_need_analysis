@@ -1722,12 +1722,15 @@ def sidebar_navigation(ctx: WizardContext) -> WizardPage:
         options=options,
         key=nav_key,
         format_func=_format,
+        label_visibility="collapsed" if cur_key == "landing" else "visible",
     )
     if selected != cur_key and (cur_key in options or selected != fallback_nav_key):
         set_current_step(selected, sync_navigation=False)
         st.rerun()
 
     current_page = next(p for p in pages if p.key == cur_key)
+    if current_page.key == "landing":
+        return current_page
 
     job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
     answers_raw = st.session_state.get(SSKey.ANSWERS.value, {})

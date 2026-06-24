@@ -18,6 +18,7 @@ from config.preferences import (
 from constants import (
     APP_TITLE,
     SSKey,
+    STEP_KEY_LANDING,
     UI_PREFERENCE_ANSWER_MODE,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
     UI_PREFERENCE_ESCO_MATCHING_STRICTNESS,
@@ -987,8 +988,10 @@ def main() -> None:
         return
 
     _consume_wizard_step_query_param(ctx)
-    _render_sidebar_primary_links()
-    _render_draft_controls()
+    is_start_step = ctx.get_current_page_key() == STEP_KEY_LANDING
+    if not is_start_step:
+        _render_sidebar_primary_links()
+        _render_draft_controls()
     current = sidebar_navigation(ctx)
     _inject_draft_recovery_bridge(ctx)
     step_changed = bool(previous_step and previous_step != current.key)
@@ -998,7 +1001,8 @@ def main() -> None:
     render_intake_process_progress(current.key)
     _render_resume_banner(ctx)
     current.render(ctx)
-    _render_sidebar_footer_links()
+    if current.key != STEP_KEY_LANDING:
+        _render_sidebar_footer_links()
     st.session_state[SSKey.LAST_RENDERED_STEP.value] = current.key
 
 

@@ -362,7 +362,15 @@ def test_sidebar_navigation_uses_navigation_only_labels(monkeypatch) -> None:
     captured_labels: list[str] = []
 
     class _FakeSidebar:
-        def radio(self, _label: str, *, options: list[str], key: str, format_func):
+        def radio(
+            self,
+            _label: str,
+            *,
+            options: list[str],
+            key: str,
+            format_func,
+            **_kwargs: object,
+        ):
             del key
             captured_labels.extend(format_func(option) for option in options)
             return options[0]

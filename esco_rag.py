@@ -252,6 +252,64 @@ def _build_retrieval_filters(
     return {"type": "and", "filters": clauses}
 
 
+def _build_ranking_options(settings: Any) -> dict[str, Any] | None:
+    ranker = _coerce_string(getattr(settings, "esco_rag_ranker", "auto"))
+    score_threshold = _coerce_float(
+        getattr(settings, "esco_rag_score_threshold", 0.35)
+    )
+
+    ranking_options: dict[str, Any] = {}
+    if ranker is not None:
+        ranking_options["ranker"] = ranker
+    if score_threshold is not None:
+        ranking_options["score_threshold"] = score_threshold
+    return ranking_options or None
+
+
+def _build_search_kwargs(
+    *,
+    settings: Any,
+    query: str,
+    limit: int,
+    filters: dict[str, Any],
+) -> dict[str, Any]:
+    search_kwargs: dict[str, Any] = {
+        "vector_store_id": settings.esco_vector_store_id,
+        "query": query,
+        "max_num_results": limit,
+        "rewrite_query": bool(getattr(settings, "esco_rag_rewrite_query", True)),
+        "filters": filters,
+    }
+    ranking_options = _build_ranking_options(settings)
+    if ranking_options is not None:
+        search_kwargs["ranking_options"] = ranking_options
+    return search_kwargs
+
+
+def _top_score(hits: Sequence[EscoRagHit]) -> float | None:
+    scores = [hit.score for hit in hits if hit.score is not None]
+    if not scores:
+        return None
+    return max(scores)
+
+
+def build_esco_rag_chunking_strategy(settings: Any | None = None) -> dict[str, Any]:
+    """Return the configured OpenAI vector-store chunking strategy payload."""
+
+    resolved_settings = settings or load_openai_settings()
+    chunk_size = int(getattr(resolved_settings, "esco_rag_chunk_size_tokens", 800))
+    chunk_overlap = int(
+        getattr(resolved_settings, "esco_rag_chunk_overlap_tokens", 400)
+    )
+    return {
+        "type": "static",
+        "static": {
+            "max_chunk_size_tokens": chunk_size,
+            "chunk_overlap_tokens": chunk_overlap,
+        },
+    }
+
+
 def retrieve_esco_context(
     query: str,
     *,
@@ -287,7 +345,7 @@ def retrieve_esco_context(
             duration_ms=0,
         )
 
-    limit = max_results or settings.esco_rag_max_results
+    limit = min(max(int(max_results or settings.esco_rag_max_results), 1), 50)
     client = get_openai_client(settings=settings)
     primary_filters = _build_retrieval_filters(
         purpose=purpose,
@@ -307,11 +365,12 @@ def retrieve_esco_context(
     search_count = 0
     try:
         response = client.vector_stores.search(
-            vector_store_id=settings.esco_vector_store_id,
-            query=query,
-            max_num_results=limit,
-            rewrite_query=False,
-            filters=primary_filters,
+            **_build_search_kwargs(
+                settings=settings,
+                query=query,
+                limit=limit,
+                filters=primary_filters,
+            )
         )
         search_count += 1
         data = response.model_dump() if hasattr(response, "model_dump") else {}
@@ -320,11 +379,12 @@ def retrieve_esco_context(
         has_optional_metadata_filters = primary_filters != fallback_filters
         if has_optional_metadata_filters and not items:
             response = client.vector_stores.search(
-                vector_store_id=settings.esco_vector_store_id,
-                query=query,
-                max_num_results=limit,
-                rewrite_query=False,
-                filters=fallback_filters,
+                **_build_search_kwargs(
+                    settings=settings,
+                    query=query,
+                    limit=limit,
+                    filters=fallback_filters,
+                )
             )
             search_count += 1
             data = response.model_dump() if hasattr(response, "model_dump") else {}
@@ -340,6 +400,12 @@ def retrieve_esco_context(
         )
 
     hits = _extract_hits(items if isinstance(items, list) else [])
+    LOGGER.info(
+        "ESCO RAG retrieval completed hit_count=%s top_score=%s search_count=%s",
+        len(hits),
+        _top_score(hits),
+        search_count,
+    )
     return EscoRagResult(
         hits=hits,
         provenance="openai_vector_store",

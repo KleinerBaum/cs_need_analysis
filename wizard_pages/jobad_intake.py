@@ -89,7 +89,6 @@ from wizard_pages.base import (
     WizardContext,
     _get_esco_config,
     _set_esco_config,
-    is_focus_design_enabled,
     render_wizard_design_selector,
     render_ui_mode_selector,
 )
@@ -1326,7 +1325,7 @@ def _render_source_text_or_preview() -> None:
         )
         _render_uploaded_source_summary(upload_text)
         preview_context = (
-            st.expander("Dokumentvorschau anzeigen", expanded=False)
+            st.expander("Dokumentvorschau anzeigen", expanded=True)
             if hasattr(st, "expander")
             else nullcontext()
         )
@@ -1595,48 +1594,11 @@ def _render_phase_c_esco_anchor(ctx: WizardContext) -> None:
             st.rerun()
 
 
-def _current_job_extract_title() -> str:
-    job_dict = st.session_state.get(SSKey.JOB_EXTRACT.value)
-    if not isinstance(job_dict, dict):
-        return ""
-    return str(job_dict.get("job_title") or "").strip()
-
-
 def render_jobad_intake(
     ctx: WizardContext, *, title: str = "Jobspezifikation einlesen"
 ) -> None:
     analysis_complete = _has_completed_intake_analysis()
-    role_title = _current_job_extract_title()
-    if analysis_complete and role_title:
-        st.header(
-            _localized_template(
-                "Nächste Aktion für {role_title}",
-                "Next action for {role_title}",
-                role_title=role_title,
-            )
-        )
-        subtitle = _localized_template(
-            "Prüfen Sie kurz die erkannte Basis und bestätigen Sie den Referenzberuf.",
-            "Briefly review the detected basis and confirm the reference occupation.",
-            role_title=role_title,
-        )
-    elif analysis_complete:
-        st.header(str(t("Nächste Aktion im Briefing-Cockpit")))
-        subtitle = str(
-            t(
-                "Prüfen Sie kurz die erkannte Basis und bestätigen Sie den Referenzberuf."
-            )
-        )
-    else:
-        st.header(title)
-        subtitle = str(
-            t(
-                "Laden Sie eine Quelle hoch oder fügen Sie Text ein. Die App bereitet "
-                "daraus Rollenprofil, Lückenpriorisierung, ESCO-Anker und nächste "
-                "Briefing-Fragen vor."
-            )
-        )
-    st.caption(subtitle)
+    del title
     render_error_banner()
 
     if SOURCE_TEXT_INPUT_KEY not in st.session_state:
@@ -1649,7 +1611,9 @@ def render_jobad_intake(
         )
 
     if analysis_complete:
+        _render_extraction_result_section(ctx)
         render_intake_process_animation(state="done")
+        _render_esco_anchor_section(ctx)
         edit_source_context = (
             st.expander(
                 str(t("Quelle oder Briefing-Steuerung anpassen")),
@@ -1660,16 +1624,6 @@ def render_jobad_intake(
         )
         with edit_source_context:
             do_extract = _render_source_input_section(ctx)
-        if is_focus_design_enabled():
-            _render_esco_anchor_section(ctx)
-            with st.expander(
-                str(t("Erkannte Basis prüfen")),
-                expanded=False,
-            ):
-                _render_extraction_result_section(ctx)
-        else:
-            _render_extraction_result_section(ctx)
-            _render_esco_anchor_section(ctx)
     else:
         do_extract = _render_source_input_section(ctx)
 

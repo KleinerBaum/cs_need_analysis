@@ -31,6 +31,11 @@ class OpenAISettings:
     task_max_bullets_per_field: dict[str, int | None]
     task_max_sentences_per_field: dict[str, int | None]
     resolved_from: dict[str, str]
+    esco_rag_rewrite_query: bool = True
+    esco_rag_ranker: str = "auto"
+    esco_rag_score_threshold: float | None = 0.35
+    esco_rag_chunk_size_tokens: int = 800
+    esco_rag_chunk_overlap_tokens: int = 400
 
 
 _FINAL_MODEL_FALLBACK = "gpt-4o-mini"
@@ -62,6 +67,11 @@ _HARD_DEFAULTS: dict[str, str] = {
     "ESCO_VECTOR_STORE_ID": "",
     "ESCO_RAG_ENABLED": "false",
     "ESCO_RAG_MAX_RESULTS": "8",
+    "ESCO_RAG_REWRITE_QUERY": "true",
+    "ESCO_RAG_RANKER": "auto",
+    "ESCO_RAG_SCORE_THRESHOLD": "0.35",
+    "ESCO_RAG_CHUNK_SIZE_TOKENS": "800",
+    "ESCO_RAG_CHUNK_OVERLAP_TOKENS": "400",
 }
 
 
@@ -167,6 +177,52 @@ def _parse_optional_positive_int(raw: str | None) -> int | None:
     return parsed
 
 
+def _parse_positive_int(raw: str | None, default_value: int) -> int:
+    """Parse positive integer values with a conservative default fallback."""
+
+    return _parse_optional_positive_int(raw) or default_value
+
+
+def _parse_bounded_positive_int(
+    raw: str | None,
+    *,
+    default_value: int,
+    upper_bound: int,
+) -> int:
+    """Parse a positive integer and cap it to an API-supported upper bound."""
+
+    parsed = _parse_optional_positive_int(raw)
+    if parsed is None:
+        return default_value
+    return min(parsed, upper_bound)
+
+
+def _parse_optional_float(raw: str | None) -> float | None:
+    """Parse optional finite float values and return ``None`` when invalid."""
+
+    if raw is None:
+        return None
+    text = raw.strip().replace(",", ".")
+    if not text:
+        return None
+    try:
+        parsed = float(text)
+    except ValueError:
+        return None
+    if not math.isfinite(parsed):
+        return None
+    return parsed
+
+
+def _parse_optional_score_threshold(raw: str | None) -> float | None:
+    """Parse Search score thresholds and drop values outside the supported range."""
+
+    parsed = _parse_optional_float(raw)
+    if parsed is None or parsed < 0 or parsed > 1:
+        return None
+    return parsed
+
+
 def _parse_bool(raw: str | None, default_value: bool) -> bool:
     """Parse boolean-like string values with a conservative fallback."""
 
@@ -227,13 +283,47 @@ def load_openai_settings() -> OpenAISettings:
     esco_rag_max_results_raw, esco_rag_max_results_source = (
         _resolve_config_value_with_source("ESCO_RAG_MAX_RESULTS")
     )
-    esco_rag_max_results = _parse_optional_positive_int(esco_rag_max_results_raw) or 8
+    esco_rag_rewrite_query_raw, esco_rag_rewrite_query_source = (
+        _resolve_config_value_with_source("ESCO_RAG_REWRITE_QUERY")
+    )
+    esco_rag_ranker, esco_rag_ranker_source = (
+        _resolve_config_value_with_source("ESCO_RAG_RANKER")
+    )
+    esco_rag_score_threshold_raw, esco_rag_score_threshold_source = (
+        _resolve_config_value_with_source("ESCO_RAG_SCORE_THRESHOLD")
+    )
+    esco_rag_chunk_size_raw, esco_rag_chunk_size_source = (
+        _resolve_config_value_with_source("ESCO_RAG_CHUNK_SIZE_TOKENS")
+    )
+    esco_rag_chunk_overlap_raw, esco_rag_chunk_overlap_source = (
+        _resolve_config_value_with_source("ESCO_RAG_CHUNK_OVERLAP_TOKENS")
+    )
+    esco_rag_max_results = _parse_bounded_positive_int(
+        esco_rag_max_results_raw,
+        default_value=8,
+        upper_bound=50,
+    )
+    esco_rag_rewrite_query = _parse_bool(esco_rag_rewrite_query_raw, True)
+    esco_rag_ranker = esco_rag_ranker.strip() or "auto"
+    esco_rag_score_threshold = _parse_optional_score_threshold(
+        esco_rag_score_threshold_raw
+    )
+    esco_rag_chunk_size_tokens = _parse_positive_int(esco_rag_chunk_size_raw, 800)
+    esco_rag_chunk_overlap_tokens = min(
+        _parse_positive_int(esco_rag_chunk_overlap_raw, 400),
+        max(esco_rag_chunk_size_tokens - 1, 0),
+    )
     esco_rag_enabled = _parse_bool(esco_rag_enabled_raw, False) and bool(
         esco_vector_store_id
     )
     resolved_from["ESCO_VECTOR_STORE_ID"] = esco_vector_store_source
     resolved_from["ESCO_RAG_ENABLED"] = esco_rag_enabled_source
     resolved_from["ESCO_RAG_MAX_RESULTS"] = esco_rag_max_results_source
+    resolved_from["ESCO_RAG_REWRITE_QUERY"] = esco_rag_rewrite_query_source
+    resolved_from["ESCO_RAG_RANKER"] = esco_rag_ranker_source
+    resolved_from["ESCO_RAG_SCORE_THRESHOLD"] = esco_rag_score_threshold_source
+    resolved_from["ESCO_RAG_CHUNK_SIZE_TOKENS"] = esco_rag_chunk_size_source
+    resolved_from["ESCO_RAG_CHUNK_OVERLAP_TOKENS"] = esco_rag_chunk_overlap_source
     task_max_output_tokens: dict[str, int | None] = {}
     task_max_bullets_per_field: dict[str, int | None] = {}
     task_max_sentences_per_field: dict[str, int | None] = {}
@@ -273,6 +363,11 @@ def load_openai_settings() -> OpenAISettings:
         esco_vector_store_id=esco_vector_store_id,
         esco_rag_enabled=esco_rag_enabled,
         esco_rag_max_results=esco_rag_max_results,
+        esco_rag_rewrite_query=esco_rag_rewrite_query,
+        esco_rag_ranker=esco_rag_ranker,
+        esco_rag_score_threshold=esco_rag_score_threshold,
+        esco_rag_chunk_size_tokens=esco_rag_chunk_size_tokens,
+        esco_rag_chunk_overlap_tokens=esco_rag_chunk_overlap_tokens,
         task_max_output_tokens=task_max_output_tokens,
         task_max_bullets_per_field=task_max_bullets_per_field,
         task_max_sentences_per_field=task_max_sentences_per_field,

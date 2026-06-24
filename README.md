@@ -186,7 +186,12 @@ Primary keys:
 | `OPENAI_REQUEST_TIMEOUT` | request timeout in seconds; default is 120 |
 | `ESCO_VECTOR_STORE_ID` | optional ESCO vector store for RAG |
 | `ESCO_RAG_ENABLED` | enables ESCO RAG only when true and vector store ID exists |
-| `ESCO_RAG_MAX_RESULTS` | max ESCO RAG hits; default is 8 |
+| `ESCO_RAG_MAX_RESULTS` | max ESCO RAG hits, capped at 50; default is 8 |
+| `ESCO_RAG_REWRITE_QUERY` | toggles vector search query rewriting; default is true |
+| `ESCO_RAG_RANKER` | vector search ranker; default is `auto` |
+| `ESCO_RAG_SCORE_THRESHOLD` | optional vector search score threshold; default is 0.35 |
+| `ESCO_RAG_CHUNK_SIZE_TOKENS` | indexing chunk profile size hint; default is 800 |
+| `ESCO_RAG_CHUNK_OVERLAP_TOKENS` | indexing chunk profile overlap hint; default is 400 |
 
 Task-specific output limits follow this pattern for task kinds registered in `settings_openai._TASK_KINDS`:
 
@@ -207,6 +212,8 @@ MEDIUM_REASONING_MODEL = "gpt-4o-mini"
 HIGH_REASONING_MODEL = "o3-mini"
 OPENAI_REQUEST_TIMEOUT = "120"
 ESCO_RAG_ENABLED = "false"
+ESCO_RAG_REWRITE_QUERY = "true"
+ESCO_RAG_SCORE_THRESHOLD = "0.35"
 ```
 
 ### Model capability gating

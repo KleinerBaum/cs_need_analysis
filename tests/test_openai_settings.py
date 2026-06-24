@@ -24,18 +24,47 @@ def test_openai_settings_esco_rag_defaults_without_env(monkeypatch) -> None:
     assert settings.esco_vector_store_id is None
     assert settings.esco_rag_enabled is False
     assert settings.esco_rag_max_results == 8
+    assert settings.esco_rag_rewrite_query is True
+    assert settings.esco_rag_ranker == "auto"
+    assert settings.esco_rag_score_threshold == 0.35
+    assert settings.esco_rag_chunk_size_tokens == 800
+    assert settings.esco_rag_chunk_overlap_tokens == 400
 
 
 def test_openai_settings_esco_rag_env_resolution(monkeypatch) -> None:
     monkeypatch.setenv("ESCO_VECTOR_STORE_ID", "vs_abc123")
     monkeypatch.setenv("ESCO_RAG_ENABLED", "true")
     monkeypatch.setenv("ESCO_RAG_MAX_RESULTS", "12")
+    monkeypatch.setenv("ESCO_RAG_REWRITE_QUERY", "false")
+    monkeypatch.setenv("ESCO_RAG_RANKER", "default-2024-11-15")
+    monkeypatch.setenv("ESCO_RAG_SCORE_THRESHOLD", "0.42")
+    monkeypatch.setenv("ESCO_RAG_CHUNK_SIZE_TOKENS", "600")
+    monkeypatch.setenv("ESCO_RAG_CHUNK_OVERLAP_TOKENS", "200")
 
     settings = load_openai_settings()
 
     assert settings.esco_vector_store_id == "vs_abc123"
     assert settings.esco_rag_enabled is True
     assert settings.esco_rag_max_results == 12
+    assert settings.esco_rag_rewrite_query is False
+    assert settings.esco_rag_ranker == "default-2024-11-15"
+    assert settings.esco_rag_score_threshold == 0.42
+    assert settings.esco_rag_chunk_size_tokens == 600
+    assert settings.esco_rag_chunk_overlap_tokens == 200
+
+
+def test_openai_settings_esco_rag_bounds(monkeypatch) -> None:
+    monkeypatch.setenv("ESCO_RAG_MAX_RESULTS", "70")
+    monkeypatch.setenv("ESCO_RAG_SCORE_THRESHOLD", "1.5")
+    monkeypatch.setenv("ESCO_RAG_CHUNK_SIZE_TOKENS", "300")
+    monkeypatch.setenv("ESCO_RAG_CHUNK_OVERLAP_TOKENS", "900")
+
+    settings = load_openai_settings()
+
+    assert settings.esco_rag_max_results == 50
+    assert settings.esco_rag_score_threshold is None
+    assert settings.esco_rag_chunk_size_tokens == 300
+    assert settings.esco_rag_chunk_overlap_tokens == 299
 
 
 def test_openai_settings_esco_rag_disabled_when_vector_store_missing(monkeypatch) -> None:

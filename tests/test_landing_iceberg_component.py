@@ -74,13 +74,13 @@ def test_landing_page_does_not_render_iceberg_explainer() -> None:
     assert "render_jobad_intake" in render_body
 
 
-def test_landing_page_renders_briefing_cockpit_states() -> None:
+def test_landing_page_delegates_directly_to_intake() -> None:
     landing_page = Path("wizard_pages/00_landing.py").read_text(encoding="utf-8")
 
-    assert "_render_pre_upload_cockpit" in landing_page
-    assert "_render_unlocked_briefing_panel" in landing_page
-    assert "START_PAGE_COPY[\"value_cards\"]" in landing_page
-    assert "START_PAGE_COPY[\"unlocked_items\"]" in landing_page
+    assert "render_jobad_intake(ctx)" in landing_page
+    assert "_render_pre_upload_cockpit" not in landing_page
+    assert "_render_unlocked_briefing_panel" not in landing_page
+    assert "START_PAGE_COPY" not in landing_page
 
 
 def test_intro_page_uses_popovers_instead_of_external_links() -> None:
