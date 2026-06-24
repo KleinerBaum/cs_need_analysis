@@ -102,6 +102,14 @@ include the vacancy content required to continue later, such as source text,
 reviewed facts, answers, ESCO anchors, selected role/tasks/skills/benefits,
 salary scenario state, interview process data, and generated summary artifacts.
 
+## Product readiness contracts
+
+Product-readiness contracts are documented in:
+
+- [`docs/persistence_strategy.md`](docs/persistence_strategy.md) - current JSON draft/resume strategy, excluded state, and future adapter boundary.
+- [`docs/legacy_wizard_modules.md`](docs/legacy_wizard_modules.md) - archived wizard modules, replacement paths, route guardrails, and removal prerequisites.
+- [`docs/definition_of_done.md`](docs/definition_of_done.md) - beta Definition of Done, Summary release credibility, DE/EN parity, focused outputs, and no-live-API smoke expectations.
+
 ## Information acquisition model
 
 The intake process combines several evidence streams:
