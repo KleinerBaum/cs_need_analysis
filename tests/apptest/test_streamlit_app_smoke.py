@@ -52,8 +52,8 @@ def test_intro_smoke_renders_start_cta() -> None:
 
     _assert_no_streamlit_exceptions(app_test)
     rendered_text = "\n".join(_element_strings(app_test))
-    assert "Vakanzanforderungen präzise erfassen" in rendered_text
-    assert "Zum Start" in rendered_text
+    assert "Recruiting-Briefing vor Workflow" in rendered_text
+    assert "Briefing-Cockpit öffnen" in rendered_text
 
 
 def test_landing_query_param_smoke_renders_jobspec_intake() -> None:
@@ -62,6 +62,6 @@ def test_landing_query_param_smoke_renders_jobspec_intake() -> None:
     _assert_no_streamlit_exceptions(app_test)
     assert app_test.session_state[SSKey.CURRENT_STEP.value] == STEP_KEY_LANDING
     rendered_text = "\n".join(_element_strings(app_test))
-    assert "Stellenanzeige oder Jobspec" in rendered_text
+    assert "Jobspec oder Rohtext für das Briefing einfügen" in rendered_text
     assert "landing-process-step" not in rendered_text
     assert "cs-document-preview-wrap" not in rendered_text

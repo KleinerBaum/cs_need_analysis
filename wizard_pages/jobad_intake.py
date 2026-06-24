@@ -1323,8 +1323,8 @@ def _render_source_upload_status() -> None:
     if upload is not None:
         st.info(
             _localized_template(
-                "Quelle bereit: {file_name}",
-                "Source ready: {file_name}",
+                "Datei bereit: {file_name}",
+                "File ready: {file_name}",
                 file_name=file_name or str(t("Unbekannt")),
             )
         )

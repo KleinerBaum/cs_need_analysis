@@ -1070,7 +1070,7 @@ Priority guide: `P1` visible wizard workflow copy, `P2` shared/public/helper cop
 | P1 | `wizard.start` | `wizard_pages/jobad_intake.py:1451` | Extrahierter Text für die Analyse |
 | P1 | `wizard.start` | `wizard_pages/jobad_intake.py:1451` | Füge hier den vollständigen Ausschreibungstext ein … |
 | P1 | `wizard.start` | `wizard_pages/jobad_intake.py:1460` | Füge hier den vollständigen Ausschreibungstext ein … |
-| P1 | `wizard.start` | `wizard_pages/jobad_intake.py:1460` | Stellenanzeige oder Jobspec |
+| P1 | `wizard.start` | `wizard_pages/jobad_intake.py:1460` | Jobspec oder Rohtext für das Briefing einfügen |
 | P1 | `wizard.start` | `wizard_pages/jobad_intake.py:1488` | Berufsabgleich: Standardsprache DE, Alternative EN |
 | P1 | `wizard.start` | `wizard_pages/jobad_intake.py:1504` | #### Berufsabgleich |
 | P1 | `wizard.start` | `wizard_pages/jobad_intake.py:1506` | Debug: technische ESCO-Einstellungen für Version, API und Datenquelle. |

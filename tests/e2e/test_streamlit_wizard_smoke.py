@@ -128,12 +128,12 @@ def test_landing_jobspec_input_and_step_navigation(
     page.goto(streamlit_base_url, wait_until="domcontentloaded")
 
     _expect(
-        page.get_by_role("heading", name="Vakanzanforderungen präzise erfassen")
+        page.get_by_role("heading", name="Recruiting-Briefing vor Workflow")
     ).to_be_visible(timeout=30_000)
-    page.get_by_role("button", name="Zum Start").click()
+    page.get_by_role("button", name="Briefing-Cockpit öffnen").click()
 
     _expect(page.get_by_text("Anzeige hochladen oder einfügen")).to_be_visible()
-    source_input = page.get_by_label("Stellenanzeige oder Jobspec")
+    source_input = page.get_by_label("Jobspec oder Rohtext für das Briefing einfügen")
     source_input.fill(SYNTHETIC_JOBSPEC)
     _expect(source_input).to_have_value(SYNTHETIC_JOBSPEC)
 
