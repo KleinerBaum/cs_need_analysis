@@ -3058,7 +3058,10 @@ def _render_active_artifact(
             hr_json_bytes = json.dumps(
                 sheet.model_dump(mode="json"), indent=2, ensure_ascii=False
             ).encode("utf-8")
-            hr_docx_bytes = _interview_prep_hr_to_docx_bytes(sheet)
+            hr_docx_bytes = _interview_prep_hr_to_docx_bytes(
+                sheet,
+                language=language,
+            )
             x1, x2 = st.columns(2)
             with x1:
                 st.download_button(
@@ -3098,11 +3101,13 @@ def _render_active_artifact(
                 sheet,
                 logo_payload=logo_payload,
                 styleguide=styleguide,
+                language=language,
             )
             fach_pdf_bytes = _interview_prep_fach_to_pdf_bytes(
                 sheet,
                 logo_payload=logo_payload,
                 styleguide=styleguide,
+                language=language,
             )
             download_columns = st.columns(2)
             with download_columns[0]:
@@ -3435,7 +3440,7 @@ def _render_summary_export_workspace(
     export_json_text = json.dumps(export_payload, indent=2, ensure_ascii=False)
     md = _brief_to_markdown(brief, language=language)
     json_bytes = export_json_text.encode("utf-8")
-    docx_bytes = _brief_to_docx_bytes(brief)
+    docx_bytes = _brief_to_docx_bytes(brief, language=language)
     st.caption(_ui_copy("final_export.caption"))
     download_columns = st.columns(2)
     with download_columns[0]:

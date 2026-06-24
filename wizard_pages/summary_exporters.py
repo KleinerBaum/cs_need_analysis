@@ -134,6 +134,7 @@ from summary_exports import (
     brief_to_markdown as _brief_to_markdown,
     build_summary_input_fingerprint as _build_summary_input_fingerprint,
 )
+from ux_copy_contract import summary_export_copy
 from summary_esco import (
     build_esco_coverage_chart_spec as _build_esco_coverage_chart_spec,
     build_esco_coverage_kpis as _build_esco_coverage_kpis,
@@ -995,40 +996,71 @@ def _job_ad_to_pdf_bytes(
     )
 
 
-def _brief_to_docx_bytes(brief: VacancyBrief) -> bytes:
+def _export_copy(key: str, *, language: str | None = None, **params: Any) -> str:
+    return summary_export_copy(key, language=language, **params)
+
+
+def _export_label_line(
+    key: str,
+    value: Any,
+    *,
+    language: str | None = None,
+    **params: Any,
+) -> str:
+    return f"{_export_copy(key, language=language, **params)}: {value}"
+
+
+def _brief_export_title(brief: VacancyBrief, *, language: str | None = None) -> str:
+    structured_data = brief.structured_data.model_dump(mode="json")
+    job_extract = structured_data.get("job_extract")
+    role_title = ""
+    if isinstance(job_extract, Mapping):
+        role_title = str(job_extract.get("job_title") or "").strip()
+    if not role_title:
+        return _artifact_display_label("brief", language=language)
+    return _export_copy("brief_title", language=language, role_title=role_title).strip()
+
+
+def _brief_to_docx_bytes(
+    brief: VacancyBrief,
+    *,
+    language: str | None = None,
+) -> bytes:
     d = docx.Document()
     logo_payload = _read_logo_payload()
     _add_logo_to_docx(document=d, logo_payload=logo_payload)
-    d.add_heading("Recruiting Brief", level=1)
-    d.add_paragraph(f"One-liner: {brief.one_liner}")
+    d.add_heading(_brief_export_title(brief, language=language), level=1)
+    d.add_paragraph(
+        _export_label_line("one_liner", brief.one_liner, language=language)
+    )
 
-    d.add_heading("Hiring Context", level=2)
+    d.add_heading(_export_copy("hiring_context", language=language), level=2)
     d.add_paragraph(brief.hiring_context)
 
-    d.add_heading("Role Summary", level=2)
+    d.add_heading(_export_copy("role_summary", language=language), level=2)
     d.add_paragraph(brief.role_summary)
 
-    d.add_heading("Top Responsibilities", level=2)
+    d.add_heading(_export_copy("top_responsibilities", language=language), level=2)
     for x in brief.top_responsibilities:
         d.add_paragraph(x, style="List Bullet")
 
-    d.add_heading("Must-have", level=2)
+    d.add_heading(_export_copy("must_have", language=language), level=2)
     for x in brief.must_have:
         d.add_paragraph(x, style="List Bullet")
 
-    d.add_heading("Nice-to-have", level=2)
+    d.add_heading(_export_copy("nice_to_have", language=language), level=2)
     for x in brief.nice_to_have:
         d.add_paragraph(x, style="List Bullet")
 
-    d.add_heading("Interview Plan", level=2)
+    d.add_heading(_export_copy("interview_plan", language=language), level=2)
     for x in brief.interview_plan:
         d.add_paragraph(x, style="List Bullet")
 
-    d.add_heading("Risks / Open Questions", level=2)
+    d.add_heading(_export_copy("risks_open_questions", language=language), level=2)
     for x in brief.risks_open_questions:
         d.add_paragraph(x, style="List Bullet")
 
-    d.add_heading("Stellenanzeigenentwurf (DE)", level=2)
+    d.add_heading(_export_copy("job_ad_draft", language=language), level=2)
     d.add_paragraph(brief.job_ad_draft)
 
     bio = io.BytesIO()
@@ -1036,46 +1068,80 @@ def _brief_to_docx_bytes(brief: VacancyBrief) -> bytes:
     return bio.getvalue()
 
 
-def _interview_prep_hr_to_docx_bytes(sheet: InterviewPrepSheetHR) -> bytes:
+def _interview_prep_hr_to_docx_bytes(
+    sheet: InterviewPrepSheetHR,
+    *,
+    language: str | None = None,
+) -> bytes:
     d = docx.Document()
-    d.add_heading("HR-Sheet", level=1)
-    d.add_paragraph(f"Rolle: {sheet.role_title}")
-    d.add_paragraph(f"Interview-Stage: {sheet.interview_stage}")
-    d.add_paragraph(f"Dauer: {sheet.duration_minutes} Minuten")
+    d.add_heading(_artifact_display_label("interview_hr", language=language), level=1)
+    d.add_paragraph(
+        _export_label_line("role_title", sheet.role_title, language=language)
+    )
+    d.add_paragraph(
+        _export_label_line(
+            "interview_stage",
+            sheet.interview_stage,
+            language=language,
+        )
+    )
+    d.add_paragraph(
+        _export_label_line(
+            "duration",
+            f"{sheet.duration_minutes} {_export_copy('minutes', language=language)}",
+            language=language,
+        )
+    )
 
-    d.add_heading("Opening Script", level=2)
+    d.add_heading(_export_copy("opening_script", language=language), level=2)
     d.add_paragraph(sheet.opening_script)
 
-    d.add_heading("Frageblöcke", level=2)
+    d.add_heading(_export_copy("question_blocks", language=language), level=2)
     for block in sheet.question_blocks:
         d.add_heading(block.title, level=3)
-        d.add_paragraph(f"Ziel: {block.objective}")
+        d.add_paragraph(
+            _export_label_line("objective", block.objective, language=language)
+        )
         if block.questions:
-            d.add_paragraph("Fragen:")
+            d.add_paragraph(f"{_export_copy('questions', language=language)}:")
             for question in block.questions:
                 d.add_paragraph(question, style="List Bullet")
         if block.follow_up_prompts:
-            d.add_paragraph("Follow-ups:")
+            d.add_paragraph(f"{_export_copy('follow_ups', language=language)}:")
             for prompt in block.follow_up_prompts:
                 d.add_paragraph(prompt, style="List Bullet")
 
-    d.add_heading("Knockout-Kriterien", level=2)
+    d.add_heading(_export_copy("knockout_criteria", language=language), level=2)
     for knockout_criterion in sheet.knockout_criteria:
         d.add_paragraph(knockout_criterion, style="List Bullet")
 
-    d.add_heading("Bewertungsrubrik", level=2)
+    d.add_heading(_export_copy("evaluation_rubric", language=language), level=2)
     for rubric_criterion in sheet.evaluation_rubric:
         d.add_heading(rubric_criterion.title, level=3)
         d.add_paragraph(rubric_criterion.description)
-        d.add_paragraph(f"Gewichtung: {rubric_criterion.weight_percent} %")
+        d.add_paragraph(
+            _export_label_line(
+                "weight",
+                f"{rubric_criterion.weight_percent} %",
+                language=language,
+            )
+        )
         if rubric_criterion.score_scale:
-            d.add_paragraph(f"Skala: {' | '.join(rubric_criterion.score_scale)}")
+            d.add_paragraph(
+                _export_label_line(
+                    "scale",
+                    " | ".join(rubric_criterion.score_scale),
+                    language=language,
+                )
+            )
         if rubric_criterion.evidence_examples:
-            d.add_paragraph("Evidenz-Beispiele:")
+            d.add_paragraph(
+                f"{_export_copy('evidence_examples', language=language)}:"
+            )
             for evidence in rubric_criterion.evidence_examples:
                 d.add_paragraph(evidence, style="List Bullet")
 
-    d.add_heading("Finale Empfehlung", level=2)
+    d.add_heading(_export_copy("final_recommendation", language=language), level=2)
     for option in sheet.final_recommendation_options:
         d.add_paragraph(option, style="List Bullet")
 
@@ -1103,54 +1169,90 @@ def _interview_prep_fach_to_docx_bytes(
     *,
     logo_payload: LogoPayload | None = None,
     styleguide: str = "",
+    language: str | None = None,
 ) -> bytes:
     d = docx.Document()
     _apply_interview_docx_brand_style(d, styleguide)
     if logo_payload is None:
         logo_payload = _read_logo_payload()
     _add_logo_to_docx(document=d, logo_payload=logo_payload)
-    d.add_heading("Fachbereich-Sheet", level=1)
-    d.add_paragraph(f"Rolle: {sheet.role_title}")
-    d.add_paragraph(f"Interview-Stage: {sheet.interview_stage}")
-    d.add_paragraph(f"Dauer: {sheet.duration_minutes} Minuten")
+    d.add_heading(
+        _artifact_display_label("interview_fach", language=language),
+        level=1,
+    )
+    d.add_paragraph(
+        _export_label_line("role_title", sheet.role_title, language=language)
+    )
+    d.add_paragraph(
+        _export_label_line(
+            "interview_stage",
+            sheet.interview_stage,
+            language=language,
+        )
+    )
+    d.add_paragraph(
+        _export_label_line(
+            "duration",
+            f"{sheet.duration_minutes} {_export_copy('minutes', language=language)}",
+            language=language,
+        )
+    )
 
-    d.add_heading("Kompetenzen validieren", level=2)
+    d.add_heading(_export_copy("competencies_to_validate", language=language), level=2)
     for competency in sheet.competencies_to_validate:
         d.add_paragraph(competency, style="List Bullet")
 
-    d.add_heading("Frageblöcke", level=2)
+    d.add_heading(_export_copy("question_blocks", language=language), level=2)
     for block in sheet.question_blocks:
         d.add_heading(block.title, level=3)
-        d.add_paragraph(f"Ziel: {block.objective}")
+        d.add_paragraph(
+            _export_label_line("objective", block.objective, language=language)
+        )
         if block.questions:
-            d.add_paragraph("Fragen:")
+            d.add_paragraph(f"{_export_copy('questions', language=language)}:")
             for question in block.questions:
                 d.add_paragraph(question, style="List Bullet")
         if block.follow_up_prompts:
-            d.add_paragraph("Follow-ups:")
+            d.add_paragraph(f"{_export_copy('follow_ups', language=language)}:")
             for follow_up in block.follow_up_prompts:
                 d.add_paragraph(follow_up, style="List Bullet")
 
-    d.add_heading("Technical Deep Dive", level=2)
+    d.add_heading(_export_copy("technical_deep_dive", language=language), level=2)
     for topic in sheet.technical_deep_dive_topics:
         d.add_paragraph(topic, style="List Bullet")
 
-    d.add_heading("Case/Task Prompt", level=2)
-    d.add_paragraph(sheet.case_or_task_prompt or "Kein Case/Task hinterlegt.")
+    d.add_heading(_export_copy("case_task_prompt", language=language), level=2)
+    d.add_paragraph(
+        sheet.case_or_task_prompt or _export_copy("no_case_task", language=language)
+    )
 
-    d.add_heading("Bewertungsrubrik", level=2)
+    d.add_heading(_export_copy("evaluation_rubric", language=language), level=2)
     for criterion in sheet.evaluation_rubric:
         d.add_heading(criterion.title, level=3)
         d.add_paragraph(criterion.description)
-        d.add_paragraph(f"Gewichtung: {criterion.weight_percent} %")
+        d.add_paragraph(
+            _export_label_line(
+                "weight",
+                f"{criterion.weight_percent} %",
+                language=language,
+            )
+        )
         if criterion.score_scale:
-            d.add_paragraph(f"Skala: {' | '.join(criterion.score_scale)}")
+            d.add_paragraph(
+                _export_label_line(
+                    "scale",
+                    " | ".join(criterion.score_scale),
+                    language=language,
+                )
+            )
         if criterion.evidence_examples:
-            d.add_paragraph("Evidenz-Beispiele:")
+            d.add_paragraph(
+                f"{_export_copy('evidence_examples', language=language)}:"
+            )
             for evidence in criterion.evidence_examples:
                 d.add_paragraph(evidence, style="List Bullet")
 
-    d.add_heading("Debrief-Fragen", level=2)
+    d.add_heading(_export_copy("debrief_questions", language=language), level=2)
     for question in sheet.debrief_questions:
         d.add_paragraph(question, style="List Bullet")
 
@@ -1164,6 +1266,7 @@ def _interview_prep_fach_to_pdf_bytes(
     *,
     logo_payload: LogoPayload | None = None,
     styleguide: str = "",
+    language: str | None = None,
 ) -> bytes | None:
     try:
         from reportlab.lib.pagesizes import A4
@@ -1190,7 +1293,7 @@ def _interview_prep_fach_to_pdf_bytes(
         rightMargin=2 * cm,
         topMargin=2 * cm,
         bottomMargin=2 * cm,
-        title="Fachbereich-Sheet",
+        title=_artifact_display_label("interview_fach", language=language),
         author="anonymous",
     )
     styles = getSampleStyleSheet()
@@ -1241,37 +1344,77 @@ def _interview_prep_fach_to_pdf_bytes(
             )
         )
 
-    _heading("Fachbereich-Sheet", "Title")
-    story.append(_paragraph(f"Rolle: {sheet.role_title}"))
-    story.append(_paragraph(f"Interview-Stage: {sheet.interview_stage}"))
-    story.append(_paragraph(f"Dauer: {sheet.duration_minutes} Minuten"))
+    _heading(_artifact_display_label("interview_fach", language=language), "Title")
+    story.append(
+        _paragraph(_export_label_line("role_title", sheet.role_title, language=language))
+    )
+    story.append(
+        _paragraph(
+            _export_label_line(
+                "interview_stage",
+                sheet.interview_stage,
+                language=language,
+            )
+        )
+    )
+    story.append(
+        _paragraph(
+            _export_label_line(
+                "duration",
+                f"{sheet.duration_minutes} {_export_copy('minutes', language=language)}",
+                language=language,
+            )
+        )
+    )
     story.append(Spacer(1, 0.25 * cm))
 
-    _heading("Kompetenzen validieren")
+    _heading(_export_copy("competencies_to_validate", language=language))
     _bullets(sheet.competencies_to_validate)
-    _heading("Frageblöcke")
+    _heading(_export_copy("question_blocks", language=language))
     for block in sheet.question_blocks:
         _heading(block.title, "Heading3")
-        story.append(_paragraph(f"Ziel: {block.objective}"))
+        story.append(
+            _paragraph(_export_label_line("objective", block.objective, language=language))
+        )
         if block.questions:
-            story.append(_paragraph("Fragen:"))
+            story.append(_paragraph(f"{_export_copy('questions', language=language)}:"))
             _bullets(block.questions)
         if block.follow_up_prompts:
-            story.append(_paragraph("Follow-ups:"))
+            story.append(_paragraph(f"{_export_copy('follow_ups', language=language)}:"))
             _bullets(block.follow_up_prompts)
-    _heading("Technical Deep Dive")
+    _heading(_export_copy("technical_deep_dive", language=language))
     _bullets(sheet.technical_deep_dive_topics)
-    _heading("Case/Task Prompt")
-    story.append(_paragraph(sheet.case_or_task_prompt or "Kein Case/Task hinterlegt."))
-    _heading("Bewertungsrubrik")
+    _heading(_export_copy("case_task_prompt", language=language))
+    story.append(
+        _paragraph(
+            sheet.case_or_task_prompt or _export_copy("no_case_task", language=language)
+        )
+    )
+    _heading(_export_copy("evaluation_rubric", language=language))
     for criterion in sheet.evaluation_rubric:
         _heading(criterion.title, "Heading3")
         story.append(_paragraph(criterion.description))
-        story.append(_paragraph(f"Gewichtung: {criterion.weight_percent} %"))
+        story.append(
+            _paragraph(
+                _export_label_line(
+                    "weight",
+                    f"{criterion.weight_percent} %",
+                    language=language,
+                )
+            )
+        )
         if criterion.score_scale:
-            story.append(_paragraph(f"Skala: {' | '.join(criterion.score_scale)}"))
+            story.append(
+                _paragraph(
+                    _export_label_line(
+                        "scale",
+                        " | ".join(criterion.score_scale),
+                        language=language,
+                    )
+                )
+            )
         _bullets(criterion.evidence_examples)
-    _heading("Debrief-Fragen")
+    _heading(_export_copy("debrief_questions", language=language))
     _bullets(sheet.debrief_questions)
 
     document.build(story)

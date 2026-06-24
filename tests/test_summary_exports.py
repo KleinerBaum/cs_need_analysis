@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import json
 import base64
+import io
 
+import docx
+import pytest
 from constants import FactKey, SSKey, VACANCY_DRAFT_SCHEMA_VERSION
 from document_preview import (
     article_preview_html,
@@ -13,6 +16,7 @@ from document_preview import (
 from schemas import (
     BooleanSearchChannelQueries,
     BooleanSearchPack,
+    InterviewPrepSheetHiringManager,
     JobAdExtract,
     VacancyBrief,
     VacancyStructuredData,
@@ -25,6 +29,10 @@ from summary_exports import (
     build_vacancy_draft_payload,
     parse_vacancy_draft_json,
     vacancy_draft_payload_to_json,
+)
+from wizard_pages.summary_exporters import (
+    _brief_to_docx_bytes,
+    _interview_prep_fach_to_pdf_bytes,
 )
 
 
@@ -117,6 +125,62 @@ def test_brief_to_markdown_exports_salary_caveat_by_language() -> None:
 
     assert "## Vergütungshinweis\n- Salary forecast is orientation only." in markdown
     assert "## Compensation note\n- Salary forecast is orientation only." in english_markdown
+
+
+def test_brief_to_docx_exports_headings_by_language() -> None:
+    brief = VacancyBrief(
+        one_liner="One line",
+        hiring_context="Context",
+        role_summary="Summary",
+        top_responsibilities=["Build pipelines"],
+        must_have=["Python"],
+        nice_to_have=["SQL"],
+        dealbreakers=[],
+        interview_plan=["HR screen"],
+        evaluation_rubric=[],
+        risks_open_questions=["Budget open"],
+        job_ad_draft="Draft text",
+        structured_data=VacancyStructuredData(
+            job_extract={"job_title": "Data Engineer"},
+            answers={},
+        ),
+    )
+
+    german_document = docx.Document(io.BytesIO(_brief_to_docx_bytes(brief)))
+    german_text = "\n".join(paragraph.text for paragraph in german_document.paragraphs)
+    english_document = docx.Document(
+        io.BytesIO(_brief_to_docx_bytes(brief, language="en"))
+    )
+    english_text = "\n".join(paragraph.text for paragraph in english_document.paragraphs)
+
+    assert "Recruiting Brief - Data Engineer" in german_text
+    assert "Wichtigste Aufgaben" in german_text
+    assert "Stellenanzeigenentwurf (DE)" in german_text
+    assert "Recruiting brief - Data Engineer" in english_text
+    assert "Top responsibilities" in english_text
+    assert "Job ad draft" in english_text
+
+
+def test_interview_fach_pdf_uses_english_heading_when_reportlab_available() -> None:
+    pytest.importorskip("reportlab")
+    sheet = InterviewPrepSheetHiringManager(
+        role_title="Senior Data Engineer",
+        interview_stage="Technical interview",
+        duration_minutes=60,
+        competencies_to_validate=["Python"],
+        question_blocks=[],
+        technical_deep_dive_topics=[],
+        case_or_task_prompt=None,
+        evaluation_rubric=[],
+        hiring_signal_summary=[],
+        debrief_questions=["Debrief"],
+    )
+
+    pdf_bytes = _interview_prep_fach_to_pdf_bytes(sheet, language="en")
+
+    assert pdf_bytes is not None
+    assert b"Hiring manager sheet" in pdf_bytes
+    assert b"Fachbereich-Sheet" not in pdf_bytes
 
 
 def test_boolean_search_pack_to_markdown_formats_channel_queries() -> None:
