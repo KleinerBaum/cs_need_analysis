@@ -435,6 +435,34 @@ def test_salary_forecast_slots_keep_canonical_result_key_wiring() -> None:
     )
 
 
+def test_role_tasks_extracted_work_context_skips_duplicate_guardrails(monkeypatch) -> None:
+    role_tasks = _load_module(
+        "wizard_pages.page_04_role_tasks", "wizard_pages/04_role_tasks.py"
+    )
+    role_kwargs = _capture_step_shell_kwargs(role_tasks, step_key="role_tasks")
+    captured_include_flags: list[bool] = []
+
+    monkeypatch.setattr(role_tasks, "render_output_header", lambda *_, **__: None)
+    monkeypatch.setattr(
+        role_tasks,
+        "responsive_three_columns",
+        lambda **_kwargs: [_Column(), _Column(), _Column()],
+    )
+    monkeypatch.setattr(role_tasks, "_render_compact_signal_list", lambda *_, **__: None)
+    monkeypatch.setattr(role_tasks.st, "info", lambda *_, **__: None, raising=False)
+    monkeypatch.setattr(
+        role_tasks,
+        "render_work_context_sections",
+        lambda _job, *, include_non_negotiables_compliance=True: (
+            captured_include_flags.append(include_non_negotiables_compliance)
+        ),
+    )
+
+    role_kwargs["extracted_from_jobspec_slot"]()
+
+    assert captured_include_flags == [False]
+
+
 def test_benefits_step_shell_includes_jobspec_context_before_source_comparison() -> None:
     benefits = _load_module(
         "wizard_pages.page_06_benefits_extract", "wizard_pages/06_benefits.py"

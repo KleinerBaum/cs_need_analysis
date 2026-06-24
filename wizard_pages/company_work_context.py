@@ -227,6 +227,11 @@ def render_non_negotiables_compliance_section(
         )
 
 
-def render_work_context_sections(job: JobAdExtract) -> None:
+def render_work_context_sections(
+    job: JobAdExtract,
+    *,
+    include_non_negotiables_compliance: bool = True,
+) -> None:
     render_working_model_location_section(job)
-    render_non_negotiables_compliance_section()
+    if include_non_negotiables_compliance:
+        render_non_negotiables_compliance_section()

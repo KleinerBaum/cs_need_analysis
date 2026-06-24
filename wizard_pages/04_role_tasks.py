@@ -750,9 +750,15 @@ def render(ctx: WizardContext) -> None:
         expander = getattr(st, "expander", None)
         if callable(expander):
             with expander("Arbeitsmodell, Standort und Rahmen aus Jobspec", expanded=False):
-                render_work_context_sections(job)
+                render_work_context_sections(
+                    job,
+                    include_non_negotiables_compliance=False,
+                )
         else:
-            render_work_context_sections(job)
+            render_work_context_sections(
+                job,
+                include_non_negotiables_compliance=False,
+            )
 
     def _render_source_comparison_slot() -> None:
         nonlocal source_counts
