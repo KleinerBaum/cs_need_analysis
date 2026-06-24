@@ -67,6 +67,30 @@ def test_all_llm_task_kinds_have_limit_settings() -> None:
     assert llm_task_kinds <= configured_task_kinds
 
 
+def test_openai_task_kind_contract_is_explicit() -> None:
+    expected_task_kinds = {
+        "extract_job_ad",
+        "generate_question_plan",
+        "generate_vacancy_brief",
+        "generate_job_ad",
+        "generate_interview_sheet_hr",
+        "generate_interview_sheet_hm",
+        "generate_boolean_search",
+        "generate_employment_contract",
+        "generate_requirement_gap_suggestions",
+        "generate_benefit_suggestions",
+        "generate_role_tasks_salary_forecast",
+    }
+    llm_task_kinds = {
+        value
+        for name, value in vars(llm_client).items()
+        if name.startswith("TASK_") and isinstance(value, str)
+    }
+
+    assert set(settings_openai._TASK_KINDS) == expected_task_kinds
+    assert llm_task_kinds == expected_task_kinds
+
+
 def test_role_tasks_salary_forecast_limit_settings_resolve_from_env(
     monkeypatch,
 ) -> None:

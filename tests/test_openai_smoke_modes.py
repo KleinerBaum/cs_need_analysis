@@ -18,6 +18,7 @@ from llm_client import (
     supports_temperature,
     supports_verbosity,
 )
+from scripts.openai_smoke_test import SMOKE_MODES, run_mode
 from settings_openai import OpenAISettings
 
 
@@ -234,6 +235,39 @@ def test_extract_messages_map_offer_sections_to_benefits() -> None:
 def test_supports_temperature_for_gpt54_depends_on_none_reasoning() -> None:
     assert supports_temperature("gpt-5.4-mini", "none")
     assert not supports_temperature("gpt-5.4-mini", "low")
+
+
+def test_openai_smoke_modes_cover_capability_gate_edges_without_live_calls() -> None:
+    assert set(SMOKE_MODES) == {
+        "gpt-5.4-nano",
+        "gpt-5-nano",
+        "invalid-reasoning-effort",
+        "unsupported-temperature",
+    }
+
+    results = {
+        mode_name: run_mode(mode, dry_run=True)
+        for mode_name, mode in SMOKE_MODES.items()
+    }
+
+    gpt54_kwargs = results["gpt-5.4-nano"].effective_request_kwargs
+    assert gpt54_kwargs["reasoning"] == {"effort": "none"}
+    assert gpt54_kwargs["text"] == {"verbosity": "low"}
+    assert gpt54_kwargs["temperature"] == 0.0
+
+    gpt5_kwargs = results["gpt-5-nano"].effective_request_kwargs
+    assert gpt5_kwargs["reasoning"] == {"effort": "low"}
+    assert gpt5_kwargs["text"] == {"verbosity": "low"}
+    assert "temperature" not in gpt5_kwargs
+
+    invalid_kwargs = results["invalid-reasoning-effort"].effective_request_kwargs
+    assert "reasoning" not in invalid_kwargs
+    assert invalid_kwargs["text"] == {"verbosity": "low"}
+    assert "temperature" not in invalid_kwargs
+
+    for result in results.values():
+        assert result.actual_response_metadata["parse_status"] == "dry_run"
+        assert result.fields_preview is None
 
 
 def _build_settings(*, openai_model_override: str | None) -> OpenAISettings:
