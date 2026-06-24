@@ -83,6 +83,14 @@ def test_landing_page_renders_briefing_cockpit_states() -> None:
     assert "START_PAGE_COPY[\"unlocked_items\"]" in landing_page
 
 
+def test_intro_page_uses_popovers_instead_of_external_links() -> None:
+    intro_page = Path("wizard_pages/00_intro.py").read_text(encoding="utf-8")
+
+    assert "st.popover" in intro_page
+    assert "href=" not in intro_page
+    assert "OpenAI API Docs" not in intro_page
+
+
 def test_intro_page_owns_upload_to_briefing_flow() -> None:
     landing_page = Path("wizard_pages/00_landing.py").read_text(encoding="utf-8")
     intro_page = Path("wizard_pages/00_intro.py").read_text(encoding="utf-8")
@@ -96,7 +104,7 @@ def test_intro_page_owns_upload_to_briefing_flow() -> None:
 def test_intro_page_is_compressed_and_skippable_after_briefing() -> None:
     intro_page = Path("wizard_pages/00_intro.py").read_text(encoding="utf-8")
 
-    assert "Recruiting-Briefing vor Workflow" in intro_page
+    assert "Erst klären. Dann suchen." in intro_page
     assert "Briefing-Cockpit öffnen" in intro_page
     assert "SSKey.JOB_EXTRACT.value" in intro_page
     assert "Aus langjähriger Erfahrung" not in intro_page

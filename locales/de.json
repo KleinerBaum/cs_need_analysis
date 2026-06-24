@@ -85,13 +85,13 @@
   "iceberg": {
     "aria_label": "Eisberg-Modell für klassisches und KI-gestütztes Recruiting-Briefing",
     "surface_label": "oberhalb: sichtbar in Jobspec, Stellenanzeige und erstem Briefing",
-    "deep_label": "unterhalb: entscheidend für Search, Matching, Interview und Zusage"
+    "deep_label": "unterhalb: entscheidend für Suche, Matching, Interview und Zusage"
   },
   "ux_copy": {
     "steps": {
       "landing": {
         "headline": "Vom Rollenbedarf zum Recruiting-Briefing.",
-        "subheadline": "Für Recruiting, HR und Hiring Teams, die vor Search, Matching, Interview und Angebot eine gemeinsame Entscheidungsbasis brauchen. Laden Sie eine Jobspec hoch oder fügen Sie Rohtext ein; die App zeigt zuerst, was belastbar ist und welche Lücken den Prozess bremsen.",
+        "subheadline": "Für Recruiting, HR und Hiring Teams, die vor Suche, Matching, Interview und Angebot eine gemeinsame Entscheidungsbasis brauchen. Laden Sie eine Jobspec hoch oder fügen Sie Rohtext ein; die App zeigt zuerst, was belastbar ist und welche Lücken den Prozess bremsen.",
         "value_line": "Ergebnis: ein Briefing-Cockpit mit Rollenprofil, Prioritäten, offenen Fragen, ESCO-Anker und vorbereiteten Recruiting-Unterlagen.",
         "headline_after_analysis": "Briefing-Cockpit für {role_title} ist vorbereitet.",
         "subheadline_after_analysis": "Nächste Aktion: erkannte Angaben prüfen, unsichere Punkte bereinigen und den Referenzberuf bestätigen.",

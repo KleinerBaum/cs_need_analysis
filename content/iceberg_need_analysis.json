@@ -1,6 +1,6 @@
 {
   "header": "Von der Jobspec zum belastbaren Recruiting-Briefing",
-  "subtitle": "Die Stellenanzeige zeigt, was bekannt ist. Die App macht sichtbar, was für Search, Matching, Interview und Angebot wirklich entschieden werden muss.",
+  "subtitle": "Die Stellenanzeige zeigt, was bekannt ist. Die App macht sichtbar, was für Suche, Matching, Interview und Angebot wirklich entschieden werden muss.",
   "surface": {
     "headline": "Klassische Bedarfsanalyse",
     "subline": "sichtbar im Jobprofil - hilfreich, aber selten entscheidungsreif",
@@ -29,7 +29,7 @@
   },
   "waterline": {
     "surface": "oberhalb: sichtbar in Jobspec, Stellenanzeige und erstem Briefing",
-    "deep": "unterhalb: entscheidend für Search, Matching, Interview und Zusage"
+    "deep": "unterhalb: entscheidend für Suche, Matching, Interview und Zusage"
   },
   "deep": {
     "headline": "AI- & ESCO-gestütztes Recruiting-Briefing",
@@ -37,8 +37,8 @@
     "groups": [
       {
         "title": "Geprüfte Faktenbasis",
-        "body": "Extraktion, Fundstellen, Confidence, Gaps und Annahmen werden reviewbar, bevor daraus Entscheidungen entstehen.",
-        "items": ["Evidenz", "Gaps", "Review"]
+        "body": "Extraktion, Fundstellen, Confidence, Gaps und Annahmen werden prüfbar, bevor daraus Entscheidungen entstehen.",
+        "items": ["Evidenz", "Gaps", "Prüfung"]
       },
       {
         "title": "Prioritäten & Kompromisse",
@@ -63,7 +63,7 @@
       {
         "title": "Interview- & Unterlagenlogik",
         "body": "Briefing, Stellenanzeige, Suchstrings, Interview-Sheets und Scorecards entstehen aus derselben bestätigten Datenbasis.",
-        "items": ["Brief", "Search", "Scorecard"]
+        "items": ["Briefing", "Suche", "Scorecard"]
       }
     ]
   },

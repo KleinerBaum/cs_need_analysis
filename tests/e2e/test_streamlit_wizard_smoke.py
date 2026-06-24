@@ -141,7 +141,7 @@ def test_landing_jobspec_input_and_step_navigation(
     page.goto(streamlit_base_url, wait_until="domcontentloaded")
 
     _expect(
-        page.get_by_role("heading", name="Recruiting-Briefing vor Workflow")
+        page.get_by_role("heading", name="Erst klären. Dann suchen.")
     ).to_be_visible(timeout=30_000)
     page.get_by_role("button", name="Briefing-Cockpit öffnen").click()
 

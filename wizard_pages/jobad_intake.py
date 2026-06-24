@@ -74,7 +74,6 @@ from state import (
     get_model_override,
     handle_unexpected_exception,
     set_error,
-    set_answer,
     apply_jobspec_source_change,
 )
 from ui_components import (
@@ -174,36 +173,6 @@ def _render_success_callout(message: str) -> None:
         """,
         streamlit_module=st,
     )
-
-
-_START_ROUTING_LABELS: Final[dict[str, dict[str, str]]] = {
-    FactKey.INTAKE_SEARCH_CONFIDENTIALITY.value: {
-        "open": "Offen kommunizierbar",
-        "limited": "Intern begrenzt",
-        "high": "Vertraulich / neutralisieren",
-    },
-    FactKey.INTAKE_HIRING_REASON.value: {
-        "unknown": "Noch unklar",
-        "replacement": "Ersatz / Backfill",
-        "growth": "Wachstum",
-        "new_role": "Neue Rolle / Neuaufbau",
-        "internal_move": "Interne Nachfolge",
-        "confidential": "Vertrauliche Suche",
-    },
-    FactKey.INTAKE_URGENCY.value: {
-        "unknown": "Noch unklar",
-        "low": "Planbar",
-        "medium": "Relevant",
-        "high": "Dringend",
-        "critical": "Kritisch / sofort",
-    },
-    FactKey.INTAKE_ROLE_DEFINITION_MATURITY.value: {
-        "unknown": "Noch unklar",
-        "high": "Intern kalibriert",
-        "medium": "Teilweise kalibriert",
-        "low": "Noch unscharf",
-    },
-}
 
 
 def _model_dump_json_compatible(model: Any) -> dict[str, Any]:
@@ -1084,94 +1053,6 @@ def _activate_manual_intake_fallback(source_text: str) -> None:
     clear_error()
 
 
-def _routing_answer(fact_key: FactKey, default: Any) -> Any:
-    answers_raw = st.session_state.get(SSKey.ANSWERS.value, {})
-    answers = answers_raw if isinstance(answers_raw, dict) else {}
-    value = answers.get(fact_key.value, default)
-    return default if value is None else value
-
-
-def _persist_routing_answer(fact_key: FactKey, value: Any) -> None:
-    set_answer(fact_key.value, value, fact_key=fact_key.value)
-
-
-def _render_routing_select(
-    *,
-    fact_key: FactKey,
-    label: str,
-    options: tuple[str, ...],
-    default: str,
-) -> None:
-    labels = _START_ROUTING_LABELS[fact_key.value]
-    current = str(_routing_answer(fact_key, default) or default)
-    if current not in options:
-        current = default
-    selected = st.selectbox(
-        label,
-        options=options,
-        index=options.index(current),
-        format_func=lambda value: labels.get(value, value),
-        key=f"cs.start.routing.{fact_key.value}",
-    )
-    _persist_routing_answer(fact_key, selected)
-
-
-def _render_start_routing_controls() -> None:
-    if not all(hasattr(st, name) for name in ("selectbox", "number_input")):
-        if hasattr(st, "caption"):
-            st.caption(str(t("Briefing-Routing vorab: Standardwerte werden verwendet.")))
-        return
-
-    with st.container():
-        if hasattr(st, "caption"):
-            st.caption(str(t("Briefing-Routing vorab")))
-        _render_routing_select(
-            fact_key=FactKey.INTAKE_SEARCH_CONFIDENTIALITY,
-            label="Vertraulichkeit",
-            options=("open", "limited", "high"),
-            default="open",
-        )
-        _render_routing_select(
-            fact_key=FactKey.INTAKE_URGENCY,
-            label="Dringlichkeit",
-            options=("unknown", "low", "medium", "high", "critical"),
-            default="unknown",
-        )
-        _render_routing_select(
-            fact_key=FactKey.INTAKE_HIRING_REASON,
-            label="Besetzungsgrund",
-            options=(
-                "unknown",
-                "replacement",
-                "growth",
-                "new_role",
-                "internal_move",
-                "confidential",
-            ),
-            default="unknown",
-        )
-        current_volume = _routing_answer(FactKey.INTAKE_HIRING_VOLUME, 1)
-        try:
-            current_volume_int = int(current_volume)
-        except (TypeError, ValueError):
-            current_volume_int = 1
-        hiring_volume = st.number_input(
-            "Anzahl Positionen",
-            min_value=1,
-            max_value=50,
-            value=max(1, min(50, current_volume_int)),
-            step=1,
-            key=f"cs.start.routing.{FactKey.INTAKE_HIRING_VOLUME.value}",
-        )
-        _persist_routing_answer(FactKey.INTAKE_HIRING_VOLUME, int(hiring_volume))
-        _render_routing_select(
-            fact_key=FactKey.INTAKE_ROLE_DEFINITION_MATURITY,
-            label="Rollenkalibrierung",
-            options=("unknown", "high", "medium", "low"),
-            default="unknown",
-        )
-
-
 def _usage_has_cache_hit(usage: Any) -> bool:
     if isinstance(usage, dict):
         return bool(usage.get("cached"))
@@ -1351,14 +1232,7 @@ def _render_phase_a_configuration_controls() -> None:
     st.markdown(str(t("#### Briefing-Steuerung")))
     render_ui_mode_selector()
     render_wizard_design_selector()
-    advanced_context = (
-        st.expander(str(t("Erweiterte Briefing-Steuerung")), expanded=False)
-        if hasattr(st, "expander")
-        else nullcontext()
-    )
-    with advanced_context:
-        _render_start_routing_controls()
-        _render_esco_operating_block()
+    _render_esco_operating_block()
 
 
 def _render_source_character_metric() -> None:

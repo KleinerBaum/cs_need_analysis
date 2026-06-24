@@ -48,6 +48,13 @@ def _element_strings(app_test: AppTest) -> Iterable[str]:
                 value = getattr(element, attr, "")
                 if value:
                     yield str(value)
+    for element in app_test.main:
+        if getattr(element, "type", None) != "html":
+            continue
+        proto = getattr(element, "proto", None)
+        body = str(getattr(proto, "body", "") or "")
+        if body:
+            yield body
 
 
 def _assert_no_streamlit_exceptions(app_test: AppTest) -> None:
@@ -88,7 +95,7 @@ def test_intro_smoke_renders_start_cta() -> None:
 
     _assert_no_streamlit_exceptions(app_test)
     rendered_text = _rendered_text(app_test)
-    assert "Recruiting-Briefing vor Workflow" in rendered_text
+    assert "Erst klären. Dann suchen." in rendered_text
     assert "Briefing-Cockpit öffnen" in rendered_text
 
 

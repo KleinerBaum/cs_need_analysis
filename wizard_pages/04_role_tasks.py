@@ -62,6 +62,7 @@ from wizard_pages.base import (
     nav_buttons,
     resolve_dynamic_step_copy,
 )
+from wizard_pages.briefing_routing_controls import render_briefing_routing_controls
 from wizard_pages.fact_inputs import (
     compact_text,
     fact_value,
@@ -70,6 +71,7 @@ from wizard_pages.fact_inputs import (
     render_multiselect_fact,
     render_select_fact,
     section_container,
+    split_lines,
     render_text_area_fact,
     render_text_fact,
 )
@@ -575,6 +577,23 @@ def _render_travel_profile() -> None:
     )
 
 
+def _render_string_list_text_area(
+    fact_key: FactKey,
+    label: str,
+    *,
+    default_items: list[str] | None = None,
+    height: int = 120,
+) -> list[str]:
+    current = split_lines(fact_value(fact_key, list(default_items or [])))
+    value = st.text_area(
+        label,
+        value="\n".join(current),
+        height=height,
+        key=f"fact_input.{fact_key.value}",
+    )
+    return persist_fact(fact_key, split_lines(value))
+
+
 def _render_structured_role_scope(
     job: JobAdExtract,
     candidate_tasks: list[str],
@@ -599,6 +618,30 @@ def _render_structured_role_scope(
             "welche Verantwortung Recruiter vor der Suche verstanden haben müssen."
         )
     )
+    routing_col, clarification_col = st.columns(2, gap="large")
+    with routing_col:
+        with section_container(border=True):
+            st.markdown("#### Suchsteuerung")
+            st.caption(
+                "Diese Angaben beeinflussen Priorisierung, Folgefragen und die spätere "
+                "Recruiting-Kommunikation."
+            )
+            render_briefing_routing_controls(key_prefix="role_tasks.routing")
+    with clarification_col:
+        with section_container(border=True):
+            st.markdown("#### Rollenklärung")
+            _render_string_list_text_area(
+                FactKey.ROLE_ASSUMPTIONS,
+                "Noch zu klärende Rollenannahmen",
+                default_items=job.gaps[:3],
+                height=142,
+            )
+            _render_string_list_text_area(
+                FactKey.ROLE_GAPS,
+                "Offene Aufgaben- oder Verantwortungslücken",
+                default_items=[],
+                height=142,
+            )
     with section_container(border=True):
         render_text_fact(
             FactKey.ROLE_BUSINESS_OUTCOME_PRIMARY,

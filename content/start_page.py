@@ -24,7 +24,7 @@ START_PAGE_COPY: dict[str, object] = {
         ),
         (
             "Zielgruppe",
-            "Gebaut für Recruiting, HR und Hiring Teams, die vor Search, Matching und Interview dieselbe Grundlage brauchen.",
+            "Gebaut für Recruiting, HR und Hiring Teams, die vor Suche, Matching und Interview dieselbe Grundlage brauchen.",
         ),
         (
             "Outputs",
@@ -54,7 +54,7 @@ START_PAGE_COPY: dict[str, object] = {
         ),
         (
             "2. Lücken priorisieren",
-            "Die App zeigt nur Angaben, die für Search, Matching, Interview oder Angebot noch fehlen.",
+            "Die App zeigt nur Angaben, die für Suche, Matching, Interview oder Angebot noch fehlen.",
         ),
         (
             "3. Recruiting-Unterlagen vorbereiten",
