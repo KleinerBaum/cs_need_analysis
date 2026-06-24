@@ -90,6 +90,8 @@ from wizard_pages.base import (
     WizardContext,
     _get_esco_config,
     _set_esco_config,
+    is_focus_design_enabled,
+    render_wizard_design_selector,
     render_ui_mode_selector,
 )
 from wizard_pages.jobad_evidence import (
@@ -1342,6 +1344,7 @@ def _render_source_upload_status() -> None:
 def _render_phase_a_configuration_controls() -> None:
     st.markdown(str(t("#### Briefing-Steuerung")))
     render_ui_mode_selector()
+    render_wizard_design_selector()
     advanced_context = (
         st.expander(str(t("Erweiterte Briefing-Steuerung")), expanded=False)
         if hasattr(st, "expander")
@@ -1773,8 +1776,16 @@ def render_jobad_intake(
 
     if analysis_complete:
         render_intake_process_animation(state="done")
-        _render_extraction_result_section(ctx)
-        _render_esco_anchor_section(ctx)
+        if is_focus_design_enabled():
+            _render_esco_anchor_section(ctx)
+            with st.expander(
+                str(t("Erkannte Basis prüfen")),
+                expanded=False,
+            ):
+                _render_extraction_result_section(ctx)
+        else:
+            _render_extraction_result_section(ctx)
+            _render_esco_anchor_section(ctx)
         edit_source_context = (
             st.expander(
                 str(t("Quelle oder Briefing-Steuerung anpassen")),

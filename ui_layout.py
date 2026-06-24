@@ -36,6 +36,9 @@ from constants import (
     STEP_KEY_SUMMARY,
     STEP_SECTION_SLOT_NAMES,
     UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT,
+    UI_PREFERENCE_WIZARD_DESIGN,
+    UI_WIZARD_DESIGN_DEFAULT,
+    UI_WIZARD_DESIGN_FOCUS,
     WIZARD_STEP_QUERY_PARAM,
 )
 from schemas import QuestionPlan, QuestionStep
@@ -51,7 +54,13 @@ from step_payload import (
 )
 from step_sections import section_status_summary
 from step_status import StepStatusPayload
-from state import get_answer_meta, get_answers, mark_answer_touched, set_answer
+from state import (
+    get_answer_meta,
+    get_answers,
+    mark_answer_touched,
+    normalize_ui_preferences,
+    set_answer,
+)
 from safe_html import escape_html_text, render_static_html
 from usage_events import record_enrichment_timed
 
@@ -284,15 +293,48 @@ class LazySectionConfig:
     default_open: bool = False
 
 
+def get_current_wizard_design() -> str:
+    """Return normalized wizard layout design from persisted UI preferences."""
+    preferences = normalize_ui_preferences(
+        st.session_state.get(SSKey.UI_PREFERENCES.value)
+    )
+    st.session_state[SSKey.UI_PREFERENCES.value] = preferences
+    return str(preferences.get(UI_PREFERENCE_WIZARD_DESIGN, UI_WIZARD_DESIGN_DEFAULT))
+
+
+def is_focus_design_enabled() -> bool:
+    """Return whether the decision-first focus layout is active."""
+    return get_current_wizard_design() == UI_WIZARD_DESIGN_FOCUS
+
+
 def default_lazy_source_section_open() -> bool:
     preferences_raw = st.session_state.get(SSKey.UI_PREFERENCES.value, {})
     preferences = preferences_raw if isinstance(preferences_raw, dict) else {}
     configured = preferences.get(UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT)
+    if is_focus_design_enabled():
+        return bool(configured) if isinstance(configured, bool) else False
     if isinstance(configured, bool):
         return configured
 
     ui_mode = str(st.session_state.get(SSKey.UI_MODE.value, "")).strip().lower()
     return ui_mode == "expert"
+
+
+def default_focus_drilldown_open(*, classic_default_open: bool = True) -> bool:
+    """Return focus-aware default for secondary panels that used to be visible."""
+    if not is_focus_design_enabled():
+        return classic_default_open
+    preferences_raw = st.session_state.get(SSKey.UI_PREFERENCES.value, {})
+    preferences = preferences_raw if isinstance(preferences_raw, dict) else {}
+    configured = preferences.get(UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT)
+    return bool(configured) if isinstance(configured, bool) else False
+
+
+def default_primary_workspace_open() -> bool:
+    """Return default open state for a step's main decision workspace."""
+    if is_focus_design_enabled():
+        return True
+    return default_lazy_source_section_open()
 
 
 def _lazy_section_state_key(*, step_key: str, slot_name: str) -> str:
@@ -746,46 +788,56 @@ def render_step_shell(
     def _render_extracted_section() -> None:
         if extracted_from_jobspec_slot is None:
             return
-        if extracted_from_jobspec_label:
+        if (
+            extracted_from_jobspec_label
+            and (lazy_section_configs or {}).get("extracted_from_jobspec_slot") is None
+        ):
             _render_step_section_heading(extracted_from_jobspec_label)
         extracted_from_jobspec_slot()
         render_jobspec_step_notes(step.step_key if step is not None else None)
 
-    def _render_source_section() -> None:
-        if source_comparison_slot is None:
+    def _render_slot_with_optional_lazy(
+        slot_name: StepShellSlotName,
+        render_slot: Callable[[], None] | None,
+    ) -> None:
+        if render_slot is None:
             return
-        config = (lazy_section_configs or {}).get("source_comparison_slot")
+        config = (lazy_section_configs or {}).get(slot_name)
         if config is not None:
             render_lazy_section(
                 step_key=step.step_key if step is not None else "",
-                slot_name="source_comparison_slot",
+                slot_name=slot_name,
                 config=config,
-                render_slot=source_comparison_slot,
+                render_slot=render_slot,
             )
         else:
-            source_comparison_slot()
+            render_slot()
+
+    def _render_source_section() -> None:
+        _render_slot_with_optional_lazy("source_comparison_slot", source_comparison_slot)
 
     def _render_salary_section() -> None:
-        if salary_forecast_slot is None:
-            return
-        config = (lazy_section_configs or {}).get("salary_forecast_slot")
-        if config is not None:
-            render_lazy_section(
-                step_key=step.step_key if step is not None else "",
-                slot_name="salary_forecast_slot",
-                config=config,
-                render_slot=salary_forecast_slot,
-            )
-        else:
-            salary_forecast_slot()
+        _render_slot_with_optional_lazy("salary_forecast_slot", salary_forecast_slot)
+
+    def _render_open_questions_section() -> None:
+        _render_slot_with_optional_lazy("open_questions_slot", open_questions_slot)
+
+    def _render_review_section() -> None:
+        _render_slot_with_optional_lazy("review_slot", review_slot)
 
     section_renderers: dict[str, Callable[[], None]] = {
-        "extracted_from_jobspec_slot": _render_extracted_section,
-        "main_content_slot": main_content_slot or (lambda: None),
+        "extracted_from_jobspec_slot": lambda: _render_slot_with_optional_lazy(
+            "extracted_from_jobspec_slot",
+            _render_extracted_section if extracted_from_jobspec_slot is not None else None,
+        ),
+        "main_content_slot": lambda: _render_slot_with_optional_lazy(
+            "main_content_slot",
+            main_content_slot,
+        ),
         "source_comparison_slot": _render_source_section,
         "salary_forecast_slot": _render_salary_section,
-        "open_questions_slot": open_questions_slot or (lambda: None),
-        "review_slot": review_slot or (lambda: None),
+        "open_questions_slot": _render_open_questions_section,
+        "review_slot": _render_review_section,
     }
     has_registered_slots = any(
         slot is not None

@@ -213,9 +213,8 @@ def test_identified_info_next_is_enabled_without_esco_anchor(monkeypatch) -> Non
 
     assert "Analyse abgeschlossen" not in fake_st.successes
     assert (
-        "Die Briefing-Basis ist vorbereitet. Prüfen Sie unsichere und offene "
-        "Punkte direkt in der Tabelle und bestätigen Sie anschließend den passenden "
-        "Referenzberuf."
+        "Nächste Aktion: unsichere und offene Punkte direkt in der Tabelle "
+        "freigeben und anschließend den passenden Referenzberuf bestätigen."
         in fake_st.captions
     )
     assert "Technische Details zur Analyse" not in fake_st.expanders

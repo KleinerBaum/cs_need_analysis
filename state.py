@@ -43,6 +43,9 @@ from constants import (
     UI_PREFERENCE_SHOW_SOURCES_DEFAULT,
     UI_PREFERENCE_STEP_COMPACT,
     UI_PREFERENCE_UI_LANGUAGE,
+    UI_PREFERENCE_WIZARD_DESIGN,
+    UI_WIZARD_DESIGN_DEFAULT,
+    UI_WIZARD_DESIGN_VALUES,
     STALE_REDESIGN_SESSION_KEY_PREFIXES,
     STEPS,
     SUMMARY_SESSION_KEY_LEGACY_ALIASES,
@@ -639,6 +642,7 @@ def _default_ui_preferences() -> dict[str, Any]:
         UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT: False,
         UI_PREFERENCE_STEP_COMPACT: {},
         UI_PREFERENCE_UI_LANGUAGE: DEFAULT_LANGUAGE,
+        UI_PREFERENCE_WIZARD_DESIGN: UI_WIZARD_DESIGN_DEFAULT,
     }
 
 
@@ -654,6 +658,18 @@ def normalize_ui_preferences(raw_preferences: Any) -> dict[str, Any]:
     )
     normalized[UI_PREFERENCE_UI_LANGUAGE] = (
         language if language in {"de", "en"} else DEFAULT_LANGUAGE
+    )
+    wizard_design = (
+        str(
+            normalized.get(UI_PREFERENCE_WIZARD_DESIGN, UI_WIZARD_DESIGN_DEFAULT)
+        )
+        .strip()
+        .lower()
+    )
+    normalized[UI_PREFERENCE_WIZARD_DESIGN] = (
+        wizard_design
+        if wizard_design in UI_WIZARD_DESIGN_VALUES
+        else UI_WIZARD_DESIGN_DEFAULT
     )
     confidence = normalized.get(UI_PREFERENCE_CONFIDENCE_THRESHOLD)
     try:

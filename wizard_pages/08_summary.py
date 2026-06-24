@@ -163,6 +163,7 @@ from ui_components import (
     render_live_artifact_preview_panel,
     render_openai_error,
 )
+from ui_layout import default_focus_drilldown_open, is_focus_design_enabled
 from usage_events import get_usage_events, record_artifact_generated
 from usage_utils import usage_has_cache_hit
 from wizard_pages.base import (
@@ -1476,11 +1477,19 @@ def render(ctx: WizardContext) -> None:
         else (),
     )
     _render_readiness_dashboard_header(vm, blocker_count=release_blocker_count)
-    _render_esco_coverage_kpis()
-    _render_summary_critical_gaps_table(vm, ctx=ctx)
+    if is_focus_design_enabled():
+        with st.expander(
+            "ESCO-Abdeckung und kritische Lücken prüfen",
+            expanded=default_focus_drilldown_open(classic_default_open=True),
+        ):
+            _render_esco_coverage_kpis()
+            _render_summary_critical_gaps_table(vm, ctx=ctx)
+    else:
+        _render_esco_coverage_kpis()
+        _render_summary_critical_gaps_table(vm, ctx=ctx)
     render_live_artifact_preview_panel(
         key="summary",
-        default_open=True,
+        default_open=default_focus_drilldown_open(classic_default_open=True),
         streamlit_module=st,
         language=active_language(),
         preview_builder=lambda: build_live_artifact_preview_payload(
@@ -1509,14 +1518,28 @@ def render(ctx: WizardContext) -> None:
     )
     with facts_workspace:
         _render_summary_facts_matrix(vm)
-    _render_summary_output_workspace(
-        vm=vm,
-        brief=internal_brief,
-        generator_by_id=generator_by_id,
-        action_registry=action_registry,
-        resolved_brief_model=resolved_brief_model,
-        ui_mode=ui_mode,
-    )
+    if is_focus_design_enabled():
+        with st.expander(
+            "Ergebnisdetails und Feinschliff öffnen",
+            expanded=default_focus_drilldown_open(classic_default_open=True),
+        ):
+            _render_summary_output_workspace(
+                vm=vm,
+                brief=internal_brief,
+                generator_by_id=generator_by_id,
+                action_registry=action_registry,
+                resolved_brief_model=resolved_brief_model,
+                ui_mode=ui_mode,
+            )
+    else:
+        _render_summary_output_workspace(
+            vm=vm,
+            brief=internal_brief,
+            generator_by_id=generator_by_id,
+            action_registry=action_registry,
+            resolved_brief_model=resolved_brief_model,
+            ui_mode=ui_mode,
+        )
 
     nav_buttons(ctx, disable_next=True)
 

@@ -17,6 +17,7 @@ from constants import (
     STEP_KEY_COMPANY,
     STEP_SECTION_OPEN_QUESTIONS,
     STEP_SECTION_REVIEW,
+    UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT,
     WEBSITE_RESEARCH_OPEN_QUESTION_MATCHES,
     WEBSITE_RESEARCH_SECTIONS,
     WEBSITE_SECTION_FACTS,
@@ -57,6 +58,8 @@ from ui_components import (
     render_standard_step_review,
 )
 from ui_layout import (
+    LazySectionConfig,
+    default_focus_drilldown_open,
     render_jobspec_step_notes,
     render_step_shell,
     responsive_three_columns,
@@ -67,6 +70,7 @@ from wizard_pages.base import (
     WizardContext,
     WizardPage,
     guard_job_and_plan,
+    is_focus_design_enabled,
     nav_buttons,
     resolve_dynamic_step_copy,
 )
@@ -185,6 +189,11 @@ def _company_detail_sections_expanded_by_default() -> bool:
     state_get = getattr(session_state, "get", None)
     if not callable(state_get):
         return False
+    if is_focus_design_enabled():
+        preferences = state_get(SSKey.UI_PREFERENCES.value, {})
+        if isinstance(preferences, dict):
+            return bool(preferences.get(UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT, False))
+        return False
     ui_mode = str(state_get(SSKey.UI_MODE.value, "standard")).strip().lower()
     return ui_mode == "expert"
 
@@ -245,6 +254,22 @@ def _render_secondary_company_detail(
     expander = getattr(st, "expander", None)
     if callable(expander):
         with expander(title, expanded=False):
+            renderer()
+        return
+    renderer()
+
+
+def _render_focus_company_drilldown(
+    renderer: Callable[[], None],
+    *,
+    collapsed_label: str,
+) -> None:
+    if not is_focus_design_enabled() or _company_detail_sections_expanded_by_default():
+        renderer()
+        return
+    expander = getattr(st, "expander", None)
+    if callable(expander):
+        with expander(collapsed_label, expanded=False):
             renderer()
         return
     renderer()
@@ -1319,16 +1344,32 @@ def _render_company_sections(
     team_open_question_step: QuestionStep | None,
 ) -> None:
     render_error_banner()
-    _render_website_finds_section(job, plan)
-    _render_company_context(job)
+    if is_focus_design_enabled():
+        _render_company_context(job)
+        _render_focus_company_drilldown(
+            lambda: _render_website_finds_section(job, plan),
+            collapsed_label="Website-Funde prüfen",
+        )
+    else:
+        _render_website_finds_section(job, plan)
+        _render_company_context(job)
     _render_open_questions_section(
         open_question_step=open_question_step,
         company_open_question_step=company_open_question_step,
         team_open_question_step=team_open_question_step,
     )
-    _render_team_context(job, ctx=ctx)
-    _render_working_model_section(job)
-    _render_compliance_section()
+    _render_focus_company_drilldown(
+        lambda: _render_team_context(job, ctx=ctx),
+        collapsed_label="Team & Berichtslinie bearbeiten",
+    )
+    _render_focus_company_drilldown(
+        lambda: _render_working_model_section(job),
+        collapsed_label="Arbeitsmodell & Standort bearbeiten",
+    )
+    _render_focus_company_drilldown(
+        _render_compliance_section,
+        collapsed_label="Non-negotiables / Compliance bearbeiten",
+    )
 
 
 def render(ctx: WizardContext) -> None:
@@ -1374,11 +1415,22 @@ def render(ctx: WizardContext) -> None:
     )
 
     step_copy = resolve_dynamic_step_copy(STEP_KEY_COMPANY, job=job)
+    lazy_section_configs = None
+    if is_focus_design_enabled():
+        lazy_section_configs = {
+            "review_slot": LazySectionConfig(
+                label="Prüfung",
+                caption=_COMPANY_SECTION_VALUE_STATEMENTS["Prüfung"],
+                button_label="Prüfung öffnen",
+                default_open=default_focus_drilldown_open(classic_default_open=True),
+            ),
+        }
     render_step_shell(
         title=step_copy.headline,
         subtitle=step_copy.subheadline,
         outcome_text=step_copy.value_line,
         step=step_company,
+        lazy_section_configs=lazy_section_configs,
         **section_kwargs,
         footer_slot=lambda: nav_buttons(ctx),
     )

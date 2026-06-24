@@ -50,6 +50,7 @@ RESET_EXPECTATIONS: dict[SSKey, object] = {
         "details_expanded_default": False,
         "step_compact": {},
         "ui_language": "de",
+        "wizard_design": "classic",
     },
     SSKey.OPEN_GROUPS: {},
     SSKey.BRIEF: None,
@@ -643,6 +644,7 @@ def test_reset_vacancy_preserves_existing_ui_preferences(monkeypatch) -> None:
         "pii_reduction": False,
         "step_compact": {"company": False},
         "ui_language": "en",
+        "wizard_design": "focus",
     }
     fake_session_state = {
         SSKey.UI_PREFERENCES.value: preserved_preferences,
@@ -663,6 +665,7 @@ def test_reset_vacancy_preserves_existing_ui_preferences(monkeypatch) -> None:
     assert resolved_preferences["confidence_threshold"] == 0.6
     assert resolved_preferences["pii_reduction"] is False
     assert resolved_preferences["ui_language"] == "en"
+    assert resolved_preferences["wizard_design"] == "focus"
     assert fake_session_state[SSKey.SOURCE_REDACT_PII.value] is False
 
 

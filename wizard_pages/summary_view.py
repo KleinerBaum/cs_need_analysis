@@ -173,6 +173,7 @@ from wizard_pages.base import (
     WizardContext,
     WizardPage,
     get_current_ui_mode,
+    is_focus_design_enabled,
     nav_buttons,
     render_active_ui_mode_caption,
 )
@@ -2106,6 +2107,8 @@ def _render_summary_artifact_grid(
             "description": _ui_copy("workspace.reserved_templates_description"),
         },
     ]
+    if is_focus_design_enabled():
+        specs = [spec for spec in specs if not str(spec["id"]).startswith("reserved_")]
     action_by_id = {action["id"]: action for action in action_registry or []}
     for row_start in range(0, len(specs), 2):
         columns = st.columns(2, gap="medium")

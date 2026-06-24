@@ -41,9 +41,14 @@ from constants import (
     UI_PREFERENCE_ANSWER_MODE,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
     UI_PREFERENCE_INFORMATION_DEPTH,
+    UI_PREFERENCE_WIZARD_DESIGN,
     UI_MODE_DEFAULT,
     UI_MODE_DISPLAY_LABELS,
     UI_MODE_VALUES,
+    UI_WIZARD_DESIGN_DEFAULT,
+    UI_WIZARD_DESIGN_DISPLAY_LABELS,
+    UI_WIZARD_DESIGN_FOCUS,
+    UI_WIZARD_DESIGN_VALUES,
 )
 from esco_client import EscoClient, EscoClientError, clear_esco_cache
 from esco_semantics import (
@@ -1516,6 +1521,20 @@ def get_current_ui_mode() -> str:
     return normalize_ui_mode(ui_mode_raw)
 
 
+def get_current_wizard_design() -> str:
+    """Return normalized wizard layout design from persisted UI preferences."""
+    preferences = normalize_ui_preferences(
+        st.session_state.get(SSKey.UI_PREFERENCES.value)
+    )
+    st.session_state[SSKey.UI_PREFERENCES.value] = preferences
+    return str(preferences.get(UI_PREFERENCE_WIZARD_DESIGN, UI_WIZARD_DESIGN_DEFAULT))
+
+
+def is_focus_design_enabled() -> bool:
+    """Return whether the decision-first focus layout is active."""
+    return get_current_wizard_design() == UI_WIZARD_DESIGN_FOCUS
+
+
 def normalize_ui_mode(raw_mode: object) -> str:
     """Normalize any raw mode value to the canonical UI mode domain."""
     ui_mode = str(raw_mode).strip().lower()
@@ -1617,6 +1636,43 @@ def render_ui_mode_selector(
     )
     sync_ui_mode_preference_metadata()
     return normalize_ui_mode(selected_mode)
+
+
+def render_wizard_design_selector(
+    *,
+    sidebar: bool = False,
+    widget_key: str | None = None,
+    show_label: bool = True,
+) -> str:
+    selectbox = st.sidebar.selectbox if sidebar else st.selectbox
+    preferences = normalize_ui_preferences(
+        st.session_state.get(SSKey.UI_PREFERENCES.value)
+    )
+    current_design = str(
+        preferences.get(UI_PREFERENCE_WIZARD_DESIGN, UI_WIZARD_DESIGN_DEFAULT)
+    )
+    if current_design not in UI_WIZARD_DESIGN_VALUES:
+        current_design = UI_WIZARD_DESIGN_DEFAULT
+    key = widget_key or f"{SSKey.UI_PREFERENCES.value}.{UI_PREFERENCE_WIZARD_DESIGN}"
+    st.session_state[key] = current_design
+    selected_design = selectbox(
+        "Wizard-Design",
+        options=list(UI_WIZARD_DESIGN_VALUES),
+        key=key,
+        format_func=lambda value: str(
+            t(UI_WIZARD_DESIGN_DISPLAY_LABELS.get(value, value))
+        ),
+        help=(
+            "Klassisch behält die bisherige Detaildarstellung. Fokus zeigt "
+            "zuerst die wichtigsten Arbeitsflächen und hält Details geschlossen."
+        ),
+        label_visibility="visible" if show_label else "collapsed",
+    )
+    preferences[UI_PREFERENCE_WIZARD_DESIGN] = selected_design
+    st.session_state[SSKey.UI_PREFERENCES.value] = normalize_ui_preferences(
+        preferences
+    )
+    return str(selected_design)
 
 
 def sidebar_navigation(ctx: WizardContext) -> WizardPage:

@@ -13,6 +13,7 @@ from constants import (
     UI_PREFERENCE_ANSWER_MODE,
     UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT,
     UI_PREFERENCE_INFORMATION_DEPTH,
+    UI_PREFERENCE_WIZARD_DESIGN,
 )
 from schemas import JobAdExtract, RecruitmentStep
 
@@ -185,6 +186,19 @@ def test_lazy_source_section_default_follows_mode_and_details_preference(
         ("expert", {}, True),
         ("quick", {UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT: True}, True),
         ("expert", {UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT: False}, False),
+        (
+            "expert",
+            {UI_PREFERENCE_WIZARD_DESIGN: "focus"},
+            False,
+        ),
+        (
+            "standard",
+            {
+                UI_PREFERENCE_WIZARD_DESIGN: "focus",
+                UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT: True,
+            },
+            True,
+        ),
     ]
     for ui_mode, preferences, expected in cases:
         session_state = _LockedSessionState(

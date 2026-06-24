@@ -24,6 +24,10 @@ from constants import (
     UI_PREFERENCE_INFORMATION_DEPTH,
     UI_PREFERENCE_PII_REDUCTION,
     UI_PREFERENCE_REGIONAL_FOCUS,
+    UI_PREFERENCE_WIZARD_DESIGN,
+    UI_WIZARD_DESIGN_DEFAULT,
+    UI_WIZARD_DESIGN_DISPLAY_LABELS,
+    UI_WIZARD_DESIGN_VALUES,
     WIZARD_STEP_QUERY_PARAM,
 )
 from i18n import (
@@ -569,6 +573,22 @@ def _render_preference_center_sidebar(
         "Detailgrad, Antwortmodus und Informationstiefe werden im Start-Schritt "
         "über eine gemeinsame Auswahl gesteuert."
     )
+    wizard_design_value = str(
+        preferences.get(UI_PREFERENCE_WIZARD_DESIGN, UI_WIZARD_DESIGN_DEFAULT)
+    )
+    if wizard_design_value not in UI_WIZARD_DESIGN_VALUES:
+        wizard_design_value = UI_WIZARD_DESIGN_DEFAULT
+    wizard_design = st.selectbox(
+        "Wizard-Design",
+        options=list(UI_WIZARD_DESIGN_VALUES),
+        index=list(UI_WIZARD_DESIGN_VALUES).index(wizard_design_value),
+        format_func=lambda value: UI_WIZARD_DESIGN_DISPLAY_LABELS.get(value, value),
+        key=f"{key_prefix}.wizard_design",
+        help=(
+            "Klassisch behält die bisherige Detaildarstellung. Fokus hält "
+            "sekundäre Details geschlossen, bis sie aktiv geöffnet werden."
+        ),
+    )
     strictness_options = ["locker", "ausgewogen", "streng"]
     strictness_value = str(
         preferences.get(UI_PREFERENCE_ESCO_MATCHING_STRICTNESS, "ausgewogen")
@@ -611,6 +631,7 @@ def _render_preference_center_sidebar(
             UI_PREFERENCE_REGIONAL_FOCUS: regional_focus.strip() or "DACH",
             UI_PREFERENCE_CONFIDENCE_THRESHOLD: confidence_threshold,
             UI_PREFERENCE_PII_REDUCTION: pii_reduction,
+            UI_PREFERENCE_WIZARD_DESIGN: wizard_design,
         }
     )
     st.session_state[SSKey.UI_PREFERENCES.value] = normalize_ui_preferences(preferences)

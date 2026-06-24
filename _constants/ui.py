@@ -39,6 +39,7 @@ UI_PREFERENCE_PII_REDUCTION: Final[str] = "pii_reduction"
 UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT: Final[str] = "details_expanded_default"
 UI_PREFERENCE_STEP_COMPACT: Final[str] = "step_compact"
 UI_PREFERENCE_UI_LANGUAGE: Final[str] = "ui_language"
+UI_PREFERENCE_WIZARD_DESIGN: Final[str] = "wizard_design"
 UI_LANGUAGE_VALUES: Final[tuple[str, str]] = ("de", "en")
 UI_LANGUAGE_QUERY_PARAM: Final[str] = "lang"
 UI_LANGUAGE_STORAGE_KEY: Final[str] = "cs.ui_language"
@@ -60,4 +61,16 @@ UI_MODE_QUESTION_LIMIT_RATIOS: Final[dict[str, float]] = {
     "quick": 0.30,
     "standard": 0.50,
     "expert": 1.00,
+}
+
+UI_WIZARD_DESIGN_CLASSIC: Final[str] = "classic"
+UI_WIZARD_DESIGN_FOCUS: Final[str] = "focus"
+UI_WIZARD_DESIGN_DEFAULT: Final[str] = UI_WIZARD_DESIGN_CLASSIC
+UI_WIZARD_DESIGN_VALUES: Final[tuple[str, str]] = (
+    UI_WIZARD_DESIGN_CLASSIC,
+    UI_WIZARD_DESIGN_FOCUS,
+)
+UI_WIZARD_DESIGN_DISPLAY_LABELS: Final[dict[str, str]] = {
+    UI_WIZARD_DESIGN_CLASSIC: "Klassisch",
+    UI_WIZARD_DESIGN_FOCUS: "Fokus",
 }

@@ -36,7 +36,9 @@ from summary_exports import build_live_artifact_preview_payload
 from step_sections import build_step_shell_section_kwargs
 from ui_layout import (
     LazySectionConfig,
-    default_lazy_source_section_open,
+    default_focus_drilldown_open,
+    default_primary_workspace_open,
+    is_focus_design_enabled,
     render_step_shell,
     responsive_three_columns,
     responsive_two_columns,
@@ -1024,7 +1026,7 @@ def render(ctx: WizardContext) -> None:
         )
         render_live_artifact_preview_panel(
             key="benefits",
-            default_open=True,
+            default_open=default_focus_drilldown_open(classic_default_open=True),
             streamlit_module=st,
             preview_builder=lambda: build_live_artifact_preview_payload(
                 job=job,
@@ -1129,28 +1131,67 @@ def render(ctx: WizardContext) -> None:
     )
 
     step_copy = resolve_dynamic_step_copy(STEP_KEY_BENEFITS, job=job)
+    lazy_section_configs = {
+        "source_comparison_slot": LazySectionConfig(
+            label="Candidate-Angebot",
+            caption=(
+                "Öffnet Benefits, fixe Zusagen, Verhandlungspunkte und "
+                "Exportwirkung."
+            ),
+            button_label="Angebot schärfen",
+            default_open=default_primary_workspace_open(),
+        ),
+        "salary_forecast_slot": LazySectionConfig(
+            label="Gehaltsprognose",
+            caption="Lädt die Prognose erst auf Anforderung.",
+            button_label="Gehaltsprognose laden",
+            default_open=False,
+        ),
+    }
+    if is_focus_design_enabled():
+        lazy_section_configs.update(
+            {
+                "extracted_from_jobspec_slot": LazySectionConfig(
+                    label="Aus Jobspec extrahiert",
+                    caption=(
+                        "Zeigt erkannte Gehalts-, Arbeitsmodell- und "
+                        "Benefit-Signale."
+                    ),
+                    button_label="Jobspec-Snapshot öffnen",
+                    default_open=default_focus_drilldown_open(
+                        classic_default_open=True
+                    ),
+                ),
+                "open_questions_slot": LazySectionConfig(
+                    label="Offene Klärungen",
+                    caption=(
+                        "Klärt, was für Angebot, Verhandlung und frühe "
+                        "Candidate-Kommunikation noch fehlt."
+                    ),
+                    button_label="Offene Klärungen öffnen",
+                    default_open=default_focus_drilldown_open(
+                        classic_default_open=True
+                    ),
+                ),
+                "review_slot": LazySectionConfig(
+                    label="Prüfung",
+                    caption=(
+                        "Prüft, ob Attraktivität, fixe Zusagen und offene "
+                        "Verhandlungspunkte zusammenpassen."
+                    ),
+                    button_label="Prüfung öffnen",
+                    default_open=default_focus_drilldown_open(
+                        classic_default_open=True
+                    ),
+                ),
+            }
+        )
     render_step_shell(
         title=step_copy.headline,
         subtitle=step_copy.subheadline,
         outcome_text=step_copy.value_line,
         step=step,
-        lazy_section_configs={
-            "source_comparison_slot": LazySectionConfig(
-                label="Candidate-Angebot",
-                caption=(
-                    "Öffnet Benefits, fixe Zusagen, Verhandlungspunkte und "
-                    "Exportwirkung."
-                ),
-                button_label="Angebot schärfen",
-                default_open=default_lazy_source_section_open(),
-            ),
-            "salary_forecast_slot": LazySectionConfig(
-                label="Gehaltsprognose",
-                caption="Lädt die Prognose erst auf Anforderung.",
-                button_label="Gehaltsprognose laden",
-                default_open=False,
-            ),
-        },
+        lazy_section_configs=lazy_section_configs,
         **section_kwargs,
         footer_slot=lambda: nav_buttons(ctx),
     )
