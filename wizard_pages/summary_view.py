@@ -198,6 +198,12 @@ from wizard_pages.summary_artifact_preview import (
     render_agg_checklist_review as _render_agg_checklist_review_impl,
     render_job_ad_artifact as _render_job_ad_artifact_impl,
 )
+from wizard_pages.summary_release_gate_ui import (
+    final_export_pause_copy as _final_export_pause_copy_impl,
+    localized_artifact_release_state as _localized_artifact_release_state_impl,
+    render_artifact_blockers as _render_artifact_blockers_impl,
+    render_final_export_pause_panel as _render_final_export_pause_panel_impl,
+)
 
 from wizard_pages.summary_readiness import (
     SUMMARY_FACT_OVERVIEW_COLUMNS,
@@ -2024,60 +2030,22 @@ def _release_blocker_count(gates: Sequence[SummaryArtifactGate]) -> int:
 
 
 def _render_artifact_blockers(gate: SummaryArtifactGate) -> None:
-    language = active_language()
-    if not gate.blockers:
-        st.caption(
-            summary_ui_copy(
-                "release_gate.next_step",
-                language=language,
-                next_step=gate.next_step,
-            )
-        )
-        return
-    for blocker in gate.blockers[:3]:
-        st.caption(
-            summary_ui_copy(
-                "release_gate.blocker",
-                language=language,
-                reason=blocker.reason,
-            )
-        )
-        st.caption(
-            summary_ui_copy(
-                "release_gate.todo",
-                language=language,
-                next_step=blocker.next_step,
-            )
-        )
-    remaining = len(gate.blockers) - 3
-    if remaining > 0:
-        st.caption(
-            summary_ui_copy(
-                "release_gate.more_blockers",
-                language=language,
-                count=remaining,
-            )
-        )
+    _render_artifact_blockers_impl(
+        gate,
+        language=active_language(),
+        streamlit_module=st,
+    )
 
 
 def _final_export_pause_copy(key: str) -> str:
-    return _ui_copy(f"final_export.{key}")
+    return _final_export_pause_copy_impl(key, language=_summary_language())
 
 
 def _localized_artifact_release_state(gate: SummaryArtifactGate) -> str:
-    if gate.final_export_ready:
-        return _final_export_pause_copy("summary_ready")
-    if gate.stale_regeneration_required:
-        return _final_export_pause_copy("summary_stale")
-    if gate.final_export_blocked:
-        return _final_export_pause_copy(
-            "summary_warning" if gate.override_allowed else "summary_blocked"
-        )
-    if gate.draft_available:
-        return _final_export_pause_copy("summary_draft")
-    if gate.preview_available:
-        return _final_export_pause_copy("summary_preview")
-    return _final_export_pause_copy("summary_open")
+    return _localized_artifact_release_state_impl(
+        gate,
+        language=_summary_language(),
+    )
 
 
 def render_final_export_pause_panel(
@@ -2085,61 +2053,14 @@ def render_final_export_pause_panel(
     artifact_label: str,
     ui_mode: str,
 ) -> None:
-    title = _final_export_pause_copy("title")
-    with st.container(border=True):
-        st.warning(f"{title}: {artifact_label}")
-        st.caption(_localized_artifact_release_state(gate))
-        st.markdown(f"**{_final_export_pause_copy('blockers')}**")
-        if gate.blockers:
-            for blocker in gate.blockers[:5]:
-                st.write(f"- {blocker.reason}")
-        else:
-            st.write(f"- {_final_export_pause_copy('fallback_blocker')}")
-
-        st.caption(f"{_final_export_pause_copy('next_action')}: {gate.next_step}")
-        st.info(_final_export_pause_copy("preview"))
-
-        if gate.preview_available:
-            try:
-                draft_json = build_vacancy_draft_json(st.session_state)
-            except Exception:
-                draft_json = ""
-            if draft_json and callable(getattr(st, "download_button", None)):
-                st.download_button(
-                    _final_export_pause_copy("draft"),
-                    data=draft_json.encode("utf-8"),
-                    file_name="vacancy_draft.json",
-                    mime="application/json",
-                    help=_final_export_pause_copy("draft_help"),
-                    width="stretch",
-                    key=_widget_key(
-                        SSKey.SUMMARY_ACTION_WIDGET_PREFIX,
-                        f"final_export_pause.draft.{gate.artifact_id}",
-                    ),
-                )
-            else:
-                st.caption(_final_export_pause_copy("draft_help"))
-
-        if str(ui_mode or "").strip() != "expert":
-            return
-        st.caption(
-            _final_export_pause_copy("override_available")
-            if gate.override_allowed
-            else _final_export_pause_copy("override_hidden")
-        )
-        if not gate.blockers or not callable(getattr(st, "expander", None)):
-            return
-        with st.expander(_final_export_pause_copy("expert_details"), expanded=False):
-            for blocker in gate.blockers:
-                details = [
-                    f"type={blocker.blocker_type}",
-                    f"severity={blocker.severity}",
-                ]
-                if blocker.fact_key:
-                    details.append(f"fact_id={blocker.fact_key}")
-                if blocker.provenance:
-                    details.append(f"provenance={blocker.provenance}")
-                st.code(" | ".join(details), language="text")
+    _render_final_export_pause_panel_impl(
+        gate,
+        artifact_label,
+        ui_mode,
+        language=_summary_language(),
+        streamlit_module=st,
+        draft_json_builder=build_vacancy_draft_json,
+    )
 
 
 def _render_summary_artifact_grid(
