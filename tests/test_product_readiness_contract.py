@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import builtins
+import importlib
 from pathlib import Path
+import webbrowser
 
 import pytest
 
@@ -52,19 +55,91 @@ def _fail_if_live_api_is_touched(*_args: object, **_kwargs: object) -> None:
     raise AssertionError("Product readiness smoke must not call live APIs.")
 
 
+def _fail_if_browser_path_is_touched(*_args: object, **_kwargs: object) -> None:
+    raise AssertionError("Product readiness smoke must not touch browser paths.")
+
+
+def _guard_no_live_clients(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(llm_client, "_build_openai_client", _fail_if_live_api_is_touched)
+    monkeypatch.setattr(
+        llm_client,
+        "_build_openai_client_from_runtime_settings",
+        _fail_if_live_api_is_touched,
+    )
+    monkeypatch.setattr(
+        llm_client,
+        "_get_cached_openai_client",
+        _fail_if_live_api_is_touched,
+    )
+    monkeypatch.setattr(llm_client, "get_openai_client", _fail_if_live_api_is_touched)
+    monkeypatch.setattr(
+        esco_client,
+        "_cached_get_json",
+        _fail_if_live_api_is_touched,
+    )
+    monkeypatch.setattr(esco_client, "urlopen", _fail_if_live_api_is_touched)
+    monkeypatch.setattr(
+        esco_client.EscoClient,
+        "_get",
+        _fail_if_live_api_is_touched,
+    )
+    monkeypatch.setattr(
+        homepage_research,
+        "build_company_website_research",
+        _fail_if_live_api_is_touched,
+    )
+    monkeypatch.setattr(
+        homepage_research,
+        "fetch_url_text",
+        _fail_if_live_api_is_touched,
+    )
+    monkeypatch.setattr(
+        homepage_research,
+        "fetch_url_text_result",
+        _fail_if_live_api_is_touched,
+    )
+    monkeypatch.setattr(homepage_research, "_open_url", _fail_if_live_api_is_touched)
+    monkeypatch.setattr(webbrowser, "open", _fail_if_browser_path_is_touched)
+    monkeypatch.setattr(webbrowser, "open_new", _fail_if_browser_path_is_touched)
+    monkeypatch.setattr(webbrowser, "open_new_tab", _fail_if_browser_path_is_touched)
+
+    original_import = builtins.__import__
+    original_import_module = importlib.import_module
+    browser_roots = {"browser_use", "playwright", "selenium"}
+
+    def guarded_import(
+        name: str,
+        globals: dict[str, object] | None = None,
+        locals: dict[str, object] | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> object:
+        if level == 0 and name.split(".", 1)[0] in browser_roots:
+            _fail_if_browser_path_is_touched()
+        return original_import(name, globals, locals, fromlist, level)
+
+    def guarded_import_module(name: str, package: str | None = None) -> object:
+        if name.split(".", 1)[0] in browser_roots:
+            _fail_if_browser_path_is_touched()
+        return original_import_module(name, package)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+    monkeypatch.setattr(importlib, "import_module", guarded_import_module)
+
+
 def _synthetic_consulting_strategy_fixture() -> JobAdExtract:
     return JobAdExtract(
-        job_title="AI Strategy and Analytics Manager",
+        job_title="AI Strategy / Analytics Manager (all genders)",
         company_name="Synthetic Consulting AG",
         location_city="Berlin",
         location_country="DE",
         remote_policy=(
-            "Hybrid work with optional remote days; recurring client-site workshops "
-            "in DACH are expected."
+            "Hybrid möglich; regelmäßige Projektpräsenz beim Kunden in DACH "
+            "erforderlich."
         ),
-        travel_required="Recurring client workshops in DACH.",
+        travel_required="Projektmobilität innerhalb DACH erforderlich.",
         salary_range=MoneyRange(notes="Competitive package based on experience."),
-        languages=["German C1", "English B2"],
+        languages=["Deutsch C1", "Englisch B2"],
         responsibilities=[
             "Develop enterprise AI strategy and analytics roadmaps",
             "Structure data-governance target pictures",
@@ -78,9 +153,11 @@ def _synthetic_consulting_strategy_fixture() -> JobAdExtract:
             "Operating model design",
             "Digital business models",
             "Consulting",
+            "Fachliche Führung",
+            "Disziplinarische Führung",
             "Business case development",
         ],
-        benefits=["Learning budget", "Training academy", "Corporate discounts"],
+        benefits=["Weiterbildungsbudget", "Training academy", "Corporate discounts"],
         gaps=["Confirm numeric compensation range before publication"],
     )
 
@@ -106,13 +183,7 @@ def test_product_readiness_docs_exist_and_are_linked_from_readme() -> None:
 def test_no_live_api_beta_smoke_preserves_focused_output_contracts(
     monkeypatch,
 ) -> None:
-    monkeypatch.setattr(llm_client, "get_openai_client", _fail_if_live_api_is_touched)
-    monkeypatch.setattr(
-        esco_client.EscoClient,
-        "_get",
-        _fail_if_live_api_is_touched,
-    )
-    monkeypatch.setattr(homepage_research, "_open_url", _fail_if_live_api_is_touched)
+    _guard_no_live_clients(monkeypatch)
 
     job = _synthetic_consulting_strategy_fixture()
     offer = build_offer_decision_context(
@@ -141,6 +212,21 @@ def test_no_live_api_beta_smoke_preserves_focused_output_contracts(
     )
     occupation_profile = classify_occupation_context(job=job)
 
+    assert job.job_title == "AI Strategy / Analytics Manager (all genders)"
+    assert "/" in job.job_title
+    assert "all genders" in job.job_title.casefold()
+    assert job.salary_range is not None
+    assert job.salary_range.min is None
+    assert job.salary_range.max is None
+    assert job.languages == ["Deutsch C1", "Englisch B2"]
+    assert not any(
+        "Deutsch C1" in language and "Englisch B2" in language
+        for language in job.languages
+    )
+    leadership_terms = "\n".join(job.must_have_skills).casefold()
+    assert "fachliche führung" in leadership_terms
+    assert "disziplinarische führung" in leadership_terms
+
     assert set(SUMMARY_ACTIVE_ARTIFACT_IDS) == FOCUSED_OUTPUT_IDS
     assert set(preview_de["fragments"]) == FOCUSED_OUTPUT_IDS
     assert set(preview_en["fragments"]) == FOCUSED_OUTPUT_IDS
@@ -152,17 +238,24 @@ def test_no_live_api_beta_smoke_preserves_focused_output_contracts(
     assert salary_decision["has_numeric_salary_claim"] is False
     assert "salary_text" not in salary_decision
     assert salary_decision["salary_notes"] == "Competitive package based on experience."
+    assert preview_de["context"]["salary"] == ""
+    assert preview_en["context"]["salary"] == ""
 
+    assert occupation_profile.work_arrangement == WorkArrangement.HYBRID_POSSIBLE
     assert occupation_profile.work_arrangement != WorkArrangement.REMOTE_GLOBAL_POSSIBLE
-    assert "work from anywhere" not in preview_en["fragments"]["boolean_search"][
-        "bullets"
-    ][2].casefold()
+    boolean_search_text = "\n".join(
+        preview_en["fragments"]["boolean_search"]["bullets"]
+    ).casefold()
+    assert "hybrid" in boolean_search_text
+    assert "client" in boolean_search_text or "projektpräsenz" in boolean_search_text
+    assert "remote-only" not in boolean_search_text
+    assert "work from anywhere" not in boolean_search_text
 
     assert preview_de["fragments"]["brief"]["summary"] == (
-        "AI Strategy and Analytics Manager bei Synthetic Consulting AG"
+        "AI Strategy / Analytics Manager (all genders) bei Synthetic Consulting AG"
     )
     assert preview_en["fragments"]["brief"]["summary"] == (
-        "AI Strategy and Analytics Manager at Synthetic Consulting AG"
+        "AI Strategy / Analytics Manager (all genders) at Synthetic Consulting AG"
     )
     assert " bei Synthetic Consulting AG" not in preview_en["fragments"]["brief"][
         "summary"
@@ -409,3 +502,6 @@ def test_active_flow_copy_and_artifact_labels_have_de_en_parity() -> None:
     assert set(ARTIFACT_LABELS["en"]) == FOCUSED_OUTPUT_IDS
     assert "employment_contract" not in ARTIFACT_LABELS["de"]
     assert "employment_contract" not in ARTIFACT_LABELS["en"]
+    for artifact_id in FOCUSED_OUTPUT_IDS:
+        assert artifact_display_label(artifact_id, language="de").strip()
+        assert artifact_display_label(artifact_id, language="en").strip()

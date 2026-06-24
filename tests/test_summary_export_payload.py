@@ -594,6 +594,9 @@ def test_build_structured_export_payload_includes_salary_artifacts_when_availabl
 def test_build_structured_export_payload_keeps_competitive_salary_non_numeric(
     monkeypatch,
 ) -> None:
+    title = "AI Strategy / Analytics Manager (all genders)"
+    benefits = ["Weiterbildungsbudget", "Training Academy", "Corporate Benefits"]
+    leadership_skills = ["Fachliche Führung", "Disziplinarische Führung"]
     brief = VacancyBrief(
         one_liner="One line",
         hiring_context="Context",
@@ -609,17 +612,24 @@ def test_build_structured_export_payload_keeps_competitive_salary_non_numeric(
         job_ad_draft="Draft",
         structured_data=VacancyStructuredData(
             job_extract={
-                "job_title": "AI Strategy / Analytics Manager",
+                "job_title": title,
                 "salary_range": {
                     "notes": "Competitive package, abhängig von Erfahrung."
                 },
                 "remote_policy": (
                     "Hybrid möglich; regelmäßige Projektpräsenz beim Kunden erforderlich."
                 ),
-                "benefits": ["Hybrid Work", "Corporate Benefits"],
+                "languages": ["Deutsch C1", "Englisch B2"],
+                "must_have_skills": [
+                    "AI Strategy",
+                    "Analytics",
+                    *leadership_skills,
+                ],
+                "benefits": benefits,
             },
             answers={},
-            selected_benefits=["Hybrid Work"],
+            selected_skills=leadership_skills,
+            selected_benefits=benefits,
         ),
     )
     monkeypatch.setattr(
@@ -637,6 +647,27 @@ def test_build_structured_export_payload_keeps_competitive_salary_non_numeric(
 
     payload = SUMMARY_MODULE._build_structured_export_payload(brief)
 
+    job_extract = payload["job_extract"]
+    assert job_extract["job_title"] == title
+    assert "/" in job_extract["job_title"]
+    assert "all genders" in job_extract["job_title"].casefold()
+    assert job_extract["salary_range"] == {
+        "notes": "Competitive package, abhängig von Erfahrung."
+    }
+    assert job_extract["languages"] == ["Deutsch C1", "Englisch B2"]
+    assert not any(
+        "Deutsch C1" in language and "Englisch B2" in language
+        for language in job_extract["languages"]
+    )
+    for skill in leadership_skills:
+        assert skill in job_extract["must_have_skills"]
+        assert skill in payload["selected_skills"]
+        assert skill not in job_extract["benefits"]
+    for benefit in benefits:
+        assert benefit in payload["selected_benefits"]
+        assert benefit in job_extract["benefits"]
+        assert benefit not in job_extract["must_have_skills"]
+
     salary_decision = payload["offer_positioning"]["salary_decision"]
     assert salary_decision["salary_claim_status"] == "notes_only"
     assert salary_decision["has_numeric_salary_claim"] is False
@@ -644,7 +675,10 @@ def test_build_structured_export_payload_keeps_competitive_salary_non_numeric(
     assert salary_decision["salary_notes"] == (
         "Competitive package, abhängig von Erfahrung."
     )
-    assert "Hybrid Work" in payload["offer_positioning"]["candidate_value"]
+    assert all(
+        benefit in payload["offer_positioning"]["candidate_value"]
+        for benefit in benefits
+    )
     assert not any(
         "remote-only" in item.casefold()
         for item in payload["offer_positioning"]["fixed_terms"]
