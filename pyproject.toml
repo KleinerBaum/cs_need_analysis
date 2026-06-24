@@ -52,6 +52,8 @@ files = [
     "usage_utils.py",
     "summary_artifacts.py",
     "eures_mapping.py",
+    "ui_widget_state.py",
+    "ux_copy_contract.py",
     "scripts/check_repo_hygiene.py",
 ]
 ignore_missing_imports = true
@@ -67,6 +69,8 @@ include = [
     "usage_utils.py",
     "summary_artifacts.py",
     "eures_mapping.py",
+    "ui_widget_state.py",
+    "ux_copy_contract.py",
     "scripts/check_repo_hygiene.py",
 ]
 exclude = [

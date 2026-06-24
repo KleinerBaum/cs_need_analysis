@@ -16,7 +16,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Mapping
+from typing import Iterable, Mapping, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -224,11 +224,24 @@ ACTIVE_WIZARD_RAW_UI_PATHS = frozenset(
         "wizard_pages/06_benefits.py",
         "wizard_pages/07_interview.py",
         "wizard_pages/08_summary.py",
+        "wizard_pages/company_work_context.py",
+        "wizard_pages/esco_occupation_ui.py",
+        "wizard_pages/fact_inputs.py",
+        "wizard_pages/jobad_evidence.py",
         "wizard_pages/jobad_intake.py",
+        "wizard_pages/jobad_source_preview.py",
+        "wizard_pages/landing_sections.py",
+        "wizard_pages/salary_forecast.py",
         "wizard_pages/salary_forecast_panel.py",
         "wizard_pages/summary_artifact_actions.py",
+        "wizard_pages/summary_artifact_preview.py",
+        "wizard_pages/summary_exporters.py",
         "wizard_pages/summary_readiness.py",
+        "wizard_pages/summary_readiness_dashboard.py",
+        "wizard_pages/summary_release_gate_ui.py",
         "wizard_pages/summary_view.py",
+        "wizard_pages/team_section.py",
+        "wizard_pages/trust_grammar.py",
     }
 )
 
@@ -305,6 +318,20 @@ class TerminologyFinding:
     rule: str = "active-terminology-drift"
 
 
+class GitPrerequisiteError(RuntimeError):
+    """Raised when hygiene checks cannot run because Git metadata is missing."""
+
+
+NO_GIT_CHECKOUT_MESSAGE = (
+    "Git checkout required: run from a cloned repository with a .git directory; "
+    "ZIP/source exports do not include the metadata needed for tracked-file and "
+    "changed-line checks."
+)
+NO_GIT_EXECUTABLE_MESSAGE = (
+    "Git executable not found: install Git before running repository hygiene checks."
+)
+
+
 ACTIVE_TERMINOLOGY_SOURCE_PATHS = (
     "wizard_pages/02_company.py",
     "wizard_pages/04_role_tasks.py",
@@ -331,14 +358,42 @@ GERMAN_ACTIVE_COPY_FORBIDDEN_TERMS = (
 )
 
 
-def _tracked_paths() -> list[str]:
-    result = subprocess.run(
-        ["git", "ls-files", "-z"],
-        cwd=ROOT,
-        check=True,
-        stdout=subprocess.PIPE,
+def _is_no_git_checkout_error(stderr: str) -> bool:
+    return "not a git repository" in stderr.lower()
+
+
+def _run_git_command(
+    args: Sequence[str],
+    *,
+    allowed_returncodes: frozenset[int] = frozenset({0}),
+) -> subprocess.CompletedProcess[str]:
+    try:
+        result = subprocess.run(
+            list(args),
+            cwd=ROOT,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except FileNotFoundError as exc:
+        raise GitPrerequisiteError(NO_GIT_EXECUTABLE_MESSAGE) from exc
+
+    if result.returncode in allowed_returncodes:
+        return result
+    if result.returncode == 128 and _is_no_git_checkout_error(result.stderr):
+        raise GitPrerequisiteError(NO_GIT_CHECKOUT_MESSAGE)
+    raise subprocess.CalledProcessError(
+        result.returncode,
+        list(args),
+        output=result.stdout,
+        stderr=result.stderr,
     )
-    return [path.decode("utf-8") for path in result.stdout.split(b"\0") if path]
+
+
+def _tracked_paths() -> list[str]:
+    result = _run_git_command(["git", "ls-files", "-z"])
+    return [path for path in result.stdout.split("\0") if path]
 
 
 def _normalize_path(path: str) -> str:
@@ -1031,16 +1086,7 @@ def _merge_changed_lines(
 
 
 def _run_git_diff(args: list[str]) -> dict[str, set[int]]:
-    result = subprocess.run(
-        args,
-        cwd=ROOT,
-        check=False,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        text=True,
-    )
-    if result.returncode not in {0, 1}:
-        return {}
+    result = _run_git_command(args, allowed_returncodes=frozenset({0, 1}))
     return _parse_changed_lines(result.stdout)
 
 
@@ -1123,10 +1169,14 @@ def find_changed_raw_ui_string_findings() -> list[RawUiStringFinding]:
 
 
 def main() -> int:
-    path_findings = find_hygiene_findings(_tracked_paths())
-    contract_findings = find_i18n_contract_findings()
-    raw_ui_findings = find_changed_raw_ui_string_findings()
-    terminology_findings = find_active_terminology_findings()
+    try:
+        path_findings = find_hygiene_findings(_tracked_paths())
+        contract_findings = find_i18n_contract_findings()
+        raw_ui_findings = find_changed_raw_ui_string_findings()
+        terminology_findings = find_active_terminology_findings()
+    except GitPrerequisiteError as exc:
+        print(f"Repository hygiene guard prerequisite failed: {exc}")
+        return 2
 
     if (
         not path_findings

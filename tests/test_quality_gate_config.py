@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import re
+import subprocess
 import tomllib
 from pathlib import Path
+
+import pytest
 
 from scripts import check_repo_hygiene
 
@@ -49,6 +52,8 @@ def test_black_is_scoped_to_stable_helper_modules() -> None:
     assert "scripts/check_repo_hygiene" in include
     assert "wizard_pages" not in include
     assert "summary_artifacts" not in include
+    assert "ui_widget_state" not in include
+    assert "ux_copy_contract" not in include
 
 
 def test_mypy_uses_permissive_selected_module_baseline() -> None:
@@ -60,6 +65,8 @@ def test_mypy_uses_permissive_selected_module_baseline() -> None:
         "usage_utils.py",
         "summary_artifacts.py",
         "eures_mapping.py",
+        "ui_widget_state.py",
+        "ux_copy_contract.py",
         "scripts/check_repo_hygiene.py",
     ]
     assert mypy["ignore_missing_imports"] is True
@@ -76,6 +83,8 @@ def test_pyright_uses_staged_selected_module_baseline() -> None:
         "usage_utils.py",
         "summary_artifacts.py",
         "eures_mapping.py",
+        "ui_widget_state.py",
+        "ux_copy_contract.py",
         "scripts/check_repo_hygiene.py",
     ]
     assert pyright["pythonVersion"] == "3.11"
@@ -235,6 +244,62 @@ def test_repo_hygiene_guard_output_reports_only_paths_and_rules(
     assert "- .env [secret-env-file]" in output
     assert "OPENAI_API_KEY" not in output
     assert "sk-" not in output
+
+
+def test_repo_hygiene_guard_reports_no_git_checkout_prerequisite(
+    capsys, monkeypatch
+) -> None:
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            args[0],
+            128,
+            "",
+            "fatal: not a git repository (or any of the parent directories): .git",
+        )
+
+    monkeypatch.setattr(check_repo_hygiene.subprocess, "run", fake_run)
+
+    exit_code = check_repo_hygiene.main()
+    output = capsys.readouterr().out
+
+    assert exit_code == 2
+    assert output == (
+        "Repository hygiene guard prerequisite failed: "
+        f"{check_repo_hygiene.NO_GIT_CHECKOUT_MESSAGE}\n"
+    )
+
+
+def test_git_command_helper_preserves_unrelated_git_failures(monkeypatch) -> None:
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(args[0], 129, "", "fatal: bad revision")
+
+    monkeypatch.setattr(check_repo_hygiene.subprocess, "run", fake_run)
+
+    with pytest.raises(subprocess.CalledProcessError):
+        check_repo_hygiene._run_git_command(["git", "diff", "missing-ref"])
+
+
+def test_raw_ui_changed_line_guard_tracks_active_wizard_hotspots() -> None:
+    guarded_paths = check_repo_hygiene.ACTIVE_WIZARD_RAW_UI_PATHS
+
+    assert {
+        "wizard_pages/00_landing.py",
+        "wizard_pages/02_company.py",
+        "wizard_pages/04_role_tasks.py",
+        "wizard_pages/05_skills.py",
+        "wizard_pages/06_benefits.py",
+        "wizard_pages/07_interview.py",
+        "wizard_pages/08_summary.py",
+        "wizard_pages/jobad_intake.py",
+        "wizard_pages/salary_forecast.py",
+        "wizard_pages/summary_artifact_preview.py",
+        "wizard_pages/summary_exporters.py",
+        "wizard_pages/summary_release_gate_ui.py",
+        "wizard_pages/team_section.py",
+        "wizard_pages/trust_grammar.py",
+    } <= guarded_paths
+    assert "wizard_pages/01a_jobspec_review.py" not in guarded_paths
+    assert "wizard_pages/03_team.py" not in guarded_paths
 
 
 def test_active_terminology_guard_flags_visible_residual_copy(monkeypatch) -> None:

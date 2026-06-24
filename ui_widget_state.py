@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 import streamlit as st
 
@@ -24,7 +24,7 @@ def ensure_option_widget_state(
     if current not in option_values:
         state[key] = default
         return default
-    return current
+    return cast(T, current)
 
 
 def ensure_multiselect_widget_state(
