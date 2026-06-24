@@ -140,6 +140,37 @@ def _brief_with_structured_interview_fields() -> VacancyBrief:
     )
 
 
+def _brief_with_incomplete_salary_assumptions() -> VacancyBrief:
+    return VacancyBrief(
+        one_liner="AI Strategy Manager",
+        hiring_context="Build consulting analytics practice",
+        role_summary="Lead strategy and analytics projects.",
+        top_responsibilities=["Develop AI roadmaps"],
+        must_have=["AI strategy", "Consulting"],
+        nice_to_have=[],
+        dealbreakers=[],
+        interview_plan=["HR screen", "Fachinterview"],
+        evaluation_rubric=["Consulting depth"],
+        sourcing_channels=[],
+        risks_open_questions=["Numeric compensation range is not confirmed"],
+        job_ad_draft="Draft",
+        structured_data={
+            "answers": {},
+            "offer_positioning": {
+                "salary_decision": {
+                    "salary_claim_status": "notes_only",
+                    "has_numeric_salary_claim": False,
+                    "orientation_only": True,
+                },
+                "missing_assumptions": ["Aktuelle Gehaltsprognose im Benefits-Schritt"],
+                "salary_caveat": (
+                    "Aus competitive wird kein numerischer Gehaltsrahmen abgeleitet."
+                ),
+            },
+        },
+    )
+
+
 def test_resolve_model_for_new_tasks_uses_expected_buckets() -> None:
     settings = _settings()
 
@@ -238,6 +269,40 @@ def test_generate_interview_sheet_hr_fallback_uses_scorecard_and_core_questions(
     assert result.evaluation_rubric[0].title == "Python"
     assert result.final_recommendation_options == ["Hire", "No hire"]
     assert "Keine Python-Erfahrung" in result.knockout_criteria
+
+
+def test_generate_interview_sheet_hr_warns_on_incomplete_salary_assumptions(
+    monkeypatch,
+) -> None:
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(
+        llm_client,
+        "_resolve_runtime_config",
+        lambda **_: _runtime_config(),
+    )
+
+    def _raise_openai_error(**kwargs: Any) -> tuple[Any, Any]:
+        captured["messages"] = kwargs["messages"]
+        raise OpenAICallError(
+            "OpenAI API Key fehlt.", error_code="OPENAI_MISSING_API_KEY"
+        )
+
+    monkeypatch.setattr(
+        llm_client, "_parse_with_structured_outputs", _raise_openai_error
+    )
+
+    result, usage = generate_interview_sheet_hr(
+        brief=_brief_with_incomplete_salary_assumptions(),
+        model="gpt-5-mini",
+    )
+
+    combined_prompt = "\n".join(message["content"] for message in captured["messages"])
+    notes = "\n".join(result.candidate_experience_notes)
+    assert usage["fallback"] is True
+    assert "Salary-/Offer-Warnhinweise" in combined_prompt
+    assert "competitive wird kein numerischer Gehaltsrahmen" in combined_prompt
+    assert "Verguetungsannahmen sind unvollstaendig" in notes
+    assert "Offene Salary-Forecast-Annahmen" in notes
 
 
 def test_generate_boolean_search_appends_runtime_output_limits_to_system_prompt(
@@ -450,6 +515,40 @@ def test_generate_interview_sheet_hm_applies_selected_competencies_and_counts(
     assert result.debrief_questions == ["D1"]
     assert "selected_competencies" in combined_prompt
     assert "debrief_question_count" in combined_prompt
+
+
+def test_generate_interview_sheet_hm_warns_on_incomplete_salary_assumptions(
+    monkeypatch,
+) -> None:
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(
+        llm_client,
+        "_resolve_runtime_config",
+        lambda **_: _runtime_config(),
+    )
+
+    def _raise_openai_error(**kwargs: Any) -> tuple[Any, Any]:
+        captured["messages"] = kwargs["messages"]
+        raise OpenAICallError(
+            "OpenAI API Key fehlt.", error_code="OPENAI_MISSING_API_KEY"
+        )
+
+    monkeypatch.setattr(
+        llm_client, "_parse_with_structured_outputs", _raise_openai_error
+    )
+
+    result, usage = generate_interview_sheet_hm(
+        brief=_brief_with_incomplete_salary_assumptions(),
+        model="gpt-5-mini",
+    )
+
+    combined_prompt = "\n".join(message["content"] for message in captured["messages"])
+    summary = "\n".join(result.hiring_signal_summary)
+    assert usage["fallback"] is True
+    assert "Salary-/Offer-Warnhinweise" in combined_prompt
+    assert "competitive wird kein numerischer Gehaltsrahmen" in combined_prompt
+    assert "Verguetungsannahmen sind unvollstaendig" in summary
+    assert "Offene Salary-Forecast-Annahmen" in summary
 
 
 def test_generate_interview_sheet_hm_fallback_on_validation_error(monkeypatch) -> None:

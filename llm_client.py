@@ -2339,6 +2339,70 @@ def _artifact_context_block(
     )
 
 
+def _interview_salary_warning_notes(brief: VacancyBrief) -> list[str]:
+    structured = brief.structured_data
+    offer_positioning = (
+        structured.offer_positioning
+        if isinstance(structured.offer_positioning, Mapping)
+        else {}
+    )
+    salary_decision = offer_positioning.get("salary_decision")
+    salary_decision_payload = (
+        salary_decision if isinstance(salary_decision, Mapping) else {}
+    )
+    missing_raw = offer_positioning.get("missing_assumptions")
+    missing_assumptions = (
+        [
+            str(item).strip()
+            for item in missing_raw
+            if str(item).strip()
+        ]
+        if isinstance(missing_raw, Sequence) and not isinstance(missing_raw, str | bytes)
+        else []
+    )
+    notes: list[str] = []
+    salary_status = str(salary_decision_payload.get("salary_claim_status") or "").strip()
+    if salary_status in {"missing", "notes_only", "unconfirmed_range"}:
+        notes.append(
+            "Verguetungsannahmen sind unvollstaendig; im Interview nur klaeren, nicht als Zusage darstellen."
+        )
+    if missing_assumptions:
+        notes.append(
+            "Offene Salary-Forecast-Annahmen: " + ", ".join(missing_assumptions[:4])
+        )
+    caveat = str(offer_positioning.get("salary_caveat") or "").strip()
+    if caveat:
+        notes.append(caveat)
+    return notes[:3]
+
+
+def _interview_salary_warning_prompt(brief: VacancyBrief) -> str:
+    notes = _interview_salary_warning_notes(brief)
+    if not notes:
+        return ""
+    return (
+        "\n\nSalary-/Offer-Warnhinweise:\n"
+        + "\n".join(f"- {note}" for note in notes)
+        + "\nDiese Warnhinweise in candidate_experience_notes bzw. "
+        "hiring_signal_summary aufnehmen, wenn sie fuer das jeweilige Sheet relevant sind."
+    )
+
+
+def _append_interview_warning_notes(
+    values: Sequence[str], notes: Sequence[str]
+) -> list[str]:
+    output: list[str] = []
+    seen: set[str] = set()
+    for item in [*values, *notes]:
+        text = str(item or "").strip()
+        key = text.casefold()
+        if not text or key in seen:
+            continue
+        output.append(text)
+        seen.add(key)
+    return output
+
+
 def _option_text_list(
     options: Mapping[str, Any] | None, key: str, *, limit: int | None = None
 ) -> list[str]:
@@ -2441,8 +2505,10 @@ def generate_interview_sheet_hr(
         "InterviewPrepSheetHR-Objekt.\n\n"
         "Vacancy Brief (JSON):\n"
         f"{json.dumps(brief.model_dump(mode='json'), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}"
+        f"{_interview_salary_warning_prompt(brief)}"
         f"{_artifact_context_block(generation_options=generation_options, change_request=change_request)}"
     )
+    salary_warning_notes = _interview_salary_warning_notes(brief)
     fallback_payload = {
         "role_title": role_title,
         "interview_stage": "HR Screen",
@@ -2460,6 +2526,7 @@ def generate_interview_sheet_hr(
         "candidate_experience_notes": [
             "Klaren Ablauf kommunizieren und Zeitrahmen einhalten.",
             "Kontakt- und Terminabstimmung getrennt von Bewertung dokumentieren.",
+            *salary_warning_notes,
         ],
         "evaluation_rubric": _fallback_rubric_from_scorecard(brief),
         "final_recommendation_options": _fallback_recommendation_options(brief),
@@ -2476,7 +2543,17 @@ def generate_interview_sheet_hr(
         store=store,
         temperature=temperature,
     )
-    return cast(InterviewPrepSheetHR, parsed), usage
+    sheet = cast(InterviewPrepSheetHR, parsed)
+    if salary_warning_notes:
+        sheet = sheet.model_copy(
+            update={
+                "candidate_experience_notes": _append_interview_warning_notes(
+                    sheet.candidate_experience_notes,
+                    salary_warning_notes,
+                )
+            }
+        )
+    return sheet, usage
 
 
 def generate_interview_sheet_hm(
@@ -2539,8 +2616,10 @@ def generate_interview_sheet_hm(
         "InterviewPrepSheetHiringManager-Objekt.\n\n"
         "Vacancy Brief (JSON):\n"
         f"{json.dumps(brief.model_dump(mode='json'), ensure_ascii=False, sort_keys=True, separators=(',', ':'))}"
+        f"{_interview_salary_warning_prompt(brief)}"
         f"{_artifact_context_block(generation_options=generation_options, change_request=change_request)}"
     )
+    salary_warning_notes = _interview_salary_warning_notes(brief)
     fallback_payload = {
         "role_title": role_title,
         "interview_stage": str(generation_options.get("stage") or "Fachinterview"),
@@ -2559,6 +2638,7 @@ def generate_interview_sheet_hm(
         "hiring_signal_summary": [
             "Belegbare Ergebnisse, klare Priorisierung, nachvollziehbare Entscheidungen.",
             "Bewertung auf beobachtbare Evidenz stützen und für alle Kandidat:innen konsistent dokumentieren.",
+            *salary_warning_notes,
         ],
         "debrief_questions": [
             "Welche evidenzbasierten Signale sprechen für/gegen eine Einstellung?",
@@ -2581,6 +2661,15 @@ def generate_interview_sheet_hm(
         cast(InterviewPrepSheetHiringManager, parsed),
         generation_options=generation_options,
     )
+    if salary_warning_notes:
+        sheet = sheet.model_copy(
+            update={
+                "hiring_signal_summary": _append_interview_warning_notes(
+                    sheet.hiring_signal_summary,
+                    salary_warning_notes,
+                )
+            }
+        )
     return sheet, usage
 
 
