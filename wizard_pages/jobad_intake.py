@@ -1776,16 +1776,6 @@ def render_jobad_intake(
 
     if analysis_complete:
         render_intake_process_animation(state="done")
-        if is_focus_design_enabled():
-            _render_esco_anchor_section(ctx)
-            with st.expander(
-                str(t("Erkannte Basis prüfen")),
-                expanded=False,
-            ):
-                _render_extraction_result_section(ctx)
-        else:
-            _render_extraction_result_section(ctx)
-            _render_esco_anchor_section(ctx)
         edit_source_context = (
             st.expander(
                 str(t("Quelle oder Briefing-Steuerung anpassen")),
@@ -1796,6 +1786,16 @@ def render_jobad_intake(
         )
         with edit_source_context:
             do_extract = _render_source_input_section(ctx)
+        if is_focus_design_enabled():
+            _render_esco_anchor_section(ctx)
+            with st.expander(
+                str(t("Erkannte Basis prüfen")),
+                expanded=False,
+            ):
+                _render_extraction_result_section(ctx)
+        else:
+            _render_extraction_result_section(ctx)
+            _render_esco_anchor_section(ctx)
     else:
         do_extract = _render_source_input_section(ctx)
 

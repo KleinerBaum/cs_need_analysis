@@ -83,6 +83,16 @@ def test_landing_page_renders_briefing_cockpit_states() -> None:
     assert "START_PAGE_COPY[\"unlocked_items\"]" in landing_page
 
 
+def test_intro_page_owns_upload_to_briefing_flow() -> None:
+    landing_page = Path("wizard_pages/00_landing.py").read_text(encoding="utf-8")
+    intro_page = Path("wizard_pages/00_intro.py").read_text(encoding="utf-8")
+
+    assert "_render_intro_flow_cards" in intro_page
+    assert "START_PAGE_COPY[\"flow_title\"]" in intro_page
+    assert "_render_landing_flow_cards" not in landing_page
+    assert "START_PAGE_COPY[\"flow_title\"]" not in landing_page
+
+
 def test_intro_page_is_compressed_and_skippable_after_briefing() -> None:
     intro_page = Path("wizard_pages/00_intro.py").read_text(encoding="utf-8")
 
