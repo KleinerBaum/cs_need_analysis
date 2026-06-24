@@ -1,0 +1,5 @@
+Senior Data Engineer
+
+We are hiring to build a new analytics platform for the DACH sales team.
+Required skills: Python, SQL, Airflow.
+Risks: unclear budget ownership and on-call expectations.

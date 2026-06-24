@@ -682,6 +682,20 @@ class QuestionPlan(StrictSchemaModel):
     steps: List[QuestionStep] = Field(default_factory=list)
 
 
+class NeedAnalysisBrief(StrictSchemaModel):
+    """Strict parse-time model for a compact recruiting need analysis."""
+
+    role_title: str = Field(description="Role title found in the supplied jobspec.")
+    hiring_reason: Optional[str] = Field(
+        description="Reason for hiring, or null when the jobspec does not state it.",
+    )
+    must_have_skills: List[str] = Field(default_factory=list)
+    risk_flags: List[str] = Field(default_factory=list)
+    confidence: Literal["low", "medium", "high"] = Field(
+        description="Confidence based only on the supplied jobspec text."
+    )
+
+
 class VacancyBriefLLM(StrictSchemaModel):
     """Strict parse-time model for generated briefing sections only."""
 

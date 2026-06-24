@@ -1,12 +1,24 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import pytest
 import llm_client
 from constants import FactKey, VACANCY_SCHEMA_VERSION
-from llm_client import OpenAIRuntimeConfig, generate_vacancy_brief
-from schemas import CompanyWebsiteResearch, JobAdExtract, VacancyBrief, VacancyBriefLLM
+from llm_client import (
+    OpenAIRuntimeConfig,
+    build_need_analysis_prompt,
+    generate_need_analysis_brief,
+    generate_vacancy_brief,
+)
+from schemas import (
+    CompanyWebsiteResearch,
+    JobAdExtract,
+    NeedAnalysisBrief,
+    VacancyBrief,
+    VacancyBriefLLM,
+)
 from settings_openai import OpenAISettings
 
 
@@ -40,6 +52,86 @@ def _runtime_config() -> OpenAIRuntimeConfig:
         task_max_sentences_per_field=None,
         settings=settings,
     )
+
+
+def test_build_need_analysis_prompt_uses_fixture_text_via_placeholders() -> None:
+    jobspec_text = Path("tests/fixtures/need_analysis_jobspec.txt").read_text(
+        encoding="utf-8"
+    )
+
+    instructions, user_input = build_need_analysis_prompt(
+        jobspec_text=jobspec_text,
+        locale="de",
+    )
+
+    assert instructions == "\n".join(
+        [
+            "# Identity",
+            "You generate a structured recruiting need brief.",
+            "# Instructions",
+            "Return only schema-compliant JSON.",
+            "Use only the supplied jobspec text.",
+            "Mark uncertainty explicitly.",
+            "# Locale",
+            "de",
+        ]
+    )
+    assert user_input == f"<JOBSPEC>\n{jobspec_text}\n</JOBSPEC>"
+
+
+def test_generate_need_analysis_brief_smoke_uses_strict_schema_model(
+    monkeypatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_parse_with_structured_outputs(**kwargs: Any):
+        captured.update(kwargs)
+        return (
+            NeedAnalysisBrief(
+                role_title="Senior Data Engineer",
+                hiring_reason="Build a new analytics platform",
+                must_have_skills=["Python", "SQL", "Airflow"],
+                risk_flags=["unclear budget ownership", "on-call expectations"],
+                confidence="high",
+            ),
+            {"total_tokens": 17},
+        )
+
+    monkeypatch.setattr(
+        llm_client, "_resolve_runtime_config", lambda **_: _runtime_config()
+    )
+    monkeypatch.setattr(
+        llm_client, "_parse_with_structured_outputs", fake_parse_with_structured_outputs
+    )
+    jobspec_text = Path("tests/fixtures/need_analysis_jobspec.txt").read_text(
+        encoding="utf-8"
+    )
+
+    brief, usage = generate_need_analysis_brief(
+        jobspec_text=jobspec_text,
+        model="gpt-5-mini",
+        locale="de",
+    )
+
+    assert captured["out_model"] is NeedAnalysisBrief
+    assert captured["messages"] == [
+        {
+            "role": "system",
+            "content": build_need_analysis_prompt(
+                jobspec_text=jobspec_text,
+                locale="de",
+            )[0],
+        },
+        {
+            "role": "user",
+            "content": build_need_analysis_prompt(
+                jobspec_text=jobspec_text,
+                locale="de",
+            )[1],
+        },
+    ]
+    assert brief.role_title == "Senior Data Engineer"
+    assert usage == {"total_tokens": 17}
 
 
 def test_generate_vacancy_brief_uses_llm_parse_model_and_injects_structured_data(

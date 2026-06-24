@@ -70,6 +70,7 @@ def test_all_llm_task_kinds_have_limit_settings() -> None:
 def test_openai_task_kind_contract_is_explicit() -> None:
     expected_task_kinds = {
         "extract_job_ad",
+        "generate_need_analysis_brief",
         "generate_question_plan",
         "generate_vacancy_brief",
         "generate_job_ad",

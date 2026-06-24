@@ -37,6 +37,7 @@ _FINAL_MODEL_FALLBACK = "gpt-4o-mini"
 DEFAULT_TIMEOUT_SECONDS = 120.0
 _TASK_KINDS = (
     "extract_job_ad",
+    "generate_need_analysis_brief",
     "generate_question_plan",
     "generate_vacancy_brief",
     "generate_job_ad",

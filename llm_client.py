@@ -71,6 +71,7 @@ from schemas import (
     InterviewPrepSheetHR,
     InterviewPrepSheetHiringManager,
     JobAdExtract,
+    NeedAnalysisBrief,
     QuestionDependency,
     QuestionPlan,
     RequirementSuggestionPack,
@@ -97,6 +98,7 @@ _MODEL_CAPABILITY_EXPORTS = (
 
 ModelTaskKind = str
 TASK_EXTRACT_JOB_AD = "extract_job_ad"
+TASK_GENERATE_NEED_ANALYSIS_BRIEF = "generate_need_analysis_brief"
 TASK_GENERATE_QUESTION_PLAN = "generate_question_plan"
 TASK_GENERATE_VACANCY_BRIEF = "generate_vacancy_brief"
 TASK_GENERATE_JOB_AD = "generate_job_ad"
@@ -153,6 +155,52 @@ _QUESTION_GROUP_FALLBACK_BY_STEP: dict[str, str] = {
     STEP_KEY_BENEFITS: "differentiating_benefits",
     STEP_KEY_INTERVIEW: "candidate_journey",
 }
+
+_NEED_ANALYSIS_INSTRUCTIONS_TEMPLATE = """
+# Identity
+You generate a structured recruiting need brief.
+# Instructions
+Return only schema-compliant JSON.
+Use only the supplied jobspec text.
+Mark uncertainty explicitly.
+# Locale
+{locale}
+""".strip()
+
+_NEED_ANALYSIS_INPUT_TEMPLATE = """
+<JOBSPEC>
+{jobspec_text}
+</JOBSPEC>
+""".strip()
+
+
+@dataclass(frozen=True)
+class NeedAnalysisPromptPlaceholders:
+    """Typed placeholder payload for the need-analysis prompt builder."""
+
+    jobspec_text: str
+    locale: str = DEFAULT_LANGUAGE
+
+
+def build_need_analysis_prompt(
+    *,
+    jobspec_text: str,
+    locale: str = DEFAULT_LANGUAGE,
+) -> tuple[str, str]:
+    """Build the canonical need-analysis prompt using explicit placeholders."""
+
+    placeholders = NeedAnalysisPromptPlaceholders(
+        jobspec_text=jobspec_text,
+        locale=locale,
+    )
+    values = {
+        "jobspec_text": placeholders.jobspec_text,
+        "locale": placeholders.locale,
+    }
+    return (
+        _NEED_ANALYSIS_INSTRUCTIONS_TEMPLATE.format_map(values),
+        _NEED_ANALYSIS_INPUT_TEMPLATE.format_map(values),
+    )
 
 _QUESTION_GROUP_MATCH_RULES: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
     STEP_KEY_COMPANY: (
@@ -520,6 +568,37 @@ def build_task_prompt_limits_suffix(
     if not parts:
         return ""
     return " Zusätzliche Output-Limits: " + " ".join(parts)
+
+
+def generate_need_analysis_brief(
+    *,
+    jobspec_text: str,
+    model: str,
+    locale: str = DEFAULT_LANGUAGE,
+    store: bool = False,
+    temperature: float | None = None,
+) -> Tuple[NeedAnalysisBrief, Optional[Dict[str, Any]]]:
+    """Generate a compact need-analysis brief from raw jobspec text."""
+
+    runtime_config = _resolve_runtime_config(
+        task_kind=TASK_GENERATE_NEED_ANALYSIS_BRIEF,
+        session_override=model,
+    )
+    instructions, user_input = build_need_analysis_prompt(
+        jobspec_text=jobspec_text,
+        locale=locale,
+    )
+    parsed, usage = _parse_with_structured_outputs(
+        runtime_config=runtime_config,
+        messages=[
+            {"role": "system", "content": instructions},
+            {"role": "user", "content": user_input},
+        ],
+        out_model=NeedAnalysisBrief,
+        store=store,
+        maybe_temperature=temperature,
+    )
+    return cast(NeedAnalysisBrief, parsed), usage
 
 
 def build_extract_job_ad_messages(
@@ -967,6 +1046,7 @@ def resolve_model_for_task(
 
     model_by_task: dict[ModelTaskKind, str] = {
         TASK_EXTRACT_JOB_AD: resolved_settings.lightweight_model,
+        TASK_GENERATE_NEED_ANALYSIS_BRIEF: resolved_settings.medium_reasoning_model,
         TASK_GENERATE_QUESTION_PLAN: resolved_settings.medium_reasoning_model,
         TASK_GENERATE_VACANCY_BRIEF: resolved_settings.medium_reasoning_model,
         TASK_GENERATE_JOB_AD: resolved_settings.high_reasoning_model,

@@ -7,6 +7,7 @@ from schemas import (
     InterviewPrepSheetHR,
     InterviewPrepSheetHiringManager,
     InterviewScorecardTemplate,
+    NeedAnalysisBrief,
     OccupationContextProfile,
     OccupationQuestionContext,
     QuestionPlan,
@@ -58,6 +59,16 @@ def test_vacancy_brief_llm_schema_is_strict_for_structured_outputs() -> None:
     schema = VacancyBriefLLM.model_json_schema()
     assert schema.get("additionalProperties") is False
     assert "structured_data" not in schema["properties"]
+
+
+def test_need_analysis_brief_schema_is_strict_with_explicit_null_optional() -> None:
+    schema = NeedAnalysisBrief.model_json_schema()
+    hiring_reason_schema = schema["properties"]["hiring_reason"]
+
+    assert schema.get("additionalProperties") is False
+    assert "hiring_reason" in schema["required"]
+    assert {"type": "null"} in hiring_reason_schema["anyOf"]
+    assert schema["properties"]["confidence"]["enum"] == ["low", "medium", "high"]
 
 
 def test_new_interview_and_contract_schemas_are_strict() -> None:
