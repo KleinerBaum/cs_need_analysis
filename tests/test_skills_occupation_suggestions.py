@@ -9,6 +9,7 @@ import pytest
 from constants import SSKey
 from esco_client import (
     ESCO_RELATED_ENDPOINT_UNSUPPORTED_MESSAGE,
+    EscoClientError,
     extract_skill_candidates,
     load_related_occupation_skill_suggestions,
 )
@@ -80,6 +81,31 @@ def test_extract_skill_candidates_service_filters_non_skill_entries() -> None:
             "type": "skill",
         }
     ]
+
+
+def test_load_skill_detail_on_demand_returns_recovery_copy_without_raw_error(
+    monkeypatch,
+) -> None:
+    class _FailingEscoClient:
+        def resource_skill(self, *, uri: str) -> dict[str, object]:
+            assert uri == "uri:skill:python"
+            raise EscoClientError(
+                status_code=500,
+                endpoint="resource/skill",
+                message="provider stack detail",
+            )
+
+    monkeypatch.setattr(SKILLS_MODULE, "EscoClient", _FailingEscoClient)
+
+    detail, error = SKILLS_MODULE._load_skill_detail_on_demand(
+        uri="uri:skill:python",
+        cache={},
+    )
+
+    assert detail is None
+    assert error is not None
+    assert "Nächste Aktion" in error
+    assert "provider stack detail" not in error
 
 
 def test_load_related_occupation_skill_suggestions_service_uses_client_payloads() -> None:

@@ -406,7 +406,8 @@ def _run_website_research(
         )
     except _HomepageResearchInvalidUrlError:
         st.session_state[SSKey.COMPANY_WEBSITE_LAST_ERROR.value] = (
-            "Keine valide Homepage-URL gefunden."
+            "Homepage-Check fehlgeschlagen: Keine valide Homepage-URL gefunden. "
+            "Nächste Aktion: öffentliche HTTPS-URL prüfen oder Arbeitgeberprofil unten manuell ausfüllen."
         )
         record_enrichment_timed(
             st.session_state,
@@ -437,7 +438,8 @@ def _run_website_research(
             error_type=error_type,
         )
         st.session_state[SSKey.COMPANY_WEBSITE_LAST_ERROR.value] = (
-            "Homepage konnte nicht verarbeitet werden. Prüfe die URL oder erfasse die Angaben unten manuell."
+            "Homepage-Check fehlgeschlagen: Die Website konnte nicht verarbeitet werden. "
+            "Nächste Aktion: URL prüfen und erneut starten oder Arbeitgeberprofil unten manuell ausfüllen."
         )
         return
 
@@ -525,12 +527,12 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
         with st.container(border=True):
             st.warning(error_text)
             st.caption(
-                "Recovery: URL oben korrigieren und den Check erneut starten oder "
+                "Nächste Aktion: URL oben korrigieren und den Check erneut starten oder "
                 "Arbeitgeberprofil und Business-Kontext unten direkt manuell ausfüllen."
             )
             st.caption(
-                "Website-Funde bleiben Zusatzbelege; geprüfte Fakten unten manuell erfassen "
-                "oder nach Prüfung übernehmen."
+                "Vorhandene Website-Funde bleiben erhalten. Website-Funde bleiben Zusatzbelege; "
+                "geprüfte Fakten unten manuell erfassen oder nach Prüfung übernehmen."
             )
             st.button(
                 "Fehlerhinweis ausblenden",

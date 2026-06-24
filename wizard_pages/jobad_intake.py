@@ -1211,7 +1211,10 @@ def _extract_upload_to_state(
             exc=exc,
             error_type=error_type,
             error_code="JOBAD_FILE_READ_UNEXPECTED",
-            user_message="Datei konnte nicht gelesen werden.",
+            user_message=(
+                "Upload-Parsing fehlgeschlagen: Datei konnte nicht gelesen werden. "
+                "Nächste Aktion: Text manuell einfügen oder eine andere Datei hochladen."
+            ),
         )
         return None
 
@@ -1327,7 +1330,13 @@ def _render_source_upload_status() -> None:
         )
 
     if upload is not None and not uploaded_text and last_error:
-        st.error(str(t(f"Extraktion fehlgeschlagen: {last_error}")))
+        st.error(
+            _localized_template(
+                "Upload-Parsing fehlgeschlagen: {last_error}",
+                "Upload parsing failed: {last_error}",
+                last_error=last_error,
+            )
+        )
         st.caption(
             str(
                 t(
@@ -1396,8 +1405,9 @@ def _render_phase_a_action_controls() -> bool:
         st.caption(
             str(
                 t(
-                    "Bei Unterbrechungen ist der Laufzeitstatus nicht dauerhaft. "
-                    "Speichere bei Bedarf vorher links im Bereich „Entwurf“ ein JSON."
+                    "Nächste Aktion: erneut analysieren, Text manuell korrigieren "
+                    "oder mit „Briefing manuell starten“ ohne automatische Extraktion "
+                    "fortfahren."
                 )
             )
         )
@@ -1953,6 +1963,10 @@ def render_jobad_intake(
                 exc=exc,
                 error_type=error_type,
                 error_code="JOBAD_ANALYZE_UNEXPECTED",
+                user_message=(
+                    "Automatische Briefing-Analyse fehlgeschlagen. Nächste Aktion: "
+                    "Quelle prüfen, erneut analysieren oder den manuellen Briefing-Start nutzen."
+                ),
             )
 
         st.rerun()

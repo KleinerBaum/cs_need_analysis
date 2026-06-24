@@ -154,7 +154,8 @@ def _load_esco_task_suggestions_from_selected_occupation(
     try:
         payload = client.resource_occupation(uri=occupation_uri)
     except EscoClientError as exc:
-        return [], str(exc)
+        status = exc.status_code if exc.status_code is not None else "none"
+        return [], f"endpoint={exc.endpoint or 'unknown'} | status={status}"
 
     if not isinstance(payload, dict):
         return [], None
@@ -800,9 +801,13 @@ def render(ctx: WizardContext) -> None:
                 _load_esco_task_suggestions_from_selected_occupation(occupation_uri)
             )
             if esco_error:
-                st.caption(
-                    f"ESCO-Hinweis: Occupation-Details konnten nicht geladen werden ({esco_error})."
+                st.warning(
+                    "ESCO-Aufgabenvorschläge konnten nicht geladen werden. "
+                    "Nächste Aktion: Jobspec- oder AI-Aufgaben verwenden oder Aufgaben manuell erfassen."
                 )
+                if get_current_ui_mode() == "expert":
+                    with st.expander("Technische ESCO-Details", expanded=False):
+                        st.caption(esco_error)
             elif esco_suggestions:
                 occupation_title = (
                     str(selected_occupation.get("title") or "").strip()

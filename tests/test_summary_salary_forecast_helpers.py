@@ -40,6 +40,14 @@ SALARY_PANEL_MODULE = module_from_spec(SALARY_PANEL_SPEC)
 SALARY_PANEL_SPEC.loader.exec_module(SALARY_PANEL_MODULE)  # type: ignore[attr-defined]
 
 
+class _NoopContext:
+    def __enter__(self) -> "_NoopContext":
+        return self
+
+    def __exit__(self, *_: object) -> Literal[False]:
+        return False
+
+
 def test_salary_forecast_engine_applies_scenario_overrides() -> None:
     job = JobAdExtract(
         job_title="Data Scientist",
@@ -61,6 +69,47 @@ def test_salary_forecast_engine_applies_scenario_overrides() -> None:
 
     assert boosted.forecast.p50 > baseline.forecast.p50
     assert boosted.quality.value >= baseline.quality.value
+
+
+def test_salary_forecast_recovery_preserves_existing_result(monkeypatch) -> None:
+    existing_result = {"forecast": {"p50": 100000}, "step_key": "skills"}
+
+    class _FakeStreamlit:
+        def __init__(self) -> None:
+            self.session_state: dict[str, Any] = {
+                SSKey.SALARY_FORECAST_LAST_RESULT.value: dict(existing_result),
+                SSKey.UI_MODE.value: "expert",
+            }
+            self.warnings: list[str] = []
+            self.captions: list[str] = []
+            self.expanders: list[tuple[str, bool]] = []
+
+        def warning(self, message: str, *_args: Any, **_kwargs: Any) -> None:
+            self.warnings.append(message)
+
+        def caption(self, message: str, *_args: Any, **_kwargs: Any) -> None:
+            self.captions.append(message)
+
+        def expander(
+            self, label: str, *, expanded: bool = False, **_kwargs: Any
+        ) -> _NoopContext:
+            self.expanders.append((label, expanded))
+            return _NoopContext()
+
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(SALARY_PANEL_MODULE, "st", fake_st)
+
+    SALARY_PANEL_MODULE._render_salary_forecast_recovery(
+        step_key="skills",
+        language="de",
+        exc=RuntimeError("raw salary detail"),
+    )
+
+    assert fake_st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] == existing_result
+    assert any("Gehaltsprognose konnte nicht aktualisiert" in item for item in fake_st.warnings)
+    assert any("Vorherige Prognose bleibt sichtbar" in item for item in fake_st.captions)
+    assert any("type=RuntimeError" == item for item in fake_st.captions)
+    assert all("raw salary detail" not in item for item in fake_st.captions)
 
 
 def test_map_salary_scenario_to_overrides_uses_expected_presets() -> None:

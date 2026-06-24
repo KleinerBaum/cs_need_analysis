@@ -457,8 +457,8 @@ SUMMARY_UI_COPY: dict[str, dict[str, Any]] = {
                 "Exportieren Sie nur, wenn die Release Gate Karten keine Blocker zeigen."
             ),
             "export_blocked": (
-                "Blockiert: Erstellen Sie zuerst den Recruiting Brief. Danach werden "
-                "Exportformate freigegeben."
+                "Export blockiert: Erstellen oder aktualisieren Sie zuerst den "
+                "Recruiting Brief. Danach werden die Downloadformate freigegeben."
             ),
             "pipeline_heading": "Unterlagen-Pipeline",
             "pipeline_caption": (
@@ -477,7 +477,8 @@ SUMMARY_UI_COPY: dict[str, dict[str, Any]] = {
                 "Kompakte Vorschau ohne Export-JSON. Downloads liegen im Export-Arbeitsbereich."
             ),
             "export_blocked_no_brief": (
-                "Export blockiert: Erstellen oder aktualisieren Sie zuerst den Recruiting Brief."
+                "Export blockiert: Erstellen oder aktualisieren Sie zuerst den "
+                "Recruiting Brief; vorhandene Fakten bleiben im Fakten-Arbeitsbereich bearbeitbar."
             ),
             "tech_heading": "Technik",
             "tech_caption": "Technische Vorschauen und Statusdaten bleiben hier gebündelt.",
@@ -748,7 +749,8 @@ SUMMARY_UI_COPY: dict[str, dict[str, Any]] = {
                 "when the release gate cards show no blockers."
             ),
             "export_blocked": (
-                "Blocked: create the recruiting brief first. Export formats are released after that."
+                "Export blocked: create or refresh the recruiting brief first. "
+                "Download formats are released after that."
             ),
             "pipeline_heading": "Output pipeline",
             "pipeline_caption": (
@@ -767,7 +769,8 @@ SUMMARY_UI_COPY: dict[str, dict[str, Any]] = {
                 "Compact preview without export JSON. Downloads are in the export workspace."
             ),
             "export_blocked_no_brief": (
-                "Export blocked: create or update the recruiting brief first."
+                "Export blocked: create or update the recruiting brief first; existing facts "
+                "remain editable in the facts workspace."
             ),
             "tech_heading": "Technical",
             "tech_caption": "Technical previews and status data stay bundled here.",
@@ -1310,7 +1313,10 @@ SALARY_UI_COPY: dict[str, dict[str, str]] = {
             "Kontext: indikative Prognose basierend auf den gewählten Angaben.\n\n"
             "Fehlende Inputs können die Prognosequalität reduzieren."
         ),
-        "unavailable": "Die Gehaltsprognose ist vorübergehend nicht verfügbar. Bitte versuche es in Kürze erneut.",
+        "unavailable": (
+            "Die Gehaltsprognose konnte nicht aktualisiert werden. Nächste Aktion: "
+            "Eingaben prüfen und die Prognose später erneut öffnen."
+        ),
     },
     "en": {
         "forecast_heading": "Salary forecast (indicative)",
@@ -1325,7 +1331,10 @@ SALARY_UI_COPY: dict[str, dict[str, str]] = {
             "Context: indicative forecast based on the selected inputs.\n\n"
             "Missing inputs can reduce forecast quality."
         ),
-        "unavailable": "The salary forecast is temporarily unavailable. Please try again shortly.",
+        "unavailable": (
+            "The salary forecast could not be refreshed. Next action: review the inputs "
+            "and reopen the forecast later."
+        ),
     },
 }
 

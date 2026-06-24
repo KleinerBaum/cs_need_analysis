@@ -732,8 +732,8 @@ def _render_artifact_generation_recovery(
         if message:
             st.caption(message)
         recovery_parts = [
-            "Recovery: Eingaben oder Änderungswunsch prüfen und erneut generieren.",
-            "Vor längeren Unterbrechungen links im Bereich „Entwurf“ ein JSON speichern.",
+            "Nächste Aktion: Eingaben oder Änderungswunsch prüfen und erneut generieren.",
+            "Vorhandene Fakten und ältere Ergebnisse bleiben erhalten; ein Retry überschreibt erst nach erfolgreicher Generierung.",
         ]
         if artifact_id != "brief":
             recovery_parts.append(
@@ -828,7 +828,9 @@ def render(ctx: WizardContext) -> None:
 
     def _render_generation_recovery(artifact_label: str) -> None:
         st.warning(
-            f"{artifact_label} konnte nicht erstellt werden. Prüfe die Eingaben, passe den Änderungswunsch an oder nutze den Export mit vorhandenen Fakten."
+            f"{artifact_label} konnte nicht erstellt werden. Nächste Aktion: "
+            "Eingaben prüfen, Änderungswunsch anpassen und erneut generieren. "
+            "Vorhandene Fakten und ältere Ergebnisse bleiben erhalten."
         )
 
     def _current_salary_forecast_payload() -> dict[str, Any]:

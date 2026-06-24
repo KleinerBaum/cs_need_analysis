@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+from contextlib import nullcontext
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from typing import Callable, Mapping, TypedDict
@@ -213,6 +214,21 @@ def _render_suppressed_repeat_notice(exc: EscoClientError) -> bool:
         f"Unterdrückte Wiederholungen: {exc.suppressed_repeat_count}."
     )
     return True
+
+
+def _render_safe_esco_error_details(
+    exc: EscoClientError, *, expanded: bool = False
+) -> None:
+    expander = getattr(st, "expander", None)
+    context = (
+        expander("Technische ESCO-Details", expanded=expanded)
+        if callable(expander)
+        else nullcontext()
+    )
+    with context:
+        status = exc.status_code if exc.status_code is not None else "none"
+        st.caption(f"endpoint={exc.endpoint or 'unknown'}")
+        st.caption(f"status={status}")
 
 
 def _extract_esco_scope_note(payload: object) -> str:
@@ -1655,7 +1671,11 @@ def render_esco_occupation_confirmation(
                     clear_esco_cache()
                     st.info("Bitte den Ladevorgang später erneut ausführen.")
         else:
-            st.warning(f"ESCO-Berufsdetails konnten nicht geladen werden: {exc}")
+            st.warning(
+                "ESCO-Berufsdetails konnten nicht geladen werden. "
+                "Nächste Aktion: manuell fortfahren oder später erneut laden."
+            )
+            _render_safe_esco_error_details(exc, expanded=technical_expanded)
         st.session_state[SSKey.ESCO_OCCUPATION_PAYLOAD.value] = None
         st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = {}
         st.session_state[SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value] = []
@@ -1679,9 +1699,11 @@ def render_esco_occupation_confirmation(
                     )
                 else:
                     st.warning(
-                        "ESCO-Relationsdaten konnten nicht vollständig geladen werden: "
-                        f"{exc}"
-                )
+                        "ESCO-Relationsdaten konnten nicht vollständig geladen werden. "
+                        "Nächste Aktion: mit Jobspec- und manuellen Angaben fortfahren "
+                        "oder später erneut laden."
+                    )
+                    _render_safe_esco_error_details(exc, expanded=technical_expanded)
                 st.session_state[SSKey.ESCO_OCCUPATION_RELATED_COUNTS.value] = {}
                 related_labels = {}
         if capabilities.supports_occupation_skill_group_share:
@@ -1706,9 +1728,10 @@ def render_esco_occupation_confirmation(
                         )
                     else:
                         st.warning(
-                            "ESCO-Skillgruppen-Daten konnten nicht vollständig geladen werden: "
-                            f"{exc}"
+                            "ESCO-Skillgruppen-Daten konnten nicht vollständig geladen werden. "
+                            "Nächste Aktion: mit vorhandenen Skills fortfahren oder später erneut laden."
                         )
+                        _render_safe_esco_error_details(exc, expanded=technical_expanded)
                     st.session_state[SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value] = []
         elif show_detail_panels:
             st.session_state[SSKey.ESCO_OCCUPATION_SKILL_GROUP_SHARE.value] = []

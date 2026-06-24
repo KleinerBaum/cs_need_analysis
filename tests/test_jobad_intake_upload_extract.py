@@ -300,9 +300,10 @@ def test_phase_a_shows_failed_extraction_status_without_no_file_caption(
 
     assert "Datei bereit: scan.pdf" in fake_st.infos
     assert (
-        "Extraktion fehlgeschlagen: Datei enthält keinen auslesbaren Inhalt."
+        "Upload-Parsing fehlgeschlagen: Datei enthält keinen auslesbaren Inhalt."
         in fake_st.errors
     )
+    assert any("Nächste Aktion" in caption for caption in fake_st.captions)
     assert "Noch keine Datei hochgeladen." not in fake_st.captions
 
 
@@ -327,7 +328,7 @@ def test_phase_a_shows_pdf_ocr_error_message(monkeypatch) -> None:
     jobad_intake._render_phase_a_source_and_privacy_controls()
 
     assert (
-        "Extraktion fehlgeschlagen: PDF enthält keinen Textlayer (OCR fehlt)."
+        "Upload-Parsing fehlgeschlagen: PDF enthält keinen Textlayer (OCR fehlt)."
         in fake_st.errors
     )
 

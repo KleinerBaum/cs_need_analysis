@@ -1500,7 +1500,12 @@ def _load_skill_detail_on_demand(
     try:
         payload = client.resource_skill(uri=uri)
     except EscoClientError as exc:
-        return None, f"Details konnten nicht geladen werden ({exc})."
+        del exc
+        return (
+            None,
+            "ESCO-Skill-Details konnten nicht geladen werden. "
+            "Nächste Aktion: Skill ohne Details weiterverwenden oder später erneut laden.",
+        )
 
     raw_label = (
         payload.get("preferredLabel")
@@ -1554,7 +1559,7 @@ def _render_selected_skill_details(
                     uri=uri, cache=detail_cache
                 )
                 if error:
-                    st.warning(f"{error} Du kannst den Skill ohne Details weiterverwenden.")
+                    st.warning(error)
                 elif loaded_detail is not None:
                     st.success("Details geladen.")
 
@@ -2552,7 +2557,13 @@ def _maybe_autoload_esco_skill_suggestions(
         matrix_expected_nice = list(matrix_nice)
     except Exception as exc:
         st.session_state[SSKey.ESCO_MATRIX_LOADED.value] = False
-        st.caption(f"Matrix-Prior nicht geladen: {exc}")
+        st.caption(
+            "Matrix-Prior nicht geladen. Die Skill-Auswahl bleibt über Jobspec, "
+            "ESCO-Vorschläge und manuelle Eingaben nutzbar."
+        )
+        if str(st.session_state.get(SSKey.UI_MODE.value, "")).strip().lower() == "expert":
+            with st.expander("Technische Matrix-Details", expanded=False):
+                st.caption(f"type={type(exc).__name__}")
 
     if load_error:
         if load_error.from_negative_cache:

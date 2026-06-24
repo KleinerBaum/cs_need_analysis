@@ -5,6 +5,8 @@ from pathlib import Path
 from types import SimpleNamespace
 import sys
 
+from esco_client import EscoClientError
+
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -51,6 +53,29 @@ def test_load_esco_task_suggestions_returns_empty_for_sparse_payload(
 
     assert error is None
     assert suggestions == []
+
+
+def test_load_esco_task_suggestions_returns_safe_error_metadata(monkeypatch) -> None:
+    class _FailingEscoClient:
+        def resource_occupation(self, *, uri: str) -> dict[str, object]:
+            assert uri == "uri:occupation:1"
+            raise EscoClientError(
+                status_code=503,
+                endpoint="resource/occupation",
+                message="raw provider detail",
+            )
+
+    monkeypatch.setattr(ROLE_TASKS_MODULE, "EscoClient", _FailingEscoClient)
+
+    suggestions, error = (
+        ROLE_TASKS_MODULE._load_esco_task_suggestions_from_selected_occupation(
+            "uri:occupation:1"
+        )
+    )
+
+    assert suggestions == []
+    assert error == "endpoint=resource/occupation | status=503"
+    assert "raw provider detail" not in error
 
 
 def test_merge_llm_task_suggestions_dedupes_against_blocked_labels() -> None:

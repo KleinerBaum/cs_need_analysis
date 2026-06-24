@@ -364,6 +364,36 @@ def _build_salary_forecast_snapshot(
     }
 
 
+def _salary_debug_enabled() -> bool:
+    return str(
+        st.session_state.get(SSKey.UI_MODE.value, "standard")
+    ).strip().lower() == "expert" or bool(st.session_state.get(SSKey.DEBUG.value, False))
+
+
+def _render_salary_forecast_recovery(
+    *,
+    step_key: str,
+    language: str,
+    exc: Exception | None = None,
+) -> None:
+    st.warning(_salary_copy("unavailable", language=language))
+    existing_result = st.session_state.get(SSKey.SALARY_FORECAST_LAST_RESULT.value, {})
+    if isinstance(existing_result, dict) and existing_result:
+        st.caption(
+            "Vorherige Prognose bleibt sichtbar. Nächste Aktion: Eingaben prüfen "
+            "oder die Gehaltsprognose später erneut öffnen."
+        )
+    else:
+        st.caption(
+            "Nächste Aktion: Eingaben prüfen oder die Gehaltsprognose später erneut öffnen; "
+            "Rolle, Skills und Benefits bleiben weiter bearbeitbar."
+        )
+    if exc is not None and _salary_debug_enabled():
+        with st.expander("Technische Prognose-Diagnose", expanded=False):
+            st.caption(f"step={step_key}")
+            st.caption(f"type={type(exc).__name__}")
+
+
 def _queue_pending_salary_scenario_update(
     *,
     skills_add: list[str] | None = None,
@@ -1056,25 +1086,36 @@ def render_role_tasks_salary_forecast_panel(
             store=store,
         )
         if _should_refresh_step_forecast(step_key="role_tasks", fingerprint=fingerprint):
-            with st.spinner("Berechne Gehaltsprognose …"):
-                forecast_job = job.model_copy(
-                    update={
-                        "responsibilities": selected_tasks or job.responsibilities,
-                    }
-                )
-                st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = (
-                    _build_step_salary_result(
-                        step_key="role_tasks",
-                        job=forecast_job,
-                        answers={"selected_tasks": selected_tasks},
-                        inputs={"selected_tasks": selected_tasks},
-                        input_fingerprint=fingerprint,
+            try:
+                with st.spinner("Berechne Gehaltsprognose …"):
+                    forecast_job = job.model_copy(
+                        update={
+                            "responsibilities": selected_tasks or job.responsibilities,
+                        }
                     )
+                    st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = (
+                        _build_step_salary_result(
+                            step_key="role_tasks",
+                            job=forecast_job,
+                            answers={"selected_tasks": selected_tasks},
+                            inputs={"selected_tasks": selected_tasks},
+                            input_fingerprint=fingerprint,
+                        )
+                    )
+                _remember_step_forecast_fingerprint(
+                    step_key="role_tasks", fingerprint=fingerprint
                 )
-            _remember_step_forecast_fingerprint(
-                step_key="role_tasks", fingerprint=fingerprint
-            )
-            st.caption("Prognose automatisch aktualisiert.")
+                st.caption("Prognose automatisch aktualisiert.")
+            except Exception as exc:
+                LOGGER.warning(
+                    "Salary forecast refresh failed for role_tasks: %s",
+                    type(exc).__name__,
+                )
+                _render_salary_forecast_recovery(
+                    step_key="role_tasks",
+                    language=language,
+                    exc=exc,
+                )
         else:
             st.caption("Prognose ist für die aktuellen Eingaben aktuell.")
 
@@ -1148,30 +1189,32 @@ def render_benefits_salary_forecast_panel(
             store=store,
         )
         if _should_refresh_step_forecast(step_key="benefits", fingerprint=fingerprint):
-            with st.spinner("Berechne Gehaltsprognose …"):
-                forecast_payload = _build_step_salary_result(
-                    step_key="benefits",
-                    job=job,
-                    answers=answers,
-                    inputs={
-                        "benefits_selected": selected_benefits,
-                        "factors": [item for item in _factor_candidates() if item],
-                    },
-                    input_fingerprint=fingerprint,
-                )
             try:
+                with st.spinner("Berechne Gehaltsprognose …"):
+                    forecast_payload = _build_step_salary_result(
+                        step_key="benefits",
+                        job=job,
+                        answers=answers,
+                        inputs={
+                            "benefits_selected": selected_benefits,
+                            "factors": [item for item in _factor_candidates() if item],
+                        },
+                        input_fingerprint=fingerprint,
+                    )
                 st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = forecast_payload
                 _remember_step_forecast_fingerprint(
                     step_key="benefits", fingerprint=fingerprint
                 )
                 st.caption("Prognose automatisch aktualisiert.")
-            except AttributeError as exc:
+            except Exception as exc:
                 LOGGER.warning(
-                    "Salary forecast serialization unavailable: missing expected SalaryForecastResult.quality field (%s).",
-                    exc,
+                    "Salary forecast refresh failed for benefits: %s",
+                    type(exc).__name__,
                 )
-                st.warning(
-                    _salary_copy("unavailable", language=language)
+                _render_salary_forecast_recovery(
+                    step_key="benefits",
+                    language=language,
+                    exc=exc,
                 )
         else:
             st.caption("Prognose ist für die aktuellen Eingaben aktuell.")
@@ -1289,36 +1332,47 @@ def render_skills_salary_forecast_panel(
             store=store,
         )
         if _should_refresh_step_forecast(step_key="skills", fingerprint=fingerprint):
-            with st.spinner("Berechne Gehaltsprognose …"):
-                forecast_job = job.model_copy(
-                    update={
-                        "must_have_skills": must_priority,
-                        "nice_to_have_skills": nice_priority,
-                        "responsibilities": selected_role_tasks
-                        or job.responsibilities,
-                    }
-                )
-                st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = (
-                    _build_step_salary_result(
-                        step_key="skills",
-                        job=forecast_job,
-                        answers={
+            try:
+                with st.spinner("Berechne Gehaltsprognose …"):
+                    forecast_job = job.model_copy(
+                        update={
                             "must_have_skills": must_priority,
                             "nice_to_have_skills": nice_priority,
-                            "selected_role_tasks": selected_role_tasks,
-                        },
-                        inputs={
-                            "must_have_skills": must_priority,
-                            "nice_to_have_skills": nice_priority,
-                            "selected_role_tasks": selected_role_tasks,
-                        },
-                        input_fingerprint=fingerprint,
+                            "responsibilities": selected_role_tasks
+                            or job.responsibilities,
+                        }
                     )
+                    st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = (
+                        _build_step_salary_result(
+                            step_key="skills",
+                            job=forecast_job,
+                            answers={
+                                "must_have_skills": must_priority,
+                                "nice_to_have_skills": nice_priority,
+                                "selected_role_tasks": selected_role_tasks,
+                            },
+                            inputs={
+                                "must_have_skills": must_priority,
+                                "nice_to_have_skills": nice_priority,
+                                "selected_role_tasks": selected_role_tasks,
+                            },
+                            input_fingerprint=fingerprint,
+                        )
+                    )
+                _remember_step_forecast_fingerprint(
+                    step_key="skills", fingerprint=fingerprint
                 )
-            _remember_step_forecast_fingerprint(
-                step_key="skills", fingerprint=fingerprint
-            )
-            st.caption("Prognose automatisch aktualisiert.")
+                st.caption("Prognose automatisch aktualisiert.")
+            except Exception as exc:
+                LOGGER.warning(
+                    "Salary forecast refresh failed for skills: %s",
+                    type(exc).__name__,
+                )
+                _render_salary_forecast_recovery(
+                    step_key="skills",
+                    language=language,
+                    exc=exc,
+                )
         else:
             st.caption("Prognose ist für die aktuellen Eingaben aktuell.")
 

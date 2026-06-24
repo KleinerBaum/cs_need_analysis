@@ -137,3 +137,14 @@ def test_release_gate_and_draft_copy_has_english_parity() -> None:
     assert summary_ui_copy("live_preview.panel_title", language="en") == (
         "Live preview: recruiting outputs"
     )
+
+
+def test_export_blocked_copy_states_next_action_and_manual_workspace() -> None:
+    assert "Recruiting Brief" in summary_ui_copy(
+        "workspace.export_blocked",
+        language="de",
+    )
+    assert "facts workspace" in summary_ui_copy(
+        "workspace.export_blocked_no_brief",
+        language="en",
+    )

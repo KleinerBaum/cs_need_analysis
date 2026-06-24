@@ -397,7 +397,8 @@ def test_run_website_research_records_invalid_url_event(monkeypatch) -> None:
     )
 
     assert fake_st.session_state[SSKey.COMPANY_WEBSITE_LAST_ERROR.value] == (
-        "Keine valide Homepage-URL gefunden."
+        "Homepage-Check fehlgeschlagen: Keine valide Homepage-URL gefunden. "
+        "Nächste Aktion: öffentliche HTTPS-URL prüfen oder Arbeitgeberprofil unten manuell ausfüllen."
     )
     events = get_usage_events(fake_st.session_state)
     assert events[0]["event_type"] == "enrichment_timed"
@@ -408,6 +409,45 @@ def test_run_website_research_records_invalid_url_event(monkeypatch) -> None:
         "topic_key": WEBSITE_TOPIC_ABOUT,
         "error_type": "invalid_url",
     }
+
+
+def test_run_website_research_failure_preserves_existing_research(monkeypatch) -> None:
+    existing_research = {
+        WEBSITE_RESEARCH_SECTIONS: {
+            WEBSITE_TOPIC_ABOUT: {
+                WEBSITE_SECTION_SOURCE_URL: "https://example.com/about",
+                WEBSITE_SECTION_SUMMARY: ["Bestehender Fund bleibt erhalten."],
+            }
+        }
+    }
+    fake_st = SimpleNamespace(
+        session_state={SSKey.COMPANY_WEBSITE_RESEARCH.value: existing_research}
+    )
+    monkeypatch.setattr(COMPANY_MODULE, "st", fake_st)
+
+    def _raise_research_error(**_kwargs: object) -> object:
+        raise RuntimeError("network detail that must not be rendered")
+
+    monkeypatch.setattr(
+        COMPANY_MODULE,
+        "_build_company_website_research",
+        _raise_research_error,
+    )
+
+    COMPANY_MODULE._run_website_research(
+        homepage_url="https://example.com",
+        topic_key=WEBSITE_TOPIC_ABOUT,
+        plan=QuestionPlan(steps=[]),
+    )
+
+    assert (
+        fake_st.session_state[SSKey.COMPANY_WEBSITE_RESEARCH.value]
+        == existing_research
+    )
+    error = fake_st.session_state[SSKey.COMPANY_WEBSITE_LAST_ERROR.value]
+    assert "Homepage-Check fehlgeschlagen" in error
+    assert "Nächste Aktion" in error
+    assert "network detail" not in error
 
 
 def test_build_company_website_research_returns_normalized_payload(

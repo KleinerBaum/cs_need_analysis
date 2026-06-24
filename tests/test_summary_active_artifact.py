@@ -38,6 +38,8 @@ class _FakeStreamlit:
         self.text_area_calls: list[dict[str, Any]] = []
         self.download_button_labels: list[str] = []
         self.markdown_calls: list[str] = []
+        self.warning_calls: list[str] = []
+        self.caption_calls: list[str] = []
 
     def container(self, **_: Any) -> _NoopContext:
         return _NoopContext()
@@ -51,12 +53,18 @@ class _FakeStreamlit:
         return None
 
     def caption(self, *_: Any, **__: Any) -> None:
+        if _:
+            self.caption_calls.append(str(_[0]))
         return None
 
     def write(self, *_: Any, **__: Any) -> None:
         return None
 
     def info(self, *_: Any, **__: Any) -> None:
+        return None
+
+    def warning(self, message: str, **__: Any) -> None:
+        self.warning_calls.append(message)
         return None
 
     def button(self, label: str, **__: Any) -> bool:
@@ -109,6 +117,28 @@ def test_button_action_sets_canonical_active_artifact_id(monkeypatch) -> None:
 
     assert triggered is True
     assert fake_st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] == "job_ad"
+
+
+def test_artifact_generation_recovery_states_retry_and_preserves_results(
+    monkeypatch,
+) -> None:
+    fake_st = _FakeStreamlit(
+        session_state={
+            SSKey.SUMMARY_ARTIFACT_LAST_ERROR.value: {
+                "artifact_id": "job_ad",
+                "artifact_label": "Stellenanzeige",
+                "message": "Stellenanzeige konnte nicht erstellt werden.",
+            }
+        },
+        button_results=[],
+    )
+    monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
+
+    SUMMARY_MODULE._render_artifact_generation_recovery({"job_ad": lambda: None})
+
+    assert fake_st.warning_calls == ["Stellenanzeige konnte nicht erstellt werden."]
+    assert any("Nächste Aktion" in item for item in fake_st.caption_calls)
+    assert any("ältere Ergebnisse bleiben erhalten" in item for item in fake_st.caption_calls)
 
 
 def test_resolve_active_artifact_falls_back_from_legacy_value(monkeypatch) -> None:
