@@ -159,6 +159,27 @@ def test_render_ui_mode_selector_derives_legacy_preference_metadata(monkeypatch)
     )
 
 
+def test_render_wizard_design_selector_preserves_widget_selection(monkeypatch) -> None:
+    widget_key = "test.wizard_design"
+    session_state = _LockedSessionState(
+        {
+            widget_key: "focus",
+            SSKey.UI_PREFERENCES.value: {UI_PREFERENCE_WIZARD_DESIGN: "classic"},
+        }
+    )
+    fake_st = _FakeStreamlit(session_state)
+    monkeypatch.setattr(base, "st", fake_st)
+
+    selected_design = base.render_wizard_design_selector(widget_key=widget_key)
+
+    assert selected_design == "focus"
+    assert session_state[widget_key] == "focus"
+    assert (
+        session_state[SSKey.UI_PREFERENCES.value][UI_PREFERENCE_WIZARD_DESIGN]
+        == "focus"
+    )
+
+
 def test_visible_step_set_for_ui_mode_navigation_excludes_team_step() -> None:
     visible_step_keys = [step.key for step in STEPS]
 

@@ -1654,7 +1654,10 @@ def render_wizard_design_selector(
     if current_design not in UI_WIZARD_DESIGN_VALUES:
         current_design = UI_WIZARD_DESIGN_DEFAULT
     key = widget_key or f"{SSKey.UI_PREFERENCES.value}.{UI_PREFERENCE_WIZARD_DESIGN}"
-    st.session_state[key] = current_design
+    widget_design = str(st.session_state.get(key, "")).strip().lower()
+    st.session_state[key] = (
+        widget_design if widget_design in UI_WIZARD_DESIGN_VALUES else current_design
+    )
     selected_design = selectbox(
         "Wizard-Design",
         options=list(UI_WIZARD_DESIGN_VALUES),

@@ -128,13 +128,37 @@ def _metadata_string(
     return None
 
 
+def _content_text(item: dict[str, Any]) -> str | None:
+    raw_content = item.get("content")
+    if not isinstance(raw_content, list):
+        return None
+
+    parts: list[str] = []
+    for part in raw_content:
+        if not isinstance(part, dict):
+            continue
+        if part.get("type") not in (None, "text"):
+            continue
+        text = _coerce_string(part.get("text"))
+        if text is not None:
+            parts.append(text)
+
+    if not parts:
+        return None
+    return "\n\n".join(parts)
+
+
 def _extract_hits(items: list[Any]) -> tuple[EscoRagHit, ...]:
     hits: list[EscoRagHit] = []
     for index, item in enumerate(items, start=1):
         if not isinstance(item, dict):
             continue
         metadata = _item_metadata(item)
-        snippet = _coerce_string(item.get("text")) or _coerce_string(item.get("snippet"))
+        snippet = (
+            _coerce_string(item.get("text"))
+            or _coerce_string(item.get("snippet"))
+            or _content_text(item)
+        )
         if snippet is None:
             continue
         source_file = _metadata_string(

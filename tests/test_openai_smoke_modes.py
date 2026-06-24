@@ -46,8 +46,8 @@ def test_gpt54_nano_sends_none_reasoning_low_verbosity_and_temperature() -> None
     assert responses_kwargs["max_output_tokens"] == 333
     assert chat_kwargs == {
         "model": "gpt-5.4-nano",
-        "reasoning": {"effort": "none"},
-        "text": {"verbosity": "low"},
+        "reasoning_effort": "none",
+        "verbosity": "low",
         "temperature": 0.0,
     }
 
@@ -80,6 +80,22 @@ def test_gpt5_snapshot_detection_and_capabilities() -> None:
     assert supports_verbosity("gpt-5-mini-2026-01-15")
     assert kwargs["reasoning"] == {"effort": "xhigh"}
     assert kwargs["text"] == {"verbosity": "high"}
+    assert "temperature" not in kwargs
+
+
+def test_gpt55_family_detection_and_capabilities() -> None:
+    kwargs = build_responses_request_kwargs(
+        model="gpt-5.5-pro-2026-06-10",
+        store=False,
+        maybe_temperature=0.5,
+        reasoning_effort="high",
+        verbosity="medium",
+    )
+
+    assert supports_reasoning("gpt-5.5-pro")
+    assert supports_verbosity("gpt-5.5-pro")
+    assert kwargs["reasoning"] == {"effort": "high"}
+    assert kwargs["text"] == {"verbosity": "medium"}
     assert "temperature" not in kwargs
 
 
@@ -122,6 +138,7 @@ def test_request_builder_matrix_for_primary_models() -> None:
             "low",
             0.7,
             {"reasoning": {"effort": "low"}, "text": {"verbosity": "low"}},
+            {"reasoning_effort": "low", "verbosity": "low"},
         ),
         (
             "gpt-5.4-nano",
@@ -133,11 +150,30 @@ def test_request_builder_matrix_for_primary_models() -> None:
                 "text": {"verbosity": "low"},
                 "temperature": 0.0,
             },
+            {
+                "reasoning_effort": "none",
+                "verbosity": "low",
+                "temperature": 0.0,
+            },
         ),
-        ("gpt-4o-mini", "high", "medium", 0.3, {"temperature": 0.3}),
+        (
+            "gpt-4o-mini",
+            "high",
+            "medium",
+            0.3,
+            {"temperature": 0.3},
+            {"temperature": 0.3},
+        ),
     ]
 
-    for model, reasoning, verbosity, temperature, expected_fields in matrix:
+    for (
+        model,
+        reasoning,
+        verbosity,
+        temperature,
+        expected_responses_fields,
+        expected_chat_fields,
+    ) in matrix:
         responses_kwargs = build_responses_request_kwargs(
             model=model,
             store=False,
@@ -157,15 +193,20 @@ def test_request_builder_matrix_for_primary_models() -> None:
         assert chat_kwargs["model"] == model
         assert "store" not in chat_kwargs
 
-        for key, expected_value in expected_fields.items():
+        for key, expected_value in expected_responses_fields.items():
             assert responses_kwargs[key] == expected_value
+        for key, expected_value in expected_chat_fields.items():
             assert chat_kwargs[key] == expected_value
+        assert "text" not in chat_kwargs
+        assert "reasoning" not in chat_kwargs
 
 
 def test_reasoning_effort_normalization_accepts_new_values() -> None:
     assert normalize_reasoning_effort("gpt-5", "minimal") == "minimal"
     assert normalize_reasoning_effort("gpt-5-mini", "xhigh") == "xhigh"
     assert normalize_reasoning_effort("gpt-5.4", "none") == "none"
+    assert normalize_reasoning_effort("gpt-5.5", "none") == "none"
+    assert normalize_reasoning_effort("gpt-5.5-pro", "high") == "high"
     assert normalize_reasoning_effort("gpt-5", "none") is None
     assert normalize_reasoning_effort("gpt-4o-mini", "high") is None
 
@@ -173,6 +214,7 @@ def test_reasoning_effort_normalization_accepts_new_values() -> None:
 def test_nano_helpers_detect_supported_models() -> None:
     assert is_nano_model("gpt-5-nano")
     assert is_nano_model("gpt-5.4-nano")
+    assert is_nano_model("gpt-5.5-nano-2026-06-10")
     assert not is_nano_model("gpt-5-mini")
 
 

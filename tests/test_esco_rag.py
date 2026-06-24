@@ -174,6 +174,31 @@ def test_extract_hits_infers_known_filename_metadata() -> None:
     assert hits[0].preferred_label == "Python"
 
 
+def test_extract_hits_reads_current_vector_store_content_shape() -> None:
+    hits = esco_rag._extract_hits(
+        [
+            {
+                "filename": "skills_essential_en.md",
+                "score": 0.91,
+                "content": [
+                    {"type": "text", "text": "Relevant chunk"},
+                    {"type": "text", "text": "Second chunk"},
+                ],
+                "attributes": {
+                    "preferred_label": "Python",
+                    "concept_uri": "http://data.europa.eu/esco/skill/123",
+                },
+            }
+        ]
+    )
+
+    assert len(hits) == 1
+    assert hits[0].snippet == "Relevant chunk\n\nSecond chunk"
+    assert hits[0].source_file == "skills_essential_en.md"
+    assert hits[0].preferred_label == "Python"
+    assert hits[0].concept_uri == "http://data.europa.eu/esco/skill/123"
+
+
 def test_extract_hits_reads_typed_metadata_from_attributes() -> None:
     hits = esco_rag._extract_hits(
         [

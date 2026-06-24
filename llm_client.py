@@ -602,14 +602,14 @@ def normalize_verbosity(verbosity: str | None) -> str | None:
     return None
 
 
-def _build_capability_gated_request_kwargs(
+def _build_responses_capability_gated_request_kwargs(
     *,
     model: str,
     maybe_temperature: float | None = None,
     reasoning_effort: str | None,
     verbosity: str | None,
 ) -> dict[str, Any]:
-    """Build capability-gated kwargs shared across parse endpoints."""
+    """Build capability-gated kwargs for the Responses API."""
 
     normalized_reasoning_effort = normalize_reasoning_effort(model, reasoning_effort)
     normalized_verbosity = normalize_verbosity(verbosity)
@@ -623,6 +623,31 @@ def _build_capability_gated_request_kwargs(
         request_kwargs["reasoning"] = {"effort": normalized_reasoning_effort}
     if supports_verbosity(model) and normalized_verbosity is not None:
         request_kwargs["text"] = {"verbosity": normalized_verbosity}
+
+    return request_kwargs
+
+
+def _build_chat_capability_gated_request_kwargs(
+    *,
+    model: str,
+    maybe_temperature: float | None = None,
+    reasoning_effort: str | None,
+    verbosity: str | None,
+) -> dict[str, Any]:
+    """Build capability-gated kwargs for Chat Completions parse."""
+
+    normalized_reasoning_effort = normalize_reasoning_effort(model, reasoning_effort)
+    normalized_verbosity = normalize_verbosity(verbosity)
+
+    request_kwargs: dict[str, Any] = {}
+    if maybe_temperature is not None and supports_temperature(
+        model, normalized_reasoning_effort
+    ):
+        request_kwargs["temperature"] = maybe_temperature
+    if supports_reasoning(model) and normalized_reasoning_effort is not None:
+        request_kwargs["reasoning_effort"] = normalized_reasoning_effort
+    if supports_verbosity(model) and normalized_verbosity is not None:
+        request_kwargs["verbosity"] = normalized_verbosity
 
     return request_kwargs
 
@@ -642,7 +667,7 @@ def build_responses_request_kwargs(
     if max_output_tokens is not None:
         request_kwargs["max_output_tokens"] = max_output_tokens
     request_kwargs.update(
-        _build_capability_gated_request_kwargs(
+        _build_responses_capability_gated_request_kwargs(
             model=model,
             maybe_temperature=maybe_temperature,
             reasoning_effort=reasoning_effort,
@@ -663,7 +688,7 @@ def build_chat_parse_request_kwargs(
 
     request_kwargs: dict[str, Any] = {"model": model}
     request_kwargs.update(
-        _build_capability_gated_request_kwargs(
+        _build_chat_capability_gated_request_kwargs(
             model=model,
             maybe_temperature=maybe_temperature,
             reasoning_effort=reasoning_effort,
