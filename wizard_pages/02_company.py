@@ -19,6 +19,7 @@ from constants import (
     STEP_SECTION_REVIEW,
     UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT,
     WEBSITE_RESEARCH_OPEN_QUESTION_MATCHES,
+    WEBSITE_RESEARCH_HOMEPAGE_URL,
     WEBSITE_RESEARCH_SECTIONS,
     WEBSITE_SECTION_FACTS,
     WEBSITE_SECTION_SOURCE_URL,
@@ -130,6 +131,11 @@ _FACT_OPTION_LABELS = {
     fact.fact_key.value: _FACT_DISPLAY_LABELS.get(fact.fact_key.value, fact.label)
     for fact in INTAKE_FACTS
 }
+_WEBSITE_RESEARCH_TOPIC_KEYS = (
+    WEBSITE_TOPIC_ABOUT,
+    WEBSITE_TOPIC_IMPRINT,
+    WEBSITE_TOPIC_VISION_MISSION,
+)
 _TEAM_CONTEXT_FACT_KEYS = frozenset(
     {
         FactKey.COMPANY_DEPARTMENT_NAME,
@@ -238,22 +244,6 @@ def _render_secondary_company_detail(
     expander = getattr(st, "expander", None)
     if callable(expander):
         with expander(title, expanded=False):
-            renderer()
-        return
-    renderer()
-
-
-def _render_focus_company_drilldown(
-    renderer: Callable[[], None],
-    *,
-    collapsed_label: str,
-) -> None:
-    if not is_focus_design_enabled() or _company_detail_sections_expanded_by_default():
-        renderer()
-        return
-    expander = getattr(st, "expander", None)
-    if callable(expander):
-        with expander(collapsed_label, expanded=False):
             renderer()
         return
     renderer()
@@ -376,7 +366,7 @@ def _run_website_research(
     homepage_url: str,
     topic_key: str,
     plan: QuestionPlan,
-) -> None:
+) -> bool:
     started_at = perf_counter()
     try:
         result = _build_company_website_research(
@@ -405,7 +395,7 @@ def _run_website_research(
             topic_key=topic_key,
             error_type="invalid_url",
         )
-        return
+        return False
     except Exception as exc:
         error_type = type(exc).__name__
         record_enrichment_timed(
@@ -425,7 +415,7 @@ def _run_website_research(
             "Homepage-Check fehlgeschlagen: Die Website konnte nicht verarbeitet werden. "
             "Nächste Aktion: URL prüfen und erneut starten oder Arbeitgeberprofil unten manuell ausfüllen."
         )
-        return
+        return False
 
     st.session_state[SSKey.COMPANY_WEBSITE_RESEARCH.value] = result.research
     st.session_state[SSKey.COMPANY_WEBSITE_LAST_ERROR.value] = None
@@ -436,6 +426,48 @@ def _run_website_research(
         duration_ms=int((perf_counter() - started_at) * 1000),
         result_count=result.result_count,
     )
+    return True
+
+
+def _run_full_website_research(*, homepage_url: str, plan: QuestionPlan) -> int:
+    success_count = 0
+    last_error: str | None = None
+    for topic_key in _WEBSITE_RESEARCH_TOPIC_KEYS:
+        if _run_website_research(
+            homepage_url=homepage_url,
+            topic_key=topic_key,
+            plan=plan,
+        ):
+            success_count += 1
+            continue
+        error_text = st.session_state.get(SSKey.COMPANY_WEBSITE_LAST_ERROR.value)
+        if isinstance(error_text, str) and error_text.strip():
+            last_error = error_text
+    if last_error is not None:
+        st.session_state[SSKey.COMPANY_WEBSITE_LAST_ERROR.value] = last_error
+    return success_count
+
+
+def _website_research_has_all_topics(
+    research: dict[str, Any],
+    *,
+    homepage_url: str,
+) -> bool:
+    researched_homepage = _normalize_url(
+        str(research.get(WEBSITE_RESEARCH_HOMEPAGE_URL) or "")
+    )
+    if researched_homepage != homepage_url:
+        return False
+    sections_raw = research.get(WEBSITE_RESEARCH_SECTIONS, {})
+    sections = sections_raw if isinstance(sections_raw, dict) else {}
+    for topic_key in _WEBSITE_RESEARCH_TOPIC_KEYS:
+        section_raw = sections.get(topic_key, {})
+        section = section_raw if isinstance(section_raw, dict) else {}
+        summary = section.get(WEBSITE_SECTION_SUMMARY, [])
+        facts = section.get(WEBSITE_SECTION_FACTS, {})
+        if not summary and not facts:
+            return False
+    return True
 
 
 def _dismiss_website_recovery_message() -> None:
@@ -443,9 +475,6 @@ def _dismiss_website_recovery_message() -> None:
 
 
 def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
-    st.caption(
-        "Prüfe öffentliche Website-Funde als zusätzliche Evidenz zur bestehenden Hiring-Story."
-    )
     extracted_homepage = _normalize_url(
         str(
             fact_value(
@@ -461,6 +490,9 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
     manual_homepage = _normalize_url(manual_homepage_raw)
     homepage = manual_homepage or extracted_homepage
     if extracted_homepage:
+        st.caption(
+            "Prüfe öffentliche Website-Funde als zusätzliche Evidenz zur bestehenden Hiring-Story."
+        )
         st.caption(f"Website aus der Anzeige: {extracted_homepage}")
         with st.expander(
             "Andere Website verwenden",
@@ -477,8 +509,8 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
                 placeholder="https://www.beispiel.de",
                 help="Manuelle URL wird nur für den Website-Check verwendet.",
             )
-            if manual_homepage:
-                st.caption("Manuelle URL wird für die Analyse verwendet.")
+        if manual_homepage:
+            st.caption("Manuelle URL wird für die Analyse verwendet.")
     else:
         st.text_input(
             "Unternehmenswebsite",
@@ -486,25 +518,24 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
             placeholder="https://www.beispiel.de",
             help="Öffentliche Website, die für die Analyse verwendet werden soll.",
         )
+        if not homepage:
+            if manual_homepage_raw and not manual_homepage:
+                st.warning("Bitte eine öffentliche HTTPS-URL eintragen.")
+            return
         if manual_homepage:
             st.caption("Manuell erfasste URL wird für die Analyse verwendet.")
 
-    button_specs = (
-        (WEBSITE_TOPIC_ABOUT, "Über uns prüfen"),
-        (WEBSITE_TOPIC_IMPRINT, "Impressum prüfen"),
-        (WEBSITE_TOPIC_VISION_MISSION, "Vision/Werte prüfen"),
-    )
-    button_cols = responsive_three_columns(gap="small")
-    for index, (topic_key, button_label) in enumerate(button_specs):
-        with button_cols[index]:
-            if st.button(
-                button_label,
-                width="stretch",
-                key=f"company.website.research.{topic_key}",
-            ):
-                _run_website_research(
-                    homepage_url=homepage, topic_key=topic_key, plan=plan
-                )
+    research_raw = st.session_state.get(SSKey.COMPANY_WEBSITE_RESEARCH.value, {})
+    research = research_raw if isinstance(research_raw, dict) else {}
+    error_text = st.session_state.get(SSKey.COMPANY_WEBSITE_LAST_ERROR.value)
+    has_error = isinstance(error_text, str) and bool(error_text.strip())
+    if homepage and not has_error and not _website_research_has_all_topics(
+        research,
+        homepage_url=homepage,
+    ):
+        _run_full_website_research(homepage_url=homepage, plan=plan)
+        research_raw = st.session_state.get(SSKey.COMPANY_WEBSITE_RESEARCH.value, {})
+        research = research_raw if isinstance(research_raw, dict) else {}
 
     error_text = st.session_state.get(SSKey.COMPANY_WEBSITE_LAST_ERROR.value)
     if isinstance(error_text, str) and error_text.strip():
@@ -523,15 +554,25 @@ def _render_website_enrichment(job: JobAdExtract, plan: QuestionPlan) -> None:
                 key="company.website.recovery.dismiss",
                 on_click=_dismiss_website_recovery_message,
             )
+            if homepage and st.button(
+                "Website erneut prüfen",
+                key="company.website.research.retry_all",
+                width="stretch",
+            ):
+                _run_full_website_research(homepage_url=homepage, plan=plan)
+                research_raw = st.session_state.get(
+                    SSKey.COMPANY_WEBSITE_RESEARCH.value,
+                    {},
+                )
+                research = research_raw if isinstance(research_raw, dict) else {}
 
-    research_raw = st.session_state.get(SSKey.COMPANY_WEBSITE_RESEARCH.value, {})
-    research = research_raw if isinstance(research_raw, dict) else {}
     sections = research.get(WEBSITE_RESEARCH_SECTIONS, {})
     section_payload = sections if isinstance(sections, dict) else {}
     if not section_payload:
-        st.caption(
-            "Noch keine Website-Analyse durchgeführt. Optional URL eintragen und Check starten; sonst Business-Kontext und Arbeitgeberprofil manuell ausfüllen."
-        )
+        if homepage:
+            st.caption(
+                "Noch keine Website-Analyse verfügbar. Business-Kontext und Arbeitgeberprofil können manuell ausgefüllt werden."
+            )
         return
 
     result_cols = responsive_three_columns(gap="small")
@@ -624,16 +665,8 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
     if not candidates:
         return
 
-    expander = getattr(st, "expander", None)
-    if callable(expander):
-        st.caption(f"{len(candidates)} Website-Belege für Fakten erkannt.")
-        with expander(
-            f"Belege zu Fakten zuordnen ({len(candidates)})",
-            expanded=False,
-        ):
-            _render_website_fact_review_form(candidates)
-        return
-
+    st.markdown(f"##### Belege zu Fakten zuordnen ({len(candidates)})")
+    st.caption(f"{len(candidates)} Website-Belege für Fakten erkannt.")
     _render_website_fact_review_form(candidates)
 
 
@@ -647,6 +680,7 @@ def _render_website_fact_review_form(candidates: list[dict[str, Any]]) -> None:
     rows: list[dict[str, Any]] = []
 
     with st.form("company.website.fact_review.form"):
+        candidate_columns = responsive_three_columns(gap="small")
         for index, candidate in enumerate(candidates, start=1):
             candidate_id = str(candidate.get("candidate_id") or "").strip()
             if not candidate_id:
@@ -670,78 +704,78 @@ def _render_website_fact_review_form(candidates: list[dict[str, Any]]) -> None:
                 else _default_select_website_candidate(default_fact_key, draft_value)
             )
 
-            key_col, value_col, source_col = responsive_three_columns(gap="small")
-            with key_col:
-                selected_fact_key = st.selectbox(
-                    f"Ziel-Feld {index}",
-                    options=_FACT_OPTION_VALUES,
-                    index=_FACT_OPTION_VALUES.index(default_fact_key),
-                    format_func=lambda value: _FACT_OPTION_LABELS.get(value, value),
-                    key=f"company.website.fact_review.{candidate_id}.fact_key",
-                )
-            value_type = _value_type_for_fact_key(selected_fact_key)
-            with value_col:
-                parsed_value, parse_error = _render_website_candidate_value_input(
-                    candidate_id=candidate_id,
-                    label=f"Website-Wert {index}",
-                    value=draft_value,
-                    value_type=value_type,
-                )
-            with source_col:
-                source_label = str(candidate.get("source_label") or "Website").strip()
-                evidence = str(candidate.get("evidence_snippet") or "").strip()
-                selected_fact = _coerce_fact_key(selected_fact_key)
-                current_value = fact_value(selected_fact) if selected_fact is not None else None
-                has_confirmed_conflict = (
-                    selected_fact is not None
-                    and _is_confirmed_fact_value(selected_fact)
-                    and not _is_empty_fact_value(current_value)
-                    and not _fact_values_equal(current_value, parsed_value)
-                )
-                if not _is_empty_fact_value(current_value) and _fact_values_equal(
-                    current_value, parsed_value
-                ):
-                    candidate_status = FactResolutionStatus.CONFIRMED.value
-                elif has_confirmed_conflict:
-                    candidate_status = FactResolutionStatus.CONFLICTED.value
-                else:
-                    candidate_status = FactResolutionStatus.INFERRED.value
-                render_trust_indicator(
-                    state=trust_state_for_fact_status(
-                        candidate_status,
-                        source_type=FactSourceType.HOMEPAGE.value,
-                        confirmed=(
-                            candidate_status == FactResolutionStatus.CONFIRMED.value
-                        ),
-                    ),
-                    source_type=FactSourceType.HOMEPAGE.value,
-                    source_label=source_label,
-                    evidence={
-                        "source_type": FactSourceType.HOMEPAGE.value,
-                        "source_label": source_label,
-                        "resolution_status": candidate_status,
-                        "confidence": candidate.get("confidence"),
-                        "evidence_snippet": evidence,
-                    },
-                    streamlit_module=st,
-                )
-                override_conflict = False
-                if has_confirmed_conflict:
-                    override_conflict = st.checkbox(
-                        "Ausnahme: bestätigten Wert durch Website-Beleg ersetzen",
-                        value=bool(draft.get("override_conflict", False)),
-                        key=(
-                            "company.website.fact_review."
-                            f"{candidate_id}.override_conflict"
-                        ),
+            with candidate_columns[(index - 1) % len(candidate_columns)]:
+                with st.container(border=True):
+                    selected_fact_key = st.selectbox(
+                        f"Ziel-Feld {index}",
+                        options=_FACT_OPTION_VALUES,
+                        index=_FACT_OPTION_VALUES.index(default_fact_key),
+                        format_func=lambda value: _FACT_OPTION_LABELS.get(value, value),
+                        key=f"company.website.fact_review.{candidate_id}.fact_key",
                     )
-                if parse_error:
-                    st.error(parse_error)
-                selected = st.checkbox(
-                    "Als Zusatzbeleg übernehmen",
-                    value=default_selected,
-                    key=f"company.website.fact_review.{candidate_id}.selected",
-                )
+                    value_type = _value_type_for_fact_key(selected_fact_key)
+                    parsed_value, parse_error = _render_website_candidate_value_input(
+                        candidate_id=candidate_id,
+                        label=f"Website-Wert {index}",
+                        value=draft_value,
+                        value_type=value_type,
+                    )
+                    source_label = str(candidate.get("source_label") or "Website").strip()
+                    evidence = str(candidate.get("evidence_snippet") or "").strip()
+                    selected_fact = _coerce_fact_key(selected_fact_key)
+                    current_value = (
+                        fact_value(selected_fact) if selected_fact is not None else None
+                    )
+                    has_confirmed_conflict = (
+                        selected_fact is not None
+                        and _is_confirmed_fact_value(selected_fact)
+                        and not _is_empty_fact_value(current_value)
+                        and not _fact_values_equal(current_value, parsed_value)
+                    )
+                    if not _is_empty_fact_value(current_value) and _fact_values_equal(
+                        current_value, parsed_value
+                    ):
+                        candidate_status = FactResolutionStatus.CONFIRMED.value
+                    elif has_confirmed_conflict:
+                        candidate_status = FactResolutionStatus.CONFLICTED.value
+                    else:
+                        candidate_status = FactResolutionStatus.INFERRED.value
+                    render_trust_indicator(
+                        state=trust_state_for_fact_status(
+                            candidate_status,
+                            source_type=FactSourceType.HOMEPAGE.value,
+                            confirmed=(
+                                candidate_status == FactResolutionStatus.CONFIRMED.value
+                            ),
+                        ),
+                        source_type=FactSourceType.HOMEPAGE.value,
+                        source_label=source_label,
+                        evidence={
+                            "source_type": FactSourceType.HOMEPAGE.value,
+                            "source_label": source_label,
+                            "resolution_status": candidate_status,
+                            "confidence": candidate.get("confidence"),
+                            "evidence_snippet": evidence,
+                        },
+                        streamlit_module=st,
+                    )
+                    override_conflict = False
+                    if has_confirmed_conflict:
+                        override_conflict = st.checkbox(
+                            "Ausnahme: bestätigten Wert durch Website-Beleg ersetzen",
+                            value=bool(draft.get("override_conflict", False)),
+                            key=(
+                                "company.website.fact_review."
+                                f"{candidate_id}.override_conflict"
+                            ),
+                        )
+                    if parse_error:
+                        st.error(parse_error)
+                    selected = st.checkbox(
+                        "Als Zusatzbeleg übernehmen",
+                        value=default_selected,
+                        key=f"company.website.fact_review.{candidate_id}.selected",
+                    )
 
             next_review_state[candidate_id] = {
                 "fact_key": selected_fact_key,
@@ -1183,8 +1217,7 @@ def _render_website_finds_section(job: JobAdExtract, plan: QuestionPlan) -> None
     _render_company_section(
         "Website-Funde",
         lambda: _render_website_enrichment(job, plan),
-        critical=False,
-        collapsed_label="Website-Funde prüfen",
+        critical=True,
     )
 
 
@@ -1218,15 +1251,8 @@ def _render_company_sections(
     company_open_question_step: QuestionStep | None,
 ) -> None:
     render_error_banner()
-    if is_focus_design_enabled():
-        _render_company_context(job)
-        _render_focus_company_drilldown(
-            lambda: _render_website_finds_section(job, plan),
-            collapsed_label="Website-Funde prüfen",
-        )
-    else:
-        _render_website_finds_section(job, plan)
-        _render_company_context(job)
+    _render_website_finds_section(job, plan)
+    _render_company_context(job)
     _render_open_questions_section(
         open_question_step=open_question_step,
         company_open_question_step=company_open_question_step,

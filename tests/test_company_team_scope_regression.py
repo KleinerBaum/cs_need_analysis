@@ -327,3 +327,4 @@ def test_company_context_renders_new_section_order(monkeypatch) -> None:
         ("Sekundärer Business-Kontext", False),
         ("Sekundäre Arbeitgeberdaten", False),
     } <= set(fake_st.expander_calls)
+    assert ("Website-Funde prüfen", False) not in fake_st.expander_calls

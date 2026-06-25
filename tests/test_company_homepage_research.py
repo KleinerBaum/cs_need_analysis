@@ -22,8 +22,10 @@ from constants import (
     WEBSITE_SECTION_SOURCE_URL,
     WEBSITE_SECTION_SUMMARY,
     WEBSITE_TOPIC_ABOUT,
+    WEBSITE_TOPIC_IMPRINT,
+    WEBSITE_TOPIC_VISION_MISSION,
 )
-from schemas import CompanyWebsiteResearch, QuestionPlan
+from schemas import CompanyWebsiteResearch, JobAdExtract, QuestionPlan
 from usage_events import get_usage_events
 
 COMPANY_PATH = Path(__file__).resolve().parents[1] / "wizard_pages" / "02_company.py"
@@ -93,6 +95,45 @@ class _FakeResponse:
 
     def close(self) -> None:
         self.closed = True
+
+
+class _Context:
+    def __enter__(self) -> "_Context":
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+
+class _WebsiteEnrichmentStreamlit:
+    def __init__(self, session_state: dict[str, object] | None = None) -> None:
+        self.session_state = session_state or {}
+        self.caption_calls: list[str] = []
+        self.text_inputs: list[str] = []
+        self.button_keys: list[str] = []
+        self.warning_calls: list[str] = []
+
+    def caption(self, text: str, *_args: object, **_kwargs: object) -> None:
+        self.caption_calls.append(text)
+
+    def text_input(self, label: str, *_args: object, **_kwargs: object) -> str:
+        self.text_inputs.append(label)
+        return ""
+
+    def expander(self, *_args: object, **_kwargs: object) -> _Context:
+        return _Context()
+
+    def container(self, *_args: object, **_kwargs: object) -> _Context:
+        return _Context()
+
+    def button(self, *_args: object, **kwargs: object) -> bool:
+        key = kwargs.get("key")
+        if key is not None:
+            self.button_keys.append(str(key))
+        return False
+
+    def warning(self, text: str, *_args: object, **_kwargs: object) -> None:
+        self.warning_calls.append(text)
 
 
 def _patch_dns(
@@ -448,6 +489,142 @@ def test_run_website_research_failure_preserves_existing_research(monkeypatch) -
     assert "Homepage-Check fehlgeschlagen" in error
     assert "Nächste Aktion" in error
     assert "network detail" not in error
+
+
+def test_run_full_website_research_checks_all_company_topics(monkeypatch) -> None:
+    fake_st = SimpleNamespace(session_state={})
+    monkeypatch.setattr(COMPANY_MODULE, "st", fake_st)
+    calls: list[str] = []
+
+    def _record_topic(**kwargs: object) -> bool:
+        calls.append(str(kwargs["topic_key"]))
+        return True
+
+    monkeypatch.setattr(COMPANY_MODULE, "_run_website_research", _record_topic)
+
+    result_count = COMPANY_MODULE._run_full_website_research(
+        homepage_url="https://example.com",
+        plan=QuestionPlan(steps=[]),
+    )
+
+    assert result_count == 3
+    assert calls == [
+        WEBSITE_TOPIC_ABOUT,
+        WEBSITE_TOPIC_IMPRINT,
+        WEBSITE_TOPIC_VISION_MISSION,
+    ]
+
+
+def test_render_website_enrichment_without_url_only_asks_for_url(monkeypatch) -> None:
+    fake_st = _WebsiteEnrichmentStreamlit(
+        {SSKey.COMPANY_WEBSITE_MANUAL_URL.value: ""}
+    )
+    monkeypatch.setattr(COMPANY_MODULE, "st", fake_st)
+    monkeypatch.setattr(COMPANY_MODULE, "fact_value", lambda *_args: "")
+
+    def _fail_auto_run(**_kwargs: object) -> int:
+        raise AssertionError("website research must not run without a URL")
+
+    monkeypatch.setattr(COMPANY_MODULE, "_run_full_website_research", _fail_auto_run)
+
+    COMPANY_MODULE._render_website_enrichment(
+        JobAdExtract(),
+        QuestionPlan(steps=[]),
+    )
+
+    assert fake_st.text_inputs == ["Unternehmenswebsite"]
+    assert fake_st.button_keys == []
+    assert fake_st.caption_calls == []
+
+
+def test_render_website_enrichment_auto_runs_all_topics_for_detected_url(
+    monkeypatch,
+) -> None:
+    fake_st = _WebsiteEnrichmentStreamlit(
+        {
+            SSKey.COMPANY_WEBSITE_MANUAL_URL.value: "",
+            SSKey.COMPANY_WEBSITE_RESEARCH.value: {},
+            SSKey.COMPANY_WEBSITE_LAST_ERROR.value: None,
+        }
+    )
+    monkeypatch.setattr(COMPANY_MODULE, "st", fake_st)
+    monkeypatch.setattr(
+        COMPANY_MODULE,
+        "fact_value",
+        lambda _fact_key, default="": default,
+    )
+    calls: list[str] = []
+
+    def _record_full_run(**kwargs: object) -> int:
+        calls.append(str(kwargs["homepage_url"]))
+        return 3
+
+    monkeypatch.setattr(COMPANY_MODULE, "_run_full_website_research", _record_full_run)
+
+    COMPANY_MODULE._render_website_enrichment(
+        JobAdExtract(company_website="https://example.com"),
+        QuestionPlan(steps=[]),
+    )
+
+    assert calls == ["https://example.com"]
+    assert "company.website.research.retry_all" not in fake_st.button_keys
+
+
+def test_render_website_enrichment_skips_auto_run_when_all_topics_exist(
+    monkeypatch,
+) -> None:
+    fake_st = _WebsiteEnrichmentStreamlit(
+        {
+            SSKey.COMPANY_WEBSITE_MANUAL_URL.value: "",
+            SSKey.COMPANY_WEBSITE_LAST_ERROR.value: None,
+            SSKey.COMPANY_WEBSITE_RESEARCH.value: {
+                WEBSITE_RESEARCH_HOMEPAGE_URL: "https://example.com",
+                WEBSITE_RESEARCH_SECTIONS: {
+                    WEBSITE_TOPIC_ABOUT: {WEBSITE_SECTION_SUMMARY: ["About"]},
+                    WEBSITE_TOPIC_IMPRINT: {WEBSITE_SECTION_FACTS: {"Firma": "Acme"}},
+                    WEBSITE_TOPIC_VISION_MISSION: {
+                        WEBSITE_SECTION_SUMMARY: ["Mission"]
+                    },
+                },
+            },
+        }
+    )
+    monkeypatch.setattr(COMPANY_MODULE, "st", fake_st)
+    monkeypatch.setattr(
+        COMPANY_MODULE,
+        "fact_value",
+        lambda _fact_key, default="": default,
+    )
+    monkeypatch.setattr(
+        COMPANY_MODULE,
+        "responsive_three_columns",
+        lambda **_kwargs: (_Context(), _Context(), _Context()),
+    )
+    monkeypatch.setattr(
+        COMPANY_MODULE,
+        "_render_website_topic_result",
+        lambda **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        COMPANY_MODULE,
+        "_render_website_open_question_matches",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        COMPANY_MODULE,
+        "_render_website_fact_review",
+        lambda *_args, **_kwargs: None,
+    )
+
+    def _fail_auto_run(**_kwargs: object) -> int:
+        raise AssertionError("complete website research should not rerun")
+
+    monkeypatch.setattr(COMPANY_MODULE, "_run_full_website_research", _fail_auto_run)
+
+    COMPANY_MODULE._render_website_enrichment(
+        JobAdExtract(company_website="https://example.com"),
+        QuestionPlan(steps=[]),
+    )
 
 
 def test_build_company_website_research_returns_normalized_payload(
