@@ -7,8 +7,10 @@ from types import SimpleNamespace
 import pytest
 
 from constants import SSKey
+from components import iceberg_need_analysis as iceberg_component
 from components.iceberg_need_analysis import (
     DEFAULT_CONTENT_PATH,
+    DEFAULT_CSS_PATH,
     DEFAULT_IMAGE_PATH,
     build_iceberg_need_analysis_html,
     load_iceberg_content,
@@ -64,7 +66,9 @@ def test_landing_value_cards_escape_dynamic_html(monkeypatch) -> None:
     assert "<img" not in rendered_html
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in rendered_html
     assert "&lt;img src=x onerror=&quot;alert(1)&quot;&gt;" in rendered_html
-    assert all(kwargs.get("unsafe_allow_html") is True for _block, kwargs in rendered_blocks)
+    assert all(
+        kwargs.get("unsafe_allow_html") is True for _block, kwargs in rendered_blocks
+    )
 
 
 def test_intro_page_uses_current_iframe_api_without_expander() -> None:
@@ -256,9 +260,9 @@ def test_intro_page_owns_upload_to_briefing_flow() -> None:
     intro_page = Path("wizard_pages/00_intro.py").read_text(encoding="utf-8")
 
     assert "_render_intro_flow_cards" in intro_page
-    assert "START_PAGE_COPY[\"flow_title\"]" in intro_page
+    assert 'START_PAGE_COPY["flow_title"]' in intro_page
     assert "_render_landing_flow_cards" not in landing_page
-    assert "START_PAGE_COPY[\"flow_title\"]" not in landing_page
+    assert 'START_PAGE_COPY["flow_title"]' not in landing_page
 
 
 def test_intro_page_is_compressed_and_skippable_after_briefing() -> None:
@@ -276,7 +280,14 @@ def test_iceberg_content_loads_required_sections() -> None:
     assert DEFAULT_CONTENT_PATH.exists()
     assert DEFAULT_IMAGE_PATH.exists()
     assert DEFAULT_IMAGE_PATH.name == "eisberg_need_analysis_surface_deep.png"
-    assert set(content) >= {"header", "subtitle", "surface", "waterline", "deep", "footer"}
+    assert set(content) >= {
+        "header",
+        "subtitle",
+        "surface",
+        "waterline",
+        "deep",
+        "footer",
+    }
     assert set(content["surface"]) >= {"headline", "subline", "groups"}
     assert set(content["waterline"]) >= {"surface", "deep"}
     assert set(content["deep"]) >= {"headline", "subline", "groups"}
@@ -311,6 +322,33 @@ def test_iceberg_html_embeds_png_and_overlay_selectors() -> None:
     assert "Scorecard" in html
     assert 'class="ina-footer"' in html
     assert "Mehr geprüfte Tiefe am Anfang" in html
+
+
+def test_iceberg_css_asset_is_externalized_and_embedded() -> None:
+    css = DEFAULT_CSS_PATH.read_text(encoding="utf-8")
+    html = build_iceberg_need_analysis_html()
+
+    assert css.lstrip().startswith(":root {")
+    assert "<style>" not in css
+    assert "@keyframes inaFadeIn" in css
+    assert "@media (max-width: 980px)" in css
+    assert "@media (prefers-reduced-motion: reduce)" in css
+    assert "@keyframes inaFadeIn" in html
+    assert "@media (max-width: 980px)" in html
+
+
+def test_default_iceberg_html_cache_key_includes_language(monkeypatch) -> None:
+    monkeypatch.setattr(iceberg_component, "active_language", lambda: "en")
+    english_html = iceberg_component.build_iceberg_need_analysis_html()
+
+    monkeypatch.setattr(iceberg_component, "active_language", lambda: "de")
+    german_html = iceberg_component.build_iceberg_need_analysis_html()
+
+    assert '<html lang="en">' in english_html
+    assert '<html lang="de">' in german_html
+    assert "From jobspec to reliable recruiting brief" in english_html
+    assert "Von der Jobspec zum belastbaren Recruiting-Briefing" in german_html
+    assert "Von der Jobspec zum belastbaren Recruiting-Briefing" not in english_html
 
 
 def test_iceberg_html_escapes_content(tmp_path: Path) -> None:
@@ -437,7 +475,9 @@ def test_iceberg_html_requires_core_content_sections() -> None:
 
 
 def test_iceberg_html_requires_groups_as_array() -> None:
-    with pytest.raises(ValueError, match="Iceberg section groups must be a JSON array."):
+    with pytest.raises(
+        ValueError, match="Iceberg section groups must be a JSON array."
+    ):
         build_iceberg_need_analysis_html(
             content={
                 "surface": {"headline": "Surface", "subline": "Sub", "groups": "bad"},

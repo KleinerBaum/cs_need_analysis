@@ -11,10 +11,10 @@ def test_build_step_header_html_is_single_safe_block() -> None:
         meta_items=[("📌", "Status", "✅ Fertig")],
     )
 
-    assert html.count("<section class=\"cs-step-header\">") == 1
+    assert html.count('<section class="cs-step-header">') == 1
     assert "</section>" in html
-    assert "&lt;li class=\"cs-meta-item\"&gt;" not in html
-    assert "&lt;span class=\"cs-meta-label\"&gt;" not in html
+    assert '&lt;li class="cs-meta-item"&gt;' not in html
+    assert '&lt;span class="cs-meta-label"&gt;' not in html
     assert ">neutral<" not in html
     assert ">warning<" not in html
 
@@ -31,7 +31,9 @@ def test_build_step_header_html_renders_escaped_overview() -> None:
                         count=4,
                         tone="primary",
                     ),
-                    StepHeaderItem(label="Status", value="Bereit <jetzt>", tone="success"),
+                    StepHeaderItem(
+                        label="Status", value="Bereit <jetzt>", tone="success"
+                    ),
                 ),
             ),
         )
@@ -56,9 +58,7 @@ def test_build_step_header_html_renders_escaped_overview() -> None:
 def test_build_step_section_heading_html_escapes_label() -> None:
     html = design_system.build_step_section_heading_html("Offene <Fragen>")
 
-    assert html == (
-        '<div class="cs-step-section-heading">Offene &lt;Fragen&gt;</div>'
-    )
+    assert html == ('<div class="cs-step-section-heading">Offene &lt;Fragen&gt;</div>')
     assert design_system.build_step_section_heading_html("  ") == ""
 
 
@@ -70,13 +70,24 @@ def test_render_html_block_prefers_streamlit_html(monkeypatch) -> None:
             calls.append(html)
 
         def markdown(self, *_: object, **__: object) -> None:
-            raise AssertionError("markdown fallback should not be used when html exists")
+            raise AssertionError(
+                "markdown fallback should not be used when html exists"
+            )
 
     monkeypatch.setattr(design_system, "st", _FakeStreamlit())
 
     design_system._render_html_block("<div>ok</div>")
 
     assert calls == ["<div>ok</div>"]
+
+
+def test_design_system_css_asset_is_externalized() -> None:
+    css = design_system.DESIGN_SYSTEM_CSS_PATH.read_text(encoding="utf-8")
+
+    assert css.startswith(":root,")
+    assert "<style>" not in css
+    assert "--cs-font-sans:" in css
+    assert design_system._load_design_system_css() == css
 
 
 def test_render_ui_styles_uses_streamlit_theme_tokens(monkeypatch) -> None:
@@ -138,7 +149,10 @@ def test_render_ui_styles_scopes_metric_styles_for_sidebar(monkeypatch) -> None:
     assert '[data-testid="stSidebar"] input,' in css
     assert '[data-testid="stSidebar"] [data-baseweb="select"] > div,' in css
     assert '[data-testid="stSidebar"] [data-testid="stButton"] button,' in css
-    assert '[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] {' in css
+    assert (
+        '[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"] {'
+        in css
+    )
     assert (
         '[data-testid="stSidebar"] [data-testid="stExpander"] [data-testid="stRadio"] label'
         in css
@@ -223,7 +237,7 @@ def test_build_process_progress_html_escapes_labels_and_starts_with_company() ->
         aria_label="Prozess <Fortschritt>",
     )
 
-    assert html.count("<li class=\"cs-process-progress-item\"") == 2
+    assert html.count('<li class="cs-process-progress-item"') == 2
     assert "Unternehmen &lt;script&gt;" in html
     assert "Prozess &lt;Fortschritt&gt;" in html
     assert 'href="?wizard_step=company&amp;unsafe=&lt;x&gt;"' in html
@@ -231,6 +245,6 @@ def test_build_process_progress_html_escapes_labels_and_starts_with_company() ->
     assert "2/7" in html
     assert "Fertig" in html
     assert "Offene Fragen" in html
-    assert "data-status=\"complete\"" in html
-    assert "data-current=\"true\"" in html
+    assert 'data-status="complete"' in html
+    assert 'data-current="true"' in html
     assert html.find("Unternehmen") < html.find("Rolle &amp; Aufgaben")
