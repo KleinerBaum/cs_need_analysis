@@ -1,7 +1,7 @@
 # Development and CI-only quality gates.
-pytest>=9.0.3
-ruff>=0.8.0
-black>=24.10.0
-mypy>=1.13.0
-pyright>=1.1.390
-bandit[toml]>=1.7.10
+pytest>=9.1.1
+ruff>=0.15.19
+black>=26.5.1
+mypy>=2.1.0
+pyright>=1.1.411
+bandit[toml]>=1.9.4
