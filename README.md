@@ -597,6 +597,8 @@ Useful environment overrides:
 
 - `CS_E2E_PORT=8765`
 - `CS_E2E_STARTUP_TIMEOUT=60`
+- `CS_DEPLOYED_BASE_URL=https://example.streamlit.app` also enables the
+  deployed landing-page smoke test inside `tests/e2e`.
 
 ## GitHub Actions CI
 
