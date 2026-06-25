@@ -1233,7 +1233,6 @@ def _render_phase_a_configuration_controls() -> None:
     render_audience_mode_selector()
     render_ui_mode_selector()
     render_wizard_design_selector()
-    _render_esco_operating_block()
 
 
 def _render_source_character_metric() -> None:
