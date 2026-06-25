@@ -171,6 +171,7 @@ from wizard_pages.base import (
     WizardContext,
     WizardPage,
     active_language,
+    get_current_audience_mode,
     get_current_ui_mode,
     nav_buttons,
     render_active_ui_mode_caption,
@@ -780,6 +781,7 @@ def _render_artifact_generation_recovery(
 def render(ctx: WizardContext) -> None:
     render_error_banner()
     ui_mode = get_current_ui_mode()
+    audience_mode = get_current_audience_mode()
     is_advanced_mode = ui_mode == "expert"
 
     # SUMMARY_ZONE: GUARD_INIT
@@ -917,6 +919,7 @@ def render(ctx: WizardContext) -> None:
                     salary_forecast=_current_salary_forecast_payload(),
                     interview_process=_current_interview_process_payload(),
                     company_website_research=company_website_research,
+                    audience_mode=audience_mode,
                     store=store,
                 )
             st.session_state[SSKey.BRIEF.value] = brief.model_dump()
@@ -983,6 +986,7 @@ def render(ctx: WizardContext) -> None:
                     style_guide=styleguide,
                     change_request=change_request,
                     offer_positioning=_current_offer_positioning_payload(),
+                    audience_mode=audience_mode,
                     model=resolved_job_ad_model,
                     store=bool(
                         st.session_state.get(SSKey.STORE_API_OUTPUT.value, False)
@@ -1068,6 +1072,7 @@ def render(ctx: WizardContext) -> None:
                     model=resolved_hr_sheet_model,
                     generation_options=_read_artifact_options("interview_hr"),
                     change_request=_read_artifact_change_request("interview_hr"),
+                    audience_mode=audience_mode,
                     store=store,
                 )
             st.session_state[SSKey.INTERVIEW_PREP_HR.value] = sheet.model_dump(
@@ -1122,6 +1127,7 @@ def render(ctx: WizardContext) -> None:
                     model=resolved_fach_sheet_model,
                     generation_options=_read_artifact_options("interview_fach"),
                     change_request=_read_artifact_change_request("interview_fach"),
+                    audience_mode=audience_mode,
                     store=store,
                 )
             st.session_state[SSKey.INTERVIEW_PREP_FACH.value] = sheet.model_dump(
@@ -1176,6 +1182,7 @@ def render(ctx: WizardContext) -> None:
                     model=resolved_boolean_search_model,
                     generation_options=_read_artifact_options("boolean_search"),
                     change_request=_read_artifact_change_request("boolean_search"),
+                    audience_mode=audience_mode,
                     store=store,
                 )
             st.session_state[SSKey.BOOLEAN_SEARCH_STRING.value] = pack.model_dump(

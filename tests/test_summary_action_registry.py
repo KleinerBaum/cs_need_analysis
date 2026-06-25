@@ -127,6 +127,49 @@ def test_build_action_registry_contains_expected_actions_and_requirements() -> N
     assert action_registry[4]["generator_fn"] is not None
 
 
+def test_build_action_registry_uses_candidate_ctas(monkeypatch) -> None:
+    fake_st = _FakeStreamlit({SSKey.AUDIENCE_MODE.value: "candidate"})
+    monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
+
+    action_registry = SUMMARY_MODULE._build_action_registry(
+        resolved_brief_model="gpt-5-mini",
+        resolved_job_ad_model="gpt-4o-mini",
+        resolved_hr_sheet_model="gpt-5-nano",
+        resolved_fach_sheet_model="gpt-5",
+        resolved_boolean_search_model="gpt-5-mini",
+        follow_up_requirement_check=lambda: (
+            True,
+            "Aktueller Recruiting Brief vorhanden.",
+        ),
+        generate_recruiting_brief=lambda: None,
+        generate_job_ad=lambda: None,
+        generate_interview_prep_hr=lambda: None,
+        generate_interview_prep_fach=lambda: None,
+        generate_boolean_search=lambda: None,
+    )
+
+    labels = {action["id"]: action["cta_label"] for action in action_registry}
+    assert labels["brief"] == "Brief verständlich erklären"
+    assert labels["job_ad"] == "Kandidatenansicht erstellen"
+
+
+def test_artifact_fingerprint_changes_with_audience_mode(monkeypatch) -> None:
+    session_state = {
+        SSKey.SUMMARY_ARTIFACT_OPTIONS.value: {},
+        SSKey.SUMMARY_ARTIFACT_CHANGE_REQUESTS.value: {},
+        SSKey.AUDIENCE_MODE.value: "recruiter",
+    }
+    fake_st = _FakeStreamlit(session_state)
+    monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
+    vm = SimpleNamespace(artifacts=SimpleNamespace(input_fingerprint="summary-fp"))
+
+    recruiter_fingerprint = SUMMARY_MODULE._artifact_current_fingerprint(vm, "job_ad")
+    fake_st.session_state[SSKey.AUDIENCE_MODE.value] = "candidate"
+    candidate_fingerprint = SUMMARY_MODULE._artifact_current_fingerprint(vm, "job_ad")
+
+    assert recruiter_fingerprint != candidate_fingerprint
+
+
 def test_record_artifact_generated_with_fact_usage_marks_evidence() -> None:
     session_state: dict[str, Any] = {
         SSKey.INTAKE_FACT_EVIDENCE.value: {

@@ -22,6 +22,10 @@ from typing import (
 import streamlit as st
 
 from constants import (
+    AUDIENCE_MODE_DEFAULT,
+    AUDIENCE_MODE_DISPLAY_LABELS,
+    AUDIENCE_MODE_HELP_TEXT,
+    AUDIENCE_MODE_VALUES,
     COMPLETION_STATE_NOT_STARTED,
     COMPLETION_STATE_PREFIX_TOKENS,
     DEFAULT_ESCO_DATA_SOURCE_MODE,
@@ -49,6 +53,10 @@ from constants import (
     UI_WIZARD_DESIGN_DISPLAY_LABELS,
     UI_WIZARD_DESIGN_FOCUS,
     UI_WIZARD_DESIGN_VALUES,
+)
+from audience import (
+    build_audience_instructions,
+    normalize_audience_mode,
 )
 from esco_client import EscoClient, EscoClientError, clear_esco_cache
 from esco_semantics import (
@@ -1524,6 +1532,14 @@ def get_current_ui_mode() -> str:
     return normalize_ui_mode(ui_mode_raw)
 
 
+def get_current_audience_mode() -> str:
+    """Return normalized audience mode from session state."""
+    raw_mode = st.session_state.get(SSKey.AUDIENCE_MODE.value, AUDIENCE_MODE_DEFAULT)
+    mode = normalize_audience_mode(raw_mode)
+    st.session_state[SSKey.AUDIENCE_MODE.value] = mode
+    return mode
+
+
 def get_current_wizard_design() -> str:
     """Return normalized wizard layout design from persisted UI preferences."""
     preferences = normalize_ui_preferences(
@@ -1639,6 +1655,51 @@ def render_ui_mode_selector(
     )
     sync_ui_mode_preference_metadata()
     return normalize_ui_mode(selected_mode)
+
+
+def render_audience_mode_selector(
+    *,
+    sidebar: bool = False,
+    widget_key: str | None = None,
+    show_label: bool = True,
+) -> str:
+    audience_mode_key = widget_key or SSKey.AUDIENCE_MODE.value
+    radio = st.sidebar.radio if sidebar else st.radio
+    normalized_mode = normalize_audience_mode(
+        st.session_state.get(audience_mode_key, get_current_audience_mode())
+    )
+    st.session_state[audience_mode_key] = normalized_mode
+    selected_mode = radio(
+        "Ansichtsmodus",
+        options=list(AUDIENCE_MODE_VALUES),
+        key=audience_mode_key,
+        format_func=lambda mode: str(
+            t(AUDIENCE_MODE_DISPLAY_LABELS.get(mode, str(mode).capitalize()))
+        ),
+        help=str(t(AUDIENCE_MODE_HELP_TEXT)),
+        horizontal=True,
+        label_visibility="visible" if show_label else "collapsed",
+    )
+    normalized_selected = normalize_audience_mode(selected_mode)
+    if audience_mode_key != SSKey.AUDIENCE_MODE.value:
+        st.session_state[SSKey.AUDIENCE_MODE.value] = normalized_selected
+    if normalized_selected == "candidate":
+        st.caption(
+            str(
+                t(
+                    "Kandidatenansicht: erklärt Erwartungen transparent und vermeidet interne Bewertungssprache."
+                )
+            )
+        )
+    else:
+        st.caption(
+            str(
+                t(
+                    "Recruiteransicht: priorisiert Lücken, Risiken, Konflikte und nächste Fragen."
+                )
+            )
+        )
+    return normalized_selected
 
 
 def render_wizard_design_selector(

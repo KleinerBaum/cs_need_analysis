@@ -7,6 +7,9 @@ from streamlit.errors import StreamlitAPIException
 import wizard_pages.base as base
 import wizard_pages.salary_forecast as salary_forecast
 from constants import (
+    AUDIENCE_MODE_CANDIDATE,
+    AUDIENCE_MODE_DEFAULT,
+    AUDIENCE_MODE_RECRUITER,
     SSKey,
     STEPS,
     STEP_KEY_TEAM,
@@ -98,10 +101,13 @@ class _FakeStreamlit:
         *,
         options: list[str],
         key: str,
+        index: int | None = None,
         **_kwargs: Any,
     ) -> str:
         if key not in self.session_state:
-            self.session_state[key] = options[0]
+            fallback_index = index if index is not None else 0
+            self.session_state[key] = options[fallback_index]
+        self.session_state.locked_keys.add(key)
         return str(self.session_state[key])
 
 
@@ -177,6 +183,30 @@ def test_render_wizard_design_selector_preserves_widget_selection(monkeypatch) -
     assert (
         session_state[SSKey.UI_PREFERENCES.value][UI_PREFERENCE_WIZARD_DESIGN]
         == "focus"
+    )
+
+
+def test_render_audience_mode_selector_persists_candidate_mode(monkeypatch) -> None:
+    session_state = _LockedSessionState(
+        {SSKey.AUDIENCE_MODE.value: AUDIENCE_MODE_CANDIDATE}
+    )
+    fake_st = _FakeStreamlit(session_state)
+    monkeypatch.setattr(base, "st", fake_st)
+
+    selected_mode = base.render_audience_mode_selector(
+        widget_key=SSKey.AUDIENCE_MODE.value
+    )
+
+    assert selected_mode == AUDIENCE_MODE_CANDIDATE
+    assert session_state[SSKey.AUDIENCE_MODE.value] == AUDIENCE_MODE_CANDIDATE
+
+
+def test_audience_helpers_normalize_and_build_prompt_instructions() -> None:
+    assert base.normalize_audience_mode("invalid") == AUDIENCE_MODE_DEFAULT
+    assert base.normalize_audience_mode(AUDIENCE_MODE_RECRUITER) == "recruiter"
+    assert "evidence conflicts" in base.build_audience_instructions("recruiter")
+    assert "avoid internal scoring language" in base.build_audience_instructions(
+        "candidate"
     )
 
 

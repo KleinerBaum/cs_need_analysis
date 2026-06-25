@@ -49,6 +49,7 @@ def test_constants_reexports_private_group_objects() -> None:
     assert constants.STEPS is wizard.STEPS
     assert constants.WizardStepDef is wizard.WizardStepDef
     assert constants.UI_MODE_VALUES is ui.UI_MODE_VALUES
+    assert constants.AUDIENCE_MODE_VALUES is ui.AUDIENCE_MODE_VALUES
     assert constants.UI_MODE_QUESTION_LIMIT_RATIOS is ui.UI_MODE_QUESTION_LIMIT_RATIOS
     assert constants.UI_MODE_STEP_QUESTION_CAPS is ui.UI_MODE_STEP_QUESTION_CAPS
     assert constants.DEFAULT_ESCO_RELEASE_LANE is esco.DEFAULT_ESCO_RELEASE_LANE

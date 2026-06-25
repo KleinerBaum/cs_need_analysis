@@ -48,6 +48,7 @@ class SSKey(str, Enum):
     ANSWERS = "cs.answers"
     ANSWER_META = "cs.answer_meta"
     UI_MODE = "cs.ui_mode"
+    AUDIENCE_MODE = "cs.audience_mode"
     UI_PREFERENCES = "cs.ui_preferences"
     OPEN_GROUPS = "cs.open_groups"
 

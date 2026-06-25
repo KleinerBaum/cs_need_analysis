@@ -31,6 +31,7 @@ import streamlit as st
 from openai import OpenAI
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from audience import build_audience_instructions, normalize_audience_mode
 from constants import (
     AnswerType,
     DEFAULT_LANGUAGE,
@@ -94,6 +95,16 @@ _MODEL_CAPABILITY_EXPORTS = (
     supports_reasoning,
     supports_verbosity,
 )
+
+
+def _current_audience_mode(audience_mode: str | None = None) -> str:
+    if audience_mode is not None:
+        return normalize_audience_mode(audience_mode)
+    return normalize_audience_mode(st.session_state.get(SSKey.AUDIENCE_MODE.value))
+
+
+def _audience_prompt_suffix(audience_mode: str | None = None) -> str:
+    return f" {build_audience_instructions(_current_audience_mode(audience_mode))}"
 
 
 ModelTaskKind = str
@@ -2088,10 +2099,12 @@ def generate_vacancy_brief(
     salary_forecast: Optional[Mapping[str, Any]] = None,
     interview_process: Optional[Mapping[str, Any]] = None,
     company_website_research: Optional[CompanyWebsiteResearch] = None,
+    audience_mode: str | None = None,
     language: str = DEFAULT_LANGUAGE,
     store: bool = False,
     temperature: float | None = None,
 ) -> Tuple[VacancyBrief, Optional[Dict[str, Any]]]:
+    normalized_audience_mode = _current_audience_mode(audience_mode)
     runtime_config = _resolve_runtime_config(
         task_kind=TASK_GENERATE_VACANCY_BRIEF,
         session_override=model,
@@ -2107,6 +2120,7 @@ def generate_vacancy_brief(
         "einen vollständigen Recruiting Brief erstellt. "
         "Du bist präzise, vermeidest Marketing-Floskeln und machst offene Punkte transparent. "
         f"Sprache: {language}."
+        f"{_audience_prompt_suffix(normalized_audience_mode)}"
         f"{nano_suffix}"
         f"{task_limits_suffix}"
     )
@@ -2149,6 +2163,7 @@ def generate_vacancy_brief(
             "offer_positioning": dict(offer_positioning or {}),
             "salary_forecast": dict(salary_forecast or {}),
             "interview_process": dict(interview_process or {}),
+            "audience_mode": normalized_audience_mode,
             "company_website_research": (
                 company_website_research.model_dump(mode="json")
                 if company_website_research is not None
@@ -2333,12 +2348,14 @@ def generate_custom_job_ad(
     change_request: str | None,
     model: str,
     offer_positioning: Optional[Mapping[str, Any]] = None,
+    audience_mode: str | None = None,
     language: str = DEFAULT_LANGUAGE,
     store: bool = False,
     temperature: float | None = None,
 ) -> Tuple[JobAdGenerationResult, Optional[Dict[str, Any]]]:
     """Generate or refine a job ad draft from explicitly selected intake values."""
 
+    normalized_audience_mode = _current_audience_mode(audience_mode)
     runtime_config = _resolve_runtime_config(
         task_kind=TASK_GENERATE_JOB_AD,
         session_override=model,
@@ -2357,6 +2374,7 @@ def generate_custom_job_ad(
         "Der Styleguide ist nur eine Schreibanweisung und darf nicht als Abschnitt, "
         "Zitat oder Anhang in die Stellenanzeige übernommen werden. "
         f"Sprache: {language}."
+        f"{_audience_prompt_suffix(normalized_audience_mode)}"
         f"{task_limits_suffix}"
     )
     user = (
@@ -2400,6 +2418,7 @@ def generate_custom_job_ad(
             "offer_positioning": dict(offer_positioning or {}),
             "style_guide": style_guide,
             "change_request": change_request or "",
+            "audience_mode": normalized_audience_mode,
         }
     )
     cache_key = _build_llm_cache_key(
@@ -2680,12 +2699,14 @@ def generate_interview_sheet_hr(
     model: str,
     generation_options: Mapping[str, Any] | None = None,
     change_request: str | None = None,
+    audience_mode: str | None = None,
     language: str = DEFAULT_LANGUAGE,
     store: bool = False,
     temperature: float | None = None,
 ) -> tuple[InterviewPrepSheetHR, dict[str, Any]]:
     """Generate recruiter-facing interview prep sheet with deterministic fallback."""
 
+    normalized_audience_mode = _current_audience_mode(audience_mode)
     role_title = brief.one_liner.strip() or "Rolle"
     system = (
         "Du bist ein Senior Talent Acquisition Partner. "
@@ -2700,6 +2721,7 @@ def generate_interview_sheet_hr(
         "Fairness-Hinweise. Halte Kontakt-/Terminlogik getrennt von Bewertung. "
         "Nenne keine Kontaktpersonen, Telefonnummern oder E-Mail-Adressen. "
         f"Sprache: {language}."
+        f"{_audience_prompt_suffix(normalized_audience_mode)}"
     )
     user = (
         "Nutze den Vacancy Brief als einzige Quelle und liefere ein vollständiges "
@@ -2763,12 +2785,14 @@ def generate_interview_sheet_hm(
     model: str,
     generation_options: Mapping[str, Any] | None = None,
     change_request: str | None = None,
+    audience_mode: str | None = None,
     language: str = DEFAULT_LANGUAGE,
     store: bool = False,
     temperature: float | None = None,
 ) -> tuple[InterviewPrepSheetHiringManager, dict[str, Any]]:
     """Generate hiring-manager interview prep sheet with deterministic fallback."""
 
+    normalized_audience_mode = _current_audience_mode(audience_mode)
     generation_options = dict(generation_options or {})
     selected_competencies = _option_text_list(
         generation_options, "selected_competencies", limit=10
@@ -2811,6 +2835,7 @@ def generate_interview_sheet_hm(
         f"Erzeuge pro Frageblock maximal {questions_per_block} Fragen und genau "
         f"{debrief_question_count} Debrief-Fragen, sofern fachlich sinnvoll. "
         f"Sprache: {language}."
+        f"{_audience_prompt_suffix(normalized_audience_mode)}"
     )
     user = (
         "Nutze den Vacancy Brief als einzige Quelle und liefere ein vollständiges "
@@ -2880,12 +2905,14 @@ def generate_boolean_search_pack(
     model: str,
     generation_options: Mapping[str, Any] | None = None,
     change_request: str | None = None,
+    audience_mode: str | None = None,
     language: str = DEFAULT_LANGUAGE,
     store: bool = False,
     temperature: float | None = None,
 ) -> tuple[BooleanSearchPack, dict[str, Any]]:
     """Generate structured sourcing-ready boolean queries with safe fallback."""
 
+    normalized_audience_mode = _current_audience_mode(audience_mode)
     options = dict(generation_options or {})
     channels = _option_text_list(options, "channels", limit=3) or [
         "Google",
@@ -2923,6 +2950,7 @@ def generate_boolean_search_pack(
         "Verwende nur zugelassene Operatoren, soweit sie mit den jeweiligen Kanalregeln kompatibel sind. "
         "Fülle Fallback-Felder schema-kompatibel, optimiere aber Broad und Focused als sichtbare Varianten. "
         f"Sprache: {language}."
+        f"{_audience_prompt_suffix(normalized_audience_mode)}"
     )
     user = (
         "Nutze den Vacancy Brief als einzige Quelle und liefere ein vollständiges "
@@ -3080,12 +3108,14 @@ def generate_requirement_gap_suggestions(
     target_task_count: int,
     task_rag_context: list[dict[str, str]] | None = None,
     model: str,
+    audience_mode: str | None = None,
     language: str = DEFAULT_LANGUAGE,
     store: bool = False,
     temperature: float | None = None,
 ) -> tuple[RequirementSuggestionPack, dict[str, Any]]:
     """Suggest missing but relevant skills/tasks using strict structured outputs."""
 
+    normalized_audience_mode = _current_audience_mode(audience_mode)
     runtime_config = _resolve_runtime_config(
         task_kind=TASK_GENERATE_REQUIREMENT_GAP_SUGGESTIONS,
         session_override=model,
@@ -3112,6 +3142,7 @@ def generate_requirement_gap_suggestions(
         "Halte rationale und evidence jeweils kurz, präzise und belegbar aus dem Kontext. "
         f"{source_hint_rule}"
         f"Sprache: {language}."
+        f"{_audience_prompt_suffix(normalized_audience_mode)}"
         f"{task_limits_suffix}"
     )
     source_hint_user_rule = (
@@ -3153,6 +3184,7 @@ def generate_requirement_gap_suggestions(
             "target_skill_count": capped_skill_count,
             "target_task_count": capped_task_count,
             "task_rag_context": rag_context,
+            "audience_mode": normalized_audience_mode,
         }
     )
     cache_key = _build_llm_cache_key(
@@ -3396,12 +3428,14 @@ def generate_benefit_suggestions(
     existing_benefits: list[str],
     target_benefit_count: int,
     model: str,
+    audience_mode: str | None = None,
     language: str = DEFAULT_LANGUAGE,
     store: bool = False,
     temperature: float | None = None,
 ) -> tuple[BenefitSuggestionPack, dict[str, Any]]:
     """Suggest missing Benefits/Rahmenbedingungen using strict structured outputs."""
 
+    normalized_audience_mode = _current_audience_mode(audience_mode)
     runtime_config = _resolve_runtime_config(
         task_kind=TASK_GENERATE_BENEFIT_SUGGESTIONS,
         session_override=model,
@@ -3427,6 +3461,7 @@ def generate_benefit_suggestions(
         "Setze source_hint immer auf 'llm'. "
         "Halte rationale und evidence kurz, präzise und belegbar aus dem Kontext. "
         f"Sprache: {language}."
+        f"{_audience_prompt_suffix(normalized_audience_mode)}"
         f"{task_limits_suffix}"
     )
     user = (
@@ -3465,6 +3500,7 @@ def generate_benefit_suggestions(
             "existing_benefits": existing_benefits,
             "local_benefit_inspiration": local_benefit_inspiration,
             "target_benefit_count": capped_benefit_count,
+            "audience_mode": normalized_audience_mode,
         }
     )
     cache_key = _build_llm_cache_key(

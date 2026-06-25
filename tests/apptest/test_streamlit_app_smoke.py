@@ -84,7 +84,7 @@ def _button_by_label(app_test: AppTest, label: str):
 
 
 def _radio_by_label(app_test: AppTest, label: str):
-    for radio in app_test.radio:
+    for radio in reversed(app_test.radio):
         if getattr(radio, "label", None) == label:
             return radio
     raise AssertionError(f"Radio not found: {label}")
@@ -108,6 +108,28 @@ def test_landing_query_param_smoke_renders_jobspec_intake() -> None:
     assert "Jobspec oder Rohtext für das Briefing einfügen" in rendered_text
     assert "landing-process-step" not in rendered_text
     assert "cs-document-preview-wrap" not in rendered_text
+
+
+def test_recruiter_audience_mode_is_default_on_landing() -> None:
+    app_test = _run_app(query_params={WIZARD_STEP_QUERY_PARAM: STEP_KEY_LANDING})
+
+    _assert_no_streamlit_exceptions(app_test)
+    assert app_test.session_state[SSKey.AUDIENCE_MODE.value] == "recruiter"
+    rendered_text = _rendered_text(app_test)
+    assert "Ansichtsmodus" in rendered_text
+    assert "Recruiteransicht: priorisiert Lücken" in rendered_text
+
+
+def test_candidate_audience_mode_persists_after_selection() -> None:
+    app_test = _run_app(query_params={WIZARD_STEP_QUERY_PARAM: STEP_KEY_LANDING})
+    _assert_no_streamlit_exceptions(app_test)
+
+    _radio_by_label(app_test, "Ansichtsmodus").set_value("candidate").run(timeout=45)
+
+    _assert_no_streamlit_exceptions(app_test)
+    assert app_test.session_state[SSKey.AUDIENCE_MODE.value] == "candidate"
+    rendered_text = _rendered_text(app_test)
+    assert "Kandidatenansicht: erklärt Erwartungen transparent" in rendered_text
 
 
 def test_operational_wizard_path_reaches_summary_guard_via_sidebar() -> None:

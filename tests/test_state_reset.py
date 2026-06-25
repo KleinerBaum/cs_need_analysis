@@ -386,6 +386,7 @@ def test_reset_vacancy_clears_progressive_disclosure_state(
         SSKey.ANSWERS.value: {"q1": "value"},
         SSKey.ANSWER_META.value: {"q1": {"touched": True}},
         SSKey.UI_MODE.value: "expert",
+        SSKey.AUDIENCE_MODE.value: "candidate",
         SSKey.OPEN_GROUPS.value: {"company": {"Details": True}},
         SSKey.BRIEF.value: {"one_liner": "x"},
         SSKey.OPENAI_LAST_STRUCTURED_OUTPUT_PATH.value: {
@@ -433,6 +434,7 @@ def test_reset_vacancy_clears_progressive_disclosure_state(
 
     for key, expected in RESET_EXPECTATIONS.items():
         assert fake_session_state[key.value] == expected
+    assert fake_session_state[SSKey.AUDIENCE_MODE.value] == "candidate"
     assert fake_session_state[SSKey.CURRENT_STEP.value] == STEP_KEY_INTRO
     store = StateStore(fake_session_state)
     assert store.jobspec_source().active == "manual"
@@ -632,6 +634,7 @@ def test_init_session_state_and_reset_vacancy_share_same_defaults(monkeypatch) -
     initialized_defaults = {
         key.value: fake_session_state[key.value] for key in RESET_EXPECTATIONS
     }
+    assert fake_session_state[SSKey.AUDIENCE_MODE.value] == "recruiter"
     fake_session_state[SSKey.SOURCE_TEXT.value] = "filled"
     fake_session_state[SSKey.INTERVIEW_PREP_HR.value] = {"blocks": []}
 
@@ -640,6 +643,7 @@ def test_init_session_state_and_reset_vacancy_share_same_defaults(monkeypatch) -
     for key, expected in RESET_EXPECTATIONS.items():
         assert fake_session_state[key.value] == expected
         assert initialized_defaults[key.value] == expected
+    assert fake_session_state[SSKey.AUDIENCE_MODE.value] == "recruiter"
 
 
 def test_reset_vacancy_preserves_existing_ui_preferences(monkeypatch) -> None:

@@ -89,6 +89,7 @@ from wizard_pages.base import (
     WizardContext,
     _get_esco_config,
     _set_esco_config,
+    render_audience_mode_selector,
     render_wizard_design_selector,
     render_ui_mode_selector,
 )
@@ -1229,6 +1230,7 @@ def _render_source_upload_status() -> None:
 
 def _render_phase_a_configuration_controls() -> None:
     st.markdown(str(t("#### Briefing-Steuerung")))
+    render_audience_mode_selector()
     render_ui_mode_selector()
     render_wizard_design_selector()
     _render_esco_operating_block()

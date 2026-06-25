@@ -176,6 +176,7 @@ def test_generate_vacancy_brief_uses_llm_parse_model_and_injects_structured_data
     assert captured["responses_instructions"].startswith(
         "Du bist ein Recruiting Partner"
     )
+    assert "Audience mode: recruiter" in captured["responses_instructions"]
     assert captured["responses_input"].startswith(
         "Erstelle jetzt den finalen VacancyBrief."
     )
@@ -236,6 +237,7 @@ def test_generate_vacancy_brief_returns_cached_brief_without_parse(
                 "offer_positioning": {},
                 "salary_forecast": {},
                 "interview_process": {},
+                "audience_mode": "recruiter",
                 "company_website_research": {},
             }
         ),
@@ -264,6 +266,51 @@ def test_generate_vacancy_brief_returns_cached_brief_without_parse(
         "provider": "session_state",
     }
     assert list(cache)[-1] == cache_key
+
+
+def test_generate_vacancy_brief_accepts_candidate_audience_mode(
+    monkeypatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_parse_with_structured_outputs(**kwargs: Any):
+        captured.update(kwargs)
+        return (
+            VacancyBriefLLM(
+                one_liner="One line",
+                hiring_context="Context",
+                role_summary="Summary",
+                top_responsibilities=["Resp"],
+                must_have=["Must"],
+                nice_to_have=["Nice"],
+                dealbreakers=["Deal"],
+                interview_plan=["Interview"],
+                evaluation_rubric=["Rubric"],
+                sourcing_channels=["Channel"],
+                risks_open_questions=["Risk"],
+                job_ad_draft="Draft",
+            ),
+            {},
+        )
+
+    monkeypatch.setattr(
+        llm_client, "_resolve_runtime_config", lambda **_: _runtime_config()
+    )
+    monkeypatch.setattr(
+        llm_client, "_parse_with_structured_outputs", fake_parse_with_structured_outputs
+    )
+    monkeypatch.setattr(llm_client, "_get_session_response_cache", lambda: {})
+
+    generate_vacancy_brief(
+        JobAdExtract(job_title="Engineer"),
+        {"team": {"headcount": 3}},
+        model="gpt-5-mini",
+        audience_mode="candidate",
+    )
+
+    system_prompt = captured["messages"][0]["content"]
+    assert "Audience mode: candidate" in system_prompt
+    assert "avoid internal scoring language" in system_prompt
 
 
 def test_generate_vacancy_brief_includes_selected_role_tasks_skills_and_benefits(

@@ -18,6 +18,8 @@ from typing import Any, Dict, cast
 import streamlit as st
 
 from constants import (
+    AUDIENCE_MODE_DEFAULT,
+    AUDIENCE_MODE_VALUES,
     DEFAULT_ESCO_DATA_SOURCE_MODE,
     DEFAULT_ESCO_INDEX_STORAGE_PATH,
     DEFAULT_ESCO_RELEASE_LANE,
@@ -87,6 +89,7 @@ VACANCY_DRAFT_SESSION_KEYS: tuple[SSKey, ...] = (
     SSKey.NAV_SELECTED,
     SSKey.LANGUAGE,
     SSKey.UI_MODE,
+    SSKey.AUDIENCE_MODE,
     SSKey.UI_PREFERENCES,
     SSKey.OPEN_GROUPS,
     SSKey.SOURCE_TEXT,
@@ -695,6 +698,13 @@ def normalize_ui_preferences(raw_preferences: Any) -> dict[str, Any]:
     return normalized
 
 
+def _normalize_audience_mode(raw_mode: Any) -> str:
+    mode = str(raw_mode or "").strip().lower()
+    if mode in AUDIENCE_MODE_VALUES:
+        return mode
+    return AUDIENCE_MODE_DEFAULT
+
+
 def _sync_source_redaction_from_preferences() -> None:
     preferences = normalize_ui_preferences(
         st.session_state.get(SSKey.UI_PREFERENCES.value)
@@ -806,6 +816,7 @@ def init_session_state() -> None:
         SSKey.ANSWERS.value: {},
         SSKey.ANSWER_META.value: {},
         SSKey.UI_MODE.value: UI_MODE_DEFAULT,
+        SSKey.AUDIENCE_MODE.value: AUDIENCE_MODE_DEFAULT,
         SSKey.UI_PREFERENCES.value: default_ui_preferences,
         SSKey.OPEN_GROUPS.value: {},
         SSKey.BRIEF.value: None,
@@ -1089,6 +1100,9 @@ def _normalize_loaded_vacancy_draft_state(
     session_state[SSKey.UI_MODE.value] = (
         ui_mode if ui_mode in UI_MODE_VALUES else UI_MODE_DEFAULT
     )
+    session_state[SSKey.AUDIENCE_MODE.value] = _normalize_audience_mode(
+        session_state.get(SSKey.AUDIENCE_MODE.value)
+    )
     session_state[SSKey.UI_PREFERENCES.value] = normalize_ui_preferences(
         session_state.get(SSKey.UI_PREFERENCES.value)
     )
@@ -1181,6 +1195,9 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.ANSWERS.value] = {}
     st.session_state[SSKey.ANSWER_META.value] = {}
     st.session_state[SSKey.UI_MODE.value] = UI_MODE_DEFAULT
+    st.session_state[SSKey.AUDIENCE_MODE.value] = _normalize_audience_mode(
+        st.session_state.get(SSKey.AUDIENCE_MODE.value)
+    )
     if SSKey.UI_PREFERENCES.value not in st.session_state:
         st.session_state[SSKey.UI_PREFERENCES.value] = _default_ui_preferences()
     else:
