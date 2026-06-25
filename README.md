@@ -82,6 +82,18 @@ To compare UI mode, ESCO, RAG, model-routing, and enrichment combinations, use t
 python scripts/evaluate_feature_combinations.py --json-only
 ```
 
+Quality eval fixtures for extraction, ESCO mapping, retrieval faithfulness,
+latency, and token cost live in `evals/*.jsonl`. The CI threshold gate writes a
+CSV summary and fails when configured quality thresholds are missed:
+
+```bash
+python scripts/run_quality_evals.py \
+  --fixtures evals \
+  --output reports/evals/summary.csv \
+  --json-output reports/evals/summary.json \
+  --enforce-thresholds
+```
+
 ## UI language
 
 The UI language supports German (`de`) and English (`en`). German remains the
@@ -481,6 +493,7 @@ python -m pytest -q tests/test_repo_contract_drift.py tests/test_wizard_contract
 python -m pytest -q tests --ignore=tests/e2e --ignore=tests/apptest --junitxml=reports/junit/unit.xml
 python -m pytest -q tests/apptest --junitxml=reports/junit/apptest.xml
 python scripts/openai_smoke_test.py --mode all --ci-dry-run-if-no-key --json-only > reports/openai-smoke.json
+python scripts/run_quality_evals.py --fixtures evals --output reports/evals/summary.csv --json-output reports/evals/summary.json --enforce-thresholds
 ```
 
 CI uploads JUnit reports from `reports/junit/*.xml`. Historical analysis files

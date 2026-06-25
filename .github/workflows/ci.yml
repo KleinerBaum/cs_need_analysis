@@ -146,6 +146,14 @@ jobs:
             --ci-dry-run-if-no-key \
             --json-only > reports/openai-smoke.json
 
+      - name: Quality eval threshold gate
+        run: |
+          python scripts/run_quality_evals.py \
+            --fixtures evals \
+            --output reports/evals/summary.csv \
+            --json-output reports/evals/summary.json \
+            --enforce-thresholds
+
       - name: Upload unit reports
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
@@ -154,6 +162,8 @@ jobs:
           path: |
             reports/junit/unit.xml
             reports/openai-smoke.json
+            reports/evals/summary.csv
+            reports/evals/summary.json
           if-no-files-found: warn
           retention-days: 14
 
