@@ -69,7 +69,7 @@ def _cycle_coordinates(count: int) -> tuple[list[float], list[float]]:
     return [math.cos(angle) for angle in angles], [math.sin(angle) for angle in angles]
 
 
-def build_recruiting_cycle_figure() -> Any | None:
+def build_recruiting_cycle_figure(focused_index: int | None = None) -> Any | None:
     """Return an interactive Plotly figure for the recruiting lifecycle.
 
     The first phase is visually emphasized because the product promise is anchored in
@@ -86,19 +86,19 @@ def build_recruiting_cycle_figure() -> Any | None:
     subtitles = [str(t(step.subtitle)) for step in RECRUITING_CYCLE_STEPS]
     impacts = [str(t(step.impact)) for step in RECRUITING_CYCLE_STEPS]
     phases = [str(t(step.phase)) for step in RECRUITING_CYCLE_STEPS]
+    if focused_index is not None and not 0 <= focused_index < len(labels):
+        focused_index = None
     x_values, y_values = _cycle_coordinates(len(RECRUITING_CYCLE_STEPS))
     closed_x = [*x_values, x_values[0]]
     closed_y = [*y_values, y_values[0]]
 
-    marker_sizes = [34, 22, 22, 22, 22, 22, 22]
+    marker_sizes = [
+        34 if index == focused_index else 22 for index in range(len(labels))
+    ]
+    if focused_index is None:
+        marker_sizes[0] = 34
     marker_colors = [
-        "#2EECE8",
-        "#5B6B7D",
-        "#5B6B7D",
-        "#5B6B7D",
-        "#5B6B7D",
-        "#5B6B7D",
-        "#5B6B7D",
+        "#2EECE8" if index == 0 else "#5B6B7D" for index in range(len(labels))
     ]
     text_positions = [
         "top center",
@@ -130,6 +130,18 @@ def build_recruiting_cycle_figure() -> Any | None:
                 "size": marker_sizes,
                 "color": marker_colors,
                 "line": {"width": 2, "color": "rgba(255,255,255,0.82)"},
+            },
+            selectedpoints=[focused_index] if focused_index is not None else None,
+            selected={
+                "marker": {
+                    "opacity": 1.0,
+                    "size": 34,
+                }
+            },
+            unselected={
+                "marker": {
+                    "opacity": 0.34,
+                }
             },
             text=[
                 f"<b>{label}</b><br><span>{subtitle}</span>"

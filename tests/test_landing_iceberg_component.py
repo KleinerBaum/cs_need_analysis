@@ -1,15 +1,29 @@
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+from constants import SSKey
 from components.iceberg_need_analysis import (
     DEFAULT_CONTENT_PATH,
     DEFAULT_IMAGE_PATH,
     build_iceberg_need_analysis_html,
     load_iceberg_content,
 )
+from components.recruiting_cycle import build_recruiting_cycle_figure
+
+
+def _load_intro_module():
+    module_path = Path("wizard_pages/00_intro.py")
+    spec = importlib.util.spec_from_file_location("intro_page_under_test", module_path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_landing_value_cards_escape_dynamic_html(monkeypatch) -> None:
@@ -89,6 +103,152 @@ def test_intro_page_uses_popovers_instead_of_external_links() -> None:
     assert "st.popover" in intro_page
     assert "href=" not in intro_page
     assert "OpenAI API Docs" not in intro_page
+
+
+def test_intro_recruiting_cycle_uses_selection_and_focus_controls() -> None:
+    intro_page = Path("wizard_pages/00_intro.py").read_text(encoding="utf-8")
+    render_body = intro_page.split("def render(ctx: WizardContext) -> None:", 1)[1]
+
+    assert 'on_select": "rerun"' in intro_page
+    assert '"selection_mode": "points"' in intro_page
+    assert 'with st.expander(str(t("Mehr zur Methode")), expanded=True):' in intro_page
+    assert "Schritt 1 fokussieren" not in intro_page
+    assert "Fokus: Bedarfsanalyse" in intro_page
+    assert "Fokus schließen" not in intro_page
+    assert "_render_intro_iceberg" not in intro_page
+    assert "_render_recruiting_cycle_section()" in render_body
+
+
+def test_selected_cycle_index_reads_streamlit_plotly_selection() -> None:
+    intro = _load_intro_module()
+
+    assert (
+        intro._selected_cycle_index(
+            {"selection": {"points": [{"curve_number": 1, "point_index": 0}]}}
+        )
+        == 0
+    )
+    assert (
+        intro._selected_cycle_index(
+            {"selection": {"points": [{"curve_number": 1, "point_number": 2}]}}
+        )
+        == 2
+    )
+    assert intro._selected_cycle_index({"selection": {"points": []}}) is None
+    assert (
+        intro._selected_cycle_index(
+            {"selection": {"points": [{"curve_number": 0, "point_index": 0}]}}
+        )
+        is None
+    )
+    assert (
+        intro._selected_cycle_index(
+            SimpleNamespace(
+                selection=SimpleNamespace(
+                    points=[{"curveNumber": 1, "pointIndex": "0"}]
+                )
+            )
+        )
+        == 0
+    )
+
+
+def test_recruiting_cycle_figure_marks_focused_point() -> None:
+    figure = build_recruiting_cycle_figure(focused_index=0)
+    if figure is None:
+        pytest.skip("Plotly is unavailable in this environment.")
+
+    points_trace = figure.data[1]
+    assert list(points_trace.selectedpoints) == [0]
+    assert points_trace.selected.marker.size == 34
+    assert points_trace.unselected.marker.opacity == 0.34
+
+
+class _FakeContext:
+    def __enter__(self) -> "_FakeContext":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        del exc_type, exc, tb
+        return False
+
+
+class _FakeStreamlit:
+    def __init__(self) -> None:
+        self.session_state: dict[str, object] = {}
+        self.iframes: list[str] = []
+        self.plotly_calls: list[tuple[object, dict[str, object]]] = []
+        self.button_labels: list[str] = []
+
+    def container(self, *, border: bool = False) -> _FakeContext:
+        del border
+        return _FakeContext()
+
+    def columns(self, spec: object, gap: str = "small") -> list[_FakeContext]:
+        del spec, gap
+        return [_FakeContext(), _FakeContext()]
+
+    def markdown(self, text: object, **kwargs: object) -> None:
+        del text, kwargs
+
+    def caption(self, text: object, **kwargs: object) -> None:
+        del text, kwargs
+
+    def info(self, text: object, **kwargs: object) -> None:
+        del text, kwargs
+
+    def html(self, text: object) -> None:
+        del text
+
+    def divider(self) -> None:
+        return None
+
+    def iframe(self, html: str, *, height: int) -> None:
+        del height
+        self.iframes.append(html)
+
+    def button(self, label: str, **kwargs: object) -> bool:
+        del kwargs
+        self.button_labels.append(label)
+        return False
+
+    def plotly_chart(self, figure: object, **kwargs: object) -> dict[str, object]:
+        self.plotly_calls.append((figure, kwargs))
+        return {"selection": {"points": []}}
+
+    def rerun(self) -> None:
+        raise AssertionError("Unexpected rerun in focus rendering test")
+
+
+def test_intro_cycle_focus_renders_iceberg_only_when_focused(monkeypatch) -> None:
+    intro = _load_intro_module()
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(intro, "st", fake_st)
+    monkeypatch.setattr(
+        intro,
+        "build_recruiting_cycle_figure",
+        lambda focused_index=None: {"focused_index": focused_index},
+    )
+    monkeypatch.setattr(intro, "build_iceberg_need_analysis_html", lambda: "<iceberg>")
+
+    intro._render_recruiting_cycle_section()
+
+    assert fake_st.iframes == []
+    figure, kwargs = fake_st.plotly_calls[-1]
+    assert figure == {"focused_index": None}
+    assert kwargs["on_select"] == "rerun"
+    assert kwargs["selection_mode"] == "points"
+    assert fake_st.button_labels == []
+
+    fake_st.session_state[SSKey.INTRO_CYCLE_FOCUS.value] = (
+        intro.INTRO_CYCLE_FOCUS_PREPARATION
+    )
+    intro._render_recruiting_cycle_section()
+
+    assert fake_st.iframes == ["<iceberg>"]
+    figure, _kwargs = fake_st.plotly_calls[-1]
+    assert figure == {"focused_index": 0}
+    assert fake_st.button_labels == []
 
 
 def test_intro_page_owns_upload_to_briefing_flow() -> None:

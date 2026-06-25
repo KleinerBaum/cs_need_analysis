@@ -52,6 +52,7 @@ RESET_EXPECTATIONS: dict[SSKey, object] = {
         "wizard_design": "classic",
     },
     SSKey.OPEN_GROUPS: {},
+    SSKey.INTRO_CYCLE_FOCUS: None,
     SSKey.BRIEF: None,
     SSKey.OPENAI_LAST_STRUCTURED_OUTPUT_PATH: None,
     SSKey.USAGE_EVENTS: [],

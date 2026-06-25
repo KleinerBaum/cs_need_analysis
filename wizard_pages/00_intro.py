@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 import streamlit as st
 
@@ -41,11 +41,10 @@ INTRO_COPY = {
         "Die Einleitung ist jetzt optional. Öffnen Sie direkt den Start, prüfen Sie "
         "die erkannte Briefing-Basis und bestätigen Sie den Referenzberuf."
     ),
-    "iceberg_title": "Warum das wichtig ist",
-    "iceberg_caption": (
-        "Sichtbare Anforderungen und versteckte Erwartungen werden getrennt geprüft."
-    ),
 }
+
+INTRO_CYCLE_FOCUS_PREPARATION = "preparation"
+RECRUITING_CYCLE_NEED_ANALYSIS_INDEX = 0
 
 HERO_METRICS: tuple[tuple[str, str, str], ...] = (
     ("Klarheit", "Rolle", "Was soll die Person leisten?"),
@@ -508,15 +507,88 @@ def _render_risk_cards() -> None:
         """
         for title, body in RISK_POINTS
     )
-    render_static_html(f'<div class="intro-risk-grid">{risk_html}</div>', streamlit_module=st)
+    render_static_html(
+        f'<div class="intro-risk-grid">{risk_html}</div>', streamlit_module=st
+    )
 
 
-def _plotly_chart(figure: object | None, *, key: str) -> None:
+def _event_value(payload: object | None, *keys: str) -> object | None:
+    if payload is None:
+        return None
+    for key in keys:
+        if isinstance(payload, Mapping) and key in payload:
+            return payload.get(key)
+        value = getattr(payload, key, None)
+        if value is not None:
+            return value
+    return None
+
+
+def _int_or_none(value: object | None) -> int | None:
+    try:
+        return int(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _selected_cycle_index(event: object | None) -> int | None:
+    selection = _event_value(event, "selection")
+    points = _event_value(selection, "points")
+    if not isinstance(points, Sequence) or isinstance(points, (str, bytes)):
+        return None
+
+    for point in points:
+        curve_number = _int_or_none(_event_value(point, "curve_number", "curveNumber"))
+        if curve_number != 1:
+            continue
+        point_index = _int_or_none(
+            _event_value(
+                point,
+                "point_index",
+                "pointIndex",
+                "point_number",
+                "pointNumber",
+            )
+        )
+        if point_index is not None:
+            return point_index
+    return None
+
+
+def _cycle_chart_key() -> str:
+    return SSKey.INTRO_CYCLE_CHART_WIDGET_PREFIX.value
+
+
+def _set_intro_cycle_focus(focus: str | None) -> None:
+    st.session_state[SSKey.INTRO_CYCLE_FOCUS.value] = focus
+
+
+def _intro_cycle_focus() -> str | None:
+    focus = st.session_state.get(SSKey.INTRO_CYCLE_FOCUS.value)
+    return focus if isinstance(focus, str) else None
+
+
+def _plotly_chart(
+    figure: object | None, *, key: str, selectable: bool = False
+) -> object | None:
     plotly_chart = getattr(st, "plotly_chart", None)
     if figure is None or not callable(plotly_chart):
-        st.info(str(t("Recruiting-Cycle-Visualisierung ist in dieser Umgebung nicht verfügbar.")))
-        return
-    plotly_chart(figure, width="stretch", config={"displayModeBar": False}, key=key)
+        st.info(
+            str(
+                t(
+                    "Recruiting-Cycle-Visualisierung ist in dieser Umgebung nicht verfügbar."
+                )
+            )
+        )
+        return None
+    kwargs: dict[str, object] = {
+        "width": "stretch",
+        "config": {"displayModeBar": False, "scrollZoom": False},
+        "key": key,
+    }
+    if selectable:
+        kwargs.update({"on_select": "rerun", "selection_mode": "points"})
+    return plotly_chart(figure, **kwargs)
 
 
 def _render_recruiting_cycle_section() -> None:
@@ -530,9 +602,24 @@ def _render_recruiting_cycle_section() -> None:
             )
         )
         chart_col, copy_col = st.columns([1.25, 1], gap="medium")
+        focus = _intro_cycle_focus()
+        focused_index = (
+            RECRUITING_CYCLE_NEED_ANALYSIS_INDEX
+            if focus == INTRO_CYCLE_FOCUS_PREPARATION
+            else None
+        )
         with chart_col:
-            figure = build_recruiting_cycle_figure()
-            _plotly_chart(figure, key="intro_recruiting_cycle")
+            figure = build_recruiting_cycle_figure(focused_index=focused_index)
+            event = _plotly_chart(
+                figure, key=_cycle_chart_key(), selectable=True
+            )
+            selected_index = _selected_cycle_index(event)
+            if (
+                selected_index == RECRUITING_CYCLE_NEED_ANALYSIS_INDEX
+                and focus != INTRO_CYCLE_FOCUS_PREPARATION
+            ):
+                _set_intro_cycle_focus(INTRO_CYCLE_FOCUS_PREPARATION)
+                st.rerun()
         with copy_col:
             render_static_html(
                 '<div class="intro-cycle-callout">'
@@ -545,6 +632,20 @@ def _render_recruiting_cycle_section() -> None:
                 streamlit_module=st,
             )
             _render_risk_cards()
+        if _intro_cycle_focus() == INTRO_CYCLE_FOCUS_PREPARATION:
+            st.divider()
+            st.markdown(f"#### {t('Fokus: Bedarfsanalyse')}")
+            st.caption(
+                str(
+                    t(
+                        "Das Eisberg-Modell zeigt, welche sichtbaren Jobspec-Daten und verdeckten Entscheidungskriterien hier zusammengeführt werden."
+                    )
+                )
+            )
+            st.iframe(
+                build_iceberg_need_analysis_html(),
+                height=COMPONENT_HEIGHT,
+            )
 
 
 def _render_info_popovers(popovers: Sequence[tuple[str, str, str]] = INFO_POPOVERS) -> None:
@@ -628,16 +729,6 @@ def _render_technology_stack() -> None:
         )
 
 
-def _render_intro_iceberg() -> None:
-    with st.container(border=True):
-        st.markdown(f"### {t(INTRO_COPY['iceberg_title'])}")
-        st.caption(str(t(INTRO_COPY["iceberg_caption"])))
-        st.iframe(
-            build_iceberg_need_analysis_html(),
-            height=COMPONENT_HEIGHT,
-        )
-
-
 def render(ctx: WizardContext) -> None:
     render_landing_css(LANDING_STYLE_TOKENS)
     _render_intro_overrides()
@@ -651,10 +742,9 @@ def render(ctx: WizardContext) -> None:
             ctx.goto(STEP_KEY_LANDING)
             st.rerun()
 
-    with st.expander(str(t("Mehr zur Methode")), expanded=False):
+    with st.expander(str(t("Mehr zur Methode")), expanded=True):
         _render_recruiting_cycle_section()
         _render_intro_flow_cards()
-        _render_intro_iceberg()
 
     with st.expander(str(t("Technische Insights")), expanded=False):
         _render_technology_stack()

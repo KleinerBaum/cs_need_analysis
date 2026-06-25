@@ -51,6 +51,8 @@ class SSKey(str, Enum):
     AUDIENCE_MODE = "cs.audience_mode"
     UI_PREFERENCES = "cs.ui_preferences"
     OPEN_GROUPS = "cs.open_groups"
+    INTRO_CYCLE_FOCUS = "cs.intro.cycle_focus"
+    INTRO_CYCLE_CHART_WIDGET_PREFIX = "cs.intro.cycle_chart"
 
     BRIEF = "cs.brief"
     LAST_ERROR = "cs.last_error"

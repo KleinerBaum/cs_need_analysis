@@ -819,6 +819,7 @@ def init_session_state() -> None:
         SSKey.AUDIENCE_MODE.value: AUDIENCE_MODE_DEFAULT,
         SSKey.UI_PREFERENCES.value: default_ui_preferences,
         SSKey.OPEN_GROUPS.value: {},
+        SSKey.INTRO_CYCLE_FOCUS.value: None,
         SSKey.BRIEF.value: None,
         SSKey.LAST_ERROR.value: None,
         SSKey.LAST_ERROR_DEBUG.value: None,
@@ -1206,6 +1207,7 @@ def reset_vacancy() -> None:
         )
     _sync_source_redaction_from_preferences()
     st.session_state[SSKey.OPEN_GROUPS.value] = {}
+    st.session_state[SSKey.INTRO_CYCLE_FOCUS.value] = None
     st.session_state[SSKey.BRIEF.value] = None
     reset_usage_events(st.session_state)
     st.session_state[SSKey.JOBAD_CACHE_HIT.value] = {}

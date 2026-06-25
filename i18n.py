@@ -500,6 +500,8 @@ _TRANSLATIONS_EN.update(
         "Der Recruiting-Cycle kippt im ersten Schritt": "The recruiting cycle tilts in the first step",
         "Preparation ist kein Vorwort. Es ist der Kontrollpunkt, an dem Bedarf, Kompromisse und Erfolgskriterien festgelegt werden.": "Preparation is not a preface. It is the control point where need, trade-offs, and success criteria are defined.",
         "Wenn der Bedarf unscharf bleibt, optimiert jeder spätere Schritt auf eine andere Wahrheit. Die App zieht diese Wahrheit nach vorn.": "If the need stays vague, every later step optimizes for a different truth. The app pulls that truth forward.",
+        "Fokus: Bedarfsanalyse": "Focus: need analysis",
+        "Das Eisberg-Modell zeigt, welche sichtbaren Jobspec-Daten und verdeckten Entscheidungskriterien hier zusammengeführt werden.": "The iceberg model shows which visible jobspec data and hidden decision criteria are brought together here.",
         "Eisberg-Prinzip: Sichtbare Jobspec-Daten bleiben mit verdeckten Entscheidungskriterien verbunden, damit Recruiting, Suche und Interview dieselbe Briefing-Basis nutzen.": "Iceberg principle: visible jobspec data stays connected to hidden decision criteria so recruiting, search, and interviews use the same briefing basis.",
         "Technologie, die das Briefing belastbar macht": "Technology that makes the brief reliable",
         "Mehr zur Methode": "More on the method",
