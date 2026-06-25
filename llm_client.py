@@ -64,6 +64,7 @@ from model_capabilities import (
     supports_temperature,
     supports_verbosity,
 )
+from observability import log_model_call
 from schemas import (
     BenefitSuggestionItem,
     BenefitSuggestionPack,
@@ -997,6 +998,16 @@ def _normalize_usage_dict(usage: object | None) -> dict[str, Any] | None:
     return None
 
 
+def _usage_token_count(usage: Mapping[str, Any], *keys: str) -> int | None:
+    """Return the first available integer token count from normalized SDK usage."""
+
+    for key in keys:
+        value = usage.get(key)
+        if isinstance(value, (int, float)):
+            return max(0, int(value))
+    return None
+
+
 def _response_request_id(response: object) -> str | None:
     """Return safe OpenAI request/response id metadata when available."""
 
@@ -1034,6 +1045,7 @@ def _log_openai_response_metadata(
     *,
     task_kind: str | None,
     endpoint: str,
+    model_name: str | None,
     response: object,
     latency_ms: int,
     usage: object | None,
@@ -1041,12 +1053,25 @@ def _log_openai_response_metadata(
     """Log safe OpenAI request metadata without prompts or payload contents."""
 
     logger.info(
-        "OpenAI request completed; task=%s endpoint=%s request_id=%s latency_ms=%d usage=%s",
+        "OpenAI request completed; task=%s endpoint=%s request_id=%s latency_ms=%d",
         task_kind or "structured_output",
         endpoint,
         _response_request_id(response),
         latency_ms,
-        _normalize_usage_dict(usage),
+    )
+    usage_dict = _normalize_usage_dict(usage) or {}
+    log_model_call(
+        task_kind=task_kind,
+        model=getattr(response, "model", None) or model_name,
+        latency_ms=latency_ms,
+        prompt_tokens=_usage_token_count(usage_dict, "prompt_tokens", "input_tokens"),
+        completion_tokens=_usage_token_count(
+            usage_dict,
+            "completion_tokens",
+            "output_tokens",
+        ),
+        cache_hit=False,
+        endpoint=endpoint,
     )
 
 
@@ -1311,6 +1336,7 @@ def _parse_with_structured_outputs(
         _log_openai_response_metadata(
             task_kind=runtime_config.task_kind,
             endpoint="responses.parse",
+            model_name=runtime_config.resolved_model,
             response=parsed_response,
             latency_ms=latency_ms,
             usage=parsed_response.usage,
@@ -1336,6 +1362,7 @@ def _parse_with_structured_outputs(
             verbosity=runtime_config.verbosity,
         )
         try:
+            started = time.perf_counter()
             completion = _run_openai_call_with_retry(
                 fn=lambda: client.chat.completions.parse(
                     messages=messages,
@@ -1344,6 +1371,7 @@ def _parse_with_structured_outputs(
                 ),
                 label="OpenAI chat.completions.parse",
             )
+            latency_ms = int((time.perf_counter() - started) * 1000)
             _record_final_structured_output_path(
                 endpoint="chat.completions.parse",
                 requested_model=runtime_config.resolved_model,
@@ -1376,6 +1404,23 @@ def _parse_with_structured_outputs(
             logger.warning("Structured chat parse failed: %s", mapped.debug_detail)
             raise mapped from exc
         usage = _normalize_usage_dict(parsed_completion.usage)
+        log_model_call(
+            task_kind=runtime_config.task_kind,
+            model=getattr(parsed_completion, "model", runtime_config.resolved_model),
+            latency_ms=latency_ms,
+            prompt_tokens=_usage_token_count(
+                usage or {},
+                "prompt_tokens",
+                "input_tokens",
+            ),
+            completion_tokens=_usage_token_count(
+                usage or {},
+                "completion_tokens",
+                "output_tokens",
+            ),
+            cache_hit=False,
+            endpoint="chat.completions.parse",
+        )
         return parsed, usage
 
     raise OpenAICallError(

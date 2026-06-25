@@ -138,6 +138,10 @@ def test_ci_contains_blocking_qa_and_advisory_security_jobs() -> None:
     workflow = _read(".github/workflows/ci.yml")
     qa_job = workflow.split("  qa:", 1)[1].split("  contract:", 1)[0]
 
+    assert "permissions:\n  contents: read" in workflow
+    assert 'CS_ALERT_P95_LATENCY_MS: "8000"' in workflow
+    assert 'CS_ALERT_AVG_COST_USD: "0.01"' in workflow
+    assert 'CS_ALERT_FAILURE_RATE: "0.03"' in workflow
     assert "qa:" in workflow
     assert "python scripts/check_repo_hygiene.py" in qa_job
     assert "fetch-depth: 0" in qa_job
@@ -155,6 +159,7 @@ def test_ci_contains_blocking_qa_and_advisory_security_jobs() -> None:
     assert 'GITLEAKS_ENABLE_COMMENTS: "false"' in workflow
     assert 'GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"' in workflow
     assert 'GITLEAKS_ENABLE_SUMMARY: "false"' in workflow
+    assert "actions/dependency-review-action@v4" in workflow
     assert "python -m bandit -c pyproject.toml -r ." in workflow
     assert "python scripts/check_tracked_artifacts.py" in workflow
 
@@ -163,7 +168,10 @@ def test_ci_wires_contract_unit_and_apptest_layers() -> None:
     workflow = _read(".github/workflows/ci.yml")
     contract_job = workflow.split("  contract:", 1)[1].split("  unit:", 1)[0]
     unit_job = workflow.split("  unit:", 1)[1].split("  apptest:", 1)[0]
-    apptest_job = workflow.split("  apptest:", 1)[1].split("  browser_smoke:", 1)[0]
+    apptest_job = workflow.split("  apptest:", 1)[1].split(
+        "  deployment_observability:",
+        1,
+    )[0]
 
     for job in (contract_job, unit_job, apptest_job):
         assert "pip install -r requirements.txt -c constraints.txt" in job
@@ -179,8 +187,45 @@ def test_ci_wires_contract_unit_and_apptest_layers() -> None:
     assert "--junitxml=reports/junit/unit.xml" in unit_job
     assert "python scripts/openai_smoke_test.py \\" in unit_job
     assert "--json-only > reports/openai-smoke.json" in unit_job
+    assert "python scripts/ci_observability_report.py \\" in unit_job
+    assert "reports/observability/deployment-events.jsonl" in unit_job
     assert "python -m pytest -q tests/apptest" in apptest_job
     assert "--junitxml=reports/junit/apptest.xml" in apptest_job
+
+
+def test_ci_has_oidc_ready_deployment_observability_job() -> None:
+    workflow = _read(".github/workflows/ci.yml")
+    deploy_job = workflow.split("  deployment_observability:", 1)[1].split(
+        "  browser_smoke:",
+        1,
+    )[0]
+
+    assert "id-token: write" in deploy_job
+    assert "actions/download-artifact@v4" in deploy_job
+    assert "ci-unit-reports" in deploy_job
+    assert "deployment-events.jsonl" in deploy_job
+    assert '"event_type":"deployment_event"' in deploy_job
+
+
+def test_dependabot_covers_python_and_github_actions() -> None:
+    dependabot = _read(".github/dependabot.yml")
+
+    assert "version: 2" in dependabot
+    assert 'package-ecosystem: "pip"' in dependabot
+    assert 'package-ecosystem: "github-actions"' in dependabot
+    assert 'timezone: "Europe/Berlin"' in dependabot
+    assert "python-runtime:" in dependabot
+    assert "github-actions:" in dependabot
+
+
+def test_ci_security_gdpr_runbook_covers_manual_platform_controls() -> None:
+    runbook = _read("docs/ci_security_gdpr.md")
+
+    assert "Secret Scanning" in runbook
+    assert "Push Protection" in runbook
+    assert "OIDC" in runbook
+    assert ".streamlit/secrets.toml" in runbook
+    assert "store=false" in runbook
 
 
 def test_gitignore_excludes_local_scan_and_generated_report_outputs() -> None:

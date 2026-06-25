@@ -13,6 +13,14 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
+env:
+  CS_ALERT_P95_LATENCY_MS: "8000"
+  CS_ALERT_AVG_COST_USD: "0.01"
+  CS_ALERT_FAILURE_RATE: "0.03"
+
 jobs:
   qa:
     name: Lint and type checks
@@ -154,6 +162,14 @@ jobs:
             --json-output reports/evals/summary.json \
             --enforce-thresholds
 
+      - name: Deployment observability report
+        if: ${{ always() }}
+        run: |
+          python scripts/ci_observability_report.py \
+            --openai-smoke-json reports/openai-smoke.json \
+            --eval-json reports/evals/summary.json \
+            --output reports/observability/deployment-events.jsonl
+
       - name: Upload unit reports
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
@@ -164,6 +180,7 @@ jobs:
             reports/openai-smoke.json
             reports/evals/summary.csv
             reports/evals/summary.json
+            reports/observability/deployment-events.jsonl
           if-no-files-found: warn
           retention-days: 14
 
@@ -205,6 +222,34 @@ jobs:
           path: reports/junit/apptest.xml
           if-no-files-found: warn
           retention-days: 14
+
+  deployment_observability:
+    name: OIDC-ready deployment observability
+    needs:
+      - unit
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+
+    steps:
+      - name: Download observability artifact
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: ci-unit-reports
+          path: reports/from-ci
+
+      - name: Emit structured deployment log
+        run: |
+          event_file="$(find reports/from-ci -name deployment-events.jsonl -print -quit || true)"
+          if [ -n "$event_file" ]; then
+            cat "$event_file"
+          else
+            printf '%s\n' '{"event_type":"deployment_event","status":"missing_observability_artifact"}'
+          fi
 
   browser_smoke:
     name: Advisory Playwright browser smoke
@@ -277,6 +322,11 @@ jobs:
           GITLEAKS_ENABLE_COMMENTS: "false"
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
           GITLEAKS_ENABLE_SUMMARY: "false"
+
+      - name: Dependency review advisory scan
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@v4
+        continue-on-error: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
