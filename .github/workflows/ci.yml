@@ -430,10 +430,11 @@ jobs:
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
           GITLEAKS_ENABLE_SUMMARY: "false"
 
-      - name: Dependency review advisory scan
+      - name: Dependency review blocking scan
         if: github.event_name == 'pull_request'
         uses: actions/dependency-review-action@v4
-        continue-on-error: true
+        with:
+          fail-on-severity: moderate
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -455,5 +456,4 @@ jobs:
         run: python -m pip_audit --local --strict --progress-spinner off
 
       - name: Tracked artifact drift scan
-        continue-on-error: true
         run: python scripts/check_tracked_artifacts.py

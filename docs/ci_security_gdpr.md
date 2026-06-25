@@ -8,10 +8,13 @@ trust over long-lived cloud access keys when a deployment target is added.
 ## Required GitHub Settings
 
 - Enable Secret Scanning and Push Protection for the repository or organization.
+- Treat Push Protection as a GitHub repository or organization setting; it is not
+  enforceable from `.github/workflows/ci.yml`.
 - Keep `OPENAI_API_KEY` and provider credentials in GitHub Secrets or deployment
   environment secrets; never commit `.streamlit/secrets.toml`.
 - Use protected environments for production deployments and require review before
   deployment jobs can access production secrets.
+- Use branch protection rules so required security checks block merges.
 - Keep Dependabot enabled for `pip` and `github-actions` ecosystems.
 
 ## Monitoring Signals

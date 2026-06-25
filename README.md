@@ -551,10 +551,10 @@ noise, Black checks a small allowlist of stable helper modules, mypy checks
 selected pure helper modules in permissive baseline mode, Pyright checks the
 same selected helper-module allowlist in basic mode, and the path-only repo
 hygiene guard blocks committed local secrets, credentials, caches, and generated
-exports without reading file contents. Bandit, Gitleaks content scanning, and
-tracked-artifact drift scanning remain advisory in CI so existing baselines can
-be triaged without blocking the fast local/unit path. Tool configuration lives
-in `pyproject.toml`; the development dependency surface lives in
+exports without reading file contents. CI security scans are blocking for
+Gitleaks, Dependency Review moderate+ vulnerabilities, Bandit Medium/High
+findings, pip-audit, and tracked-artifact drift. Tool configuration lives in
+`pyproject.toml`; the development dependency surface lives in
 `requirements-dev.txt`.
 
 ```bash
@@ -570,15 +570,14 @@ python scripts/check_tracked_artifacts.py
 
 The repo hygiene guard scans tracked file paths only and reports only paths and
 rule names. Gitleaks is installed separately for local use; CI uses the official
-Gitleaks Action. Gitleaks, Bandit, and the artifact drift scan are non-blocking
-in CI and may report existing findings until the security/artifact baselines are
-triaged. The artifact drift scan reports only paths and reasons, not file
-contents.
+Gitleaks Action. Dependency Review blocks pull requests that introduce
+moderate-or-higher vulnerable dependencies. The artifact drift scan reports only
+paths and reasons, not file contents.
 
 Follow-up hardening should expand Ruff rules, expand Black coverage after an
-approved formatting-only change, grow the mypy module allowlist, then make
-the Pyright and mypy module allowlists together, then make Bandit blocking or
-add Semgrep once findings are triaged.
+approved formatting-only change, grow the mypy module allowlist, expand
+the Pyright and mypy module allowlists together, and add Semgrep once findings
+are triaged.
 
 ### Optional Playwright smoke tests
 
@@ -616,7 +615,7 @@ Current job IDs are `qa`, `contract`, `unit`, `apptest`,
 6. `browser_smoke`: advisory Playwright Streamlit smoke tests with JUnit upload
 7. `visual_regression`: advisory Playwright screenshot capture for central wizard screens
 8. `deployed_smoke`: deployed landing-page smoke test against `CS_DEPLOYED_BASE_URL`
-9. `security`: blocking Gitleaks, Bandit Medium/High, and pip-audit scans; dependency review and tracked-artifact drift remain advisory
+9. `security`: blocking Gitleaks, Dependency Review moderate+, Bandit Medium/High, pip-audit, and tracked-artifact drift scans
 
 The Playwright smoke job runs advisory on pull requests and pushes. It is also
 available through manual workflow dispatch with `run_e2e=true` as job ID

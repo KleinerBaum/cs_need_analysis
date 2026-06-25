@@ -9,7 +9,9 @@ This baseline documents the staged CI hardening path for the repository. It keep
 - mypy and Pyright cover the existing helper baseline plus clean Salary and ESCO core modules.
 - Bandit is blocking for Medium/High findings after triage of current non-security SHA1 identifiers and XML parsing.
 - Gitleaks is blocking in CI; repository hygiene still guards tracked local secret/artifact paths.
+- Dependency Review blocks pull requests that introduce moderate-or-higher vulnerable dependencies.
 - pip-audit runs as a blocking dependency vulnerability scan.
+- Tracked artifact drift is blocking in CI and reports only paths and reasons.
 - CodeQL runs in a dedicated workflow for Python with `security-and-quality` queries.
 - Unit tests publish JUnit and coverage XML, with a minimum coverage threshold of 35%.
 - Playwright captures advisory screenshots for central wizard screens.

@@ -21,6 +21,7 @@ ALLOWED_BINARY_PATTERNS = (
 KNOWN_TRACKED_REPORTS = {
     "reports/Aktualisierter Implementierungsreport f\u00fcr den dynamischen Intake-Wizard.md",
     "reports/Key-Analyse-report.md",
+    "reports/README.md",
     "reports/deep-research-report_21_06_2026.md",
     "reports/deep-research-report_22_06_2026.md:Zone.md",
 }

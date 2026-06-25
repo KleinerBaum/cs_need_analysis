@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts import check_repo_hygiene
+from scripts import check_repo_hygiene, check_tracked_artifacts
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -189,7 +189,11 @@ def test_ci_contains_blocking_qa_and_security_jobs() -> None:
     assert "security:" in workflow
     gitleaks_step = security_job.split("      - name: Gitleaks secret scan", 1)[
         1
-    ].split("      - name: Dependency review advisory scan", 1)[0]
+    ].split("      - name: Dependency review blocking scan", 1)[0]
+    dependency_review_step = security_job.split(
+        "      - name: Dependency review blocking scan",
+        1,
+    )[1].split("      - name: Set up Python", 1)[0]
     bandit_step = security_job.split(
         "      - name: Bandit blocking high and medium scan",
         1,
@@ -198,15 +202,22 @@ def test_ci_contains_blocking_qa_and_security_jobs() -> None:
         "      - name: pip-audit dependency vulnerability scan",
         1,
     )[1].split("      - name: Tracked artifact drift scan", 1)[0]
+    artifact_drift_step = security_job.split(
+        "      - name: Tracked artifact drift scan",
+        1,
+    )[1]
     assert "continue-on-error: true" not in gitleaks_step
+    assert "continue-on-error: true" not in dependency_review_step
     assert "continue-on-error: true" not in bandit_step
     assert "continue-on-error: true" not in pip_audit_step
+    assert "continue-on-error: true" not in artifact_drift_step
     assert "fetch-depth: 0" in workflow
     assert "gitleaks/gitleaks-action@v3" in workflow
     assert 'GITLEAKS_ENABLE_COMMENTS: "false"' in workflow
     assert 'GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"' in workflow
     assert 'GITLEAKS_ENABLE_SUMMARY: "false"' in workflow
     assert "actions/dependency-review-action@v4" in workflow
+    assert "fail-on-severity: moderate" in dependency_review_step
     assert (
         "python -m bandit -c pyproject.toml -r . --severity-level medium "
         "--confidence-level medium"
@@ -331,6 +342,10 @@ def test_repo_hygiene_guard_flags_forbidden_paths_without_static_asset_noise() -
         "reports/new-export.md": "generated-local-report",
         "service/private.pem": "secret-key-material",
     }
+
+
+def test_tracked_artifact_scan_allows_report_archive_index() -> None:
+    assert "reports/README.md" in check_tracked_artifacts.KNOWN_TRACKED_REPORTS
 
 
 def test_repo_hygiene_guard_output_reports_only_paths_and_rules(
