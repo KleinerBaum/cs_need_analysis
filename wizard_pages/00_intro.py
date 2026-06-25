@@ -632,20 +632,19 @@ def _render_recruiting_cycle_section() -> None:
                 streamlit_module=st,
             )
             _render_risk_cards()
-        if _intro_cycle_focus() == INTRO_CYCLE_FOCUS_PREPARATION:
-            st.divider()
-            st.markdown(f"#### {t('Fokus: Bedarfsanalyse')}")
-            st.caption(
-                str(
-                    t(
-                        "Das Eisberg-Modell zeigt, welche sichtbaren Jobspec-Daten und verdeckten Entscheidungskriterien hier zusammengeführt werden."
-                    )
+        st.divider()
+        st.markdown(f"#### {t('Fokus: Bedarfsanalyse')}")
+        st.caption(
+            str(
+                t(
+                    "Das Eisberg-Modell zeigt, welche sichtbaren Jobspec-Daten und verdeckten Entscheidungskriterien hier zusammengeführt werden."
                 )
             )
-            st.iframe(
-                build_iceberg_need_analysis_html(),
-                height=COMPONENT_HEIGHT,
-            )
+        )
+        st.iframe(
+            build_iceberg_need_analysis_html(),
+            height=COMPONENT_HEIGHT,
+        )
 
 
 def _render_info_popovers(popovers: Sequence[tuple[str, str, str]] = INFO_POPOVERS) -> None:

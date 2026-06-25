@@ -224,7 +224,7 @@ class _FakeStreamlit:
         raise AssertionError("Unexpected rerun in focus rendering test")
 
 
-def test_intro_cycle_focus_renders_iceberg_only_when_focused(monkeypatch) -> None:
+def test_intro_cycle_focus_renders_iceberg_without_interaction(monkeypatch) -> None:
     intro = _load_intro_module()
     fake_st = _FakeStreamlit()
     monkeypatch.setattr(intro, "st", fake_st)
@@ -237,7 +237,7 @@ def test_intro_cycle_focus_renders_iceberg_only_when_focused(monkeypatch) -> Non
 
     intro._render_recruiting_cycle_section()
 
-    assert fake_st.iframes == []
+    assert fake_st.iframes == ["<iceberg>"]
     figure, kwargs = fake_st.plotly_calls[-1]
     assert figure == {"focused_index": None}
     assert kwargs["on_select"] == "rerun"
@@ -249,7 +249,7 @@ def test_intro_cycle_focus_renders_iceberg_only_when_focused(monkeypatch) -> Non
     )
     intro._render_recruiting_cycle_section()
 
-    assert fake_st.iframes == ["<iceberg>"]
+    assert fake_st.iframes == ["<iceberg>", "<iceberg>"]
     figure, _kwargs = fake_st.plotly_calls[-1]
     assert figure == {"focused_index": 0}
     assert fake_st.button_labels == []
