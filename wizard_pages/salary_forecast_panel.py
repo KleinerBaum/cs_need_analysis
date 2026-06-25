@@ -1191,30 +1191,44 @@ def render_salary_forecast_result_card(
 
     with st.container(border=True):
         st.markdown(f"**{headline}**")
-        if use_main_card_layout:
+        if not use_main_card_layout:
+            metric_col_main, metric_col_low, metric_col_high = st.columns(
+                (2, 1, 1), gap="small"
+            )
+            with metric_col_main:
+                st.metric("p50 (Median)", _format_eur(p50))
+            with metric_col_low:
+                st.metric(
+                    "p10 (niedrig)", _format_eur(p10) if p10 > 0 else "nicht verfügbar"
+                )
+            with metric_col_high:
+                st.metric(
+                    "p90 (hoch)", _format_eur(p90) if p90 > 0 else "nicht verfügbar"
+                )
+        else:
             render_static_html(
                 """
                 <style>
                 .salary-main-cards-grid {
                     display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-                    gap: 0.75rem;
-                    margin-top: 0.5rem;
+                    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+                    gap: 0.5rem;
+                    margin-top: 0.35rem;
                 }
                 .salary-main-card {
                     border: 1px solid rgba(49, 51, 63, 0.2);
-                    border-radius: 0.75rem;
-                    padding: 0.8rem 0.9rem;
+                    border-radius: 0.5rem;
+                    padding: 0.55rem 0.65rem;
                     min-width: 0;
                     background: rgba(255, 255, 255, 0.02);
                 }
                 .salary-main-card-label {
-                    font-size: 0.85rem;
+                    font-size: 0.78rem;
                     opacity: 0.85;
-                    margin-bottom: 0.25rem;
+                    margin-bottom: 0.15rem;
                 }
                 .salary-main-card-value {
-                    font-size: 1.25rem;
+                    font-size: 1.08rem;
                     font-weight: 700;
                     line-height: 1.2;
                     overflow-wrap: anywhere;
@@ -1233,33 +1247,20 @@ def render_salary_forecast_result_card(
             render_static_html(
                 (
                     "<div class='salary-main-cards-grid'>"
-                    f"<div class='salary-main-card'><div class='salary-main-card-label'>p50 (Median)</div><div class='salary-main-card-value'>{p50_label}</div></div>"
-                    f"<div class='salary-main-card'><div class='salary-main-card-label'>p10 (niedrig)</div><div class='salary-main-card-value'>{p10_label}</div></div>"
-                    f"<div class='salary-main-card'><div class='salary-main-card-label'>p90 (hoch)</div><div class='salary-main-card-value'>{p90_label}</div></div>"
+                    f"<div class='salary-main-card'><div class='salary-main-card-label'>p50</div><div class='salary-main-card-value'>{p50_label}</div></div>"
+                    f"<div class='salary-main-card'><div class='salary-main-card-label'>p10</div><div class='salary-main-card-value'>{p10_label}</div></div>"
+                    f"<div class='salary-main-card'><div class='salary-main-card-label'>p90</div><div class='salary-main-card-value'>{p90_label}</div></div>"
                     "</div>"
                 ),
                 streamlit_module=st,
             )
-        else:
-            metric_col_main, metric_col_low, metric_col_high = st.columns(
-                (2, 1, 1), gap="small"
-            )
-            with metric_col_main:
-                st.metric("p50 (Median)", _format_eur(p50))
-            with metric_col_low:
-                st.metric(
-                    "p10 (niedrig)", _format_eur(p10) if p10 > 0 else "nicht verfügbar"
-                )
-            with metric_col_high:
-                st.metric(
-                    "p90 (hoch)", _format_eur(p90) if p90 > 0 else "nicht verfügbar"
-                )
-        st.info(_salary_copy("context_caveat", language=language))
         st.caption(
             _salary_copy("quality_caveat", language=language, quality=quality_label)
         )
         if answers_count > 0:
             st.caption(f"Berücksichtigte Antworten: {answers_count}.")
+        with st.expander("Einordnung", expanded=False):
+            st.caption(_salary_copy("context_caveat", language=language))
         show_debug = str(
             st.session_state.get(SSKey.UI_MODE.value, "standard")
         ).strip().lower() == "expert" or bool(
@@ -1281,21 +1282,13 @@ def render_salary_forecast_step_sections(
 ) -> None:
     """Render the shared three-section salary forecast layout for wizard steps."""
 
-    left_col, right_col = st.columns((5, 7), gap="large")
-    with left_col:
-        with st.container(border=True):
-            st.markdown("#### Einflussfaktoren")
+    with st.expander("Eingaben und Szenario anpassen", expanded=False):
+        factors_col, scenario_col = st.columns((5, 7), gap="large")
+        with factors_col:
+            st.markdown("##### Einflussfaktoren")
             influence_factors_slot()
-
-    with right_col:
-        with st.container(border=True):
-            st.markdown("#### Quellenmix")
-            _render_source_mix_pie(
-                source_counts=source_counts,
-                chart_key=source_mix_chart_key,
-            )
-            st.markdown("---")
-            st.markdown("#### Szenario-Steuerung")
+        with scenario_col:
+            st.markdown("##### Szenario-Steuerung")
             with st.form(
                 f"salary.forecast.controls.{source_mix_chart_key}",
                 clear_on_submit=False,
@@ -1306,8 +1299,17 @@ def render_salary_forecast_step_sections(
                     type="primary",
                     width="stretch",
                 )
-            st.markdown("---")
-            st.markdown("#### Wirkungstreiber")
+
+    with st.expander("Quellenmix und Wirkungstreiber", expanded=False):
+        mix_col, driver_col = st.columns(2, gap="large")
+        with mix_col:
+            st.markdown("##### Quellenmix")
+            _render_source_mix_pie(
+                source_counts=source_counts,
+                chart_key=source_mix_chart_key,
+            )
+        with driver_col:
+            st.markdown("##### Wirkungstreiber")
             latest_result = st.session_state.get(
                 SSKey.SALARY_FORECAST_LAST_RESULT.value, salary_result or {}
             )
@@ -1315,9 +1317,8 @@ def render_salary_forecast_step_sections(
                 salary_result=latest_result if isinstance(latest_result, dict) else {},
                 chart_key=f"{source_mix_chart_key}.drivers",
             )
-            st.markdown("---")
-            st.markdown("#### Prognose-Ergebnis")
-            forecast_result_slot()
+
+    forecast_result_slot()
 
 
 def render_role_tasks_salary_forecast_panel(

@@ -643,6 +643,38 @@ def _render_jobspec_note_block(title: str, notes: list[str], *, tone: str) -> No
         st.info(f"**{title}**\n\n{body}")
 
 
+def _render_jobspec_note_details(
+    *,
+    step_key: str,
+    gaps: list[str],
+    assumptions: list[str],
+) -> None:
+    _render_jobspec_note_block(
+        "Fehlende oder unklare Angaben",
+        gaps,
+        tone="warning",
+    )
+    if not assumptions:
+        return
+
+    _render_jobspec_note_block("Annahmen", assumptions, tone="info")
+    for note in assumptions:
+        st.write(f"**{note}**")
+        _render_assumption_decision(step_key=step_key, note=note)
+
+
+def _jobspec_note_summary(gaps: list[str], assumptions: list[str]) -> str:
+    parts: list[str] = []
+    if gaps:
+        parts.append(f"{len(gaps)} Lücke{'n' if len(gaps) != 1 else ''}")
+    if assumptions:
+        parts.append(
+            f"{len(assumptions)} Annahme"
+            f"{'n' if len(assumptions) != 1 else ''}"
+        )
+    return " · ".join(parts)
+
+
 def _jobspec_assumption_answer_id(*, step_key: str, note: str) -> str:
     note_hash = hashlib.sha1(
         _normalize_jobspec_note(note).casefold().encode("utf-8")
@@ -725,18 +757,23 @@ def render_jobspec_step_notes(step_key: str | None) -> None:
     if not gaps and not assumptions:
         return
 
-    _render_jobspec_note_block(
-        "Fehlende oder unklare Angaben",
-        gaps,
-        tone="warning",
-    )
-    if not assumptions:
+    summary = _jobspec_note_summary(gaps, assumptions)
+    expander = getattr(st, "expander", None)
+    if callable(expander):
+        st.caption(f"Jobspec-Hinweise: {summary}.")
+        with expander(f"Jobspec-Hinweise prüfen ({summary})", expanded=False):
+            _render_jobspec_note_details(
+                step_key=step_key,
+                gaps=gaps,
+                assumptions=assumptions,
+            )
         return
 
-    _render_jobspec_note_block("Annahmen", assumptions, tone="info")
-    for note in assumptions:
-        st.write(f"**{note}**")
-        _render_assumption_decision(step_key=step_key, note=note)
+    _render_jobspec_note_details(
+        step_key=step_key,
+        gaps=gaps,
+        assumptions=assumptions,
+    )
 
 
 def render_step_shell(

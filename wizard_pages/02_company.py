@@ -184,6 +184,13 @@ _COMPANY_SECTION_VALUE_STATEMENTS = {
 }
 
 
+def _compact_website_text(value: Any, *, max_chars: int = 150) -> str:
+    text = compact_text(value)
+    if len(text) <= max_chars:
+        return text
+    return text[: max_chars - 1].rstrip() + "…"
+
+
 def _company_detail_sections_expanded_by_default() -> bool:
     session_state = getattr(st, "session_state", {})
     state_get = getattr(session_state, "get", None)
@@ -578,12 +585,23 @@ def _render_website_topic_result(
         if not summary and not facts:
             st.caption("Noch nicht analysiert.")
             return
-        for label, value in list(facts.items())[:3]:
+        fact_lines: list[str] = []
+        for label, value in list(facts.items())[:2]:
+            value_text = _compact_website_text(value, max_chars=90)
+            if not value_text:
+                continue
             if label.startswith("fact_"):
-                st.caption(str(value).strip())
+                fact_lines.append(value_text)
             else:
-                st.caption(f"{label}: {value}")
-        for line in [str(item).strip() for item in summary if str(item).strip()][:2]:
+                fact_lines.append(f"{label}: {value_text}")
+        if fact_lines:
+            st.caption(" · ".join(fact_lines))
+        summary_lines = [
+            _compact_website_text(item, max_chars=130)
+            for item in summary
+            if _compact_website_text(item, max_chars=130)
+        ]
+        for line in summary_lines[:1]:
             st.write(f"- {line}")
         source_url = str(section.get(WEBSITE_SECTION_SOURCE_URL) or "").strip()
         if source_url:
@@ -629,10 +647,22 @@ def _render_website_fact_review(research: dict[str, Any]) -> None:
     if not candidates:
         return
 
-    st.markdown("##### Website-Funde als Belege prüfen")
+    expander = getattr(st, "expander", None)
+    if callable(expander):
+        st.caption(f"{len(candidates)} Website-Belege für Fakten erkannt.")
+        with expander(
+            f"Belege zu Fakten zuordnen ({len(candidates)})",
+            expanded=False,
+        ):
+            _render_website_fact_review_form(candidates)
+        return
+
+    _render_website_fact_review_form(candidates)
+
+
+def _render_website_fact_review_form(candidates: list[dict[str, Any]]) -> None:
     st.caption(
-        "Website-Funde stützen bestehende Fakten. Abweichungen werden ohne aktive "
-        "Bestätigung nur als Konfliktbeleg dokumentiert."
+        "Abweichungen werden ohne aktive Bestätigung nur als Konfliktbeleg dokumentiert."
     )
     review_raw = st.session_state.get(SSKey.COMPANY_WEBSITE_FACT_REVIEW.value, {})
     review_state = review_raw if isinstance(review_raw, dict) else {}
