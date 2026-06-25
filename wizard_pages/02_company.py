@@ -79,33 +79,19 @@ from wizard_pages.fact_inputs import (
     fact_value,
     persist_fact,
     render_multiselect_fact,
-    render_number_fact,
-    render_select_fact,
     section_container,
     render_text_area_fact,
     render_text_fact,
     split_lines,
 )
-from wizard_pages.company_work_context import (
-    render_non_negotiables_compliance_section,
-    render_working_model_location_section,
-)
 from intake_facts import append_intake_fact_secondary_evidence, write_intake_fact
 from state import mark_answer_touched
-from wizard_pages.team_section import render_role_context_enrichment
 from wizard_pages.trust_grammar import (
     render_trust_indicator,
     trust_state_for_fact_status,
 )
 
 
-_LEADERSHIP_LABELS = {
-    "individual_contributor": "Individual Contributor",
-    "fachliche_fuehrung": "Fachliche Führung",
-    "disziplinarische_fuehrung": "Disziplinarische Führung",
-    "beides": "Fachlich und disziplinarisch",
-    "unklar": "Noch unklar",
-}
 _FACT_DEFS_BY_KEY = {fact.fact_key.value: fact for fact in INTAKE_FACTS}
 _FACT_OPTION_VALUES = tuple(fact.fact_key.value for fact in INTAKE_FACTS)
 _FACT_DISPLAY_LABELS = {
@@ -168,15 +154,6 @@ _COMPANY_SECTION_VALUE_STATEMENTS = {
     ),
     "Offene Fragen": (
         "Schließe nur Kontextlücken, die durch Fakten noch nicht abgedeckt sind."
-    ),
-    "Team & Berichtslinie": (
-        "Mache Reporting, Führung und Zusammenarbeit für Kandidat:innen greifbar."
-    ),
-    "Arbeitsmodell & Standort": (
-        "Halte Arbeitsmodell, Ort und Mobilitätsrahmen als klare Erwartungen fest."
-    ),
-    "Non-negotiables / Compliance": (
-        "Trenne harte Must-haves und Compliance-Grenzen von verhandelbaren Präferenzen."
     ),
     "Prüfung": (
         "Prüfe Lücken, Konflikte und Unsicherheiten vor dem nächsten Schritt."
@@ -1167,115 +1144,9 @@ def _render_business_context_section(job: JobAdExtract) -> None:
     )
 
 
-def _render_team_reporting_section(job: JobAdExtract, *, ctx: WizardContext) -> None:
-    def _render_team_reporting_fields() -> None:
-        with section_container(border=True):
-            team_col, reports_to_col, scope_col = responsive_three_columns(
-                gap="large"
-            )
-            with team_col:
-                render_text_fact(
-                    FactKey.TEAM_NAME,
-                    "Welches Team nimmt die Person auf?",
-                    default=job.department_name or "",
-                )
-            with reports_to_col:
-                render_text_fact(
-                    FactKey.COMPANY_REPORTS_TO,
-                    "An wen berichtet die Rolle?",
-                    default=job.reports_to or "",
-                )
-            with scope_col:
-                render_select_fact(
-                    FactKey.TEAM_LEADERSHIP_SCOPE,
-                    "Welche Führungsverantwortung hat die Rolle?",
-                    options=tuple(_LEADERSHIP_LABELS),
-                    default="individual_contributor",
-                    labels=_LEADERSHIP_LABELS,
-                )
-
-            def _render_secondary_team_context() -> None:
-                department_col, direct_reports_col, team_size_col = (
-                    responsive_three_columns(gap="large")
-                )
-                with department_col:
-                    render_text_fact(
-                        FactKey.COMPANY_DEPARTMENT_NAME,
-                        "Abteilung / Fachbereich",
-                        default=job.department_name or "",
-                    )
-                with direct_reports_col:
-                    render_number_fact(
-                        FactKey.COMPANY_DIRECT_REPORTS_COUNT,
-                        "Wie viele Direct Reports hat die Rolle?",
-                        min_value=0,
-                        max_value=500,
-                        default=job.direct_reports_count or 0,
-                    )
-                with team_size_col:
-                    render_number_fact(
-                        FactKey.TEAM_SIZE_DIRECT,
-                        "Wie groß ist das unmittelbare Team?",
-                        min_value=0,
-                        max_value=500,
-                        default=job.direct_reports_count or 0,
-                    )
-                render_multiselect_fact(
-                    FactKey.TEAM_STAKEHOLDERS_PRIMARY,
-                    "Mit welchen wichtigsten Stakeholdern arbeitet die Person regelmäßig?",
-                    options=[
-                        "Fachbereich",
-                        "Management",
-                        "HR/Recruiting",
-                        "Sales",
-                        "Customer Success",
-                        "Operations",
-                        "Kund:innen",
-                        "Lieferanten/Partner",
-                        "Sonstiges",
-                    ],
-                )
-                render_text_area_fact(
-                    FactKey.TEAM_SUCCESS_CONTEXT_90D,
-                    "Welche Arbeitsweise ist im Team nötig, um in den ersten 90 Tagen zu bestehen?",
-                    height=100,
-                )
-
-            _render_secondary_company_detail(
-                "Sekundäre Teamdetails",
-                _render_secondary_team_context,
-            )
-
-    def _render_fields_and_optional_context() -> None:
-        _render_section_form(
-            form_key="company.team_reporting.form",
-            submit_label="Team & Berichtslinie speichern",
-            renderer=_render_team_reporting_fields,
-        )
-        _render_optional_company_detail(
-            "Rollenprofil mit ESCO-Kontext ergänzen",
-            "Optionale ESCO-Hinweise ergänzen Teamarbeit, Stakeholder und Führungslogik.",
-            lambda: render_role_context_enrichment(
-                step=None,
-                ctx=ctx,
-                adopt_context_callback=_append_context_to_team_success_fact,
-                show_heading=False,
-            ),
-        )
-
-    _render_company_section(
-        "Team & Berichtslinie",
-        _render_fields_and_optional_context,
-    )
-
-
 def _render_company_context(job: JobAdExtract) -> None:
     _render_business_context_section(job)
     _render_employer_profile_section(job)
-
-
-def _render_team_context(job: JobAdExtract, *, ctx: WizardContext) -> None:
-    _render_team_reporting_section(job, ctx=ctx)
 
 
 def _append_context_to_team_success_fact(context_line: str) -> bool:
@@ -1321,7 +1192,6 @@ def _render_open_questions_section(
     *,
     open_question_step: QuestionStep | None,
     company_open_question_step: QuestionStep | None,
-    team_open_question_step: QuestionStep | None,
 ) -> None:
     def _render_questions() -> None:
         render_jobspec_step_notes(STEP_KEY_COMPANY)
@@ -1330,11 +1200,6 @@ def _render_open_questions_section(
             title="Business / Arbeitgeber",
             step=company_open_question_step,
             form_key_suffix="company_context",
-        )
-        _render_compact_open_questions(
-            title="Team / Stakeholder",
-            step=team_open_question_step,
-            form_key_suffix="team_context",
         )
 
     _render_company_section(
@@ -1345,35 +1210,12 @@ def _render_open_questions_section(
     )
 
 
-def _render_working_model_section(job: JobAdExtract) -> None:
-    _render_company_section(
-        "Arbeitsmodell & Standort",
-        lambda: render_working_model_location_section(
-            job,
-            show_heading=False,
-            collapse_secondary_details=not _company_detail_sections_expanded_by_default(),
-        ),
-    )
-
-
-def _render_compliance_section() -> None:
-    _render_company_section(
-        "Non-negotiables / Compliance",
-        lambda: render_non_negotiables_compliance_section(
-            show_heading=False,
-            collapse_secondary_details=not _company_detail_sections_expanded_by_default(),
-        ),
-    )
-
-
 def _render_company_sections(
     *,
     job: JobAdExtract,
-    ctx: WizardContext,
     plan: QuestionPlan,
     open_question_step: QuestionStep | None,
     company_open_question_step: QuestionStep | None,
-    team_open_question_step: QuestionStep | None,
 ) -> None:
     render_error_banner()
     if is_focus_design_enabled():
@@ -1388,19 +1230,6 @@ def _render_company_sections(
     _render_open_questions_section(
         open_question_step=open_question_step,
         company_open_question_step=company_open_question_step,
-        team_open_question_step=team_open_question_step,
-    )
-    _render_focus_company_drilldown(
-        lambda: _render_team_context(job, ctx=ctx),
-        collapsed_label="Team & Berichtslinie bearbeiten",
-    )
-    _render_focus_company_drilldown(
-        lambda: _render_working_model_section(job),
-        collapsed_label="Arbeitsmodell & Standort bearbeiten",
-    )
-    _render_focus_company_drilldown(
-        _render_compliance_section,
-        collapsed_label="Non-negotiables / Compliance bearbeiten",
     )
 
 
@@ -1414,18 +1243,16 @@ def render(ctx: WizardContext) -> None:
         None,
     )
     open_question_step = _filtered_company_open_question_step(step_company)
-    company_open_question_step, team_open_question_step = (
+    company_open_question_step, _team_open_question_step = (
         _split_company_open_question_steps(open_question_step)
     )
 
     def _render_open_questions_slot() -> None:
         _render_company_sections(
             job=job,
-            ctx=ctx,
             plan=plan,
             open_question_step=open_question_step,
             company_open_question_step=company_open_question_step,
-            team_open_question_step=team_open_question_step,
         )
 
     def _render_review_slot() -> None:

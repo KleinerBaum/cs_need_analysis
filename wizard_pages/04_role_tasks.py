@@ -53,6 +53,7 @@ from ui_layout import (
     is_focus_design_enabled,
     render_step_shell,
     responsive_three_columns,
+    responsive_two_columns,
 )
 from wizard_pages.base import (
     WizardContext,
@@ -76,8 +77,9 @@ from wizard_pages.fact_inputs import (
     render_text_fact,
 )
 from wizard_pages.company_work_context import (
-    render_non_negotiables_compliance_section,
+    render_team_reporting_section,
     render_work_context_sections,
+    render_working_model_location_section,
 )
 from wizard_pages.salary_forecast_panel import render_role_tasks_salary_forecast_panel
 
@@ -618,7 +620,7 @@ def _render_structured_role_scope(
             "welche Verantwortung Recruiter vor der Suche verstanden haben müssen."
         )
     )
-    routing_col, clarification_col = st.columns(2, gap="large")
+    routing_col, context_col = st.columns(2, gap="large")
     with routing_col:
         with section_container(border=True):
             st.markdown("#### Suchsteuerung")
@@ -627,15 +629,27 @@ def _render_structured_role_scope(
                 "Recruiting-Kommunikation."
             )
             render_briefing_routing_controls(key_prefix="role_tasks.routing")
-    with clarification_col:
+    with context_col:
+        render_working_model_location_section(
+            job,
+            collapse_secondary_details=True,
+        )
+        render_team_reporting_section(
+            job,
+            collapse_secondary_details=True,
+        )
+
+    assumptions_col, gaps_col = responsive_two_columns(gap="large")
+    with assumptions_col:
         with section_container(border=True):
-            st.markdown("#### Rollenklärung")
             _render_string_list_text_area(
                 FactKey.ROLE_ASSUMPTIONS,
                 "Noch zu klärende Rollenannahmen",
                 default_items=job.gaps[:3],
                 height=142,
             )
+    with gaps_col:
+        with section_container(border=True):
             _render_string_list_text_area(
                 FactKey.ROLE_GAPS,
                 "Offene Aufgaben- oder Verantwortungslücken",
@@ -746,10 +760,6 @@ def _render_structured_role_scope(
             _render_success_timeline()
 
     st.markdown("### Suchstart-Guardrails")
-    render_non_negotiables_compliance_section(
-        heading="Nicht verhandelbar vor Suchstart",
-        collapse_secondary_details=True,
-    )
     _render_role_search_start_snapshot(job=job, selected_tasks=selected_task_options)
 
     travel_current = fact_value(FactKey.ROLE_TRAVEL_PROFILE, {})

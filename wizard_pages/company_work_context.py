@@ -15,6 +15,7 @@ from wizard_pages.fact_inputs import (
     render_multiselect_fact,
     render_number_fact,
     render_select_fact,
+    render_text_area_fact,
     render_text_fact,
     section_container,
     split_lines,
@@ -29,6 +30,13 @@ WORK_ARRANGEMENT_LABELS = {
     "unknown": "Noch unklar",
 }
 CEFR_LEVELS = ("A1", "A2", "B1", "B2", "C1", "C2")
+LEADERSHIP_LABELS = {
+    "individual_contributor": "Individual Contributor",
+    "fachliche_fuehrung": "Fachliche Führung",
+    "disziplinarische_fuehrung": "Disziplinarische Führung",
+    "beides": "Fachlich und disziplinarisch",
+    "unklar": "Noch unklar",
+}
 
 
 def _render_secondary_detail(
@@ -225,6 +233,103 @@ def render_non_negotiables_compliance_section(
             _render_secondary_compliance_details,
             collapsed=collapse_secondary_details,
         )
+
+
+def render_team_reporting_section(
+    job: JobAdExtract,
+    *,
+    show_heading: bool = True,
+    collapse_secondary_details: bool = False,
+) -> None:
+    with section_container(border=True):
+        if show_heading:
+            st.markdown("#### Team & Berichtslinie")
+        team_col, reports_to_col, scope_col = responsive_three_columns(gap="large")
+        with team_col:
+            render_text_fact(
+                FactKey.TEAM_NAME,
+                "Welches Team nimmt die Person auf?",
+                default=job.department_name or "",
+            )
+        with reports_to_col:
+            render_text_fact(
+                FactKey.COMPANY_REPORTS_TO,
+                "An wen berichtet die Rolle?",
+                default=job.reports_to or "",
+            )
+        with scope_col:
+            render_select_fact(
+                FactKey.TEAM_LEADERSHIP_SCOPE,
+                "Welche Führungsverantwortung hat die Rolle?",
+                options=tuple(LEADERSHIP_LABELS),
+                default="individual_contributor",
+                labels=LEADERSHIP_LABELS,
+            )
+
+        def _render_secondary_team_context() -> None:
+            department_col, direct_reports_col, team_size_col = (
+                responsive_three_columns(gap="large")
+            )
+            with department_col:
+                render_text_fact(
+                    FactKey.COMPANY_DEPARTMENT_NAME,
+                    "Abteilung / Fachbereich",
+                    default=job.department_name or "",
+                )
+            with direct_reports_col:
+                render_number_fact(
+                    FactKey.COMPANY_DIRECT_REPORTS_COUNT,
+                    "Wie viele Direct Reports hat die Rolle?",
+                    min_value=0,
+                    max_value=500,
+                    default=job.direct_reports_count or 0,
+                )
+            with team_size_col:
+                render_number_fact(
+                    FactKey.TEAM_SIZE_DIRECT,
+                    "Wie groß ist das unmittelbare Team?",
+                    min_value=0,
+                    max_value=500,
+                    default=job.direct_reports_count or 0,
+                )
+            render_multiselect_fact(
+                FactKey.TEAM_STAKEHOLDERS_PRIMARY,
+                "Mit welchen wichtigsten Stakeholdern arbeitet die Person regelmäßig?",
+                options=[
+                    "Fachbereich",
+                    "Management",
+                    "HR/Recruiting",
+                    "Sales",
+                    "Customer Success",
+                    "Operations",
+                    "Kund:innen",
+                    "Lieferanten/Partner",
+                    "Sonstiges",
+                ],
+            )
+            render_text_area_fact(
+                FactKey.TEAM_SUCCESS_CONTEXT_90D,
+                "Arbeitsweise im Team in den ersten 90 Tagen",
+                height=100,
+            )
+
+        _render_secondary_detail(
+            "Sekundäre Teamdetails",
+            _render_secondary_team_context,
+            collapsed=collapse_secondary_details,
+        )
+
+
+def append_context_to_team_success_fact(context_line: str) -> bool:
+    current = str(fact_value(FactKey.TEAM_SUCCESS_CONTEXT_90D, "") or "").strip()
+    addition = context_line.strip()
+    if not addition:
+        return False
+    if addition.casefold() in current.casefold():
+        return True
+    updated = f"{current}\n- {addition}".strip() if current else f"- {addition}"
+    persist_fact(FactKey.TEAM_SUCCESS_CONTEXT_90D, updated)
+    return True
 
 
 def render_work_context_sections(

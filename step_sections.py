@@ -92,18 +92,6 @@ _COMPANY_CONTEXT_FACT_KEYS: tuple[FactKey, ...] = (
     FactKey.COMPANY_COMPANY_NAME,
     FactKey.COMPANY_BRAND_NAME,
     FactKey.COMPANY_COMPANY_WEBSITE,
-    FactKey.COMPANY_LOCATION_CITY,
-    FactKey.COMPANY_LOCATION_COUNTRY,
-    FactKey.COMPANY_PLACE_OF_WORK,
-    FactKey.COMPANY_REMOTE_POLICY,
-    FactKey.COMPANY_WORK_ARRANGEMENT,
-    FactKey.COMPANY_OFFICE_DAYS_PER_WEEK,
-    FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES,
-    FactKey.COMPANY_LANGUAGE_INTERNAL,
-    FactKey.COMPANY_LANGUAGE_EXTERNAL,
-    FactKey.COMPANY_NON_NEGOTIABLES,
-    FactKey.COMPANY_COMPLIANCE_CONTEXT,
-    FactKey.COMPANY_TARIFF_CONTEXT,
 )
 _TEAM_CONTEXT_FACT_KEYS: tuple[FactKey, ...] = (
     FactKey.COMPANY_DEPARTMENT_NAME,
@@ -117,7 +105,6 @@ _TEAM_CONTEXT_FACT_KEYS: tuple[FactKey, ...] = (
 )
 _COMPANY_STRUCTURED_FACT_KEYS: tuple[FactKey, ...] = (
     *_COMPANY_CONTEXT_FACT_KEYS,
-    *_TEAM_CONTEXT_FACT_KEYS,
 )
 _WORK_CONTEXT_FACT_KEYS: tuple[FactKey, ...] = (
     FactKey.COMPANY_LOCATION_CITY,
@@ -129,6 +116,8 @@ _WORK_CONTEXT_FACT_KEYS: tuple[FactKey, ...] = (
     FactKey.COMPANY_ALLOWED_REGIONS_TIMEZONES,
     FactKey.COMPANY_LANGUAGE_INTERNAL,
     FactKey.COMPANY_LANGUAGE_EXTERNAL,
+)
+_COMPLIANCE_FACT_KEYS: tuple[FactKey, ...] = (
     FactKey.COMPANY_NON_NEGOTIABLES,
     FactKey.COMPANY_COMPLIANCE_CONTEXT,
     FactKey.COMPANY_TARIFF_CONTEXT,
@@ -193,6 +182,7 @@ _INTERVIEW_FACT_KEYS: tuple[FactKey, ...] = (
     FactKey.INTERVIEW_SCORECARD_TEMPLATE,
     FactKey.INTERVIEW_CORE_QUESTIONS,
     FactKey.INTERVIEW_COMPLIANCE_NOTES,
+    *_COMPLIANCE_FACT_KEYS,
 )
 
 _COMPANY_DISTINCT_FOLLOW_UP_QUESTION_IDS = frozenset(
@@ -246,11 +236,6 @@ _COMPANY_STEP_SECTIONS: tuple[StepSectionDef, ...] = (
             FactKey.COMPANY_COMPANY_NAME,
             FactKey.COMPANY_BRAND_NAME,
             FactKey.COMPANY_COMPANY_WEBSITE,
-            FactKey.COMPANY_LOCATION_CITY,
-            FactKey.COMPANY_LOCATION_COUNTRY,
-            FactKey.COMPANY_DEPARTMENT_NAME,
-            FactKey.COMPANY_REPORTS_TO,
-            FactKey.COMPANY_DIRECT_REPORTS_COUNT,
         ),
         completion_rule="any_fact",
         render_priority=20,
@@ -285,7 +270,11 @@ _ROLE_TASKS_STEP_SECTIONS: tuple[StepSectionDef, ...] = (
     _section(
         STEP_KEY_ROLE_TASKS,
         STEP_SECTION_SOURCE_COMPARISON,
-        fact_keys=(*_ROLE_TASKS_FACT_KEYS, *_WORK_CONTEXT_FACT_KEYS),
+        fact_keys=(
+            *_ROLE_TASKS_FACT_KEYS,
+            *_WORK_CONTEXT_FACT_KEYS,
+            *_TEAM_CONTEXT_FACT_KEYS,
+        ),
         completion_rule="any_fact",
         render_priority=10,
         open_question_fallback=False,
@@ -409,6 +398,17 @@ def get_step_structured_fact_keys(step_key: str) -> frozenset[FactKey]:
     return frozenset(fact_keys)
 
 
+def get_all_structured_fact_keys() -> frozenset[FactKey]:
+    """Return FactKeys with a canonical structured owner in any wizard step."""
+    fact_keys: set[FactKey] = set()
+    for sections in _STEP_SECTION_REGISTRY.values():
+        for section in sections:
+            if section.open_question_fallback:
+                continue
+            fact_keys.update(section.fact_keys)
+    return frozenset(fact_keys)
+
+
 def get_step_duplicate_exempt_question_ids(step_key: str) -> frozenset[str]:
     """Return question IDs that should stay visible despite FactKey ownership."""
     question_ids: set[str] = set()
@@ -512,6 +512,8 @@ def should_show_open_question(
         return True
     structured_fact_keys = get_step_structured_fact_keys(step_key)
     if any(fact_key in structured_fact_keys for fact_key in fact_keys):
+        return False
+    if any(fact_key in get_all_structured_fact_keys() for fact_key in fact_keys):
         return False
     return not any(
         is_fact_covered(

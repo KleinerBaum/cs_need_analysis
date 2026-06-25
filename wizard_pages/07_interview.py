@@ -65,6 +65,7 @@ from wizard_pages.fact_inputs import (
     section_container,
     split_lines,
 )
+from wizard_pages.company_work_context import render_non_negotiables_compliance_section
 
 
 def _normalize_values(values: list[str]) -> list[str]:
@@ -1221,6 +1222,10 @@ def _render_scorecard_preview(
 
 
 def _render_evaluation_inputs(stage_labels: list[str]) -> None:
+    render_non_negotiables_compliance_section(
+        heading="Non-negotiables / Compliance",
+        collapse_secondary_details=True,
+    )
     _render_assessment_evidence(stage_labels)
     _render_scorecard(stage_labels)
     st.markdown("#### Konsistenz für alle Kandidat:innen")

@@ -158,7 +158,6 @@ def test_company_open_questions_filter_structured_fact_key_duplicates() -> None:
     assert filtered_step is not None
     assert [question.id for question in filtered_step.questions] == [
         "ctx_confidential_external_narrative",
-        "ctx_same_label_distinct_fact",
     ]
 
 
@@ -282,8 +281,6 @@ def test_company_context_renders_new_section_order(monkeypatch) -> None:
     monkeypatch.setattr(company_module, "render_text_fact", lambda *_args, **_kwargs: "")
     monkeypatch.setattr(company_module, "render_text_area_fact", lambda *_args, **_kwargs: "")
     monkeypatch.setattr(company_module, "render_multiselect_fact", lambda *_args, **_kwargs: [])
-    monkeypatch.setattr(company_module, "render_select_fact", lambda *_args, **_kwargs: "")
-    monkeypatch.setattr(company_module, "render_number_fact", lambda *_args, **_kwargs: 0)
     monkeypatch.setattr(company_module, "fact_value", lambda *_args, **_kwargs: [])
     monkeypatch.setattr(company_module, "persist_fact", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(company_module, "render_error_banner", lambda: None)
@@ -295,32 +292,15 @@ def test_company_context_renders_new_section_order(monkeypatch) -> None:
     )
     monkeypatch.setattr(
         company_module,
-        "render_role_context_enrichment",
-        lambda **_kwargs: fake_st.markdown("ESCO-Kontext"),
-    )
-    monkeypatch.setattr(
-        company_module,
         "_render_website_enrichment",
         lambda *_args, **_kwargs: fake_st.markdown("Website-Body"),
-    )
-    monkeypatch.setattr(
-        company_module,
-        "render_working_model_location_section",
-        lambda *_args, **_kwargs: fake_st.markdown("Work-Body"),
-    )
-    monkeypatch.setattr(
-        company_module,
-        "render_non_negotiables_compliance_section",
-        lambda *_args, **_kwargs: fake_st.markdown("Compliance-Body"),
     )
 
     company_module._render_company_sections(
         job=JobAdExtract(),
-        ctx=SimpleNamespace(),
         plan=QuestionPlan(steps=[]),
         open_question_step=None,
         company_open_question_step=None,
-        team_open_question_step=None,
     )
 
     section_headings = [
@@ -331,9 +311,6 @@ def test_company_context_renders_new_section_order(monkeypatch) -> None:
         "#### Business-Kontext",
         "#### Arbeitgeberprofil",
         "#### Offene Fragen",
-        "#### Team & Berichtslinie",
-        "#### Arbeitsmodell & Standort",
-        "#### Non-negotiables / Compliance",
     ]
     value_statement_order = [
         caption
@@ -345,14 +322,8 @@ def test_company_context_renders_new_section_order(monkeypatch) -> None:
         company_module._COMPANY_SECTION_VALUE_STATEMENTS["Business-Kontext"],
         company_module._COMPANY_SECTION_VALUE_STATEMENTS["Arbeitgeberprofil"],
         company_module._COMPANY_SECTION_VALUE_STATEMENTS["Offene Fragen"],
-        company_module._COMPANY_SECTION_VALUE_STATEMENTS["Team & Berichtslinie"],
-        company_module._COMPANY_SECTION_VALUE_STATEMENTS["Arbeitsmodell & Standort"],
-        company_module._COMPANY_SECTION_VALUE_STATEMENTS[
-            "Non-negotiables / Compliance"
-        ],
     ]
     assert {
         ("Sekundärer Business-Kontext", False),
         ("Sekundäre Arbeitgeberdaten", False),
-        ("Sekundäre Teamdetails", False),
     } <= set(fake_st.expander_calls)
