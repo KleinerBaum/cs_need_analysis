@@ -572,7 +572,7 @@ def _render_question_limits_editor(
     heading = "##### Fragen pro Step" if compact else "#### Fragen pro Step"
     st.markdown(heading)
     st.caption(
-        "Wird automatisch aus Informationsgrad + Ansichtsmodus berechnet "
+        "Wird automatisch aus dem Detailgrad berechnet "
         f"({UI_DETAILS_DEFAULT_BY_MODE_TEXT})"
     )
 

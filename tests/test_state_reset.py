@@ -435,7 +435,7 @@ def test_reset_vacancy_clears_progressive_disclosure_state(
 
     for key, expected in RESET_EXPECTATIONS.items():
         assert fake_session_state[key.value] == expected
-    assert fake_session_state[SSKey.AUDIENCE_MODE.value] == "candidate"
+    assert fake_session_state[SSKey.AUDIENCE_MODE.value] == "recruiter"
     assert fake_session_state[SSKey.CURRENT_STEP.value] == STEP_KEY_INTRO
     store = StateStore(fake_session_state)
     assert store.jobspec_source().active == "manual"

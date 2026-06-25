@@ -23,9 +23,6 @@ import streamlit as st
 
 from constants import (
     AUDIENCE_MODE_DEFAULT,
-    AUDIENCE_MODE_DISPLAY_LABELS,
-    AUDIENCE_MODE_HELP_TEXT,
-    AUDIENCE_MODE_VALUES,
     COMPLETION_STATE_NOT_STARTED,
     COMPLETION_STATE_PREFIX_TOKENS,
     DEFAULT_ESCO_DATA_SOURCE_MODE,
@@ -1663,43 +1660,15 @@ def render_audience_mode_selector(
     widget_key: str | None = None,
     show_label: bool = True,
 ) -> str:
+    del sidebar, show_label
     audience_mode_key = widget_key or SSKey.AUDIENCE_MODE.value
-    radio = st.sidebar.radio if sidebar else st.radio
     normalized_mode = normalize_audience_mode(
         st.session_state.get(audience_mode_key, get_current_audience_mode())
     )
     st.session_state[audience_mode_key] = normalized_mode
-    selected_mode = radio(
-        "Ansichtsmodus",
-        options=list(AUDIENCE_MODE_VALUES),
-        key=audience_mode_key,
-        format_func=lambda mode: str(
-            t(AUDIENCE_MODE_DISPLAY_LABELS.get(mode, str(mode).capitalize()))
-        ),
-        help=str(t(AUDIENCE_MODE_HELP_TEXT)),
-        horizontal=True,
-        label_visibility="visible" if show_label else "collapsed",
-    )
-    normalized_selected = normalize_audience_mode(selected_mode)
     if audience_mode_key != SSKey.AUDIENCE_MODE.value:
-        st.session_state[SSKey.AUDIENCE_MODE.value] = normalized_selected
-    if normalized_selected == "candidate":
-        st.caption(
-            str(
-                t(
-                    "Kandidatenansicht: erklärt Erwartungen transparent und vermeidet interne Bewertungssprache."
-                )
-            )
-        )
-    else:
-        st.caption(
-            str(
-                t(
-                    "Recruiteransicht: priorisiert Lücken, Risiken, Konflikte und nächste Fragen."
-                )
-            )
-        )
-    return normalized_selected
+        st.session_state[SSKey.AUDIENCE_MODE.value] = normalized_mode
+    return normalized_mode
 
 
 def render_wizard_design_selector(

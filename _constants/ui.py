@@ -21,14 +21,10 @@ UI_MODE_DISPLAY_LABELS: Final[dict[str, str]] = {
 }
 AUDIENCE_MODE_RECRUITER: Final[str] = "recruiter"
 AUDIENCE_MODE_CANDIDATE: Final[str] = "candidate"
-AUDIENCE_MODE_VALUES: Final[tuple[str, str]] = (
-    AUDIENCE_MODE_RECRUITER,
-    AUDIENCE_MODE_CANDIDATE,
-)
+AUDIENCE_MODE_VALUES: Final[tuple[str, ...]] = (AUDIENCE_MODE_RECRUITER,)
 AUDIENCE_MODE_DEFAULT: Final[str] = AUDIENCE_MODE_RECRUITER
 AUDIENCE_MODE_DISPLAY_LABELS: Final[dict[str, str]] = {
     AUDIENCE_MODE_RECRUITER: "Recruiter",
-    AUDIENCE_MODE_CANDIDATE: "Kandidat:in",
 }
 AUDIENCE_MODE_HELP_TEXT: Final[str] = (
     "Steuert Antwortstil, Erklärungstiefe und CTA-Framing. "

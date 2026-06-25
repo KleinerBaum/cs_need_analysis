@@ -44,6 +44,7 @@ from llm_client import (
     TASK_GENERATE_VACANCY_BRIEF,
     resolve_model_for_task,
 )
+from audience import normalize_audience_mode
 from safe_html import render_static_html
 from settings_openai import load_openai_settings
 from state import (
@@ -61,7 +62,6 @@ from wizard_pages.base import (
     map_ui_mode_to_information_depth,
     map_ui_mode_to_answer_mode,
     normalize_ui_mode,
-    render_audience_mode_selector,
     sidebar_navigation,
 )
 
@@ -563,6 +563,9 @@ def _sync_language_before_render() -> None:
 def _render_preference_center_sidebar(
     *, key_prefix: str = "sidebar", show_reset_button: bool = True
 ) -> None:
+    st.session_state[SSKey.AUDIENCE_MODE.value] = normalize_audience_mode(
+        st.session_state.get(SSKey.AUDIENCE_MODE.value)
+    )
     raw_preferences = st.session_state.get(SSKey.UI_PREFERENCES.value)
     preferences = normalize_ui_preferences(raw_preferences)
     st.session_state[SSKey.UI_PREFERENCES.value] = preferences
@@ -581,7 +584,6 @@ def _render_preference_center_sidebar(
         "Detailgrad, Antwortmodus und Informationstiefe werden im Start-Schritt "
         "über eine gemeinsame Auswahl gesteuert."
     )
-    render_audience_mode_selector(widget_key=SSKey.AUDIENCE_MODE.value)
     wizard_design_value = str(
         preferences.get(UI_PREFERENCE_WIZARD_DESIGN, UI_WIZARD_DESIGN_DEFAULT)
     )

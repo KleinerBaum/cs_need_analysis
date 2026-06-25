@@ -1307,7 +1307,7 @@ Priority guide: `P1` visible wizard workflow copy, `P2` shared/public/helper cop
 | P2 | `ui` | `ui_job_extract.py:358` | Keine extrahierten Basiswerte mit Inhalt vorhanden. |
 | P2 | `ui` | `ui_job_extract.py:406` | Keine extrahierten Standort-/Org-Werte mit Inhalt vorhanden. |
 | P2 | `ui` | `ui_job_extract.py:494` | Einige Eingaben sind ungültig und wurden nicht übernommen. Bitte Felder prüfen. |
-| P2 | `ui` | `ui_job_extract.py:514` | Wird automatisch aus Informationsgrad + Ansichtsmodus berechnet ({...}) |
+| P2 | `ui` | `ui_job_extract.py:514` | Wird automatisch aus dem Detailgrad berechnet ({...}) |
 | P2 | `ui` | `ui_job_extract.py:536` | Maximal {...} verfügbare Fragen in diesem Step. |
 | P2 | `ui` | `ui_layout.py:258` | ⬜ Offen |
 | P2 | `ui` | `ui_layout.py:259` | 0/0 beantwortet |

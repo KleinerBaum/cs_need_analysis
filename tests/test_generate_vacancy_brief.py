@@ -268,7 +268,7 @@ def test_generate_vacancy_brief_returns_cached_brief_without_parse(
     assert list(cache)[-1] == cache_key
 
 
-def test_generate_vacancy_brief_accepts_candidate_audience_mode(
+def test_generate_vacancy_brief_normalizes_legacy_candidate_audience_mode(
     monkeypatch,
 ) -> None:
     captured: dict[str, Any] = {}
@@ -309,8 +309,8 @@ def test_generate_vacancy_brief_accepts_candidate_audience_mode(
     )
 
     system_prompt = captured["messages"][0]["content"]
-    assert "Audience mode: candidate" in system_prompt
-    assert "avoid internal scoring language" in system_prompt
+    assert "Audience mode: recruiter" in system_prompt
+    assert "avoid internal scoring language" not in system_prompt
 
 
 def test_generate_vacancy_brief_includes_selected_role_tasks_skills_and_benefits(

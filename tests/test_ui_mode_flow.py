@@ -7,7 +7,6 @@ from streamlit.errors import StreamlitAPIException
 import wizard_pages.base as base
 import wizard_pages.salary_forecast as salary_forecast
 from constants import (
-    AUDIENCE_MODE_CANDIDATE,
     AUDIENCE_MODE_DEFAULT,
     AUDIENCE_MODE_RECRUITER,
     SSKey,
@@ -186,10 +185,10 @@ def test_render_wizard_design_selector_preserves_widget_selection(monkeypatch) -
     )
 
 
-def test_render_audience_mode_selector_persists_candidate_mode(monkeypatch) -> None:
-    session_state = _LockedSessionState(
-        {SSKey.AUDIENCE_MODE.value: AUDIENCE_MODE_CANDIDATE}
-    )
+def test_render_audience_mode_selector_normalizes_legacy_candidate_mode(
+    monkeypatch,
+) -> None:
+    session_state = _LockedSessionState({SSKey.AUDIENCE_MODE.value: "candidate"})
     fake_st = _FakeStreamlit(session_state)
     monkeypatch.setattr(base, "st", fake_st)
 
@@ -197,17 +196,19 @@ def test_render_audience_mode_selector_persists_candidate_mode(monkeypatch) -> N
         widget_key=SSKey.AUDIENCE_MODE.value
     )
 
-    assert selected_mode == AUDIENCE_MODE_CANDIDATE
-    assert session_state[SSKey.AUDIENCE_MODE.value] == AUDIENCE_MODE_CANDIDATE
+    assert selected_mode == AUDIENCE_MODE_DEFAULT
+    assert session_state[SSKey.AUDIENCE_MODE.value] == AUDIENCE_MODE_DEFAULT
+    assert fake_st.caption_calls == []
 
 
 def test_audience_helpers_normalize_and_build_prompt_instructions() -> None:
     assert base.normalize_audience_mode("invalid") == AUDIENCE_MODE_DEFAULT
+    assert base.normalize_audience_mode("candidate") == AUDIENCE_MODE_DEFAULT
     assert base.normalize_audience_mode(AUDIENCE_MODE_RECRUITER) == "recruiter"
     assert "evidence conflicts" in base.build_audience_instructions("recruiter")
-    assert "avoid internal scoring language" in base.build_audience_instructions(
-        "candidate"
-    )
+    legacy_candidate_instructions = base.build_audience_instructions("candidate")
+    assert "Audience mode: recruiter" in legacy_candidate_instructions
+    assert "avoid internal scoring language" not in legacy_candidate_instructions
 
 
 def test_visible_step_set_for_ui_mode_navigation_excludes_team_step() -> None:

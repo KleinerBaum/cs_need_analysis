@@ -7,6 +7,7 @@ from typing import Any, Final
 
 import streamlit as st
 
+from audience import normalize_audience_mode
 from constants import (
     AnswerType,
     DEFAULT_ESCO_DATA_SOURCE_MODE,
@@ -89,7 +90,6 @@ from wizard_pages.base import (
     WizardContext,
     _get_esco_config,
     _set_esco_config,
-    render_audience_mode_selector,
     render_wizard_design_selector,
     render_ui_mode_selector,
 )
@@ -1230,7 +1230,9 @@ def _render_source_upload_status() -> None:
 
 def _render_phase_a_configuration_controls() -> None:
     st.markdown(str(t("#### Briefing-Steuerung")))
-    render_audience_mode_selector()
+    st.session_state[SSKey.AUDIENCE_MODE.value] = normalize_audience_mode(
+        st.session_state.get(SSKey.AUDIENCE_MODE.value)
+    )
     render_ui_mode_selector()
     render_wizard_design_selector()
 

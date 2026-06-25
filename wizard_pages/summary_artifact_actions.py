@@ -13,7 +13,6 @@ from typing import Any, Callable, Final, Mapping, Protocol, Sequence, TypedDict
 import streamlit as st
 import docx
 
-from audience import is_candidate_audience, normalize_audience_mode
 from i18n import active_language
 from constants import (
     INTAKE_FACTS,
@@ -291,9 +290,6 @@ def _artifact_current_fingerprint(vm: SummaryViewModel, artifact_id: str) -> str
         "artifact_id": artifact_id,
         "options": _read_artifact_options(artifact_id),
         "change_request": _read_artifact_change_request(artifact_id),
-        "audience_mode": normalize_audience_mode(
-            st.session_state.get(SSKey.AUDIENCE_MODE.value)
-        ),
     }
     serialized = json.dumps(
         payload,
@@ -600,25 +596,12 @@ def _build_action_registry(
         language=language,
         **params,
     )
-    candidate_view = is_candidate_audience(
-        st.session_state.get(SSKey.AUDIENCE_MODE.value)
-    )
-
-    def cta(default_key: str, candidate_de: str, candidate_en: str) -> str:
-        if not candidate_view:
-            return c(default_key)
-        return candidate_en if language == "en" else candidate_de
-
     return [
         {
             "id": "brief",
             "title": _artifact_display_label("brief", language=language),
             "benefit": c("brief_benefit"),
-            "cta_label": cta(
-                "brief_cta",
-                "Brief verständlich erklären",
-                "Explain brief clearly",
-            ),
+            "cta_label": c("brief_cta"),
             "blocked_cta_label": None,
             "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
             "requirement_text": c("brief_requirement"),
@@ -636,11 +619,7 @@ def _build_action_registry(
             "id": "job_ad",
             "title": _artifact_display_label("job_ad", language=language),
             "benefit": c("job_ad_benefit"),
-            "cta_label": cta(
-                "job_ad_cta",
-                "Kandidatenansicht erstellen",
-                "Create candidate view",
-            ),
+            "cta_label": c("job_ad_cta"),
             "blocked_cta_label": None,
             "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
             "requirement_text": c("brief_requirement"),
@@ -654,11 +633,7 @@ def _build_action_registry(
             "id": "interview_hr",
             "title": _artifact_display_label("interview_hr", language=language),
             "benefit": c("hr_benefit"),
-            "cta_label": cta(
-                "hr_cta",
-                "Interview-Erwartungen erklären",
-                "Explain interview expectations",
-            ),
+            "cta_label": c("hr_cta"),
             "blocked_cta_label": None,
             "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
             "requirement_text": c("brief_requirement"),
@@ -676,11 +651,7 @@ def _build_action_registry(
             "id": "interview_fach",
             "title": _artifact_display_label("interview_fach", language=language),
             "benefit": c("fach_benefit"),
-            "cta_label": cta(
-                "fach_cta",
-                "Fachgespräch transparent machen",
-                "Make technical interview transparent",
-            ),
+            "cta_label": c("fach_cta"),
             "blocked_cta_label": None,
             "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
             "requirement_text": c("brief_requirement"),
@@ -698,11 +669,7 @@ def _build_action_registry(
             "id": "boolean_search",
             "title": _artifact_display_label("boolean_search", language=language),
             "benefit": c("boolean_benefit"),
-            "cta_label": cta(
-                "boolean_cta",
-                "Suchprofil verständlich machen",
-                "Clarify search profile",
-            ),
+            "cta_label": c("boolean_cta"),
             "blocked_cta_label": None,
             "requires": (SSKey.JOB_EXTRACT, SSKey.QUESTION_PLAN),
             "requirement_text": c("brief_requirement"),

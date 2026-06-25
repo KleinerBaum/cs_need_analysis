@@ -5,7 +5,6 @@ from typing import Any
 import app
 import wizard_pages.base as base
 from constants import (
-    AUDIENCE_MODE_DEFAULT,
     SSKey,
     UI_LANGUAGE_WIDGET_KEY_SIDEBAR,
     UI_PREFERENCE_ANSWER_MODE,
@@ -72,7 +71,7 @@ def test_preference_center_defaults_pii_reduction_on_when_missing(monkeypatch) -
     fake_st = _FakePreferenceStreamlit(
         {
             SSKey.UI_MODE.value: UI_MODE_DEFAULT,
-            SSKey.AUDIENCE_MODE.value: AUDIENCE_MODE_DEFAULT,
+            SSKey.AUDIENCE_MODE.value: "candidate",
             SSKey.UI_PREFERENCES.value: {},
         }
     )
@@ -110,7 +109,7 @@ def test_preference_center_defaults_pii_reduction_on_when_missing(monkeypatch) -
     assert "Sprache" not in fake_st.selectbox_labels
     assert "Antwortmodus" not in fake_st.selectbox_labels
     assert "Informationstiefe" not in fake_st.selectbox_labels
-    assert "Ansichtsmodus" in fake_st.radio_labels
+    assert "Ansichtsmodus" not in fake_st.radio_labels
     assert fake_st.session_state[SSKey.AUDIENCE_MODE.value] == "recruiter"
 
 
