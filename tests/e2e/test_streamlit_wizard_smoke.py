@@ -30,6 +30,7 @@ SYNTHETIC_JOBSPEC = (
     "Synthetic Product Analyst vacancy. Build dashboards, clarify metrics, "
     "and work with stakeholders. Skills: SQL, Python, experimentation."
 )
+CAPTURE_SCREENSHOTS = os.getenv("CS_E2E_CAPTURE_SCREENSHOTS") == "1"
 
 
 def _e2e_port() -> int:
@@ -135,6 +136,14 @@ def _expect(target: object) -> Any:
     return expect(target)
 
 
+def _capture_screenshot(page: "Page", name: str) -> None:
+    if not CAPTURE_SCREENSHOTS:
+        return
+    screenshot_dir = ROOT_DIR / "reports" / "visual-regression"
+    screenshot_dir.mkdir(parents=True, exist_ok=True)
+    page.screenshot(path=screenshot_dir / f"{name}.png", full_page=True)
+
+
 def test_landing_jobspec_input_and_step_navigation(
     streamlit_base_url: str, page: "Page"
 ) -> None:
@@ -143,9 +152,11 @@ def test_landing_jobspec_input_and_step_navigation(
     _expect(
         page.get_by_role("heading", name="Erst klären. Dann suchen.")
     ).to_be_visible(timeout=30_000)
+    _capture_screenshot(page, "landing")
     page.get_by_role("button", name="Briefing-Cockpit öffnen").click()
 
     _expect(page.get_by_text("Anzeige hochladen oder einfügen")).to_be_visible()
+    _capture_screenshot(page, "start-intake")
     source_input = page.get_by_label("Jobspec oder Rohtext für das Briefing einfügen")
     source_input.fill(SYNTHETIC_JOBSPEC)
     _expect(source_input).to_have_value(SYNTHETIC_JOBSPEC)
@@ -165,6 +176,7 @@ def test_summary_artifact_download_smoke(streamlit_base_url: str, page: "Page") 
     _expect(
         page.get_by_text("Alles bereit für Recruiting und Hiring-Team").first
     ).to_be_visible(timeout=30_000)
+    _capture_screenshot(page, "summary")
     _expect(
         page.get_by_role("button", name=re.compile("Recruiting Brief")).first
     ).to_be_visible()

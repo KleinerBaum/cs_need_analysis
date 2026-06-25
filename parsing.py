@@ -9,7 +9,7 @@ import unicodedata
 import zipfile
 from pathlib import Path
 from typing import Any, Dict, Tuple
-from xml.etree import ElementTree
+from defusedxml import ElementTree
 
 import docx  # python-docx
 import pdfplumber

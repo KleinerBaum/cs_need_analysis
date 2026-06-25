@@ -34,7 +34,10 @@ EXPECTED_CI_JOB_IDS = [
     "contract",
     "unit",
     "apptest",
+    "deployment_observability",
     "browser_smoke",
+    "visual_regression",
+    "deployed_smoke",
     "security",
 ]
 

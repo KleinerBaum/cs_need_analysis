@@ -220,7 +220,10 @@ def _build_esco_concept_id(concept: dict[str, Any], index: int) -> str:
 
     title = str(concept.get("title") or "").strip() or "untitled"
     stable_source = f"{title.lower()}::{index}"
-    digest = hashlib.sha1(stable_source.encode("utf-8")).hexdigest()[:12]
+    digest = hashlib.sha1(
+        stable_source.encode("utf-8"),
+        usedforsecurity=False,
+    ).hexdigest()[:12]
     return f"fallback-{digest}"
 
 

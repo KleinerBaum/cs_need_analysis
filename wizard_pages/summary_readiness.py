@@ -1648,7 +1648,9 @@ def _summary_fact_row_id(row: SummaryFactsRow) -> str:
             row.quelle,
         )
     )
-    return hashlib.sha1(source.encode("utf-8")).hexdigest()[:12]
+    return hashlib.sha1(source.encode("utf-8"), usedforsecurity=False).hexdigest()[
+        :12
+    ]
 
 
 def _summary_visible_fact_rows(vm: SummaryViewModel) -> list[SummaryFactsRow]:

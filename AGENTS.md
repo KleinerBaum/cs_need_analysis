@@ -441,7 +441,7 @@ Repo-local QA config is intentionally scoped in `pyproject.toml`: Ruff, Black, m
 - For this repo, the practical quality gate is targeted pytest, syntax compilation, scoped QA checks, and smoke tests where relevant.
 - AppTest smoke tests use the `apptest` marker in `pytest.ini` and the Streamlit runtime dependency.
 - Optional/advisory browser smoke tests use the `e2e` marker in `pytest.ini` and Playwright dependencies from `requirements-e2e.txt`.
-- Current CI job IDs in `.github/workflows/ci.yml` are `qa`, `contract`, `unit`, `apptest`, `browser_smoke`, and `security`.
+- Current CI job IDs in `.github/workflows/ci.yml` are `qa`, `contract`, `unit`, `apptest`, `deployment_observability`, `browser_smoke`, `visual_regression`, `deployed_smoke`, and `security`.
 - If the task explicitly asks for lint/type tooling, propose it as a separate small PR.
 
 ## Do-not-touch areas without explicit request

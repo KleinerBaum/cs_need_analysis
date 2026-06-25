@@ -53,7 +53,9 @@ def _compact(value: Any) -> str:
 
 def _row_id(*parts: str) -> str:
     source = "||".join(_compact(part).casefold() for part in parts)
-    return hashlib.sha1(source.encode("utf-8")).hexdigest()[:12]
+    return hashlib.sha1(source.encode("utf-8"), usedforsecurity=False).hexdigest()[
+        :12
+    ]
 
 
 def _add_row(

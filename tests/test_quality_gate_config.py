@@ -33,10 +33,16 @@ def _requirement_names(path: str) -> set[str]:
     return names
 
 
-def test_ruff_starts_with_critical_check_only_rules() -> None:
+def test_ruff_starts_with_staged_critical_rules() -> None:
     config = _load_pyproject()
 
-    assert config["tool"]["ruff"]["lint"]["select"] == ["E9", "F63", "F7", "F82"]
+    assert config["tool"]["ruff"]["lint"]["select"] == [
+        "E9",
+        "F63",
+        "F7",
+        "F82",
+        "F541",
+    ]
     assert "reports" in config["tool"]["ruff"]["extend-exclude"]
     assert config["tool"]["ruff"]["lint"]["per-file-ignores"] == {
         "wizard_pages/08_summary.py": ["F821"]
@@ -65,10 +71,22 @@ def test_mypy_uses_permissive_selected_module_baseline() -> None:
         "usage_utils.py",
         "summary_artifacts.py",
         "eures_mapping.py",
+        "esco_matrix.py",
+        "esco_offline_index.py",
+        "esco_rag.py",
+        "salary/benchmarks.py",
+        "salary/engine.py",
+        "salary/features_esco.py",
+        "salary/mapping.py",
+        "salary/scenario_lab_builders.py",
+        "salary/scenarios.py",
+        "salary/types.py",
         "ui_widget_state.py",
         "ux_copy_contract.py",
         "scripts/check_repo_hygiene.py",
     ]
+    assert "llm_client.py" not in mypy["files"]
+    assert "state.py" not in mypy["files"]
     assert mypy["ignore_missing_imports"] is True
     assert mypy["follow_imports"] == "silent"
     assert mypy["disallow_untyped_defs"] is False
@@ -83,10 +101,22 @@ def test_pyright_uses_staged_selected_module_baseline() -> None:
         "usage_utils.py",
         "summary_artifacts.py",
         "eures_mapping.py",
+        "esco_matrix.py",
+        "esco_offline_index.py",
+        "esco_rag.py",
+        "salary/benchmarks.py",
+        "salary/engine.py",
+        "salary/features_esco.py",
+        "salary/mapping.py",
+        "salary/scenario_lab_builders.py",
+        "salary/scenarios.py",
+        "salary/types.py",
         "ui_widget_state.py",
         "ux_copy_contract.py",
         "scripts/check_repo_hygiene.py",
     ]
+    assert "llm_client.py" not in pyright["include"]
+    assert "state.py" not in pyright["include"]
     assert pyright["pythonVersion"] == "3.11"
     assert pyright["typeCheckingMode"] == "basic"
     assert pyright["reportMissingImports"] == "none"
@@ -109,6 +139,7 @@ def test_runtime_requirements_exclude_dev_and_test_tools() -> None:
     assert {"ruff", "black", "mypy", "pyright", "bandit", "playwright"}.isdisjoint(
         runtime_names
     )
+    assert "defusedxml" in runtime_names
 
 
 def test_dev_requirements_cover_configured_qa_and_test_tools() -> None:
@@ -119,6 +150,8 @@ def test_dev_requirements_cover_configured_qa_and_test_tools() -> None:
         "mypy",
         "pyright",
         "bandit",
+        "pip-audit",
+        "pytest-cov",
     } <= _requirement_names("requirements-dev.txt")
 
 
@@ -134,9 +167,10 @@ def test_pytest_registers_app_and_e2e_markers() -> None:
     assert "CS_RUN_E2E=1" in pytest_ini
 
 
-def test_ci_contains_blocking_qa_and_advisory_security_jobs() -> None:
+def test_ci_contains_blocking_qa_and_security_jobs() -> None:
     workflow = _read(".github/workflows/ci.yml")
     qa_job = workflow.split("  qa:", 1)[1].split("  contract:", 1)[0]
+    security_job = workflow.split("  security:", 1)[1]
 
     assert "permissions:\n  contents: read" in workflow
     assert 'CS_ALERT_P95_LATENCY_MS: "8000"' in workflow
@@ -153,14 +187,32 @@ def test_ci_contains_blocking_qa_and_advisory_security_jobs() -> None:
     assert "python -m mypy" in workflow
     assert "python -m pyright" in workflow
     assert "security:" in workflow
-    assert "continue-on-error: true" in workflow
+    gitleaks_step = security_job.split("      - name: Gitleaks secret scan", 1)[
+        1
+    ].split("      - name: Dependency review advisory scan", 1)[0]
+    bandit_step = security_job.split(
+        "      - name: Bandit blocking high and medium scan",
+        1,
+    )[1].split("      - name: pip-audit dependency vulnerability scan", 1)[0]
+    pip_audit_step = security_job.split(
+        "      - name: pip-audit dependency vulnerability scan",
+        1,
+    )[1].split("      - name: Tracked artifact drift scan", 1)[0]
+    assert "continue-on-error: true" not in gitleaks_step
+    assert "continue-on-error: true" not in bandit_step
+    assert "continue-on-error: true" not in pip_audit_step
     assert "fetch-depth: 0" in workflow
     assert "gitleaks/gitleaks-action@v3" in workflow
     assert 'GITLEAKS_ENABLE_COMMENTS: "false"' in workflow
     assert 'GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"' in workflow
     assert 'GITLEAKS_ENABLE_SUMMARY: "false"' in workflow
     assert "actions/dependency-review-action@v4" in workflow
-    assert "python -m bandit -c pyproject.toml -r ." in workflow
+    assert (
+        "python -m bandit -c pyproject.toml -r . --severity-level medium "
+        "--confidence-level medium"
+    ) in workflow
+    assert "pip install -r requirements-e2e.txt -c constraints.txt" in security_job
+    assert "python -m pip_audit --local --strict --progress-spinner off" in workflow
     assert "python scripts/check_tracked_artifacts.py" in workflow
 
 
@@ -184,11 +236,15 @@ def test_ci_wires_contract_unit_and_apptest_layers() -> None:
     assert "python -m pytest -q tests \\" in unit_job
     assert "--ignore=tests/e2e" in unit_job
     assert "--ignore=tests/apptest" in unit_job
+    assert "--cov=." in unit_job
+    assert "--cov-report=xml:reports/coverage/unit-coverage.xml" in unit_job
+    assert "--cov-fail-under=35" in unit_job
     assert "--junitxml=reports/junit/unit.xml" in unit_job
     assert "python scripts/openai_smoke_test.py \\" in unit_job
     assert "--json-only > reports/openai-smoke.json" in unit_job
     assert "python scripts/ci_observability_report.py \\" in unit_job
     assert "reports/observability/deployment-events.jsonl" in unit_job
+    assert "reports/coverage/unit-coverage.xml" in unit_job
     assert "python -m pytest -q tests/apptest" in apptest_job
     assert "--junitxml=reports/junit/apptest.xml" in apptest_job
 
@@ -389,6 +445,30 @@ def test_ci_wires_advisory_browser_smoke_job() -> None:
     assert "ci-browser-smoke-junit" in browser_job
 
 
+def test_ci_wires_visual_regression_and_deployed_smoke_jobs() -> None:
+    workflow = _read(".github/workflows/ci.yml")
+    visual_job = workflow.split("  visual_regression:", 1)[1].split(
+        "  deployed_smoke:",
+        1,
+    )[0]
+    deployed_job = workflow.split("  deployed_smoke:", 1)[1].split("  security:", 1)[0]
+
+    assert "run_visual_regression:" in workflow
+    assert "visual_regression:" in workflow
+    assert "continue-on-error: true" in visual_job
+    assert 'CS_E2E_CAPTURE_SCREENSHOTS: "1"' in visual_job
+    assert "tests/e2e/test_streamlit_wizard_smoke.py" in visual_job
+    assert "reports/visual-regression/*.png" in visual_job
+    assert "ci-visual-regression-artifacts" in visual_job
+
+    assert "deployed_smoke:" in workflow
+    assert "continue-on-error: true" not in deployed_job
+    assert "CS_DEPLOYED_BASE_URL: ${{ vars.CS_DEPLOYED_BASE_URL }}" in deployed_job
+    assert "tests/e2e/test_deployed_smoke.py" in deployed_job
+    assert "--junitxml=reports/junit/deployed-smoke.xml" in deployed_job
+    assert "ci-deployed-smoke-junit" in deployed_job
+
+
 def test_ci_uses_compact_junit_summary_script() -> None:
     workflow = _read(".github/workflows/ci.yml")
 
@@ -399,3 +479,38 @@ def test_ci_uses_compact_junit_summary_script() -> None:
         "python scripts/ci_junit_summary.py reports/junit/browser-smoke.xml"
         in workflow
     )
+    assert (
+        "python scripts/ci_junit_summary.py reports/junit/visual-regression.xml"
+        in workflow
+    )
+    assert (
+        "python scripts/ci_junit_summary.py reports/junit/deployed-smoke.xml"
+        in workflow
+    )
+
+
+def test_codeql_workflow_scans_python_with_security_quality_queries() -> None:
+    workflow = _read(".github/workflows/codeql.yml")
+
+    assert "name: CodeQL" in workflow
+    assert "pull_request:" in workflow
+    assert "schedule:" in workflow
+    assert "security-events: write" in workflow
+    assert "github/codeql-action/init@v4" in workflow
+    assert "github/codeql-action/analyze@v4" in workflow
+    assert "languages: python" in workflow
+    assert "queries: security-and-quality" in workflow
+
+
+def test_quality_gate_baseline_documents_deferred_expansions() -> None:
+    baseline = _read("docs/quality_gate_baseline.md")
+
+    assert "Ruff" in baseline
+    assert "F541" in baseline
+    assert "Black reports formatting changes" in baseline
+    assert "llm_client.py" in baseline
+    assert "state.py" in baseline
+    assert "Bandit is blocking for Medium/High" in baseline
+    assert "pip-audit" in baseline
+    assert "CodeQL" in baseline
+    assert "CS_DEPLOYED_BASE_URL" in baseline

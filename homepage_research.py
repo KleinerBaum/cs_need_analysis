@@ -759,7 +759,10 @@ def _append_fact_candidate(
     if identity in seen:
         return
     seen.add(identity)
-    candidate_hash = sha1("|".join(identity).encode("utf-8")).hexdigest()[:12]
+    candidate_hash = sha1(
+        "|".join(identity).encode("utf-8"),
+        usedforsecurity=False,
+    ).hexdigest()[:12]
     candidates.append(
         {
             "candidate_id": f"{fact_key.value}:{source_topic}:{candidate_hash}",
@@ -1341,7 +1344,7 @@ def _is_disallowed_hostname(hostname: str) -> bool:
     normalized = hostname.strip().strip("[]").casefold()
     if not normalized:
         return True
-    if normalized in {"localhost", "0.0.0.0"} or normalized.endswith(".localhost"):
+    if normalized in {"localhost", "0.0.0.0"} or normalized.endswith(".localhost"):  # nosec B104
         return True
     try:
         address = ipaddress.ip_address(normalized)
@@ -1432,7 +1435,7 @@ def _host_negative_cache_key(hostname: str | None) -> str | None:
 
 
 def _negative_cache_key(scope: str, value: str) -> str:
-    digest = sha1(value.encode("utf-8")).hexdigest()[:20]
+    digest = sha1(value.encode("utf-8"), usedforsecurity=False).hexdigest()[:20]
     return f"{scope}:{digest}"
 
 

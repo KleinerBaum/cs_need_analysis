@@ -45,7 +45,9 @@ def _slug(value: str) -> str:
 
 def _stable_skill_group_id(*, skill_group_uri: str, skill_group_label: str) -> str:
     seed = skill_group_uri or skill_group_label or "unknown"
-    digest = hashlib.sha1(seed.encode("utf-8")).hexdigest()[:10]
+    digest = hashlib.sha1(seed.encode("utf-8"), usedforsecurity=False).hexdigest()[
+        :10
+    ]
     return f"skill-group-{_slug(skill_group_label or skill_group_uri)}-{digest}"
 
 

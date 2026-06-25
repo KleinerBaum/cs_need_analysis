@@ -604,20 +604,28 @@ Useful environment overrides:
 
 `.github/workflows/ci.yml` runs on pull requests and pushes to `main`:
 
-Current job IDs are `qa`, `contract`, `unit`, `apptest`, `browser_smoke`, and
-`security`.
+Current job IDs are `qa`, `contract`, `unit`, `apptest`,
+`deployment_observability`, `browser_smoke`, `visual_regression`,
+`deployed_smoke`, and `security`.
 
 1. `qa`: blocking repo hygiene, Ruff, scoped Black, scoped mypy, and scoped Pyright gates with `requirements-dev.txt`
 2. `contract`: blocking fast repo/wizard/config contract tests with JUnit upload
-3. `unit`: blocking Python unit suite excluding AppTest and E2E tests, plus `pip check`, `compileall`, and OpenAI smoke dry-run report upload
+3. `unit`: blocking Python unit suite excluding AppTest and E2E tests, plus `pip check`, `compileall`, coverage XML/threshold, and OpenAI smoke dry-run report upload
 4. `apptest`: blocking Streamlit AppTest smoke tests through `streamlit.testing.v1`
-5. `browser_smoke`: advisory Playwright Streamlit smoke tests with JUnit upload
-6. `security`: advisory Gitleaks, Bandit, and tracked-artifact drift scans with `continue-on-error`
+5. `deployment_observability`: OIDC-ready deployment observability log emission
+6. `browser_smoke`: advisory Playwright Streamlit smoke tests with JUnit upload
+7. `visual_regression`: advisory Playwright screenshot capture for central wizard screens
+8. `deployed_smoke`: deployed landing-page smoke test against `CS_DEPLOYED_BASE_URL`
+9. `security`: blocking Gitleaks, Bandit Medium/High, and pip-audit scans; dependency review and tracked-artifact drift remain advisory
 
 The Playwright smoke job runs advisory on pull requests and pushes. It is also
 available through manual workflow dispatch with `run_e2e=true` as job ID
 `browser_smoke`. It installs `requirements-e2e.txt`, installs Chromium, and runs
 `CS_RUN_E2E=1 python -m pytest -q tests/e2e --junitxml=reports/junit/browser-smoke.xml`.
+
+`.github/workflows/codeql.yml` runs CodeQL Python analysis with
+`security-and-quality` queries on pull requests, pushes to `main`, a weekly
+schedule, and manual dispatch.
 
 ## Debugging and incident reports
 

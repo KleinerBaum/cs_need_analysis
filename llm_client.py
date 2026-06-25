@@ -869,7 +869,7 @@ def _raise_missing_api_key_hint() -> None:
 
 
 def _safe_hash(text: str, n: int = 10) -> str:
-    return hashlib.sha1(text.encode("utf-8")).hexdigest()[:n]
+    return hashlib.sha1(text.encode("utf-8"), usedforsecurity=False).hexdigest()[:n]
 
 
 def _canonicalize_for_cache(value: Any) -> str:

@@ -677,7 +677,8 @@ def _jobspec_note_summary(gaps: list[str], assumptions: list[str]) -> str:
 
 def _jobspec_assumption_answer_id(*, step_key: str, note: str) -> str:
     note_hash = hashlib.sha1(
-        _normalize_jobspec_note(note).casefold().encode("utf-8")
+        _normalize_jobspec_note(note).casefold().encode("utf-8"),
+        usedforsecurity=False,
     ).hexdigest()[:12]
     return f"{JOBSPEC_ASSUMPTION_ANSWER_ID_PREFIX}{step_key}.{note_hash}"
 

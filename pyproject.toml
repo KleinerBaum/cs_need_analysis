@@ -14,7 +14,7 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E9", "F63", "F7", "F82"]
+select = ["E9", "F63", "F7", "F82", "F541"]
 
 [tool.ruff.lint.per-file-ignores]
 # Existing Summary-page references are triaged separately from the first gate.
@@ -52,6 +52,16 @@ files = [
     "usage_utils.py",
     "summary_artifacts.py",
     "eures_mapping.py",
+    "esco_matrix.py",
+    "esco_offline_index.py",
+    "esco_rag.py",
+    "salary/benchmarks.py",
+    "salary/engine.py",
+    "salary/features_esco.py",
+    "salary/mapping.py",
+    "salary/scenario_lab_builders.py",
+    "salary/scenarios.py",
+    "salary/types.py",
     "ui_widget_state.py",
     "ux_copy_contract.py",
     "scripts/check_repo_hygiene.py",
@@ -69,6 +79,16 @@ include = [
     "usage_utils.py",
     "summary_artifacts.py",
     "eures_mapping.py",
+    "esco_matrix.py",
+    "esco_offline_index.py",
+    "esco_rag.py",
+    "salary/benchmarks.py",
+    "salary/engine.py",
+    "salary/features_esco.py",
+    "salary/mapping.py",
+    "salary/scenario_lab_builders.py",
+    "salary/scenarios.py",
+    "salary/types.py",
     "ui_widget_state.py",
     "ux_copy_contract.py",
     "scripts/check_repo_hygiene.py",

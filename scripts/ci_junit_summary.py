@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import os
 from pathlib import Path
-import xml.etree.ElementTree as ET
+import defusedxml.ElementTree as ET
 
 
 def _int_attr(element: ET.Element, name: str) -> int:
