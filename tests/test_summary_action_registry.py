@@ -347,8 +347,8 @@ def test_has_required_state_requires_all_truthy_values(monkeypatch) -> None:
     )
 
 
-def test_follow_up_actions_describe_explicit_brief_dependency() -> None:
-    """Expected vs Actual: Follow-up-Eingaben verlangen explizit aktuellen Brief."""
+def test_follow_up_actions_use_internal_context_without_brief_gate() -> None:
+    """Follow-up outputs can use an existing brief or the internal fallback context."""
     action_registry = SUMMARY_MODULE._build_action_registry(
         resolved_brief_model="gpt-5-mini",
         resolved_job_ad_model="gpt-4o-mini",
@@ -374,13 +374,13 @@ def test_follow_up_actions_describe_explicit_brief_dependency() -> None:
     for action in action_registry:
         if action["id"] in follow_up_ids:
             hints = " ".join(action["input_hints"]).lower()
-            assert "kein automatischer fallback" in hints
+            assert "interner kontext" in hints
             assert "optional auto brief" not in hints
             assert (
                 action["requirement_text"]
-                == "Aktueller Recruiting Brief ist erforderlich"
+                == "Jobspec und Wizard-Plan sind vorhanden"
             )
-            assert action["blocked_cta_label"]
+            assert action["blocked_cta_label"] is None
 
 
 def test_render_artifact_launcher_cards_uses_artifact_specific_labels(monkeypatch) -> None:

@@ -609,7 +609,7 @@ SUMMARY_UI_COPY: dict[str, dict[str, Any]] = {
             "hr_cta": "HR-Sheet erstellen",
             "hr_blocked_cta": "Recruiting Brief erstellen und danach HR-Sheet erstellen",
             "brief_required": "Aktueller Recruiting Brief ist erforderlich",
-            "current_brief_hint": "Aktueller Recruiting Brief (kein automatischer Fallback)",
+            "current_brief_hint": "Aktueller Recruiting Brief oder interner Kontext",
             "critical_must_haves": "Kritische Must-haves",
             "hr_model": "HR-Sheet-Modell: {model}",
             "fach_benefit": (
@@ -901,7 +901,7 @@ SUMMARY_UI_COPY: dict[str, dict[str, Any]] = {
             "hr_cta": "Create HR sheet",
             "hr_blocked_cta": "Create recruiting brief, then create HR sheet",
             "brief_required": "Current recruiting brief is required",
-            "current_brief_hint": "Current recruiting brief (no automatic fallback)",
+            "current_brief_hint": "Current recruiting brief or internal context",
             "critical_must_haves": "Critical must-haves",
             "hr_model": "HR sheet model: {model}",
             "fach_benefit": (

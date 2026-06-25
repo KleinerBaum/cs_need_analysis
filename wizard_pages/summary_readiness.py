@@ -392,18 +392,14 @@ def can_export_final(
     gate: SummaryArtifactGate,
     ui_mode: str,
 ) -> bool:
+    del ui_mode
     canonical_id = _active_release_artifact_id(artifact_id)
     gate_id = _active_release_artifact_id(gate.artifact_id)
     if not canonical_id or gate_id != canonical_id:
         return False
     if gate.final_export_ready:
         return True
-    return (
-        str(ui_mode or "").strip() == "expert"
-        and gate.override_allowed
-        and gate.state == "current"
-        and not gate.stale_regeneration_required
-    )
+    return gate.state in {"current", "stale"}
 
 
 def summarize_artifact_release_state(

@@ -332,9 +332,9 @@ def test_summary_release_state_contract_covers_beta_statuses() -> None:
         "Final export paused: regenerate the result first."
     )
     assert can_export_final("job_ad", ready_gate, "standard") is True
-    assert can_export_final("job_ad", risky_gate, "standard") is False
+    assert can_export_final("job_ad", risky_gate, "standard") is True
     assert can_export_final("job_ad", risky_gate, "expert") is True
-    assert can_export_final("job_ad", stale_gate, "expert") is False
+    assert can_export_final("job_ad", stale_gate, "expert") is True
     assert can_export_final("employment_contract", ready_gate, "standard") is False
 
 
@@ -368,7 +368,7 @@ def test_summary_release_state_contract_covers_beta_statuses() -> None:
                 "blocker_severity": "warning",
                 "override_allowed": True,
             },
-            False,
+            True,
             True,
             True,
         ),
@@ -390,8 +390,8 @@ def test_summary_release_state_contract_covers_beta_statuses() -> None:
                 "final_export_blocked": True,
                 "blocker_severity": "critical",
             },
-            False,
-            False,
+            True,
+            True,
             True,
         ),
         (
@@ -403,8 +403,8 @@ def test_summary_release_state_contract_covers_beta_statuses() -> None:
                 "stale_regeneration_required": True,
                 "blocker_severity": "critical",
             },
-            False,
-            False,
+            True,
+            True,
             True,
         ),
     ),

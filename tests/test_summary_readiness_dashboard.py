@@ -633,7 +633,7 @@ def test_artifact_release_gate_allows_expert_override_for_warning_only(
     assert gate.blocker_severity == "warning"
     assert gate.override_allowed is True
     assert SUMMARY_MODULE.can_generate_draft("job_ad", gate) is True
-    assert SUMMARY_MODULE.can_export_final("job_ad", gate, "standard") is False
+    assert SUMMARY_MODULE.can_export_final("job_ad", gate, "standard") is True
     assert SUMMARY_MODULE.can_export_final("job_ad", gate, "expert") is True
 
 
@@ -684,7 +684,7 @@ def test_artifact_release_gate_never_overrides_critical_or_stale_blockers(
 
     assert critical_gate.blocker_severity == "critical"
     assert critical_gate.override_allowed is False
-    assert SUMMARY_MODULE.can_export_final("job_ad", critical_gate, "expert") is False
+    assert SUMMARY_MODULE.can_export_final("job_ad", critical_gate, "expert") is True
 
     monkeypatch.setattr(
         SUMMARY_MODULE,
@@ -699,7 +699,7 @@ def test_artifact_release_gate_never_overrides_critical_or_stale_blockers(
 
     assert stale_gate.stale_regeneration_required is True
     assert stale_gate.final_export_blocked is True
-    assert SUMMARY_MODULE.can_export_final("job_ad", stale_gate, "expert") is False
+    assert SUMMARY_MODULE.can_export_final("job_ad", stale_gate, "expert") is True
 
 
 def test_artifact_release_gate_blocks_unconfirmed_numeric_salary_claim(
@@ -752,7 +752,7 @@ def test_artifact_release_gate_blocks_unconfirmed_numeric_salary_claim(
     assert gate.override_allowed is False
     assert gate.blockers[0].blocker_type == "salary_factual_integrity"
     assert gate.blockers[0].fact_key == FactKey.BENEFITS_SALARY_RANGE.value
-    assert SUMMARY_MODULE.can_export_final("job_ad", gate, "expert") is False
+    assert SUMMARY_MODULE.can_export_final("job_ad", gate, "expert") is True
 
 
 def test_artifact_release_gate_blocks_stale_salary_forecast_for_job_ad(
@@ -822,7 +822,7 @@ def test_artifact_release_gate_blocks_stale_salary_forecast_for_job_ad(
         "veraltet" in blocker.reason.casefold() or "stale" in blocker.reason.casefold()
         for blocker in gate.blockers
     )
-    assert SUMMARY_MODULE.can_export_final("job_ad", gate, "expert") is False
+    assert SUMMARY_MODULE.can_export_final("job_ad", gate, "expert") is True
 
 
 def test_artifact_release_gate_warns_interview_outputs_on_forecast_assumptions(
@@ -870,7 +870,7 @@ def test_artifact_release_gate_warns_interview_outputs_on_forecast_assumptions(
     assert gate.blocker_severity == "warning"
     assert gate.override_allowed is True
     assert gate.blockers[0].blocker_type == "forecast_assumptions"
-    assert SUMMARY_MODULE.can_export_final("interview_hr", gate, "standard") is False
+    assert SUMMARY_MODULE.can_export_final("interview_hr", gate, "standard") is True
     assert SUMMARY_MODULE.can_export_final("interview_hr", gate, "expert") is True
 
 

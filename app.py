@@ -7,6 +7,7 @@ import json
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import quote
 
 import streamlit as st
 
@@ -110,17 +111,22 @@ def _consume_wizard_step_query_param(ctx: WizardContext) -> None:
     _drop_query_param(WIZARD_STEP_QUERY_PARAM)
 
 
-def _image_data_uri(path: Path) -> str:
-    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
-    return f"data:image/png;base64,{encoded}"
+def _static_asset_url(path: Path) -> str:
+    """Keep app-local asset URLs stable for Streamlit static/CDN serving."""
+
+    try:
+        asset_path = path.resolve().relative_to(ROOT_DIR)
+    except ValueError:
+        asset_path = path
+    return quote(asset_path.as_posix())
 
 
 def _inject_theme_styles() -> None:
     """Inject global design-system styles plus minimal app-shell overrides."""
 
     render_ui_styles()
-    wizard_dark_background_uri = _image_data_uri(WIZARD_DARK_BACKGROUND_PATH)
-    wizard_light_background_uri = _image_data_uri(WIZARD_LIGHT_BACKGROUND_PATH)
+    wizard_dark_background_url = _static_asset_url(WIZARD_DARK_BACKGROUND_PATH)
+    wizard_light_background_url = _static_asset_url(WIZARD_LIGHT_BACKGROUND_PATH)
 
     # App-shell specific styles (header/sidebar spacing/layout quirks).
     render_static_html(
@@ -132,7 +138,7 @@ def _inject_theme_styles() -> None:
 
             .stApp {{
                 --cs-app-bg: var(--background-color, #F6F8FB);
-                --cs-step-background-image: url("{wizard_light_background_uri}");
+                --cs-step-background-image: url("{wizard_light_background_url}");
                 --cs-step-background-blend: soft-light;
                 --cs-app-text: var(--text-color, #142033);
                 --cs-app-surface: var(
@@ -187,7 +193,7 @@ def _inject_theme_styles() -> None:
             body[data-theme="dark"] .stApp,
             [data-theme="dark"] .stApp {{
                 --cs-app-bg: var(--background-color, #0B111B);
-                --cs-step-background-image: url("{wizard_dark_background_uri}");
+                --cs-step-background-image: url("{wizard_dark_background_url}");
                 --cs-step-background-blend: screen;
                 --cs-app-text: var(--text-color, #F1F5F9);
                 --cs-app-surface: var(

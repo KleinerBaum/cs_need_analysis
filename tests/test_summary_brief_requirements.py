@@ -174,7 +174,7 @@ def test_get_brief_status_changes_primary_cta_label_by_state(monkeypatch) -> Non
     assert cta == "Brief aktualisieren"
 
 
-def test_render_follow_up_cards_disable_and_enable_based_on_current_brief(
+def test_render_follow_up_cards_do_not_require_current_brief(
     monkeypatch,
 ) -> None:
     registry = _registry()
@@ -189,7 +189,7 @@ def test_render_follow_up_cards_disable_and_enable_based_on_current_brief(
     fake_st_blocked = _FakeStreamlit(session_state=dict(base_state))
     monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st_blocked)
     SUMMARY_MODULE._render_action_card(follow_up_action)
-    assert fake_st_blocked.last_button_kwargs["disabled"] is True
+    assert fake_st_blocked.last_button_kwargs["disabled"] is False
 
     fake_st_enabled = _FakeStreamlit(
         session_state={
