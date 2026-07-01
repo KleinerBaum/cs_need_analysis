@@ -7,8 +7,8 @@
     "back_to_wizard": "Zurück zum Wizard",
     "open_full_view": "Vollansicht öffnen",
     "country_germany": "Deutschland",
-    "placeholder_missing": "Bitte ergänzen",
-    "placeholder_missing_optional": "Bitte ergänzen, falls vorhanden"
+    "not_published": "Nicht veröffentlicht",
+    "not_configured": "Nicht konfiguriert"
   },
   "trust_grammar": {
     "states": {
@@ -170,8 +170,8 @@
     }
   },
   "public_pages": {
-    "legal_placeholder_title": "🟧 **Platzhalter – Fachinput fehlt**",
-    "legal_template_notice": "Diese Seite ist eine Vorlage und wird erst nach rechtlicher Prüfung verbindlich.",
+    "legal_missing_inputs_title": "⚠️ **Erforderliche Fachangaben fehlen**",
+    "legal_review_notice": "Diese Seite ist erst nach fachlicher und rechtlicher Prüfung verbindlich.",
     "competencies": {
       "title": "Unsere Kompetenzen",
       "hero": {
@@ -315,7 +315,7 @@
       "title": "Impressum",
       "intro": {
         "0": "Diese Seite bündelt die Anbieterkennzeichnung für Cognitive Staffing.",
-        "1": "Bitte ersetzen Sie alle Platzhalter durch die final geprüften Unternehmens- und Registerdaten, bevor die Seite produktiv genutzt wird."
+        "1": "Für eine verbindliche Veröffentlichung fehlen noch final geprüfte Unternehmens- und Registerdaten."
       },
       "sections": {
         "scope": {
@@ -328,7 +328,7 @@
         },
         "responsibilities": {
           "heading": "Verantwortlichkeit für Inhalte",
-          "body": "Die Inhalte dieser Website wurden mit Sorgfalt erstellt. Für Vollständigkeit, Aktualität und Richtigkeit ist vor Veröffentlichung eine fachliche und rechtliche Prüfung erforderlich."
+          "body": "Die Inhalte dieser Website werden mit Sorgfalt gepflegt. Aktualität und Richtigkeit werden bei Änderungen an Unternehmensdaten, Kontaktwegen oder App-Konfiguration überprüft."
         },
         "contact_paths": {
           "heading": "Kontaktwege",
@@ -339,9 +339,9 @@
           "body": "Das Impressum sollte bei Änderungen an Unternehmensdaten, Rechtsform, Vertretungsberechtigten, Hosting-Konstellation oder Kontaktwegen zeitnah aktualisiert werden."
         }
       },
-      "placeholders": {
+      "missing_inputs": {
         "legal_info": {
-          "heading": "Noch zu ergänzende Unternehmensdaten",
+          "heading": "Noch fehlende Unternehmensdaten",
           "items": {
             "company_address": "vollständige Anbieteranschrift mit Rechtsform und Vertretungsberechtigung",
             "registry": "Registergericht, Registernummer, Umsatzsteuer-ID oder Wirtschafts-ID, falls einschlägig"
@@ -351,10 +351,10 @@
       "trust": {
         "heading": "Hinweis",
         "details": {
-          "0": "Diese Vorlage ersetzt keine Rechtsberatung und muss vor Veröffentlichung geprüft werden."
+          "0": "Diese Seite ersetzt keine Rechtsberatung. Nicht veröffentlichte Unternehmensdaten sind ausdrücklich gekennzeichnet und dürfen nicht durch angenommene Werte ersetzt werden."
         }
       },
-      "footer_classification": "Rechtliche Seite · Template"
+      "footer_classification": "Rechtliche Seite · Prüfung erforderlich"
     },
     "privacy": {
       "title": "Datenschutzrichtlinie",
@@ -364,7 +364,7 @@
       },
       "notice": {
         "title": "Hinweis",
-        "body": "Bitte gleichen Sie diese Seite vor Veröffentlichung mit den tatsächlich eingesetzten Dienstleistern, Kontaktwegen, Speicherfristen und internen Prozessen ab."
+        "body": "Diese Datenschutzrichtlinie beschreibt die aktuell dokumentierte App-Konfiguration, Kontaktwege und Datenverarbeitung. Änderungen an Dienstleistern, Speicherfristen oder internen Prozessen müssen zeitnah nachgezogen werden."
       },
       "controller": {
         "heading": "## 1. Verantwortlicher",
@@ -393,10 +393,10 @@
       "recipients": {
         "heading": "## 7. Empfänger und eingesetzte Dienstleister",
         "providers": {
-          "hosting": "Hosting / Deployment: Bitte ergänzen",
-          "ai": "KI-Anbieter / LLM-Infrastruktur: Bitte ergänzen",
-          "email": "E-Mail / Support-Workflow: Bitte ergänzen",
-          "consent": "Consent- / Cookie-Management: Bitte ergänzen"
+          "hosting": "Hosting / Deployment: Streamlit-App-Hosting",
+          "ai": "KI-Anbieter / LLM-Infrastruktur: OpenAI API, sofern KI-Funktionen genutzt werden",
+          "email": "E-Mail / Support-Workflow: konfigurierte Kontakt-E-Mail-Adressen",
+          "consent": "Consent- / Cookie-Management: Streamlit-Präferenzen und Session-State"
         },
         "body": "Sofern externe technische Dienstleister oder KI-Dienste eingebunden sind, erfolgt dies nur im Rahmen der jeweils vorgesehenen technischen, organisatorischen und vertraglichen Vorkehrungen."
       },
@@ -481,41 +481,41 @@
       },
       "notice": {
         "title": "Wichtiger Hinweis",
-        "body": "Diese Seite sollte vor Veröffentlichung an die tatsächlich eingesetzten Technologien, Consent-Mechanismen und Anbieter angepasst werden."
+        "body": "Aktueller Stand: Die App nutzt technische Laufzeit- und Spracheinstellungen. Marketing-Cookies, Werbetracker und externe Analytics-Cookies sind nicht Bestandteil dieses Setups."
       },
       "choices": {
         "heading": "## Ihre Wahlmöglichkeiten",
-        "body": "Sie können Ihre Einstellungen jederzeit anpassen. Nicht unbedingt erforderliche Technologien werden nur eingesetzt, wenn hierfür eine wirksame Einwilligung vorliegt.\n\nTechnisch notwendige Technologien können eingesetzt werden, soweit sie für die sichere und funktionsfähige Bereitstellung der Website oder App erforderlich sind."
+        "body": "Sprache und UI-Präferenzen können Sie direkt in der Oberfläche anpassen. Browserseitige Speicherung können Sie zusätzlich über die Einstellungen Ihres Browsers löschen.\n\nTechnisch notwendige Speicherung wird genutzt, soweit sie für die sichere und funktionsfähige Bereitstellung der Website oder App erforderlich ist."
       },
       "categories": {
         "necessary": {
           "title": "Technisch notwendig",
-          "body": "Erforderlich für den sicheren Betrieb, grundlegende Funktionen, Navigation, Sitzungssteuerung oder sicherheitsrelevante Schutzmechanismen."
+          "body": "Erforderlich für sicheren Betrieb, Navigation, Sitzungssteuerung, Sprachpersistenz und lokale Entwurfswiederherstellung."
         },
         "preferences": {
           "title": "Präferenzen",
-          "body": "Dienen dazu, gewählte Einstellungen, Komfortoptionen oder nutzerseitige Präferenzen zu speichern und die Nutzung konsistenter zu gestalten."
+          "body": "Speichert Sprache, Darstellungspräferenzen und Wizard-Einstellungen, damit die Oberfläche konsistent bleibt."
         },
         "statistics": {
           "title": "Statistik",
-          "body": "Helfen zu verstehen, wie Inhalte und Funktionen genutzt werden, um Nutzerführung, Verständlichkeit und Produktqualität zu verbessern."
+          "body": "Nicht aktiv im aktuellen Setup. Es werden keine externen Analytics-Cookies für Reichweitenmessung gesetzt."
         },
         "external": {
           "title": "Externe Inhalte / Dienste",
-          "body": "Werden relevant, wenn Inhalte oder Funktionen von Drittanbietern eingebunden werden, etwa Medien, Karten, Analyse- oder Kommunikationsdienste."
+          "body": "Nicht als Cookie- oder Tracking-Kategorie aktiv. KI-Funktionen nutzen serverseitig konfigurierte OpenAI-API-Aufrufe, sofern sie ausgelöst werden."
         }
       },
       "consent": {
-        "heading": "## Verwaltung Ihrer Einwilligung",
-        "body": "Ihre Auswahl kann jederzeit geändert oder widerrufen werden.\n\nDer Widerruf berührt nicht die Rechtmäßigkeit bereits erfolgter Verarbeitungen, wirkt aber für die Zukunft.\n\nSoweit ein Consent-Management-System eingesetzt wird, können Einstellungen dort direkt angepasst werden."
+        "heading": "## Einstellungen verwalten",
+        "body": "Die App setzt kein separates Consent-Banner für optionale Marketing- oder Analytics-Cookies ein, weil diese Kategorien im aktuellen Setup nicht aktiv sind.\n\nSprache und Wizard-Präferenzen können in der Oberfläche geändert werden. Lokale Browserdaten, etwa gespeicherte Sprache oder Entwurfswiederherstellungs-Metadaten, können über die Browser-Einstellungen gelöscht werden."
       },
       "transparency": {
         "heading": "## Transparenz",
-        "body": "Welche Technologien konkret aktiv sind, hängt von der tatsächlichen Konfiguration dieser Website ab.\n\nDetaillierte Informationen zu Anbietern, Zwecken, Rechtsgrundlagen und Speicherfristen sollten in einem produktiven Setup technologiescharf dokumentiert sein."
+        "body": "Die aktuelle Website nutzt Streamlit-Laufzeitmechanismen, Session-State, Local Storage für Sprache und sichere Entwurfswiederherstellung sowie ein SameSite-Lax-Sprachcookie als Fallback.\n\nGespeicherte Entwurfs-Metadaten enthalten keinen vollständigen Entwurf; der dauerhafte Produktvertrag bleibt der manuelle JSON-Entwurf."
       },
-      "examples": {
-        "heading": "## Beispielhafte Angaben, die ergänzt werden sollten",
-        "body": "- Name des eingesetzten Consent-Tools,\n- konkrete technisch notwendige Cookies / Speichermechanismen,\n- Statistik- oder Analysetools,\n- externe Medien- oder Kommunikationsdienste,\n- jeweilige Speicherfristen,\n- jeweilige Anbieter und Empfänger."
+      "current_setup": {
+        "heading": "## Aktueller Technologieeinsatz",
+        "body": "- Spracheinstellung: Local Storage und SameSite-Lax-Cookie als Fallback,\n- Wizard- und UI-Präferenzen: Streamlit Session-State,\n- sichere Entwurfswiederherstellung: Local-Storage-Metadaten bei ungesichertem Fortschritt,\n- Marketing-Cookies: nicht aktiv,\n- externe Analytics-Cookies: nicht aktiv."
       },
       "cta": {
         "title": "Fragen zu Cookie-Einstellungen",
@@ -530,7 +530,7 @@
       },
       "notice": {
         "title": "Rechtliche Einordnung",
-        "body": "Bitte prüfen Sie vor Veröffentlichung, in welchem Umfang BITV 2.0 oder BFSG auf Ihr konkretes Angebot unmittelbar anwendbar sind. Diese Seite ist bewusst als seriöse, freiwillig nutzbare Erklärung formuliert."
+        "body": "Diese Erklärung beschreibt den aktuellen Anspruch an Zugänglichkeit und den bekannten Verbesserungsbedarf. Ob BITV 2.0, BFSG oder weitere Vorgaben unmittelbar anwendbar sind, hängt vom konkreten Betreiber- und Angebotskontext ab."
       },
       "status": {
         "heading": "## Stand der Vereinbarkeit",
@@ -606,7 +606,9 @@
         "message": "Nachricht",
         "message_placeholder": "Beschreiben Sie kurz Ihren Anwendungsfall oder Ihr Anliegen.",
         "submit": "Anfrage vorbereiten",
-        "success": "Vielen Dank. Bitte binden Sie nun den gewünschten Versandweg an, z. B. E-Mail, CRM oder Helpdesk.",
+        "success": "Die Anfrage ist vorbereitet. Öffnen Sie Ihre E-Mail-App, prüfen Sie die Nachricht und senden Sie sie direkt ab.",
+        "email_cta": "In E-Mail-App öffnen",
+        "email_subject": "Kontaktanfrage: {topic}",
         "summary": "Name: {name}\nUnternehmen: {company}\nE-Mail: {email}\nAnliegen: {topic}\n\nNachricht:\n{message}"
       },
       "cta": {

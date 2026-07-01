@@ -7,8 +7,8 @@
     "back_to_wizard": "Back to wizard",
     "open_full_view": "Open full view",
     "country_germany": "Germany",
-    "placeholder_missing": "Please add",
-    "placeholder_missing_optional": "Please add if applicable"
+    "not_published": "Not published",
+    "not_configured": "Not configured"
   },
   "trust_grammar": {
     "states": {
@@ -170,8 +170,8 @@
     }
   },
   "public_pages": {
-    "legal_placeholder_title": "🟧 **Placeholder - subject-matter input missing**",
-    "legal_template_notice": "This page is a template and becomes binding only after legal review.",
+    "legal_missing_inputs_title": "⚠️ **Required subject-matter details are missing**",
+    "legal_review_notice": "This page is binding only after subject-matter and legal review.",
     "competencies": {
       "title": "Our competencies",
       "hero": {
@@ -315,7 +315,7 @@
       "title": "Imprint",
       "intro": {
         "0": "This page bundles the provider identification for Cognitive Staffing.",
-        "1": "Please replace all placeholders with the finally reviewed company and register data before using this page in production."
+        "1": "Final reviewed company and register data is still missing for binding publication."
       },
       "sections": {
         "scope": {
@@ -328,7 +328,7 @@
         },
         "responsibilities": {
           "heading": "Responsibility for content",
-          "body": "The content of this website has been created with care. Before publication, completeness, timeliness, and accuracy require subject-matter and legal review."
+          "body": "The content of this website is maintained with care. Timeliness and accuracy are reviewed when company data, contact channels, or app configuration change."
         },
         "contact_paths": {
           "heading": "Contact channels",
@@ -339,9 +339,9 @@
           "body": "The imprint should be updated promptly when company data, legal form, authorized representatives, hosting setup, or contact channels change."
         }
       },
-      "placeholders": {
+      "missing_inputs": {
         "legal_info": {
-          "heading": "Company data still to be added",
+          "heading": "Company data still missing",
           "items": {
             "company_address": "full provider address with legal form and authorized representation",
             "registry": "register court, register number, VAT ID, or business ID where applicable"
@@ -351,10 +351,10 @@
       "trust": {
         "heading": "Note",
         "details": {
-          "0": "This template does not replace legal advice and must be reviewed before publication."
+          "0": "This page does not replace legal advice. Company data that has not been published is marked explicitly and must not be replaced with assumed values."
         }
       },
-      "footer_classification": "Legal page · template"
+      "footer_classification": "Legal page · review required"
     },
     "privacy": {
       "title": "Privacy policy",
@@ -364,7 +364,7 @@
       },
       "notice": {
         "title": "Note",
-        "body": "Before publication, please align this page with the service providers, contact channels, retention periods, and internal processes actually in use."
+        "body": "This privacy policy describes the currently documented app configuration, contact channels, and data processing. Changes to service providers, retention periods, or internal processes must be reflected promptly."
       },
       "controller": {
         "heading": "## 1. Controller",
@@ -393,10 +393,10 @@
       "recipients": {
         "heading": "## 7. Recipients and service providers used",
         "providers": {
-          "hosting": "Hosting / deployment: please add",
-          "ai": "AI provider / LLM infrastructure: please add",
-          "email": "Email / support workflow: please add",
-          "consent": "Consent / cookie management: please add"
+          "hosting": "Hosting / deployment: Streamlit app hosting",
+          "ai": "AI provider / LLM infrastructure: OpenAI API where AI functions are used",
+          "email": "Email / support workflow: configured contact email aliases",
+          "consent": "Consent / cookie management: Streamlit preferences and session state"
         },
         "body": "Where external technical service providers or AI services are involved, this takes place only within the intended technical, organizational, and contractual safeguards."
       },
@@ -481,41 +481,41 @@
       },
       "notice": {
         "title": "Important note",
-        "body": "Before publication, this page should be adapted to the technologies, consent mechanisms, and providers actually in use."
+        "body": "Current status: The app uses technical runtime and language settings. Marketing cookies, advertising trackers, and external analytics cookies are not part of this setup."
       },
       "choices": {
         "heading": "## Your choices",
-        "body": "You can adjust your settings at any time. Technologies that are not strictly necessary are used only where valid consent exists.\n\nTechnically necessary technologies may be used where they are required for secure and functional provision of the website or app."
+        "body": "You can adjust language and UI preferences directly in the interface. Browser-side storage can also be cleared through your browser settings.\n\nTechnically necessary storage is used where required for secure and functional provision of the website or app."
       },
       "categories": {
         "necessary": {
           "title": "Technically necessary",
-          "body": "Required for secure operation, basic functions, navigation, session control, or security-relevant safeguards."
+          "body": "Required for secure operation, navigation, session control, language persistence, and local draft recovery."
         },
         "preferences": {
           "title": "Preferences",
-          "body": "Used to store selected settings, convenience options, or user-side preferences and make usage more consistent."
+          "body": "Stores language, display preferences, and wizard settings so the interface remains consistent."
         },
         "statistics": {
           "title": "Statistics",
-          "body": "Help understand how content and functions are used in order to improve user guidance, clarity, and product quality."
+          "body": "Not active in the current setup. No external analytics cookies are set for traffic measurement."
         },
         "external": {
           "title": "External content / services",
-          "body": "Relevant when content or functions from third-party providers are integrated, such as media, maps, analytics, or communication services."
+          "body": "Not active as a cookie or tracking category. AI functions use server-side configured OpenAI API calls where triggered."
         }
       },
       "consent": {
-        "heading": "## Managing your consent",
-        "body": "Your selection can be changed or withdrawn at any time.\n\nWithdrawal does not affect the lawfulness of processing that has already taken place, but applies for the future.\n\nWhere a consent management system is used, settings can be adjusted there directly."
+        "heading": "## Managing settings",
+        "body": "The app does not use a separate consent banner for optional marketing or analytics cookies because those categories are not active in the current setup.\n\nLanguage and wizard preferences can be changed in the interface. Local browser data, such as stored language or draft-recovery metadata, can be cleared through browser settings."
       },
       "transparency": {
         "heading": "## Transparency",
-        "body": "Which technologies are active depends on the actual configuration of this website.\n\nIn a production setup, detailed information about providers, purposes, legal bases, and retention periods should be documented for each technology."
+        "body": "The current website uses Streamlit runtime mechanisms, session state, local storage for language and safe draft recovery, and a SameSite=Lax language cookie as fallback.\n\nStored draft metadata does not contain the full draft; the durable product contract remains the manual JSON draft."
       },
-      "examples": {
-        "heading": "## Example information that should be added",
-        "body": "- name of the consent tool used,\n- specific technically necessary cookies / storage mechanisms,\n- statistics or analytics tools,\n- external media or communication services,\n- respective retention periods,\n- respective providers and recipients."
+      "current_setup": {
+        "heading": "## Current technology use",
+        "body": "- Language setting: local storage and SameSite=Lax cookie fallback,\n- wizard and UI preferences: Streamlit session state,\n- safe draft recovery: local-storage metadata while unsaved progress exists,\n- marketing cookies: not active,\n- external analytics cookies: not active."
       },
       "cta": {
         "title": "Questions about cookie settings",
@@ -530,7 +530,7 @@
       },
       "notice": {
         "title": "Legal context",
-        "body": "Before publication, please check to what extent BITV 2.0 or BFSG directly apply to your specific offering. This page is deliberately written as a serious, voluntary statement."
+        "body": "This statement describes the current accessibility standard and known improvement areas. Whether BITV 2.0, BFSG, or further requirements apply directly depends on the specific operator and offering context."
       },
       "status": {
         "heading": "## Compliance status",
@@ -606,7 +606,9 @@
         "message": "Message",
         "message_placeholder": "Briefly describe your use case or request.",
         "submit": "Prepare request",
-        "success": "Thank you. Please now connect the desired sending channel, for example email, CRM, or helpdesk.",
+        "success": "The request is prepared. Open your email app, review the message, and send it directly.",
+        "email_cta": "Open in email app",
+        "email_subject": "Contact request: {topic}",
         "summary": "Name: {name}\nCompany: {company}\nEmail: {email}\nTopic: {topic}\n\nMessage:\n{message}"
       },
       "cta": {

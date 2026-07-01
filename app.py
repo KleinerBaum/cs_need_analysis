@@ -22,10 +22,8 @@ from constants import (
     STEP_KEY_LANDING,
     UI_PREFERENCE_ANSWER_MODE,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
-    UI_PREFERENCE_ESCO_MATCHING_STRICTNESS,
     UI_PREFERENCE_INFORMATION_DEPTH,
     UI_PREFERENCE_PII_REDUCTION,
-    UI_PREFERENCE_REGIONAL_FOCUS,
     UI_PREFERENCE_WIZARD_DESIGN,
     UI_WIZARD_DESIGN_DEFAULT,
     UI_WIZARD_DESIGN_DISPLAY_LABELS,
@@ -38,15 +36,8 @@ from i18n import (
     sync_language_from_known_widgets,
     sync_language_state_from_request,
 )
-from llm_client import (
-    TASK_EXTRACT_JOB_AD,
-    TASK_GENERATE_QUESTION_PLAN,
-    TASK_GENERATE_VACANCY_BRIEF,
-    resolve_model_for_task,
-)
 from audience import normalize_audience_mode
 from safe_html import render_static_html
-from settings_openai import load_openai_settings
 from state import (
     build_vacancy_draft_fingerprint,
     build_vacancy_draft_json,
@@ -99,9 +90,7 @@ def _drop_query_param(name: str) -> None:
 
 
 def _consume_wizard_step_query_param(ctx: WizardContext) -> None:
-    target_step = _first_query_param_value(
-        st.query_params.get(WIZARD_STEP_QUERY_PARAM)
-    )
+    target_step = _first_query_param_value(st.query_params.get(WIZARD_STEP_QUERY_PARAM))
     if target_step is None:
         return
 
@@ -482,77 +471,6 @@ def _inject_runtime_theme_bridge() -> None:
     )
 
 
-def _render_openai_debug_panel() -> None:
-    """Render a compact, safe OpenAI resolution debug panel."""
-
-    settings = load_openai_settings()
-    session_model = st.session_state.get(SSKey.MODEL.value)
-    session_model_override: str | None = None
-    if isinstance(session_model, str):
-        cleaned_session_model = session_model.strip()
-        if cleaned_session_model and cleaned_session_model != settings.openai_model:
-            session_model_override = cleaned_session_model
-
-    session_model_override_active = session_model_override is not None
-    resolved_model = session_model_override or settings.openai_model
-    resolved_model_source = (
-        "session_state_ui"
-        if session_model_override_active
-        else settings.resolved_from.get("OPENAI_MODEL", "unknown")
-    )
-    resolved_task_models = {
-        "extract_job_ad": resolve_model_for_task(
-            task_kind=TASK_EXTRACT_JOB_AD,
-            session_override=session_model_override,
-            settings=settings,
-        ),
-        "generate_question_plan": resolve_model_for_task(
-            task_kind=TASK_GENERATE_QUESTION_PLAN,
-            session_override=session_model_override,
-            settings=settings,
-        ),
-        "generate_vacancy_brief": resolve_model_for_task(
-            task_kind=TASK_GENERATE_VACANCY_BRIEF,
-            session_override=session_model_override,
-            settings=settings,
-        ),
-    }
-
-    with st.expander("Debug: OpenAI-Auflösung", expanded=False):
-        st.caption("Nur aufgelöste Laufzeitwerte, keine Secrets.")
-        st.caption("Resolved runtime values only, no secrets.")
-        debug_payload: dict[str, object] = {
-            "resolved_model": resolved_model,
-            "resolved_model_source": resolved_model_source,
-            "resolved_default_model": settings.default_model,
-            "resolved_default_model_source": settings.resolved_from.get(
-                "DEFAULT_MODEL", "unknown"
-            ),
-            "resolved_reasoning_effort": settings.reasoning_effort,
-            "resolved_reasoning_effort_source": settings.resolved_from.get(
-                "REASONING_EFFORT", "unknown"
-            ),
-            "resolved_verbosity": settings.verbosity,
-            "resolved_verbosity_source": settings.resolved_from.get(
-                "VERBOSITY", "unknown"
-            ),
-            "resolved_timeout": settings.openai_request_timeout,
-            "resolved_timeout_source": settings.resolved_from.get(
-                "OPENAI_REQUEST_TIMEOUT", "unknown"
-            ),
-            "session_model_override_active": session_model_override_active,
-            "resolved_task_models": resolved_task_models,
-        }
-        if session_model_override_active and session_model_override is not None:
-            debug_payload["session_model_override_value"] = session_model_override
-        structured_output_path = st.session_state.get(
-            SSKey.OPENAI_LAST_STRUCTURED_OUTPUT_PATH.value
-        )
-        if isinstance(structured_output_path, dict):
-            debug_payload["structured_output_final_path"] = structured_output_path
-        st.json(debug_payload, expanded=False)
-
-
 def _sync_language_before_render() -> None:
     """Apply language widget changes before any routed page renders."""
 
@@ -600,31 +518,16 @@ def _render_preference_center_sidebar(
             "sekundäre Details geschlossen, bis sie aktiv geöffnet werden."
         ),
     )
-    strictness_options = ["locker", "ausgewogen", "streng"]
-    strictness_value = str(
-        preferences.get(UI_PREFERENCE_ESCO_MATCHING_STRICTNESS, "ausgewogen")
-    )
-    if strictness_value not in strictness_options:
-        strictness_value = "ausgewogen"
-    esco_matching_strictness = st.selectbox(
-        "ESCO-Matching-Strenge",
-        options=strictness_options,
-        index=strictness_options.index(strictness_value),
-        key=f"{key_prefix}.esco_matching_strictness",
-        help="Vorbereitetes Steuerfeld: End-to-end verdrahtet, finale Wirkung wird schrittweise ausgebaut.",
-    )
-    regional_focus = st.text_input(
-        "Regionaler Fokus",
-        value=str(preferences.get(UI_PREFERENCE_REGIONAL_FOCUS, "DACH")),
-        key=f"{key_prefix}.regional_focus",
-    )
     confidence_threshold = st.slider(
         "Confidence-Schwelle für Treffer",
         min_value=0.05,
         max_value=0.95,
         value=float(preferences.get(UI_PREFERENCE_CONFIDENCE_THRESHOLD, 0.6)),
         step=0.05,
-        help="Vorbereitete globale Schwelle für Match-/Trefferdarstellung.",
+        help=(
+            "Globale Schwelle für erkannte Fakten, Match-Hinweise, "
+            "Readiness und Trefferdarstellung."
+        ),
         key=f"{key_prefix}.confidence_threshold",
     )
     pii_reduction = st.toggle(
@@ -638,8 +541,6 @@ def _render_preference_center_sidebar(
         {
             UI_PREFERENCE_ANSWER_MODE: answer_mode,
             UI_PREFERENCE_INFORMATION_DEPTH: information_depth,
-            UI_PREFERENCE_ESCO_MATCHING_STRICTNESS: esco_matching_strictness,
-            UI_PREFERENCE_REGIONAL_FOCUS: regional_focus.strip() or "DACH",
             UI_PREFERENCE_CONFIDENCE_THRESHOLD: confidence_threshold,
             UI_PREFERENCE_PII_REDUCTION: pii_reduction,
             UI_PREFERENCE_WIZARD_DESIGN: wizard_design,

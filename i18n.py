@@ -25,7 +25,6 @@ from constants import (
 )
 from ui_widget_state import ensure_option_widget_state
 
-
 SUPPORTED_UI_LANGUAGES = UI_LANGUAGE_VALUES
 LANGUAGE_WIDGET_KEY_SIDEBAR = UI_LANGUAGE_WIDGET_KEY_SIDEBAR
 LANGUAGE_WIDGET_KEY_PAGE = UI_LANGUAGE_WIDGET_KEY_PAGE
@@ -66,7 +65,7 @@ _TRANSLATIONS_EN: dict[str, str] = {
     "Über Cognitive Staffing": "About Cognitive Staffing",
     "Über uns": "About us",
     "Impressum": "Imprint",
-    "Impressum (Template)": "Imprint (template)",
+    "Impressum (Prüfung erforderlich)": "Imprint (review required)",
     "Datenschutzrichtlinie": "Privacy policy",
     "Nutzungsbedingungen": "Terms of use",
     "Cookie Policy/Settings": "Cookie policy/settings",
@@ -84,11 +83,13 @@ _TRANSLATIONS_EN: dict[str, str] = {
     "AI-gestützte Kompetenz- und Matching-Workflows": (
         "AI-supported competency and matching workflows"
     ),
-    "Rechtliche Seite · Template": "Legal page · template",
-    "Diese Seite ist eine Vorlage und wird erst nach rechtlicher Prüfung verbindlich.": (
-        "This page is a template and becomes binding only after legal review."
+    "Rechtliche Seite · Prüfung erforderlich": "Legal page · review required",
+    "Diese Seite ist erst nach fachlicher und rechtlicher Prüfung verbindlich.": (
+        "This page is binding only after subject-matter and legal review."
     ),
-    "🟧 **Platzhalter – Fachinput fehlt**": "🟧 **Placeholder – subject-matter input missing**",
+    "⚠️ **Erforderliche Fachangaben fehlen**": (
+        "⚠️ **Required subject-matter details are missing**"
+    ),
     "Wie weit möchten Sie ins Detail gehen?": "How much detail do you want?",
     "Detailgrad aktiv: **Schnell** (`quick`)": "Active detail level: **Quick** (`quick`)",
     "Detailgrad aktiv: **Ausführlich** (`standard`)": "Active detail level: **Standard** (`standard`)",
@@ -96,9 +97,10 @@ _TRANSLATIONS_EN: dict[str, str] = {
     "Der Modus steuert, wie viele Fragen im aktuellen Schritt sichtbar sind.": "The mode controls how many questions are visible in the current step.",
     "Antwortmodus": "Response mode",
     "Informationstiefe": "Information depth",
-    "ESCO-Matching-Strenge": "ESCO matching strictness",
-    "Regionaler Fokus": "Regional focus",
     "Confidence-Schwelle für Treffer": "Confidence threshold for matches",
+    "Globale Schwelle für erkannte Fakten, Match-Hinweise, Readiness und Trefferdarstellung.": (
+        "Global threshold for detected facts, match signals, readiness, and match display."
+    ),
     "PII-Reduktion": "PII reduction",
     "Details standardmäßig öffnen": "Open details by default",
     "Details kompakt anzeigen": "Show details compactly",
@@ -115,8 +117,6 @@ _TRANSLATIONS_EN: dict[str, str] = {
     "Zur Startseite": "Go to start page",
     "Zum Start": "Go to Start",
     "Briefing-Cockpit öffnen": "Open briefing cockpit",
-    "Debug: OpenAI-Auflösung": "Debug: OpenAI resolution",
-    "Nur aufgelöste Laufzeitwerte, keine Secrets.": "Resolved runtime values only, no secrets.",
     "Stellenanzeige einlesen und Intake starten": "Import job ad and start intake",
     "Anzeige hochladen oder einfügen": "Upload or paste job ad",
     "Recruiting-Briefing vor Workflow": "Recruiting brief before workflow",
@@ -802,9 +802,7 @@ def sync_language_from_known_widgets(*, session_state: Any | None = None) -> str
         if synced_language is not None:
             return synced_language
     for widget_key in LANGUAGE_WIDGET_KEYS:
-        synced_language = sync_language_from_widget_key(
-            widget_key, session_state=state
-        )
+        synced_language = sync_language_from_widget_key(widget_key, session_state=state)
         if synced_language is not None:
             return synced_language
     return None
@@ -960,7 +958,9 @@ def _translate_label_kwargs(kwargs: dict[str, Any]) -> dict[str, Any]:
 def _wrap_text_method(method: Callable[..., Any]) -> Callable[..., Any]:
     @wraps(method)
     def wrapped(self: Any, *args: Any, **kwargs: Any) -> Any:
-        return method(self, *_translate_first_string_arg(args), **_translate_label_kwargs(kwargs))
+        return method(
+            self, *_translate_first_string_arg(args), **_translate_label_kwargs(kwargs)
+        )
 
     return wrapped
 

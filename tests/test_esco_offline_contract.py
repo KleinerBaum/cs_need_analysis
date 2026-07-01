@@ -14,8 +14,12 @@ def _write_minimal_index(tmp_path: Path) -> Path:
 
     src = tmp_path / "src"
     src.mkdir()
-    (src / "occupations_en.csv").write_text("conceptUri,code\nocc:1,111\n", encoding="utf-8")
-    (src / "skills_en.csv").write_text("conceptUri,code\nskill:1,222\n", encoding="utf-8")
+    (src / "occupations_en.csv").write_text(
+        "conceptUri,code\nocc:1,111\n", encoding="utf-8"
+    )
+    (src / "skills_en.csv").write_text(
+        "conceptUri,code\nskill:1,222\n", encoding="utf-8"
+    )
     (src / "labels_en.csv").write_text(
         "conceptUri,language,preferredLabel\nocc:1,de,Softwareentwickler\nskill:1,de,Python\n",
         encoding="utf-8",
@@ -113,6 +117,168 @@ def test_offline_build_writes_versioned_manifest_and_normalized_artifacts(
     assert all(item["sha256"] for item in manifest["source_files"])
 
 
+def test_offline_build_ingests_official_style_csv_bulk_files(tmp_path: Path) -> None:
+    from scripts.build_esco_index import build_index
+
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "occupations.csv").write_text(
+        (
+            "conceptUri,code,preferredLabel,altLabels\n"
+            "occ:official,2512,Software Developer,Application developer|Coder\n"
+        ),
+        encoding="utf-8",
+    )
+    (src / "skills.csv").write_text(
+        (
+            "conceptUri,code,preferredLabel,altLabels\n"
+            "skill:official,KS123,Python programming,Python|Python language\n"
+        ),
+        encoding="utf-8",
+    )
+    (src / "occupationSkillRelations.csv").write_text(
+        "occupationUri,skillUri,relationType\nocc:official,skill:official,essential\n",
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "index"
+    build_index(source_dir=src, out_dir=out, version="vbulk")
+    manifest = read_manifest(out / "indexed" / "vbulk" / "manifest.json")
+    client = EscoClient(
+        session_state={
+            "cs.esco_config": {
+                "data_source_mode": "offline_index",
+                "index_storage_path": str(out),
+                "index_version": "vbulk",
+                "language": "en",
+                "selected_version": "vbulk",
+            }
+        }
+    )
+
+    assert manifest["counts"] == {"concepts": 2, "labels": 6, "relations": 1}
+    assert {item["name"] for item in manifest["source_files"]} == {
+        "occupations.csv",
+        "skills.csv",
+        "occupationSkillRelations.csv",
+    }
+
+    search_payload = client.search(text="Coder", type="occupation", limit=5)
+    search_results = search_payload.get("_embedded", {}).get("results", [])
+    assert search_results[0]["uri"] == "occ:official"
+    assert search_results[0]["title"] == "Coder"
+
+    occupation_payload = client.resource_occupation(uri="occ:official")
+    assert occupation_payload["preferredLabel"] == "Software Developer"
+
+    related_payload = client.resource_related(
+        uri="occ:official",
+        relation="hasEssentialSkill",
+    )
+    related_results = related_payload.get("_embedded", {}).get("results", [])
+    assert related_results[0]["uri"] == "skill:official"
+    assert related_results[0]["preferredLabel"] == "Python programming"
+
+
+def test_offline_build_maps_broader_relation_csv_to_transitive_relation(
+    tmp_path: Path,
+) -> None:
+    from scripts.build_esco_index import build_index
+
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "skills.csv").write_text(
+        (
+            "conceptUri,code,preferredLabel\n"
+            "skill:child,KS1,Python programming\n"
+            "skill:parent,KS2,Programming languages\n"
+        ),
+        encoding="utf-8",
+    )
+    (src / "broaderRelationsSkillPillar.csv").write_text(
+        "conceptUri,broaderUri,broaderType\nskill:child,skill:parent,skillGroup\n",
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "index"
+    build_index(source_dir=src, out_dir=out, version="vbroader")
+    client = EscoClient(
+        session_state={
+            "cs.esco_config": {
+                "data_source_mode": "offline_index",
+                "index_storage_path": str(out),
+                "index_version": "vbroader",
+                "language": "en",
+                "selected_version": "vbroader",
+            }
+        }
+    )
+
+    related_payload = client.resource_related(
+        uri="skill:child",
+        relation="hasBroaderTransitive",
+    )
+    related_results = related_payload.get("_embedded", {}).get("results", [])
+
+    assert related_results == [
+        {
+            "uri": "skill:parent",
+            "title": "Programming languages",
+            "label": "Programming languages",
+            "preferredLabel": "Programming languages",
+            "conceptType": "skill",
+            "type": "skill",
+        }
+    ]
+
+
+def test_offline_build_normalizes_relation_type_uris(tmp_path: Path) -> None:
+    from scripts.build_esco_index import build_index
+
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "occupations.csv").write_text(
+        "conceptUri,code,preferredLabel\nocc:official,2512,Software Developer\n",
+        encoding="utf-8",
+    )
+    (src / "skills.csv").write_text(
+        "conceptUri,code,preferredLabel\nskill:official,KS123,Python programming\n",
+        encoding="utf-8",
+    )
+    (src / "occupationSkillRelations.csv").write_text(
+        (
+            "occupationUri,skillUri,relationType\n"
+            "occ:official,skill:official,"
+            "http://data.europa.eu/esco/model#hasOptionalSkill\n"
+        ),
+        encoding="utf-8",
+    )
+
+    out = tmp_path / "index"
+    build_index(source_dir=src, out_dir=out, version="vuri")
+    client = EscoClient(
+        session_state={
+            "cs.esco_config": {
+                "data_source_mode": "offline_index",
+                "index_storage_path": str(out),
+                "index_version": "vuri",
+                "language": "en",
+                "selected_version": "vuri",
+            }
+        }
+    )
+
+    related_payload = client.resource_related(
+        uri="occ:official",
+        relation="hasOptionalSkill",
+    )
+    related_results = related_payload.get("_embedded", {}).get("results", [])
+
+    assert related_results
+    assert related_results[0]["uri"] == "skill:official"
+    assert related_results[0]["preferredLabel"] == "Python programming"
+
+
 def test_offline_mode_skill_detail_does_not_call_live_api(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -131,7 +297,9 @@ def test_offline_mode_skill_detail_does_not_call_live_api(
 
     def fail_if_live_api_called(**_kwargs):
         call_counter["count"] += 1
-        raise AssertionError("_cached_get_json should not be called in offline_index mode")
+        raise AssertionError(
+            "_cached_get_json should not be called in offline_index mode"
+        )
 
     monkeypatch.setattr(esco_client, "_cached_get_json", fail_if_live_api_called)
 
@@ -163,16 +331,24 @@ def test_offline_mode_suggest2_does_not_call_live_api(
 
     def fail_if_live_api_called(**_kwargs):
         call_counter["count"] += 1
-        raise AssertionError("_cached_get_json should not be called in offline_index mode")
+        raise AssertionError(
+            "_cached_get_json should not be called in offline_index mode"
+        )
 
     monkeypatch.setattr(esco_client, "_cached_get_json", fail_if_live_api_called)
 
     suggest_payload = client.suggest2(text="Py", type="skill", limit=5)
     results = suggest_payload.get("_embedded", {}).get("results", [])
     assert isinstance(results, list)
-    assert any(item.get("uri") == "skill:1" for item in results if isinstance(item, dict))
+    assert any(
+        item.get("uri") == "skill:1" for item in results if isinstance(item, dict)
+    )
     skill_result = next(
-        (item for item in results if isinstance(item, dict) and item.get("uri") == "skill:1"),
+        (
+            item
+            for item in results
+            if isinstance(item, dict) and item.get("uri") == "skill:1"
+        ),
         {},
     )
     assert skill_result.get("title") == "Python"
@@ -200,7 +376,9 @@ def test_offline_mode_still_rejects_unsupported_endpoint_without_live_api(
 
     def fail_if_live_api_called(**_kwargs):
         call_counter["count"] += 1
-        raise AssertionError("_cached_get_json should not be called in offline_index mode")
+        raise AssertionError(
+            "_cached_get_json should not be called in offline_index mode"
+        )
 
     monkeypatch.setattr(esco_client, "_cached_get_json", fail_if_live_api_called)
 

@@ -32,7 +32,9 @@ def test_app_sidebar_link_targets_exist() -> None:
     for page_path, _ in SIDEBAR_PAGE_LINKS:
         assert page_path.startswith("pages/")
         assert page_path.endswith(".py")
-        assert (repo_root / page_path).is_file(), f"Missing app sidebar target: {page_path}"
+        assert (
+            repo_root / page_path
+        ).is_file(), f"Missing app sidebar target: {page_path}"
 
 
 def test_public_sidebar_links_exclude_legal_pages() -> None:
@@ -58,7 +60,9 @@ def test_public_sidebar_link_targets_exist_and_are_allowed() -> None:
         page_path = page.path
         assert page_path == "app.py" or page_path.startswith("pages/")
         assert page_path.endswith(".py")
-        assert (repo_root / page_path).is_file(), f"Missing public sidebar target: {page_path}"
+        assert (
+            repo_root / page_path
+        ).is_file(), f"Missing public sidebar target: {page_path}"
 
 
 def test_page_defs_are_existing_files_or_explicit_non_file_routes() -> None:
@@ -68,9 +72,9 @@ def test_page_defs_are_existing_files_or_explicit_non_file_routes() -> None:
         if page.route_type == PAGE_ROUTE_TYPE_FILE:
             assert page.query_params is None
             assert page.path.endswith(".py")
-            assert (repo_root / page.path).is_file(), (
-                f"Missing file-backed PAGE_DEF target: {page.path}"
-            )
+            assert (
+                repo_root / page.path
+            ).is_file(), f"Missing file-backed PAGE_DEF target: {page.path}"
             continue
 
         assert page.route_type == PAGE_ROUTE_TYPE_QUERY_PARAM
@@ -143,11 +147,11 @@ def test_sidebar_does_not_render_preference_center(monkeypatch) -> None:
 
     monkeypatch.setattr("components.sidebar.st", fake_st)
     monkeypatch.setattr("components.sidebar.ensure_preference_state", lambda: None)
-    monkeypatch.setattr("components.sidebar.build_runtime_context", lambda: {})
 
     render_sidebar("landing")
 
     assert "expander:Präferenz-Center" not in events
+    assert "expander:Aktiver Runtime-Kontext" not in events
     assert "page_link:Vollansicht öffnen" not in events
     assert "page_link:Unsere Kompetenzen" in events
     assert "page_link:Über Cognitive Staffing" in events
@@ -159,7 +163,9 @@ def test_sidebar_does_not_render_preference_center(monkeypatch) -> None:
         "Nutzungsbedingungen",
         "Erklärung zur Barrierefreiheit",
     }
-    assert not any(event in {f"page_link:{label}" for label in hidden_labels} for event in events)
+    assert not any(
+        event in {f"page_link:{label}" for label in hidden_labels} for event in events
+    )
 
 
 def test_kontakt_legal_links_cover_all_policy_pages() -> None:
@@ -182,6 +188,28 @@ def test_kontakt_legal_links_cover_all_policy_pages() -> None:
     ]
 
 
+def test_kontakt_mailto_url_encodes_subject_and_body() -> None:
+    kontakt_path = Path(__file__).resolve().parents[1] / "pages" / "15_Kontakt.py"
+    spec = spec_from_file_location(
+        "pages.page_15_kontakt_mailto_for_tests", kontakt_path
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError("Could not load Kontakt page module")
+    kontakt_module = module_from_spec(spec)
+    spec.loader.exec_module(kontakt_module)  # type: ignore[attr-defined]
+
+    url = kontakt_module._contact_mailto_url(
+        recipient="kontakt@example.test",
+        subject="Kontaktanfrage: Demo & Rückruf",
+        body="Name: Max\nNachricht: Hallo & danke",
+    )
+
+    assert url.startswith("mailto:kontakt@example.test?subject=")
+    assert "Demo%20%26%20R%C3%BCckruf" in url
+    assert "Name%3A%20Max%0ANachricht%3A%20Hallo%20%26%20danke" in url
+    assert "\n" not in url
+
+
 def test_static_page_link_targets_under_pages_exist() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     pages_dir = repo_root / "pages"
@@ -197,11 +225,15 @@ def test_static_page_link_targets_under_pages_exist() -> None:
             if not node.args:
                 continue
             first_arg = node.args[0]
-            if not isinstance(first_arg, ast.Constant) or not isinstance(first_arg.value, str):
+            if not isinstance(first_arg, ast.Constant) or not isinstance(
+                first_arg.value, str
+            ):
                 continue
             target = first_arg.value
             if not target.startswith("pages/"):
                 continue
-            assert (repo_root / target).is_file(), (
+            assert (
+                repo_root / target
+            ).is_file(), (
                 f"Missing static st.page_link target in {page_file.name}: {target}"
             )

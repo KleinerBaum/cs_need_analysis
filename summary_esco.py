@@ -6,6 +6,8 @@ import csv
 import io
 from typing import Any
 
+from pydantic import ValidationError
+
 from schemas import EscoConceptRef
 
 
@@ -16,7 +18,7 @@ def to_esco_export_concepts(raw_items: Any) -> list[dict[str, str]]:
     for item in raw_items:
         try:
             parsed = EscoConceptRef.model_validate(item)
-        except Exception:
+        except ValidationError:
             continue
         concepts.append({"uri": parsed.uri, "label": parsed.title})
     return concepts

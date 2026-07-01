@@ -7,6 +7,7 @@ from typing import Any, Mapping, Sequence
 
 import plotly.graph_objects as go  # type: ignore[import-untyped]
 import streamlit as st
+from streamlit.errors import StreamlitAPIException
 
 from constants import SSKey
 from salary.types import SalaryForecastDriver, SalaryForecastResult
@@ -40,7 +41,7 @@ def _theme_option(*option_names: str) -> str | None:
     for option_name in option_names:
         try:
             option_value = st.get_option(option_name)
-        except Exception:
+        except (KeyError, RuntimeError, StreamlitAPIException):
             continue
         if option_value:
             return str(option_value)

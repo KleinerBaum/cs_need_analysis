@@ -64,8 +64,8 @@ st.markdown(_copy("consent.body"))
 st.markdown(_copy("transparency.heading"))
 st.markdown(_copy("transparency.body"))
 
-st.markdown(_copy("examples.heading"))
-st.markdown(_copy("examples.body"))
+st.markdown(_copy("current_setup.heading"))
+st.markdown(_copy("current_setup.body"))
 
 render_cta(
     _copy("cta.title"),

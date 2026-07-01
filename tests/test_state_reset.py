@@ -41,8 +41,6 @@ RESET_EXPECTATIONS: dict[SSKey, object] = {
     SSKey.UI_PREFERENCES: {
         "answer_mode": "balanced",
         "information_depth": "standard",
-        "esco_matching_strictness": "ausgewogen",
-        "regional_focus": "DACH",
         "show_sources_default": True,
         "confidence_threshold": 0.6,
         "pii_reduction": True,
@@ -215,7 +213,7 @@ def test_state_store_normalizes_invalid_summary_dirty_state_without_writes() -> 
         SSKey.SUMMARY_DIRTY.value: "false",
         SSKey.SUMMARY_INPUT_FINGERPRINT.value: " current ",
         SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value: None,
-        SSKey.SUMMARY_ACTIVE_ARTIFACT.value: "",
+        SSKey.SUMMARY_ACTIVE_ARTIFACT.value: "employment_contract",
     }
     keys_before = set(session_state)
     store = StateStore(session_state)
@@ -227,6 +225,17 @@ def test_state_store_normalizes_invalid_summary_dirty_state_without_writes() -> 
     assert summary_state.last_brief_fingerprint == ""
     assert summary_state.active_artifact == "brief"
     assert set(session_state) == keys_before
+
+
+def test_state_store_normalizes_legacy_summary_artifact_on_write() -> None:
+    session_state: dict[str, object] = {}
+    store = StateStore(session_state)
+
+    store.set_summary_dirty_state(
+        SummaryDirtyState(active_artifact="JOB_AD_GENERATOR")
+    )
+
+    assert session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] == "job_ad"
 
 
 def test_state_store_setters_write_only_canonical_session_keys() -> None:
@@ -364,6 +373,28 @@ def test_vacancy_draft_json_round_trips_allowlisted_state_only(monkeypatch) -> N
     assert target_state[SSKey.CONTENT_SHARING_CONSENT.value] is False
     assert isinstance(target_state[SSKey.DRAFT_RESUME_NOTICE.value], dict)
     assert target_state[SSKey.DRAFT_RESUME_NOTICE.value]["restored_step"] == "summary"
+
+
+def test_vacancy_draft_load_rejects_archived_active_artifact(monkeypatch) -> None:
+    source_state: dict[str, object] = {
+        SSKey.CURRENT_STEP.value: "summary",
+        SSKey.NAV_SELECTED.value: "summary",
+        SSKey.SOURCE_TEXT.value: "Synthetic jobspec",
+        SSKey.SUMMARY_ACTIVE_ARTIFACT.value: "employment_contract",
+    }
+    raw_json = state.build_vacancy_draft_json(source_state)
+    target_state: dict[str, object] = {}
+    monkeypatch.setattr(
+        state,
+        "st",
+        SimpleNamespace(session_state=target_state),
+    )
+
+    result = state.load_vacancy_draft_json(raw_json)
+
+    assert result.success is True
+    assert target_state[SSKey.CURRENT_STEP.value] == "summary"
+    assert target_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] == "brief"
 
 
 def test_reset_vacancy_clears_progressive_disclosure_state(
@@ -675,7 +706,23 @@ def test_reset_vacancy_preserves_existing_ui_preferences(monkeypatch) -> None:
     assert resolved_preferences["pii_reduction"] is False
     assert resolved_preferences["ui_language"] == "en"
     assert resolved_preferences["wizard_design"] == "focus"
+    assert "esco_matching_strictness" not in resolved_preferences
+    assert "regional_focus" not in resolved_preferences
     assert fake_session_state[SSKey.SOURCE_REDACT_PII.value] is False
+
+
+def test_normalize_ui_preferences_drops_retired_unwired_preferences() -> None:
+    preferences = state.normalize_ui_preferences(
+        {
+            "esco_matching_strictness": "streng",
+            "regional_focus": "DACH",
+            "confidence_threshold": 0.75,
+        }
+    )
+
+    assert "esco_matching_strictness" not in preferences
+    assert "regional_focus" not in preferences
+    assert preferences["confidence_threshold"] == 0.75
 
 
 def test_init_session_state_uses_env_esco_api_base_url(monkeypatch) -> None:
@@ -775,6 +822,26 @@ def test_init_session_state_maps_legacy_summary_alias_key(monkeypatch) -> None:
     state.init_session_state()
 
     assert fake_session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] == "job_ad"
+
+
+def test_init_session_state_rejects_archived_active_artifact(monkeypatch) -> None:
+    fake_session_state: dict[str, object] = {
+        SSKey.SUMMARY_ACTIVE_ARTIFACT.value: "employment_contract"
+    }
+    monkeypatch.setattr(
+        state,
+        "load_openai_settings",
+        lambda: SimpleNamespace(openai_model="gpt-5-mini"),
+    )
+    monkeypatch.setattr(
+        state,
+        "st",
+        SimpleNamespace(session_state=fake_session_state),
+    )
+
+    state.init_session_state()
+
+    assert fake_session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] == "brief"
 
 
 def test_reset_vacancy_clears_stale_redesign_and_legacy_alias_keys(monkeypatch) -> None:

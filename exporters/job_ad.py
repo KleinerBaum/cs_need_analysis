@@ -273,7 +273,7 @@ def job_ad_to_pdf_bytes(
                     )
                 )
                 story.append(Spacer(1, 0.5 * cm))
-            except Exception:
+            except (OSError, TypeError, ValueError):
                 pass
 
     def _paragraph(value: str, style_name: str = "BodyText") -> Paragraph:

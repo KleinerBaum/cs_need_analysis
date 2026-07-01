@@ -20,6 +20,8 @@ from constants import (
     JOBSPEC_SOURCE_MANUAL,
     JOBSPEC_SOURCE_VALUES,
     SSKey,
+    SUMMARY_ACTIVE_ARTIFACT_IDS,
+    SUMMARY_ARTIFACT_LEGACY_ALIASES,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
 )
 from schemas import JobAdExtract
@@ -95,6 +97,18 @@ def _list_or_empty(raw: Any) -> list[Any]:
 
 def _string(raw: Any) -> str:
     return str(raw or "").strip()
+
+
+def _normalize_summary_active_artifact(raw: Any) -> str:
+    normalized = _string(raw)
+    if not normalized:
+        return "brief"
+    normalized_key = normalized.casefold()
+    canonical = SUMMARY_ARTIFACT_LEGACY_ALIASES.get(
+        normalized,
+        SUMMARY_ARTIFACT_LEGACY_ALIASES.get(normalized_key, normalized_key),
+    )
+    return canonical if canonical in SUMMARY_ACTIVE_ARTIFACT_IDS else "brief"
 
 
 def _bool(raw: Any, *, default: bool = False) -> bool:
@@ -286,10 +300,9 @@ class StateStore:
             last_brief_fingerprint=_string(
                 self._state.get(SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value)
             ),
-            active_artifact=_string(
+            active_artifact=_normalize_summary_active_artifact(
                 self._state.get(SSKey.SUMMARY_ACTIVE_ARTIFACT.value)
-            )
-            or "brief",
+            ),
         )
 
     def set_summary_dirty_state(self, value: SummaryDirtyState) -> None:
@@ -298,7 +311,9 @@ class StateStore:
         self._state[SSKey.SUMMARY_LAST_BRIEF_FINGERPRINT.value] = (
             value.last_brief_fingerprint
         )
-        self._state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = value.active_artifact
+        self._state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = (
+            _normalize_summary_active_artifact(value.active_artifact)
+        )
 
     def set_summary_dirty(self, value: bool = True) -> None:
         self._state[SSKey.SUMMARY_DIRTY.value] = bool(value)

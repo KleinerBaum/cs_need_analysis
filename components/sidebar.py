@@ -4,11 +4,9 @@ import streamlit as st
 
 from config.preferences import (
     PAGE_DEFS,
-    build_runtime_context,
     ensure_preference_state,
 )
 from safe_html import render_static_html
-
 
 SIDEBAR_HIDDEN_PAGE_KEYS = frozenset(
     {
@@ -40,6 +38,3 @@ def render_sidebar(current_page_key: str) -> None:
             '<div class="cs-sidebar-gap"></div>',
             streamlit_module=st,
         )
-
-        with st.expander("Aktiver Runtime-Kontext"):
-            st.json(build_runtime_context())

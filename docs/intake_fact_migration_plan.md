@@ -2,7 +2,7 @@
 
 ## Summary
 
-This plan defines a staged migration from scattered intake answers and summary-only derived rows toward a canonical intake Fact Registry. The initial fact vocabulary, additive `SSKey.INTAKE_FACTS` state, selected write-through adapters, and the additive `SSKey.INTAKE_FACT_EVIDENCE` store now exist; remaining phases should continue to preserve legacy compatibility.
+This plan tracks the staged migration from scattered intake answers and summary-only derived rows toward a canonical intake Fact Registry. The canonical fact vocabulary, additive `SSKey.INTAKE_FACTS` state, write-through adapters for supported facts, and additive `SSKey.INTAKE_FACT_EVIDENCE` store now exist; remaining work should continue to preserve legacy compatibility while expanding coverage.
 
 The migration goal is to make intake facts addressable, traceable, and reusable across UI state, summary artifacts, exports, prompt construction, and readiness checks without changing user-visible behavior during the initial compatibility phases.
 
@@ -10,14 +10,14 @@ The migration goal is to make intake facts addressable, traceable, and reusable 
 
 - Canonical session keys, step IDs, fact IDs, fact source types, and labels live in `constants.py`.
 - Session defaults and reset behavior live in `state.py`.
-- Wizard pages collect answers through Streamlit session state and page-local helpers.
+- Wizard pages still preserve Streamlit session state and page-local helpers, while supported fact-backed fields write through canonical adapters.
 - `intake_facts.py` exposes legacy-compatible read/write adapters. `SSKey.INTAKE_FACTS` keeps plain values, while `SSKey.INTAKE_FACT_EVIDENCE` stores additive metadata (`source_type`, `source_label`, `confidence`, `confirmed`, `resolution_status`, `sensitivity`, redacted optional `evidence_snippet`, `used_by_artifacts`, `updated_at`).
 - `JobAdExtract.field_evidence` can carry optional field-level extraction confidence and source snippets; jobspec fact write-through uses that metadata when it is present, and Phase B review surfaces available field evidence read-only.
 - Manual writes default to confidence `1.0`; jobspec extraction write-through defaults to confidence `0.75`.
 - Summary artifact generation appends the generated artifact ID to existing evidence rows via `used_by_artifacts`, without creating new fact values.
 - Adaptive question coverage can use `SSKey.INTAKE_FACT_EVIDENCE` plus the UI confidence threshold; facts without evidence keep legacy coverage behavior.
 - `Question.fact_key` is an optional canonical pointer used for fact-backed coverage and prefill resolution. Existing QuestionPlans without `fact_key` remain valid.
-- Summary facts are currently assembled in `wizard_pages/08_summary.py` from available state, generated artifacts, and derived values. Structured exports include `intake_fact_resolution`, a computed per-fact map that covers present and missing supported facts with canonical statuses (`confirmed`, `inferred`, `assumed`, `conflicted`, `missing`).
+- Summary fact rows and readiness helpers read canonical facts through `summary_facts.py` and `wizard_pages/summary_readiness.py`, while keeping legacy fallbacks for older state. Structured exports include additive `intake_facts`, `intake_fact_evidence`, and `intake_fact_resolution`, a computed per-fact map that covers present and missing supported facts with canonical statuses (`confirmed`, `inferred`, `assumed`, `conflicted`, `missing`).
 
 ## Migration Principles
 
@@ -50,31 +50,31 @@ Introduce a read-only registry layer that can mirror existing session state.
 - Add tests for default state, reset behavior, and partial legacy-state compatibility.
 - Do not migrate wizard writes yet.
 
-### PR 3: Wizard Write-Through (partially done)
+### PR 3: Wizard Write-Through (active, coverage expanding)
 
 Update wizard pages to write canonical facts while preserving legacy session-state keys.
 
-- For each migrated field, write through to the Fact Registry and keep the existing session-state key updated.
-- Start with low-risk fields from one wizard step before expanding to the rest.
+- For each migrated field, write through to the Fact Registry while keeping existing session-state behavior stable.
+- Current coverage includes jobspec extraction/review promotion, selected skills and benefits, company/homepage matches, interview process details, and fact-backed summary corrections.
 - Keep UI labels, validation, progress, and completion behavior unchanged.
 - Add tests proving legacy state and canonical facts remain synchronized.
-- Do not change exports or prompt construction in this PR.
+- Continue expanding coverage in small slices instead of replacing all legacy page state at once.
 
-### PR 4: Summary, Export, and Prompt Consumers (partially started)
+### PR 4: Summary, Export, and Prompt Consumers (active, prompt scope remaining)
 
 Move downstream consumers to read canonical facts through adapters.
 
 - Update summary fact table assembly to prefer canonical facts while retaining legacy fallbacks. Core profile rows now read canonical intake facts first and fall back to Jobspec values.
-- Update export payload construction to use canonical fact identities. The structured Summary export now includes additive `intake_facts` and `intake_fact_evidence` sections when present, while legacy export keys remain stable.
-- Update prompt construction only where existing behavior can be preserved exactly.
+- Update export payload construction to use canonical fact identities. The structured Summary export now includes additive `intake_facts`, `intake_fact_evidence`, and `intake_fact_resolution` sections when present, while legacy export keys remain stable.
+- Update prompt construction only where existing behavior can be preserved exactly; prompt consumers should keep legacy fallbacks until the corresponding fact path is fully covered.
 - Add tests for summary facts, export payloads, and prompt payload compatibility.
 - Keep Salary, ESCO, and Summary Readiness domain behavior unchanged unless they only consume the new adapter output.
 
-### PR 5: Evidence Store and Legacy Cleanup (partially started)
+### PR 5: Evidence Store and Legacy Cleanup (active, cleanup gated)
 
 Add evidence tracking and remove only proven-dead legacy paths.
 
-- Extend Evidence Store usage beyond current write-through metadata where source-safe evidence is available. Jobspec field-level evidence is now wired into supported fact write-through.
+- Evidence Store usage now covers write-through metadata, jobspec field-level evidence, homepage secondary evidence, resolution status, sensitivity, and artifact usage where source-safe evidence is available.
 - Link evidence to canonical facts without storing secrets, credentials, or personal data in logs; snippets are redacted before storage, sensitivity is canonicalized, and artifact usage uses canonical Summary artifact IDs.
 - Remove legacy-only duplicate reads after tests prove canonical paths cover them.
 - Add regression tests for evidence linkage, privacy-safe redaction, and reset behavior.
@@ -93,21 +93,22 @@ Ruff findings that predate a PR should be reported but not fixed unless the PR s
 
 ## Open Decisions
 
-- How far to expand write-through coverage beyond the current supported fact fields.
+- How far to expand write-through coverage beyond the current supported fact fields and page-local state.
 - Whether evidence snippets should be populated for all imported facts or only source-safe AI-derived/imported facts beyond jobspec field evidence.
 - How much historical legacy state should remain as compatibility surface after PR 5.
 
 ## Non-Goals For This Plan
 
 - No replacement of existing legacy session-state values with fact envelopes.
-- No migration of all Summary/export/prompt consumers until PR 4 scope is explicitly picked up.
+- No forced migration of all Summary/export/prompt consumers in one change; keep compatibility fallbacks until each consumer has dedicated coverage.
 - No required field-level LLM evidence fields; `JobAdExtract.field_evidence` remains optional and additive.
-- No ESCO, Salary, Summary Readiness, design-system, or wizard-page behavior changes.
+- No removal of stable legacy export keys without a dedicated compatibility decision.
+- No unrelated ESCO, Salary, design-system, or wizard-page behavior changes.
 - No lint auto-fixes.
 
 ## Proposed Registry / Schema Shape
 
-The first implementation phase introduced the canonical vocabulary before runtime migration. Later phases should continue extending consumers without changing existing `Question.id` or legacy session-key behavior.
+The implementation introduced the canonical vocabulary before runtime migration. Later phases should continue extending consumers without changing existing `Question.id` or legacy session-key behavior.
 
 ### Fact Identity
 
@@ -179,11 +180,11 @@ Stop writing canonical facts and keep legacy wizard writes as the only source of
 
 ### PR 4 Rollback
 
-Restore summary, export, and prompt construction to their previous mixed-source builders while keeping the registry unused.
+Restore summary, export, and prompt construction to mixed-source builders while keeping additive registry data unused.
 
 ### PR 5 Rollback
 
-Disable evidence consumers and keep canonical facts without using evidence metadata until privacy and reset behavior are stable.
+Disable evidence consumers and keep canonical facts without using evidence metadata until privacy, reset, and compatibility behavior are stable.
 
 ## Acceptance Criteria
 

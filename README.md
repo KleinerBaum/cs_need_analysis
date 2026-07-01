@@ -21,9 +21,9 @@ Implemented core flow:
 11. Summary readiness dashboard, action hub, recruiting output generation, and exports.
 12. Privacy-safe usage events for lightweight observability.
 
-Known partials / explicit non-goals in this snapshot:
+Implementation boundaries in this snapshot:
 
-- Full official ESCO bulk-dataset ingestion is not implemented; the offline index path is lookup-focused.
+- ESCO offline indexing supports official-style CSV bulk files; RDF, TTL, XML, and JSON-LD ingestion are outside the CSV indexer contract.
 - ESCO matrix priors are optional and do not include ISCO distribution benchmarking or advanced coherence metrics.
 - Repo-local QA config is intentionally scoped in `pyproject.toml`: Ruff, Black, mypy, Pyright, and Bandit run through `requirements-dev.txt`.
 - `wizard_pages/01a_jobspec_review.py` and `wizard_pages/03_team.py` are legacy/non-routable modules.
@@ -122,6 +122,7 @@ Product-readiness contracts are documented in:
 
 - [`docs/persistence_strategy.md`](docs/persistence_strategy.md) - current JSON draft/resume strategy, excluded state, and future adapter boundary.
 - [`docs/legacy_wizard_modules.md`](docs/legacy_wizard_modules.md) - archived wizard modules, replacement paths, route guardrails, and removal prerequisites.
+- [`docs/legacy_summary_outputs.md`](docs/legacy_summary_outputs.md) - archived Summary outputs, compatibility scope, and removal prerequisites.
 - [`docs/definition_of_done.md`](docs/definition_of_done.md) - beta Definition of Done, Summary release credibility, DE/EN parity, focused outputs, and no-live-API smoke expectations.
 - [`reports/README.md`](reports/README.md) - historical report archive index and current-source-of-truth warning.
 
@@ -213,12 +214,11 @@ Task-specific output limits follow this pattern for task kinds registered in `se
 <TASK_KIND_UPPER>_MAX_SENTENCES_PER_FIELD
 ```
 
-Example:
+Example non-secret settings:
 
 ```toml
-# .streamlit/secrets.toml
+# .streamlit/secrets.toml, local/deployment only; do not commit.
 [openai]
-OPENAI_API_KEY = "sk-..."
 LIGHTWEIGHT_MODEL = "gpt-4o-mini"
 MEDIUM_REASONING_MODEL = "gpt-4o-mini"
 HIGH_REASONING_MODEL = "o3-mini"
@@ -227,6 +227,10 @@ ESCO_RAG_ENABLED = "false"
 ESCO_RAG_REWRITE_QUERY = "true"
 ESCO_RAG_SCORE_THRESHOLD = "0.35"
 ```
+
+For live calls, add `OPENAI_API_KEY` to local Streamlit secrets, deployment
+secrets, or the shell environment. Never commit a real key or a copied secret
+value.
 
 ### Model capability gating
 
@@ -327,7 +331,10 @@ Runtime modes:
 - `offline_index` — query local index only.
 - `hybrid` — query live API first and fall back to local index if unavailable.
 
-The current offline path is lookup-focused and accepts official-CSV-compatible inputs. Full RDF/TTL/XML/JSON-LD ingestion remains future scope.
+The offline path accepts official-style CSV bulk inputs, including concept files
+(`occupations.csv`, `skills.csv`, language-suffixed variants), label files, and
+occupation-skill or broader-relation CSV files. RDF, TTL, XML, and JSON-LD
+ingestion are outside the CSV indexer contract.
 
 ### ESCO matrix priors
 
@@ -517,7 +524,8 @@ The grep command should return no matches after stale Start-step references are 
 Live run:
 
 ```bash
-export OPENAI_API_KEY="sk-..."  # local only; never commit
+read -rsp "OPENAI_API_KEY: " OPENAI_API_KEY
+export OPENAI_API_KEY
 python scripts/openai_smoke_test.py --mode all
 ```
 

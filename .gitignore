@@ -56,6 +56,8 @@ reports/*
 !reports/README.md
 gitleaks-report.*
 artifact-scan-report.*
+latest_deep-research-report.md
+iceberg_need_analysis_visual_patch.diff
 *:Zone.*
 
 # Translations

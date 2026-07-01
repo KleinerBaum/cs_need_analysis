@@ -54,7 +54,7 @@ st.markdown(
         city=localized_profile_value(PROFILE.city),
         country=localized_profile_value(PROFILE.country),
         email=PROFILE.email,
-        phone=PROFILE.phone,
+        phone=localized_profile_value(PROFILE.phone),
         website=PROFILE.website,
     )
 )

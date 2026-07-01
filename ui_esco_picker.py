@@ -9,6 +9,7 @@ from collections.abc import Callable
 from typing import Any, Literal
 
 import streamlit as st
+from pydantic import ValidationError
 
 from constants import SSKey
 from esco_client import EscoClient, EscoClientError
@@ -293,7 +294,7 @@ def _render_esco_taxonomy_breadcrumb(
             for item in cached_nodes_raw:
                 try:
                     cached_nodes.append(EscoBreadcrumbNode.model_validate(item))
-                except Exception:
+                except ValidationError:
                     continue
 
         fetch_error = st.session_state.get(error_key)
@@ -688,12 +689,12 @@ def render_esco_picker_card(
                 current_entries.append(
                     EscoConceptRef.model_validate(entry).model_dump()
                 )
-            except Exception:
+            except ValidationError:
                 continue
     elif isinstance(stored, dict):
         try:
             current_entries = [EscoConceptRef.model_validate(stored).model_dump()]
-        except Exception:
+        except ValidationError:
             current_entries = []
 
     if not current_entries or not show_confirmed_summary:

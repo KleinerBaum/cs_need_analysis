@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, cast
 
 import streamlit as st
+from pydantic import ValidationError
 
 from constants import (
     AUDIENCE_MODE_DEFAULT,
@@ -36,9 +37,9 @@ from constants import (
     UI_PREFERENCE_ANSWER_MODE,
     UI_PREFERENCE_CONFIDENCE_THRESHOLD,
     UI_PREFERENCE_DETAILS_EXPANDED_DEFAULT,
+    UI_PREFERENCE_ESCO_MATCHING_STRICTNESS,
     UI_MODE_DEFAULT,
     UI_MODE_VALUES,
-    UI_PREFERENCE_ESCO_MATCHING_STRICTNESS,
     UI_PREFERENCE_INFORMATION_DEPTH,
     UI_PREFERENCE_PII_REDUCTION,
     UI_PREFERENCE_REGIONAL_FOCUS,
@@ -50,6 +51,8 @@ from constants import (
     UI_WIZARD_DESIGN_VALUES,
     STALE_REDESIGN_SESSION_KEY_PREFIXES,
     STEPS,
+    SUMMARY_ACTIVE_ARTIFACT_IDS,
+    SUMMARY_ARTIFACT_LEGACY_ALIASES,
     SUMMARY_SESSION_KEY_LEGACY_ALIASES,
     VACANCY_DRAFT_SCHEMA_VERSION,
 )
@@ -316,6 +319,18 @@ def _apply_summary_legacy_key_aliases() -> None:
                 continue
             st.session_state[canonical_name] = st.session_state[legacy_key]
             break
+
+
+def _normalize_summary_active_artifact(raw_artifact_id: Any) -> str:
+    normalized = str(raw_artifact_id or "").strip()
+    if not normalized:
+        return "brief"
+    normalized_key = normalized.casefold()
+    canonical = SUMMARY_ARTIFACT_LEGACY_ALIASES.get(
+        normalized,
+        SUMMARY_ARTIFACT_LEGACY_ALIASES.get(normalized_key, normalized_key),
+    )
+    return canonical if canonical in SUMMARY_ACTIVE_ARTIFACT_IDS else "brief"
 
 
 def _clear_stale_redesign_state() -> None:
@@ -643,8 +658,6 @@ def _default_ui_preferences() -> dict[str, Any]:
     return {
         UI_PREFERENCE_ANSWER_MODE: "balanced",
         UI_PREFERENCE_INFORMATION_DEPTH: "standard",
-        UI_PREFERENCE_ESCO_MATCHING_STRICTNESS: "ausgewogen",
-        UI_PREFERENCE_REGIONAL_FOCUS: "DACH",
         UI_PREFERENCE_SHOW_SOURCES_DEFAULT: True,
         UI_PREFERENCE_CONFIDENCE_THRESHOLD: 0.6,
         UI_PREFERENCE_PII_REDUCTION: True,
@@ -660,6 +673,11 @@ def normalize_ui_preferences(raw_preferences: Any) -> dict[str, Any]:
     normalized = dict(defaults)
     if isinstance(raw_preferences, dict):
         normalized.update(raw_preferences)
+    for retired_key in (
+        UI_PREFERENCE_ESCO_MATCHING_STRICTNESS,
+        UI_PREFERENCE_REGIONAL_FOCUS,
+    ):
+        normalized.pop(retired_key, None)
     if not isinstance(normalized.get(UI_PREFERENCE_STEP_COMPACT), dict):
         normalized[UI_PREFERENCE_STEP_COMPACT] = {}
     language = (
@@ -996,6 +1014,11 @@ def init_session_state() -> None:
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
+    st.session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = (
+        _normalize_summary_active_artifact(
+            st.session_state.get(SSKey.SUMMARY_ACTIVE_ARTIFACT.value)
+        )
+    )
     preferences = normalize_ui_preferences(
         st.session_state.get(SSKey.UI_PREFERENCES.value)
     )
@@ -1118,6 +1141,11 @@ def _normalize_loaded_vacancy_draft_state(
     session_state[SSKey.NAV_SYNC_PENDING.value] = False
     session_state[SSKey.LAST_RENDERED_STEP.value] = None
     session_state[SSKey.NAV_DEEP_LINK_TARGET.value] = {}
+    session_state[SSKey.SUMMARY_ACTIVE_ARTIFACT.value] = (
+        _normalize_summary_active_artifact(
+            session_state.get(SSKey.SUMMARY_ACTIVE_ARTIFACT.value)
+        )
+    )
 
     sync_esco_semantic_state(session_state)
     _clear_stale_redesign_state()
@@ -1615,7 +1643,7 @@ def get_esco_occupation_candidates() -> list[Dict[str, Any]]:
     for item in raw:
         try:
             items.append(EscoSuggestionItem.model_validate(item).model_dump())
-        except Exception:
+        except ValidationError:
             continue
     return items
 

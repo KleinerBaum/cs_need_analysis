@@ -561,7 +561,7 @@ SUMMARY_UI_COPY: dict[str, dict[str, Any]] = {
             ),
             "input_heading": "Eingaben",
             "prepare_in_panel": "Vorbereitung im separaten Panel unterhalb der Aktionskarten.",
-            "placeholder_cta": "{label} (Platzhalter)",
+            "unavailable_cta": "Nicht verfügbar: {label}",
             "refinement_heading": "### Anpassungswünsche",
             "refinement_label": "Was soll am Ergebnis angepasst werden?",
             "refinement_placeholder": (
@@ -853,7 +853,7 @@ SUMMARY_UI_COPY: dict[str, dict[str, Any]] = {
             ),
             "input_heading": "Inputs",
             "prepare_in_panel": "Preparation is in the separate panel below the action cards.",
-            "placeholder_cta": "{label} (placeholder)",
+            "unavailable_cta": "Not available: {label}",
             "refinement_heading": "### Change requests",
             "refinement_label": "What should be adjusted in the result?",
             "refinement_placeholder": (

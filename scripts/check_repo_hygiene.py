@@ -12,7 +12,9 @@ import fnmatch
 import json
 import os
 import re
-import subprocess
+
+# Dev-only fixed Git metadata commands, shell=False.
+import subprocess  # nosec B404
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -44,6 +46,7 @@ from ux_copy_contract import (  # noqa: E402
 )
 
 ALLOWED_TRACKED_REPORTS = {
+    "reports/README.md",
     "reports/Aktualisierter Implementierungsreport f\u00fcr den dynamischen Intake-Wizard.md",
     "reports/Key-Analyse-report.md",
     "reports/deep-research-report_21_06_2026.md",
@@ -142,6 +145,8 @@ FORBIDDEN_PATH_RULES = (
         (
             "artifact-scan-report.*",
             "gitleaks-report.*",
+            "iceberg_need_analysis_visual_patch.diff",
+            "latest_deep-research-report.md",
             "reports/*",
         ),
     ),
@@ -368,7 +373,8 @@ def _run_git_command(
     allowed_returncodes: frozenset[int] = frozenset({0}),
 ) -> subprocess.CompletedProcess[str]:
     try:
-        result = subprocess.run(
+        # Args are repo-defined Git commands; no user input and shell=False.
+        result = subprocess.run(  # nosec B603
             list(args),
             cwd=ROOT,
             check=False,
@@ -407,8 +413,14 @@ def _matches_any(path: str, patterns: tuple[str, ...]) -> bool:
     return any(fnmatch.fnmatch(path, pattern) for pattern in patterns)
 
 
-def finding_for_path(path: str) -> Finding | None:
+def _tracked_path_exists(path: str) -> bool:
+    return (ROOT / path).exists()
+
+
+def finding_for_path(path: str, *, require_existing: bool = True) -> Finding | None:
     normalized = _normalize_path(path)
+    if require_existing and not _tracked_path_exists(normalized):
+        return None
     if normalized in ALLOWED_TRACKED_REPORTS:
         return None
     if _matches_any(normalized, ALLOWED_EXAMPLE_SECRET_PATTERNS):
@@ -420,9 +432,16 @@ def finding_for_path(path: str) -> Finding | None:
     return None
 
 
-def find_hygiene_findings(paths: Iterable[str]) -> list[Finding]:
+def find_hygiene_findings(
+    paths: Iterable[str],
+    *,
+    require_existing: bool = True,
+) -> list[Finding]:
     findings = [
-        finding for path in paths if (finding := finding_for_path(path)) is not None
+        finding
+        for path in paths
+        if (finding := finding_for_path(path, require_existing=require_existing))
+        is not None
     ]
     return sorted(findings, key=lambda finding: (finding.rule, finding.path))
 

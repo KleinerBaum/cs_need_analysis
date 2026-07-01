@@ -25,9 +25,9 @@ def test_company_registry_declares_reference_open_question_fact_keys() -> None:
     assert sections[0].section_id == STEP_SECTION_OPEN_QUESTIONS
     assert sections[0].step_key == STEP_KEY_COMPANY
     assert FactKey.COMPANY_COMPANY_NAME in sections[0].fact_keys
-    assert FactKey.TEAM_SIZE_DIRECT not in sections[0].fact_keys
-    assert FactKey.COMPANY_WORK_ARRANGEMENT not in sections[0].fact_keys
-    assert FactKey.COMPANY_NON_NEGOTIABLES not in sections[0].fact_keys
+    assert FactKey.TEAM_SIZE_DIRECT in sections[0].fact_keys
+    assert FactKey.COMPANY_WORK_ARRANGEMENT in sections[0].fact_keys
+    assert FactKey.COMPANY_NON_NEGOTIABLES in sections[0].fact_keys
     assert sections[0].open_question_fallback is False
     assert "ctx_confidential_external_narrative" in sections[0].duplicate_exempt_question_ids
     assert FactKey.COMPANY_COMPANY_NAME in get_section_fact_keys(

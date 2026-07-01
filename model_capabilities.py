@@ -11,9 +11,7 @@ import re
 _GPT5_FAMILY_RE = re.compile(
     r"^gpt-5(?:\.\d+)?(?:-(?:mini|nano|pro))?(?:-\d{4}-\d{2}-\d{2})?$"
 )
-_GPT5_LEGACY_SNAPSHOT_RE = re.compile(
-    r"^gpt-5(?:-mini|-nano)?(?:-\d{4}-\d{2}-\d{2})?$"
-)
+_GPT5_LEGACY_SNAPSHOT_RE = re.compile(r"^gpt-5(?:-mini|-nano)?(?:-\d{4}-\d{2}-\d{2})?$")
 
 
 def _normalize_model(model: str) -> str:
@@ -42,9 +40,7 @@ def is_nano_model(model: str) -> bool:
     """Return ``True`` for GPT-5 nano models, incl. snapshots."""
 
     normalized = _normalize_model(model)
-    return bool(
-        re.match(r"^gpt-5(?:\.\d+)?-nano(?:-\d{4}-\d{2}-\d{2})?$", normalized)
-    )
+    return bool(re.match(r"^gpt-5(?:\.\d+)?-nano(?:-\d{4}-\d{2}-\d{2})?$", normalized))
 
 
 def supports_reasoning(model: str) -> bool:

@@ -13,6 +13,7 @@ from typing import Any, Callable, Final, Mapping, Protocol, Sequence, TypedDict
 import streamlit as st
 import docx
 from docx.image.image import Image as DocxImage
+from pydantic import ValidationError
 
 from constants import (
     INTAKE_FACTS,
@@ -320,7 +321,7 @@ def _build_esco_mapping_report_rows() -> list[dict[str, str]]:
     report_payload = st.session_state.get(SSKey.ESCO_SKILLS_MAPPING_REPORT.value, {})
     try:
         report = EscoMappingReport.model_validate(report_payload)
-    except Exception:
+    except ValidationError:
         report = EscoMappingReport(
             mapped_count=0, unmapped_terms=[], collisions=[], notes=[]
         )
@@ -560,7 +561,7 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
         payload["intake_fact_resolution"] = intake_fact_resolution
     try:
         export_job = JobAdExtract.model_validate(brief.structured_data.job_extract)
-    except Exception:
+    except ValidationError:
         export_job = JobAdExtract()
     export_answers = dict(brief.structured_data.answers)
     plan_payload = st.session_state.get(SSKey.QUESTION_PLAN.value)
@@ -568,7 +569,7 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
     if isinstance(plan_payload, dict):
         try:
             export_plan = QuestionPlan.model_validate(plan_payload)
-        except Exception:
+        except ValidationError:
             export_plan = None
     interview_process = build_interview_export_payload(
         job=export_job,
@@ -591,7 +592,7 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
                     occupation_profile_raw
                 ).model_dump(mode="json", exclude_none=True)
             )
-        except Exception:
+        except ValidationError:
             pass
     question_context_raw = st.session_state.get(SSKey.OCCUPATION_QUESTION_CONTEXT.value)
     if isinstance(question_context_raw, dict):
@@ -601,7 +602,7 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
                     question_context_raw
                 ).model_dump(mode="json", exclude_none=True)
             )
-        except Exception:
+        except ValidationError:
             pass
     flow_provenance_raw = st.session_state.get(SSKey.QUESTION_FLOW_PROVENANCE.value)
     if isinstance(flow_provenance_raw, dict) and flow_provenance_raw:
@@ -611,7 +612,7 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
                     flow_provenance_raw
                 ).model_dump(mode="json", exclude_none=True)
             )
-        except Exception:
+        except ValidationError:
             pass
     semantic_context = _read_esco_semantic_context()
     payload["semantic_export_mode"] = semantic_context.semantic_export_mode
@@ -644,7 +645,7 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
         elif isinstance(selected_occupation, dict):
             try:
                 parsed_occupation = EscoConceptRef.model_validate(selected_occupation)
-            except Exception:
+            except ValidationError:
                 pass
             else:
                 payload["esco_occupations"] = [
@@ -741,7 +742,7 @@ def _build_structured_export_payload(brief: VacancyBrief) -> dict[str, Any]:
                 matrix_coverage_rows.append(
                     EscoMatrixCoverageRow.model_validate(row).model_dump(mode="json")
                 )
-            except Exception:
+            except ValidationError:
                 continue
         if matrix_coverage_rows:
             payload["esco_matrix_coverage"] = matrix_coverage_rows
@@ -1320,7 +1321,7 @@ def _interview_prep_fach_to_pdf_bytes(
                     )
                 )
                 story.append(Spacer(1, 0.5 * cm))
-            except Exception:
+            except (OSError, TypeError, ValueError):
                 pass
 
     def _paragraph(value: str, style_name: str = "BodyText") -> Paragraph:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import streamlit as st
+from urllib.parse import quote
 
 from i18n import (
     LANGUAGE_WIDGET_KEY_SIDEBAR,
@@ -32,6 +33,14 @@ POLICY_LABEL_KEYS = {
 
 def _copy(key: str, **params: object) -> str:
     return tr(f"{PREFIX}.{key}", **params)
+
+
+def _contact_mailto_url(*, recipient: str, subject: str, body: str) -> str:
+    return (
+        f"mailto:{recipient}"
+        f"?subject={quote(subject, safe='')}"
+        f"&body={quote(body, safe='')}"
+    )
 
 
 def _legal_policy_links() -> tuple[tuple[str, str], ...]:
@@ -74,7 +83,7 @@ with col_left:
         _copy(
             "reach.body",
             email=PROFILE.email,
-            phone=PROFILE.phone,
+            phone=localized_profile_value(PROFILE.phone),
             legal_entity=PROFILE.legal_entity,
             street=localized_profile_value(PROFILE.street),
             postal_code=localized_profile_value(PROFILE.postal_code),
@@ -112,18 +121,22 @@ with col_right:
         submitted = st.form_submit_button(_copy("form.submit"))
 
     if submitted:
-        st.success(_copy("form.success"))
-        st.code(
-            _copy(
-                "form.summary",
-                name=name,
-                company=company,
-                email=email,
-                topic=topic,
-                message=message,
-            ),
-            language="text",
+        summary = _copy(
+            "form.summary",
+            name=name,
+            company=company,
+            email=email,
+            topic=topic,
+            message=message,
         )
+        mailto_url = _contact_mailto_url(
+            recipient=PROFILE.email,
+            subject=_copy("form.email_subject", topic=topic),
+            body=summary,
+        )
+        st.success(_copy("form.success"))
+        st.link_button(_copy("form.email_cta"), mailto_url)
+        st.code(summary, language="text")
 
 render_cta(
     _copy("cta.title"),

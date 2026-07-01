@@ -18,11 +18,11 @@ This document is an inventory of the current translation surface. It does not in
 
 | Source | Count | Contract |
 |---|---:|---|
-| `locales/de.json` leaf keys | 344 | German source Locale values, including retained `ux_copy` parity keys |
-| `locales/en.json` leaf keys | 344 | English Locale values; key shape must match DE |
-| `_TRANSLATIONS_EN` | 263 | German-source copy translated by `t()` |
-| `_PHRASE_TRANSLATIONS_EN` | 64 | fallback phrase replacements inside `t()` |
-| High-confidence unkeyed UI-copy candidates | 729 | explicit migration backlog and allowlist baseline for the changed-line raw UI guard |
+| `locales/de.json` leaf keys | 346 | German source Locale values, including retained `ux_copy` parity keys |
+| `locales/en.json` leaf keys | 346 | English Locale values; key shape must match DE |
+| `_TRANSLATIONS_EN` | 383 | German-source copy translated by `t()` |
+| `_PHRASE_TRANSLATIONS_EN` | 80 | fallback phrase replacements inside `t()` |
+| High-confidence unkeyed UI-copy candidates | 716 | explicit migration backlog and allowlist baseline for the changed-line raw UI guard |
 
 ## Locale Leaf Keys
 
@@ -138,13 +138,13 @@ All Locale leaf keys below exist in both `locales/de.json` and `locales/en.json`
 | common.back_to_wizard | `common.back_to_wizard` | - | Zurück zum Wizard | Back to wizard |
 | common.open_full_view | `common.open_full_view` | - | Vollansicht öffnen | Open full view |
 | common.country_germany | `common.country_germany` | - | Deutschland | Germany |
-| common.placeholder_missing | `common.placeholder_missing` | - | Bitte ergänzen | Please add |
-| common.placeholder_missing_optional | `common.placeholder_missing_optional` | - | Bitte ergänzen, falls vorhanden | Please add if applicable |
+| common.not_published | `common.not_published` | - | Nicht veröffentlicht | Not published |
+| common.not_configured | `common.not_configured` | - | Nicht konfiguriert | Not configured |
 | iceberg.aria_label | `iceberg.aria_label` | - | Eisberg-Modell für klassisches und KI-gestütztes Recruiting-Briefing | Iceberg model for classic and AI-supported recruiting briefs |
 | iceberg.surface_label | `iceberg.surface_label` | - | oberhalb: sichtbar in Jobspec, Stellenanzeige und erstem Briefing | above: visible in jobspec, job ad, and first briefing |
 | iceberg.deep_label | `iceberg.deep_label` | - | unterhalb: entscheidend für Search, Matching, Interview und Zusage | below: essential for search, matching, interview, and offer acceptance |
-| public_pages.legal_placeholder_title | `public_pages.legal_placeholder_title` | - | 🟧 **Platzhalter – Fachinput fehlt** | 🟧 **Placeholder - subject-matter input missing** |
-| public_pages.legal_template_notice | `public_pages.legal_template_notice` | - | Diese Seite ist eine Vorlage und wird erst nach rechtlicher Prüfung verbindlich. | This page is a template and becomes binding only after legal review. |
+| public_pages.legal_missing_inputs_title | `public_pages.legal_missing_inputs_title` | - | ⚠️ **Erforderliche Fachangaben fehlen** | ⚠️ **Required subject-matter details are missing** |
+| public_pages.legal_review_notice | `public_pages.legal_review_notice` | - | Diese Seite ist erst nach fachlicher und rechtlicher Prüfung verbindlich. | This page is binding only after subject-matter and legal review. |
 | public_pages.competencies | `public_pages.competencies.title` | - | Unsere Kompetenzen | Our competencies |
 | public_pages.competencies | `public_pages.competencies.hero.eyebrow` | - | Recruiting-Briefing · ESCO · KI · Struktur | Recruiting brief · ESCO · AI · structure |
 | public_pages.competencies | `public_pages.competencies.hero.lead` | - | Wir professionalisieren den ersten Schritt jedes Recruiting-Prozesses: das Recruiting-Briefing. Aus unstrukturierten Eingangsinformationen entsteht ein klarer, belastbarer und weiterverwendbarer Datensatz, der Suche, Auswahl und interne Abstimmung von Beginn an verbessert. | We professionalize the first step of every recruiting process: the recruiting brief. Unstructured input is turned into a clear, robust, reusable data set that improves search, selection, and internal alignment from the start. |
@@ -216,28 +216,28 @@ All Locale leaf keys below exist in both `locales/de.json` and `locales/en.json`
 | public_pages.imprint | `public_pages.imprint.eyebrow` | - | Rechtliche Information | Legal information |
 | public_pages.imprint | `public_pages.imprint.title` | - | Impressum | Imprint |
 | public_pages.imprint | `public_pages.imprint.intro.0` | - | Diese Seite bündelt die Anbieterkennzeichnung für Cognitive Staffing. | This page bundles the provider identification for Cognitive Staffing. |
-| public_pages.imprint | `public_pages.imprint.intro.1` | - | Bitte ersetzen Sie alle Platzhalter durch die final geprüften Unternehmens- und Registerdaten, bevor die Seite produktiv genutzt wird. | Please replace all placeholders with the finally reviewed company and register data before using this page in production. |
+| public_pages.imprint | `public_pages.imprint.intro.1` | - | Für eine verbindliche Veröffentlichung fehlen noch final geprüfte Unternehmens- und Registerdaten. | Final reviewed company and register data is still missing for binding publication. |
 | public_pages.imprint | `public_pages.imprint.sections.scope.heading` | - | Anwendungsbereich | Scope |
 | public_pages.imprint | `public_pages.imprint.sections.scope.body` | - | Das Impressum gilt für diese Website, die App-Oberfläche und alle hier verlinkten öffentlichen Informationsseiten. | This imprint applies to this website, the app interface, and all public information pages linked here. |
 | public_pages.imprint | `public_pages.imprint.sections.required_info.heading` | - | Pflichtangaben | Mandatory information |
 | public_pages.imprint | `public_pages.imprint.sections.required_info.body` | - | Die Anbieterkennzeichnung muss die rechtlich erforderlichen Angaben zur verantwortlichen Stelle enthalten, insbesondere Name/Firma, Anschrift, Kontaktwege, Vertretungsberechtigte und gegebenenfalls Register- oder Aufsichtsangaben. | The provider identification must contain the legally required information about the responsible entity, in particular name/company, address, contact channels, authorized representatives, and, where applicable, register or supervisory information. |
 | public_pages.imprint | `public_pages.imprint.sections.responsibilities.heading` | - | Verantwortlichkeit für Inhalte | Responsibility for content |
-| public_pages.imprint | `public_pages.imprint.sections.responsibilities.body` | - | Die Inhalte dieser Website wurden mit Sorgfalt erstellt. Für Vollständigkeit, Aktualität und Richtigkeit ist vor Veröffentlichung eine fachliche und rechtliche Prüfung erforderlich. | The content of this website has been created with care. Before publication, completeness, timeliness, and accuracy require subject-matter and legal review. |
+| public_pages.imprint | `public_pages.imprint.sections.responsibilities.body` | - | Die Inhalte dieser Website werden mit Sorgfalt gepflegt. Aktualität und Richtigkeit werden bei Änderungen an Unternehmensdaten, Kontaktwegen oder App-Konfiguration überprüft. | The content of this website is maintained with care. Timeliness and accuracy are reviewed when company data, contact channels, or app configuration change. |
 | public_pages.imprint | `public_pages.imprint.sections.contact_paths.heading` | - | Kontaktwege | Contact channels |
 | public_pages.imprint | `public_pages.imprint.sections.contact_paths.body` | - | Für allgemeine Anfragen, Datenschutzanliegen und Barrierefreiheitsfeedback sollten klar getrennte Kontaktwege angegeben werden, sofern diese organisatorisch vorgesehen sind. | Separate contact channels should be stated for general inquiries, privacy requests, and accessibility feedback where these are organizationally intended. |
 | public_pages.imprint | `public_pages.imprint.sections.version_note.heading` | - | Stand und Pflege | Status and maintenance |
 | public_pages.imprint | `public_pages.imprint.sections.version_note.body` | - | Das Impressum sollte bei Änderungen an Unternehmensdaten, Rechtsform, Vertretungsberechtigten, Hosting-Konstellation oder Kontaktwegen zeitnah aktualisiert werden. | The imprint should be updated promptly when company data, legal form, authorized representatives, hosting setup, or contact channels change. |
-| public_pages.imprint | `public_pages.imprint.placeholders.legal_info.heading` | - | Noch zu ergänzende Unternehmensdaten | Company data still to be added |
-| public_pages.imprint | `public_pages.imprint.placeholders.legal_info.items.company_address` | - | vollständige Anbieteranschrift mit Rechtsform und Vertretungsberechtigung | full provider address with legal form and authorized representation |
-| public_pages.imprint | `public_pages.imprint.placeholders.legal_info.items.registry` | - | Registergericht, Registernummer, Umsatzsteuer-ID oder Wirtschafts-ID, falls einschlägig | register court, register number, VAT ID, or business ID where applicable |
+| public_pages.imprint | `public_pages.imprint.missing_inputs.legal_info.heading` | - | Noch fehlende Unternehmensdaten | Company data still missing |
+| public_pages.imprint | `public_pages.imprint.missing_inputs.legal_info.items.company_address` | - | vollständige Anbieteranschrift mit Rechtsform und Vertretungsberechtigung | full provider address with legal form and authorized representation |
+| public_pages.imprint | `public_pages.imprint.missing_inputs.legal_info.items.registry` | - | Registergericht, Registernummer, Umsatzsteuer-ID oder Wirtschafts-ID, falls einschlägig | register court, register number, VAT ID, or business ID where applicable |
 | public_pages.imprint | `public_pages.imprint.trust.heading` | - | Hinweis | Note |
-| public_pages.imprint | `public_pages.imprint.trust.details.0` | - | Diese Vorlage ersetzt keine Rechtsberatung und muss vor Veröffentlichung geprüft werden. | This template does not replace legal advice and must be reviewed before publication. |
-| public_pages.imprint | `public_pages.imprint.footer_classification` | - | Rechtliche Seite · Template | Legal page · template |
+| public_pages.imprint | `public_pages.imprint.trust.details.0` | - | Diese Seite ersetzt keine Rechtsberatung. Nicht veröffentlichte Unternehmensdaten sind ausdrücklich gekennzeichnet und dürfen nicht durch angenommene Werte ersetzt werden. | This page does not replace legal advice. Company data that has not been published is marked explicitly and must not be replaced with assumed values. |
+| public_pages.imprint | `public_pages.imprint.footer_classification` | - | Rechtliche Seite · Prüfung erforderlich | Legal page · review required |
 | public_pages.privacy | `public_pages.privacy.title` | - | Datenschutzrichtlinie | Privacy policy |
 | public_pages.privacy | `public_pages.privacy.hero.eyebrow` | - | Datenschutz | Privacy |
 | public_pages.privacy | `public_pages.privacy.hero.lead` | - | Der Schutz personenbezogener Daten ist uns wichtig. Auf dieser Seite informieren wir darüber, welche Daten bei der Nutzung unserer Website und App verarbeitet werden, zu welchen Zwecken dies geschieht und welche Rechte betroffene Personen haben. | Protecting personal data matters to us. This page explains which data is processed when using our website and app, for which purposes this happens, and which rights affected persons have. |
 | public_pages.privacy | `public_pages.privacy.notice.title` | - | Hinweis | Note |
-| public_pages.privacy | `public_pages.privacy.notice.body` | - | Bitte gleichen Sie diese Seite vor Veröffentlichung mit den tatsächlich eingesetzten Dienstleistern, Kontaktwegen, Speicherfristen und internen Prozessen ab. | Before publication, please align this page with the service providers, contact channels, retention periods, and internal processes actually in use. |
+| public_pages.privacy | `public_pages.privacy.notice.body` | - | Diese Datenschutzrichtlinie beschreibt die aktuell dokumentierte App-Konfiguration, Kontaktwege und Datenverarbeitung. Änderungen an Dienstleistern, Speicherfristen oder internen Prozessen müssen zeitnah nachgezogen werden. | This privacy policy describes the currently documented app configuration, contact channels, and data processing. Changes to service providers, retention periods, or internal processes must be reflected promptly. |
 | public_pages.privacy | `public_pages.privacy.controller.heading` | - | ## 1. Verantwortlicher | ## 1. Controller |
 | public_pages.privacy | `public_pages.privacy.controller.body` | city, country, email, legal_entity, phone, postal_code, street, website | **{legal_entity}**  <br>{street}  <br>{postal_code} {city}  <br>{country}<br><br>**E-Mail:** {email}  <br>**Telefon:** {phone}  <br>**Website:** {website} | **{legal_entity}**  <br>{street}  <br>{postal_code} {city}  <br>{country}<br><br>**Email:** {email}  <br>**Phone:** {phone}  <br>**Website:** {website} |
 | public_pages.privacy | `public_pages.privacy.privacy_contact.heading` | - | ## 2. Datenschutzkontakt | ## 2. Privacy contact |
@@ -251,10 +251,10 @@ All Locale leaf keys below exist in both `locales/de.json` and `locales/en.json`
 | public_pages.privacy | `public_pages.privacy.legal_basis.heading` | - | ## 6. Rechtsgrundlagen | ## 6. Legal bases |
 | public_pages.privacy | `public_pages.privacy.legal_basis.body` | - | Die Verarbeitung erfolgt – je nach Fallgestaltung – insbesondere auf Grundlage von:<br><br>- Art. 6 Abs. 1 lit. a DSGVO,<br>- Art. 6 Abs. 1 lit. b DSGVO,<br>- Art. 6 Abs. 1 lit. c DSGVO,<br>- Art. 6 Abs. 1 lit. f DSGVO.<br><br>Soweit besondere Kategorien personenbezogener Daten betroffen sind, gelten zusätzlich die hierfür einschlägigen spezialgesetzlichen und datenschutzrechtlichen Anforderungen. | Depending on the specific case, processing is based in particular on:<br><br>- Art. 6(1)(a) GDPR,<br>- Art. 6(1)(b) GDPR,<br>- Art. 6(1)(c) GDPR,<br>- Art. 6(1)(f) GDPR.<br><br>Where special categories of personal data are affected, the relevant sector-specific and data protection requirements also apply. |
 | public_pages.privacy | `public_pages.privacy.recipients.heading` | - | ## 7. Empfänger und eingesetzte Dienstleister | ## 7. Recipients and service providers used |
-| public_pages.privacy | `public_pages.privacy.recipients.providers.hosting` | - | Hosting / Deployment: Bitte ergänzen | Hosting / deployment: please add |
-| public_pages.privacy | `public_pages.privacy.recipients.providers.ai` | - | KI-Anbieter / LLM-Infrastruktur: Bitte ergänzen | AI provider / LLM infrastructure: please add |
-| public_pages.privacy | `public_pages.privacy.recipients.providers.email` | - | E-Mail / Support-Workflow: Bitte ergänzen | Email / support workflow: please add |
-| public_pages.privacy | `public_pages.privacy.recipients.providers.consent` | - | Consent- / Cookie-Management: Bitte ergänzen | Consent / cookie management: please add |
+| public_pages.privacy | `public_pages.privacy.recipients.providers.hosting` | - | Hosting / Deployment: Streamlit-App-Hosting | Hosting / deployment: Streamlit app hosting |
+| public_pages.privacy | `public_pages.privacy.recipients.providers.ai` | - | KI-Anbieter / LLM-Infrastruktur: OpenAI API, sofern KI-Funktionen genutzt werden | AI provider / LLM infrastructure: OpenAI API where AI functions are used |
+| public_pages.privacy | `public_pages.privacy.recipients.providers.email` | - | E-Mail / Support-Workflow: konfigurierte Kontakt-E-Mail-Adressen | Email / support workflow: configured contact email aliases |
+| public_pages.privacy | `public_pages.privacy.recipients.providers.consent` | - | Consent- / Cookie-Management: Streamlit-Präferenzen und Session-State | Consent / cookie management: Streamlit preferences and session state |
 | public_pages.privacy | `public_pages.privacy.recipients.body` | - | Sofern externe technische Dienstleister oder KI-Dienste eingebunden sind, erfolgt dies nur im Rahmen der jeweils vorgesehenen technischen, organisatorischen und vertraglichen Vorkehrungen. | Where external technical service providers or AI services are involved, this takes place only within the intended technical, organizational, and contractual safeguards. |
 | public_pages.privacy | `public_pages.privacy.retention.heading` | - | ## 8. Speicherung und Löschung | ## 8. Storage and deletion |
 | public_pages.privacy | `public_pages.privacy.retention.body` | - | Wir speichern personenbezogene Daten nur so lange, wie dies für die jeweiligen Zwecke erforderlich ist oder gesetzliche Aufbewahrungspflichten dies verlangen.<br><br>Soweit Inhalte innerhalb der Anwendung verarbeitet werden, sollte die Verarbeitung auf das erforderliche Maß begrenzt und organisatorisch kontrolliert werden. Exportierte Dokumente und weitere Recruiting-Unterlagen unterliegen zusätzlich den Regeln der jeweiligen Nutzerorganisation. | We store personal data only for as long as necessary for the respective purposes or as required by statutory retention obligations.<br><br>Where content is processed inside the application, processing should be limited to what is necessary and organizationally controlled. Exported documents and downstream recruiting outputs are also subject to the rules of the respective user organization. |
@@ -296,30 +296,30 @@ All Locale leaf keys below exist in both `locales/de.json` and `locales/en.json`
 | public_pages.cookies | `public_pages.cookies.hero.eyebrow` | - | Cookies & Präferenzen | Cookies and preferences |
 | public_pages.cookies | `public_pages.cookies.hero.lead` | - | Wir verwenden Cookies und vergleichbare Technologien nur im jeweils erforderlichen Umfang. Auf dieser Seite informieren wir darüber, welche Kategorien es gibt und wie Sie Ihre Einstellungen verwalten können. | We use cookies and comparable technologies only to the extent required. This page explains which categories exist and how you can manage your settings. |
 | public_pages.cookies | `public_pages.cookies.notice.title` | - | Wichtiger Hinweis | Important note |
-| public_pages.cookies | `public_pages.cookies.notice.body` | - | Diese Seite sollte vor Veröffentlichung an die tatsächlich eingesetzten Technologien, Consent-Mechanismen und Anbieter angepasst werden. | Before publication, this page should be adapted to the technologies, consent mechanisms, and providers actually in use. |
+| public_pages.cookies | `public_pages.cookies.notice.body` | - | Aktueller Stand: Die App nutzt technische Laufzeit- und Spracheinstellungen. Marketing-Cookies, Werbetracker und externe Analytics-Cookies sind nicht Bestandteil dieses Setups. | Current status: The app uses technical runtime and language settings. Marketing cookies, advertising trackers, and external analytics cookies are not part of this setup. |
 | public_pages.cookies | `public_pages.cookies.choices.heading` | - | ## Ihre Wahlmöglichkeiten | ## Your choices |
-| public_pages.cookies | `public_pages.cookies.choices.body` | - | Sie können Ihre Einstellungen jederzeit anpassen. Nicht unbedingt erforderliche Technologien werden nur eingesetzt, wenn hierfür eine wirksame Einwilligung vorliegt.<br><br>Technisch notwendige Technologien können eingesetzt werden, soweit sie für die sichere und funktionsfähige Bereitstellung der Website oder App erforderlich sind. | You can adjust your settings at any time. Technologies that are not strictly necessary are used only where valid consent exists.<br><br>Technically necessary technologies may be used where they are required for secure and functional provision of the website or app. |
+| public_pages.cookies | `public_pages.cookies.choices.body` | - | Sprache und UI-Präferenzen können Sie direkt in der Oberfläche anpassen. Browserseitige Speicherung können Sie zusätzlich über die Einstellungen Ihres Browsers löschen.<br><br>Technisch notwendige Speicherung wird genutzt, soweit sie für die sichere und funktionsfähige Bereitstellung der Website oder App erforderlich ist. | You can adjust language and UI preferences directly in the interface. Browser-side storage can also be cleared through your browser settings.<br><br>Technically necessary storage is used where required for secure and functional provision of the website or app. |
 | public_pages.cookies | `public_pages.cookies.categories.necessary.title` | - | Technisch notwendig | Technically necessary |
-| public_pages.cookies | `public_pages.cookies.categories.necessary.body` | - | Erforderlich für den sicheren Betrieb, grundlegende Funktionen, Navigation, Sitzungssteuerung oder sicherheitsrelevante Schutzmechanismen. | Required for secure operation, basic functions, navigation, session control, or security-relevant safeguards. |
+| public_pages.cookies | `public_pages.cookies.categories.necessary.body` | - | Erforderlich für sicheren Betrieb, Navigation, Sitzungssteuerung, Sprachpersistenz und lokale Entwurfswiederherstellung. | Required for secure operation, navigation, session control, language persistence, and local draft recovery. |
 | public_pages.cookies | `public_pages.cookies.categories.preferences.title` | - | Präferenzen | Preferences |
-| public_pages.cookies | `public_pages.cookies.categories.preferences.body` | - | Dienen dazu, gewählte Einstellungen, Komfortoptionen oder nutzerseitige Präferenzen zu speichern und die Nutzung konsistenter zu gestalten. | Used to store selected settings, convenience options, or user-side preferences and make usage more consistent. |
+| public_pages.cookies | `public_pages.cookies.categories.preferences.body` | - | Speichert Sprache, Darstellungspräferenzen und Wizard-Einstellungen, damit die Oberfläche konsistent bleibt. | Stores language, display preferences, and wizard settings so the interface remains consistent. |
 | public_pages.cookies | `public_pages.cookies.categories.statistics.title` | - | Statistik | Statistics |
-| public_pages.cookies | `public_pages.cookies.categories.statistics.body` | - | Helfen zu verstehen, wie Inhalte und Funktionen genutzt werden, um Nutzerführung, Verständlichkeit und Produktqualität zu verbessern. | Help understand how content and functions are used in order to improve user guidance, clarity, and product quality. |
+| public_pages.cookies | `public_pages.cookies.categories.statistics.body` | - | Nicht aktiv im aktuellen Setup. Es werden keine externen Analytics-Cookies für Reichweitenmessung gesetzt. | Not active in the current setup. No external analytics cookies are set for traffic measurement. |
 | public_pages.cookies | `public_pages.cookies.categories.external.title` | - | Externe Inhalte / Dienste | External content / services |
-| public_pages.cookies | `public_pages.cookies.categories.external.body` | - | Werden relevant, wenn Inhalte oder Funktionen von Drittanbietern eingebunden werden, etwa Medien, Karten, Analyse- oder Kommunikationsdienste. | Relevant when content or functions from third-party providers are integrated, such as media, maps, analytics, or communication services. |
-| public_pages.cookies | `public_pages.cookies.consent.heading` | - | ## Verwaltung Ihrer Einwilligung | ## Managing your consent |
-| public_pages.cookies | `public_pages.cookies.consent.body` | - | Ihre Auswahl kann jederzeit geändert oder widerrufen werden.<br><br>Der Widerruf berührt nicht die Rechtmäßigkeit bereits erfolgter Verarbeitungen, wirkt aber für die Zukunft.<br><br>Soweit ein Consent-Management-System eingesetzt wird, können Einstellungen dort direkt angepasst werden. | Your selection can be changed or withdrawn at any time.<br><br>Withdrawal does not affect the lawfulness of processing that has already taken place, but applies for the future.<br><br>Where a consent management system is used, settings can be adjusted there directly. |
+| public_pages.cookies | `public_pages.cookies.categories.external.body` | - | Nicht als Cookie- oder Tracking-Kategorie aktiv. KI-Funktionen nutzen serverseitig konfigurierte OpenAI-API-Aufrufe, sofern sie ausgelöst werden. | Not active as a cookie or tracking category. AI functions use server-side configured OpenAI API calls where triggered. |
+| public_pages.cookies | `public_pages.cookies.consent.heading` | - | ## Einstellungen verwalten | ## Managing settings |
+| public_pages.cookies | `public_pages.cookies.consent.body` | - | Die App setzt kein separates Consent-Banner für optionale Marketing- oder Analytics-Cookies ein, weil diese Kategorien im aktuellen Setup nicht aktiv sind.<br><br>Sprache und Wizard-Präferenzen können in der Oberfläche geändert werden. Lokale Browserdaten, etwa gespeicherte Sprache oder Entwurfswiederherstellungs-Metadaten, können über die Browser-Einstellungen gelöscht werden. | The app does not use a separate consent banner for optional marketing or analytics cookies because those categories are not active in the current setup.<br><br>Language and wizard preferences can be changed in the interface. Local browser data, such as stored language or draft-recovery metadata, can be cleared through browser settings. |
 | public_pages.cookies | `public_pages.cookies.transparency.heading` | - | ## Transparenz | ## Transparency |
-| public_pages.cookies | `public_pages.cookies.transparency.body` | - | Welche Technologien konkret aktiv sind, hängt von der tatsächlichen Konfiguration dieser Website ab.<br><br>Detaillierte Informationen zu Anbietern, Zwecken, Rechtsgrundlagen und Speicherfristen sollten in einem produktiven Setup technologiescharf dokumentiert sein. | Which technologies are active depends on the actual configuration of this website.<br><br>In a production setup, detailed information about providers, purposes, legal bases, and retention periods should be documented for each technology. |
-| public_pages.cookies | `public_pages.cookies.examples.heading` | - | ## Beispielhafte Angaben, die ergänzt werden sollten | ## Example information that should be added |
-| public_pages.cookies | `public_pages.cookies.examples.body` | - | - Name des eingesetzten Consent-Tools,<br>- konkrete technisch notwendige Cookies / Speichermechanismen,<br>- Statistik- oder Analysetools,<br>- externe Medien- oder Kommunikationsdienste,<br>- jeweilige Speicherfristen,<br>- jeweilige Anbieter und Empfänger. | - name of the consent tool used,<br>- specific technically necessary cookies / storage mechanisms,<br>- statistics or analytics tools,<br>- external media or communication services,<br>- respective retention periods,<br>- respective providers and recipients. |
+| public_pages.cookies | `public_pages.cookies.transparency.body` | - | Die aktuelle Website nutzt Streamlit-Laufzeitmechanismen, Session-State, Local Storage für Sprache und sichere Entwurfswiederherstellung sowie ein SameSite-Lax-Sprachcookie als Fallback.<br><br>Gespeicherte Entwurfs-Metadaten enthalten keinen vollständigen Entwurf; der dauerhafte Produktvertrag bleibt der manuelle JSON-Entwurf. | The current website uses Streamlit runtime mechanisms, session state, local storage for language and safe draft recovery, and a SameSite=Lax language cookie as fallback.<br><br>Stored draft metadata does not contain the full draft; the durable product contract remains the manual JSON draft. |
+| public_pages.cookies | `public_pages.cookies.current_setup.heading` | - | ## Aktueller Technologieeinsatz | ## Current technology use |
+| public_pages.cookies | `public_pages.cookies.current_setup.body` | - | - Spracheinstellung: Local Storage und SameSite-Lax-Cookie als Fallback,<br>- Wizard- und UI-Präferenzen: Streamlit Session-State,<br>- sichere Entwurfswiederherstellung: Local-Storage-Metadaten bei ungesichertem Fortschritt,<br>- Marketing-Cookies: nicht aktiv,<br>- externe Analytics-Cookies: nicht aktiv. | - Language setting: local storage and SameSite=Lax cookie fallback,<br>- wizard and UI preferences: Streamlit session state,<br>- safe draft recovery: local-storage metadata while unsaved progress exists,<br>- marketing cookies: not active,<br>- external analytics cookies: not active. |
 | public_pages.cookies | `public_pages.cookies.cta.title` | - | Fragen zu Cookie-Einstellungen | Questions about cookie settings |
 | public_pages.cookies | `public_pages.cookies.cta.body` | privacy_email | Bei Rückfragen zu eingesetzten Technologien oder Präferenzen erreichen Sie uns unter **{privacy_email}**. | For questions about technologies or preferences used, you can reach us at **{privacy_email}**. |
 | public_pages.accessibility | `public_pages.accessibility.title` | - | Erklärung zur Barrierefreiheit | Accessibility statement |
 | public_pages.accessibility | `public_pages.accessibility.hero.eyebrow` | - | Barrierefreiheit | Accessibility |
 | public_pages.accessibility | `public_pages.accessibility.hero.lead` | - | Wir möchten unsere Website und digitalen Inhalte möglichst barrierearm und gut zugänglich gestalten. Dabei orientieren wir uns an anerkannten Standards der digitalen Barrierefreiheit und entwickeln die Nutzbarkeit fortlaufend weiter. | We want to make our website and digital content as accessible and usable as possible. We orient ourselves toward recognized digital accessibility standards and continuously improve usability. |
 | public_pages.accessibility | `public_pages.accessibility.notice.title` | - | Rechtliche Einordnung | Legal context |
-| public_pages.accessibility | `public_pages.accessibility.notice.body` | - | Bitte prüfen Sie vor Veröffentlichung, in welchem Umfang BITV 2.0 oder BFSG auf Ihr konkretes Angebot unmittelbar anwendbar sind. Diese Seite ist bewusst als seriöse, freiwillig nutzbare Erklärung formuliert. | Before publication, please check to what extent BITV 2.0 or BFSG directly apply to your specific offering. This page is deliberately written as a serious, voluntary statement. |
+| public_pages.accessibility | `public_pages.accessibility.notice.body` | - | Diese Erklärung beschreibt den aktuellen Anspruch an Zugänglichkeit und den bekannten Verbesserungsbedarf. Ob BITV 2.0, BFSG oder weitere Vorgaben unmittelbar anwendbar sind, hängt vom konkreten Betreiber- und Angebotskontext ab. | This statement describes the current accessibility standard and known improvement areas. Whether BITV 2.0, BFSG, or further requirements apply directly depends on the specific operator and offering context. |
 | public_pages.accessibility | `public_pages.accessibility.status.heading` | - | ## Stand der Vereinbarkeit | ## Compliance status |
 | public_pages.accessibility | `public_pages.accessibility.status.body` | - | Diese Website ist derzeit **teilweise barrierefrei**.<br><br>Wir arbeiten fortlaufend daran, Nutzbarkeit, Verständlichkeit und technische Zugänglichkeit weiter zu verbessern. | This website is currently **partly accessible**.<br><br>We continuously work to further improve usability, clarity, and technical accessibility. |
 | public_pages.accessibility | `public_pages.accessibility.standard.heading` | - | ## Unser Anspruch | ## Our standard |
@@ -361,7 +361,9 @@ All Locale leaf keys below exist in both `locales/de.json` and `locales/en.json`
 | public_pages.contact | `public_pages.contact.form.message` | - | Nachricht | Message |
 | public_pages.contact | `public_pages.contact.form.message_placeholder` | - | Beschreiben Sie kurz Ihren Anwendungsfall oder Ihr Anliegen. | Briefly describe your use case or request. |
 | public_pages.contact | `public_pages.contact.form.submit` | - | Anfrage vorbereiten | Prepare request |
-| public_pages.contact | `public_pages.contact.form.success` | - | Vielen Dank. Bitte binden Sie nun den gewünschten Versandweg an, z. B. E-Mail, CRM oder Helpdesk. | Thank you. Please now connect the desired sending channel, for example email, CRM, or helpdesk. |
+| public_pages.contact | `public_pages.contact.form.success` | - | Die Anfrage ist vorbereitet. Öffnen Sie Ihre E-Mail-App, prüfen Sie die Nachricht und senden Sie sie direkt ab. | The request is prepared. Open your email app, review the message, and send it directly. |
+| public_pages.contact | `public_pages.contact.form.email_cta` | - | In E-Mail-App öffnen | Open in email app |
+| public_pages.contact | `public_pages.contact.form.email_subject` | topic | Kontaktanfrage: {topic} | Contact request: {topic} |
 | public_pages.contact | `public_pages.contact.form.summary` | company, email, message, name, topic | Name: {name}<br>Unternehmen: {company}<br>E-Mail: {email}<br>Anliegen: {topic}<br><br>Nachricht:<br>{message} | Name: {name}<br>Company: {company}<br>Email: {email}<br>Topic: {topic}<br><br>Message:<br>{message} |
 | public_pages.contact | `public_pages.contact.cta.title` | - | Direkter Draht | Direct line |
 | public_pages.contact | `public_pages.contact.cta.body` | email | Für schnelle Rückfragen erreichen Sie uns direkt unter **{email}**. | For quick questions, you can reach us directly at **{email}**. |
@@ -410,7 +412,7 @@ These entries are consumed by `t(text)` when the active UI language is English. 
 | common | Über Cognitive Staffing | About Cognitive Staffing |
 | common | Über uns | About us |
 | public.legal | Impressum | Imprint |
-| public.legal | Impressum (Template) | Imprint (template) |
+| public.legal | Impressum (Prüfung erforderlich) | Imprint (review required) |
 | public.legal | Datenschutzrichtlinie | Privacy policy |
 | public.legal | Nutzungsbedingungen | Terms of use |
 | public.legal | Cookie Policy/Settings | Cookie policy/settings |
@@ -426,9 +428,9 @@ These entries are consumed by `t(text)` when the active UI language is English. 
 | common | Wichtiger Hinweis | Important note |
 | common | Hinweis | Note |
 | common | AI-gestützte Kompetenz- und Matching-Workflows | AI-supported competency and matching workflows |
-| public.legal | Rechtliche Seite · Template | Legal page · template |
-| public.legal | Diese Seite ist eine Vorlage und wird erst nach rechtlicher Prüfung verbindlich. | This page is a template and becomes binding only after legal review. |
-| common | 🟧 **Platzhalter – Fachinput fehlt** | 🟧 **Placeholder – subject-matter input missing** |
+| public.legal | Rechtliche Seite · Prüfung erforderlich | Legal page · review required |
+| public.legal | Diese Seite ist erst nach fachlicher und rechtlicher Prüfung verbindlich. | This page is binding only after subject-matter and legal review. |
+| common | ⚠️ **Erforderliche Fachangaben fehlen** | ⚠️ **Required subject-matter details are missing** |
 | common | Wie weit möchten Sie ins Detail gehen? | How much detail do you want? |
 | common | Detailgrad aktiv: **Schnell** (`quick`) | Active detail level: **Quick** (`quick`) |
 | common | Detailgrad aktiv: **Ausführlich** (`standard`) | Active detail level: **Standard** (`standard`) |
@@ -436,8 +438,6 @@ These entries are consumed by `t(text)` when the active UI language is English. 
 | wizard.intake | Der Modus steuert, wie viele Fragen im aktuellen Schritt sichtbar sind. | The mode controls how many questions are visible in the current step. |
 | common | Antwortmodus | Response mode |
 | common | Informationstiefe | Information depth |
-| esco | ESCO-Matching-Strenge | ESCO matching strictness |
-| common | Regionaler Fokus | Regional focus |
 | common | Confidence-Schwelle für Treffer | Confidence threshold for matches |
 | common | PII-Reduktion | PII reduction |
 | common | Details standardmäßig öffnen | Open details by default |
@@ -454,8 +454,6 @@ These entries are consumed by `t(text)` when the active UI language is English. 
 | wizard.intake | Bitte zuerst im Start-Schritt eine Analyse durchführen. | Please run an analysis in the Start step first. |
 | common | Zur Startseite | Go to start page |
 | common | Zum Start | Go to Start |
-| common | Debug: OpenAI-Auflösung | Debug: OpenAI resolution |
-| common | Nur aufgelöste Laufzeitwerte, keine Secrets. | Resolved runtime values only, no secrets. |
 | summary.artifact | Stellenanzeige einlesen und Intake starten | Import job ad and start intake |
 | wizard.intake | Anzeige hochladen oder einfügen | Upload or paste job ad |
 | common | Vakanzanforderungen präzise erfassen | Capture vacancy requirements precisely |
@@ -722,7 +720,7 @@ Priority guide: `P1` visible wizard workflow copy, `P2` shared/public/helper cop
 | P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1150` | ##### Basisdaten |
 | P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1159` | ##### Klassifikation |
 | P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1162` | ##### Relationen |
-| P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1185` | [ESCO URI: …{...}]({...}) |
+| P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1185` | \[ESCO URI: …{...}\]\({...}\) |
 | P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1195` | ##### Skills Group Share |
 | P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1434` | Optionale Kontextanker |
 | P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1435` | Für Grenzrollen oder Mischprofile: Kontextanker ergänzen die Einordnung, ersetzen aber nicht Primäranker und Kernexport. |
@@ -749,17 +747,17 @@ Priority guide: `P1` visible wizard workflow copy, `P2` shared/public/helper cop
 | P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1704` | ESCO-Skillgruppen-Daten sind gerade nicht stabil erreichbar. Du kannst manuell fortfahren und später erneut laden. |
 | P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1709` | ESCO-Skillgruppen-Daten konnten nicht vollständig geladen werden: {...} |
 | P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1716` | Das ESCO-Portal zeigt diesen Anteil, der aktuell über den genutzten ESCO-Webservice nicht abrufbar ist. |
-| P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1719` | [Portal öffnen]({...}) |
+| P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1719` | \[Portal öffnen\]\({...}\) |
 | P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1728` | ### Berufsabgleich bestätigen |
 | P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1729` | Suche mit: `{...}` |
 | P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1730` | Der Referenzberuf ist der gemeinsame Bezugspunkt für Aufgaben, Skills und Zusammenfassung. |
-| P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1734` | [Portal öffnen]({...}) |
+| P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1734` | \[Portal öffnen\]\({...}\) |
 | P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1736` | Taxonomie, technische Daten und Berufsdetails sind hier gebündelt. |
-| P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1751` | [ESCO URI: …{...}]({...}) |
+| P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1751` | \[ESCO URI: …{...}\]\({...}\) |
 | P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1768` | Weitere Details sind in den aufklappbaren ESCO-Bereichen verfügbar. |
 | P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1780` | Die App nutzt diese Einordnung für passendere Vorschläge zu Aufgaben, Skills und Summary. |
 | P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1792` | Diese Hinweise erklären, warum der Referenzberuf zur Jobspec passt. |
-| P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1818` | [ESCO URI: …{...}]({...}) |
+| P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1818` | \[ESCO URI: …{...}\]\({...}\) |
 | P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1823` | ESCO Debug |
 | P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1824` | Session key: {...} · URI: {...} |
 | P1 | `esco` | `wizard_pages/esco_occupation_ui.py:1828` | Beruf im Detail |
@@ -1168,7 +1166,7 @@ Priority guide: `P1` visible wizard workflow copy, `P2` shared/public/helper cop
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:1654` | Vorbereitung im separaten Panel unterhalb der Aktionskarten. |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:1655` | Stellenanzeige vorbereiten |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:1666` | **Eingaben** |
-| P1 | `wizard.summary` | `wizard_pages/summary_view.py:1671` | {...} (Platzhalter) |
+| P1 | `wizard.summary` | `wizard_pages/summary_view.py:1671` | Nicht verfügbar: {...} |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:1713` | ### Stellenanzeige vorbereiten |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:1714` | Welche Informationen sollen in die Stellenanzeige einfließen? |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:1715` | Blendet Auswahl, Spracheinstellungen und Optimierung für die Stellenanzeige ein oder aus. |
@@ -1239,13 +1237,10 @@ Priority guide: `P1` visible wizard workflow copy, `P2` shared/public/helper cop
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2789` | JSON herunterladen |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2796` | Markdown herunterladen |
 | P1 | `wizard.summary` | `wizard_pages/summary_view.py:2803` | DOCX herunterladen |
-| P2 | `common` | `app.py:500` | Resolved runtime values only, no secrets. |
 | P2 | `common` | `app.py:557` | Detailgrad, Antwortmodus und Informationstiefe werden im Start-Schritt über eine gemeinsame Auswahl gesteuert. |
-| P2 | `common` | `app.py:567` | Vorbereitetes Steuerfeld: End-to-end verdrahtet, finale Wirkung wird schrittweise ausgebaut. |
-| P2 | `common` | `app.py:579` | Vorbereitete globale Schwelle für Match-/Trefferdarstellung. |
+| P2 | `common` | `app.py:567` | Globale Schwelle für erkannte Fakten, Match-Hinweise, Readiness und Trefferdarstellung. |
 | P2 | `common` | `app.py:588` | Reduziert sensible personenbezogene Angaben in der Verarbeitung, wo möglich. |
 | P2 | `components` | `components/sidebar.py:34` | #### Seiten |
-| P2 | `components` | `components/sidebar.py:44` | Aktiver Runtime-Kontext |
 | P2 | `esco` | `ui_esco_picker.py:268` | Taxonomie konnte nicht geladen werden: {...} |
 | P2 | `esco` | `ui_esco_picker.py:273` | Keine übergeordnete Relation (`hasBroaderTransitive`) für dieses ESCO-Konzept gefunden. |
 | P2 | `esco` | `ui_esco_picker.py:277` | Taxonomie ist noch nicht geladen. |

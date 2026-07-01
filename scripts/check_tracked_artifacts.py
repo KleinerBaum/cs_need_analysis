@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import fnmatch
-import subprocess
+# Dev-only fixed Git metadata command, shell=False.
+import subprocess  # nosec B404
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -57,6 +58,8 @@ GENERATED_NAME_PATTERNS = (
     ".coverage",
     ".coverage.*",
     "coverage.xml",
+    "iceberg_need_analysis_visual_patch.diff",
+    "latest_deep-research-report.md",
     "nosetests.xml",
 )
 
@@ -68,7 +71,8 @@ class Finding:
 
 
 def _tracked_paths() -> list[str]:
-    result = subprocess.run(
+    # Fixed Git command with no user input and shell=False.
+    result = subprocess.run(  # nosec B603 B607
         ["git", "ls-files", "-z"],
         cwd=ROOT,
         check=True,
@@ -93,6 +97,9 @@ def _looks_binary(path: str) -> bool:
 
 
 def _finding_for(path: str) -> Finding | None:
+    if not (ROOT / path).exists():
+        return None
+
     if path in KNOWN_TRACKED_REPORTS:
         return None
 

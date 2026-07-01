@@ -28,17 +28,17 @@ render_standard_page(
             "version_note",
         )
     ],
-    placeholders=[
+    missing_legal_inputs=[
         (
-            _copy("placeholders.legal_info.heading"),
+            _copy("missing_inputs.legal_info.heading"),
             [
-                _copy("placeholders.legal_info.items.company_address"),
-                _copy("placeholders.legal_info.items.registry"),
+                _copy("missing_inputs.legal_info.items.company_address"),
+                _copy("missing_inputs.legal_info.items.registry"),
             ],
         )
     ],
     trust_heading=_copy("trust.heading"),
     trust_details=[_copy("trust.details.0")],
-    legal_template=True,
+    legal_review_required=True,
     footer_classification=_copy("footer_classification"),
 )

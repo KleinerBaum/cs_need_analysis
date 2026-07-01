@@ -2244,7 +2244,7 @@ def _render_action_card(action: SummaryAction) -> bool:
 
         if action["generator_fn"] is None:
             st.button(
-                _ui_copy("workspace.placeholder_cta", label=action["cta_label"]),
+                _ui_copy("workspace.unavailable_cta", label=action["cta_label"]),
                 disabled=True,
                 width="stretch",
                 key=_widget_key(SSKey.SUMMARY_ACTION_WIDGET_PREFIX, action["id"]),

@@ -9,30 +9,27 @@ import streamlit as st
 from i18n import t, tr
 from safe_html import escape_html_text, render_static_html
 
+PROFILE_VALUE_NOT_PUBLISHED = "__profile_value_not_published__"
+PROFILE_VALUE_NOT_CONFIGURED = "__profile_value_not_configured__"
+
 
 @dataclass(frozen=True)
 class SiteProfile:
     brand_name: str = "Cognitive Staffing"
     legal_entity: str = "Cognitive Staffing"
-    managing_director: str = "Bitte ergänzen"
-    street: str = "Bitte ergänzen"
-    postal_code: str = "Bitte ergänzen"
-    city: str = "Bitte ergänzen"
+    managing_director: str = PROFILE_VALUE_NOT_PUBLISHED
+    street: str = PROFILE_VALUE_NOT_PUBLISHED
+    postal_code: str = PROFILE_VALUE_NOT_PUBLISHED
+    city: str = PROFILE_VALUE_NOT_PUBLISHED
     country: str = "Deutschland"
     email: str = "kontakt@cognitive-staffing.de"
-    phone: str = "+49 ..."
+    phone: str = PROFILE_VALUE_NOT_PUBLISHED
     website: str = "https://recruitment-need-analysis.streamlit.app/"
     support_email: str = "support@cognitive-staffing.de"
     privacy_email: str = "datenschutz@cognitive-staffing.de"
     accessibility_email: str = "barrierefreiheit@cognitive-staffing.de"
     last_updated: str = "14.04.2026"
-    dpo_name: str = "Bitte ergänzen, falls vorhanden"
-    service_providers: tuple[str, ...] = (
-        "Hosting / Deployment: Bitte ergänzen",
-        "KI-Anbieter / LLM-Infrastruktur: Bitte ergänzen",
-        "E-Mail / Support-Workflow: Bitte ergänzen",
-        "Consent- / Cookie-Management: Bitte ergänzen",
-    )
+    dpo_name: str = PROFILE_VALUE_NOT_CONFIGURED
 
 
 PROFILE = SiteProfile()
@@ -43,10 +40,10 @@ def profile_last_updated_label() -> str:
 
 
 def localized_profile_value(value: str) -> str:
-    if value == "Bitte ergänzen":
-        return tr("common.placeholder_missing")
-    if value == "Bitte ergänzen, falls vorhanden":
-        return tr("common.placeholder_missing_optional")
+    if value == PROFILE_VALUE_NOT_PUBLISHED:
+        return tr("common.not_published")
+    if value == PROFILE_VALUE_NOT_CONFIGURED:
+        return tr("common.not_configured")
     if value == "Deutschland":
         return tr("common.country_germany")
     return value

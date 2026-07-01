@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import ast
 import json
+import re
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -9,6 +12,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts import check_repo_hygiene
+import config.preferences as preferences_config
 from constants import (
     SSKey,
     STEP_KEY_BENEFITS,
@@ -32,7 +36,35 @@ from i18n import (
     tr_safe,
 )
 import wizard_pages.base as wizard_base
+
+
+def _leaf_count(value: object) -> int:
+    if isinstance(value, Mapping):
+        return sum(_leaf_count(item) for item in value.values())
+    return 1
+
+
+def _i18n_dict_literal_count(name: str) -> int:
+    module = ast.parse((ROOT / "i18n.py").read_text(encoding="utf-8"))
+    for node in module.body:
+        if isinstance(node, ast.AnnAssign) and getattr(node.target, "id", "") == name:
+            if not isinstance(node.value, ast.Dict):
+                raise AssertionError(f"{name} is not a literal dict")
+            return len(node.value.keys)
+    raise AssertionError(f"{name} not found")
+
+
+def _inventory_summary_count(label: str) -> int:
+    text = (ROOT / "docs/i18n_key_list.md").read_text(encoding="utf-8")
+    match = re.search(rf"\| {re.escape(label)} \| (?P<count>\d+) \|", text)
+    if match is None:
+        raise AssertionError(f"Missing inventory row for {label}")
+    return int(match.group("count"))
+
+
 import i18n
+from site_ui import PROFILE, PROFILE_VALUE_NOT_CONFIGURED, PROFILE_VALUE_NOT_PUBLISHED
+from site_ui import localized_profile_value
 from wizard_pages.base import WizardPage
 
 
@@ -66,10 +98,7 @@ def test_translation_uses_german_as_source_copy(monkeypatch) -> None:
     assert t("Einleitung") == "Introduction"
     assert t("Weiter →") == "Next"
     assert t("Briefing-Cockpit öffnen") == "Open briefing cockpit"
-    assert (
-        t("Recruiting-Briefing vor Workflow")
-        == "Recruiting brief before workflow"
-    )
+    assert t("Recruiting-Briefing vor Workflow") == "Recruiting brief before workflow"
     assert t("Anzeige hochladen oder einfügen") == "Upload or paste job ad"
     assert (
         t("Was der Start vor dem Upload verspricht")
@@ -84,7 +113,9 @@ def test_translation_uses_german_as_source_copy(monkeypatch) -> None:
         "and confirm the reference occupation."
     )
     assert t("Quelle in Briefing verwandeln") == "Turn source into brief"
-    assert t("Mit Unternehmenskontext weiterarbeiten") == "Continue with company context"
+    assert (
+        t("Mit Unternehmenskontext weiterarbeiten") == "Continue with company context"
+    )
     assert t("Was bedeutet RAG?") == "What does RAG mean?"
     assert t("Datenschutzrichtlinie") == "Privacy policy"
 
@@ -116,6 +147,91 @@ def test_locale_files_have_matching_key_shapes() -> None:
     en_locale = json.loads((locales_dir / "en.json").read_text(encoding="utf-8"))
 
     assert _locale_leaf_keys(de_locale) == _locale_leaf_keys(en_locale)
+
+
+def test_i18n_inventory_summary_counts_match_sources() -> None:
+    locales_dir = ROOT / "locales"
+    de_locale = json.loads((locales_dir / "de.json").read_text(encoding="utf-8"))
+    en_locale = json.loads((locales_dir / "en.json").read_text(encoding="utf-8"))
+    inventory_text = (ROOT / "docs/i18n_key_list.md").read_text(encoding="utf-8")
+
+    assert _inventory_summary_count("`locales/de.json` leaf keys") == _leaf_count(
+        de_locale
+    )
+    assert _inventory_summary_count("`locales/en.json` leaf keys") == _leaf_count(
+        en_locale
+    )
+    assert _inventory_summary_count("`_TRANSLATIONS_EN`") == _i18n_dict_literal_count(
+        "_TRANSLATIONS_EN"
+    )
+    assert _inventory_summary_count(
+        "`_PHRASE_TRANSLATIONS_EN`"
+    ) == _i18n_dict_literal_count("_PHRASE_TRANSLATIONS_EN")
+    assert _inventory_summary_count(
+        "High-confidence unkeyed UI-copy candidates"
+    ) == sum(1 for line in inventory_text.splitlines() if line.startswith("| P"))
+
+
+def test_public_legal_copy_uses_missing_configuration_language(monkeypatch) -> None:
+    locales_dir = Path(__file__).resolve().parents[1] / "locales"
+    locale_text = "\n".join(
+        [
+            (locales_dir / "de.json").read_text(encoding="utf-8"),
+            (locales_dir / "en.json").read_text(encoding="utf-8"),
+        ]
+    )
+
+    assert "Bitte ergänzen" not in locale_text
+    assert "+49 ..." not in locale_text
+    assert "legal_placeholder_title" not in locale_text
+    assert "legal_template_notice" not in locale_text
+    assert "Placeholder - subject-matter" not in locale_text
+    assert "This page is a template" not in locale_text
+    assert "Legal page · template" not in locale_text
+    assert "Rechtliche Seite · Template" not in locale_text
+    assert "Before publication, this page should be adapted" not in locale_text
+    assert "Diese Seite sollte vor Veröffentlichung" not in locale_text
+    assert "Before publication, please align this page" not in locale_text
+    assert "Bitte gleichen Sie diese Seite vor Veröffentlichung" not in locale_text
+    assert "Before publication, please check" not in locale_text
+    assert "Bitte prüfen Sie vor Veröffentlichung" not in locale_text
+    assert "must be reviewed before publication" not in locale_text
+    assert "muss vor Veröffentlichung geprüft werden" not in locale_text
+    assert "Example information that should be added" not in locale_text
+    assert "Beispielhafte Angaben, die ergänzt werden sollten" not in locale_text
+    assert "cookies.examples" not in locale_text
+    assert "Consent-Management-System" not in locale_text
+    assert "Vorbereitetes Steuerfeld" not in locale_text
+    assert "Vorbereitete globale Schwelle" not in locale_text
+
+    assert PROFILE.phone == PROFILE_VALUE_NOT_PUBLISHED
+    monkeypatch.setattr(i18n, "active_language", lambda: "en")
+    assert localized_profile_value(PROFILE_VALUE_NOT_PUBLISHED) == "Not published"
+    assert localized_profile_value(PROFILE_VALUE_NOT_CONFIGURED) == "Not configured"
+    assert (
+        t("Rechtliche Seite · Prüfung erforderlich") == "Legal page · review required"
+    )
+
+
+def test_runtime_context_describes_actual_storage_instead_of_cookie_consent(
+    monkeypatch,
+) -> None:
+    fake_st = type("FakeStreamlit", (), {"session_state": {}})()
+    monkeypatch.setattr(preferences_config, "st", fake_st)
+
+    context = preferences_config.build_runtime_context()
+
+    assert "consent" not in context
+    assert "cs_cookie_consent" not in fake_st.session_state
+    assert "regional_focus" not in context["retrieval"]
+    assert "esco_match_strictness" not in context["retrieval"]
+    assert context["storage"] == {
+        "language_preference": True,
+        "session_preferences": True,
+        "draft_recovery_metadata": True,
+        "analytics": False,
+        "marketing": False,
+    }
 
 
 def test_i18n_hygiene_contract_guard_passes_current_repo() -> None:
@@ -314,7 +430,9 @@ def test_language_toggle_uses_widget_state_without_index(monkeypatch) -> None:
     monkeypatch.setattr(i18n, "st", fake_st)
     monkeypatch.setattr(i18n, "render_language_persistence_bridge", lambda **_: None)
 
-    selected = i18n.render_language_toggle(location="main", key=LANGUAGE_WIDGET_KEY_PAGE)
+    selected = i18n.render_language_toggle(
+        location="main", key=LANGUAGE_WIDGET_KEY_PAGE
+    )
 
     assert selected == "en"
     assert "index" not in radio_kwargs

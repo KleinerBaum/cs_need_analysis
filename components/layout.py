@@ -1,4 +1,4 @@
-"""Standard page layout helpers for static information and legal templates."""
+"""Standard page layout helpers for static information and legal pages."""
 
 from __future__ import annotations
 
@@ -86,12 +86,14 @@ def render_section_block(*, heading: str, paragraphs: Sequence[str]) -> None:
             st.markdown(str(t(text)))
 
 
-def render_placeholder_block(*, heading: str, missing_inputs: Sequence[str]) -> None:
+def render_missing_legal_inputs_block(
+    *, heading: str, missing_inputs: Sequence[str]
+) -> None:
     visible_items = [item.strip() for item in missing_inputs if item.strip()]
     if not visible_items:
         return
     st.warning(
-        tr("public_pages.legal_placeholder_title")
+        tr("public_pages.legal_missing_inputs_title")
         + "\n\n"
         + f"**{t(heading)}**\n"
         + "\n".join(f"- {t(item)}" for item in visible_items)
@@ -99,11 +101,11 @@ def render_placeholder_block(*, heading: str, missing_inputs: Sequence[str]) -> 
 
 
 def render_trust_info_block(
-    *, heading: str, details: Sequence[str], legal_template: bool
+    *, heading: str, details: Sequence[str], legal_review_required: bool
 ) -> None:
     lines = [item.strip() for item in details if item.strip()]
-    if legal_template:
-        lines.insert(0, tr("public_pages.legal_template_notice"))
+    if legal_review_required:
+        lines.insert(0, tr("public_pages.legal_review_notice"))
     if not lines:
         return
     st.info(f"**{t(heading)}**\n\n" + "\n".join(f"- {t(line)}" for line in lines))
@@ -124,8 +126,8 @@ def render_standard_page(
     product_name: str = "Cognitive Staffing – Recruiting-Briefing",
     trust_heading: str | None = None,
     trust_details: Sequence[str] = (),
-    legal_template: bool = False,
-    placeholders: Sequence[tuple[str, Sequence[str]]] = (),
+    legal_review_required: bool = False,
+    missing_legal_inputs: Sequence[tuple[str, Sequence[str]]] = (),
 ) -> None:
     bootstrap_public_page(page_title=title, page_icon="📄")
     load_css()
@@ -133,12 +135,15 @@ def render_standard_page(
     render_hero(eyebrow=eyebrow, title=title, intro=intro)
     for section in sections:
         render_section_block(heading=section.heading, paragraphs=section.body)
-    for heading, missing_inputs in placeholders:
-        render_placeholder_block(heading=heading, missing_inputs=missing_inputs)
+    for heading, missing_inputs in missing_legal_inputs:
+        render_missing_legal_inputs_block(
+            heading=heading,
+            missing_inputs=missing_inputs,
+        )
     if trust_heading:
         render_trust_info_block(
             heading=trust_heading,
             details=trust_details,
-            legal_template=legal_template,
+            legal_review_required=legal_review_required,
         )
     render_footer(product_name=product_name, classification=footer_classification)

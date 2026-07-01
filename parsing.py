@@ -50,7 +50,7 @@ def read_validated_upload_bytes(upload: Any) -> Tuple[bytes, Dict[str, Any]]:
 
     try:
         upload.seek(0)
-    except Exception:
+    except (AttributeError, OSError, ValueError):
         pass
 
     try:
@@ -60,7 +60,7 @@ def read_validated_upload_bytes(upload: Any) -> Tuple[bytes, Dict[str, Any]]:
     finally:
         try:
             upload.seek(0)
-        except Exception:
+        except (AttributeError, OSError, ValueError):
             pass
 
     if isinstance(raw, bytearray):

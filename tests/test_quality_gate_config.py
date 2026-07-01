@@ -9,7 +9,6 @@ import pytest
 
 from scripts import check_repo_hygiene, check_tracked_artifacts
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -301,6 +300,8 @@ def test_gitignore_excludes_local_scan_and_generated_report_outputs() -> None:
     assert "reports/" in gitignore
     assert "gitleaks-report.*" in gitignore
     assert "artifact-scan-report.*" in gitignore
+    assert "latest_deep-research-report.md" in gitignore
+    assert "iceberg_need_analysis_visual_patch.diff" in gitignore
     assert "*:Zone.*" in gitignore
     assert ".env.*" in gitignore
     assert "!.env.example" in gitignore
@@ -312,6 +313,21 @@ def test_gitignore_excludes_local_scan_and_generated_report_outputs() -> None:
     assert "exports/" in gitignore
     assert "*.docx" in gitignore
     assert "*.pdf" in gitignore
+
+
+def test_readme_uses_non_secret_shaped_openai_key_examples() -> None:
+    readme = _read("README.md")
+    openai_key_prefix = "s" + "k-"
+
+    assert f"{openai_key_prefix}..." not in readme
+    assert f'export OPENAI_API_KEY="{openai_key_prefix}' not in readme
+    assert "your-local-openai-api-key" not in readme
+
+
+def test_i18n_inventory_does_not_render_placeholder_markdown_links() -> None:
+    i18n_key_list = _read("docs/i18n_key_list.md")
+
+    assert "]({...})" not in i18n_key_list
 
 
 def test_repo_hygiene_guard_flags_forbidden_paths_without_static_asset_noise() -> None:
@@ -327,8 +343,11 @@ def test_repo_hygiene_guard_flags_forbidden_paths_without_static_asset_noise() -
             "data/salary_benchmarks/demo_de.csv",
             "reports/Key-Analyse-report.md",
             "reports/new-export.md",
+            "latest_deep-research-report.md",
+            "iceberg_need_analysis_visual_patch.diff",
             "service/private.pem",
-        ]
+        ],
+        require_existing=False,
     )
 
     by_path = {finding.path: finding.rule for finding in findings}
@@ -339,9 +358,18 @@ def test_repo_hygiene_guard_flags_forbidden_paths_without_static_asset_noise() -
         "app/__pycache__/module.cpython-311.pyc": "generated-python-cache",
         "client_secret.json": "secret-credential-file",
         "exports/vacancy_brief.docx": "generated-export-artifact",
+        "iceberg_need_analysis_visual_patch.diff": "generated-local-report",
+        "latest_deep-research-report.md": "generated-local-report",
         "reports/new-export.md": "generated-local-report",
         "service/private.pem": "secret-key-material",
     }
+
+
+def test_artifact_guards_ignore_paths_deleted_in_worktree() -> None:
+    missing_path = "missing-generated-local-report.pyc"
+
+    assert check_repo_hygiene.finding_for_path(missing_path) is None
+    assert check_tracked_artifacts._finding_for(missing_path) is None
 
 
 def test_tracked_artifact_scan_allows_report_archive_index() -> None:
@@ -352,6 +380,7 @@ def test_repo_hygiene_guard_output_reports_only_paths_and_rules(
     capsys, monkeypatch
 ) -> None:
     monkeypatch.setattr(check_repo_hygiene, "_tracked_paths", lambda: [".env"])
+    monkeypatch.setattr(check_repo_hygiene, "_tracked_path_exists", lambda _path: True)
 
     exit_code = check_repo_hygiene.main()
     output = capsys.readouterr().out
@@ -491,8 +520,7 @@ def test_ci_uses_compact_junit_summary_script() -> None:
     assert "python scripts/ci_junit_summary.py reports/junit/unit.xml" in workflow
     assert "python scripts/ci_junit_summary.py reports/junit/apptest.xml" in workflow
     assert (
-        "python scripts/ci_junit_summary.py reports/junit/browser-smoke.xml"
-        in workflow
+        "python scripts/ci_junit_summary.py reports/junit/browser-smoke.xml" in workflow
     )
     assert (
         "python scripts/ci_junit_summary.py reports/junit/visual-regression.xml"

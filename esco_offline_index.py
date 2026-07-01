@@ -26,7 +26,9 @@ class OfflineEscoIndex:
                 )
         return None
 
-    def _query_json(self, query: str, params: tuple[object, ...]) -> list[dict[str, Any]]:
+    def _query_json(
+        self, query: str, params: tuple[object, ...]
+    ) -> list[dict[str, Any]]:
         with sqlite3.connect(self.sqlite_path) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(query, params).fetchall()
@@ -34,18 +36,30 @@ class OfflineEscoIndex:
 
     def _resolve_label(self, *, uri: str, language: str) -> str:
         rows = self._query_json(
-            "SELECT label FROM labels WHERE uri = ? AND language = ? LIMIT 1",
+            """
+            SELECT label FROM labels
+            WHERE uri = ? AND language = ?
+            ORDER BY rowid
+            LIMIT 1
+            """,
             (uri, language),
         )
         if rows:
             return str(rows[0].get("label") or "").strip()
         fallback_rows = self._query_json(
-            "SELECT label FROM labels WHERE uri = ? LIMIT 1",
+            """
+            SELECT label FROM labels
+            WHERE uri = ?
+            ORDER BY rowid
+            LIMIT 1
+            """,
             (uri,),
         )
         return str(fallback_rows[0].get("label") or "").strip() if fallback_rows else ""
 
-    def search(self, *, text: str, type_name: str, language: str, limit: int) -> dict[str, Any]:
+    def search(
+        self, *, text: str, type_name: str, language: str, limit: int
+    ) -> dict[str, Any]:
         pattern = f"%{text.strip().lower()}%"
         rows = self._query_json(
             """
@@ -64,15 +78,21 @@ class OfflineEscoIndex:
                 "title": str(row.get("label") or "").strip(),
                 "label": str(row.get("label") or "").strip(),
                 "preferredLabel": str(row.get("label") or "").strip(),
-                "conceptType": str(row.get("conceptType") or type_name).strip().lower() or type_name,
-                "type": str(row.get("conceptType") or type_name).strip().lower() or type_name,
+                "conceptType": str(row.get("conceptType") or type_name).strip().lower()
+                or type_name,
+                "type": str(row.get("conceptType") or type_name).strip().lower()
+                or type_name,
             }
             for row in rows
         ]
         return {"_embedded": {"results": results}, "total": len(results)}
 
-    def suggest2(self, *, text: str, type_name: str, language: str, limit: int) -> dict[str, Any]:
-        return self.search(text=text, type_name=type_name, language=language, limit=limit)
+    def suggest2(
+        self, *, text: str, type_name: str, language: str, limit: int
+    ) -> dict[str, Any]:
+        return self.search(
+            text=text, type_name=type_name, language=language, limit=limit
+        )
 
     def terms(self, *, uri: str, type_name: str, language: str) -> dict[str, Any]:
         rows = self._query_json(
@@ -102,7 +122,9 @@ class OfflineEscoIndex:
                 "title": str(row.get("label") or "").strip(),
                 "label": str(row.get("label") or "").strip(),
                 "preferredLabel": str(row.get("label") or "").strip(),
-                "conceptType": str(row.get("conceptType") or concept_type).strip().lower()
+                "conceptType": str(row.get("conceptType") or concept_type)
+                .strip()
+                .lower()
                 or concept_type,
             }
             for row in rows
@@ -147,15 +169,36 @@ class OfflineEscoIndex:
             "version": self.version,
         }
 
-    def resource_related(self, *, uri: str, relation: str, language: str) -> dict[str, Any]:
+    def resource_related(
+        self, *, uri: str, relation: str, language: str
+    ) -> dict[str, Any]:
         rows = self._query_json(
             """
-            SELECT r.target_uri as uri, l.label, c.concept_type as conceptType
+            SELECT
+                r.target_uri as uri,
+                COALESCE(
+                    (
+                        SELECT preferred.label
+                        FROM labels preferred
+                        WHERE preferred.uri = r.target_uri
+                          AND preferred.language = ?
+                        ORDER BY preferred.rowid
+                        LIMIT 1
+                    ),
+                    (
+                        SELECT fallback.label
+                        FROM labels fallback
+                        WHERE fallback.uri = r.target_uri
+                        ORDER BY fallback.rowid
+                        LIMIT 1
+                    ),
+                    ''
+                ) as label,
+                c.concept_type as conceptType
             FROM relations r
-            LEFT JOIN labels l ON r.target_uri = l.uri AND l.language = ?
             LEFT JOIN concepts c ON r.target_uri = c.uri
             WHERE r.source_uri = ? AND r.relation = ?
-            ORDER BY l.label
+            ORDER BY label
             """,
             (language, uri, relation),
         )
@@ -165,7 +208,9 @@ class OfflineEscoIndex:
             label = str(row.get("label") or "").strip()
             if not label and related_uri:
                 label = self._resolve_label(uri=related_uri, language=language)
-            concept_type = str(row.get("conceptType") or "skill").strip().lower() or "skill"
+            concept_type = (
+                str(row.get("conceptType") or "skill").strip().lower() or "skill"
+            )
             results.append(
                 {
                     "uri": related_uri,

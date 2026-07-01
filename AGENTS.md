@@ -178,6 +178,9 @@ Archived legacy ID:
   previews, result switchers, and exports; preserved only for old draft state
   loading until its generator/schema/state keys can be removed safely.
 
+Detailed archive status and removal prerequisites live in
+`docs/legacy_summary_outputs.md`.
+
 ## OpenAI configuration contract
 
 Settings are resolved in `settings_openai.py` with this precedence:

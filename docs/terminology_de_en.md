@@ -234,7 +234,7 @@ This glossary maps product terminology between German UI copy and English techni
 | public.legal | Barrierefreiheit | Accessibility | canonical | `i18n.py` | Public/legal page terminology. |
 | public.legal | Cookies & Präferenzen | Cookies & preferences | canonical | `i18n.py` | Public/legal page terminology. |
 | public.legal | Wichtiger Hinweis | Important note | canonical | `i18n.py` | Public/legal page terminology. |
-| public.legal | Platzhalter | Placeholder | canonical | `locales/common.placeholder_missing` | Public/legal page terminology. |
+| public.legal | Fehlende Fachangabe | Missing subject-matter detail | canonical | `locales/public_pages.legal_missing_inputs_title` | Public/legal page terminology. |
 | ui.copy | UX-Copy-Contract | UX copy contract | canonical | `ux_copy_contract.py` | Runtime contract for short Wizard copy; code identifiers stay English. |
 
 ## Maintenance Notes
