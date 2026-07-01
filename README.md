@@ -730,8 +730,8 @@ CS_RUN_DEPLOYED_SMOKE=1 python -m pytest -q tests/e2e/test_deployed_smoke.py --j
 ```
 
 Local runs without `CS_RUN_DEPLOYED_SMOKE=1` skip this test by default. CI sets
-`CS_REQUIRE_DEPLOYED_BASE_URL=1`, so the `deployed_smoke` job fails clearly if
-the repository variable `CS_DEPLOYED_BASE_URL` is not configured.
+the same run flag and always targets the canonical public URL above. The
+`deployed_smoke` job does not accept a repository-configured deployment URL.
 
 If an old URL is intentionally kept alive during migration, verify that it
 redirects to the canonical URL by setting `CS_DEPLOYED_DEPRECATED_URLS` to a

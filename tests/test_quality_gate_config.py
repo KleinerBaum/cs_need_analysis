@@ -716,6 +716,10 @@ def test_ci_wires_visual_regression_and_deployed_smoke_jobs() -> None:
         1,
     )[0]
     deployed_job = workflow.split("  deployed_smoke:", 1)[1].split("  security:", 1)[0]
+    removed_base_url_env_names = (
+        "CS_REQUIRE_DEPLOYED_" + "BASE_" + "URL",
+        "CS_DEPLOYED_" + "BASE_" + "URL",
+    )
 
     assert "run_visual_regression:" in workflow
     assert "visual_regression:" in workflow
@@ -728,11 +732,19 @@ def test_ci_wires_visual_regression_and_deployed_smoke_jobs() -> None:
     assert "deployed_smoke:" in workflow
     assert "continue-on-error: true" not in deployed_job
     assert 'CS_RUN_DEPLOYED_SMOKE: "1"' in deployed_job
-    assert 'CS_REQUIRE_DEPLOYED_BASE_URL: "1"' in deployed_job
-    assert "CS_DEPLOYED_BASE_URL: ${{ vars.CS_DEPLOYED_BASE_URL }}" in deployed_job
+    for env_name in removed_base_url_env_names:
+        assert env_name not in deployed_job
     assert "tests/e2e/test_deployed_smoke.py" in deployed_job
     assert "--junitxml=reports/junit/deployed-smoke.xml" in deployed_job
     assert "ci-deployed-smoke-junit" in deployed_job
+
+    deployed_smoke_test = _read("tests/e2e/test_deployed_smoke.py")
+    assert (
+        'CANONICAL_PUBLIC_URL = "https://recruitment-need-analysis.streamlit.app/"'
+        in deployed_smoke_test
+    )
+    for env_name in removed_base_url_env_names:
+        assert env_name not in deployed_smoke_test
 
 
 def test_ci_uses_compact_junit_summary_script() -> None:

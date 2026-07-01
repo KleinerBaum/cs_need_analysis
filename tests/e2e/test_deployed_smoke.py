@@ -13,12 +13,8 @@ from scripts.perf_budget_smoke import collect_theme_background_assets
 if TYPE_CHECKING:
     from playwright.sync_api import Page
 
-CANONICAL_DEPLOYED_BASE_URL = "https://recruitment-need-analysis.streamlit.app/"
+CANONICAL_PUBLIC_URL = "https://recruitment-need-analysis.streamlit.app/"
 RUN_DEPLOYED_SMOKE = os.getenv("CS_RUN_DEPLOYED_SMOKE", "").strip() == "1"
-REQUIRE_DEPLOYED_BASE_URL = (
-    os.getenv("CS_REQUIRE_DEPLOYED_BASE_URL", "").strip() == "1"
-)
-CONFIGURED_DEPLOYED_BASE_URL = os.getenv("CS_DEPLOYED_BASE_URL", "").strip()
 DEPRECATED_DEPLOYED_URLS = tuple(
     url.strip()
     for url in os.getenv("CS_DEPLOYED_DEPRECATED_URLS", "").split(",")
@@ -52,23 +48,7 @@ pytestmark = [
 
 
 @pytest.fixture()
-def deployed_base_url() -> str:
-    if CONFIGURED_DEPLOYED_BASE_URL:
-        return CONFIGURED_DEPLOYED_BASE_URL
-
-    if REQUIRE_DEPLOYED_BASE_URL:
-        pytest.fail(
-            "CS_DEPLOYED_BASE_URL is required when "
-            "CS_REQUIRE_DEPLOYED_BASE_URL=1. Configure the deployed_smoke job "
-            "with the public deployment URL.",
-            pytrace=False,
-        )
-
-    return CANONICAL_DEPLOYED_BASE_URL
-
-
-@pytest.fixture()
-def page(deployed_base_url: str) -> Iterator["Page"]:
+def page() -> Iterator["Page"]:
     from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import sync_playwright
 
@@ -354,23 +334,24 @@ def _assert_summary_entry_reachable(page: "Page", base_url: str) -> None:
         )
 
 
-def test_deployed_landing_smoke(page: "Page", deployed_base_url: str) -> None:
-    canonical_url = _normalized_public_url(CANONICAL_DEPLOYED_BASE_URL)
+def test_deployed_landing_smoke(page: "Page") -> None:
+    deployed_url = CANONICAL_PUBLIC_URL
+    canonical_url = _normalized_public_url(CANONICAL_PUBLIC_URL)
     browser_issues = _install_browser_issue_capture(page)
 
     _assert_streamlit_health(
         page,
-        deployed_base_url,
+        deployed_url,
         label="Canonical deployment",
     )
     _assert_theme_static_assets_available(
         page,
-        deployed_base_url,
+        deployed_url,
         label="Canonical deployment",
     )
     _goto_deployment(
         page,
-        deployed_base_url,
+        deployed_url,
         label="Canonical deployment",
     )
 
@@ -394,7 +375,7 @@ def test_deployed_landing_smoke(page: "Page", deployed_base_url: str) -> None:
             pytrace=False,
         )
 
-    _assert_summary_entry_reachable(page, deployed_base_url)
+    _assert_summary_entry_reachable(page, deployed_url)
     _assert_no_browser_issues(browser_issues, label="Canonical deployment")
 
     for deprecated_url in DEPRECATED_DEPLOYED_URLS:

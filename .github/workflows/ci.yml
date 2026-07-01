@@ -391,8 +391,6 @@ jobs:
       - name: Run deployed smoke test
         env:
           CS_RUN_DEPLOYED_SMOKE: "1"
-          CS_REQUIRE_DEPLOYED_BASE_URL: "1"
-          CS_DEPLOYED_BASE_URL: ${{ vars.CS_DEPLOYED_BASE_URL }}
         run: |
           python -m pytest -q tests/e2e/test_deployed_smoke.py \
             --junitxml=reports/junit/deployed-smoke.xml

@@ -372,6 +372,9 @@ Run the deployed smoke separately from local AppTest and local browser smoke:
 CS_RUN_DEPLOYED_SMOKE=1 python -m pytest -q tests/e2e/test_deployed_smoke.py --junitxml=reports/junit/deployed-smoke.xml
 ```
 
+The deployed smoke test always targets the canonical public URL above. Do not
+wire a repository-variable deployment URL override into the CI job.
+
 ### Targeted checks by area
 
 State, constants, wizard contracts:
