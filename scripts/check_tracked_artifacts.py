@@ -8,6 +8,7 @@ import subprocess  # nosec B404
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Sequence
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -70,15 +71,57 @@ class Finding:
     reason: str
 
 
-def _tracked_paths() -> list[str]:
-    # Fixed Git command with no user input and shell=False.
-    result = subprocess.run(  # nosec B603 B607
-        ["git", "ls-files", "-z"],
-        cwd=ROOT,
-        check=True,
-        stdout=subprocess.PIPE,
+class GitPrerequisiteError(RuntimeError):
+    """Raised when artifact checks cannot run because Git metadata is missing."""
+
+
+NO_GIT_CHECKOUT_MESSAGE = (
+    "Git checkout required: run from a cloned repository with a .git directory; "
+    "ZIP/source exports do not include the metadata needed for tracked-file and "
+    "changed-line checks."
+)
+NO_GIT_EXECUTABLE_MESSAGE = (
+    "Git executable not found: install Git before running repository hygiene checks."
+)
+
+
+def _is_no_git_checkout_error(stderr: str) -> bool:
+    return "not a git repository" in stderr.lower()
+
+
+def _run_git_command(
+    args: Sequence[str],
+    *,
+    allowed_returncodes: frozenset[int] = frozenset({0}),
+) -> subprocess.CompletedProcess[str]:
+    try:
+        # Args are repo-defined Git commands; no user input and shell=False.
+        result = subprocess.run(  # nosec B603
+            list(args),
+            cwd=ROOT,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except FileNotFoundError as exc:
+        raise GitPrerequisiteError(NO_GIT_EXECUTABLE_MESSAGE) from exc
+
+    if result.returncode in allowed_returncodes:
+        return result
+    if result.returncode == 128 and _is_no_git_checkout_error(result.stderr):
+        raise GitPrerequisiteError(NO_GIT_CHECKOUT_MESSAGE)
+    raise subprocess.CalledProcessError(
+        result.returncode,
+        list(args),
+        output=result.stdout,
+        stderr=result.stderr,
     )
-    return [path.decode("utf-8") for path in result.stdout.split(b"\0") if path]
+
+
+def _tracked_paths() -> list[str]:
+    result = _run_git_command(["git", "ls-files", "-z"])
+    return [path for path in result.stdout.split("\0") if path]
 
 
 def _matches_any(path: str, patterns: tuple[str, ...]) -> bool:
@@ -121,11 +164,16 @@ def _finding_for(path: str) -> Finding | None:
 
 
 def main() -> int:
-    findings = [
-        finding
-        for path in _tracked_paths()
-        if (finding := _finding_for(path)) is not None
-    ]
+    try:
+        findings = [
+            finding
+            for path in _tracked_paths()
+            if (finding := _finding_for(path)) is not None
+        ]
+    except GitPrerequisiteError as exc:
+        print(f"Tracked artifact scan prerequisite failed: {exc}")
+        return 2
+
     if not findings:
         print("Tracked artifact scan passed: no unexpected generated or binary files.")
         return 0

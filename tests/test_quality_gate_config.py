@@ -377,6 +377,51 @@ def test_tracked_artifact_scan_allows_report_archive_index() -> None:
     assert "reports/README.md" in check_tracked_artifacts.KNOWN_TRACKED_REPORTS
 
 
+def test_tracked_artifact_scan_reports_findings_in_git_checkout(
+    capsys, monkeypatch, tmp_path
+) -> None:
+    tracked_artifact = "build/generated.pyc"
+    artifact_path = tmp_path / tracked_artifact
+    artifact_path.parent.mkdir()
+    artifact_path.write_bytes(b"compiled-cache")
+
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(args[0], 0, f"{tracked_artifact}\0", "")
+
+    monkeypatch.setattr(check_tracked_artifacts, "ROOT", tmp_path)
+    monkeypatch.setattr(check_tracked_artifacts.subprocess, "run", fake_run)
+
+    exit_code = check_tracked_artifacts.main()
+    output = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert "Tracked artifact scan found unexpected tracked files:" in output
+    assert f"- {tracked_artifact}: generated/cache path is tracked" in output
+
+
+def test_tracked_artifact_scan_reports_no_git_checkout_prerequisite(
+    capsys, monkeypatch
+) -> None:
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            args[0],
+            128,
+            "",
+            "fatal: not a git repository (or any of the parent directories): .git",
+        )
+
+    monkeypatch.setattr(check_tracked_artifacts.subprocess, "run", fake_run)
+
+    exit_code = check_tracked_artifacts.main()
+    output = capsys.readouterr().out
+
+    assert exit_code == 2
+    assert output == (
+        "Tracked artifact scan prerequisite failed: "
+        f"{check_tracked_artifacts.NO_GIT_CHECKOUT_MESSAGE}\n"
+    )
+
+
 def test_repo_hygiene_guard_output_reports_only_paths_and_rules(
     capsys, monkeypatch
 ) -> None:
