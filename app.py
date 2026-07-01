@@ -7,6 +7,7 @@ import json
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import cast
 from urllib.parse import quote
 
 import streamlit as st
@@ -73,6 +74,10 @@ STREAMLIT_STATIC_URL_PREFIX = "/app/static"
 WIZARD_DARK_BACKGROUND_PATH = STATIC_DIR / "theme-background-dark.png"
 WIZARD_LIGHT_BACKGROUND_PATH = STATIC_DIR / "theme-background-light.png"
 DRAFT_BROWSER_RECOVERY_STORAGE_KEY = "cs.vacancyDraft.safeRecovery.v1"
+
+
+def _session_state_mapping() -> Mapping[str, object]:
+    return cast(Mapping[str, object], st.session_state)
 
 
 def _first_query_param_value(value: object) -> str | None:
@@ -650,7 +655,8 @@ def _render_draft_controls() -> None:
     last_saved_fingerprint = str(
         st.session_state.get(SSKey.DRAFT_LAST_SAVED_FINGERPRINT.value) or ""
     )
-    has_progress = _draft_has_meaningful_progress(st.session_state)
+    session_state = _session_state_mapping()
+    has_progress = _draft_has_meaningful_progress(session_state)
     is_saved_current = bool(
         has_progress
         and last_saved_fingerprint
@@ -750,7 +756,8 @@ def _build_draft_recovery_bridge_html(metadata: Mapping[str, object]) -> str:
 def _inject_draft_recovery_bridge(ctx: WizardContext) -> None:
     step_key = str(st.session_state.get(SSKey.CURRENT_STEP.value) or "")
     step_label_by_key = {page.key: page.title_de for page in ctx.pages}
-    has_progress = _draft_has_meaningful_progress(st.session_state)
+    session_state = _session_state_mapping()
+    has_progress = _draft_has_meaningful_progress(session_state)
     current_fingerprint = build_vacancy_draft_fingerprint()
     saved_fingerprint = str(
         st.session_state.get(SSKey.DRAFT_LAST_SAVED_FINGERPRINT.value) or ""
@@ -761,8 +768,8 @@ def _inject_draft_recovery_bridge(ctx: WizardContext) -> None:
         "stepKey": step_key,
         "stepLabel": step_label_by_key.get(step_key, ""),
         "hasAnalysis": bool(st.session_state.get(SSKey.JOB_EXTRACT.value)),
-        "answerCount": _answer_count(st.session_state),
-        "artifactCount": _generated_draft_artifact_count(st.session_state),
+        "answerCount": _answer_count(session_state),
+        "artifactCount": _generated_draft_artifact_count(session_state),
     }
     st.iframe(_build_draft_recovery_bridge_html(metadata), height=1)
 

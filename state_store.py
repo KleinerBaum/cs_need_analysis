@@ -187,7 +187,9 @@ class StateStore:
         return EscoState(
             anchor_state=_string(self._state.get(SSKey.ESCO_ANCHOR_STATE.value))
             or ESCO_ANCHOR_STATE_DEGRADED,
-            primary_anchor=_dict_or_none(self._state.get(SSKey.ESCO_PRIMARY_ANCHOR.value)),
+            primary_anchor=_dict_or_none(
+                self._state.get(SSKey.ESCO_PRIMARY_ANCHOR.value)
+            ),
             secondary_anchors=_list_or_empty(
                 self._state.get(SSKey.ESCO_SECONDARY_ANCHORS.value)
             ),
@@ -222,9 +224,7 @@ class StateStore:
         self._state[SSKey.ESCO_SECONDARY_ANCHORS.value] = list(
             value.secondary_anchors or []
         )
-        self._state[SSKey.ESCO_SEMANTIC_EXPORT_MODE.value] = (
-            value.semantic_export_mode
-        )
+        self._state[SSKey.ESCO_SEMANTIC_EXPORT_MODE.value] = value.semantic_export_mode
         self._state[SSKey.ESCO_OCCUPATION_SELECTED.value] = value.occupation_selected
         self._state[SSKey.ESCO_SELECTED_OCCUPATION_URI.value] = (
             value.selected_occupation_uri
@@ -283,10 +283,13 @@ class StateStore:
         preferences = self._state.get(SSKey.UI_PREFERENCES.value, {})
         if not isinstance(preferences, Mapping):
             return None
+        confidence = preferences.get(UI_PREFERENCE_CONFIDENCE_THRESHOLD)
+        if confidence is None:
+            return None
         try:
             return max(
                 0.0,
-                min(1.0, float(preferences.get(UI_PREFERENCE_CONFIDENCE_THRESHOLD))),
+                min(1.0, float(confidence)),
             )
         except (TypeError, ValueError):
             return None

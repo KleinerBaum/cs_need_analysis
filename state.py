@@ -87,6 +87,11 @@ from usage_events import reset_usage_events
 
 DEFAULT_ESCO_API_BASE_URL = "https://ec.europa.eu/esco/api/"
 
+
+def _session_state() -> MutableMapping[str, Any]:
+    return cast(MutableMapping[str, Any], st.session_state)
+
+
 VACANCY_DRAFT_SESSION_KEYS: tuple[SSKey, ...] = (
     SSKey.CURRENT_STEP,
     SSKey.NAV_SELECTED,
@@ -240,8 +245,9 @@ def _hash_text(value: object) -> str:
 
 
 def _safe_int(value: object, *, default: int = 0) -> int:
+    candidate: Any = value or default
     try:
-        return int(value or default)
+        return int(candidate)
     except (TypeError, ValueError):
         return default
 
@@ -337,18 +343,19 @@ def _clear_stale_redesign_state() -> None:
     """Drop stale redesign-only session keys while preserving canonical state."""
 
     canonical_keys = {key.value for key in SSKey}
-    for session_key in list(st.session_state.keys()):
+    for raw_session_key in list(st.session_state.keys()):
+        session_key = str(raw_session_key)
         if session_key in canonical_keys:
             continue
         if any(
             session_key.startswith(prefix)
             for prefix in STALE_REDESIGN_SESSION_KEY_PREFIXES
         ):
-            st.session_state.pop(session_key, None)
+            st.session_state.pop(raw_session_key, None)
             continue
         for legacy_keys in SUMMARY_SESSION_KEY_LEGACY_ALIASES.values():
             if session_key in legacy_keys:
-                st.session_state.pop(session_key, None)
+                st.session_state.pop(raw_session_key, None)
                 break
 
 
@@ -583,7 +590,7 @@ def apply_jobspec_source_change(
 ) -> str:
     """Set the active jobspec source and clear stale source-derived state."""
 
-    target_state = session_state if session_state is not None else st.session_state
+    target_state = session_state if session_state is not None else _session_state()
     normalized_source = _normalize_jobspec_source(source)
     source_text = str(text or "")
     fingerprint = build_jobspec_source_fingerprint(
@@ -597,7 +604,10 @@ def apply_jobspec_source_change(
     )
     should_reset = explicit_reset or (
         current_fingerprint != fingerprint
-        and (bool(current_fingerprint) or _has_jobspec_source_dependent_state(target_state))
+        and (
+            bool(current_fingerprint)
+            or _has_jobspec_source_dependent_state(target_state)
+        )
     )
     if should_reset:
         _reset_jobspec_source_dependent_state(target_state)
@@ -687,9 +697,7 @@ def normalize_ui_preferences(raw_preferences: Any) -> dict[str, Any]:
         language if language in {"de", "en"} else DEFAULT_LANGUAGE
     )
     wizard_design = (
-        str(
-            normalized.get(UI_PREFERENCE_WIZARD_DESIGN, UI_WIZARD_DESIGN_DEFAULT)
-        )
+        str(normalized.get(UI_PREFERENCE_WIZARD_DESIGN, UI_WIZARD_DESIGN_DEFAULT))
         .strip()
         .lower()
     )
@@ -701,7 +709,7 @@ def normalize_ui_preferences(raw_preferences: Any) -> dict[str, Any]:
     confidence = normalized.get(UI_PREFERENCE_CONFIDENCE_THRESHOLD)
     try:
         normalized[UI_PREFERENCE_CONFIDENCE_THRESHOLD] = min(
-            0.95, max(0.05, float(confidence))
+            0.95, max(0.05, float(cast(Any, confidence)))
         )
     except (TypeError, ValueError):
         normalized[UI_PREFERENCE_CONFIDENCE_THRESHOLD] = defaults[
@@ -1022,7 +1030,9 @@ def init_session_state() -> None:
     preferences = normalize_ui_preferences(
         st.session_state.get(SSKey.UI_PREFERENCES.value)
     )
-    active_language = str(preferences.get(UI_PREFERENCE_UI_LANGUAGE) or configured_language)
+    active_language = str(
+        preferences.get(UI_PREFERENCE_UI_LANGUAGE) or configured_language
+    )
     if active_language not in {"de", "en"}:
         active_language = DEFAULT_LANGUAGE
     st.session_state[SSKey.LANGUAGE.value] = active_language
@@ -1030,10 +1040,14 @@ def init_session_state() -> None:
     st.session_state[SSKey.UI_PREFERENCES.value] = preferences
     esco_config = st.session_state.get(SSKey.ESCO_CONFIG.value)
     if isinstance(esco_config, dict):
-        esco_language = str(esco_config.get("language") or active_language).strip().lower()
+        esco_language = (
+            str(esco_config.get("language") or active_language).strip().lower()
+        )
         if esco_language not in {"de", "en"}:
             esco_language = active_language
-        fallback_language = str(esco_config.get("fallback_language") or "").strip().lower()
+        fallback_language = (
+            str(esco_config.get("fallback_language") or "").strip().lower()
+        )
         if fallback_language not in {"de", "en"}:
             fallback_language = "en" if esco_language == "de" else "de"
         st.session_state[SSKey.ESCO_CONFIG.value] = {
@@ -1041,7 +1055,7 @@ def init_session_state() -> None:
             "language": esco_language,
             "fallback_language": fallback_language,
         }
-    sync_esco_semantic_state(st.session_state)
+    sync_esco_semantic_state(_session_state())
     _sync_source_redaction_from_preferences()
 
 
@@ -1050,7 +1064,7 @@ def build_vacancy_draft_json(
 ) -> str:
     """Return an explicit, allowlisted JSON draft for the current vacancy."""
 
-    target_state = session_state if session_state is not None else st.session_state
+    target_state = session_state if session_state is not None else _session_state()
     return vacancy_draft_to_json(
         target_state,
         allowed_keys=VACANCY_DRAFT_SESSION_KEYS,
@@ -1062,7 +1076,7 @@ def build_vacancy_draft_fingerprint(
 ) -> str:
     """Return a stable fingerprint for the current explicit draft payload."""
 
-    target_state = session_state if session_state is not None else st.session_state
+    target_state = session_state if session_state is not None else _session_state()
     return vacancy_draft_state_fingerprint(
         target_state,
         allowed_keys=VACANCY_DRAFT_SESSION_KEYS,
@@ -1169,9 +1183,10 @@ def load_vacancy_draft_json(raw_json: str | bytes) -> VacancyDraftLoadResult:
 
     reset_vacancy()
     st.session_state.update(restored_state)
-    restored_step = _normalize_loaded_vacancy_draft_state(st.session_state)
+    session_state = _session_state()
+    restored_step = _normalize_loaded_vacancy_draft_state(session_state)
     st.session_state[SSKey.DRAFT_LAST_SAVED_FINGERPRINT.value] = (
-        build_vacancy_draft_fingerprint(st.session_state)
+        build_vacancy_draft_fingerprint(session_state)
     )
     restored_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     st.session_state[SSKey.DRAFT_RESUME_NOTICE.value] = {
@@ -1210,8 +1225,9 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.SOURCE_UPLOAD_SIGNATURE.value] = None
     st.session_state.pop(SSKey.SOURCE_UPLOAD_FILE.value, None)
     st.session_state[SSKey.JOB_EXTRACT.value] = None
-    reset_intake_fact_state(st.session_state)
-    reset_intake_fact_evidence_state(st.session_state)
+    session_state = _session_state()
+    reset_intake_fact_state(session_state)
+    reset_intake_fact_evidence_state(session_state)
     st.session_state[SSKey.QUESTION_PLAN_BASE.value] = None
     st.session_state[SSKey.QUESTION_PLAN.value] = None
     st.session_state[SSKey.QUESTION_LIMITS.value] = {}
@@ -1237,10 +1253,10 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.OPEN_GROUPS.value] = {}
     st.session_state[SSKey.INTRO_CYCLE_FOCUS.value] = None
     st.session_state[SSKey.BRIEF.value] = None
-    reset_usage_events(st.session_state)
+    reset_usage_events(session_state)
     st.session_state[SSKey.JOBAD_CACHE_HIT.value] = {}
     st.session_state[SSKey.SUMMARY_CACHE_HIT.value] = False
-    StateStore(st.session_state).set_summary_dirty_state(SummaryDirtyState())
+    StateStore(session_state).set_summary_dirty_state(SummaryDirtyState())
     st.session_state[SSKey.SUMMARY_SHOW_JOB_AD_CONFIG.value] = False
     st.session_state[SSKey.SUMMARY_LAST_MODE.value] = None
     st.session_state[SSKey.SUMMARY_LAST_MODELS.value] = {}
@@ -1384,7 +1400,7 @@ def reset_vacancy() -> None:
     st.session_state[SSKey.SALARY_SCENARIO_APPLY_PENDING_UPDATE.value] = False
     st.session_state[SSKey.SALARY_SCENARIO_PENDING_SELECTED_ROW_ID.value] = None
     st.session_state[SSKey.SALARY_FORECAST_SELECTED_SCENARIO.value] = "base"
-    sync_esco_semantic_state(st.session_state)
+    sync_esco_semantic_state(session_state)
     _clear_stale_redesign_state()
     st.session_state[SSKey.SALARY_FORECAST_LAST_RESULT.value] = {}
     st.session_state[SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value] = {}
@@ -1402,17 +1418,18 @@ def reset_vacancy() -> None:
 
 
 def get_answers() -> Dict[str, Any]:
-    return StateStore(st.session_state).answers()
+    return StateStore(_session_state()).answers()
 
 
 def set_answer(question_id: str, value: Any, *, fact_key: str | None = None) -> None:
     answers = get_answers()
     answers[question_id] = value
     st.session_state[SSKey.ANSWERS.value] = answers
-    write_intake_fact_by_legacy_field(st.session_state, question_id, value)
+    session_state = _session_state()
+    write_intake_fact_by_legacy_field(session_state, question_id, value)
     resolved_fact_key = fact_key or _question_fact_key_from_plan(question_id)
     if resolved_fact_key:
-        write_intake_fact(st.session_state, resolved_fact_key, value)
+        write_intake_fact(session_state, resolved_fact_key, value)
 
 
 def _question_fact_key_from_plan(question_id: str) -> str | None:
@@ -1446,16 +1463,18 @@ def _raw_step_questions(raw_step: Any) -> list[Any]:
     raw_questions = getattr(raw_step, "questions", None)
     if isinstance(raw_questions, list):
         return [
-            question.model_dump(mode="json")
-            if hasattr(question, "model_dump")
-            else question
+            (
+                question.model_dump(mode="json")
+                if hasattr(question, "model_dump")
+                else question
+            )
             for question in raw_questions
         ]
     return []
 
 
 def get_answer_meta() -> AnswerMetaMap:
-    return cast(AnswerMetaMap, StateStore(st.session_state).answer_meta())
+    return cast(AnswerMetaMap, StateStore(_session_state()).answer_meta())
 
 
 def mark_answer_touched(
@@ -1577,7 +1596,7 @@ def get_esco_occupation_selected() -> Dict[str, Any] | None:
                 "reason": None,
                 "selected_as": "primary",
             }
-        sync_esco_semantic_state(st.session_state)
+        sync_esco_semantic_state(_session_state())
         return validated
     except Exception:
         return None
@@ -1586,7 +1605,7 @@ def get_esco_occupation_selected() -> Dict[str, Any] | None:
 def get_esco_semantic_context() -> EscoSemanticContext:
     """Return and synchronize the canonical ESCO semantic context."""
 
-    return sync_esco_semantic_state(st.session_state)
+    return sync_esco_semantic_state(_session_state())
 
 
 def has_confirmed_esco_anchor() -> bool:
@@ -1606,7 +1625,9 @@ def get_esco_anchor_status() -> EscoAnchorStatus:
     selected_occupation = get_esco_occupation_selected()
     selected_uri = str(
         st.session_state.get(SSKey.ESCO_SELECTED_OCCUPATION_URI.value)
-        or (getattr(context.primary_anchor, "uri", "") if context.primary_anchor else "")
+        or (
+            getattr(context.primary_anchor, "uri", "") if context.primary_anchor else ""
+        )
         or (selected_occupation or {}).get("uri")
         or ""
     ).strip()

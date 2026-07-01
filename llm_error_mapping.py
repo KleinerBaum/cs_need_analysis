@@ -188,7 +188,7 @@ def _error_from_openai_exception(exc: Exception, *, endpoint: str) -> OpenAICall
             error_code="OPENAI_TIMEOUT",
         )
 
-    if isinstance(exc, APIStatusError) and exc.status_code == 400:
+    if isinstance(exc, APIStatusError) and status_code == 400:
         error_code, ui_message = _classify_bad_request()
         return OpenAICallError(
             ui_message,

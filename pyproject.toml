@@ -25,7 +25,11 @@ target-version = ["py311"]
 line-length = 88
 include = '''
 /(
-    model_capabilities
+    app
+  | state
+  | state_store
+  | llm_error_mapping
+  | model_capabilities
   | usage_utils
   | eures_mapping
   | scripts/check_repo_hygiene
@@ -48,6 +52,11 @@ extend-exclude = '''
 [tool.mypy]
 python_version = "3.11"
 files = [
+    # Stage 2: app shell, state facade, and LLM error mapping helper.
+    "app.py",
+    "state.py",
+    "state_store.py",
+    "llm_error_mapping.py",
     "model_capabilities.py",
     "usage_utils.py",
     "summary_artifacts.py",
@@ -75,6 +84,11 @@ warn_unused_ignores = false
 [tool.pyright]
 pythonVersion = "3.11"
 include = [
+    # Stage 2: app shell, state facade, and LLM error mapping helper.
+    "app.py",
+    "state.py",
+    "state_store.py",
+    "llm_error_mapping.py",
     "model_capabilities.py",
     "usage_utils.py",
     "summary_artifacts.py",

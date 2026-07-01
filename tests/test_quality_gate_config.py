@@ -52,15 +52,18 @@ def test_ruff_starts_with_staged_critical_rules() -> None:
     }
 
 
-def test_black_is_scoped_to_stable_helper_modules() -> None:
+def test_black_uses_staged_module_allowlist() -> None:
     config = _load_pyproject()
     include = config["tool"]["black"]["include"]
 
+    assert "app" in include
+    assert "state" in include
+    assert "state_store" in include
+    assert "llm_error_mapping" in include
     assert "model_capabilities" in include
     assert "eures_mapping" in include
     assert "scripts/check_repo_hygiene" in include
     assert "wizard_pages" not in include
-    assert "summary_artifacts" not in include
     assert "ui_widget_state" not in include
     assert "ux_copy_contract" not in include
 
@@ -70,6 +73,10 @@ def test_mypy_uses_permissive_selected_module_baseline() -> None:
     mypy = config["tool"]["mypy"]
 
     assert mypy["files"] == [
+        "app.py",
+        "state.py",
+        "state_store.py",
+        "llm_error_mapping.py",
         "model_capabilities.py",
         "usage_utils.py",
         "summary_artifacts.py",
@@ -89,7 +96,6 @@ def test_mypy_uses_permissive_selected_module_baseline() -> None:
         "scripts/check_repo_hygiene.py",
     ]
     assert "llm_client.py" not in mypy["files"]
-    assert "state.py" not in mypy["files"]
     assert mypy["ignore_missing_imports"] is True
     assert mypy["follow_imports"] == "silent"
     assert mypy["disallow_untyped_defs"] is False
@@ -100,6 +106,10 @@ def test_pyright_uses_staged_selected_module_baseline() -> None:
     pyright = config["tool"]["pyright"]
 
     assert pyright["include"] == [
+        "app.py",
+        "state.py",
+        "state_store.py",
+        "llm_error_mapping.py",
         "model_capabilities.py",
         "usage_utils.py",
         "summary_artifacts.py",
@@ -119,7 +129,6 @@ def test_pyright_uses_staged_selected_module_baseline() -> None:
         "scripts/check_repo_hygiene.py",
     ]
     assert "llm_client.py" not in pyright["include"]
-    assert "state.py" not in pyright["include"]
     assert pyright["pythonVersion"] == "3.11"
     assert pyright["typeCheckingMode"] == "basic"
     assert pyright["reportMissingImports"] == "none"

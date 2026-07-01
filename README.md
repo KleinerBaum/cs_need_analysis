@@ -575,17 +575,17 @@ python scripts/esco_smoke_test.py --mode all --ci-dry-run-if-unavailable --json-
 
 ### Incremental QA gates
 
-The first local quality gate is intentionally low-noise. Ruff runs critical
+The staged local quality gate is intentionally low-noise. Ruff runs critical
 syntax/name checks only with an explicit baseline for existing Summary-page
-noise, Black checks a small allowlist of stable helper modules, mypy checks
-selected pure helper modules in permissive baseline mode, Pyright checks the
-same selected helper-module allowlist in basic mode, and the path-only repo
-hygiene guard blocks committed local secrets, credentials, caches, and generated
-exports without reading file contents. CI security scans are blocking for
-Gitleaks, Dependency Review moderate+ vulnerabilities, Bandit Medium/High
-findings, pip-audit, and tracked-artifact drift. Tool configuration lives in
-`pyproject.toml`; the development dependency surface lives in
-`requirements-dev.txt`.
+noise, Black checks a small allowlist that now includes the Stage 2 app/state
+and LLM error mapping group, mypy checks the same selected modules in
+permissive baseline mode, Pyright checks the same selected allowlist in basic
+mode, and the path-only repo hygiene guard blocks committed local secrets,
+credentials, caches, and generated exports without reading file contents. CI
+security scans are blocking for Gitleaks, Dependency Review moderate+
+vulnerabilities, Bandit Medium/High findings, pip-audit, and tracked-artifact
+drift. Tool configuration lives in `pyproject.toml`; the development dependency
+surface lives in `requirements-dev.txt`.
 
 ```bash
 python scripts/check_repo_hygiene.py
@@ -604,10 +604,9 @@ Gitleaks Action. Dependency Review blocks pull requests that introduce
 moderate-or-higher vulnerable dependencies. The artifact drift scan reports only
 paths and reasons, not file contents.
 
-Follow-up hardening should expand Ruff rules, expand Black coverage after an
-approved formatting-only change, grow the mypy module allowlist, expand
-the Pyright and mypy module allowlists together, and add Semgrep once findings
-are triaged.
+Follow-up hardening should expand Ruff rules only with in-scope fixes, expand
+Black coverage after an approved formatting-only change, grow the mypy and
+Pyright module allowlists together, and add Semgrep once findings are triaged.
 
 ### Optional Playwright smoke tests
 
