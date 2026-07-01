@@ -8,6 +8,8 @@ from urllib.parse import urlsplit, urlunsplit
 
 import pytest
 
+from scripts.perf_budget_smoke import collect_theme_background_assets
+
 if TYPE_CHECKING:
     from playwright.sync_api import Page
 
@@ -38,6 +40,7 @@ STREAMLIT_INTERNAL_ERROR_TEXT = re.compile(
 )
 IGNORED_REQUEST_FAILURE_TEXT = ("net::ERR_ABORTED",)
 BROWSER_ISSUE_LIMIT = 12
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 pytestmark = [
     pytest.mark.e2e,
@@ -115,6 +118,13 @@ def _public_url_with_query(url: str, query: str) -> str:
 def _streamlit_health_url(url: str) -> str:
     parsed = urlsplit(_public_url(url))
     return urlunsplit((parsed.scheme, parsed.netloc, "/_stcore/health", "", ""))
+
+
+def _streamlit_static_asset_url(base_url: str, asset_path: str) -> str:
+    parsed = urlsplit(_public_url(base_url))
+    base_path = parsed.path.rstrip("/")
+    asset = asset_path if asset_path.startswith("/") else f"/{asset_path}"
+    return urlunsplit((parsed.scheme, parsed.netloc, f"{base_path}{asset}", "", ""))
 
 
 def _short_url(url: str) -> str:
@@ -222,6 +232,46 @@ def _assert_streamlit_health(page: "Page", url: str, *, label: str) -> None:
         )
 
 
+def _assert_theme_static_assets_available(
+    page: "Page", base_url: str, *, label: str
+) -> None:
+    from playwright.sync_api import Error as PlaywrightError
+
+    for asset in collect_theme_background_assets():
+        asset_url = _streamlit_static_asset_url(base_url, asset.url_path)
+        try:
+            response = page.context.request.get(
+                asset_url,
+                timeout=10_000,
+                max_redirects=5,
+            )
+        except PlaywrightError as exc:
+            pytest.fail(
+                f"{label} static asset request failed for {_short_url(asset_url)}: {exc}",
+                pytrace=False,
+            )
+
+        if response.status != 200:
+            pytest.fail(
+                f"{label} static asset expected HTTP 200, got HTTP "
+                f"{response.status} for {_short_url(asset_url)}.",
+                pytrace=False,
+            )
+        content_type = response.headers.get("content-type", "")
+        if not content_type.lower().startswith("image/png"):
+            pytest.fail(
+                f"{label} static asset did not return image/png for "
+                f"{_short_url(asset_url)}: {content_type or 'no content type'}.",
+                pytrace=False,
+            )
+        if response.body()[: len(PNG_SIGNATURE)] != PNG_SIGNATURE:
+            pytest.fail(
+                f"{label} static asset did not return a PNG payload for "
+                f"{_short_url(asset_url)}.",
+                pytrace=False,
+            )
+
+
 def _goto_deployment(page: "Page", url: str, *, label: str) -> None:
     from playwright.sync_api import Error as PlaywrightError
 
@@ -309,6 +359,11 @@ def test_deployed_landing_smoke(page: "Page", deployed_base_url: str) -> None:
     browser_issues = _install_browser_issue_capture(page)
 
     _assert_streamlit_health(
+        page,
+        deployed_base_url,
+        label="Canonical deployment",
+    )
+    _assert_theme_static_assets_available(
         page,
         deployed_base_url,
         label="Canonical deployment",
