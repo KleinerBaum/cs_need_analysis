@@ -15,7 +15,7 @@ This baseline documents the staged CI hardening path for the repository. It keep
 - CodeQL runs in a dedicated workflow for Python with `security-and-quality` queries.
 - Unit tests publish JUnit and coverage XML, with a minimum coverage threshold of 35%.
 - Playwright captures advisory screenshots for central wizard screens.
-- Deployed smoke runs against `CS_DEPLOYED_BASE_URL` when the repository variable is configured; otherwise the test is skipped by pytest.
+- Deployed smoke runs against the canonical public URL, `https://recruitment-need-analysis.streamlit.app/`, when `CS_RUN_DEPLOYED_SMOKE=1` is set.
 
 ## Deferred baseline expansions
 

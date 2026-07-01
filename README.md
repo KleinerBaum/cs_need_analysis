@@ -604,8 +604,27 @@ Useful environment overrides:
 
 - `CS_E2E_PORT=8765`
 - `CS_E2E_STARTUP_TIMEOUT=60`
-- `CS_DEPLOYED_BASE_URL=https://example.streamlit.app` also enables the
-  deployed landing-page smoke test inside `tests/e2e`.
+
+### Deployed smoke test
+
+The canonical public deployment URL is
+<https://recruitment-need-analysis.streamlit.app/>. This is the only documented
+public entry point. Old or alternate Streamlit URLs should be deprovisioned, or
+configured at the provider level as permanent redirects to the canonical URL.
+
+The deployed smoke test is separate from local AppTest and local browser smoke.
+It only loads the landing page, does not click generation actions, and must not
+call OpenAI. It fails on HTTP errors, redirect loops, Streamlit internal-error
+screens, unexpected redirects away from the canonical URL, or missing landing
+page copy.
+
+```bash
+CS_RUN_DEPLOYED_SMOKE=1 python -m pytest -q tests/e2e/test_deployed_smoke.py --junitxml=reports/junit/deployed-smoke.xml
+```
+
+If an old URL is intentionally kept alive during migration, verify that it
+redirects to the canonical URL by setting `CS_DEPLOYED_DEPRECATED_URLS` to a
+comma-separated list of deprecated URLs before running the same command.
 
 ## GitHub Actions CI
 
@@ -622,7 +641,7 @@ Current job IDs are `qa`, `contract`, `unit`, `apptest`,
 5. `deployment_observability`: OIDC-ready deployment observability log emission
 6. `browser_smoke`: advisory Playwright Streamlit smoke tests with JUnit upload
 7. `visual_regression`: advisory Playwright screenshot capture for central wizard screens
-8. `deployed_smoke`: deployed landing-page smoke test against `CS_DEPLOYED_BASE_URL`
+8. `deployed_smoke`: deployed landing-page smoke test against <https://recruitment-need-analysis.streamlit.app/>
 9. `security`: blocking Gitleaks, Dependency Review moderate+, Bandit Medium/High, pip-audit, and tracked-artifact drift scans
 
 The Playwright smoke job runs advisory on pull requests and pushes. It is also

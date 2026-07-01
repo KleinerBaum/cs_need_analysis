@@ -358,6 +358,20 @@ rg -n '01[_]jobad|wizard_pages/01[_]jobad' README.md AGENTS.md CHANGELOG.md
 
 The grep command should return no matches after stale Start-step references are removed.
 
+### Deployed smoke
+
+Canonical public URL:
+
+```text
+https://recruitment-need-analysis.streamlit.app/
+```
+
+Run the deployed smoke separately from local AppTest and local browser smoke:
+
+```bash
+CS_RUN_DEPLOYED_SMOKE=1 python -m pytest -q tests/e2e/test_deployed_smoke.py --junitxml=reports/junit/deployed-smoke.xml
+```
+
 ### Targeted checks by area
 
 State, constants, wizard contracts:

@@ -164,6 +164,7 @@ def test_pytest_registers_app_and_e2e_markers() -> None:
     assert "apptest:" in pytest_ini
     assert "e2e:" in pytest_ini
     assert "CS_RUN_E2E=1" in pytest_ini
+    assert "CS_RUN_DEPLOYED_SMOKE=1" in pytest_ini
 
 
 def test_ci_contains_blocking_qa_and_security_jobs() -> None:
@@ -507,7 +508,7 @@ def test_ci_wires_visual_regression_and_deployed_smoke_jobs() -> None:
 
     assert "deployed_smoke:" in workflow
     assert "continue-on-error: true" not in deployed_job
-    assert "CS_DEPLOYED_BASE_URL: ${{ vars.CS_DEPLOYED_BASE_URL }}" in deployed_job
+    assert 'CS_RUN_DEPLOYED_SMOKE: "1"' in deployed_job
     assert "tests/e2e/test_deployed_smoke.py" in deployed_job
     assert "--junitxml=reports/junit/deployed-smoke.xml" in deployed_job
     assert "ci-deployed-smoke-junit" in deployed_job
@@ -556,4 +557,5 @@ def test_quality_gate_baseline_documents_deferred_expansions() -> None:
     assert "Bandit is blocking for Medium/High" in baseline
     assert "pip-audit" in baseline
     assert "CodeQL" in baseline
-    assert "CS_DEPLOYED_BASE_URL" in baseline
+    assert "https://recruitment-need-analysis.streamlit.app/" in baseline
+    assert "CS_RUN_DEPLOYED_SMOKE" in baseline
