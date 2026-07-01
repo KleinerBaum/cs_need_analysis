@@ -201,6 +201,8 @@ def _asset_url(base_url: str, asset_path: str) -> str:
     parsed = urlsplit(base_url.strip())
     if not parsed.scheme:
         parsed = urlsplit(f"https://{base_url.strip()}")
+    if parsed.scheme.lower() not in {"http", "https"}:
+        raise RuntimeError("Static asset base URL must use HTTP(S).")
     base_path = parsed.path.rstrip("/")
     asset = asset_path if asset_path.startswith("/") else f"/{asset_path}"
     return urlunsplit(
@@ -231,7 +233,11 @@ def fetch_static_asset(
             headers={"User-Agent": "cs-need-analysis-perf-budget-smoke/1.0"},
         )
         try:
-            with urlopen(request, timeout=timeout_seconds) as response:
+            # _asset_url restricts requests to HTTP(S).
+            with urlopen(  # nosec B310
+                request,
+                timeout=timeout_seconds,
+            ) as response:
                 content_type = response.headers.get("Content-Type", "")
                 signature = response.read(len(PNG_SIGNATURE))
                 break
