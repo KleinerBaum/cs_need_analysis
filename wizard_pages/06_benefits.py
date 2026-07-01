@@ -1,8 +1,9 @@
 # wizard_pages/06_benefits.py
 from __future__ import annotations
+from collections.abc import Mapping, Sequence
 import logging
 from html import escape
-from typing import Any
+from typing import Any, NamedTuple
 
 import streamlit as st
 
@@ -28,7 +29,7 @@ from llm_client import (
     generate_benefit_suggestions,
     resolve_model_for_task,
 )
-from schemas import JobAdExtract, QuestionStep
+from schemas import EscoSemanticContext, JobAdExtract, Question, QuestionStep
 from safe_html import render_static_html
 from settings_openai import load_openai_settings
 from state import get_answers, get_esco_semantic_context
@@ -95,6 +96,16 @@ _START_FLEXIBILITY_LABELS = {
     "flexible": "Flexibel",
     "unknown": "Noch unklar",
 }
+
+
+class BenefitsSourceComparisonViewModel(NamedTuple):
+    jobspec_labels: list[str]
+    contextual_labels: list[str]
+    selected_labels: list[str]
+    ai_labels: list[str]
+    primary_anchor_title: str
+    initial_generation_existing_labels: list[str]
+    generation_existing_labels: list[str]
 
 
 def _render_benefits_consistency_checklist(
@@ -252,6 +263,100 @@ def _sync_selected_benefit_intake_facts() -> None:
 
 def _suggestion_dicts_from_labels(labels: list[str], *, source: str) -> list[dict[str, str]]:
     return [{"label": label, "source": source} for label in labels if label.strip()]
+
+
+def _confirmed_values_for_benefit_keywords(
+    *,
+    visible_questions: Sequence[Question],
+    answers: Mapping[str, Any],
+    answered_lookup: Mapping[str, bool],
+    keywords: tuple[str, ...],
+) -> list[str]:
+    values: list[str] = []
+    for question in visible_questions:
+        question_label = question.label.strip().casefold()
+        if not question_label or not answered_lookup.get(question.id, False):
+            continue
+        if not any(keyword in question_label for keyword in keywords):
+            continue
+        formatted = _normalize_answer_value(answers.get(question.id))
+        if formatted:
+            values.append(f"{question.label}: {formatted}")
+    return values
+
+
+def _build_benefits_generation_existing_labels(
+    *,
+    jobspec_benefit_terms: list[str],
+    contextual_labels: list[str],
+    ai_suggested_raw: object,
+    selected_labels: list[str],
+) -> list[str]:
+    return _dedupe_benefit_terms(
+        [
+            *jobspec_benefit_terms,
+            *contextual_labels,
+            *_benefit_labels_from_suggestions(ai_suggested_raw),
+            *selected_labels,
+        ]
+    )
+
+
+def _build_benefits_source_comparison_view_model(
+    *,
+    jobspec_benefit_terms: list[str],
+    review_payload: Mapping[str, Any],
+    selected_labels: list[str],
+    ai_suggested_raw: object,
+    semantic_context: EscoSemanticContext,
+) -> BenefitsSourceComparisonViewModel:
+    visible_questions = review_payload.get("visible_questions", [])
+    answers = review_payload.get("answers", {})
+    answered_lookup = review_payload.get("answered_lookup", {})
+
+    contextual_labels = _dedupe_benefit_terms(
+        _confirmed_values_for_benefit_keywords(
+            visible_questions=visible_questions
+            if isinstance(visible_questions, Sequence)
+            else [],
+            answers=answers if isinstance(answers, Mapping) else {},
+            answered_lookup=answered_lookup
+            if isinstance(answered_lookup, Mapping)
+            else {},
+            keywords=("benefit", "perk", "zusatz", "budget"),
+        )
+    )
+    ai_labels = _benefit_labels_from_suggestions(ai_suggested_raw)
+    selected_occupation = semantic_context.primary_anchor
+    primary_anchor_title = (
+        selected_occupation.title
+        if semantic_context.can_use_semantic_exports
+        and selected_occupation is not None
+        and selected_occupation.title
+        else ""
+    )
+    initial_generation_existing_labels = _build_benefits_generation_existing_labels(
+        jobspec_benefit_terms=jobspec_benefit_terms,
+        contextual_labels=contextual_labels,
+        ai_suggested_raw=[],
+        selected_labels=selected_labels,
+    )
+    generation_existing_labels = _build_benefits_generation_existing_labels(
+        jobspec_benefit_terms=jobspec_benefit_terms,
+        contextual_labels=contextual_labels,
+        ai_suggested_raw=ai_suggested_raw,
+        selected_labels=selected_labels,
+    )
+
+    return BenefitsSourceComparisonViewModel(
+        jobspec_labels=jobspec_benefit_terms,
+        contextual_labels=contextual_labels,
+        selected_labels=selected_labels,
+        ai_labels=ai_labels,
+        primary_anchor_title=primary_anchor_title,
+        initial_generation_existing_labels=initial_generation_existing_labels,
+        generation_existing_labels=generation_existing_labels,
+    )
 
 
 def _salary_period_label(period: object) -> str:
@@ -800,6 +905,189 @@ def _can_render_structured_offer_inputs() -> bool:
     )
 
 
+def _render_benefits_ai_controls(
+    *,
+    job: JobAdExtract,
+    jobspec_benefit_terms: list[str],
+    contextual_labels: list[str],
+) -> None:
+    st.divider()
+    st.caption("Vorschläge anpassen")
+    st.text_input(
+        "Region",
+        key=SSKey.BENEFITS_REGION_CONTEXT.value,
+        placeholder="z. B. Berlin, NRW, DACH",
+    )
+    count_col, action_col = st.columns([1, 2], gap="small")
+    with count_col:
+        st.number_input(
+            "Anzahl",
+            min_value=1,
+            max_value=8,
+            step=1,
+            key=SSKey.BENEFITS_SUGGEST_COUNT.value,
+        )
+    with action_col:
+        st.caption(" ")
+        generate_clicked = st.button(
+            "Weitere Vorschläge",
+            key=SSKey.BENEFITS_AI_GENERATE_CLICKED.value,
+            width="stretch",
+        )
+    if not generate_clicked:
+        return
+    generation_existing_labels = _build_benefits_generation_existing_labels(
+        jobspec_benefit_terms=jobspec_benefit_terms,
+        contextual_labels=contextual_labels,
+        ai_suggested_raw=st.session_state.get(SSKey.BENEFITS_LLM_SUGGESTED.value, []),
+        selected_labels=_read_selected_benefits(),
+    )
+    with st.spinner("Erstelle Vorschläge …"):
+        merged_llm = _generate_ai_benefit_suggestions(
+            job=job,
+            existing_benefits=generation_existing_labels,
+            target_benefit_count=int(
+                st.session_state.get(SSKey.BENEFITS_SUGGEST_COUNT.value, 5)
+            ),
+            region_context=str(
+                st.session_state.get(SSKey.BENEFITS_REGION_CONTEXT.value, "")
+            ),
+        )
+    if merged_llm is None:
+        return
+    if hasattr(st, "rerun"):
+        st.rerun()
+    if merged_llm:
+        st.success(f"Neue Vorschläge hinzugefügt: {len(merged_llm)}")
+    else:
+        st.info("Keine neuen Vorschläge gefunden.")
+
+
+def _render_benefits_source_comparison_slot(
+    *,
+    job: JobAdExtract,
+    step: QuestionStep | None,
+    jobspec_benefit_terms: list[str],
+) -> dict[str, int]:
+    review_payload = build_step_review_payload(step)
+    selected_labels = _read_selected_benefits()
+    semantic_context = get_esco_semantic_context()
+    view_model = _build_benefits_source_comparison_view_model(
+        jobspec_benefit_terms=jobspec_benefit_terms,
+        review_payload=review_payload,
+        selected_labels=selected_labels,
+        ai_suggested_raw=st.session_state.get(SSKey.BENEFITS_LLM_SUGGESTED.value, []),
+        semantic_context=semantic_context,
+    )
+
+    st.markdown("### Candidate-Angebot schärfen")
+    st.caption(
+        "Wähle Nutzenargumente und Rahmenbedingungen, die später in Anzeige, "
+        "Briefing, Vertrag und Prognose verwendet werden."
+    )
+    if view_model.primary_anchor_title:
+        st.caption(f"Rollenbezug: {view_model.primary_anchor_title}")
+
+    if not bool(
+        st.session_state.get(SSKey.BENEFITS_AI_INITIAL_GENERATED.value, False)
+    ):
+        st.session_state[SSKey.BENEFITS_AI_INITIAL_GENERATED.value] = True
+        with st.spinner("Erstelle Vorschläge …"):
+            _generate_ai_benefit_suggestions(
+                job=job,
+                existing_benefits=view_model.initial_generation_existing_labels,
+                target_benefit_count=int(
+                    st.session_state.get(SSKey.BENEFITS_SUGGEST_COUNT.value, 5)
+                ),
+                region_context=str(
+                    st.session_state.get(SSKey.BENEFITS_REGION_CONTEXT.value, "")
+                ),
+            )
+        view_model = _build_benefits_source_comparison_view_model(
+            jobspec_benefit_terms=jobspec_benefit_terms,
+            review_payload=review_payload,
+            selected_labels=selected_labels,
+            ai_suggested_raw=st.session_state.get(SSKey.BENEFITS_LLM_SUGGESTED.value, []),
+            semantic_context=semantic_context,
+        )
+
+    selection_result = render_source_pill_selection(
+        columns=[
+            {
+                "title": "Anzeige",
+                "source_key": "Jobspec",
+                "options": view_model.jobspec_labels,
+                "state_key": SSKey.BENEFITS_JOBSPEC_PILLS.value,
+                "show_provenance": False,
+                "empty_caption": "Keine Benefits aus der Anzeige erkannt. Erfasse Angebotsbestandteile unten manuell.",
+            },
+            {
+                "title": "Antworten",
+                "source_key": "ESCO / Kontext",
+                "options": view_model.contextual_labels,
+                "state_key": SSKey.BENEFITS_CONTEXT_PILLS.value,
+                "show_provenance": False,
+                "empty_caption": "Noch keine passenden Antworten. Kläre Benefits in den offenen Fragen oder unten manuell.",
+            },
+            {
+                "title": "Vorschläge",
+                "source_key": "AI",
+                "options": view_model.ai_labels,
+                "state_key": SSKey.BENEFITS_AI_PILLS.value,
+                "footer": lambda: _render_benefits_ai_controls(
+                    job=job,
+                    jobspec_benefit_terms=jobspec_benefit_terms,
+                    contextual_labels=view_model.contextual_labels,
+                ),
+                "show_provenance": False,
+                "empty_caption": "Noch keine AI-Vorschläge. Nutze Weitere Vorschläge oder erfasse Benefits manuell.",
+            },
+        ],
+        selected_labels=view_model.selected_labels,
+        selected_state_key=SSKey.BENEFITS_SELECTED.value,
+        key_prefix="benefits.sources",
+    )
+    _sync_selected_benefit_intake_facts()
+    selected_result_labels = selection_result["selected_labels"]
+    st.session_state[SSKey.BENEFITS_SELECTED_BULK_BUFFER.value] = selected_result_labels
+    st.markdown("#### Sichtbare Benefits")
+    _render_label_list(selected_result_labels, limit=10)
+
+    if _can_render_structured_offer_inputs():
+        _render_structured_offer_constraints(job)
+    _render_offer_outcome_preview(
+        job=job,
+        selected_benefits=selected_result_labels,
+    )
+    render_live_artifact_preview_panel(
+        key="benefits",
+        default_open=default_secondary_section_open(classic_default_open=True),
+        streamlit_module=st,
+        preview_builder=lambda: build_live_artifact_preview_payload(
+            job=job,
+            answers=get_answers(),
+            selected_role_tasks=_read_selected_texts(SSKey.ROLE_TASKS_SELECTED),
+            selected_skills=_read_selected_texts(SSKey.SKILLS_SELECTED),
+            selected_benefits=selected_result_labels,
+            offer_positioning=build_offer_decision_context(
+                job=job,
+                selected_benefits=selected_result_labels,
+                intake_facts=get_intake_fact_state(st.session_state),
+                intake_fact_evidence=get_intake_fact_evidence_state(st.session_state),
+                salary_forecast=st.session_state.get(
+                    SSKey.SALARY_FORECAST_LAST_RESULT.value,
+                    {},
+                ),
+                salary_fingerprints=st.session_state.get(
+                    SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value,
+                    {},
+                ),
+            ),
+        ),
+    )
+    return selection_result["source_counts"]
+
+
 def render(ctx: WizardContext) -> None:
     render_error_banner()
 
@@ -849,208 +1137,10 @@ def render(ctx: WizardContext) -> None:
 
     def _render_source_comparison_slot() -> None:
         nonlocal source_counts
-        review_payload = build_step_review_payload(step)
-        visible_questions = review_payload["visible_questions"]
-        answers = review_payload["answers"]
-        answered_lookup = review_payload["answered_lookup"]
-
-        def _confirmed_values_for_keywords(keywords: tuple[str, ...]) -> list[str]:
-            values: list[str] = []
-            for question in visible_questions:
-                question_label = question.label.strip().casefold()
-                if not question_label or not answered_lookup.get(question.id, False):
-                    continue
-                if not any(keyword in question_label for keyword in keywords):
-                    continue
-                formatted = _normalize_answer_value(answers.get(question.id))
-                if formatted:
-                    values.append(f"{question.label}: {formatted}")
-            return values
-
-        contextual_suggested = [
-            {"label": value, "source": "Kontext"}
-            for value in _dedupe_benefit_terms(
-                [
-                    *_confirmed_values_for_keywords(
-                        ("benefit", "perk", "zusatz", "budget")
-                    ),
-                ]
-            )
-        ]
-        selected_labels = _read_selected_benefits()
-
-        st.markdown("### Candidate-Angebot schärfen")
-        st.caption(
-            "Wähle Nutzenargumente und Rahmenbedingungen, die später in Anzeige, "
-            "Briefing, Vertrag und Prognose verwendet werden."
-        )
-
-        semantic_context = get_esco_semantic_context()
-        selected_occupation = semantic_context.primary_anchor
-        if (
-            semantic_context.can_use_semantic_exports
-            and selected_occupation is not None
-            and selected_occupation.title
-        ):
-            st.caption(f"Rollenbezug: {selected_occupation.title}")
-
-        def _existing_benefits_for_generation() -> list[str]:
-            return _dedupe_benefit_terms(
-                [
-                    *jobspec_benefit_terms,
-                    *_benefit_labels_from_suggestions(contextual_suggested),
-                    *_benefit_labels_from_suggestions(
-                        st.session_state.get(SSKey.BENEFITS_LLM_SUGGESTED.value, [])
-                    ),
-                    *_read_selected_benefits(),
-                ]
-            )
-
-        if not bool(
-            st.session_state.get(SSKey.BENEFITS_AI_INITIAL_GENERATED.value, False)
-        ):
-            st.session_state[SSKey.BENEFITS_AI_INITIAL_GENERATED.value] = True
-            existing_benefits = _dedupe_benefit_terms(
-                [
-                    *jobspec_benefit_terms,
-                    *_benefit_labels_from_suggestions(contextual_suggested),
-                    *selected_labels,
-                ]
-            )
-            with st.spinner("Erstelle Vorschläge …"):
-                _generate_ai_benefit_suggestions(
-                    job=job,
-                    existing_benefits=existing_benefits,
-                    target_benefit_count=int(
-                        st.session_state.get(SSKey.BENEFITS_SUGGEST_COUNT.value, 5)
-                    ),
-                    region_context=str(
-                        st.session_state.get(SSKey.BENEFITS_REGION_CONTEXT.value, "")
-                    ),
-                )
-
-        ai_suggested_raw = st.session_state.get(SSKey.BENEFITS_LLM_SUGGESTED.value, [])
-        ai_labels = _benefit_labels_from_suggestions(ai_suggested_raw)
-
-        def _render_ai_controls() -> None:
-            st.divider()
-            st.caption("Vorschläge anpassen")
-            st.text_input(
-                "Region",
-                key=SSKey.BENEFITS_REGION_CONTEXT.value,
-                placeholder="z. B. Berlin, NRW, DACH",
-            )
-            count_col, action_col = st.columns([1, 2], gap="small")
-            with count_col:
-                st.number_input(
-                    "Anzahl",
-                    min_value=1,
-                    max_value=8,
-                    step=1,
-                    key=SSKey.BENEFITS_SUGGEST_COUNT.value,
-                )
-            with action_col:
-                st.caption(" ")
-                generate_clicked = st.button(
-                    "Weitere Vorschläge",
-                    key=SSKey.BENEFITS_AI_GENERATE_CLICKED.value,
-                    width="stretch",
-                )
-            if not generate_clicked:
-                return
-            with st.spinner("Erstelle Vorschläge …"):
-                merged_llm = _generate_ai_benefit_suggestions(
-                    job=job,
-                    existing_benefits=_existing_benefits_for_generation(),
-                    target_benefit_count=int(
-                        st.session_state.get(SSKey.BENEFITS_SUGGEST_COUNT.value, 5)
-                    ),
-                    region_context=str(
-                        st.session_state.get(SSKey.BENEFITS_REGION_CONTEXT.value, "")
-                    ),
-                )
-            if merged_llm is None:
-                return
-            if hasattr(st, "rerun"):
-                st.rerun()
-            if merged_llm:
-                st.success(f"Neue Vorschläge hinzugefügt: {len(merged_llm)}")
-            else:
-                st.info("Keine neuen Vorschläge gefunden.")
-
-        selection_result = render_source_pill_selection(
-            columns=[
-                {
-                    "title": "Anzeige",
-                    "source_key": "Jobspec",
-                    "options": jobspec_benefit_terms,
-                    "state_key": SSKey.BENEFITS_JOBSPEC_PILLS.value,
-                    "show_provenance": False,
-                    "empty_caption": "Keine Benefits aus der Anzeige erkannt. Erfasse Angebotsbestandteile unten manuell.",
-                },
-                {
-                    "title": "Antworten",
-                    "source_key": "ESCO / Kontext",
-                    "options": _benefit_labels_from_suggestions(contextual_suggested),
-                    "state_key": SSKey.BENEFITS_CONTEXT_PILLS.value,
-                    "show_provenance": False,
-                    "empty_caption": "Noch keine passenden Antworten. Kläre Benefits in den offenen Fragen oder unten manuell.",
-                },
-                {
-                    "title": "Vorschläge",
-                    "source_key": "AI",
-                    "options": ai_labels,
-                    "state_key": SSKey.BENEFITS_AI_PILLS.value,
-                    "footer": _render_ai_controls,
-                    "show_provenance": False,
-                    "empty_caption": "Noch keine AI-Vorschläge. Nutze Weitere Vorschläge oder erfasse Benefits manuell.",
-                },
-            ],
-            selected_labels=selected_labels,
-            selected_state_key=SSKey.BENEFITS_SELECTED.value,
-            key_prefix="benefits.sources",
-        )
-        source_counts = selection_result["source_counts"]
-        _sync_selected_benefit_intake_facts()
-        st.session_state[SSKey.BENEFITS_SELECTED_BULK_BUFFER.value] = (
-            selection_result["selected_labels"]
-        )
-        st.markdown("#### Sichtbare Benefits")
-        _render_label_list(selection_result["selected_labels"], limit=10)
-
-        if _can_render_structured_offer_inputs():
-            _render_structured_offer_constraints(job)
-        _render_offer_outcome_preview(
+        source_counts = _render_benefits_source_comparison_slot(
             job=job,
-            selected_benefits=selection_result["selected_labels"],
-        )
-        render_live_artifact_preview_panel(
-            key="benefits",
-            default_open=default_secondary_section_open(classic_default_open=True),
-            streamlit_module=st,
-            preview_builder=lambda: build_live_artifact_preview_payload(
-                job=job,
-                answers=get_answers(),
-                selected_role_tasks=_read_selected_texts(SSKey.ROLE_TASKS_SELECTED),
-                selected_skills=_read_selected_texts(SSKey.SKILLS_SELECTED),
-                selected_benefits=selection_result["selected_labels"],
-                offer_positioning=build_offer_decision_context(
-                    job=job,
-                    selected_benefits=selection_result["selected_labels"],
-                    intake_facts=get_intake_fact_state(st.session_state),
-                    intake_fact_evidence=get_intake_fact_evidence_state(
-                        st.session_state
-                    ),
-                    salary_forecast=st.session_state.get(
-                        SSKey.SALARY_FORECAST_LAST_RESULT.value,
-                        {},
-                    ),
-                    salary_fingerprints=st.session_state.get(
-                        SSKey.SALARY_FORECAST_INPUT_FINGERPRINT.value,
-                        {},
-                    ),
-                ),
-            ),
+            step=step,
+            jobspec_benefit_terms=jobspec_benefit_terms,
         )
 
     def _render_salary_forecast_slot() -> None:

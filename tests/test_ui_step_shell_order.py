@@ -20,7 +20,13 @@ from constants import (
     STEP_SECTION_SALARY_FORECAST,
     STEP_SECTION_SOURCE_COMPARISON,
 )
-from schemas import JobAdExtract, Question, QuestionStep
+from schemas import (
+    EscoAnchorRef,
+    EscoSemanticContext,
+    JobAdExtract,
+    Question,
+    QuestionStep,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -624,6 +630,74 @@ def test_benefits_esco_skill_dicts_do_not_become_benefit_labels() -> None:
     )
 
     assert labels == ["Weiterbildung"]
+
+
+def test_benefits_source_view_model_extracts_contextual_answer_labels() -> None:
+    benefits = _load_module(
+        "wizard_pages.page_06_benefits_view_model", "wizard_pages/06_benefits.py"
+    )
+    questions = [
+        Question(
+            id="benefit_fit",
+            label="Welche Benefits sind entscheidend?",
+            answer_type=AnswerType.MULTI_SELECT,
+        ),
+        Question(
+            id="salary_range",
+            label="Welche Gehaltsspanne ist freigegeben?",
+            answer_type=AnswerType.LONG_TEXT,
+        ),
+        Question(
+            id="perk_unanswered",
+            label="Welche Perks differenzieren das Angebot?",
+            answer_type=AnswerType.LONG_TEXT,
+        ),
+    ]
+
+    view_model = benefits._build_benefits_source_comparison_view_model(
+        jobspec_benefit_terms=["Hybrid Work", "Mentoring"],
+        review_payload={
+            "visible_questions": questions,
+            "answers": {
+                "benefit_fit": ["Mentoring", "Deutschlandticket"],
+                "salary_range": "90.000 EUR",
+                "perk_unanswered": "Lunch",
+            },
+            "answered_lookup": {
+                "benefit_fit": True,
+                "salary_range": True,
+                "perk_unanswered": False,
+            },
+        },
+        selected_labels=["Mentoring", "Weiterbildungsbudget"],
+        ai_suggested_raw=[{"label": "Jobticket", "source_hint": "llm"}],
+        semantic_context=EscoSemanticContext(
+            can_use_semantic_exports=True,
+            primary_anchor=EscoAnchorRef(
+                uri="uri:occupation:data-analyst",
+                title="Data Analyst",
+            ),
+        ),
+    )
+
+    assert view_model.contextual_labels == [
+        "Welche Benefits sind entscheidend?: Mentoring, Deutschlandticket"
+    ]
+    assert view_model.ai_labels == ["Jobticket"]
+    assert view_model.primary_anchor_title == "Data Analyst"
+    assert view_model.initial_generation_existing_labels == [
+        "Hybrid Work",
+        "Mentoring",
+        "Welche Benefits sind entscheidend?: Mentoring, Deutschlandticket",
+        "Weiterbildungsbudget",
+    ]
+    assert view_model.generation_existing_labels == [
+        "Hybrid Work",
+        "Mentoring",
+        "Welche Benefits sind entscheidend?: Mentoring, Deutschlandticket",
+        "Jobticket",
+        "Weiterbildungsbudget",
+    ]
 
 
 def test_interview_contact_state_syncs_intake_fact() -> None:
