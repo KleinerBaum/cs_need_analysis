@@ -2,6 +2,8 @@ import app
 import site_ui
 import tomllib
 
+from components import design_system
+
 
 class _FakeColumn:
     def __enter__(self) -> "_FakeColumn":
@@ -23,18 +25,33 @@ class _FakeSiteStreamlit:
         return [_FakeColumn() for _ in range(count)]
 
 
-def test_inject_theme_styles_uses_streamlit_theme_root(monkeypatch) -> None:
-    calls: list[str] = []
+def test_app_shell_css_asset_is_externalized() -> None:
+    css = design_system.APP_SHELL_CSS_PATH.read_text(encoding="utf-8")
 
-    class _FakeStreamlit:
-        def markdown(self, html: str, **_: object) -> None:
-            calls.append(html)
+    assert css.startswith('[data-testid="stHeader"]')
+    assert "<style>" not in css
+    assert ".stApp {" in css
+    assert "__CS_STEP_BACKGROUND_LIGHT_URL__" in css
+    assert "__CS_STEP_BACKGROUND_DARK_URL__" in css
+    assert "--cs-app-bg: var(--background-color, #F6F8FB);" in css
+    assert '.stApp[data-cs-theme="dark"]' in css
+    assert ':root[data-cs-theme="dark"] .stApp' in css
+    assert ':root[data-theme="dark"] .stApp' in css
+    assert "[data-testid=\"stAppViewContainer" in css
+    assert "max-width: min(100%, 1180px);" in css
+    assert ".cs-sidebar-nav-gap" in css
+    assert "@media (max-width: 900px)" in css
+    assert "data:image" not in css
+    assert "images/" not in css
 
-    monkeypatch.setattr(app, "render_ui_styles", lambda: None)
-    monkeypatch.setattr(app, "st", _FakeStreamlit())
-    app._inject_theme_styles()
 
-    css = calls[0]
+def test_build_app_shell_css_uses_streamlit_theme_root() -> None:
+    css = design_system.build_app_shell_css(
+        light_background_url="/app/static/theme-background-light.png",
+        dark_background_url="/app/static/theme-background-dark.png",
+    )
+
+    assert "<style>" not in css
     assert ".stApp {" in css
     assert "--cs-app-bg: var(--background-color, #F6F8FB);" in css
     assert "--cs-app-text: var(--text-color, #142033);" in css
@@ -59,8 +76,58 @@ def test_inject_theme_styles_uses_streamlit_theme_root(monkeypatch) -> None:
     assert "background-blend-mode: normal, var(--cs-step-background-blend);" in css
     assert "max-width: min(100%, 1180px);" in css
     assert "background: transparent !important;" in css
+    assert ".cs-sidebar-nav-gap" in css
+    assert "@media (max-width: 900px)" in css
+    assert "__CS_STEP_BACKGROUND_LIGHT_URL__" not in css
+    assert "__CS_STEP_BACKGROUND_DARK_URL__" not in css
     assert "data:image" not in css
     assert "images/" not in css
+
+
+def test_build_app_shell_css_escapes_raw_style_terminators(monkeypatch) -> None:
+    monkeypatch.setattr(
+        design_system,
+        "_load_app_shell_css",
+        lambda: (
+            "light: url(__CS_STEP_BACKGROUND_LIGHT_URL__); "
+            "dark: url(__CS_STEP_BACKGROUND_DARK_URL__);"
+        ),
+    )
+
+    css = design_system.build_app_shell_css(
+        light_background_url='</style><script>alert("x")</script>',
+        dark_background_url="<dark>",
+    )
+
+    assert "</style>" not in css
+    assert "<script>" not in css
+    assert "<dark>" not in css
+    assert "__CS_STEP_BACKGROUND_LIGHT_URL__" not in css
+    assert "__CS_STEP_BACKGROUND_DARK_URL__" not in css
+
+
+def test_inject_theme_styles_delegates_app_shell_css(monkeypatch) -> None:
+    calls: list[tuple[str, object]] = []
+
+    monkeypatch.setattr(app, "render_ui_styles", lambda: calls.append(("ui", None)))
+    monkeypatch.setattr(
+        app,
+        "render_app_shell_styles",
+        lambda **kwargs: calls.append(("app_shell", kwargs)),
+    )
+
+    app._inject_theme_styles()
+
+    assert calls == [
+        ("ui", None),
+        (
+            "app_shell",
+            {
+                "light_background_url": "/app/static/theme-background-light.png",
+                "dark_background_url": "/app/static/theme-background-dark.png",
+            },
+        ),
+    ]
 
 
 def test_static_asset_url_returns_quoted_streamlit_static_path() -> None:

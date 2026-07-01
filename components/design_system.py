@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from html import escape
 from pathlib import Path
@@ -13,6 +14,9 @@ from step_header_overview import StepHeaderOverview
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 DESIGN_SYSTEM_CSS_PATH = ROOT_DIR / "styles" / "design_system.css"
+APP_SHELL_CSS_PATH = ROOT_DIR / "styles" / "app_shell.css"
+_APP_SHELL_LIGHT_BACKGROUND_PLACEHOLDER = "__CS_STEP_BACKGROUND_LIGHT_URL__"
+_APP_SHELL_DARK_BACKGROUND_PLACEHOLDER = "__CS_STEP_BACKGROUND_DARK_URL__"
 
 _PILL_TONE_CLASS_MAP = {
     "neutral": "cs-pill--neutral",
@@ -155,8 +159,40 @@ def _load_design_system_css(path: Path = DESIGN_SYSTEM_CSS_PATH) -> str:
     return _load_text_asset(str(path), _path_mtime_ns(path))
 
 
+def _load_app_shell_css(path: Path = APP_SHELL_CSS_PATH) -> str:
+    return _load_text_asset(str(path), _path_mtime_ns(path))
+
+
+def _css_url_value(url: str) -> str:
+    css_url = str(url).replace("<", "\\3C ").replace(">", "\\3E ")
+    return json.dumps(css_url, ensure_ascii=True)
+
+
+def build_app_shell_css(light_background_url: str, dark_background_url: str) -> str:
+    css = _load_app_shell_css()
+    replacements = {
+        _APP_SHELL_LIGHT_BACKGROUND_PLACEHOLDER: _css_url_value(light_background_url),
+        _APP_SHELL_DARK_BACKGROUND_PLACEHOLDER: _css_url_value(dark_background_url),
+    }
+    for placeholder, value in replacements.items():
+        if placeholder not in css:
+            raise ValueError(f"Missing app-shell CSS placeholder: {placeholder}")
+        css = css.replace(placeholder, value)
+    if any(placeholder in css for placeholder in replacements):
+        raise ValueError("Unresolved app-shell CSS placeholder")
+    return css
+
+
 def render_ui_styles() -> None:
     _render_html_block(f"<style>{_load_design_system_css()}</style>")
+
+
+def render_app_shell_styles(light_background_url: str, dark_background_url: str) -> None:
+    css = build_app_shell_css(
+        light_background_url=light_background_url,
+        dark_background_url=dark_background_url,
+    )
+    _render_html_block(f"<style>{css}</style>")
 
 
 def render_pill(label: str, *, tone: str = "neutral") -> None:

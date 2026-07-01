@@ -12,7 +12,7 @@ from urllib.parse import quote
 
 import streamlit as st
 
-from components.design_system import render_ui_styles
+from components.design_system import render_app_shell_styles, render_ui_styles
 from config.preferences import (
     PREFERENCE_CENTER_QUERY_PARAM,
     PREFERENCE_CENTER_QUERY_VALUE,
@@ -123,147 +123,9 @@ def _inject_theme_styles() -> None:
     render_ui_styles()
     wizard_dark_background_url = _static_asset_url(WIZARD_DARK_BACKGROUND_PATH)
     wizard_light_background_url = _static_asset_url(WIZARD_LIGHT_BACKGROUND_PATH)
-
-    # App-shell specific styles (header/sidebar spacing/layout quirks).
-    render_static_html(
-        f"""
-        <style>
-            [data-testid="stHeader"] {{
-                background: transparent;
-            }}
-
-            .stApp {{
-                --cs-app-bg: var(--background-color, #F6F8FB);
-                --cs-step-background-image: url("{wizard_light_background_url}");
-                --cs-step-background-blend: soft-light;
-                --cs-app-text: var(--text-color, #142033);
-                --cs-app-surface: var(
-                    --secondary-background-color,
-                    #FFFFFF
-                );
-                --cs-app-border: var(
-                    --border-color,
-                    #CAD6E2
-                );
-                --cs-bg: var(--cs-app-bg);
-                --cs-surface: var(--cs-app-surface);
-                --cs-surface-raised: color-mix(
-                    in srgb,
-                    var(--cs-app-surface) 94%,
-                    #ffffff 6%
-                );
-                --cs-surface-muted: color-mix(
-                    in srgb,
-                    var(--cs-app-surface) 82%,
-                    var(--cs-app-bg) 18%
-                );
-                --cs-border: var(--cs-app-border);
-                --cs-border-soft: color-mix(in srgb, var(--cs-app-border) 72%, transparent);
-                --cs-text: var(--cs-app-text);
-                --cs-text-muted: color-mix(in srgb, var(--cs-app-text) 76%, var(--cs-app-bg));
-                --cs-text-subtle: color-mix(in srgb, var(--cs-app-text) 60%, var(--cs-app-bg));
-                background-color: var(--cs-app-bg) !important;
-                background-image:
-                    linear-gradient(
-                        180deg,
-                        color-mix(in srgb, var(--cs-app-bg) 96%, transparent),
-                        color-mix(in srgb, var(--cs-app-bg) 88%, transparent)
-                    ),
-                    var(--cs-step-background-image) !important;
-                background-position: center top !important;
-                background-repeat: no-repeat !important;
-                background-size: auto, cover !important;
-                background-attachment: fixed !important;
-                background-blend-mode: normal, var(--cs-step-background-blend);
-                color: var(--cs-app-text);
-            }}
-
-            .stApp[data-cs-theme="dark"],
-            :root[data-cs-theme="dark"] .stApp,
-            html[data-cs-theme="dark"] .stApp,
-            body[data-cs-theme="dark"] .stApp,
-            [data-cs-theme="dark"] .stApp,
-            .stApp[data-theme="dark"],
-            :root[data-theme="dark"] .stApp,
-            html[data-theme="dark"] .stApp,
-            body[data-theme="dark"] .stApp,
-            [data-theme="dark"] .stApp {{
-                --cs-app-bg: var(--background-color, #0B111B);
-                --cs-step-background-image: url("{wizard_dark_background_url}");
-                --cs-step-background-blend: screen;
-                --cs-app-text: var(--text-color, #F1F5F9);
-                --cs-app-surface: var(
-                    --secondary-background-color,
-                    #111827
-                );
-                --cs-app-border: var(
-                    --border-color,
-                    #334155
-                );
-            }}
-
-            [data-testid="stAppViewContainer"],
-            .stMain {{
-                background: transparent !important;
-                color: var(--cs-text);
-            }}
-
-            .stMainBlockContainer,
-            .block-container {{
-                background: transparent !important;
-            }}
-
-            .block-container {{
-                max-width: min(100%, 1180px);
-                padding-top: 0.8rem;
-                padding-left: clamp(0.9rem, 1.8vw, 1.5rem);
-                padding-right: clamp(0.9rem, 1.8vw, 1.5rem);
-            }}
-
-            [data-testid="stSidebarContent"] [data-testid="stVerticalBlock"] > div {{
-                row-gap: 8px;
-            }}
-
-            .cs-sidebar-nav-gap {{
-                height: 22px;
-            }}
-
-            @media (max-width: 900px) {{
-                .block-container {{
-                    padding-left: 0.9rem;
-                    padding-right: 0.9rem;
-                }}
-
-                h1 {{
-                    line-height: 1.2;
-                }}
-
-                h2 {{
-                    line-height: 1.25;
-                }}
-
-                [data-testid="stButton"] button {{
-                    min-height: 44px;
-                }}
-
-                [data-testid="stHorizontalBlock"] {{
-                    flex-wrap: wrap;
-                    gap: 0.75rem;
-                }}
-
-                [data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
-                    flex: 1 1 100% !important;
-                    min-width: min(100%, 18rem) !important;
-                }}
-
-                [data-testid="stTabs"] [role="tablist"] {{
-                    overflow-x: auto;
-                    justify-content: flex-start;
-                }}
-            }}
-        </style>
-        """,
-        streamlit_module=st,
+    render_app_shell_styles(
+        light_background_url=wizard_light_background_url,
+        dark_background_url=wizard_dark_background_url,
     )
 
 
