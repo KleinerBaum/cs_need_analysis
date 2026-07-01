@@ -554,6 +554,50 @@ dependency-only changes and keep the test evidence with the PR.
 
 ## Verification
 
+### Release readiness
+
+This repo does not require package publishing to cut a release. Treat a release
+as a reviewed application snapshot with a changelog entry, passing core gates,
+and the deployment or GitHub release/tag step handled separately.
+
+Use a version/date changelog heading for new releases:
+
+```markdown
+## 2026.07.01 - 2026-07-01
+
+- Short release note.
+- **Breaking Change:** none.
+```
+
+Calendar labels such as `YYYY.MM.DD` are acceptable when there is no package
+version to publish. Historical date-only changelog sections are still accepted
+for archive compatibility, but new release sections should include both the
+release label and the release date.
+
+Local release-readiness check:
+
+```bash
+python scripts/validate_changelog.py --version 2026.07.01 --date 2026-07-01
+pip check
+python scripts/check_repo_hygiene.py
+python -m compileall app.py homepage_research.py job_extract_evidence.py job_extract_review_helpers.py summary_artifacts.py summary_esco.py summary_exports.py summary_facts.py summary_job_ad.py usage_events.py components config pages salary scripts tests wizard_pages
+python -m pytest -q tests/test_repo_contract_drift.py tests/test_wizard_contract.py tests/test_quality_gate_config.py tests/test_public_page_links.py tests/test_constants_import_contract.py tests/test_schema_contracts.py
+python -m pytest -q tests --ignore=tests/e2e --ignore=tests/apptest
+python scripts/openai_smoke_test.py --mode all --ci-dry-run-if-no-key --json-only > reports/openai-smoke.json
+python scripts/run_quality_evals.py --fixtures evals --output reports/evals/summary.csv --json-output reports/evals/summary.json --enforce-thresholds
+```
+
+Manual GitHub release check:
+
+1. Update `CHANGELOG.md` with the new `## <release-version> - YYYY-MM-DD` section.
+2. Run the local validator with the same version/date.
+3. Open GitHub Actions -> `Release Readiness`.
+4. Run the workflow manually with `release_version` and `release_date` matching the changelog heading.
+5. If it passes, create the tag/release or deploy through the existing deployment process. No package publish step is required.
+
+The `Release Readiness` workflow is manual-only (`workflow_dispatch`) and does
+not run on pull requests or pushes.
+
 ### Baseline / CI-equivalent
 
 ```bash
@@ -719,6 +763,12 @@ available through manual workflow dispatch with `run_e2e=true` as job ID
 `.github/workflows/codeql.yml` runs CodeQL Python analysis with
 `security-and-quality` queries on pull requests, pushes to `main`, a weekly
 schedule, and manual dispatch.
+
+`.github/workflows/release-readiness.yml` is separate from normal CI and runs
+only through manual dispatch. It validates the requested `CHANGELOG.md`
+version/date section, then runs the core release gates: package check, repo
+hygiene, compileall, contract tests, unit tests excluding AppTest/E2E, OpenAI
+smoke dry-run, and quality eval thresholds. It does not publish packages.
 
 ## Debugging and incident reports
 

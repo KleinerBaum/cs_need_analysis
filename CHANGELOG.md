@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026.07.01 - 2026-07-01
+
+- Added a manual Release Readiness GitHub Actions workflow that validates the requested changelog release section and runs core repo gates without publishing packages.
+- Added lightweight changelog validation through `scripts/validate_changelog.py` for version/date headings, legacy date-only sections, newest-to-oldest section order, and release-note bullets.
+- Documented the release cutting process in README, including local validation and the optional manual workflow dispatch.
+- Areas: `release`, `ci`, `docs`.
+- **Breaking Change:** none.
+
 ## 2026-05-05
 
 - Salary-Forecast-Panel stabilisiert: Confidence-Hinweis wird jetzt konsistent aus der Forecast-Qualität abgeleitet, wodurch widersprüchliche Qualitätslabels in der UI reduziert werden.

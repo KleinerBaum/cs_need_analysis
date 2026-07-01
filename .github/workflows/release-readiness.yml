@@ -1,0 +1,107 @@
+name: Release Readiness
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Expected CHANGELOG.md release label, for example 2026.07.01 or v0.5.0"
+        required: true
+        type: string
+      release_date:
+        description: "Expected CHANGELOG.md release date in YYYY-MM-DD format"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  release_readiness:
+    name: Manual release readiness
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -c constraints.txt
+          pip install -r requirements-dev.txt -c constraints.txt
+
+      - name: Validate changelog release section
+        env:
+          RELEASE_VERSION: ${{ inputs.release_version }}
+          RELEASE_DATE: ${{ inputs.release_date }}
+        run: |
+          python scripts/validate_changelog.py \
+            --version "$RELEASE_VERSION" \
+            --date "$RELEASE_DATE"
+
+      - name: Prepare report directories
+        run: mkdir -p reports/junit reports/evals
+
+      - name: Check installed packages
+        run: pip check
+
+      - name: Repository hygiene guard
+        run: python scripts/check_repo_hygiene.py
+
+      - name: Compile Python sources
+        run: python -m compileall app.py homepage_research.py job_extract_evidence.py job_extract_review_helpers.py summary_artifacts.py summary_esco.py summary_exports.py summary_facts.py summary_job_ad.py usage_events.py components config pages salary scripts tests wizard_pages
+
+      - name: Run contract tests
+        run: |
+          python -m pytest -q \
+            tests/test_repo_contract_drift.py \
+            tests/test_wizard_contract.py \
+            tests/test_quality_gate_config.py \
+            tests/test_public_page_links.py \
+            tests/test_constants_import_contract.py \
+            tests/test_schema_contracts.py \
+            --junitxml=reports/junit/release-contract.xml
+
+      - name: Run unit tests
+        run: |
+          python -m pytest -q tests \
+            --ignore=tests/e2e \
+            --ignore=tests/apptest \
+            --junitxml=reports/junit/release-unit.xml
+
+      - name: OpenAI smoke dry-run
+        run: |
+          python scripts/openai_smoke_test.py \
+            --mode all \
+            --ci-dry-run-if-no-key \
+            --json-only > reports/openai-smoke.json
+
+      - name: Quality eval threshold gate
+        run: |
+          python scripts/run_quality_evals.py \
+            --fixtures evals \
+            --output reports/evals/summary.csv \
+            --json-output reports/evals/summary.json \
+            --enforce-thresholds
+
+      - name: Upload release readiness reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-readiness-reports
+          path: |
+            reports/junit/release-contract.xml
+            reports/junit/release-unit.xml
+            reports/openai-smoke.json
+            reports/evals/summary.csv
+            reports/evals/summary.json
+          if-no-files-found: warn
+          retention-days: 14
