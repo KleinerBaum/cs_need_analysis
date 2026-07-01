@@ -68,8 +68,10 @@ SIDEBAR_FOOTER_PAGE_LINKS: tuple[tuple[str, str], ...] = (
     SIDEBAR_PAGE_LINKS[2],
 )
 ROOT_DIR = Path(__file__).resolve().parent
-WIZARD_DARK_BACKGROUND_PATH = ROOT_DIR / "images" / "dark2.png"
-WIZARD_LIGHT_BACKGROUND_PATH = ROOT_DIR / "images" / "light.png"
+STATIC_DIR = ROOT_DIR / "static"
+STREAMLIT_STATIC_URL_PREFIX = "/app/static"
+WIZARD_DARK_BACKGROUND_PATH = STATIC_DIR / "theme-background-dark.png"
+WIZARD_LIGHT_BACKGROUND_PATH = STATIC_DIR / "theme-background-light.png"
 DRAFT_BROWSER_RECOVERY_STORAGE_KEY = "cs.vacancyDraft.safeRecovery.v1"
 
 
@@ -101,13 +103,13 @@ def _consume_wizard_step_query_param(ctx: WizardContext) -> None:
 
 
 def _static_asset_url(path: Path) -> str:
-    """Keep app-local asset URLs stable for Streamlit static/CDN serving."""
+    """Build Streamlit static-serving URLs for app-local assets."""
 
     try:
-        asset_path = path.resolve().relative_to(ROOT_DIR)
+        asset_path = path.resolve().relative_to(STATIC_DIR)
     except ValueError:
-        asset_path = path
-    return quote(asset_path.as_posix())
+        asset_path = Path(path.name)
+    return f"{STREAMLIT_STATIC_URL_PREFIX}/{quote(asset_path.as_posix())}"
 
 
 def _inject_theme_styles() -> None:

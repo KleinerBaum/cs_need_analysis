@@ -1,5 +1,6 @@
 import app
 import site_ui
+import tomllib
 
 
 class _FakeColumn:
@@ -31,12 +32,6 @@ def test_inject_theme_styles_uses_streamlit_theme_root(monkeypatch) -> None:
 
     monkeypatch.setattr(app, "render_ui_styles", lambda: None)
     monkeypatch.setattr(app, "st", _FakeStreamlit())
-    monkeypatch.setattr(
-        app,
-        "_static_asset_url",
-        lambda path: f"images/{path.name}",
-    )
-
     app._inject_theme_styles()
 
     css = calls[0]
@@ -45,11 +40,17 @@ def test_inject_theme_styles_uses_streamlit_theme_root(monkeypatch) -> None:
     assert "--cs-app-text: var(--text-color, #142033);" in css
     assert "--cs-app-surface: var(" in css
     assert "--cs-app-border: var(" in css
-    assert "--cs-step-background-image: url(\"images/light.png\");" in css
+    assert (
+        "--cs-step-background-image: "
+        "url(\"/app/static/theme-background-light.png\");"
+    ) in css
     assert '.stApp[data-cs-theme="dark"]' in css
     assert ':root[data-cs-theme="dark"] .stApp' in css
     assert ':root[data-theme="dark"] .stApp' in css
-    assert "--cs-step-background-image: url(\"images/dark2.png\");" in css
+    assert (
+        "--cs-step-background-image: "
+        "url(\"/app/static/theme-background-dark.png\");"
+    ) in css
     assert "--cs-app-bg: var(--background-color, #0B111B);" in css
     assert "--cs-app-text: var(--text-color, #F1F5F9);" in css
     assert "[data-testid=\"stAppViewContainer" in css
@@ -58,12 +59,20 @@ def test_inject_theme_styles_uses_streamlit_theme_root(monkeypatch) -> None:
     assert "background-blend-mode: normal, var(--cs-step-background-blend);" in css
     assert "max-width: min(100%, 1180px);" in css
     assert "background: transparent !important;" in css
+    assert "data:image" not in css
+    assert "images/" not in css
 
 
-def test_static_asset_url_returns_quoted_repo_relative_path() -> None:
-    asset_path = app.ROOT_DIR / "images" / "light background.png"
+def test_static_asset_url_returns_quoted_streamlit_static_path() -> None:
+    asset_path = app.STATIC_DIR / "light background.png"
 
-    assert app._static_asset_url(asset_path) == "images/light%20background.png"
+    assert app._static_asset_url(asset_path) == "/app/static/light%20background.png"
+
+
+def test_static_serving_is_enabled_for_streamlit() -> None:
+    config = tomllib.loads((app.ROOT_DIR / ".streamlit" / "config.toml").read_text())
+
+    assert config["server"]["enableStaticServing"] is True
 
 
 def test_inject_runtime_theme_bridge_sets_stable_theme_attribute(monkeypatch) -> None:
