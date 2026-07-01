@@ -1,8 +1,9 @@
 # site_ui.py
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Iterable
+import os
+from dataclasses import dataclass, replace
+from typing import Iterable, Mapping
 
 import streamlit as st
 
@@ -11,6 +12,10 @@ from safe_html import escape_html_text, render_static_html
 
 PROFILE_VALUE_NOT_PUBLISHED = "__profile_value_not_published__"
 PROFILE_VALUE_NOT_CONFIGURED = "__profile_value_not_configured__"
+PUBLIC_SITE_MODE_ENV_VAR = "CS_PUBLIC_SITE_MODE"
+PUBLIC_SITE_MODE_DEVELOPMENT = "development"
+PUBLIC_SITE_MODE_PRODUCTION = "production"
+PUBLIC_SITE_MODES = (PUBLIC_SITE_MODE_DEVELOPMENT, PUBLIC_SITE_MODE_PRODUCTION)
 
 
 @dataclass(frozen=True)
@@ -30,9 +35,152 @@ class SiteProfile:
     accessibility_email: str = "barrierefreiheit@cognitive-staffing.de"
     last_updated: str = "14.04.2026"
     dpo_name: str = PROFILE_VALUE_NOT_CONFIGURED
+    register_court: str = PROFILE_VALUE_NOT_CONFIGURED
+    register_number: str = PROFILE_VALUE_NOT_CONFIGURED
+    vat_id: str = PROFILE_VALUE_NOT_CONFIGURED
 
 
-PROFILE = SiteProfile()
+PROFILE_ENV_VARS: Mapping[str, str] = {
+    "brand_name": "CS_PUBLIC_BRAND_NAME",
+    "legal_entity": "CS_PUBLIC_LEGAL_ENTITY",
+    "managing_director": "CS_PUBLIC_MANAGING_DIRECTOR",
+    "street": "CS_PUBLIC_STREET",
+    "postal_code": "CS_PUBLIC_POSTAL_CODE",
+    "city": "CS_PUBLIC_CITY",
+    "country": "CS_PUBLIC_COUNTRY",
+    "email": "CS_PUBLIC_EMAIL",
+    "phone": "CS_PUBLIC_PHONE",
+    "website": "CS_PUBLIC_WEBSITE",
+    "support_email": "CS_PUBLIC_SUPPORT_EMAIL",
+    "privacy_email": "CS_PUBLIC_PRIVACY_EMAIL",
+    "accessibility_email": "CS_PUBLIC_ACCESSIBILITY_EMAIL",
+    "last_updated": "CS_PUBLIC_LAST_UPDATED",
+    "dpo_name": "CS_PUBLIC_DPO_NAME",
+    "register_court": "CS_PUBLIC_REGISTER_COURT",
+    "register_number": "CS_PUBLIC_REGISTER_NUMBER",
+    "vat_id": "CS_PUBLIC_VAT_ID",
+}
+
+PUBLIC_SITE_REQUIRED_PROFILE_FIELDS: tuple[str, ...] = (
+    "brand_name",
+    "legal_entity",
+    "managing_director",
+    "street",
+    "postal_code",
+    "city",
+    "country",
+    "email",
+    "phone",
+    "website",
+    "support_email",
+    "privacy_email",
+    "accessibility_email",
+    "last_updated",
+    "dpo_name",
+    "register_court",
+    "register_number",
+)
+
+_PROFILE_MISSING_VALUES = {
+    "",
+    PROFILE_VALUE_NOT_PUBLISHED,
+    PROFILE_VALUE_NOT_CONFIGURED,
+}
+
+
+class PublicSiteProfileConfigurationError(RuntimeError):
+    """Raised when production public-site profile configuration is incomplete."""
+
+
+def _env_profile_value(env_var: str) -> str | None:
+    value = os.getenv(env_var)
+    if value is None:
+        return None
+    return value.strip()
+
+
+def build_site_profile_from_environment(
+    *, defaults: SiteProfile | None = None
+) -> SiteProfile:
+    profile = defaults or SiteProfile()
+    overrides = {
+        field_name: value
+        for field_name, env_var in PROFILE_ENV_VARS.items()
+        if (value := _env_profile_value(env_var)) is not None
+    }
+    return replace(profile, **overrides)
+
+
+def normalize_public_site_mode(mode: str | None = None) -> str:
+    raw_mode = mode if mode is not None else os.getenv(PUBLIC_SITE_MODE_ENV_VAR)
+    normalized = str(raw_mode or PUBLIC_SITE_MODE_DEVELOPMENT).strip().lower()
+    if normalized not in PUBLIC_SITE_MODES:
+        allowed = ", ".join(PUBLIC_SITE_MODES)
+        raise PublicSiteProfileConfigurationError(
+            f"{PUBLIC_SITE_MODE_ENV_VAR} must be one of: {allowed}"
+        )
+    return normalized
+
+
+def is_public_site_production_mode(mode: str | None = None) -> bool:
+    return normalize_public_site_mode(mode) == PUBLIC_SITE_MODE_PRODUCTION
+
+
+def is_configured_profile_value(value: str) -> bool:
+    return str(value).strip() not in _PROFILE_MISSING_VALUES
+
+
+def missing_public_site_profile_fields(
+    profile: SiteProfile,
+    *,
+    required_fields: tuple[str, ...] = PUBLIC_SITE_REQUIRED_PROFILE_FIELDS,
+) -> tuple[str, ...]:
+    return tuple(
+        field_name
+        for field_name in required_fields
+        if not is_configured_profile_value(getattr(profile, field_name))
+    )
+
+
+def missing_public_site_profile_environment_fields(
+    *,
+    required_fields: tuple[str, ...] = PUBLIC_SITE_REQUIRED_PROFILE_FIELDS,
+) -> tuple[str, ...]:
+    return tuple(
+        field_name
+        for field_name in required_fields
+        if _env_profile_value(PROFILE_ENV_VARS[field_name]) is None
+    )
+
+
+def validate_public_site_profile(
+    profile: SiteProfile | None = None,
+    *,
+    mode: str | None = None,
+) -> None:
+    effective_mode = normalize_public_site_mode(mode)
+    if effective_mode != PUBLIC_SITE_MODE_PRODUCTION:
+        return
+
+    active_profile = profile or PROFILE
+    missing_fields = list(missing_public_site_profile_fields(active_profile))
+    if profile is None:
+        missing_fields.extend(missing_public_site_profile_environment_fields())
+    missing_fields = list(dict.fromkeys(missing_fields))
+    if not missing_fields:
+        return
+
+    missing_labels = ", ".join(
+        f"{field_name} ({PROFILE_ENV_VARS[field_name]})"
+        for field_name in missing_fields
+    )
+    raise PublicSiteProfileConfigurationError(
+        "Public site production profile is incomplete. "
+        f"Missing required fields: {missing_labels}."
+    )
+
+
+PROFILE = build_site_profile_from_environment()
 
 
 def profile_last_updated_label() -> str:
@@ -50,6 +198,7 @@ def localized_profile_value(value: str) -> str:
 
 
 def inject_site_styles() -> None:
+    validate_public_site_profile()
     render_static_html(
         """
         <style>

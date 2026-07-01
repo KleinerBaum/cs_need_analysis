@@ -39,6 +39,7 @@ from i18n import (
 )
 from audience import normalize_audience_mode
 from safe_html import render_static_html
+from site_ui import validate_public_site_profile
 from state import (
     build_vacancy_draft_fingerprint,
     build_vacancy_draft_json,
@@ -74,6 +75,8 @@ STREAMLIT_STATIC_URL_PREFIX = "/app/static"
 WIZARD_DARK_BACKGROUND_PATH = STATIC_DIR / "theme-background-dark.png"
 WIZARD_LIGHT_BACKGROUND_PATH = STATIC_DIR / "theme-background-light.png"
 DRAFT_BROWSER_RECOVERY_STORAGE_KEY = "cs.vacancyDraft.safeRecovery.v1"
+
+validate_public_site_profile()
 
 
 def _session_state_mapping() -> Mapping[str, object]:

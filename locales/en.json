@@ -317,7 +317,16 @@
         "0": "This page bundles the provider identification for Cognitive Staffing.",
         "1": "Final reviewed company and register data is still missing for binding publication."
       },
+      "intro_production": {
+        "0": "This page bundles the provider identification for Cognitive Staffing.",
+        "1": "The following provider and contact details are loaded from the reviewed deployment configuration."
+      },
       "sections": {
+        "provider_profile": {
+          "heading": "Provider profile",
+          "body": "**{legal_entity}**  \nRepresented by: {managing_director}  \n{street}  \n{postal_code} {city}  \n{country}\n\n**Contact:** {email} · {phone}  \n**Website:** {website}\n\n**Register court:** {register_court}  \n**Register number:** {register_number}{vat_id_line}",
+          "vat_id_line": "**VAT ID / business ID:** {vat_id}"
+        },
         "scope": {
           "heading": "Scope",
           "body": "This imprint applies to this website, the app interface, and all public information pages linked here."
@@ -354,7 +363,8 @@
           "0": "This page does not replace legal advice. Company data that has not been published is marked explicitly and must not be replaced with assumed values."
         }
       },
-      "footer_classification": "Legal page · review required"
+      "footer_classification": "Legal page · review required",
+      "footer_classification_production": "Legal page · provider identification"
     },
     "privacy": {
       "title": "Privacy policy",

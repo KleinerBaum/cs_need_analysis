@@ -4,6 +4,8 @@ import ast
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
+import pytest
+
 from app import SIDEBAR_PAGE_LINKS
 from components.sidebar import render_sidebar
 from config.preferences import (
@@ -13,6 +15,106 @@ from config.preferences import (
     PREFERENCE_CENTER_QUERY_PARAM,
     PREFERENCE_CENTER_QUERY_VALUE,
 )
+from site_ui import (
+    PROFILE_ENV_VARS,
+    PUBLIC_SITE_MODE_ENV_VAR,
+    PUBLIC_SITE_MODE_PRODUCTION,
+    PublicSiteProfileConfigurationError,
+    SiteProfile,
+    build_site_profile_from_environment,
+    validate_public_site_profile,
+)
+
+
+def _configured_public_profile(**overrides: str) -> SiteProfile:
+    defaults = {
+        "brand_name": "Example Recruiting",
+        "legal_entity": "Example Recruiting GmbH",
+        "managing_director": "Example Managing Director",
+        "street": "Example Street 1",
+        "postal_code": "10115",
+        "city": "Berlin",
+        "country": "Deutschland",
+        "email": "contact@example.test",
+        "phone": "+49 30 000000",
+        "website": "https://example.test",
+        "support_email": "support@example.test",
+        "privacy_email": "privacy@example.test",
+        "accessibility_email": "accessibility@example.test",
+        "last_updated": "01.07.2026",
+        "dpo_name": "Example privacy contact",
+        "register_court": "Example register court",
+        "register_number": "HRB 000000",
+    }
+    defaults.update(overrides)
+    return SiteProfile(**defaults)
+
+
+def test_public_site_profile_validation_allows_development_placeholders(
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv(PUBLIC_SITE_MODE_ENV_VAR, raising=False)
+
+    validate_public_site_profile(SiteProfile())
+
+
+def test_public_site_profile_validation_rejects_missing_required_fields_in_production(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv(PUBLIC_SITE_MODE_ENV_VAR, PUBLIC_SITE_MODE_PRODUCTION)
+    profile = _configured_public_profile(
+        legal_entity="",
+        street=" ",
+        register_court="",
+        email="",
+        phone="",
+    )
+
+    with pytest.raises(PublicSiteProfileConfigurationError) as exc_info:
+        validate_public_site_profile(profile)
+
+    message = str(exc_info.value)
+    for field_name in ("legal_entity", "street", "register_court", "email", "phone"):
+        assert field_name in message
+        assert PROFILE_ENV_VARS[field_name] in message
+    assert "Example Recruiting GmbH" not in message
+    assert "contact@example.test" not in message
+
+
+def test_public_site_profile_validation_requires_deployment_environment_in_production(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv(PUBLIC_SITE_MODE_ENV_VAR, PUBLIC_SITE_MODE_PRODUCTION)
+    for env_var in PROFILE_ENV_VARS.values():
+        monkeypatch.delenv(env_var, raising=False)
+
+    with pytest.raises(PublicSiteProfileConfigurationError) as exc_info:
+        validate_public_site_profile()
+
+    message = str(exc_info.value)
+    assert "CS_PUBLIC_LEGAL_ENTITY" in message
+    assert "CS_PUBLIC_EMAIL" in message
+    assert "CS_PUBLIC_REGISTER_NUMBER" in message
+    assert "Cognitive Staffing" not in message
+    assert "kontakt@" not in message
+
+
+def test_public_site_profile_validation_accepts_complete_production_profile(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv(PUBLIC_SITE_MODE_ENV_VAR, PUBLIC_SITE_MODE_PRODUCTION)
+
+    validate_public_site_profile(_configured_public_profile())
+
+
+def test_public_site_profile_uses_deployment_environment_values(monkeypatch) -> None:
+    monkeypatch.setenv("CS_PUBLIC_LEGAL_ENTITY", "Runtime Example GmbH")
+    monkeypatch.setenv("CS_PUBLIC_REGISTER_NUMBER", "HRB 123456")
+
+    profile = build_site_profile_from_environment()
+
+    assert profile.legal_entity == "Runtime Example GmbH"
+    assert profile.register_number == "HRB 123456"
 
 
 def test_app_sidebar_links_hide_requested_public_and_legal_pages() -> None:

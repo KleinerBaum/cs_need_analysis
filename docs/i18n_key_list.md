@@ -18,8 +18,8 @@ This document is an inventory of the current translation surface. It does not in
 
 | Source | Count | Contract |
 |---|---:|---|
-| `locales/de.json` leaf keys | 346 | German source Locale values, including retained `ux_copy` parity keys |
-| `locales/en.json` leaf keys | 346 | English Locale values; key shape must match DE |
+| `locales/de.json` leaf keys | 352 | German source Locale values, including retained `ux_copy` parity keys |
+| `locales/en.json` leaf keys | 352 | English Locale values; key shape must match DE |
 | `_TRANSLATIONS_EN` | 383 | German-source copy translated by `t()` |
 | `_PHRASE_TRANSLATIONS_EN` | 80 | fallback phrase replacements inside `t()` |
 | High-confidence unkeyed UI-copy candidates | 716 | explicit migration backlog and allowlist baseline for the changed-line raw UI guard |

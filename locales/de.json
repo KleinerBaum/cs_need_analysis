@@ -317,7 +317,16 @@
         "0": "Diese Seite bündelt die Anbieterkennzeichnung für Cognitive Staffing.",
         "1": "Für eine verbindliche Veröffentlichung fehlen noch final geprüfte Unternehmens- und Registerdaten."
       },
+      "intro_production": {
+        "0": "Diese Seite bündelt die Anbieterkennzeichnung für Cognitive Staffing.",
+        "1": "Die folgenden Anbieter- und Kontaktangaben werden aus der geprüften Deployment-Konfiguration geladen."
+      },
       "sections": {
+        "provider_profile": {
+          "heading": "Anbieterprofil",
+          "body": "**{legal_entity}**  \nVertreten durch: {managing_director}  \n{street}  \n{postal_code} {city}  \n{country}\n\n**Kontakt:** {email} · {phone}  \n**Website:** {website}\n\n**Registergericht:** {register_court}  \n**Registernummer:** {register_number}{vat_id_line}",
+          "vat_id_line": "**Umsatzsteuer-ID / Wirtschafts-ID:** {vat_id}"
+        },
         "scope": {
           "heading": "Anwendungsbereich",
           "body": "Das Impressum gilt für diese Website, die App-Oberfläche und alle hier verlinkten öffentlichen Informationsseiten."
@@ -354,7 +363,8 @@
           "0": "Diese Seite ersetzt keine Rechtsberatung. Nicht veröffentlichte Unternehmensdaten sind ausdrücklich gekennzeichnet und dürfen nicht durch angenommene Werte ersetzt werden."
         }
       },
-      "footer_classification": "Rechtliche Seite · Prüfung erforderlich"
+      "footer_classification": "Rechtliche Seite · Prüfung erforderlich",
+      "footer_classification_production": "Rechtliche Seite · Anbieterkennzeichnung"
     },
     "privacy": {
       "title": "Datenschutzrichtlinie",

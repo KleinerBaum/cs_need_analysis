@@ -173,6 +173,48 @@ The canonical fact registry also covers downstream decision points from the impr
 - `homepage_research.py` — public website enrichment.
 - `salary/` — salary forecast engine and scenario helpers.
 
+## Public site deployment configuration
+
+Public informational and legal pages use `site_ui.SiteProfile`. Local and
+development runs default to `CS_PUBLIC_SITE_MODE=development`, where
+not-published/not-configured placeholders may still render.
+
+Set `CS_PUBLIC_SITE_MODE=production` for public deployments. In production mode,
+the app validates the required public legal/company profile before rendering and
+fails fast if required values are blank or still use placeholder sentinels.
+
+Required production environment variables:
+
+| Key | Purpose |
+|---|---|
+| `CS_PUBLIC_SITE_MODE` | set to `production` for strict public-site validation |
+| `CS_PUBLIC_BRAND_NAME` | public product or brand name |
+| `CS_PUBLIC_LEGAL_ENTITY` | legal provider entity |
+| `CS_PUBLIC_MANAGING_DIRECTOR` | authorized representative display value |
+| `CS_PUBLIC_STREET` | provider street address |
+| `CS_PUBLIC_POSTAL_CODE` | provider postal code |
+| `CS_PUBLIC_CITY` | provider city |
+| `CS_PUBLIC_COUNTRY` | provider country |
+| `CS_PUBLIC_EMAIL` | general public contact email |
+| `CS_PUBLIC_PHONE` | general public contact phone |
+| `CS_PUBLIC_WEBSITE` | canonical public website URL |
+| `CS_PUBLIC_SUPPORT_EMAIL` | support contact email |
+| `CS_PUBLIC_PRIVACY_EMAIL` | privacy contact email |
+| `CS_PUBLIC_ACCESSIBILITY_EMAIL` | accessibility feedback email |
+| `CS_PUBLIC_DPO_NAME` | reviewed privacy contact or DPO display value |
+| `CS_PUBLIC_REGISTER_COURT` | register court or reviewed register authority field |
+| `CS_PUBLIC_REGISTER_NUMBER` | register number or reviewed register identifier |
+| `CS_PUBLIC_LAST_UPDATED` | last-reviewed date shown on public policy pages |
+
+Optional public profile variable:
+
+| Key | Purpose |
+|---|---|
+| `CS_PUBLIC_VAT_ID` | VAT ID, business ID, or equivalent only when applicable and reviewed |
+
+Do not fill these variables with assumed legal facts. Keep development mode for
+draft or unpublished profile data until the values have been reviewed.
+
 ## OpenAI configuration
 
 Configuration can be supplied through Streamlit secrets or environment variables.
