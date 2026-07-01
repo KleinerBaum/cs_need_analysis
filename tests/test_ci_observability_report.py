@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from scripts.ci_observability_report import build_events
 
 
@@ -46,3 +48,41 @@ def test_ci_observability_report_flags_latency_cost_and_failure_alerts() -> None
     assert by_metric["eval_avg_latency_ms"]["triggered"] is True
     assert by_metric["eval_avg_cost_usd"]["triggered"] is True
     assert by_metric["smoke_failure_rate"]["triggered"] is True
+
+
+def test_ci_observability_report_omits_sensitive_source_fields() -> None:
+    events = build_events(
+        eval_report={
+            "fixture_count": 1,
+            "summaries": [
+                {
+                    "scope": "overall",
+                    "avg_latency_ms": 100,
+                    "avg_cost_usd": 0.001,
+                    "passed_thresholds": True,
+                    "raw_prompt": "uploaded job spec snippet",
+                }
+            ],
+        },
+        smoke_report={
+            "modes": [
+                {
+                    "actual_response_metadata": {
+                        "parse_status": "error",
+                        "latency_ms": 250,
+                        "error": "sk-test-secret candidate@example.com",
+                        "fields_preview": {"candidate_name": "Jane Doe"},
+                    }
+                }
+            ]
+        },
+        latency_alert_ms=8000,
+        cost_alert_usd=0.01,
+        failure_rate_alert=0.03,
+    )
+
+    serialized = json.dumps(events, sort_keys=True)
+    assert "uploaded job spec snippet" not in serialized
+    assert "sk-test-secret" not in serialized
+    assert "candidate@example.com" not in serialized
+    assert "Jane Doe" not in serialized

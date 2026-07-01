@@ -306,7 +306,10 @@ def test_parse_structured_outputs_records_fallback_model_event(
 
     monkeypatch.setattr("llm_client.get_openai_client", lambda settings: fake_client)
     monkeypatch.setattr("llm_client._has_any_openai_api_key", lambda settings: True)
-    monkeypatch.setattr("llm_client.st", SimpleNamespace(session_state=fake_session_state))
+    monkeypatch.setattr(
+        "llm_client.st",
+        SimpleNamespace(session_state=fake_session_state),
+    )
 
     parsed, usage = _parse_with_structured_outputs(
         runtime_config=_runtime_config_for_parse(),
@@ -333,6 +336,128 @@ def test_parse_structured_outputs_records_fallback_model_event(
         "fallback_kind": "fallback_model",
         "endpoint": "responses.parse",
         "error_code": "OPENAI_BAD_REQUEST_STRUCTURED_OUTPUT_UNSUPPORTED",
+    }
+    assert fake_session_state[SSKey.USAGE_EVENTS.value][1]["event_type"] == (
+        "openai_usage_recorded"
+    )
+    assert fake_session_state[SSKey.USAGE_EVENTS.value][1]["metadata"] == {
+        "task_kind": "test_structured_output",
+        "model": "gpt-4o-mini",
+        "endpoint": "responses.parse",
+        "parse_status": "ok",
+        "total_tokens": 7,
+        "cache_hit": False,
+        "retry_category": "fallback_model",
+    }
+
+
+def test_parse_structured_outputs_records_openai_usage_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeResponse:
+        id = "resp_test"
+        model = "gpt-5-mini"
+        output_parsed = _MiniOut(value=4)
+        usage = {
+            "input_tokens": 11,
+            "output_tokens": 5,
+            "total_tokens": 16,
+            "input_tokens_details": {"cached_tokens": 7},
+        }
+
+    class FakeResponses:
+        def parse(self, **_kwargs: object) -> FakeResponse:
+            return FakeResponse()
+
+    fake_client = type("Client", (), {"responses": FakeResponses()})()
+    fake_session_state: dict[str, object] = {}
+
+    monkeypatch.setattr("llm_client.get_openai_client", lambda settings: fake_client)
+    monkeypatch.setattr("llm_client._has_any_openai_api_key", lambda settings: True)
+    monkeypatch.setattr(
+        "llm_client.st",
+        SimpleNamespace(session_state=fake_session_state),
+    )
+
+    parsed, usage = _parse_with_structured_outputs(
+        runtime_config=_runtime_config_for_parse(),
+        messages=[{"role": "user", "content": "hi"}],
+        out_model=_MiniOut,
+        store=False,
+    )
+
+    assert _MiniOut.model_validate(parsed.model_dump()).value == 4
+    assert usage == FakeResponse.usage
+    assert fake_session_state[SSKey.USAGE_EVENTS.value][0]["event_type"] == (
+        "openai_usage_recorded"
+    )
+    assert fake_session_state[SSKey.USAGE_EVENTS.value][0]["metadata"] == {
+        "task_kind": "test_structured_output",
+        "model": "gpt-5-mini",
+        "endpoint": "responses.parse",
+        "parse_status": "ok",
+        "prompt_tokens": 11,
+        "completion_tokens": 5,
+        "total_tokens": 16,
+        "cached_tokens": 7,
+        "cache_hit": False,
+        "retry_category": "none",
+    }
+
+
+def test_parse_structured_outputs_records_transport_retry_category(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeResponse:
+        output_parsed = _MiniOut(value=5)
+        usage = {"total_tokens": 9}
+
+    class FakeResponses:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def parse(self, **_kwargs: object) -> FakeResponse:
+            self.calls += 1
+            if self.calls == 1:
+                request = httpx.Request("POST", "https://api.openai.com/v1/responses")
+                response = httpx.Response(status_code=429, request=request)
+                raise RateLimitError(
+                    "rate limit",
+                    response=response,
+                    body={"error": {"message": "rate limit"}},
+                )
+            return FakeResponse()
+
+    fake_responses = FakeResponses()
+    fake_client = type("Client", (), {"responses": fake_responses})()
+    fake_session_state: dict[str, object] = {}
+
+    monkeypatch.setattr("llm_client.get_openai_client", lambda settings: fake_client)
+    monkeypatch.setattr("llm_client._has_any_openai_api_key", lambda settings: True)
+    monkeypatch.setattr("llm_client.time.sleep", lambda _seconds: None)
+    monkeypatch.setattr(
+        "llm_client.st",
+        SimpleNamespace(session_state=fake_session_state),
+    )
+
+    parsed, usage = _parse_with_structured_outputs(
+        runtime_config=_runtime_config_for_parse(),
+        messages=[{"role": "user", "content": "hi"}],
+        out_model=_MiniOut,
+        store=False,
+    )
+
+    assert _MiniOut.model_validate(parsed.model_dump()).value == 5
+    assert usage == {"total_tokens": 9}
+    assert fake_responses.calls == 2
+    assert fake_session_state[SSKey.USAGE_EVENTS.value][0]["metadata"] == {
+        "task_kind": "test_structured_output",
+        "model": "gpt-5-mini",
+        "endpoint": "responses.parse",
+        "parse_status": "ok",
+        "total_tokens": 9,
+        "cache_hit": False,
+        "retry_category": "transport_retry",
     }
 
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from constants import SSKey, UsageEventType
 from usage_events import (
     MAX_USAGE_EVENTS,
@@ -13,6 +15,7 @@ from usage_events import (
     record_fact_rejected,
     record_fallback_model_used,
     record_homepage_fetch_failed,
+    record_openai_usage,
     record_step_entered,
     record_step_submitted,
     reset_usage_events,
@@ -119,6 +122,92 @@ def test_usage_events_are_bounded() -> None:
     events = get_usage_events(session_state)
     assert len(events) == MAX_USAGE_EVENTS
     assert events[0]["occurred_at"] == "2026-06-10T00:00:05+00:00"
+
+
+def test_record_openai_usage_sanitizes_sensitive_metadata() -> None:
+    session_state: dict[str, object] = {}
+
+    append_usage_event(
+        session_state,
+        UsageEventType.OPENAI_USAGE_RECORDED,
+        metadata={
+            "task_kind": "https://example.com/private-job-spec",
+            "model": "ft:gpt-4o-mini:private-company:secret-id",
+            "endpoint": "api.openai.com",
+            "parse_status": "candidate@example.com",
+            "prompt_tokens": "100",
+            "completion_tokens": 25,
+            "total_tokens": 125,
+            "cached_tokens": 40,
+            "cache_hit": False,
+            "retry_category": "Jane Doe",
+            "error_category": "sk-test-secret",
+            "prompt_text": "uploaded job spec snippet",
+            "raw_output": {"candidate_name": "Jane Doe"},
+        },
+        occurred_at="2026-06-10T00:00:00+00:00",
+    )
+
+    events = get_usage_events(session_state)
+    assert events == [
+        {
+            "event_type": "openai_usage_recorded",
+            "occurred_at": "2026-06-10T00:00:00+00:00",
+            "metadata": {
+                "task_kind": "other",
+                "model": "fine_tuned_model",
+                "endpoint": "other",
+                "parse_status": "other",
+                "prompt_tokens": 100,
+                "completion_tokens": 25,
+                "total_tokens": 125,
+                "cached_tokens": 40,
+                "cache_hit": False,
+                "retry_category": "other",
+                "error_category": "other",
+            },
+        }
+    ]
+    serialized = json.dumps(events, sort_keys=True)
+    assert "private-job-spec" not in serialized
+    assert "private-company" not in serialized
+    assert "candidate@example.com" not in serialized
+    assert "uploaded job spec snippet" not in serialized
+    assert "Jane Doe" not in serialized
+    assert "sk-test-secret" not in serialized
+
+
+def test_record_openai_usage_helper_writes_safe_aggregates() -> None:
+    session_state: dict[str, object] = {}
+
+    record_openai_usage(
+        session_state,
+        task_kind="extract_job_ad",
+        model="gpt-5-mini",
+        endpoint="responses.parse",
+        parse_status="ok",
+        prompt_tokens=100,
+        completion_tokens=25,
+        total_tokens=125,
+        cached_tokens=40,
+        cache_hit=False,
+        retry_category="reduced_request",
+        error_category=None,
+    )
+
+    events = get_usage_events(session_state)
+    assert events[0]["metadata"] == {
+        "task_kind": "extract_job_ad",
+        "model": "gpt-5-mini",
+        "endpoint": "responses.parse",
+        "parse_status": "ok",
+        "prompt_tokens": 100,
+        "completion_tokens": 25,
+        "total_tokens": 125,
+        "cached_tokens": 40,
+        "cache_hit": False,
+        "retry_category": "reduced_request",
+    }
 
 
 def test_record_helpers_write_expected_event_types() -> None:

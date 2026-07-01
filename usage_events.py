@@ -23,7 +23,9 @@ _SAFE_STEP_KEYS = frozenset(step.key for step in STEPS)
 _SAFE_ARTIFACT_IDS = frozenset(SUMMARY_ARTIFACT_IDS)
 _SAFE_FACT_KEYS = frozenset(fact_key.value for fact_key in FactKey)
 _SAFE_SOURCE_TYPES = frozenset(source_type.value for source_type in FactSourceType)
-_SAFE_ENDPOINTS = frozenset({"responses.parse", "chat.completions.parse"})
+_SAFE_ENDPOINTS = frozenset(
+    {"responses.parse", "chat.completions.parse", "session_state"}
+)
 
 _ALLOWED_METADATA_KEYS_BY_EVENT: dict[UsageEventType, frozenset[str]] = {
     UsageEventType.STEP_ENTERED: frozenset({"step_key"}),
@@ -39,6 +41,21 @@ _ALLOWED_METADATA_KEYS_BY_EVENT: dict[UsageEventType, frozenset[str]] = {
             "fallback_kind",
             "endpoint",
             "error_code",
+        }
+    ),
+    UsageEventType.OPENAI_USAGE_RECORDED: frozenset(
+        {
+            "task_kind",
+            "model",
+            "endpoint",
+            "parse_status",
+            "prompt_tokens",
+            "completion_tokens",
+            "total_tokens",
+            "cached_tokens",
+            "cache_hit",
+            "retry_category",
+            "error_category",
         }
     ),
     UsageEventType.HOMEPAGE_FETCH_FAILED: frozenset({"topic_key", "error_type"}),
@@ -72,7 +89,16 @@ _BOOL_METADATA_KEYS = frozenset(
     {"cache_hit", "fragment_enabled", "passed_success_criteria"}
 )
 _INT_METADATA_KEYS = frozenset(
-    {"duration_ms", "result_count", "scenario_count", "combination_count"}
+    {
+        "duration_ms",
+        "result_count",
+        "scenario_count",
+        "combination_count",
+        "prompt_tokens",
+        "completion_tokens",
+        "total_tokens",
+        "cached_tokens",
+    }
 )
 _FLOAT_METADATA_KEYS = frozenset({"best_score"})
 _CANONICAL_VALUE_SETS: dict[str, frozenset[str]] = {
@@ -81,7 +107,7 @@ _CANONICAL_VALUE_SETS: dict[str, frozenset[str]] = {
     "source_type": _SAFE_SOURCE_TYPES,
     "step_key": _SAFE_STEP_KEYS,
 }
-_MODEL_METADATA_KEYS = frozenset({"requested_model", "final_model"})
+_MODEL_METADATA_KEYS = frozenset({"model", "requested_model", "final_model"})
 _HOSTNAME_RE = re.compile(r"[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+")
 
 
@@ -306,6 +332,48 @@ def record_fallback_model_used(
     append_usage_event(
         session_state,
         UsageEventType.FALLBACK_MODEL_USED,
+        metadata=metadata,
+    )
+
+
+def record_openai_usage(
+    session_state: MutableMapping[str, Any],
+    *,
+    task_kind: str,
+    model: str,
+    endpoint: str,
+    parse_status: str,
+    prompt_tokens: int | None = None,
+    completion_tokens: int | None = None,
+    total_tokens: int | None = None,
+    cached_tokens: int | None = None,
+    cache_hit: bool | None = None,
+    retry_category: str | None = None,
+    error_category: str | None = None,
+) -> None:
+    metadata: dict[str, Any] = {
+        "task_kind": task_kind,
+        "model": model,
+        "endpoint": endpoint,
+        "parse_status": parse_status,
+    }
+    if prompt_tokens is not None:
+        metadata["prompt_tokens"] = prompt_tokens
+    if completion_tokens is not None:
+        metadata["completion_tokens"] = completion_tokens
+    if total_tokens is not None:
+        metadata["total_tokens"] = total_tokens
+    if cached_tokens is not None:
+        metadata["cached_tokens"] = cached_tokens
+    if cache_hit is not None:
+        metadata["cache_hit"] = cache_hit
+    if retry_category:
+        metadata["retry_category"] = retry_category
+    if error_category:
+        metadata["error_category"] = error_category
+    append_usage_event(
+        session_state,
+        UsageEventType.OPENAI_USAGE_RECORDED,
         metadata=metadata,
     )
 

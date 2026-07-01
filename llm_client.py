@@ -84,7 +84,7 @@ from schemas import (
     VacancyStructuredData,
 )
 from settings_openai import OpenAISettings, load_openai_settings
-from usage_events import record_fallback_model_used
+from usage_events import record_fallback_model_used, record_openai_usage
 
 logger = logging.getLogger(__name__)
 
@@ -965,9 +965,25 @@ def _build_llm_cache_key(
     ).hexdigest()
 
 
-def _cached_usage(*, cache_key: str) -> dict[str, Any]:
+def _cached_usage(
+    *,
+    cache_key: str,
+    task_kind: str | None = None,
+    model_name: str | None = None,
+) -> dict[str, Any]:
     """Return standardized usage metadata for cache hits."""
 
+    if task_kind and model_name:
+        _record_openai_usage_event(
+            task_kind=task_kind,
+            endpoint="session_state",
+            model_name=model_name,
+            usage=None,
+            parse_status="cache_hit",
+            cache_hit=True,
+            retry_category="none",
+            error_category=None,
+        )
     return {
         "cached": True,
         "cache_key": cache_key,
@@ -1006,6 +1022,52 @@ def _usage_token_count(usage: Mapping[str, Any], *keys: str) -> int | None:
         if isinstance(value, (int, float)):
             return max(0, int(value))
     return None
+
+
+def _usage_cached_token_count(usage: Mapping[str, Any]) -> int | None:
+    """Return provider-side cached input token count when the SDK exposes it."""
+
+    for detail_key in ("input_tokens_details", "prompt_tokens_details"):
+        details = usage.get(detail_key)
+        if isinstance(details, Mapping):
+            cached_tokens = _usage_token_count(details, "cached_tokens")
+            if cached_tokens is not None:
+                return cached_tokens
+    return _usage_token_count(usage, "cached_tokens")
+
+
+def _record_openai_usage_event(
+    *,
+    task_kind: str | None,
+    endpoint: str,
+    model_name: str | None,
+    usage: object | None,
+    parse_status: str,
+    cache_hit: bool,
+    retry_category: str | None,
+    error_category: str | None,
+) -> None:
+    """Append one aggregate OpenAI usage event without prompts or payload contents."""
+
+    usage_dict = _normalize_usage_dict(usage) or {}
+    record_openai_usage(
+        st.session_state,
+        task_kind=task_kind or "structured_output",
+        model=model_name or "unknown",
+        endpoint=endpoint,
+        parse_status=parse_status,
+        prompt_tokens=_usage_token_count(usage_dict, "prompt_tokens", "input_tokens"),
+        completion_tokens=_usage_token_count(
+            usage_dict,
+            "completion_tokens",
+            "output_tokens",
+        ),
+        total_tokens=_usage_token_count(usage_dict, "total_tokens"),
+        cached_tokens=_usage_cached_token_count(usage_dict),
+        cache_hit=cache_hit,
+        retry_category=retry_category or "none",
+        error_category=error_category,
+    )
 
 
 def _response_request_id(response: object) -> str | None:
@@ -1049,6 +1111,7 @@ def _log_openai_response_metadata(
     response: object,
     latency_ms: int,
     usage: object | None,
+    retry_category: str = "none",
 ) -> None:
     """Log safe OpenAI request metadata without prompts or payload contents."""
 
@@ -1070,8 +1133,10 @@ def _log_openai_response_metadata(
             "completion_tokens",
             "output_tokens",
         ),
+        cached_tokens=_usage_cached_token_count(usage_dict),
         cache_hit=False,
         endpoint=endpoint,
+        retry_category=retry_category,
     )
 
 
@@ -1099,6 +1164,7 @@ def _run_openai_call_with_retry(
     label: str,
     max_attempts: int = 3,
     base_delay_seconds: float = 0.4,
+    on_retry: Callable[[], None] | None = None,
 ) -> Any:
     """Run OpenAI call with exponential backoff for transient errors."""
 
@@ -1108,6 +1174,8 @@ def _run_openai_call_with_retry(
         except Exception as exc:
             if not _is_retryable_openai_exception(exc) or attempt >= max_attempts:
                 raise
+            if on_retry is not None:
+                on_retry()
             delay = base_delay_seconds * (2 ** (attempt - 1))
             logger.warning(
                 "%s transient error (%s), retrying in %.2fs (%d/%d).",
@@ -1217,6 +1285,18 @@ def _parse_with_structured_outputs(
         previous_response_id=previous_response_id,
     )
     responses_input_payload = messages if responses_input is None else responses_input
+    final_model_name = runtime_config.resolved_model
+    retry_category = "none"
+    transport_retried = False
+
+    def _mark_transport_retry() -> None:
+        nonlocal transport_retried
+        transport_retried = True
+
+    def _current_retry_category() -> str:
+        if retry_category == "none" and transport_retried:
+            return "transport_retry"
+        return retry_category
 
     def _responses_parse_kwargs(
         request_kwargs: Mapping[str, Any],
@@ -1239,8 +1319,11 @@ def _parse_with_structured_outputs(
                     **_responses_parse_kwargs(responses_request_kwargs),
                 ),
                 label="OpenAI responses.parse",
+                on_retry=_mark_transport_retry,
             )
             latency_ms = int((time.perf_counter() - started) * 1000)
+            final_model_name = runtime_config.resolved_model
+            retry_category = "none"
             _record_final_structured_output_path(
                 endpoint="responses.parse",
                 requested_model=runtime_config.resolved_model,
@@ -1262,8 +1345,11 @@ def _parse_with_structured_outputs(
                             **_responses_parse_kwargs(reduced_kwargs),
                         ),
                         label="OpenAI responses.parse reduced",
+                        on_retry=_mark_transport_retry,
                     )
                     latency_ms = int((time.perf_counter() - started) * 1000)
+                    final_model_name = runtime_config.resolved_model
+                    retry_category = "reduced_request"
                     _record_final_structured_output_path(
                         endpoint="responses.parse",
                         requested_model=runtime_config.resolved_model,
@@ -1280,6 +1366,16 @@ def _parse_with_structured_outputs(
                             "OpenAI reduced parse failed: %s",
                             mapped_retry.debug_detail or type(retry_exc).__name__,
                         )
+                        _record_openai_usage_event(
+                            task_kind=runtime_config.task_kind,
+                            endpoint="responses.parse",
+                            model_name=runtime_config.resolved_model,
+                            usage=None,
+                            parse_status="error",
+                            cache_hit=False,
+                            retry_category="reduced_request",
+                            error_category=mapped_retry.error_code,
+                        )
                         raise mapped_retry from retry_exc
                     fallback_kwargs = _build_reduced_responses_request_kwargs(
                         model=fallback_model
@@ -1291,8 +1387,11 @@ def _parse_with_structured_outputs(
                                 **_responses_parse_kwargs(fallback_kwargs),
                             ),
                             label="OpenAI responses.parse fallback-model",
+                            on_retry=_mark_transport_retry,
                         )
                         latency_ms = int((time.perf_counter() - started) * 1000)
+                        final_model_name = fallback_model
+                        retry_category = "fallback_model"
                         _record_final_structured_output_path(
                             endpoint="responses.parse",
                             requested_model=runtime_config.resolved_model,
@@ -1316,11 +1415,31 @@ def _parse_with_structured_outputs(
                             "OpenAI fallback-model parse failed: %s",
                             mapped_fallback.debug_detail or type(fallback_exc).__name__,
                         )
+                        _record_openai_usage_event(
+                            task_kind=runtime_config.task_kind,
+                            endpoint="responses.parse",
+                            model_name=fallback_model,
+                            usage=None,
+                            parse_status="error",
+                            cache_hit=False,
+                            retry_category="fallback_model",
+                            error_category=mapped_fallback.error_code,
+                        )
                         raise mapped_fallback from fallback_exc
             else:
                 logger.warning(
                     "OpenAI parse failed: %s",
                     mapped.debug_detail or type(exc).__name__,
+                )
+                _record_openai_usage_event(
+                    task_kind=runtime_config.task_kind,
+                    endpoint="responses.parse",
+                    model_name=runtime_config.resolved_model,
+                    usage=None,
+                    parse_status="error",
+                    cache_hit=False,
+                    retry_category=_current_retry_category(),
+                    error_category=mapped.error_code,
                 )
                 raise mapped from exc
 
@@ -1332,14 +1451,38 @@ def _parse_with_structured_outputs(
         except Exception as exc:
             mapped = _error_from_structured_output_exception(exc)
             logger.warning("Structured parse failed: %s", mapped.debug_detail)
+            _record_openai_usage_event(
+                task_kind=runtime_config.task_kind,
+                endpoint="responses.parse",
+                model_name=getattr(resp, "model", None) or final_model_name,
+                usage=getattr(resp, "usage", None),
+                parse_status="error",
+                cache_hit=False,
+                retry_category=_current_retry_category(),
+                error_category=mapped.error_code,
+            )
             raise mapped from exc
+        response_model_name = (
+            getattr(parsed_response, "model", None) or final_model_name
+        )
         _log_openai_response_metadata(
             task_kind=runtime_config.task_kind,
             endpoint="responses.parse",
-            model_name=runtime_config.resolved_model,
+            model_name=response_model_name,
             response=parsed_response,
             latency_ms=latency_ms,
             usage=parsed_response.usage,
+            retry_category=_current_retry_category(),
+        )
+        _record_openai_usage_event(
+            task_kind=runtime_config.task_kind,
+            endpoint="responses.parse",
+            model_name=response_model_name,
+            usage=parsed_response.usage,
+            parse_status="ok",
+            cache_hit=False,
+            retry_category=_current_retry_category(),
+            error_category=None,
         )
         usage = (
             _usage_with_response_metadata(
@@ -1370,8 +1513,11 @@ def _parse_with_structured_outputs(
                     **chat_request_kwargs,
                 ),
                 label="OpenAI chat.completions.parse",
+                on_retry=_mark_transport_retry,
             )
             latency_ms = int((time.perf_counter() - started) * 1000)
+            final_model_name = runtime_config.resolved_model
+            retry_category = "none"
             _record_final_structured_output_path(
                 endpoint="chat.completions.parse",
                 requested_model=runtime_config.resolved_model,
@@ -1389,6 +1535,16 @@ def _parse_with_structured_outputs(
                 "OpenAI chat.parse failed: %s",
                 mapped.debug_detail or type(exc).__name__,
             )
+            _record_openai_usage_event(
+                task_kind=runtime_config.task_kind,
+                endpoint="chat.completions.parse",
+                model_name=runtime_config.resolved_model,
+                usage=None,
+                parse_status="error",
+                cache_hit=False,
+                retry_category=_current_retry_category(),
+                error_category=mapped.error_code,
+            )
             raise mapped from exc
 
         try:
@@ -1402,11 +1558,22 @@ def _parse_with_structured_outputs(
         except Exception as exc:
             mapped = _error_from_structured_output_exception(exc)
             logger.warning("Structured chat parse failed: %s", mapped.debug_detail)
+            _record_openai_usage_event(
+                task_kind=runtime_config.task_kind,
+                endpoint="chat.completions.parse",
+                model_name=getattr(completion, "model", None) or final_model_name,
+                usage=getattr(completion, "usage", None),
+                parse_status="error",
+                cache_hit=False,
+                retry_category=_current_retry_category(),
+                error_category=mapped.error_code,
+            )
             raise mapped from exc
         usage = _normalize_usage_dict(parsed_completion.usage)
+        response_model_name = getattr(parsed_completion, "model", final_model_name)
         log_model_call(
             task_kind=runtime_config.task_kind,
-            model=getattr(parsed_completion, "model", runtime_config.resolved_model),
+            model=response_model_name,
             latency_ms=latency_ms,
             prompt_tokens=_usage_token_count(
                 usage or {},
@@ -1418,8 +1585,20 @@ def _parse_with_structured_outputs(
                 "completion_tokens",
                 "output_tokens",
             ),
+            cached_tokens=_usage_cached_token_count(usage or {}),
             cache_hit=False,
             endpoint="chat.completions.parse",
+            retry_category=_current_retry_category(),
+        )
+        _record_openai_usage_event(
+            task_kind=runtime_config.task_kind,
+            endpoint="chat.completions.parse",
+            model_name=response_model_name,
+            usage=parsed_completion.usage,
+            parse_status="ok",
+            cache_hit=False,
+            retry_category=_current_retry_category(),
+            error_category=None,
         )
         return parsed, usage
 
@@ -1484,7 +1663,11 @@ def extract_job_ad(
                 )
             else:
                 _touch_session_response_cache_entry(cache, cache_key, cached_entry)
-                return parsed_cached, _cached_usage(cache_key=cache_key)
+                return parsed_cached, _cached_usage(
+                    cache_key=cache_key,
+                    task_kind=TASK_EXTRACT_JOB_AD,
+                    model_name=runtime_config.resolved_model,
+                )
 
     parsed, usage = _parse_with_structured_outputs(
         runtime_config=runtime_config,
@@ -1607,7 +1790,11 @@ def generate_question_plan(
             else:
                 normalized_cached = normalize_question_plan(parsed_cached)
                 _touch_session_response_cache_entry(cache, cache_key, cached_entry)
-                return normalized_cached, _cached_usage(cache_key=cache_key)
+                return normalized_cached, _cached_usage(
+                    cache_key=cache_key,
+                    task_kind=TASK_GENERATE_QUESTION_PLAN,
+                    model_name=runtime_config.resolved_model,
+                )
 
     parsed, usage = _parse_with_structured_outputs(
         runtime_config=runtime_config,
@@ -2242,7 +2429,11 @@ def generate_vacancy_brief(
                 )
             else:
                 _touch_session_response_cache_entry(cache, cache_key, cached_entry)
-                return parsed_cached, _cached_usage(cache_key=cache_key)
+                return parsed_cached, _cached_usage(
+                    cache_key=cache_key,
+                    task_kind=TASK_GENERATE_VACANCY_BRIEF,
+                    model_name=runtime_config.resolved_model,
+                )
 
     parsed, usage = _parse_with_structured_outputs(
         runtime_config=runtime_config,
@@ -2360,7 +2551,11 @@ def upgrade_vacancy_brief_critical_sections(
                 "risks_open_questions", []
             )
             _touch_session_response_cache_entry(cache, cache_key, cached_entry)
-            return updated_cached, _cached_usage(cache_key=cache_key)
+            return updated_cached, _cached_usage(
+                cache_key=cache_key,
+                task_kind=f"{TASK_GENERATE_VACANCY_BRIEF}_critical_upgrade",
+                model_name=runtime_config.resolved_model,
+            )
 
     parsed, usage = _parse_with_structured_outputs(
         runtime_config=runtime_config,
@@ -2483,7 +2678,11 @@ def generate_custom_job_ad(
         if isinstance(cached_result, dict):
             result = JobAdGenerationResult.model_validate(cached_result)
             _touch_session_response_cache_entry(cache, cache_key, cached_entry)
-            return result, _cached_usage(cache_key=cache_key)
+            return result, _cached_usage(
+                cache_key=cache_key,
+                task_kind=TASK_GENERATE_JOB_AD,
+                model_name=runtime_config.resolved_model,
+            )
 
     parsed, usage = _parse_with_structured_outputs(
         runtime_config=runtime_config,
@@ -3258,7 +3457,11 @@ def generate_requirement_gap_suggestions(
                 )
             else:
                 _touch_session_response_cache_entry(cache, cache_key, cached_entry)
-                return parsed_cached, _cached_usage(cache_key=cache_key)
+                return parsed_cached, _cached_usage(
+                    cache_key=cache_key,
+                    task_kind=TASK_GENERATE_REQUIREMENT_GAP_SUGGESTIONS,
+                    model_name=runtime_config.resolved_model,
+                )
 
     fallback_payload: dict[str, Any] = {"skills": [], "tasks": []}
     parsed, usage = _generate_structured_with_fallback(
@@ -3580,7 +3783,11 @@ def generate_benefit_suggestions(
                     capped_benefit_count=capped_benefit_count,
                 )
                 _touch_session_response_cache_entry(cache, cache_key, cached_entry)
-                return parsed_cached, _cached_usage(cache_key=cache_key)
+                return parsed_cached, _cached_usage(
+                    cache_key=cache_key,
+                    task_kind=TASK_GENERATE_BENEFIT_SUGGESTIONS,
+                    model_name=runtime_config.resolved_model,
+                )
 
     parsed, usage = _generate_structured_with_fallback(
         task_kind=TASK_GENERATE_BENEFIT_SUGGESTIONS,
@@ -3698,7 +3905,11 @@ def generate_role_tasks_salary_forecast(
                 )
             else:
                 _touch_session_response_cache_entry(cache, cache_key, cached_entry)
-                return parsed_cached, _cached_usage(cache_key=cache_key)
+                return parsed_cached, _cached_usage(
+                    cache_key=cache_key,
+                    task_kind=TASK_GENERATE_ROLE_TASKS_SALARY_FORECAST,
+                    model_name=runtime_config.resolved_model,
+                )
 
     fallback_payload = {
         "yearly_salary_eur": 70_000,

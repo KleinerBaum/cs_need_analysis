@@ -236,6 +236,7 @@ def test_usage_event_type_contract_values() -> None:
         "fact_corrected",
         "fact_rejected",
         "fallback_model_used",
+        "openai_usage_recorded",
         "homepage_fetch_failed",
         "enrichment_timed",
         "artifact_generated",

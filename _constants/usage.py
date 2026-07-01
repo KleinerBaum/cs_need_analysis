@@ -12,6 +12,7 @@ class UsageEventType(str, Enum):
     FACT_CORRECTED = "fact_corrected"
     FACT_REJECTED = "fact_rejected"
     FALLBACK_MODEL_USED = "fallback_model_used"
+    OPENAI_USAGE_RECORDED = "openai_usage_recorded"
     HOMEPAGE_FETCH_FAILED = "homepage_fetch_failed"
     ENRICHMENT_TIMED = "enrichment_timed"
     ARTIFACT_GENERATED = "artifact_generated"

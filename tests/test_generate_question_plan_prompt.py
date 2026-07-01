@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
 
 import llm_client
-from constants import LLM_RESPONSE_CACHE_MAX_ENTRIES, QUESTION_SCHEMA_VERSION
+from constants import LLM_RESPONSE_CACHE_MAX_ENTRIES, QUESTION_SCHEMA_VERSION, SSKey
 from llm_client import OpenAIRuntimeConfig, generate_question_plan
 from schemas import JobAdExtract, QuestionPlan
 from settings_openai import OpenAISettings
@@ -135,6 +136,7 @@ def test_generate_question_plan_returns_cached_plan_without_parse(monkeypatch) -
         "older-key": {"result": {"steps": []}},
         cache_key: {"result": QuestionPlan(steps=[]).model_dump(mode="json")},
     }
+    fake_session_state: dict[str, object] = {}
 
     def fail_parse(**_kwargs: Any) -> tuple[QuestionPlan, dict[str, int]]:
         raise AssertionError("parse should not be called on cache hit")
@@ -146,6 +148,11 @@ def test_generate_question_plan_returns_cached_plan_without_parse(monkeypatch) -
     )
     monkeypatch.setattr(llm_client, "_get_session_response_cache", lambda: cache)
     monkeypatch.setattr(llm_client, "_parse_with_structured_outputs", fail_parse)
+    monkeypatch.setattr(
+        llm_client,
+        "st",
+        SimpleNamespace(session_state=fake_session_state),
+    )
 
     plan, usage = generate_question_plan(job, model="gpt-5-mini")
 
@@ -156,3 +163,14 @@ def test_generate_question_plan_returns_cached_plan_without_parse(monkeypatch) -
         "provider": "session_state",
     }
     assert list(cache)[-1] == cache_key
+    assert fake_session_state[SSKey.USAGE_EVENTS.value][0]["event_type"] == (
+        "openai_usage_recorded"
+    )
+    assert fake_session_state[SSKey.USAGE_EVENTS.value][0]["metadata"] == {
+        "task_kind": llm_client.TASK_GENERATE_QUESTION_PLAN,
+        "model": runtime_config.resolved_model,
+        "endpoint": "session_state",
+        "parse_status": "cache_hit",
+        "cache_hit": True,
+        "retry_category": "none",
+    }
