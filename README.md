@@ -469,24 +469,46 @@ Setup:
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 python -m pip install --upgrade pip
-pip install -r requirements.txt -c constraints.txt
+pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Without constraints, `pip install -r requirements.txt` remains possible, but CI uses `constraints.txt`.
+`requirements.txt` includes `constraints.txt`, so local installs, CI, and the
+Streamlit Cloud requirements install use the same locked runtime dependency set.
+`constraints.txt` is the full CPython 3.11-compatible lock for runtime,
+development, and optional browser-smoke dependencies.
 
 Optional browser smoke dependencies are kept separate:
 
 ```bash
-pip install -r requirements-e2e.txt -c constraints.txt
+pip install -r requirements-e2e.txt
 python -m playwright install --with-deps chromium
 ```
 
 Development and test-only QA tools are installed separately from runtime dependencies:
 
 ```bash
-pip install -r requirements-dev.txt -c constraints.txt
+pip install -r requirements-dev.txt
 ```
+
+Dependency upgrades are intentionally separate from feature or bugfix changes.
+For a targeted upgrade, edit the relevant top-level range in
+`requirements.txt`, `requirements-dev.txt`, or `requirements-e2e.txt`, then
+compile a candidate lock under Python 3.11:
+
+```bash
+python -m pip install --upgrade pip "pip-tools==7.5.3"
+pip-compile --upgrade-package PACKAGE_NAME --output-file /tmp/constraints.next.txt requirements.txt requirements-dev.txt requirements-e2e.txt
+cp /tmp/constraints.next.txt constraints.txt
+pip install -r requirements.txt -r requirements-dev.txt -r requirements-e2e.txt
+pip check
+python -m pytest -q tests/test_quality_gate_config.py tests/test_repo_contract_drift.py
+```
+
+Use `--upgrade` only for an intentional broad refresh, and run the full
+CI-equivalent verification before committing that lock. Dependabot monitors the
+Python requirement and constraint files plus GitHub Actions; review those PRs as
+dependency-only changes and keep the test evidence with the PR.
 
 ## Verification
 
@@ -595,7 +617,7 @@ registered in `pytest.ini`, and Playwright dependencies live in
 `requirements-e2e.txt`.
 
 ```bash
-pip install -r requirements-e2e.txt -c constraints.txt
+pip install -r requirements-e2e.txt
 python -m playwright install --with-deps chromium
 CS_RUN_E2E=1 python -m pytest -q tests/e2e --junitxml=reports/junit/browser-smoke.xml
 ```

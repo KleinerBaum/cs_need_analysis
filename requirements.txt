@@ -1,4 +1,7 @@
 # requirements.txt
+# Keep this constraint include first so Streamlit Cloud and local installs use
+# the same locked runtime dependency set.
+-c constraints.txt
 
 streamlit>=1.56
 openai>=2.30.0,<3.0.0

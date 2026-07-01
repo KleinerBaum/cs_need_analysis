@@ -1,2 +1,4 @@
 # Optional browser smoke test dependencies.
+-c constraints.txt
+
 playwright>=1.56.0

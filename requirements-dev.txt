@@ -1,4 +1,6 @@
 # Development and CI-only quality gates.
+-c constraints.txt
+
 pytest>=9.0.3
 ruff>=0.8.0
 black>=24.10.0

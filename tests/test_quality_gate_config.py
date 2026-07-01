@@ -24,12 +24,16 @@ def _requirement_names(path: str) -> set[str]:
     names: set[str] = set()
     for line in _read(path).splitlines():
         stripped = line.strip().lower()
-        if not stripped or stripped.startswith("#"):
+        if not stripped or stripped.startswith("#") or stripped.startswith("-"):
             continue
         match = re.match(r"[a-z0-9_.-]+", stripped)
         if match is not None:
             names.add(match.group(0))
     return names
+
+
+def _normalized_names(names: set[str]) -> set[str]:
+    return {name.replace("_", "-") for name in names}
 
 
 def test_ruff_starts_with_staged_critical_rules() -> None:
@@ -158,6 +162,40 @@ def test_e2e_requirements_cover_optional_browser_smoke_tests() -> None:
     assert "playwright" in _requirement_names("requirements-e2e.txt")
 
 
+def test_requirement_inputs_include_dependency_lock() -> None:
+    for path in ("requirements.txt", "requirements-dev.txt", "requirements-e2e.txt"):
+        active_lines = [
+            line.strip()
+            for line in _read(path).splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+
+        assert active_lines[0] == "-c constraints.txt"
+
+
+def test_constraints_fully_pin_dependency_lock() -> None:
+    direct_names = set()
+    for path in ("requirements.txt", "requirements-dev.txt", "requirements-e2e.txt"):
+        direct_names.update(_requirement_names(path))
+
+    constraint_names: set[str] = set()
+    pin_count = 0
+    for line in _read("constraints.txt").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+
+        pin_count += 1
+        assert re.fullmatch(r"[A-Za-z0-9_.-]+==[^<>=!~\s]+", stripped)
+        constraint_names.add(stripped.split("==", 1)[0].lower())
+
+    assert pin_count > 50
+    assert _normalized_names(direct_names) <= _normalized_names(constraint_names)
+    assert {"httpx", "pdfminer.six", "playwright", "pytest", "streamlit"} <= (
+        _normalized_names(constraint_names)
+    )
+
+
 def test_pytest_registers_app_and_e2e_markers() -> None:
     pytest_ini = _read("pytest.ini")
 
@@ -276,6 +314,7 @@ def test_ci_has_oidc_ready_deployment_observability_job() -> None:
 
 def test_dependabot_covers_python_and_github_actions() -> None:
     dependabot = _read(".github/dependabot.yml")
+    readme = _read("README.md")
 
     assert "version: 2" in dependabot
     assert 'package-ecosystem: "pip"' in dependabot
@@ -283,6 +322,8 @@ def test_dependabot_covers_python_and_github_actions() -> None:
     assert 'timezone: "Europe/Berlin"' in dependabot
     assert "python-runtime:" in dependabot
     assert "github-actions:" in dependabot
+    assert "pip-compile --upgrade-package PACKAGE_NAME" in readme
+    assert "Dependabot monitors" in readme
 
 
 def test_ci_security_gdpr_runbook_covers_manual_platform_controls() -> None:
