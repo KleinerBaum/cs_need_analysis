@@ -485,6 +485,11 @@ def _sync_language_before_render() -> None:
     sync_language_from_known_widgets(session_state=st.session_state)
 
 
+def _format_wizard_design_label(value: object) -> str:
+    raw_value = str(value)
+    return str(UI_WIZARD_DESIGN_DISPLAY_LABELS.get(raw_value, raw_value))
+
+
 def _render_preference_center_sidebar(
     *, key_prefix: str = "sidebar", show_reset_button: bool = True
 ) -> None:
@@ -514,11 +519,12 @@ def _render_preference_center_sidebar(
     )
     if wizard_design_value not in UI_WIZARD_DESIGN_VALUES:
         wizard_design_value = UI_WIZARD_DESIGN_DEFAULT
+    wizard_design_options = list(UI_WIZARD_DESIGN_VALUES)
     wizard_design = st.selectbox(
         "Wizard-Design",
-        options=list(UI_WIZARD_DESIGN_VALUES),
-        index=list(UI_WIZARD_DESIGN_VALUES).index(wizard_design_value),
-        format_func=lambda value: UI_WIZARD_DESIGN_DISPLAY_LABELS.get(value, value),
+        options=wizard_design_options,
+        index=wizard_design_options.index(wizard_design_value),
+        format_func=_format_wizard_design_label,
         key=f"{key_prefix}.wizard_design",
         help=(
             "Klassisch behält die bisherige Detaildarstellung. Fokus hält "
@@ -544,13 +550,14 @@ def _render_preference_center_sidebar(
         key=f"{key_prefix}.pii_reduction",
     )
 
+    selected_wizard_design = str(wizard_design or wizard_design_value)
     preferences.update(
         {
             UI_PREFERENCE_ANSWER_MODE: answer_mode,
             UI_PREFERENCE_INFORMATION_DEPTH: information_depth,
             UI_PREFERENCE_CONFIDENCE_THRESHOLD: confidence_threshold,
             UI_PREFERENCE_PII_REDUCTION: pii_reduction,
-            UI_PREFERENCE_WIZARD_DESIGN: wizard_design,
+            UI_PREFERENCE_WIZARD_DESIGN: selected_wizard_design,
         }
     )
     st.session_state[SSKey.UI_PREFERENCES.value] = normalize_ui_preferences(preferences)
