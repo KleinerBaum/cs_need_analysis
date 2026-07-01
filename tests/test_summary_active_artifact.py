@@ -283,7 +283,11 @@ def test_render_active_artifact_job_ad_calls_helper(monkeypatch) -> None:
 def test_render_job_ad_artifact_renders_cards_in_expected_order(monkeypatch) -> None:
     fake_st = _FakeStreamlit(session_state={}, button_results=[])
     monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
-    monkeypatch.setattr(SUMMARY_MODULE, "render_output_header", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        SUMMARY_MODULE,
+        "render_output_header",
+        lambda *_args, **_kwargs: None,
+    )
     monkeypatch.setattr(SUMMARY_MODULE, "_job_ad_to_docx_bytes", lambda *_args, **_kwargs: b"docx")
     monkeypatch.setattr(SUMMARY_MODULE, "_job_ad_to_pdf_bytes", lambda *_args, **_kwargs: b"pdf")
 
@@ -357,6 +361,39 @@ def test_render_job_ad_artifact_has_markdown_download_button(monkeypatch) -> Non
     )
 
     assert "Stellenanzeige herunterladen (Markdown)" in fake_st.download_button_labels
+
+
+def test_render_job_ad_artifact_passes_active_language_to_export_helpers(
+    monkeypatch,
+) -> None:
+    fake_st = _FakeStreamlit(session_state={}, button_results=[])
+    monkeypatch.setattr(SUMMARY_MODULE, "st", fake_st)
+    monkeypatch.setattr(SUMMARY_MODULE, "render_output_header", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(SUMMARY_MODULE._summary_view, "active_language", lambda: "en")
+    docx_calls: list[dict[str, Any]] = []
+    pdf_calls: list[dict[str, Any]] = []
+
+    def _capture_docx(*_args: Any, **kwargs: Any) -> bytes:
+        docx_calls.append(dict(kwargs))
+        return b"docx"
+
+    def _capture_pdf(*_args: Any, **kwargs: Any) -> bytes:
+        pdf_calls.append(dict(kwargs))
+        return b"pdf"
+
+    monkeypatch.setattr(SUMMARY_MODULE, "_job_ad_to_docx_bytes", _capture_docx)
+    monkeypatch.setattr(SUMMARY_MODULE, "_job_ad_to_pdf_bytes", _capture_pdf)
+
+    SUMMARY_MODULE._render_job_ad_artifact(
+        {
+            "headline": "Senior Engineer",
+            "job_ad_text": "Fallback",
+            "responsibilities": ["Build pipelines"],
+        }
+    )
+
+    assert docx_calls[0]["language"] == "en"
+    assert pdf_calls[0]["language"] == "en"
 
 
 def test_artifact_display_label_maps_expected_labels_and_fallbacks() -> None:

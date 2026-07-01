@@ -11,6 +11,7 @@ import docx
 
 from document_preview import markdown_article_preview_html
 from llm_client import JobAdGenerationResult
+from ux_copy_contract import summary_export_copy
 
 
 MARKDOWN_TOKEN_RE = re.compile(r"(\*\*|__|`|^#{1,6}\s*)", re.MULTILINE)
@@ -117,7 +118,30 @@ def has_structured_job_ad_sections(job_ad: JobAdGenerationResult) -> bool:
     )
 
 
-def build_publishable_job_ad_markdown(job_ad: JobAdGenerationResult) -> str:
+def _job_ad_export_copy(key: str, *, language: str | None = None) -> str:
+    return summary_export_copy(f"job_ad_{key}", language=language)
+
+
+def _structured_sections(
+    job_ad: JobAdGenerationResult,
+    *,
+    language: str | None = None,
+) -> tuple[tuple[str, Sequence[str]], ...]:
+    return (
+        (
+            _job_ad_export_copy("responsibilities", language=language),
+            job_ad.responsibilities,
+        ),
+        (_job_ad_export_copy("profile", language=language), job_ad.profile),
+        (_job_ad_export_copy("offer", language=language), job_ad.offer),
+    )
+
+
+def build_publishable_job_ad_markdown(
+    job_ad: JobAdGenerationResult,
+    *,
+    language: str | None = None,
+) -> str:
     if not has_structured_job_ad_sections(job_ad):
         return strip_inline_markdown(job_ad.job_ad_text)
 
@@ -128,11 +152,7 @@ def build_publishable_job_ad_markdown(job_ad: JobAdGenerationResult) -> str:
     if job_ad.intro.strip():
         lines.extend([strip_inline_markdown(job_ad.intro), ""])
 
-    for heading, items in (
-        ("Deine Aufgaben", job_ad.responsibilities),
-        ("Dein Profil", job_ad.profile),
-        ("Was wir bieten", job_ad.offer),
-    ):
+    for heading, items in _structured_sections(job_ad, language=language):
         clean_items = dedupe_preserve_order(items)
         if not clean_items:
             continue
@@ -150,8 +170,12 @@ def build_publishable_job_ad_markdown(job_ad: JobAdGenerationResult) -> str:
     return "\n".join(lines).strip()
 
 
-def build_publishable_job_ad_plain_text(job_ad: JobAdGenerationResult) -> str:
-    markdown = build_publishable_job_ad_markdown(job_ad)
+def build_publishable_job_ad_plain_text(
+    job_ad: JobAdGenerationResult,
+    *,
+    language: str | None = None,
+) -> str:
+    markdown = build_publishable_job_ad_markdown(job_ad, language=language)
     lines: list[str] = []
     for line in markdown.splitlines():
         if line.startswith("# "):
@@ -183,19 +207,19 @@ def job_ad_to_docx_bytes(
     styleguide: str = "",
     *,
     logo_payload: LogoPayload | None = None,
+    language: str | None = None,
 ) -> bytes:
     _ = styleguide
     document = docx.Document()
     _add_logo_to_docx(document=document, logo_payload=logo_payload)
-    document.add_heading(job_ad.headline or "Stellenanzeige", level=1)
+    document.add_heading(
+        job_ad.headline or _job_ad_export_copy("title", language=language),
+        level=1,
+    )
     if has_structured_job_ad_sections(job_ad):
         if job_ad.intro.strip():
             document.add_paragraph(job_ad.intro.strip())
-        for heading, items in (
-            ("Deine Aufgaben", job_ad.responsibilities),
-            ("Dein Profil", job_ad.profile),
-            ("Was wir bieten", job_ad.offer),
-        ):
+        for heading, items in _structured_sections(job_ad, language=language):
             clean_items = dedupe_preserve_order(items)
             if not clean_items:
                 continue
@@ -207,11 +231,19 @@ def job_ad_to_docx_bytes(
         if job_ad.equal_opportunity_note.strip():
             document.add_paragraph(job_ad.equal_opportunity_note.strip())
     else:
-        document.add_paragraph(build_publishable_job_ad_plain_text(job_ad))
-    document.add_heading("Zielgruppe", level=2)
+        document.add_paragraph(
+            build_publishable_job_ad_plain_text(job_ad, language=language)
+        )
+    document.add_heading(
+        _job_ad_export_copy("target_group", language=language),
+        level=2,
+    )
     for item in job_ad.target_group:
         document.add_paragraph(item, style="List Bullet")
-    document.add_heading("AGG-Checkliste", level=2)
+    document.add_heading(
+        _job_ad_export_copy("agg_checklist", language=language),
+        level=2,
+    )
     for item in job_ad.agg_checklist:
         document.add_paragraph(item, style="List Bullet")
     bio = io.BytesIO()
@@ -224,6 +256,7 @@ def job_ad_to_pdf_bytes(
     styleguide: str = "",
     *,
     logo_payload: LogoPayload | None = None,
+    language: str | None = None,
 ) -> bytes | None:
     _ = styleguide
     try:
@@ -250,7 +283,7 @@ def job_ad_to_pdf_bytes(
         rightMargin=2 * cm,
         topMargin=2 * cm,
         bottomMargin=2 * cm,
-        title=job_ad.headline or "Stellenanzeige",
+        title=job_ad.headline or _job_ad_export_copy("title", language=language),
         author="anonymous",
     )
     styles = getSampleStyleSheet()
@@ -295,16 +328,15 @@ def job_ad_to_pdf_bytes(
             )
         )
 
-    _append_heading(job_ad.headline or "Stellenanzeige", "Title")
+    _append_heading(
+        job_ad.headline or _job_ad_export_copy("title", language=language),
+        "Title",
+    )
     if has_structured_job_ad_sections(job_ad):
         if job_ad.intro.strip():
             story.append(_paragraph(job_ad.intro.strip()))
             story.append(Spacer(1, 0.25 * cm))
-        for heading, items in (
-            ("Deine Aufgaben", job_ad.responsibilities),
-            ("Dein Profil", job_ad.profile),
-            ("Was wir bieten", job_ad.offer),
-        ):
+        for heading, items in _structured_sections(job_ad, language=language):
             clean_items = dedupe_preserve_order(items)
             if not clean_items:
                 continue
@@ -316,14 +348,16 @@ def job_ad_to_pdf_bytes(
                 story.append(_paragraph(value.strip()))
                 story.append(Spacer(1, 0.2 * cm))
     else:
-        for paragraph in build_publishable_job_ad_plain_text(job_ad).split("\n\n"):
+        for paragraph in build_publishable_job_ad_plain_text(
+            job_ad, language=language
+        ).split("\n\n"):
             if paragraph.strip():
                 story.append(_paragraph(paragraph.strip()))
                 story.append(Spacer(1, 0.2 * cm))
 
-    _append_heading("Zielgruppe")
+    _append_heading(_job_ad_export_copy("target_group", language=language))
     _append_bullets(job_ad.target_group)
-    _append_heading("AGG-Checkliste")
+    _append_heading(_job_ad_export_copy("agg_checklist", language=language))
     _append_bullets(job_ad.agg_checklist)
     document.build(story)
     return bio.getvalue()
@@ -349,9 +383,10 @@ def job_ad_preview_html(
     job_ad: JobAdGenerationResult,
     *,
     logo_payload: LogoPayload | None,
+    language: str | None = None,
 ) -> str:
     return markdown_article_preview_html(
-        build_publishable_job_ad_markdown(job_ad),
+        build_publishable_job_ad_markdown(job_ad, language=language),
         logo_payload=logo_payload,
     )
 

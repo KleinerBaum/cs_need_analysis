@@ -972,6 +972,7 @@ def _job_ad_to_docx_bytes(
     styleguide: str = "",
     *,
     logo_payload: LogoPayload | None = None,
+    language: str | None = None,
 ) -> bytes:
     if logo_payload is None:
         logo_payload = _read_logo_payload()
@@ -979,6 +980,7 @@ def _job_ad_to_docx_bytes(
         job_ad,
         styleguide=styleguide,
         logo_payload=logo_payload,
+        language=language,
     )
 
 
@@ -987,6 +989,7 @@ def _job_ad_to_pdf_bytes(
     styleguide: str = "",
     *,
     logo_payload: LogoPayload | None = None,
+    language: str | None = None,
 ) -> bytes | None:
     if logo_payload is None:
         logo_payload = _read_logo_payload()
@@ -994,6 +997,7 @@ def _job_ad_to_pdf_bytes(
         job_ad,
         styleguide=styleguide,
         logo_payload=logo_payload,
+        language=language,
     )
 
 
@@ -1583,5 +1587,10 @@ def _job_ad_preview_html(
     job_ad: JobAdGenerationResult,
     *,
     logo_payload: LogoPayload | None,
+    language: str | None = None,
 ) -> str:
-    return _job_ad_preview_html_impl(job_ad, logo_payload=logo_payload)
+    return _job_ad_preview_html_impl(
+        job_ad,
+        logo_payload=logo_payload,
+        language=language,
+    )

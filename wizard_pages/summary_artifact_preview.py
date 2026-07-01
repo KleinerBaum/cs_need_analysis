@@ -19,6 +19,7 @@ from summary_job_ad import (
     build_publishable_job_ad_markdown,
     dedupe_preserve_order,
 )
+from ux_copy_contract import summary_export_copy
 from wizard_pages.summary_exporters import (
     _job_ad_logo_payload,
     _job_ad_preview_html,
@@ -65,6 +66,7 @@ def render_job_ad_artifact(
     job_ad_to_pdf_bytes_fn: Callable[..., bytes | None] = _job_ad_to_pdf_bytes,
     final_export_available: bool = True,
     final_export_pause_renderer: Callable[[], None] | None = None,
+    language: str | None = None,
 ) -> None:
     custom_job_ad = JobAdGenerationResult.model_validate(
         {
@@ -82,7 +84,11 @@ def render_job_ad_artifact(
             ),
         }
     )
-    publishable_markdown = build_publishable_job_ad_markdown(custom_job_ad)
+    export_title = summary_export_copy("job_ad_title", language=language)
+    publishable_markdown = build_publishable_job_ad_markdown(
+        custom_job_ad,
+        language=language,
+    )
     logo_payload = _job_ad_logo_payload(custom_job_ad_raw)
     preview_options_raw = custom_job_ad_raw.get("preview_options")
     preview_options = (
@@ -90,15 +96,19 @@ def render_job_ad_artifact(
     )
     shell_options = _job_ad_preview_shell_options(preview_options)
     render_output_header_fn(
-        custom_job_ad.headline or "Stellenanzeige",
+        custom_job_ad.headline or export_title,
         "Generierte Stellenanzeige mit Zielgruppen- und AGG-Hinweisen.",
     )
     render_card_start_fn("cs-card cs-result-card")
     streamlit_module.markdown("### Ergebnis")
     render_static_html(
         document_preview_shell(
-            _job_ad_preview_html(custom_job_ad, logo_payload=logo_payload),
-            title="Stellenanzeige",
+            _job_ad_preview_html(
+                custom_job_ad,
+                logo_payload=logo_payload,
+                language=language,
+            ),
+            title=export_title,
             fit_pages=True,
             **shell_options,
         ),
@@ -144,8 +154,16 @@ def render_job_ad_artifact(
             streamlit_module.caption("Finalexport pausiert.")
         render_static_html("</section>", streamlit_module=streamlit_module)
         return
-    custom_docx = job_ad_to_docx_bytes_fn(custom_job_ad, logo_payload=logo_payload)
-    custom_pdf = job_ad_to_pdf_bytes_fn(custom_job_ad, logo_payload=logo_payload)
+    custom_docx = job_ad_to_docx_bytes_fn(
+        custom_job_ad,
+        logo_payload=logo_payload,
+        language=language,
+    )
+    custom_pdf = job_ad_to_pdf_bytes_fn(
+        custom_job_ad,
+        logo_payload=logo_payload,
+        language=language,
+    )
     custom_md = publishable_markdown.encode("utf-8")
     export_columns = streamlit_module.columns(2)
     with export_columns[0]:

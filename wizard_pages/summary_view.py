@@ -2968,6 +2968,7 @@ def _render_job_ad_artifact(
         job_ad_to_pdf_bytes_fn=_job_ad_to_pdf_bytes,
         final_export_available=final_export_available,
         final_export_pause_renderer=final_export_pause_renderer,
+        language=active_language(),
     )
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 from zipfile import ZipFile
 
+import docx
 import exporters.job_ad as job_ad_exporter
 import summary_job_ad
 from document_preview import markdown_article_preview_html
@@ -120,6 +121,31 @@ def test_publishable_job_ad_markdown_uses_structured_sections_without_raw_markdo
     assert "# " not in plain_text
 
 
+def test_publishable_job_ad_markdown_uses_language_specific_static_headings() -> None:
+    job_ad = JobAdGenerationResult(
+        headline="Senior Engineer",
+        target_group=[],
+        agg_checklist=[],
+        job_ad_text="Fallback",
+        intro="Gestalte Plattformen.",
+        responsibilities=["Baue Pipelines"],
+        profile=["Python"],
+        offer=["Mentoring"],
+    )
+
+    german_markdown = build_publishable_job_ad_markdown(job_ad, language="de")
+    english_markdown = build_publishable_job_ad_markdown(job_ad, language="en")
+
+    assert "## Deine Aufgaben\n\n- Baue Pipelines" in german_markdown
+    assert "## Dein Profil\n\n- Python" in german_markdown
+    assert "## Was wir bieten\n\n- Mentoring" in german_markdown
+    assert "## Your responsibilities\n\n- Baue Pipelines" in english_markdown
+    assert "## Your profile\n\n- Python" in english_markdown
+    assert "## What we offer\n\n- Mentoring" in english_markdown
+    assert "Gestalte Plattformen." in english_markdown
+    assert "Deine Aufgaben" not in english_markdown
+
+
 def test_job_ad_to_docx_bytes_exports_publishable_sections_without_styleguide() -> None:
     job_ad = JobAdGenerationResult(
         headline="Senior Engineer",
@@ -144,6 +170,62 @@ def test_job_ad_to_docx_bytes_exports_publishable_sections_without_styleguide() 
     assert "Senior Engineer" in document_xml
     assert "Baue Pipelines" in document_xml
     assert "Styleguide darf nicht exportiert werden" not in document_xml
+
+
+def test_job_ad_to_docx_bytes_uses_language_specific_static_headings() -> None:
+    job_ad = JobAdGenerationResult(
+        headline="Senior Engineer",
+        target_group=["Senior Professionals"],
+        agg_checklist=["AGG-konform formuliert."],
+        job_ad_text="Fallback",
+        intro="Gestalte Plattformen.",
+        responsibilities=["Baue Pipelines"],
+        profile=["Python"],
+        offer=["Mentoring"],
+    )
+
+    german_document = docx.Document(
+        io.BytesIO(job_ad_to_docx_bytes(job_ad, language="de"))
+    )
+    german_text = "\n".join(paragraph.text for paragraph in german_document.paragraphs)
+    english_document = docx.Document(
+        io.BytesIO(job_ad_to_docx_bytes(job_ad, language="en"))
+    )
+    english_text = "\n".join(
+        paragraph.text for paragraph in english_document.paragraphs
+    )
+
+    assert "Deine Aufgaben" in german_text
+    assert "Dein Profil" in german_text
+    assert "Was wir bieten" in german_text
+    assert "Zielgruppe" in german_text
+    assert "AGG-Checkliste" in german_text
+    assert "Your responsibilities" in english_text
+    assert "Your profile" in english_text
+    assert "What we offer" in english_text
+    assert "Target group" in english_text
+    assert "AGG checklist" in english_text
+    assert "Baue Pipelines" in english_text
+    assert "Deine Aufgaben" not in english_text
+
+
+def test_job_ad_to_docx_bytes_uses_language_specific_fallback_title() -> None:
+    job_ad = JobAdGenerationResult(
+        headline="",
+        target_group=[],
+        agg_checklist=[],
+        job_ad_text="Fallback",
+    )
+
+    german_document = docx.Document(
+        io.BytesIO(job_ad_to_docx_bytes(job_ad, language="de"))
+    )
+    english_document = docx.Document(
+        io.BytesIO(job_ad_to_docx_bytes(job_ad, language="en"))
+    )
+
+    assert german_document.paragraphs[0].text == "Stellenanzeige"
+    assert english_document.paragraphs[0].text == "Job ad"
 
 
 def test_markdown_article_preview_html_renders_publishable_job_ad_text() -> None:
