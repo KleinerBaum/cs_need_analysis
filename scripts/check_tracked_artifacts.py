@@ -18,6 +18,7 @@ ALLOWED_BINARY_PATTERNS = (
     "images/*.jpeg",
     "images/*.jpg",
     "images/*.png",
+    "static/theme-background-*.png",
 )
 
 KNOWN_TRACKED_REPORTS = {
@@ -27,6 +28,41 @@ KNOWN_TRACKED_REPORTS = {
     "reports/deep-research-report_21_06_2026.md",
     "reports/deep-research-report_22_06_2026.md:Zone.md",
 }
+
+GENERATED_LOCAL_ARTIFACT_PATTERNS = (
+    ".coverage",
+    ".coverage.*",
+    "*.diff",
+    "*.patch",
+    "*screenshot*.png",
+    "*visual-regression*.png",
+    "artifact-scan-report.*",
+    "cover/*",
+    "coverage.xml",
+    "coverage.json",
+    "gitleaks-report.*",
+    "htmlcov/*",
+    "iceberg_need_analysis_visual_patch.diff",
+    "latest_deep-research-report.md",
+    "lcov.info",
+    "openai-smoke*.json",
+    "playwright-report/*",
+    "reports/*",
+    "reports/coverage/*",
+    "reports/evals/*",
+    "reports/from-ci/*",
+    "reports/junit/*",
+    "reports/observability/*",
+    "reports/openai-smoke*.json",
+    "reports/visual-regression/*",
+    "screenshots/*",
+    "test-results/*",
+    "*/cover/*",
+    "*/htmlcov/*",
+    "*/playwright-report/*",
+    "*/screenshots/*",
+    "*/test-results/*",
+)
 
 GENERATED_PATH_PARTS = (
     "/.mypy_cache/",
@@ -56,11 +92,6 @@ GENERATED_NAME_PATTERNS = (
     "*.sqlite",
     "*.tmp",
     "*:Zone.*",
-    ".coverage",
-    ".coverage.*",
-    "coverage.xml",
-    "iceberg_need_analysis_visual_patch.diff",
-    "latest_deep-research-report.md",
     "nosetests.xml",
 )
 
@@ -150,8 +181,8 @@ def _finding_for(path: str) -> Finding | None:
     if any(part in normalized for part in GENERATED_PATH_PARTS):
         return Finding(path, "generated/cache path is tracked")
 
-    if path.startswith("reports/"):
-        return Finding(path, "generated report path is tracked")
+    if _matches_any(path, GENERATED_LOCAL_ARTIFACT_PATTERNS):
+        return Finding(path, "generated/local artifact is tracked")
 
     name = Path(path).name
     if _matches_any(name, GENERATED_NAME_PATTERNS):

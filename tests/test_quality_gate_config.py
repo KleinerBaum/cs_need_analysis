@@ -348,11 +348,33 @@ def test_ci_security_gdpr_runbook_covers_manual_platform_controls() -> None:
 def test_gitignore_excludes_local_scan_and_generated_report_outputs() -> None:
     gitignore = _read(".gitignore")
 
-    assert "reports/" in gitignore
-    assert "gitleaks-report.*" in gitignore
-    assert "artifact-scan-report.*" in gitignore
-    assert "latest_deep-research-report.md" in gitignore
-    assert "iceberg_need_analysis_visual_patch.diff" in gitignore
+    assert "reports/*" in gitignore
+    assert "!reports/README.md" in gitignore
+    generated_artifact_patterns = {
+        "reports/coverage/",
+        "reports/evals/",
+        "reports/from-ci/",
+        "reports/junit/",
+        "reports/observability/",
+        "reports/openai-smoke*.json",
+        "reports/visual-regression/",
+        "gitleaks-report.*",
+        "artifact-scan-report.*",
+        "coverage.json",
+        "lcov.info",
+        "openai-smoke*.json",
+        "latest_deep-research-report.md",
+        "iceberg_need_analysis_visual_patch.diff",
+        "*.diff",
+        "*.patch",
+        "playwright-report/",
+        "screenshots/",
+        "test-results/",
+        "*screenshot*.png",
+        "*visual-regression*.png",
+    }
+    for pattern in generated_artifact_patterns:
+        assert pattern in gitignore
     assert "*:Zone.*" in gitignore
     assert ".env.*" in gitignore
     assert "!.env.example" in gitignore
@@ -394,6 +416,17 @@ def test_repo_hygiene_guard_flags_forbidden_paths_without_static_asset_noise() -
             "data/salary_benchmarks/demo_de.csv",
             "reports/Key-Analyse-report.md",
             "reports/new-export.md",
+            "reports/openai-smoke.json",
+            "reports/coverage/unit-coverage.xml",
+            "reports/visual-regression/landing.png",
+            ".coverage",
+            "cover/index.html",
+            "coverage.json",
+            "lcov.info",
+            "openai-smoke.json",
+            "visual_patch.diff",
+            "review.patch",
+            "homepage-screenshot.png",
             "latest_deep-research-report.md",
             "iceberg_need_analysis_visual_patch.diff",
             "service/private.pem",
@@ -409,10 +442,21 @@ def test_repo_hygiene_guard_flags_forbidden_paths_without_static_asset_noise() -
         "app/__pycache__/module.cpython-311.pyc": "generated-python-cache",
         "client_secret.json": "secret-credential-file",
         "exports/vacancy_brief.docx": "generated-export-artifact",
-        "iceberg_need_analysis_visual_patch.diff": "generated-local-report",
-        "latest_deep-research-report.md": "generated-local-report",
-        "reports/new-export.md": "generated-local-report",
+        ".coverage": "generated-local-artifact",
+        "cover/index.html": "generated-local-artifact",
+        "coverage.json": "generated-local-artifact",
+        "homepage-screenshot.png": "generated-local-artifact",
+        "iceberg_need_analysis_visual_patch.diff": "generated-local-artifact",
+        "latest_deep-research-report.md": "generated-local-artifact",
+        "lcov.info": "generated-local-artifact",
+        "openai-smoke.json": "generated-local-artifact",
+        "reports/coverage/unit-coverage.xml": "generated-local-artifact",
+        "reports/new-export.md": "generated-local-artifact",
+        "reports/openai-smoke.json": "generated-local-artifact",
+        "reports/visual-regression/landing.png": "generated-local-artifact",
+        "review.patch": "generated-local-artifact",
         "service/private.pem": "secret-key-material",
+        "visual_patch.diff": "generated-local-artifact",
     }
 
 
@@ -423,8 +467,88 @@ def test_artifact_guards_ignore_paths_deleted_in_worktree() -> None:
     assert check_tracked_artifacts._finding_for(missing_path) is None
 
 
+def test_artifact_guards_share_git_prerequisite_messages() -> None:
+    assert (
+        check_repo_hygiene.NO_GIT_CHECKOUT_MESSAGE
+        == check_tracked_artifacts.NO_GIT_CHECKOUT_MESSAGE
+    )
+    assert (
+        check_repo_hygiene.NO_GIT_EXECUTABLE_MESSAGE
+        == check_tracked_artifacts.NO_GIT_EXECUTABLE_MESSAGE
+    )
+
+
 def test_tracked_artifact_scan_allows_report_archive_index() -> None:
     assert "reports/README.md" in check_tracked_artifacts.KNOWN_TRACKED_REPORTS
+    assert "reports/README.md" in check_repo_hygiene.ALLOWED_TRACKED_REPORTS
+    assert "reports/README.md" in _read("README.md")
+
+    assert (
+        check_repo_hygiene.finding_for_path(
+            "reports/README.md",
+            require_existing=False,
+        )
+        is None
+    )
+    assert check_tracked_artifacts._finding_for("reports/README.md") is None
+
+
+def test_tracked_artifact_scan_allows_intentional_static_theme_images() -> None:
+    assert (
+        check_tracked_artifacts._finding_for("static/theme-background-light.png")
+        is None
+    )
+    assert (
+        check_tracked_artifacts._finding_for("static/theme-background-dark.png")
+        is None
+    )
+
+
+def test_tracked_artifact_scan_reports_common_generated_local_artifacts(
+    monkeypatch, tmp_path
+) -> None:
+    forbidden_paths = [
+        "artifact-scan-report.json",
+        "gitleaks-report.json",
+        "coverage.xml",
+        "coverage.json",
+        ".coverage",
+        "cover/index.html",
+        "lcov.info",
+        "openai-smoke.json",
+        "reports/openai-smoke.json",
+        "reports/coverage/unit-coverage.xml",
+        "reports/junit/unit.xml",
+        "reports/evals/summary.json",
+        "reports/observability/deployment-events.jsonl",
+        "reports/visual-regression/landing.png",
+        "fix.patch",
+        "visual_patch.diff",
+        "homepage-screenshot.png",
+        "playwright-report/index.html",
+        "screenshots/landing.png",
+        "test-results/browser/error-context.md",
+    ]
+    for path in forbidden_paths:
+        artifact_path = tmp_path / path
+        artifact_path.parent.mkdir(parents=True, exist_ok=True)
+        artifact_path.write_text("generated artifact", encoding="utf-8")
+
+    monkeypatch.setattr(check_tracked_artifacts, "ROOT", tmp_path)
+
+    findings = {
+        path: check_tracked_artifacts._finding_for(path) for path in forbidden_paths
+    }
+
+    assert all(finding is not None for finding in findings.values())
+    assert findings["reports/openai-smoke.json"] == check_tracked_artifacts.Finding(
+        "reports/openai-smoke.json",
+        "generated/local artifact is tracked",
+    )
+    assert findings["visual_patch.diff"] == check_tracked_artifacts.Finding(
+        "visual_patch.diff",
+        "generated/local artifact is tracked",
+    )
 
 
 def test_tracked_artifact_scan_reports_findings_in_git_checkout(

@@ -24,6 +24,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from scripts.check_tracked_artifacts import (  # noqa: E402
+    GENERATED_LOCAL_ARTIFACT_PATTERNS,
+    KNOWN_TRACKED_REPORTS as ALLOWED_TRACKED_REPORTS,
+)
 from constants import (  # noqa: E402
     STEP_KEY_BENEFITS,
     STEP_KEY_COMPANY,
@@ -44,14 +48,6 @@ from ux_copy_contract import (  # noqa: E402
     TRUST_GRAMMAR_COPY,
     _COPY as WIZARD_COPY_CONTRACT,
 )
-
-ALLOWED_TRACKED_REPORTS = {
-    "reports/README.md",
-    "reports/Aktualisierter Implementierungsreport f\u00fcr den dynamischen Intake-Wizard.md",
-    "reports/Key-Analyse-report.md",
-    "reports/deep-research-report_21_06_2026.md",
-    "reports/deep-research-report_22_06_2026.md:Zone.md",
-}
 
 ALLOWED_EXAMPLE_SECRET_PATTERNS = (
     ".env.example",
@@ -141,14 +137,8 @@ FORBIDDEN_PATH_RULES = (
         ),
     ),
     (
-        "generated-local-report",
-        (
-            "artifact-scan-report.*",
-            "gitleaks-report.*",
-            "iceberg_need_analysis_visual_patch.diff",
-            "latest_deep-research-report.md",
-            "reports/*",
-        ),
+        "generated-local-artifact",
+        GENERATED_LOCAL_ARTIFACT_PATTERNS,
     ),
     (
         "generated-export-artifact",

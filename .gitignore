@@ -54,10 +54,27 @@ cover/
 # Local QA/security reports and generated analysis outputs
 reports/*
 !reports/README.md
+reports/coverage/
+reports/evals/
+reports/from-ci/
+reports/junit/
+reports/observability/
+reports/openai-smoke*.json
+reports/visual-regression/
 gitleaks-report.*
 artifact-scan-report.*
+coverage.json
+lcov.info
+openai-smoke*.json
 latest_deep-research-report.md
 iceberg_need_analysis_visual_patch.diff
+*.diff
+*.patch
+playwright-report/
+screenshots/
+test-results/
+*screenshot*.png
+*visual-regression*.png
 *:Zone.*
 
 # Translations
