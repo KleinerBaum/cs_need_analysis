@@ -554,6 +554,8 @@ def test_ci_wires_visual_regression_and_deployed_smoke_jobs() -> None:
     assert "deployed_smoke:" in workflow
     assert "continue-on-error: true" not in deployed_job
     assert 'CS_RUN_DEPLOYED_SMOKE: "1"' in deployed_job
+    assert 'CS_REQUIRE_DEPLOYED_BASE_URL: "1"' in deployed_job
+    assert "CS_DEPLOYED_BASE_URL: ${{ vars.CS_DEPLOYED_BASE_URL }}" in deployed_job
     assert "tests/e2e/test_deployed_smoke.py" in deployed_job
     assert "--junitxml=reports/junit/deployed-smoke.xml" in deployed_job
     assert "ci-deployed-smoke-junit" in deployed_job
