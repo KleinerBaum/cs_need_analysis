@@ -1,7 +1,8 @@
 """Deterministic app-shell performance budget smoke checks.
 
 This avoids timing assertions. It checks the static asset contract that drives
-the Streamlit app shell and fails when large PNG payloads are moved inline.
+the Streamlit app shell and fails when oversized background payloads return or
+large PNG payloads are moved inline.
 """
 
 from __future__ import annotations
@@ -33,6 +34,8 @@ THEME_BACKGROUND_CONSTANT_NAMES = (
     "WIZARD_DARK_BACKGROUND_PATH",
 )
 INLINE_PNG_BYTE_BUDGET = 32 * 1024
+# Half of the former 3,021,442-byte app-shell background payload.
+THEME_BACKGROUND_TOTAL_BYTE_BUDGET = 1_510_721
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 DATA_URI_PNG_PATTERN = re.compile(
     r"data:image/png;base64,(?P<payload>[A-Za-z0-9+/=\s]+)"
@@ -269,6 +272,10 @@ def fetch_static_asset(
     return StaticAssetFetch(url=current_url, content_type=content_type)
 
 
+def _theme_background_total_bytes(assets: tuple[ThemeBackgroundAsset, ...]) -> int:
+    return sum(asset.byte_size for asset in assets)
+
+
 def _print_asset_report(assets: tuple[ThemeBackgroundAsset, ...]) -> None:
     print("Theme background static assets:")
     for asset in assets:
@@ -276,8 +283,11 @@ def _print_asset_report(assets: tuple[ThemeBackgroundAsset, ...]) -> None:
             f"- {_relative_path(asset.path)}: {asset.byte_size} bytes "
             f"({asset.url_path})"
         )
-    total_bytes = sum(asset.byte_size for asset in assets)
-    print(f"Total theme background bytes: {total_bytes}")
+    total_bytes = _theme_background_total_bytes(assets)
+    print(
+        "Total theme background bytes: "
+        f"{total_bytes} (budget: {THEME_BACKGROUND_TOTAL_BYTE_BUDGET})"
+    )
 
 
 def run(base_url: str | None = None) -> int:
@@ -290,6 +300,13 @@ def run(base_url: str | None = None) -> int:
         return 1
 
     _print_asset_report(assets)
+    total_background_bytes = _theme_background_total_bytes(assets)
+    if total_background_bytes > THEME_BACKGROUND_TOTAL_BYTE_BUDGET:
+        errors.append(
+            "Theme background static assets exceed "
+            f"{THEME_BACKGROUND_TOTAL_BYTE_BUDGET} bytes "
+            f"({total_background_bytes} bytes)"
+        )
 
     findings = find_large_inline_pngs()
     if findings:

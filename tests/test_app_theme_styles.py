@@ -43,6 +43,8 @@ def test_app_shell_css_asset_is_externalized() -> None:
     assert "@media (max-width: 900px)" in css
     assert "data:image" not in css
     assert "images/" not in css
+    assert "url(images/" not in css
+    assert 'url("images/' not in css
 
 
 def test_build_app_shell_css_uses_streamlit_theme_root() -> None:
@@ -82,6 +84,9 @@ def test_build_app_shell_css_uses_streamlit_theme_root() -> None:
     assert "__CS_STEP_BACKGROUND_DARK_URL__" not in css
     assert "data:image" not in css
     assert "images/" not in css
+    assert "url(theme-background" not in css
+    assert "/app/static/theme-background-light.png" in css
+    assert "/app/static/theme-background-dark.png" in css
 
 
 def test_build_app_shell_css_escapes_raw_style_terminators(monkeypatch) -> None:
