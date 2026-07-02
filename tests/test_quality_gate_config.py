@@ -264,7 +264,7 @@ def test_ci_contains_blocking_qa_and_security_jobs() -> None:
     assert 'GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"' in workflow
     assert 'GITLEAKS_ENABLE_SUMMARY: "false"' in workflow
     assert "actions/dependency-review-action@v4" in workflow
-    assert "fail-on-severity: moderate" in dependency_review_step
+    assert "fail-on-severity: high" in dependency_review_step
     assert (
         "python -m bandit -c pyproject.toml -r . --severity-level medium "
         "--confidence-level medium"
@@ -781,6 +781,7 @@ def test_codeql_workflow_scans_python_with_security_quality_queries() -> None:
 
 def test_quality_gate_baseline_documents_deferred_expansions() -> None:
     baseline = _read("docs/quality_gate_baseline.md")
+    readme = _read("README.md")
 
     assert "Ruff" in baseline
     assert "F541" in baseline
@@ -788,7 +789,13 @@ def test_quality_gate_baseline_documents_deferred_expansions() -> None:
     assert "llm_client.py" in baseline
     assert "state.py" in baseline
     assert "Bandit is blocking for Medium/High" in baseline
+    assert "high-or-critical vulnerable dependencies" in baseline
     assert "pip-audit" in baseline
     assert "CodeQL" in baseline
+    assert "flaky outside the deterministic AppTest layer" in baseline
     assert "https://recruitment-need-analysis.streamlit.app/" in baseline
     assert "CS_RUN_DEPLOYED_SMOKE" in baseline
+    assert "Dependency Review high/critical" in readme
+    assert "strict pip-audit" in readme
+    assert "tracked-artifact drift" in readme
+    assert "flaky outside the deterministic AppTest layer" in readme

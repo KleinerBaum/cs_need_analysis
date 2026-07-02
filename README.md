@@ -668,10 +668,10 @@ and LLM error mapping group, mypy checks the same selected modules in
 permissive baseline mode, Pyright checks the same selected allowlist in basic
 mode, and the path-only repo hygiene guard blocks committed local secrets,
 credentials, caches, and generated exports without reading file contents. CI
-security scans are blocking for Gitleaks, Dependency Review moderate+
-vulnerabilities, Bandit Medium/High findings, pip-audit, and tracked-artifact
-drift. Tool configuration lives in `pyproject.toml`; the development dependency
-surface lives in `requirements-dev.txt`.
+security scans are blocking for Gitleaks, Dependency Review high/critical newly
+introduced vulnerabilities, Bandit Medium/High findings, strict pip-audit, and
+tracked-artifact drift. Tool configuration lives in `pyproject.toml`; the
+development dependency surface lives in `requirements-dev.txt`.
 
 ```bash
 python scripts/check_repo_hygiene.py
@@ -687,7 +687,8 @@ python scripts/check_tracked_artifacts.py
 The repo hygiene guard scans tracked file paths only and reports only paths and
 rule names. Gitleaks is installed separately for local use; CI uses the official
 Gitleaks Action. Dependency Review blocks pull requests that introduce
-moderate-or-higher vulnerable dependencies. The artifact drift scan reports only
+high-or-critical vulnerable dependencies. pip-audit remains a strict installed
+dependency scan for the locked environment. The artifact drift scan reports only
 paths and reasons, not file contents.
 
 Follow-up hardening should expand Ruff rules only with in-scope fixes, expand
@@ -753,12 +754,15 @@ Current job IDs are `qa`, `contract`, `unit`, `apptest`,
 6. `browser_smoke`: advisory Playwright Streamlit smoke tests with JUnit upload
 7. `visual_regression`: advisory Playwright screenshot capture for central wizard screens
 8. `deployed_smoke`: deployed landing-page smoke test against <https://recruitment-need-analysis.streamlit.app/>
-9. `security`: blocking Gitleaks, Dependency Review moderate+, Bandit Medium/High, pip-audit, and tracked-artifact drift scans
+9. `security`: blocking Gitleaks, Dependency Review high/critical, Bandit Medium/High, strict pip-audit, and tracked-artifact drift scans
 
 The Playwright smoke job runs advisory on pull requests and pushes. It is also
 available through manual workflow dispatch with `run_e2e=true` as job ID
 `browser_smoke`. It installs `requirements-e2e.txt`, installs Chromium, and runs
 `CS_RUN_E2E=1 python -m pytest -q tests/e2e --junitxml=reports/junit/browser-smoke.xml`.
+It stays advisory because host browser dependencies and rendering timing can be
+flaky outside the deterministic AppTest layer; visual screenshots are advisory
+for the same reason until pixel baselines and update rules are accepted.
 
 `.github/workflows/codeql.yml` runs CodeQL Python analysis with
 `security-and-quality` queries on pull requests, pushes to `main`, a weekly

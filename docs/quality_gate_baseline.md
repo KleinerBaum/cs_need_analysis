@@ -9,12 +9,12 @@ This baseline documents the staged CI hardening path for the repository. It keep
 - mypy and Pyright cover the existing helper baseline plus clean Salary and ESCO core modules.
 - Bandit is blocking for Medium/High findings after triage of current non-security SHA1 identifiers and XML parsing.
 - Gitleaks is blocking in CI; repository hygiene still guards tracked local secret/artifact paths.
-- Dependency Review blocks pull requests that introduce moderate-or-higher vulnerable dependencies.
-- pip-audit runs as a blocking dependency vulnerability scan.
+- Dependency Review blocks pull requests that introduce high-or-critical vulnerable dependencies.
+- pip-audit runs as a strict blocking installed dependency vulnerability scan.
 - Tracked artifact drift is blocking in CI and reports only paths and reasons.
 - CodeQL runs in a dedicated workflow for Python with `security-and-quality` queries.
 - Unit tests publish JUnit and coverage XML, with a minimum coverage threshold of 35%.
-- Playwright captures advisory screenshots for central wizard screens.
+- Playwright browser and screenshot checks remain advisory because host browser dependencies and rendering timing can be flaky outside the deterministic AppTest layer.
 - Deployed smoke runs against the canonical public URL, `https://recruitment-need-analysis.streamlit.app/`, when `CS_RUN_DEPLOYED_SMOKE=1` is set.
 
 ## Deferred baseline expansions
