@@ -276,6 +276,8 @@ def test_ci_contains_blocking_qa_and_security_jobs() -> None:
 
 def test_ci_wires_contract_unit_and_apptest_layers() -> None:
     workflow = _read(".github/workflows/ci.yml")
+    apptest_smoke = _read("tests/apptest/test_streamlit_app_smoke.py")
+    readme = _read("README.md")
     contract_job = workflow.split("  contract:", 1)[1].split("  unit:", 1)[0]
     unit_job = workflow.split("  unit:", 1)[1].split("  apptest:", 1)[0]
     apptest_job = workflow.split("  apptest:", 1)[1].split(
@@ -305,6 +307,11 @@ def test_ci_wires_contract_unit_and_apptest_layers() -> None:
     assert "reports/coverage/unit-coverage.xml" in unit_job
     assert "python -m pytest -q tests/apptest" in apptest_job
     assert "--junitxml=reports/junit/apptest.xml" in apptest_job
+    assert "seed_summary_artifact_smoke_state" in apptest_smoke
+    assert "SYNTHETIC_JOB_TITLE" in apptest_smoke
+    assert (
+        "seeded Summary entry without OpenAI or external website calls" in readme
+    )
 
 
 def test_ci_has_oidc_ready_deployment_observability_job() -> None:
@@ -691,6 +698,7 @@ def test_active_terminology_guard_flags_visible_residual_copy(monkeypatch) -> No
 def test_ci_wires_advisory_browser_smoke_job() -> None:
     workflow = _read(".github/workflows/ci.yml")
     browser_job = workflow.split("  browser_smoke:", 1)[1].split("  security:", 1)[0]
+    local_smoke_test = _read("tests/e2e/test_streamlit_wizard_smoke.py")
 
     assert "run_e2e:" in workflow
     assert "browser_smoke:" in workflow
@@ -707,6 +715,10 @@ def test_ci_wires_advisory_browser_smoke_job() -> None:
     )
     assert "actions/upload-artifact@v4" in browser_job
     assert "ci-browser-smoke-junit" in browser_job
+    assert "Set CS_RUN_E2E=1" in local_smoke_test
+    assert "Missing Streamlit dependency" in local_smoke_test
+    assert "Missing Playwright dependency" in local_smoke_test
+    assert "Chromium browser is not installed" in local_smoke_test
 
 
 def test_ci_wires_visual_regression_and_deployed_smoke_jobs() -> None:
@@ -743,6 +755,9 @@ def test_ci_wires_visual_regression_and_deployed_smoke_jobs() -> None:
         'CANONICAL_PUBLIC_URL = "https://recruitment-need-analysis.streamlit.app/"'
         in deployed_smoke_test
     )
+    assert "Set CS_RUN_DEPLOYED_SMOKE=1" in deployed_smoke_test
+    assert "Missing Playwright dependency" in deployed_smoke_test
+    assert "Chromium browser is not installed" in deployed_smoke_test
     for env_name in removed_base_url_env_names:
         assert env_name not in deployed_smoke_test
 

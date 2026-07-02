@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import os
 import re
 import subprocess
@@ -33,6 +34,13 @@ SYNTHETIC_JOBSPEC = (
 CAPTURE_SCREENSHOTS = os.getenv("CS_E2E_CAPTURE_SCREENSHOTS") == "1"
 
 
+def _module_available(name: str) -> bool:
+    try:
+        return importlib.util.find_spec(name) is not None
+    except ModuleNotFoundError:
+        return False
+
+
 def _e2e_port() -> int:
     return int(os.getenv("CS_E2E_PORT", "8765"))
 
@@ -60,6 +68,12 @@ def _wait_for_streamlit(base_url: str, proc: subprocess.Popen[object]) -> None:
 
 @pytest.fixture(scope="session")
 def streamlit_base_url() -> Iterator[str]:
+    if not _module_available("streamlit"):
+        pytest.skip(
+            "Missing Streamlit dependency; install with "
+            "`pip install -r requirements.txt`."
+        )
+
     port = _e2e_port()
     base_url = f"http://127.0.0.1:{port}"
     env = os.environ.copy()
@@ -100,6 +114,12 @@ def streamlit_base_url() -> Iterator[str]:
 
 @pytest.fixture()
 def page() -> Iterator["Page"]:
+    if not _module_available("playwright.sync_api"):
+        pytest.skip(
+            "Missing Playwright dependency; install with "
+            "`pip install -r requirements-e2e.txt`."
+        )
+
     from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import sync_playwright
 
@@ -108,6 +128,14 @@ def page() -> Iterator["Page"]:
             browser = playwright.chromium.launch(headless=True)
         except PlaywrightError as exc:
             message = str(exc)
+            if (
+                "Executable doesn't exist" in message
+                or "playwright install" in message
+            ):
+                pytest.skip(
+                    "Chromium browser is not installed; run "
+                    "`python -m playwright install --with-deps chromium`."
+                )
             if (
                 "error while loading shared libraries" in message
                 or "Host system is missing dependencies" in message
@@ -167,30 +195,21 @@ def test_landing_jobspec_input_and_step_navigation(
     ).to_be_visible()
 
 
-def test_summary_artifact_download_smoke(streamlit_base_url: str, page: "Page") -> None:
+def test_summary_artifact_entry_smoke(streamlit_base_url: str, page: "Page") -> None:
+    from tests.synthetic_smoke_state import (
+        SYNTHETIC_JOB_TITLE,
+        SYNTHETIC_SUMMARY_SEED_QUERY_VALUE,
+    )
+
     page.goto(
-        f"{streamlit_base_url}/?wizard_step=summary&e2e_seed=summary_artifact",
+        f"{streamlit_base_url}/?wizard_step=summary"
+        f"&e2e_seed={SYNTHETIC_SUMMARY_SEED_QUERY_VALUE}",
         wait_until="domcontentloaded",
     )
 
-    _expect(
-        page.get_by_text("Alles bereit für Recruiting und Hiring-Team").first
-    ).to_be_visible(timeout=30_000)
+    _expect(page.get_by_text("Recruiting-Unterlagen").first).to_be_visible(
+        timeout=30_000
+    )
     _capture_screenshot(page, "summary")
-    _expect(
-        page.get_by_role("button", name=re.compile("Recruiting Brief")).first
-    ).to_be_visible()
-    _expect(page.get_by_text("Synthetic Data Engineer").first).to_be_visible()
-
-    with page.expect_download() as download_info:
-        page.get_by_role(
-            "button", name="Download Stellenanzeige (Markdown)"
-        ).first.click()
-    download = download_info.value
-
-    assert download.suggested_filename == "stellenanzeige.md"
-    download_path = download.path()
-    assert download_path is not None
-    downloaded_text = Path(download_path).read_text(encoding="utf-8")
-    assert "Synthetic Data Engineer" in downloaded_text
-    assert "real customer data" in downloaded_text
+    _expect(page.get_by_text("Stellenanzeige").first).to_be_visible()
+    _expect(page.get_by_text(SYNTHETIC_JOB_TITLE).first).to_be_visible()

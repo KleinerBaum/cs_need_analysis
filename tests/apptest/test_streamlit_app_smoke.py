@@ -13,6 +13,10 @@ from constants import (
     STEP_KEY_SUMMARY,
     WIZARD_STEP_QUERY_PARAM,
 )
+from tests.synthetic_smoke_state import (
+    SYNTHETIC_JOB_TITLE,
+    seed_summary_artifact_smoke_state,
+)
 
 
 pytestmark = pytest.mark.apptest
@@ -130,7 +134,7 @@ def test_candidate_audience_mode_is_not_selectable_on_landing() -> None:
     assert "Kandidat:in" not in rendered_text
 
 
-def test_operational_wizard_path_reaches_summary_guard_via_sidebar() -> None:
+def test_operational_wizard_path_reaches_seeded_summary_via_sidebar() -> None:
     app_test = _run_app()
     _assert_no_streamlit_exceptions(app_test)
 
@@ -151,10 +155,17 @@ def test_operational_wizard_path_reaches_summary_guard_via_sidebar() -> None:
     assert process_radio.options[0].endswith("Start")
     assert process_radio.options[-1].endswith("Zusammenfassung")
 
+    seed_summary_artifact_smoke_state(
+        app_test.session_state,
+        last_mode="apptest_seed",
+    )
     process_radio.set_value(STEP_KEY_SUMMARY).run(timeout=45)
     _assert_no_streamlit_exceptions(app_test)
     assert app_test.session_state[SSKey.CURRENT_STEP.value] == STEP_KEY_SUMMARY
 
     rendered_text = _rendered_text(app_test)
-    assert "Bitte zuerst im Start-Schritt eine Analyse durchführen" in rendered_text
-    assert "Zur Startseite" in rendered_text
+    assert "Bitte zuerst im Start-Schritt eine Analyse durchführen" not in rendered_text
+    assert "Recruiting-Unterlagen" in rendered_text
+    assert "Stellenanzeige" in rendered_text
+    assert "Ergebnis" in rendered_text
+    assert SYNTHETIC_JOB_TITLE in rendered_text

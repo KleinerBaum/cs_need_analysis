@@ -695,12 +695,26 @@ Follow-up hardening should expand Ruff rules only with in-scope fixes, expand
 Black coverage after an approved formatting-only change, grow the mypy and
 Pyright module allowlists together, and add Semgrep once findings are triaged.
 
+### Streamlit AppTest smoke tests
+
+The blocking app-shell smoke lives in `tests/apptest`. It runs the real
+`app.py` through `streamlit.testing.v1`, opens the intro and Start intake shell,
+checks sidebar/progress basics, then enters Summary with synthetic session state.
+The Summary seed uses only placeholder vacancy data, does not click generation
+actions, does not call OpenAI, and does not fetch external websites.
+
+```bash
+python -m pytest -q tests/apptest --junitxml=reports/junit/apptest.xml
+```
+
 ### Optional Playwright smoke tests
 
 Browser-near Streamlit smoke tests are opt-in and use only synthetic fixture data.
 Normal `pytest -q` runs skip them unless `CS_RUN_E2E=1` is set. The marker is
 registered in `pytest.ini`, and Playwright dependencies live in
-`requirements-e2e.txt`.
+`requirements-e2e.txt`. When enabled locally, missing dependencies skip with the
+specific missing setup step: `requirements.txt`, `requirements-e2e.txt`, or
+`python -m playwright install --with-deps chromium`.
 
 ```bash
 pip install -r requirements-e2e.txt
@@ -749,7 +763,7 @@ Current job IDs are `qa`, `contract`, `unit`, `apptest`,
 1. `qa`: blocking repo hygiene, Ruff, scoped Black, scoped mypy, and scoped Pyright gates with `requirements-dev.txt`
 2. `contract`: blocking fast repo/wizard/config contract tests with JUnit upload
 3. `unit`: blocking Python unit suite excluding AppTest and E2E tests, plus `pip check`, `compileall`, coverage XML/threshold, and OpenAI smoke dry-run report upload
-4. `apptest`: blocking Streamlit AppTest smoke tests through `streamlit.testing.v1`
+4. `apptest`: blocking Streamlit AppTest smoke tests through `streamlit.testing.v1`, covering intro/Start shell, sidebar/progress basics, and seeded Summary entry without OpenAI or external website calls
 5. `deployment_observability`: OIDC-ready deployment observability log emission
 6. `browser_smoke`: advisory Playwright Streamlit smoke tests with JUnit upload
 7. `visual_regression`: advisory Playwright screenshot capture for central wizard screens

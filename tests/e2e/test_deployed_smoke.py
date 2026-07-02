@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import os
 import re
 from collections.abc import Iterator
@@ -53,8 +54,21 @@ pytestmark = [
 ]
 
 
+def _module_available(name: str) -> bool:
+    try:
+        return importlib.util.find_spec(name) is not None
+    except ModuleNotFoundError:
+        return False
+
+
 @pytest.fixture()
 def page() -> Iterator["Page"]:
+    if not _module_available("playwright.sync_api"):
+        pytest.skip(
+            "Missing Playwright dependency; install with "
+            "`pip install -r requirements-e2e.txt`."
+        )
+
     from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import sync_playwright
 
@@ -63,6 +77,14 @@ def page() -> Iterator["Page"]:
             browser = playwright.chromium.launch(headless=True)
         except PlaywrightError as exc:
             message = str(exc)
+            if (
+                "Executable doesn't exist" in message
+                or "playwright install" in message
+            ):
+                pytest.skip(
+                    "Chromium browser is not installed; run "
+                    "`python -m playwright install --with-deps chromium`."
+                )
             if (
                 "error while loading shared libraries" in message
                 or "Host system is missing dependencies" in message
